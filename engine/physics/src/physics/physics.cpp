@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,7 +28,7 @@ namespace dmPhysics
      * Adds the overlap of an object to a specific entry.
      * Returns whether the overlap was added (might be out of space).
      */
-    static bool AddOverlap(OverlapEntry* entry, void* object, bool* out_found, const uint32_t trigger_overlap_capacity)
+    static bool AddOverlap(OverlapEntry* entry, uint64_t object, bool* out_found, const uint32_t trigger_overlap_capacity)
     {
         bool found = false;
         for (uint32_t i = 0; i < entry->m_OverlapCount; ++i)
@@ -63,7 +63,7 @@ namespace dmPhysics
     /**
      * Remove the overlap of an object from an entry.
      */
-    static void RemoveOverlap(OverlapEntry* entry, void* object)
+    static void RemoveOverlap(OverlapEntry* entry, uint64_t object)
     {
         uint32_t count = entry->m_OverlapCount;
         for (uint32_t i = 0; i < count; ++i)
@@ -82,7 +82,7 @@ namespace dmPhysics
      * Add the entry of two overlapping objects to the cache.
      * Automatically creates the overlap, but is not symmetric.
      */
-    static void AddEntry(OverlapCache* cache, void* object_a, void* user_data_a, void* object_b, uint16_t group_a)
+    static void AddEntry(OverlapCache* cache, uint64_t object_a, void* user_data_a, uint64_t object_b, uint16_t group_a)
     {
         // Check if the cache needs to be expanded
         uint32_t size = cache->m_OverlapCache.Size();
@@ -101,7 +101,7 @@ namespace dmPhysics
         // Add overlap to the entry
         AddOverlap(&entry, object_b, 0x0, cache->m_TriggerOverlapCapacity);
         // Add the entry
-        cache->m_OverlapCache.Put((uintptr_t)object_a, entry);
+        cache->m_OverlapCache.Put(object_a, entry);
     }
 
     void OverlapCacheInit(OverlapCache* cache)
@@ -112,7 +112,7 @@ namespace dmPhysics
     /**
      * Sets an overlap to have 0 count, used to iterate the hash table from reset.
      */
-    static void ResetOverlap(void* context, const uintptr_t* key, OverlapEntry* value)
+    static void ResetOverlap(void* context, const uint64_t* key, OverlapEntry* value)
     {
         uint32_t count = value->m_OverlapCount;
         for (uint32_t i = 0; i < count; ++i)
@@ -123,13 +123,13 @@ namespace dmPhysics
 
     void OverlapCacheReset(OverlapCache* cache)
     {
-        cache->m_OverlapCache.Iterate(ResetOverlap, (void*)0x0);
+        cache->m_OverlapCache.Iterate(ResetOverlap, (void*) 0x0);
     }
 
     void OverlapCacheAdd(OverlapCache* cache, const OverlapCacheAddData& data)
     {
         bool found = false;
-        OverlapEntry* entry_a = cache->m_OverlapCache.Get((uintptr_t)data.m_ObjectA);
+        OverlapEntry* entry_a = cache->m_OverlapCache.Get(data.m_ObjectA);
         if (entry_a != 0x0)
         {
             if (!AddOverlap(entry_a, data.m_ObjectB, &found, cache->m_TriggerOverlapCapacity))
@@ -138,7 +138,7 @@ namespace dmPhysics
                 return;
             }
         }
-        OverlapEntry* entry_b = cache->m_OverlapCache.Get((uintptr_t)data.m_ObjectB);
+        OverlapEntry* entry_b = cache->m_OverlapCache.Get(data.m_ObjectB);
         if (entry_b != 0x0)
         {
             if (!AddOverlap(entry_b, data.m_ObjectA, &found, cache->m_TriggerOverlapCapacity))
@@ -167,23 +167,35 @@ namespace dmPhysics
         }
     }
 
-    void OverlapCacheRemove(OverlapCache* cache, void* object)
+    void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object)
     {
-        OverlapEntry* entry = cache->m_OverlapCache.Get((uintptr_t)object);
+        OverlapEntry* entry = cache->m_OverlapCache.Get(object);
+        if (entry != 0x0)
+        {
+            for (int i = 0; i < entry->m_OverlapCount; ++i)
+            {
+                entry->m_Overlaps[i].m_Count--;
+            }
+        }
+    }
+
+    void OverlapCacheRemove(OverlapCache* cache, uint64_t object)
+    {
+        OverlapEntry* entry = cache->m_OverlapCache.Get(object);
         if (entry != 0x0)
         {
             // Remove back-references to the object from others
             for (uint32_t i = 0; i < entry->m_OverlapCount; ++i)
             {
                 Overlap& overlap = entry->m_Overlaps[i];
-                OverlapEntry* entry2 = cache->m_OverlapCache.Get((uintptr_t)overlap.m_Object);
+                OverlapEntry* entry2 = cache->m_OverlapCache.Get(overlap.m_Object);
                 if (entry2 != 0x0)
                 {
                     RemoveOverlap(entry2, object);
                 }
             }
             // Remove the object from the cache
-            cache->m_OverlapCache.Erase((uintptr_t)object);
+            cache->m_OverlapCache.Erase(object);
             free(entry->m_Overlaps);
         }
     }
@@ -201,12 +213,12 @@ namespace dmPhysics
     /**
      * Prunes an entry, used to iterate the cache when pruning.
      */
-    static void PruneOverlap(PruneContext* context, const uintptr_t* key, OverlapEntry* value)
+    static void PruneOverlap(PruneContext* context, const uint64_t* key, OverlapEntry* value)
     {
         TriggerExitedCallback callback = context->m_Callback;
         void* user_data = context->m_UserData;
         OverlapCache* cache = context->m_Cache;
-        void* object_a = (void*)*key;
+        uint64_t object_a = *key;
         uint32_t i = 0;
         // Iterate overlaps
         while (i < value->m_OverlapCount)
@@ -215,7 +227,7 @@ namespace dmPhysics
             // Condition to prune: no registered contacts
             if (overlap.m_Count == 0)
             {
-                OverlapEntry* entry = cache->m_OverlapCache.Get((uintptr_t)overlap.m_Object);
+                OverlapEntry* entry = cache->m_OverlapCache.Get(overlap.m_Object);
                 // Trigger exit callback
                 if (callback != 0x0)
                 {

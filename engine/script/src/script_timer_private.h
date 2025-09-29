@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,14 +35,9 @@ namespace dmScript
 
     typedef struct ScriptWorld* HScriptWorld;
 
-    void TimerNewScriptWorld(HScriptWorld script_world);
-    void TimerDeleteScriptWorld(HScriptWorld script_world);
-    void TimerUpdateScriptWorld(HScriptWorld script_world, float dt);
-
-    void TimerInitializeInstance(lua_State* L, HScriptWorld script_world);
-    void TimerFinalizeInstance(lua_State* L, HScriptWorld script_world);
-
     const HTimer INVALID_TIMER_HANDLE = 0xffffffffu;
+
+    const uint32_t MAX_TIMER_CAPACITY = 8000;  // Needs to be less that 65535 since 65535 is reserved for invalid index
 
     /**
      * Update the all the timers in the world. Any timers whose time is elapsed will be triggered

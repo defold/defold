@@ -19,6 +19,7 @@
  * @document
  * @name LuaSocket
  * @namespace socket
+ * @language Lua
  */
 
 
@@ -47,7 +48,7 @@
  *
  * @return sockets_r [type:table] a list with the sockets ready for reading.
  * @return sockets_w [type:table] a list with the sockets ready for writing.
- * @return error [type:string] an error message. "timeout" if a timeout condition was met, otherwise `nil`.
+ * @return error [type:string|nil] an error message. "timeout" if a timeout condition was met, otherwise `nil`.
  */
 
 
@@ -55,9 +56,27 @@
  *
  * This constant has a string describing the current LuaSocket version.
  *
- * @variable
+ * @constant
  * @name socket._VERSION
  *
+ */
+
+/*# TCP master object
+ * @typedef
+ * @name master
+ * @param value [type:userdata]
+ */
+
+/*# TCP client object
+ * @typedef
+ * @name client
+ * @param value [type:userdata]
+ */
+
+/*# unconnected UDP object
+ * @typedef
+ * @name unconnected
+ * @param value [type:userdata]
  */
 
 /*# creates a new IPv6 TCP master object
@@ -67,8 +86,8 @@
  * Note: The TCP object returned will have the option "ipv6-v6only" set to true.
  *
  * @name socket.tcp6
- * @return tcp_master [type:master] a new IPv6 TCP master object, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return tcp_master [type:master|nil] a new IPv6 TCP master object, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -76,7 +95,7 @@
  *
  * This constant contains the maximum number of sockets that the select function can handle.
  *
- * @variable
+ * @constant
  * @name socket._SETSIZE
  *
  */
@@ -88,8 +107,8 @@
  * Note: The UDP object returned will have the option "ipv6-v6only" set to true.
  *
  * @name socket.udp6
- * @return udp_unconnected [type:unconnected] a new unconnected IPv6 UDP object, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return udp_unconnected [type:unconnected|nil] a new unconnected IPv6 UDP object, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -100,7 +119,7 @@
  *
  * @name socket.dns.tohostname
  * @param address [type:string] an IPv4 address or host name.
- * @return hostname [type:string] the canonic host name of the given address, or `nil` in case of an error.
+ * @return hostname [type:string|nil] the canonic host name of the given address, or `nil` in case of an error.
  * @return resolved [type:table|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
  */
 
@@ -111,7 +130,7 @@
  *
  * @name socket.dns.toip
  * @param address [type:string] a hostname or an IP address.
- * @return ip_address [type:string] the first IP address found for the hostname, or `nil` in case of an error.
+ * @return ip_address [type:string|nil] the first IP address found for the hostname, or `nil` in case of an error.
  * @return resolved [type:table|string] a table with all information returned by the resolver, or if an error occurs, the error message string.
  *
  */
@@ -151,8 +170,8 @@
  *
  * @name socket.dns.getaddrinfo
  * @param address [type:string] a hostname or an IPv4 or IPv6 address.
- * @return resolved [type:table] a table with all information returned by the resolver, or if an error occurs, `nil`.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return resolved [type:table|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -173,8 +192,8 @@
  *
  * @name socket.dns.getnameinfo
  * @param address [type:string] a hostname or an IPv4 or IPv6 address.
- * @return resolved [type:table] a table with all information returned by the resolver, or if an error occurs, `nil`.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return resolved [type:table|nil] a table with all information returned by the resolver, or if an error occurs, `nil`.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -192,8 +211,8 @@
  * @param [locaddr] [type:string] optional local address to bind to.
  * @param [locport] [type:number] optional local port to bind to.
  * @param [family] [type:string] optional socket family to use, `"inet"` or `"inet6"`.
- * @return tcp_client [type:client] a new IPv6 TCP client object, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return tcp_client [type:client|nil] a new IPv6 TCP client object, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -202,8 +221,8 @@
  * Creates and returns an unconnected IPv4 UDP object. Unconnected objects support the `sendto`, `receive`, `receivefrom`, `getoption`, `getsockname`, `setoption`, `settimeout`, `setpeername`, `setsockname`, and `close` methods. The `setpeername` method is used to connect the object.
  *
  * @name socket.udp
- * @return udp_unconnected [type:unconnected] a new unconnected IPv4 UDP object, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return udp_unconnected [type:unconnected|nil] a new unconnected IPv4 UDP object, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -219,9 +238,9 @@
  * @param [ret1] [type:any] argument 1.
  * @param [ret2] [type:any] argument 2.
  * @param [retN] [type:any] argument N.
- * @return [retD+1] [type:any] argument D+1.
- * @return [retD+2] [type:any] argument D+2.
- * @return [retN] [type:any] argument N.
+ * @return retD+1 [type:any|nil] argument D+1.
+ * @return retD+2 [type:any|nil] argument D+2.
+ * @return retN [type:any|nil] argument N.
  * @examples
  *
  * Instead of doing the following with dummy variables:
@@ -243,8 +262,8 @@
  * Creates and returns an IPv4 TCP master object. A master object can be transformed into a server object with the method `listen` (after a call to `bind`) or into a client object with the method `connect`. The only other method supported by a master object is the `close` method.
  *
  * @name socket.tcp
- * @return tcp_master [type:master] a new IPv4 TCP master object, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return tcp_master [type:master|nil] a new IPv4 TCP master object, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -337,8 +356,8 @@
  * [icon:attention] Calling `socket.select` with a server object in the `recvt` parameter before a call to accept does not guarantee accept will return immediately. Use the `settimeout` method or accept might block until another client shows up.
  *
  * @name server:accept
- * @return tcp_client [type:client] if a connection is successfully initiated, a client object is returned, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred. The error is `"timeout"` if a timeout condition is met.
+ * @return tcp_client [type:client|nil] if a connection is successfully initiated, a client object is returned, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred. The error is `"timeout"` if a timeout condition is met.
  *
  */
 
@@ -349,8 +368,8 @@
  * @name master:bind
  * @param address [type:string] an IP address or a host name. If address is `"*"`, the system binds to all local interfaces using the `INADDR_ANY` constant.
  * @param port [type:number] the port to commect to, in the range [0..64K). If port is 0, the system automatically chooses an ephemeral port.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -393,8 +412,8 @@
  * @name master:connect
  * @param address [type:string] an IP address or a host name. If address is `"*"`, the system binds to all local interfaces using the `INADDR_ANY` constant.
  * @param port [type:number] the port to commect to, in the range [0..64K). If port is 0, the system automatically chooses an ephemeral port.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -469,8 +488,8 @@
  *
  * @name master:listen
  * @param backlog [type:number] the number of client connections that can be queued waiting for service. If the queue is full and another client attempts connection, the connection is refused.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -491,9 +510,9 @@
  * : causes the method to read a specified number of bytes from the socket.
  *
  * @param [prefix] [type:string] an optional string to be concatenated to the beginning of any received data before return.
- * @return data [type:string] the received pattern, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred. The error message can be the string `"closed"` in case the connection was closed before the transmission was completed or the string `"timeout"` in case there was a timeout during the operation.
- * @return partial [type:string] a (possibly empty) string containing the partial that was received, or `nil` if no error occurred.
+ * @return data [type:string|nil] the received pattern, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred. The error message can be the string `"closed"` in case the connection was closed before the transmission was completed or the string `"timeout"` in case there was a timeout during the operation.
+ * @return partial [type:string|nil] a (possibly empty) string containing the partial that was received, or `nil` if no error occurred.
  *
  */
 
@@ -508,9 +527,9 @@
  * @param data [type:string] the string to be sent.
  * @param [i] [type:number] optional starting index of the string.
  * @param [j] [type:number] optional end index of string.
- * @return index [type:number] the index of the last byte within [i, j] that has been sent, or `nil` in case of error. Notice that, if `i` is 1 or absent, this is effectively the total number of bytes sent.
- * @return error [type:string] the error message, or `nil` if no error occurred. The error message can be `"closed"` in case the connection was closed before the transmission was completed or the string `"timeout"` in case there was a timeout during the operation.
- * @return lastindex [type:number] in case of error, the index of the last byte within [i, j] that has been sent. You might want to try again from the byte following that. `nil` if no error occurred.
+ * @return index [type:number|nil] the index of the last byte within [i, j] that has been sent, or `nil` in case of error. Notice that, if `i` is 1 or absent, this is effectively the total number of bytes sent.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred. The error message can be `"closed"` in case the connection was closed before the transmission was completed or the string `"timeout"` in case there was a timeout during the operation.
+ * @return lastindex [type:number|nil] in case of error, the index of the last byte within [i, j] that has been sent. You might want to try again from the byte following that. `nil` if no error occurred.
  *
  */
 
@@ -542,8 +561,8 @@
  * : Setting this option to `true` restricts an inet6 socket to sending and receiving only IPv6 packets.
  *
  * @param [value] [type:any] the value to set for the specified option.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -575,8 +594,8 @@
  * : Setting this option to `true` restricts an inet6 socket to sending and receiving only IPv6 packets.
  *
  * @param [value] [type:any] the value to set for the specified option.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -592,8 +611,8 @@
  * - `"reuseaddr"`
  * - `"tcp-nodelay"`
  *
- * @return value [type:any] the option value, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return value [type:any|nil] the option value, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -609,8 +628,8 @@
  * - `"reuseaddr"`
  * - `"tcp-nodelay"`
  *
- * @return value [type:any] the option value, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return value [type:any|nil] the option value, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -622,7 +641,7 @@
  * @param received [type:number] the new number of bytes received.
  * @param sent [type:number] the new number of bytes sent.
  * @param age [type:number] the new age in seconds.
- * @return success [type:number] the value `1` in case of success, or `nil` in case of error.
+ * @return success [type:number|nil] the value `1` in case of success, or `nil` in case of error.
  *
  */
 
@@ -634,7 +653,7 @@
  * @param received [type:number] the new number of bytes received.
  * @param sent [type:number] the new number of bytes sent.
  * @param age [type:number] the new age in seconds.
- * @return success [type:number] the value `1` in case of success, or `nil` in case of error.
+ * @return success [type:number|nil] the value `1` in case of success, or `nil` in case of error.
  *
  */
 
@@ -646,7 +665,7 @@
  * @param received [type:number] the new number of bytes received.
  * @param sent [type:number] the new number of bytes sent.
  * @param age [type:number] the new age in seconds.
- * @return success [type:number] the value `1` in case of success, or `nil` in case of error.
+ * @return success [type:number|nil] the value `1` in case of success, or `nil` in case of error.
  *
  */
 
@@ -886,8 +905,8 @@
  *
  * @name connected:receive
  * @param [size] [type:number] optional maximum size of the datagram to be retrieved. If there are more than size bytes available in the datagram, the excess bytes are discarded. If there are less then size bytes available in the current datagram, the available bytes are returned. If size is omitted, the maximum datagram size is used (which is currently limited by the implementation to 8192 bytes).
- * @return datagram [type:string] the received datagram, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return datagram [type:string|nil] the received datagram, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -897,8 +916,8 @@
  *
  * @name unconnected:receive
  * @param [size] [type:number] optional maximum size of the datagram to be retrieved. If there are more than size bytes available in the datagram, the excess bytes are discarded. If there are less then size bytes available in the current datagram, the available bytes are returned. If size is omitted, the maximum datagram size is used (which is currently limited by the implementation to 8192 bytes).
- * @return datagram [type:string] the received datagram, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return datagram [type:string|nil] the received datagram, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -908,9 +927,9 @@
  *
  * @name unconnected:receivefrom
  * @param [size] [type:number] optional maximum size of the datagram to be retrieved.
- * @return datagram [type:string] the received datagram, or `nil` in case of error.
+ * @return datagram [type:string|nil] the received datagram, or `nil` in case of error.
  * @return ip_or_error [type:string] the IP address, or the error message in case of error.
- * @return port [type:number] the port number, or `nil` in case of error.
+ * @return port [type:number|nil] the port number, or `nil` in case of error.
  *
  */
 
@@ -932,8 +951,8 @@
  * - `"ip-add-membership"`
  * - `"ip-drop-membership"`
  *
- * @return value [type:any] the option value, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return value [type:any|nil] the option value, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -955,8 +974,8 @@
  * - `"ip-add-membership"`
  * - `"ip-drop-membership"`
  *
- * @return value [type:any] the option value, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return value [type:any|nil] the option value, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -968,8 +987,8 @@
  *
  * @name connected:send
  * @param datagram [type:string] a string with the datagram contents. The maximum datagram size for UDP is 64K minus IP layer overhead. However datagrams larger than the link layer packet size will be fragmented, which may deteriorate performance and/or reliability.
- * @return success [type:number] the value `1` on success, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return success [type:number|nil] the value `1` on success, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -983,8 +1002,8 @@
  * @param datagram [type:string] a string with the datagram contents. The maximum datagram size for UDP is 64K minus IP layer overhead. However datagrams larger than the link layer packet size will be fragmented, which may deteriorate performance and/or reliability.
  * @param ip [type:string] the IP address of the recipient. Host names are not allowed for performance reasons.
  * @param port [type:number] the port number at the recipient.
- * @return success [type:number] the value `1` on success, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return success [type:number|nil] the value `1` on success, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -998,8 +1017,8 @@
  *
  * @name connected:setpeername
  * @param "*" [type:string] if address is "*" and the object is connected, the peer association is removed and the object becomes an unconnected object again.
- * @return success [type:number] the value `1` on success, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return success [type:number|nil] the value `1` on success, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -1014,8 +1033,8 @@
  * @name unconnected:setpeername
  * @param address [type:string] an IP address or a host name.
  * @param port [type:number] the port number.
- * @return success [type:number] the value `1` on success, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return success [type:number|nil] the value `1` on success, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -1028,8 +1047,8 @@
  * @name unconnected:setsockname
  * @param address [type:string] an IP address or a host name. If address is "*" the system binds to all local interfaces using the constant `INADDR_ANY`.
  * @param port [type:number] the port number. If port is 0, the system chooses an ephemeral port.
- * @return success [type:number] the value `1` on success, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return success [type:number|nil] the value `1` on success, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -1076,8 +1095,8 @@
  * - [type:string] `interface` (IP address)
  *
  * @param [value] [type:any] the value to set for the specified option.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 
@@ -1125,8 +1144,8 @@
  * - [type:string] `interface` (IP address)
  *
  * @param [value] [type:any] the value to set for the specified option.
- * @return status [type:number] the value `1`, or `nil` in case of error.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return status [type:number|nil] the value `1`, or `nil` in case of error.
+ * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
 

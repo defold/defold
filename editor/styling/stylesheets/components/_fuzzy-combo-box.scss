@@ -1,3 +1,5 @@
+@use "sass:string";
+
 .fuzzy-combo-box {
   -fx-border-color: -df-background-lighter;
   -fx-border-width: 1px;
@@ -5,8 +7,8 @@
   .text-field {
     -fx-border-width: 0px;
     -fx-cursor: default;
-    -fx-max-height: 26px;
-    -fx-min-height: 26px;
+    -fx-max-height: 25px;
+    -fx-min-height: 25px;
 
     &:focused {
       -fx-background-color: -df-background-light;
@@ -23,8 +25,8 @@
   }
 
   .arrow-button {
-    -fx-max-height: 26px;
-    -fx-min-height: 26px;
+    -fx-max-height: 25px;
+    -fx-min-height: 25px;
     -fx-padding: 10px 6px 10px 8px;
 
     > .arrow {
@@ -64,4 +66,19 @@
   .scroll-bar:horizontal .decrement-button {
     -fx-padding: 0px;
   }
+}
+.completion-popup-list-view {
+  -fx-effect: string.unquote("null") !important;
+}
+.completion-popup-background {
+  -fx-background-color: -df-background-light;
+  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0.0, 0, 8);
+}
+.completion-popup-hint {
+  -fx-background-color: -df-background-light;
+  -fx-border-color: -df-background;
+  -fx-border-width: 1px 0 0 0;
+  -fx-padding: 0 2px;
+  -fx-text-fill: -df-text-dark;
+  -fx-font-size: 11px;
 }

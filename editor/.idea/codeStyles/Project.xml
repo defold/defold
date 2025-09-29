@@ -2,52 +2,114 @@
   <code_scheme name="Project" version="173">
     <option name="RIGHT_MARGIN" value="80" />
     <option name="SOFT_MARGINS" value="80,90" />
-    <ClojureCodeStyleSettings>{
-  :cljfx.composite/props :only-indent
-  :clojure.core/defmulti :only-indent
-  :cursive.formatting/align-conditionals false
-  :cursive.formatting/align-maps false
-  :cursive.formatting/imports-use-vectors true
-  :dynamo.graph/make-nodes :only-indent
-  :dynamo.graph/precluding-errors :only-indent
-  :dynamo.graph/with-auto-evaluation-context :only-indent
-  :dynamo.graph/with-auto-or-fake-evaluation-context :only-indent
-  :dynamo.graph/with-system :only-indent
-  :editor.analytics-test/with-config! :only-indent
-  :editor.editor-extensions/execute-with! :only-indent
-  :editor.editor-extensions/gen-query :only-indent
-  :editor.editor-extensions/try-with-extension-exceptions :only-indent
-  :editor.file-test/with-temp-dir :only-indent
-  :editor.file-test/with-temp-dir! :only-indent
-  :editor.fs/maybe-silently :only-indent
-  :editor.git-test/with-git :only-indent
-  :editor.gl/gl-push-matrix :only-indent
-  :editor.gl/with-gl-bindings :only-indent
-  :editor.gl.shader/defshader :only-indent
-  :editor.gl.vertex2/defvertex :only-indent
-  :editor.handler/defhandler :only-indent
-  :editor.handler/register-dynamic! :only-indent
-  :editor.handler/register-menu! :only-indent
-  :editor.resource-io/with-error-translation :only-indent
-  :editor.resource-node/register-ddf-resource-type :only-indent
-  :editor.ui/event-handler :only-indent
-  :editor.ui/invalidation-listener :only-indent
-  :editor.ui/on-action! :only-indent
-  :editor.ui/on-closing! :only-indent
-  :editor.ui/with-controls :only-indent
-  :editor.ui/with-progress :only-indent
-  :editor.ui.bindings/-if :only-indent
-  :editor.ui.bindings/when :only-indent
-  :editor.ui.bindings/when-not :only-indent
-  :editor.updater-test/with-server 2
-  :integration.build-test/with-build-results :only-indent
-  :integration.test-util/with-loaded-project :only-indent
-  :integration.test-util/with-logged-calls :only-indent
-  :integration.test-util/with-prop :only-indent
-  :integration.test-util/with-temp-dir! :only-indent
-  :org.httpkit.server/with-channel :only-indent
-  :util.profiler/profile :only-indent
-}</ClojureCodeStyleSettings>
+    <ClojureCodeStyleSettings>
+      <option name="alignMapValues" value="false" />
+      <option name="alignReaderConditionals" value="false" />
+      <option name="nsImportsUse" value="VECTOR" />
+      <option name="indentCustomisations">
+        <map>
+          <entry key="cljfx.composite/props" value="-1" />
+          <entry key="clojure.core.cache/defcache" value="-1" />
+          <entry key="clojure.core/assoc!" value="1" />
+          <entry key="clojure.core/defmulti" value="-1" />
+          <entry key="clojure.core/defonce" value="-1" />
+          <entry key="clojure.core/vector-of" value="-1" />
+          <entry key="clojure.test/are" value="-1" />
+          <entry key="dev/run-with-progress" value="-1" />
+          <entry key="dynamo.graph/construct" value="-1" />
+          <entry key="dynamo.graph/make-nodes" value="-1" />
+          <entry key="dynamo.graph/override" value="-1" />
+          <entry key="dynamo.graph/precluding-errors" value="-1" />
+          <entry key="dynamo.graph/set-properties" value="-1" />
+          <entry key="dynamo.graph/set-properties!" value="-1" />
+          <entry key="dynamo.graph/set-property" value="-1" />
+          <entry key="dynamo.graph/set-property!" value="-1" />
+          <entry key="dynamo.graph/transact" value="-1" />
+          <entry key="dynamo.graph/tx-cached-value!" value="-1" />
+          <entry key="dynamo.graph/with-auto-evaluation-context" value="-1" />
+          <entry key="dynamo.graph/with-auto-or-fake-evaluation-context" value="-1" />
+          <entry key="dynamo.graph/with-system" value="-1" />
+          <entry key="editor.analytics-test/with-config!" value="-1" />
+          <entry key="editor.code.resource/register-code-resource-type" value="-1" />
+          <entry key="editor.defold-project/read-nodes" value="-1" />
+          <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
+          <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.runtime/suspendable-lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.runtime/varargs-lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.validation/ensure" value="-1" />
+          <entry key="editor.editor-extensions.vm/with-lock" value="-1" />
+          <entry key="editor.file-test/with-temp-dir" value="-1" />
+          <entry key="editor.file-test/with-temp-dir!" value="-1" />
+          <entry key="editor.fs/maybe-silently" value="-1" />
+          <entry key="editor.fxui/defc" value="-1" />
+          <entry key="editor.git-test/with-git" value="-1" />
+          <entry key="editor.gl.shader/defshader" value="-1" />
+          <entry key="editor.gl.vertex/defvertex" value="-1" />
+          <entry key="editor.gl.vertex2/defvertex" value="-1" />
+          <entry key="editor.gl/gl-push-matrix" value="-1" />
+          <entry key="editor.gl/with-drawable-as-current" value="1" />
+          <entry key="editor.gl/with-gl-bindings" value="-1" />
+          <entry key="editor.graph-util/connect-existing-outputs" value="-1" />
+          <entry key="editor.graph-util/set-properties-from-pb-map" value="-1" />
+          <entry key="editor.gui/layout-property-edit-type" value="-1" />
+          <entry key="editor.gui/wrap-layout-property-edit-type" value="-1" />
+          <entry key="editor.handler/defhandler" value="-1" />
+          <entry key="editor.handler/register!" value="-1" />
+          <entry key="editor.handler/register-dynamic!" value="-1" />
+          <entry key="editor.handler/register-menu!" value="-1" />
+          <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />
+          <entry key="editor.prefs-test/with-schemas" value="-1" />
+          <entry key="editor.protobuf/assign" value="1" />
+          <entry key="editor.protobuf/assign-repeated" value="1" />
+          <entry key="editor.protobuf/clear-defaults" value="1" />
+          <entry key="editor.protobuf/inject-defaults" value="1" />
+          <entry key="editor.protobuf/make-map" value="1" />
+          <entry key="editor.protobuf/make-map-with-defaults" value="1" />
+          <entry key="editor.protobuf/make-map-without-defaults" value="1" />
+          <entry key="editor.resource-io/with-error-translation" value="-1" />
+          <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
+          <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
+          <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
+          <entry key="editor.ui.bindings/-if" value="-1" />
+          <entry key="editor.ui.bindings/when" value="-1" />
+          <entry key="editor.ui.bindings/when-not" value="-1" />
+          <entry key="editor.ui/event-dispatcher" value="-1" />
+          <entry key="editor.ui/event-handler" value="-1" />
+          <entry key="editor.ui/invalidation-listener" value="-1" />
+          <entry key="editor.ui/on-action!" value="-1" />
+          <entry key="editor.ui/on-closing!" value="-1" />
+          <entry key="editor.ui/with-controls" value="-1" />
+          <entry key="editor.ui/with-on-edit-event-suppressed" value="-1" />
+          <entry key="editor.ui/with-progress" value="-1" />
+          <entry key="editor.workspace/register-resource-type" value="-1" />
+          <entry key="editor.workspace/register-view-type" value="-1" />
+          <entry key="editor.yaml/with-error-translation" value="-1" />
+          <entry key="integration.build-test/with-build-results" value="-1" />
+          <entry key="integration.gui-test/with-visible-layout!" value="-1" />
+          <entry key="integration.test-util/set-code-editor-lines" value="-1" />
+          <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
+          <entry key="integration.test-util/with-changes-reverted" value="-1" />
+          <entry key="integration.test-util/with-loaded-project" value="-1" />
+          <entry key="integration.test-util/with-logged-calls" value="-1" />
+          <entry key="integration.test-util/with-prop" value="-1" />
+          <entry key="integration.test-util/with-scratch-project" value="-1" />
+          <entry key="integration.test-util/with-temp-dir!" value="-1" />
+          <entry key="integration.test-util/write-file-resource!" value="-1" />
+          <entry key="org.httpkit.server/with-channel" value="-1" />
+          <entry key="support.test-support/with-clean-system" value="-1" />
+          <entry key="util.bit-set/transfer" value="-1" />
+          <entry key="util.coll/assoc-in-ex" value="-1" />
+          <entry key="util.coll/transfer" value="-1" />
+          <entry key="util.debug-util/log-time" value="-1" />
+          <entry key="util.debug-util/log-time-and-memory" value="-1" />
+          <entry key="util.debug-util/measuring" value="-1" />
+          <entry key="util.debug-util/metrics-time" value="-1" />
+          <entry key="util.profiler/profile" value="-1" />
+          <entry key="vlaaad.reveal/defaction" value="-1" />
+          <entry key="vlaaad.reveal/defstream" value="-1" />
+        </map>
+      </option>
+    </ClojureCodeStyleSettings>
     <XML>
       <option name="XML_ATTRIBUTE_WRAP" value="0" />
       <option name="XML_TEXT_WRAP" value="0" />

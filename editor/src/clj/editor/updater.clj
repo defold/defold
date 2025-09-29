@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,8 @@
             [editor.system :as system]
             [service.log :as log]
             [util.net :as net])
-  (:import [com.defold.editor Editor Platform]
+  (:import [com.defold.editor Editor]
+           [com.dynamo.bob Platform]
            [java.io File IOException]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
@@ -110,7 +111,8 @@
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
-               Platform/X86_64Darwin
+               Platform/Arm64MacOS
+               Platform/X86_64MacOS
                Platform/X86_64Win32}
              (:platform updater)))
 
@@ -127,7 +129,9 @@
                                       (track-download-progress!
                                         (progress/make "Downloading update" total current)))
                  :chunk-size (* 1024 1024)
-                 :cancelled-derefable cancelled-atom))
+                 :cancelled-derefable cancelled-atom
+                 :read-timeout 10000
+                 :connect-timeout 5000))
 
 (def ^:private execute-permission-flag
   "9 bits in 3 triples: [rwx][rwx][rwx]
@@ -238,7 +242,7 @@
 (defn- install-file! [updater source-file target-file]
   (let [{:keys [^Platform platform editor-sha1]} updater]
     (case (.getOs platform)
-      ("linux" "darwin") (install-unix-file! source-file target-file)
+      ("linux" "macos") (install-unix-file! source-file target-file)
       "win32" (install-windows-file! source-file target-file editor-sha1))))
 
 (defn- in-protected-dir? [updater ^File file]
@@ -275,7 +279,7 @@
 (defn restart! [updater]
   (let [{:keys [launcher-path install-dir]} updater]
     (log/info :message "Restarting editor")
-    (process/start! launcher-path *command-line-args* {:directory install-dir})
+    (apply process/start! {:dir install-dir} launcher-path *command-line-args*)
     (javafx.application.Platform/exit)))
 
 (defn delete-backup-files!
@@ -333,18 +337,18 @@
                           (or "")
                           io/file
                           .getCanonicalFile)
-        protected-dirs [(io/file resources-dir "packages" "jdk11.0.1-p1")]
+        protected-dirs [(io/file resources-dir "packages" "jdk-21.0.5+11")]
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os
-                          "darwin" (io/file path "../../")
+                          "macos" (io/file path "../../")
                           ("linux" "win32") (io/file path))
                         (io/file "")))
         launcher-path (or (system/defold-launcherpath)
                           (case os
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
-                            "darwin" "./Contents/MacOS/Defold"))
+                            "macos" "./Contents/MacOS/Defold"))
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000

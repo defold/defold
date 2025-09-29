@@ -1,27 +1,101 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types
-  (:require [internal.util :as util]
-            [schema.core :as s]))
+  (:import [clojure.lang IHashEq Keyword Murmur3 Util]
+           [com.defold.util WeakInterner]
+           [java.io Writer]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defrecord Arc [source-id source-label target-id target-label])
 
+(defn arc-print-data [^Arc arc]
+  (into [(.-source-id arc) (.-source-label arc)
+         (.-target-id arc) (.-target-label arc)]
+        cat
+        (dissoc arc :source-id :source-label :target-id :target-label)))
+
+(defmethod print-method Arc [^Arc arc ^Writer writer]
+  (.write writer "#g/arc ")
+  (print-method (arc-print-data arc) writer))
+
+(defn- read-arc [[source-id source-label target-id target-label & {:as kvs}]]
+  (if kvs
+    `(Arc. ~source-id ~source-label ~target-id ~target-label nil ~kvs)
+    `(Arc. ~source-id ~source-label ~target-id ~target-label)))
+
+(defn source-id [^Arc arc] (.source-id arc))
+(defn source-label [^Arc arc] (.source-label arc))
 (defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
+(defn target-id [^Arc arc] (.target-id arc))
+(defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
+
+(definline node-id-hash [node-id]
+  `(Murmur3/hashLong ~node-id))
+
+(deftype Endpoint [^long node-id ^Keyword label]
+  Comparable
+  (compareTo [_ that]
+    (let [^Endpoint that that
+          node-id-comparison (Long/compare node-id (.-node-id that))]
+      (if (zero? node-id-comparison)
+        (.compareTo label (.-label that))
+        node-id-comparison)))
+  IHashEq
+  (hasheq [_]
+    (Util/hashCombine
+      (node-id-hash node-id)
+      (.hasheq label)))
+  Object
+  (toString [_]
+    (str "#g/endpoint [" node-id " " label "]"))
+  (hashCode [_]
+    (Util/hashCombine
+      (node-id-hash node-id)
+      (.hasheq label)))
+  (equals [this that]
+    (or (identical? this that)
+        (and (instance? Endpoint that)
+             (= node-id (.-node-id ^Endpoint that))
+             (identical? label (.-label ^Endpoint that))))))
+
+(defmethod print-method Endpoint [^Endpoint ep ^Writer writer]
+  (.write writer "#g/endpoint [")
+  (.write writer (str (.-node-id ep)))
+  (.write writer " ")
+  (.write writer (str (.-label ep)))
+  (.write writer "]"))
+
+(defonce ^WeakInterner endpoint-interner (WeakInterner. 65536))
+
+(definline endpoint [node-id label]
+  `(.intern endpoint-interner (->Endpoint ~node-id ~label)))
+
+(defn- read-endpoint [[node-id-expr label-expr]]
+  `(endpoint ~node-id-expr ~label-expr))
+
+(definline endpoint-node-id [endpoint]
+  `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))
+
+(definline endpoint-label [endpoint]
+  `(.-label ~(with-meta endpoint {:tag `Endpoint})))
+
+(defn endpoint? [x]
+  (instance? Endpoint x))
 
 (defn node-id? [v] (integer? v))
 
@@ -30,10 +104,11 @@
 
 (defprotocol Node
   (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
-  (node-type             [this basis]                    "Return the node type that created this node.")
+  (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
   (set-property          [this basis property value]     "Set the named property")
-  (overridden-properties [this basis]                    "Return a map of property name to override value")
+  (assigned-properties   [this]                          "Return a map of property name to value explicitly assigned to this node")
+  (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 
 (defprotocol OverrideNode
@@ -49,9 +124,9 @@
   (arcs-by-target   [this node-id] [this node-id label])
   (sources          [this node-id] [this node-id label])
   (targets          [this node-id] [this node-id label])
-  (add-node         [this value]                 "returns [basis real-value]")
-  (delete-node      [this node-id]               "returns [basis node]")
-  (replace-node     [this node-id value]         "returns [basis node]")
+  (add-node         [this value])
+  (delete-node      [this node-id])
+  (replace-node     [this node-id value])
   (override-node    [this original-id override-id])
   (override-node-clear [this original-id])
   (add-override     [this override-id override])
@@ -60,13 +135,13 @@
   (connect          [this source-id source-label target-id target-label])
   (disconnect       [this source-id source-label target-id target-label])
   (connected?       [this source-id source-label target-id target-label])
-  (dependencies     [this outputs-by-node-ids]
+  (dependencies     [this endpoints]
     "Follow arcs through the graphs, from outputs to the inputs
      connected to them, and from those inputs to the downstream
      outputs that use them, and so on. Continue following links until
      all reachable outputs are found.
 
-     Takes and returns a map of the form {node-id #{label ...} ...}")
+     Takes a coll of endpoints and returns a set of endpoints")
   (original-node    [this node-id]))
 
 (defn basis? [value]

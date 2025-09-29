@@ -1,25 +1,27 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.font-test
-  (:require [clojure.test :refer :all]
-            [clojure.string :as s]
+  (:require [clojure.string :as s]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]
-            [editor.workspace :as workspace]
+            [editor.defold-project :as project]
             [editor.font :as font]
-            [editor.defold-project :as project]))
+            [editor.protobuf :as protobuf]
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util])
+  (:import [com.dynamo.render.proto Font$FontDesc]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -53,6 +55,23 @@
             (is (> w'' w'))
             (is (> h'' h'))))))))
 
+(deftest text-splitting
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/fonts/score.font")
+          font-map (g/node-value node-id :font-map)
+          {hello-width :width :keys [lines]} (font/layout-text font-map "hello" false 0 0 0)]
+      (is (= ["hello"] lines))
+      (testing "If the line is too long and does not have spaces, we don't wrap"
+        (is (= ["hellohello"] (:lines (font/layout-text font-map "hellohello" true hello-width 0 0)))))
+      (testing "If the line is too long and has spaces, we wrap"
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello" true hello-width 0 0)))))
+      (testing "The whitespace at the beginning and end of lines is trimmed"
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "  \u200B  hello    \u200Bhello    " true hello-width 0 0)))))
+      (testing "Tailing empty lines are trimmed"
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello\n \n   \n\n  \n  \n " true hello-width 0 0)))))
+      (testing "We always split on \r?\n"
+        (is (= ["hello" "hello" "hello"] (:lines (font/layout-text font-map "hello\r\nhello\nhello" true hello-width 0 0))))))))
+
 (deftest preview-text
   (test-util/with-loaded-project
     (let [node-id   (test-util/resource-node project "/fonts/score.font")
@@ -84,52 +103,36 @@
           (is (g/error-fatal? (test-util/prop-error node-id p))))))))
 
 (defn pb-property [node-id property]
-  (get-in (g/node-value node-id :pb-msg) [property]))
+  (if-some [pb-value ((g/valid-node-value node-id :save-value) property)]
+    pb-value
+    (protobuf/default Font$FontDesc property)))
 
 (deftest antialias
   (test-util/with-loaded-project
-    (let [score    (test-util/resource-node project "/fonts/score.font")
+    (let [score (test-util/resource-node project "/fonts/score.font")
           score-not-antialias (test-util/resource-node project "/fonts/score_not_antialias.font")
-          score-no-antialias  (test-util/resource-node project "/fonts/score_no_antialias.font")]
+          score-no-antialias (test-util/resource-node project "/fonts/score_no_antialias.font")]
 
-      (is (= (g/node-value score :antialiased) true))
-      (is (= (g/node-value score :antialias) 1))
-      (is (= (pb-property score :antialias) 1))
+      (is (= true (g/node-value score :antialias)))
+      (is (= 1 (pb-property score :antialias)))
 
-      (g/set-property! score :antialiased false)
-      (is (= (g/node-value score :antialias) 0))
-      (is (= (pb-property score :antialias) 0))
+      (g/set-property! score :antialias false)
+      (is (= 0 (pb-property score :antialias)))
 
-      (is (= (g/node-value score-not-antialias :antialiased) false))
-      (is (= (g/node-value score-not-antialias :antialias) 0))
-      (is (= (pb-property score-not-antialias :antialias) 0))
+      (is (= false (g/node-value score-not-antialias :antialias)))
+      (is (= 0 (pb-property score-not-antialias :antialias)))
 
-      (g/set-property! score-not-antialias :antialiased true)
-      (is (= (g/node-value score-not-antialias :antialias) 1))
-      (is (= (pb-property score-not-antialias :antialias) 1))
+      (g/set-property! score-not-antialias :antialias true)
+      (is (= 1 (pb-property score-not-antialias :antialias)))
 
-      (is (= (g/node-value score-no-antialias :antialiased) true)) ; font_ddf defaults antialias to 1 = true
-      (is (= (g/node-value score-no-antialias :antialias) 1))
-      (is (= (pb-property score-no-antialias :antialias) 1))
+      (is (= true (g/node-value score-no-antialias :antialias))) ; font_ddf defaults antialias to 1 = true
+      (is (= 1 (pb-property score-no-antialias :antialias)))
 
-      (g/set-property! score-no-antialias :antialiased false)
-      (is (= (g/node-value score-no-antialias :antialias) 0))
-      (is (= (pb-property score-no-antialias :antialias) 0))
+      (g/set-property! score-no-antialias :antialias false)
+      (is (= 0 (pb-property score-no-antialias :antialias)))
 
-      (g/set-property! score-no-antialias :antialiased true)
-      (is (= (g/node-value score-no-antialias :antialias) 1))
-      (is (= (pb-property score-no-antialias :antialias) 1))
-
-      (g/set-property! score-no-antialias :antialias nil)
-      (is (= (g/node-value score-no-antialias :antialias) nil))
-      (is (= (pb-property score-no-antialias :antialias) nil))
-
-      (g/set-property! score-no-antialias :antialias 1)
-      (is (= (g/node-value score-no-antialias :antialiased) true))
-      (g/set-property! score-no-antialias :antialias 0)
-      (is (= (g/node-value score-no-antialias :antialiased) false))
-      (g/set-property! score-no-antialias :antialias nil)
-      (is (= (g/node-value score-no-antialias :antialiased) nil)))))
+      (g/set-property! score-no-antialias :antialias true)
+      (is (= 1 (pb-property score-no-antialias :antialias))))))
 
 (deftest font-scene
   (test-util/with-loaded-project

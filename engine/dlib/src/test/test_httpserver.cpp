@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
+#include "../dlib/atomic.h"
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -40,9 +41,9 @@ public:
     int m_ContentOffset;
     std::string m_RequestMethod, m_Resource;
     std::string m_Content;
-    volatile bool m_Quit;
     std::string m_ClientData;
-    volatile bool m_ServerStarted;
+    int32_atomic_t m_Quit;
+    int32_atomic_t m_ServerStarted;
 
     static void HttpHeader(void* user_data, const char* key, const char* value)
     {
@@ -98,7 +99,7 @@ public:
         }
         else if (strstr(self->m_Resource.c_str(), "/quit"))
         {
-            self->m_Quit = true;
+            dmAtomicStore32(&self->m_Quit, 1);
         }
         else if (strstr(self->m_Resource.c_str(), "/post"))
         {
@@ -130,30 +131,38 @@ public:
         }
     }
 
-    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                    uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                                    const char* method)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
         self->m_ClientData.append((const char*) content_data, content_data_size);
     }
 
+#define T_ASSERT_LE(_A, _B) \
+    if ( !((_A) < (_B)) ) { \
+        printf("%s:%d: ASSERT: %s < %s: %d < %d", __FILE__, __LINE__, #_A, #_B, (int)(_A), (int)(_B)); \
+    } \
+    assert( (_A) < (_B) );
+
     static void ServerThread(void* user_data)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
-        self->m_ServerStarted = true;
+        dmAtomicStore32(&self->m_ServerStarted, 1);
         int iter = 0;
-        while (!self->m_Quit && iter < 10000)
+        while (!dmAtomicGet32(&self->m_Quit) && iter < 10000)
         {
             dmHttpServer::Update(self->m_Server);
             dmTime::Sleep(1000 * 10);
             ++iter;
         }
-        ASSERT_LE(iter, 10000);
+        T_ASSERT_LE(iter, 10000);
     }
 
     virtual void SetUp()
     {
-        m_Quit = false;
-        m_ServerStarted = false;
+        m_Quit = 0;
+        m_ServerStarted = 0;
         m_ClientData = "";
         dmHttpServer::NewParams params;
         params.m_ConnectionTimeout = 30;
@@ -265,23 +274,28 @@ TEST_F(dmHttpServerParserTest, TestHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
-int g_PythonTestResult;
-void RunPythonThread(void*)
-{
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-    g_PythonTestResult = system("python src/test/test_httpserver.py");
-#else
-    g_PythonTestResult = -1;
+
+#define HAS_SYSTEM_FUNCTION
+#if defined(DM_NO_SYSTEM_FUNCTION)
+    #undef HAS_SYSTEM_FUNCTION
 #endif
+
+#if defined(HAS_SYSTEM_FUNCTION)
+
+void RunPythonThread(void* ctx)
+{
+    int* result = (int*)ctx;
+    *result = system("python src/test/test_httpserver.py");
 }
 
-#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+#if !defined(DM_SANITIZE_ADDRESS) // until we can load the dylibs properly
 
 TEST_F(dmHttpServerTest, TestServer)
 {
-    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
+    int python_result = -1;
+    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, &python_result, "test");
     int iter = 0;
-    while (!m_Quit && iter < 1000)
+    while (!dmAtomicGet32(&m_Quit) && iter < 1000)
     {
         dmHttpServer::Update(m_Server);
         dmTime::Sleep(1000 * 10);
@@ -289,16 +303,17 @@ TEST_F(dmHttpServerTest, TestServer)
     }
     ASSERT_LE(iter, 1000);
     dmThread::Join(thread);
-    ASSERT_EQ(0, g_PythonTestResult);
+    ASSERT_EQ(0, python_result);
 }
 
 #endif
+#endif // HAS_SYSTEM_FUNCTION
 
 TEST_F(dmHttpServerTest, TestServerClient)
 {
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this, "test");
 
-    while (!m_ServerStarted)
+    while (!dmAtomicGet32(&m_ServerStarted))
     {
         dmTime::Sleep(10 * 1000);
     }

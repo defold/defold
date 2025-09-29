@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,23 +17,20 @@
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.handler :as handler]
-            [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
-  (:import [clojure.lang MapEntry PersistentQueue]
+            [editor.workspace :as workspace]
+            [util.coll :refer [pair]])
+  (:import [clojure.lang PersistentQueue]
+           [java.io File]
            [java.util Collection]
            [javafx.collections ObservableList]
            [javafx.scene.control TreeItem TreeView]
-           [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.layout HBox]
-           [javafx.scene.text Text]))
+           [javafx.scene.input Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
-
-(defn- pair [a b]
-  (MapEntry. a b))
 
 (defn- queue [item]
   (conj PersistentQueue/EMPTY item))
@@ -87,10 +84,12 @@
 (defn- missing-resource-node? [evaluation-context node-id]
   (and (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
        (some? (g/node-value node-id :resource evaluation-context))
-       (some? (g/node-value node-id :_output-jammers evaluation-context))))
+       (if-some [output-jammers (g/node-value node-id :_output-jammers evaluation-context)]
+         (resource-io/file-not-found-error? (first (vals output-jammers)))
+         false)))
 
 (defn- error-item [evaluation-context root-cause]
-  (let [{:keys [message severity]} (first root-cause)
+  (let [{:keys [message severity file-path]} (first root-cause)
         cursor-range (error-cursor-range (first root-cause))
         errors (drop-while (comp (fn [node-id]
                                    (or (nil? node-id)
@@ -108,6 +107,9 @@
              :node-id outline-node-id
              :message (:message error)
              :severity (:severity error severity)}
+
+            file-path
+            (assoc :file-path file-path)
 
             (some? cursor-range)
             (assoc :cursor-range cursor-range))))
@@ -195,10 +197,9 @@
         style (case (:severity error-item)
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
-                #{"severity-error"})
-        image (icons/get-image-view icon 16)
-        text (Text. message)]
-    {:graphic (HBox. (ui/node-array [image text]))
+                #{"severity-error"})]
+    {:text message
+     :icon icon
      :style style}))
 
 (defn- find-outline-node [resource-node-id error-node-id]
@@ -216,18 +217,24 @@
   "Returns data describing how an error should be opened when double-clicked.
   Having this as data simplifies writing unit tests."
   [error-item]
-  (if (= :resource (:type error-item))
-    (let [{resource :resource resource-node-id :node-id} (:value error-item)]
-      (when (and (resource/openable-resource? resource)
-                 (resource/exists? resource))
-        [resource resource-node-id {}]))
-    (let [{resource :resource resource-node-id :node-id} (:parent error-item)]
-      (when (and (resource/openable-resource? resource)
-                 (resource/exists? resource))
-        (let [error-node-id (:node-id error-item)
-              outline-node-id (find-outline-node resource-node-id error-node-id)
-              opts (select-keys error-item [:cursor-range])]
-          [resource outline-node-id opts])))))
+  (or (and (= :resource (:type error-item))
+           (let [{resource :resource resource-node-id :node-id} (:value error-item)]
+             (when (and (resource/openable-resource? resource)
+                        (resource/exists? resource))
+               {:type :resource
+                :args [resource resource-node-id {}]})))
+      (let [{resource :resource resource-node-id :node-id} (:parent error-item)]
+        (when (and (resource/openable-resource? resource)
+                   (resource/exists? resource))
+          (let [error-node-id (:node-id error-item)
+                outline-node-id (find-outline-node resource-node-id error-node-id)
+                opts (select-keys error-item [:cursor-range])]
+            {:type :resource
+             :args [resource outline-node-id opts]})))
+      (when-let [file-path (:file-path error-item)]
+        (let [file (.getCanonicalFile (File. ^String file-path))]
+          (when (.exists file)
+            {:type :file :file file})))))
 
 (defn- error-line-for-clipboard [error-item]
   (let [message (:message error-item)
@@ -248,7 +255,7 @@
                       (error-line-for-clipboard selection))]
     (str proj-path error-lines)))
 
-(handler/defhandler :copy :build-errors-view
+(handler/defhandler :edit.copy :build-errors-view
   (active? [selection] (not-empty selection))
   (enabled? [selection] (not-empty selection))
   (run [build-errors-view]
@@ -261,7 +268,7 @@
 
 (handler/register-menu! ::build-errors-menu
   [{:label "Copy"
-    :command :copy}])
+    :command :edit.copy}])
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
@@ -269,8 +276,11 @@
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
-                     (when-some [[resource selected-node-id opts] (some-> errors-tree ui/selection first error-item-open-info)]
-                       (open-resource-fn resource [selected-node-id] opts))))
+                     (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
+                       (case type
+                         :resource (let [[resource selected-node-id opts] (:args open-info)]
+                                     (open-resource-fn resource [selected-node-id] opts))
+                         :file (ui/open-file (:file open-info))))))
     (ui/register-context-menu ::build-errors-menu)
     (ui/context! :build-errors-view
                  {:build-errors-view errors-tree}

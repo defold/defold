@@ -2,12 +2,31 @@
 
 ## Required Software
 
-### Required Software - Java JDK 11
+### Required Software - Java JDK 21
 
-* Download [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it somewhere
-* Run `sudo update-alternatives --install "/usr/bin/java" "java" "/path/to/jdk/bin/java" 1102`
-* Run `sudo update-alternatives --install "/usr/bin/javac" "javac" "/path/to/jdk/bin/javac" 1102`
-* If required, switch to new version using `sudo update-alternatives --config java` and `sudo update-alternatives --config javac`
+Download and install the latest JDK 21 (21.0.5 or later) release from either of these locations:
+
+* [Adoptium/Temurin](https://github.com/adoptium/temurin21-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
+* [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-21) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
+* or from apt-get:
+```
+> sudo apt-get install openjdk-21-jdk
+```
+
+When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+
+```sh
+> nano ~/.bashrc
+
+export JAVA_HOME=<JAVA_INSTALL_PATH>
+export PATH=$JAVA_HOME/bin:$PATH
+```
+
+Verify that Java is installed and working:
+
+```sh
+> javac -version
+```
 
 ### Notes
 

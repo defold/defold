@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,20 +26,20 @@
 #include "script_vmath.h"
 #include "script_sys.h"
 #include "script_module.h"
-#include "script_image.h"
+#include "script_graphics.h"
 #include "script_json.h"
-#include "script_http.h"
 #include "script_zlib.h"
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
-#include "script_extensions.h"
 
 extern "C"
 {
 #include <lua/lualib.h>
 }
+
+DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
@@ -50,6 +50,7 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
@@ -63,25 +64,29 @@ namespace dmScript
     const char META_TABLE_GET_USER_DATA[]            = "__get_user_data";
     const char META_TABLE_IS_VALID[]                 = "__is_valid";
     const char META_GET_INSTANCE_CONTEXT_TABLE_REF[] = "__get_instance_context_table_ref";
+    const char META_GET_INSTANCE_DATA_TABLE_REF[]    = "__get_instance_data_table_ref";
+    const char META_GET_UNIQUE_SCRIPT_ID[]           = "__get_unique_script_id";
 
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
+    const uint32_t INVALID_SCRIPT_ID = 0xFFFFFFFF;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
+    HContext NewContext(const ContextParams& params)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ScriptExtensions.SetCapacity(8);
-        context->m_ConfigFile = config_file;
-        context->m_ResourceFactory = factory;
+        context->m_ConfigFile = params.m_ConfigFile;
+        context->m_ResourceFactory = params.m_Factory;
+        context->m_GraphicsContext = params.m_GraphicsContext;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
-        context->m_EnableExtensions = enable_extensions;
+        context->m_ContextWeakTableRef = LUA_NOREF;
         return context;
     }
 
@@ -165,12 +170,12 @@ namespace dmScript
         InitializeVmath(L);
         InitializeSys(L);
         InitializeModule(L);
-        InitializeImage(L);
         InitializeJson(L);
         InitializeZlib(L);
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeGraphics(L, context->m_GraphicsContext);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
@@ -201,15 +206,31 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
 
+        // Create main context table
         lua_newtable(L);
+        // [-1] context_table
+        // Create weak subtable
+        lua_newtable(L);
+        // [-2] context_table
+        // [-1] weak_table
+        lua_newtable(L);
+        // [-3] context_table
+        // [-2] weak_table
+        // [-1] mt
+        lua_pushliteral(L, "__mode");
+        lua_pushliteral(L, "v");
+        lua_settable(L, -3);         // mt.__mode = "v"
+        lua_setmetatable(L, -2);     // setmetatable(weak_table, mt)
+        // [-2] context_table
+        // [-1] weak_table
+
+        // Now store weak_table ref separately
+        context->m_ContextWeakTableRef = Ref(L, LUA_REGISTRYINDEX);
+
+        // Finally store context_table
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
-        InitializeHttp(context);
         InitializeTimer(context);
-        if (context->m_EnableExtensions)
-        {
-            InitializeExtensions(context);
-        }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -258,6 +279,9 @@ namespace dmScript
         lua_pop(L, 1);
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        Unref(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        context->m_ContextTableRef = LUA_NOREF;
+        context->m_ContextWeakTableRef = LUA_NOREF;
     }
 
     lua_State* GetLuaState(HContext context)
@@ -359,11 +383,12 @@ namespace dmScript
 
     dmConfigFile::HConfig GetConfigFile(HContext context)
     {
-        if (context != 0x0)
-        {
-            return context->m_ConfigFile;
-        }
-        return 0x0;
+        return context ? context->m_ConfigFile : 0;
+    }
+
+    dmResource::HFactory GetResourceFactory(HContext context)
+    {
+        return context ? context->m_ResourceFactory : 0;
     }
 
     int LuaPrint(lua_State* L)
@@ -698,6 +723,23 @@ namespace dmScript
         return type_hash;
     }
 
+
+    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[])
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_newmetatable(L, name);
+        uint32_t type_hash = SetUserType(L, -1, name);
+
+        luaL_register (L, 0, meta);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, -1, "__index");
+        lua_pop(L, 1);
+
+        return type_hash;
+    }
+
+
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -805,7 +847,8 @@ namespace dmScript
         return false;
     }
 
-    bool GetURL(lua_State* L, dmMessage::URL& out_url) {
+    bool GetURL(lua_State* L, dmMessage::URL& out_url)
+    {
         DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
 
@@ -830,6 +873,16 @@ namespace dmScript
         // lua type error.
         (void)CheckURL(L, -1);
         return false;
+    }
+
+    bool CheckURL(lua_State* L, dmMessage::URL* out_url)
+    {
+        bool result = GetURL(L, out_url);
+        if (!result)
+        {
+            return luaL_error(L, "No URL could be found in the current script environment.");
+        }
+        return result;
     }
 
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash) {
@@ -1076,6 +1129,22 @@ namespace dmScript
 
         lua_pop(L, 1);
         // [-1] value
+    }
+
+    uint32_t GenerateUniqueScriptId()
+    {
+        static uint32_t counter = 0;
+
+        if (counter == INVALID_SCRIPT_ID - 1)
+        {
+            counter = 0;
+        }
+        else
+        {
+            ++counter;
+        }
+
+        return counter;
     }
 
     HScriptWorld NewScriptWorld(HContext context)
@@ -1357,19 +1426,55 @@ namespace dmScript
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
-        if (!lua_isstring(m_state, 1))
-            return 1;
-
         lua_createtable(m_state, 0, 2);
-        lua_pushvalue(m_state, 1);
-        lua_setfield(m_state, -2, "error");
-
+        
+        // First, generate traceback BEFORE we modify the stack
+        // We need to do this first because GetLuaTraceback expects string errors
         char traceback[1024];
+        traceback[0] = '\0'; // Initialize the buffer
         LuaCallstackCtx ctx;
         ctx.m_First = true;
         ctx.m_Buffer = traceback;
         ctx.m_BufferSize = sizeof(traceback);
+        
+        // If error is not a string, temporarily convert it for traceback generation
+        if (!lua_isstring(m_state, 1))
+        {
+            // Replace stack position 1 with string version for GetLuaTraceback
+            lua_getglobal(m_state, "tostring");
+            if (lua_isfunction(m_state, -1))
+            {
+                lua_pushvalue(m_state, 1); // Push the original error value
+                int result = lua_pcall(m_state, 1, 1, 0);
+                if (result == 0 && lua_isstring(m_state, -1))
+                {
+                    lua_replace(m_state, 1); // Replace original error with string version
+                }
+                else
+                {
+                    lua_pop(m_state, 1); // Remove failed result
+                    const char* type_name = lua_typename(m_state, lua_type(m_state, 1));
+                    lua_pushfstring(m_state, "(%s)", type_name);
+                    lua_replace(m_state, 1); // Replace with type name
+                }
+            }
+            else
+            {
+                lua_pop(m_state, 1); // Remove non-function value
+                const char* type_name = lua_typename(m_state, lua_type(m_state, 1));
+                lua_pushfstring(m_state, "(%s)", type_name);
+                lua_replace(m_state, 1); // Replace with type name
+            }
+        }
+        
+        // Now generate traceback with string error message
         dmScript::GetLuaTraceback(m_state, "Sln", GetLuaStackTraceCbk, &ctx);
+        
+        // Store the converted error message
+        lua_pushvalue(m_state, 1);
+        lua_setfield(m_state, -2, "error");
+
+        // Store the traceback
         lua_pushstring(m_state, traceback);
         lua_setfield(m_state, -2, "traceback");
 
@@ -1391,15 +1496,23 @@ namespace dmScript
             lua_getfield(L, -2, "traceback");
             // if handling error that happened during the error handling, print it and clean up and exit
             if (in_error_handler) {
-                dmLogError("In error handler: %s%s", lua_tostring(L, -2), lua_tostring(L, -1));
+                const char* error_msg = lua_tostring(L, -2);
+                const char* traceback_msg = lua_tostring(L, -1);
+                dmLogError("In error handler: %s%s", 
+                          error_msg ? error_msg : "(error value could not be converted to string)", 
+                          traceback_msg ? traceback_msg : "(traceback unavailable)");
                 lua_pop(L, 3);
                 return result;
             }
             // print before calling the error handler
-            dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
+            const char* error_msg = lua_tostring(L, -2);
+            const char* traceback_msg = lua_tostring(L, -1);
+            dmLogError("%s\n%s", 
+                      error_msg ? error_msg : "(error value could not be converted to string)", 
+                      traceback_msg ? traceback_msg : "(traceback unavailable)");
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
-                lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
+                lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
                 lua_rawget(L, -2);
                 if (lua_isfunction(L, -1)) {
                     lua_pushlstring(L, "lua", 3); // 1st arg: source = 'lua'
@@ -1504,28 +1617,29 @@ namespace dmScript
         int        m_CallbackInfoRef;
         int        m_Callback;
         int        m_Self;
+        uint32_t   m_UniqueScriptId;
     };
 
-    // static void printStack(lua_State* L)
-    // {
-    //     int top = lua_gettop(L);
-    //     int bottom = 1;
-    //     lua_getglobal(L, "tostring");
-    //     for(int i = top; i >= bottom; i--)
-    //     {
-    //         lua_pushvalue(L, -1);
-    //         lua_pushvalue(L, i);
-    //         lua_pcall(L, 1, 1, 0);
-    //         const char *str = lua_tostring(L, -1);
-    //         if (str) {
-    //             printf("%2d: %s\n", i, str);
-    //         }else{
-    //             printf("%2d: %s\n", i, luaL_typename(L, i));
-    //         }
-    //         lua_pop(L, 1);
-    //     }
-    //     lua_pop(L, 1);
-    // }
+    void PrintStack(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        int bottom = 1;
+        lua_getglobal(L, "tostring");
+        for(int i = top; i >= bottom; i--)
+        {
+            lua_pushvalue(L, -1);
+            lua_pushvalue(L, i);
+            lua_pcall(L, 1, 1, 0);
+            const char *str = lua_tostring(L, -1);
+            if (str) {
+                dmLogInfo("%2d: %s\n", i, str);
+            }else{
+                dmLogInfo("%2d: %s\n", i, luaL_typename(L, i));
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
 
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {
@@ -1536,7 +1650,9 @@ namespace dmScript
         GetInstance(L);
         // [-1] instance
 
-        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1)) {
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1))
+        {
+            dmLogError("CreateCallback failed: missing %s meta function for instance context table", "INSTANCE_CONTEXT");
             lua_pop(L, 1);
             return 0x0;
         }
@@ -1554,7 +1670,31 @@ namespace dmScript
         assert(lua_type(L, -1) == LUA_TNUMBER);
 
         int context_table_ref = lua_tonumber(L, -1);
-        lua_pop(L, 2);
+
+        lua_pop(L, 1);
+        // [-1] instance
+
+        uint32_t unique_script_id = INVALID_SCRIPT_ID;
+        if (!GetMetaFunction(L, -1, META_GET_UNIQUE_SCRIPT_ID, sizeof(META_GET_UNIQUE_SCRIPT_ID) - 1))
+        {
+            dmLogError("CreateCallback failed: missing %s meta function for instance context table", "UNIQUE_SCRIPT");
+            lua_pop(L, 1);
+            return 0x0;
+        }
+        // [-2] instance
+        // [-1] META_GET_UNIQUE_SCRIPT_ID()
+        lua_pushvalue(L, -2); // push instance
+        // [-3] instance
+        // [-2] META_GET_UNIQUE_SCRIPT_ID()
+        // [-1] instance
+        lua_call(L, 1, 1);    // call __get_unique_script_id(self)
+        // [-2] instance
+        // [-1] unique script id
+        unique_script_id = (uint32_t)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+        // [-1] instance
+
+        lua_pop(L, 1);
 
         lua_pushvalue(L, callback_stack_index);
         // [-1] callback
@@ -1564,6 +1704,7 @@ namespace dmScript
         // [-1] context table
         if (lua_type(L, -1) != LUA_TTABLE)
         {
+            dmLogError("CreateCallback failed: expected context table (LUA_TTABLE), got %s", lua_typename(L, lua_type(L, -1)));
             lua_pop(L, 2);
             return 0x0;
         }
@@ -1577,6 +1718,7 @@ namespace dmScript
         // [-2] callback
         // [-1] LuaCallbackInfo
 
+        cbk->m_UniqueScriptId = unique_script_id;
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
 
@@ -1604,6 +1746,85 @@ namespace dmScript
         return cbk;
      }
 
+    static bool IsCallbackInstanceValid(LuaCallbackInfo* cbk)
+    {
+        if (cbk->m_UniqueScriptId == INVALID_SCRIPT_ID)
+        {
+            return false;
+        }
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstance(L);
+        // [-1] old instance
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
+        // [-2] old instance
+        // [-1] context table
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 2);
+            cbk->m_UniqueScriptId  = INVALID_SCRIPT_ID;
+            return false;
+        }
+
+        const int context_table_stack_index = lua_gettop(L);
+        lua_rawgeti(L, context_table_stack_index, cbk->m_Self);
+        // [-3] old instance
+        // [-2] context table
+        // [-1] instance
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 3);
+            cbk->m_UniqueScriptId = INVALID_SCRIPT_ID;
+            return false;
+        }
+
+        lua_pushvalue(L, -1);
+        // [-4] old instance
+        // [-3] context table
+        // [-2] instance
+        // [-1] instance
+        SetInstance(L);
+        // [-3] old instance
+        // [-2] context table
+        // [-1] instance
+        uint32_t unique_script_id = INVALID_SCRIPT_ID;
+        if (GetMetaFunction(L, -1, META_GET_UNIQUE_SCRIPT_ID, sizeof(META_GET_UNIQUE_SCRIPT_ID) - 1))
+        {
+            // [-4] old instance
+            // [-3] context table
+            // [-2] instance
+            // [-1] META_GET_UNIQUE_SCRIPT_ID()
+            lua_pushvalue(L, -2);
+            // [-5] old instance
+            // [-4] context table
+            // [-3] instance
+            // [-2] META_GET_UNIQUE_SCRIPT_ID()
+            // [-1] instance
+            lua_call(L, 1, 1);
+            // [-4] old instance
+            // [-3] context table
+            // [-2] instance
+            // [-1] unique script id
+            unique_script_id = (uint32_t)lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            // [-3] old instance
+            // [-2] context table
+            // [-1] instance
+        }
+
+        lua_pop(L, 2);
+        // [-1] old instance
+        SetInstance(L);
+
+        if (cbk->m_UniqueScriptId != unique_script_id)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     bool IsCallbackValid(LuaCallbackInfo* cbk)
     {
         if (cbk == NULL ||
@@ -1611,10 +1832,17 @@ namespace dmScript
             cbk->m_ContextTableRef == LUA_NOREF ||
             cbk->m_CallbackInfoRef == LUA_NOREF ||
             cbk->m_Callback == LUA_NOREF ||
-            cbk->m_Self == LUA_NOREF) {
+            cbk->m_Self == LUA_NOREF ||
+            cbk->m_UniqueScriptId == INVALID_SCRIPT_ID)
+        {
             return false;
         }
-        return true;
+        if (IsCallbackInstanceValid(cbk))
+        {
+            return true;
+        }
+        cbk->m_UniqueScriptId = INVALID_SCRIPT_ID;
+        return false;
     }
 
     lua_State* GetCallbackLuaContext(LuaCallbackInfo* cbk)
@@ -1632,21 +1860,32 @@ namespace dmScript
             lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
             if (lua_type(L, -1) == LUA_TTABLE)
             {
-                // We do not use dmScript::Unref for refs in the context local table as we don't
-                // want to count those refs the ref debug count shown in the profiler
-                luaL_unref(L, -1, cbk->m_Self);
-                luaL_unref(L, -1, cbk->m_Callback);
-
-                // For the callback (that can actually outlive the script instance)
-                // we want to add to the lua debug count
+                if (IsCallbackInstanceValid(cbk))
+                {
+                    // We do not use dmScript::Unref for refs in the context local table as we don't
+                    // want to count those refs the ref debug count shown in the profiler
+                    luaL_unref(L, -1, cbk->m_Self);
+                    luaL_unref(L, -1, cbk->m_Callback);
+                }
+                else
+                {
+                    cbk->m_UniqueScriptId = INVALID_SCRIPT_ID;
+                }
+            }
+            
+            // For the callback (that can actually outlive the script instance)
+            // we want to add to the lua debug count
+            if (cbk->m_CallbackInfoRef != LUA_NOREF)
+            {
                 dmScript::Unref(L, LUA_REGISTRYINDEX, cbk->m_CallbackInfoRef);
             }
+            lua_pop(L, 1);
+
             cbk->m_Self = LUA_NOREF;
             cbk->m_Callback = LUA_NOREF;
             cbk->m_CallbackInfoRef = LUA_NOREF;
             cbk->m_ContextTableRef = LUA_NOREF;
-
-            lua_pop(L, 1);
+            cbk->m_UniqueScriptId = INVALID_SCRIPT_ID;
             return;
         }
         else
@@ -1768,9 +2007,10 @@ namespace dmScript
 
         int ret;
         {
-            uint32_t profiler_hash = 0;
-            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, &profiler_hash);
-            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+            char buffer[128];
+            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, buffer, sizeof(buffer)); // TODO: Why "on_timer" ???
+            DM_PROFILE_DYN(profiler_string, 0);
+
             ret = PCall(L, number_of_arguments, 0);
         }
 
@@ -1817,7 +2057,7 @@ namespace dmScript
     // to calculate the length of the input string or output string
     static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
     {
-        while ((w_ptr != w_ptr_end) && *str)
+        while ((w_ptr != w_ptr_end) && str && *str)
         {
             *w_ptr++ = *str++;
         }
@@ -1832,60 +2072,58 @@ namespace dmScript
     * Building this string is particularly expensive on low end devices and using this more optimal way reduces
     * the overhead of the profiler when enabled.
     */
-    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash)
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size)
     {
-        const char* profiler_string = 0;
-        if (dmProfile::g_IsInitialized)
+        if (!ProfileIsInitialized())
+            return 0;
+
+        char* w_ptr = buffer;
+        const char* w_ptr_end = buffer + buffer_size - 1;
+
+        const char* function_source = source_file_name;
+
+        if (optional_callback_index != 0)
         {
-            char buffer[128];
-            char* w_ptr = buffer;
-            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
-
-            const char* function_source = source_file_name;
-
-            if (optional_callback_index != 0)
+            LuaFunctionInfo fi;
+            if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
             {
-                LuaFunctionInfo fi;
-                if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
+                if (fi.m_FileName)
                 {
                     function_source = fi.m_FileName;
-                    if (fi.m_OptionalName)
-                    {
-                        w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
-                    }
-                    else
-                    {
-                        char function_line_number_buffer[16];
-                        dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                        w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
-                    }
+                }
+                if (fi.m_OptionalName)
+                {
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
                 }
                 else
                 {
-                    w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
+                    char function_line_number_buffer[16];
+                    dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
                 }
-
             }
             else
             {
-                w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
             }
 
-            if (optional_message_name)
-            {
-                w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
-                w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
-                w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
-            }
-            w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
-            w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
-            uint32_t str_len = (uint32_t)(w_ptr - buffer);
-            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
-            *w_ptr++ = 0;
-            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
-            *out_profiler_hash = hash;
         }
-        return profiler_string;
+        else
+        {
+            w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+        }
+
+        if (optional_message_name)
+        {
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
+            w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
+        }
+        w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
+        w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
+        *w_ptr++ = 0;
+
+        return buffer;
     }
 
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
@@ -1930,4 +2168,17 @@ namespace dmScript
         return r;
     }
 
+    bool CheckBoolean(lua_State* L, int index)
+    {
+        if (lua_isboolean(L, index))
+        {
+            return lua_toboolean(L, index);
+        }
+        return luaL_error(L, "Argument %d must be a boolean", index);
+    }
+
+    void PushBoolean(lua_State* L, bool v)
+    {
+        lua_pushboolean(L, v);
+    }
 } // dmScript

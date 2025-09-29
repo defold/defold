@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,18 +15,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/stat.h>
 
-#if defined(__linux__) || defined(__MACH__)
-#  include <sys/errno.h>
-#elif defined(_WIN32)
-#  include <errno.h>
-#elif defined(__EMSCRIPTEN__)
-#  include <unistd.h>
+#if !defined(DM_NO_ERRNO)
+    #if defined(__linux__) || defined(__MACH__)
+    #  include <sys/errno.h>
+    #elif defined(_WIN32)
+    #  include <errno.h>
+    #elif defined(__EMSCRIPTEN__)
+    #  include <unistd.h>
+    #else
+    #  include <errno.h>
+    #endif
 #endif
 
 #ifdef _WIN32
 #include <direct.h>
+#include <malloc.h>
 #endif
 
 #include <dlib/dstrings.h>
@@ -34,6 +38,8 @@
 #include <dlib/log.h>
 #include <dlib/socket.h>
 #include <dlib/path.h>
+#include <dlib/align.h>
+#include <dlib/memory.h>
 #include <resource/resource.h>
 #include "script.h"
 #include "script/sys_ddf.h"
@@ -52,11 +58,13 @@ namespace dmScript
 
 const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
 
+static int g_DebuggerLightweightHook = 0;
+
 union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for js-web
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
-} g_saveload;
+} DM_ALIGNED(16) g_saveload;
 
 #define LIB_NAME "sys"
 
@@ -68,7 +76,30 @@ union SaveLoadBuffer
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
+
+    char* Sys_SetupTableSerializationBuffer(int required_size)
+    {
+        if (required_size > MAX_BUFFER_SIZE)
+        {
+            char* buffer = 0;
+            dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            return buffer;
+        }
+        else
+        {
+            return g_saveload.m_buffer;
+        }
+    }
+
+    void Sys_FreeTableSerializationBuffer(char* buffer)
+    {
+        if (buffer != g_saveload.m_buffer)
+        {
+            dmMemory::AlignedFree(buffer);
+        }
+    }
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
@@ -98,13 +129,23 @@ union SaveLoadBuffer
      * ```
      */
 
-#if !defined(__EMSCRIPTEN__)
-    int Sys_Save(lua_State* L)
+    static int Sys_Save(lua_State* L)
     {
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
-
         const char* filename = luaL_checkstring(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        uint32_t table_size = CheckTableSize(L, 2);
+
+        char* buffer = Sys_SetupTableSerializationBuffer(table_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+        }
+        uint32_t n_used = CheckTable(L, buffer, table_size, 2);
+
+#if !defined(__EMSCRIPTEN__)
+
         char tmp_filename[DMPATH_MAX_PATH];
         // The counter and hash are there to make the files unique enough to avoid that the user
         // accidentally writes to it.
@@ -113,56 +154,73 @@ union SaveLoadBuffer
         int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
         if (res == -1)
         {
+            Sys_FreeTableSerializationBuffer(buffer);
             return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
         }
 
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {
-            return luaL_error(L, "Could not open the file %s.", tmp_filename);
+            Sys_FreeTableSerializationBuffer(buffer);
+
+        #if defined(DM_NO_ERRNO)
+            return luaL_error(L, "Could not open the file %s", tmp_filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+        #endif
         }
 
-        bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
+        bool result = fwrite(buffer, 1, n_used, file) == n_used;
         result = (fclose(file) == 0) && result;
+        Sys_FreeTableSerializationBuffer(buffer);
 
         if (!result)
         {
             dmSys::Unlink(tmp_filename);
+
+        #if defined(DM_NO_ERRNO)
             return luaL_error(L, "Could not write to the file %s.", filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
+        #endif
         }
 
-        if (dmSys::RenameFile(filename, tmp_filename) == dmSys::RESULT_OK)
+        if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)
         {
-            lua_pushboolean(L, result);
-            return 1;
+            return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
-        return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
-    }
+
+        lua_pushboolean(L, result);
+        return 1;
 
 #else // __EMSCRIPTEN__
 
-    int Sys_Save(lua_State* L)
-    {
-        const char* filename = luaL_checkstring(L, 1);
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
         FILE* file = fopen(filename, "wb");
-        if (file != 0x0)
+        if (!file)
         {
-            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
-                lua_pushboolean(L, result);
-                return 1;
-            }
-
-            dmSys::Unlink(filename);
+            Sys_FreeTableSerializationBuffer(buffer);
+            return luaL_error(L, "Could not write to the file %s.", filename);
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
+
+        bool result = fwrite(buffer, 1, n_used, file) == n_used;
+        result = (fclose(file) == 0) && result;
+        Sys_FreeTableSerializationBuffer(buffer);
+
+        if (!result)
+        {
+            dmSys::Unlink(filename);
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+
+        lua_pushboolean(L, result);
+        return 1;
+#endif
     }
 
-#endif
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
@@ -182,7 +240,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_Load(lua_State* L)
+    static int Sys_Load(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
@@ -191,22 +249,86 @@ union SaveLoadBuffer
             lua_newtable(L);
             return 1;
         }
-        size_t nread = fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
-        bool file_size_ok = feof(file) != 0;
-        bool result = ferror(file) == 0 && file_size_ok;
+
+        fseek(file, 0L, SEEK_END);
+        uint32_t file_size = ftell(file);
+        fseek(file, 0L, SEEK_SET);
+
+        char* buffer = Sys_SetupTableSerializationBuffer(file_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table deserialization.", file_size);
+        }
+        size_t nread = fread(buffer, 1, file_size, file);
+        bool result = ferror(file) == 0;
         fclose(file);
-        if (result)
+        if (!result)
         {
-            PushTable(L, g_saveload.m_buffer, nread);
-            return 1;
+            Sys_FreeTableSerializationBuffer(buffer);
+            return luaL_error(L, "Could not read from the file %s.", filename);
         }
-        else
-        {
-            if(file_size_ok)
-                return luaL_error(L, "Could not read from the file %s.", filename);
-            else
-                return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
-        }
+        PushTable(L, buffer, nread);
+        Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
+    }
+
+    /*# check if a path exists
+     * Check if a path exists
+     * Good for checking if a file exists before loading a large file
+     *
+     * @name sys.exists
+     * @param path [type:string] path to check
+     * @return result [type:boolean] `true` if the path exists, `false` otherwise
+     * @examples
+     *
+     * Load data but return nil if path didn't exist
+     *
+     * ```lua
+     * if not sys.exists(path) then
+     *     return nil
+     * end
+     * return sys.load(path) -- returns {} if it failed
+     * ```
+     */
+    static int Sys_Exists(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        bool result = dmSys::Exists(path);
+        lua_pushboolean(L, result);
+        return 1;
+    }
+
+    /*# create a path to the host device for unit testing
+     * Create a path to the host device for unit testing
+     * Useful for saving logs etc during development
+     *
+     * @note Only enabled in debug builds. In release builds returns the string unchanged
+     * @name sys.get_host_path
+     * @param filename [type:string] file to read from
+     * @return host_path [type:string] the path prefixed with the proper host mount
+     * @examples
+     *
+     * Save data on the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * sys.save(host_path, mytable)
+     * ```
+     *
+     * Load data from the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * local table = sys.load(host_path)
+     * ```
+     */
+    static int Sys_GetHostPath(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        char host_path[DMPATH_MAX_PATH];
+        dmSys::GetHostFileName(host_path, sizeof(host_path), path);
+        lua_pushstring(L, host_path);
+        return 1;
     }
 
     /*# gets the save-file path
@@ -220,14 +342,31 @@ union SaveLoadBuffer
      * @return path [type:string] path to save-file
      * @examples
      *
-     * Find a path where we can store data (the example path is on the macOS platform):
+     * Find a path where we can store data:
      *
      * ```lua
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
+     * -- macOS: /Users/foobar/Library/Application Support/my_game/my_file
+     * print(my_file_path) --> /Users/foobar/Library/Application Support/my_game/my_file
+     *
+     * -- Windows: C:\Users\foobar\AppData\Roaming\my_game\my_file
+     * print(my_file_path) --> C:\Users\foobar\AppData\Roaming\my_game\my_file
+     *
+     * -- Linux: $XDG_DATA_HOME/my_game/my_file or /home/foobar/.my_game/my_file
+     * -- Linux: Defaults to /home/foobar/.local/share/my_game/my_file if neither exist.
+     * print(my_file_path) --> /home/foobar/.local/share/my_game/my_file
+     *
+     * -- Android package name: com.foobar.packagename
+     * print(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file
+     *
+     * -- iOS: my_game.app
+     * print(my_file_path) --> /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
+     *
+     * -- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file
+     * print(my_file_path) --> /data/.my_game/my_file
      * ```
      */
-    int Sys_GetSaveFile(lua_State* L)
+    static int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);
 
@@ -239,8 +378,7 @@ union SaveLoadBuffer
         }
 
         const char* filename = luaL_checkstring(L, 2);
-        char* dm_home = getenv("DM_SAVE_HOME");
-
+        char* dm_home = dmSys::GetEnv("DM_SAVE_HOME");
         // Higher priority
         if (dm_home)
         {
@@ -285,7 +423,7 @@ union SaveLoadBuffer
      * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
-    int Sys_GetApplicationPath(lua_State* L)
+    static int Sys_GetApplicationPath(lua_State* L)
     {
         char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
         dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
@@ -298,54 +436,46 @@ union SaveLoadBuffer
         return 1;
     }
 
-    /*# get config value
-     * Get config value from the game.project configuration file.
-     *
-     * In addition to the project file, configuration values can also be passed
-     * to the runtime as command line arguments with the `--config` argument.
-     *
-     * @name sys.get_config
-     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @return value [type:string] config value as a string. nil if the config key doesn't exists
-     * @examples
-     *
-     * Get display width
-     *
-     * ```lua
-     * local width = tonumber(sys.get_config("display.width"))
-     * ```
-     *
-     * Start the engine with a bootstrap config override and a custom config value
-     *
-     * ```
-     * $ mygame --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
-     * ```
-     *
-     * Set and read a custom config value
-     *
-     * ```lua
-     * local testmode = tonumber(sys.get_config("mygame.testmode"))
-     * ```
-     */
+    static dmConfigFile::HConfig GetConfigFile(lua_State* L)
+    {
+        HContext context = dmScript::GetScriptContext(L);
+        if (context)
+        {
+            return context->m_ConfigFile;
+        }
+        return 0;
+    }
 
-    /*# get config value with default value
-     * Get config value from the game.project configuration file with default value
+    /*# get string config value with optional default value
+     * Get string config value from the game.project configuration file with optional default value
      *
-     * @name sys.get_config
+     * @name sys.get_config_string
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param default_value [type:string] default value to return if the value does not exist
-     * @return value [type:string] config value as a string. default_value if the config key does not exist
+     * @param [default_value] [type:string] (optional) default value to return if the value does not exist
+     * @return value [type:string] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
      * @examples
      *
      * Get user config value
      *
      * ```lua
-     * local speed = tonumber(sys.get_config("my_game.speed", "10.23"))
+     * local text = sys.get_config_string("my_game.text", "default text"))
+     * ```
+     *
+     * Start the engine with a bootstrap config override and add a custom config value
+     *
+     * ```
+     * $ dmengine --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
+     * ```
+     *
+     * Read the custom config value from the command line
+     *
+     * ```lua
+     * local testmode = sys.get_config_int("mygame.testmode")
      * ```
      */
-    int Sys_GetConfig(lua_State* L)
+    static int Sys_GetConfigString(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1);
 
         const char* key = luaL_checkstring(L, 1);
         const char* default_value = 0;
@@ -354,31 +484,101 @@ union SaveLoadBuffer
             default_value = lua_tostring(L, 2);
         }
 
-        HContext context = dmScript::GetScriptContext(L);
-
-        dmConfigFile::HConfig config_file = 0;
-        if (context)
-        {
-            config_file = context->m_ConfigFile;
-        }
-
-        const char* value;
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
         if (config_file)
-            value = dmConfigFile::GetString(config_file, key, default_value);
-        else
-            value = 0;
-
-        if (value)
         {
+            const char* value = dmConfigFile::GetString(config_file, key, default_value);
             lua_pushstring(L, value);
         }
         else
         {
             lua_pushnil(L);
         }
+        return 1;
+    }
 
-        assert(top + 1 == lua_gettop(L));
+    /*# get integer config value with optional default value
+     * Get integer config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_int
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local speed = sys.get_config_int("my_game.speed", 20) -- with default value
+     * ```
+     *
+     * ```lua
+     * local testmode = sys.get_config_int("my_game.testmode") -- without default value
+     * if testmode ~= nil then
+     *     -- do stuff
+     * end
+     * ```
+     */
+    static int Sys_GetConfigInt(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
 
+        const char* key = luaL_checkstring(L, 1);
+        int default_value = 0;
+        if (!lua_isnone(L, 2))
+        {
+            default_value = luaL_checkinteger(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int value = dmConfigFile::GetInt(config_file, key, default_value);
+            lua_pushinteger(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    /*# get number config value with optional default value
+     * Get number config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_number
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an number. default_value if the config key does not exist. 0 if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local speed = sys.get_config_number("my_game.speed", 20.0)
+     * ```
+     */
+    static int Sys_GetConfigNumber(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        float default_value = 0;
+        if (!lua_isnone(L, 2))
+        {
+            default_value = luaL_checknumber(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            float value = dmConfigFile::GetFloat(config_file, key, default_value);
+            lua_pushnumber(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
         return 1;
     }
 
@@ -391,7 +591,7 @@ union SaveLoadBuffer
      *
      * `target`
      * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * - `_self` - URL replaces the current page. This is default.
+     * - `_self` - (default value) URL replaces the current page.
      * - `_blank` - URL is loaded into a new window, or tab.
      * - `_parent` - URL is loaded into the parent frame.
      * - `_top` - URL replaces any framesets that may be loaded.
@@ -409,7 +609,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_OpenURL(lua_State* L)
+    static int Sys_OpenURL(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1)
         int top = lua_gettop(L);
@@ -441,7 +641,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil plus the error message.
+     * If loading fails, the function returns `nil` plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -453,8 +653,8 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
-     * @return error [type:string] the error message, or `nil` if no error occurred
+     * @return data [type:string|nil] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string|nil] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
@@ -469,7 +669,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_LoadResource(lua_State* L)
+    static int Sys_LoadResource(lua_State* L)
     {
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
@@ -495,6 +695,8 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
+     * @param [options] [type:table] optional options table
+     * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
      * `device_model`
@@ -525,7 +727,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
+     * : [type:string] This value secured by OS. [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
@@ -541,12 +743,31 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetSysInfo(lua_State* L)
+    static int Sys_GetSysInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmSys::SystemInfo info;
         dmSys::GetSystemInfo(&info);
+
+        bool ignore_secure_values = false;
+
+        if ( top >= 1)
+        {
+            luaL_checktype(L, 1, LUA_TTABLE);
+            lua_pushvalue(L, 1);
+
+            lua_getfield(L, -1, "ignore_secure");
+            ignore_secure_values = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (!ignore_secure_values)
+        {
+            dmSys::GetSecureInfo(&info);
+        }
 
         lua_newtable(L);
         lua_pushliteral(L, "device_model");
@@ -614,7 +835,7 @@ union SaveLoadBuffer
      * gui.set_text(gui.get_node("version"), version_str)
      * ```
      */
-    int Sys_GetEngineInfo(lua_State* L)
+    static int Sys_GetEngineInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -683,7 +904,7 @@ union SaveLoadBuffer
      * ...
      * ```
      */
-    int Sys_GetApplicationInfo(lua_State* L)
+    static int Sys_GetApplicationInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -702,24 +923,13 @@ union SaveLoadBuffer
     }
 
     // Android version 6 Marshmallow (API level 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
-    bool IsAndroidMarshmallowOrAbove()
+    static bool IsAndroidMarshmallowOrAbove()
     {
-        const long android_marshmallow_api_level = 23;
-        bool is_android = false;
-        bool marshmallow_or_higher = false;
-        long api_level_android = 0;
-
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-
-        is_android = strcmp("Android", info.m_SystemName) == 0;
-        if (is_android)
-        {
-            api_level_android = strtol(info.m_ApiVersion, 0, 10);
-            marshmallow_or_higher = (api_level_android >= android_marshmallow_api_level);
-        }
-
-        return is_android && marshmallow_or_higher;
+        #ifdef ANDROID
+            const long android_marshmallow_api_level = 23;
+            return android_get_device_api_level() >= android_marshmallow_api_level;
+        #endif
+        return false;
     }
 
     /*# enumerate network interfaces
@@ -757,7 +967,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetIfaddrs(lua_State* L)
+    static int Sys_GetIfaddrs(lua_State* L)
     {
         int top = lua_gettop(L);
         const uint32_t max_count = 16;
@@ -792,11 +1002,11 @@ union SaveLoadBuffer
 
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                lua_pushstring(L, "ipv4");
+                lua_pushliteral(L, "ipv4");
             }
             else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
             {
-                lua_pushstring(L, "ipv6");
+                lua_pushliteral(L, "ipv6");
             }
             else
             {
@@ -818,7 +1028,7 @@ union SaveLoadBuffer
             }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
-                lua_pushstring(L, "02:00:00:00:00:00");
+                lua_pushliteral(L, "02:00:00:00:00:00");
             }
             else
             {
@@ -879,7 +1089,7 @@ union SaveLoadBuffer
      *end
      * ```
      */
-    int Sys_SetErrorHandler(lua_State* L)
+    static int Sys_SetErrorHandler(lua_State* L)
     {
         int top = lua_gettop(L);
         luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -1009,19 +1219,19 @@ union SaveLoadBuffer
     * project root.
     *
     * @name sys.reboot
-    * @param arg1 [type:string] argument 1
-    * @param arg2 [type:string] argument 2
-    * @param arg3 [type:string] argument 3
-    * @param arg4 [type:string] argument 4
-    * @param arg5 [type:string] argument 5
-    * @param arg6 [type:string] argument 6
+    * @param [arg1] [type:string] argument 1
+    * @param [arg2] [type:string] argument 2
+    * @param [arg3] [type:string] argument 3
+    * @param [arg4] [type:string] argument 4
+    * @param [arg5] [type:string] argument 5
+    * @param [arg6] [type:string] argument 6
     * @examples
     *
     * How to reboot engine with a specific bootstrap collection.
     *
     * ```lua
     * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
-    * local arg2 = 'build/default/game.projectc'
+    * local arg2 = 'build/game.projectc'
     * sys.reboot(arg1, arg2)
     * ```
     */
@@ -1154,8 +1364,17 @@ union SaveLoadBuffer
     {
         DM_LUA_STACK_CHECK(L, 1);
         luaL_checktype(L, 1, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 1);
-        lua_pushlstring(L, (const char*)g_saveload.m_buffer, n_used);
+
+        uint32_t table_size = CheckTableSize(L, 1);
+        char* buffer = Sys_SetupTableSerializationBuffer(table_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+        }
+
+        uint32_t n_used = CheckTable(L, buffer, table_size, 1);
+        lua_pushlstring(L, (const char*)buffer, n_used);
+        Sys_FreeTableSerializationBuffer(buffer);
         return 1;
 
     }
@@ -1184,12 +1403,60 @@ union SaveLoadBuffer
         return 1;
     }
 
+    //undocummented function for debugger
+
+    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
+    {
+        int top = lua_gettop(L);
+        lua_getinfo(L, "S", ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+        lua_pushstring(L, ar->source);
+        lua_pushnumber(L, ar->lastlinedefined);
+        if (lua_pushthread(L))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L); //main thread is not a coroutine
+        }
+        //[-1] - thread or nil
+        //[-2] - lastlinedefined (number)
+        //[-3] - source (string)
+        //[-4] - callback
+        lua_call(L, 3, 0);
+        assert(top == lua_gettop(L));
+    }
+
+    static int Sys_SetDebuggerLightweightHook(lua_State* L)
+    {
+        int index = 1;
+        lua_State* L1 = L;
+        if (lua_isthread(L, 1)) {
+            L1 = lua_tothread(L, 1);
+            index++;
+        }
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        if (g_DebuggerLightweightHook)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+            g_DebuggerLightweightHook = 0;
+        }
+        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
+        return 0;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
+        {"exists", Sys_Exists},
+        {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
-        {"get_config", Sys_GetConfig},
+        {"get_config", Sys_GetConfigString}, // deprecated
+        {"get_config_string", Sys_GetConfigString},
+        {"get_config_int", Sys_GetConfigInt},
+        {"get_config_number", Sys_GetConfigNumber},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
@@ -1206,22 +1473,25 @@ union SaveLoadBuffer
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {"serialize", Sys_Serialize},
         {"deserialize", Sys_Deserialize},
+
+        // undocummented functions for debugger
+        {"set_debugger_lightweight_hook", Sys_SetDebuggerLightweightHook},
         {0, 0}
     };
 
     /*# no network connection found
      * @name sys.NETWORK_DISCONNECTED
-     * @variable
+     * @constant
      */
 
     /*# network connected through mobile cellular
      * @name sys.NETWORK_CONNECTED_CELLULAR
-     * @variable
+     * @constant
      */
 
     /*# network connected through other, non cellular, connection
      * @name sys.NETWORK_CONNECTED
-     * @variable
+     * @constant
      */
 
     void InitializeSys(lua_State* L)

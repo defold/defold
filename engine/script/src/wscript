@@ -1,44 +1,49 @@
 #! /usr/bin/env python
 import os
-import Utils
+import waflib.Utils
 from waf_dynamo import apidoc_extract_task, dmsdk_add_files, platform_supports_feature
 
 def configure(conf):
     pass
 
-def build(bld):
-    script = bld.new_task_gen(features = 'cxx cc cstaticlib',
-                          includes = '. script',
-                          proto_gen_cc = False,
-                          proto_gen_py = True,
-                          protoc_includes = '. script',
-                          uselib = 'LUA',
-                          target = 'script')
+def remove_from_node_list(lst, name):
+    return [x for x in lst if not x.abspath().endswith(name)]
 
-    script.find_sources_in_dirs(['script', '.'])
+def build(bld):
+    script = bld.stlib(features = 'cxx c',
+                       includes = '. script',
+                       source = bld.path.ant_glob(['*.cpp', 'script/*.proto']),
+                       proto_gen_cc = False,
+                       proto_gen_py = True,
+                       protoc_includes = '. script',
+                       uselib = 'LUA',
+                       target = 'script')
 
     if 'web' in bld.env.PLATFORM:
-        script.source.remove(os.path.join('.','script_http.cpp'))
-        script.source.remove(os.path.join('.', 'script_html5.cpp'))
+        script.source = remove_from_node_list(script.source, 'script_html5.cpp')
     else:
-        script.source.remove(os.path.join('.', 'script_http_js.cpp'))
-        script.source.remove(os.path.join('.', 'script_html5_js.cpp'))
+        script.source = remove_from_node_list(script.source, 'script_html5_js.cpp')
 
     # luabitop
-    if 'lua' in Utils.to_list(script.env['STATICLIB_LUA']):
-        script.find_sources_in_dirs('bitop')
+    if 'lua' in waflib.Utils.to_list(script.env['STLIB_LUA']):
+        script.source += bld.path.ant_glob('bitop/*.c')
 
     # luasocket
     if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
-        script.find_sources_in_dirs('luasocket')
-        script.source.remove(os.path.join('luasocket', 'mime.c'))
-        script.source.remove(os.path.join('luasocket', 'serial.c'))
-        script.source.remove(os.path.join('luasocket', 'unix.c'))
+        script.source += bld.path.ant_glob('luasocket/*.c')
+        script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'mime.c'))
+        script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'serial.c'))
+        script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'unix.c'))
+
         script.cflags = ['-DLUASOCKET_API=']
         if 'win32' in bld.env.PLATFORM:
-            script.source.remove(os.path.join('luasocket', 'usocket.c'))
+            script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'usocket.c'))
         else:
-            script.source.remove(os.path.join('luasocket', 'wsocket.c'))
+            script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'wsocket.c'))
+
+
+    # lua-cjson
+    script.source += bld.path.ant_glob('luacjson/*.c')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
@@ -48,24 +53,38 @@ def build(bld):
 
     bld.add_group()
 
-    apidoc_extract_task(bld, ['script.cpp','script_bitop.cpp','script_hash.cpp','script_html5_js.cpp','script_http.cpp','script_image.cpp','script_json.cpp','script_msg.cpp','script_sys.cpp','script_timer.cpp','script_vmath.cpp','script_zlib.cpp','luasocket/luasocket.doc_h','script/sys_ddf.proto'])
+    apidoc_extract_task(bld,[
+        'script.cpp',
+        'script_bitop.cpp',
+        'script_hash.cpp',
+        'script_html5_js.cpp',
+        'script_json.cpp',
+        'script_msg.cpp',
+        'script_sys.cpp',
+        'script_timer.cpp',
+        'script_vmath.cpp',
+        'script_zlib.cpp',
+        'script_graphics.cpp',
+        'script_types.cpp',
+        'luasocket/luasocket.doc_h',
+        'script/sys_ddf.proto'])
 
     bld.install_files('${PREFIX}/include/script', 'script.h')
+    bld.install_files('${PREFIX}/include/script', 'http_service.h')
 
     # for #imports to work for other projects
     # ..first for python
-    ddf_ext = bld.new_task_gen(
+    ddf_ext = bld(
          rule   = 'echo "" > ${TGT}',
          source = 'script/lua_source_ddf.proto script/ddf_script.proto',
          target = '__init__.py',
          shell = True)
 
-    bld.install_files('${PREFIX}/share/script', 'script/lua_source_ddf.proto script/ddf_script.proto')
-    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto script/sys_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto script/sys_ddf.proto script/lua_source_ddf.proto')
     bld.install_files('${PREFIX}/lib/python/script', '__init__.py')
-
 
     if 'web' in bld.env.PLATFORM:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env.PLATFORM, '../lib/js/library_script.js', postpone = False)
 
-    bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

@@ -23,7 +23,7 @@ Note that the API reference is generated from the source code of the Defold engi
 ## Feature requests
 We value your ideas on how to improve Defold! You can submit feature requests to our public issue tracker using the [Feature Request template](https://github.com/defold/defold/issues/new?assignees=&labels=feature+request&template=feature_request.md&title=). Some guidelines:
 
-* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature_request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
+* Please [search already submitted feature requests](https://github.com/defold/defold/labels/feature%20request) before submitting your feature request. Maybe someone has already suggested the same thing or something only slightly different?
   * If there is an already submitted feature request we appreciate if you add additional information instead of creating a new feature request.
   * We will close any duplicate feature requests.
 * If you do submit a new Feature Request it is important that you fill in all fields marked as required.
@@ -59,7 +59,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
     * Use the .clang_format file for engine code.
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
-* All pull requests should be made to `defold:dev` by default. However, if your pull request *only* touches the editor and you want it to reach users as quickly as possible, it can be made towards the `defold:editor-dev` branch instead. Users will receive an editor update as soon as a change is merged into `defold:editor-dev`, so this should be done with care. The editor uses the latest stable release of the runtime, so any change that touches the runtime, the Bob command-line build tool, or makes a change to the file formats *must* be made towards the `defold:dev` branch, even if it contains mostly editor changes.
+* All pull requests should be made to `defold:dev` by default.
 * Pull requests should be given descriptive names: Issue-1234-Changed-the-flux-capacitor-to-use-uranium
   * Make sure to [link the issue to the pull request](https://help.github.com/en/github/managing-your-work-on-github/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
 
@@ -69,15 +69,11 @@ If you want to add new functionality there are several additional steps that mus
 
 * New functionality must be well designed and useful to not only your own project.
   * For game engine code there is always the option to create a native extension and share it via the Asset Portal if the functionality is specific to a certain type of project or in other ways not suitable for inclusion in the engine.
-* You should start by creating a [Feature Design ticket](https://github.com/defold/defold/issues/new?assignees=&labels=feature_design&title=) to discuss the proposed solution.
+* You should start by creating a Feature Request if one isn't already created.
+  * Write a Feature Design post (in the GitHub issue) to discuss the proposed solution.
   * The Feature Design should discuss the pros and cons of different solutions and it should document why a decision is made to implement the feature in a certain way.
-  * Never submit a PR without first creating a design ticket.
-  * Pull requests for new features without a corresponding GitHub issue will not be approved.
-  * Reference any existing Feature Request covered by the design.
   * Any new API that is introduced should be well designed and future proof as we always try to avoid introducing breaking changes.
     * New engine functionality that breaks existing functionality should be avoided at all costs.
-  * When the final design has been agreed upon the PR will be locked from further updates.
-* Reference the Feature Design in the PR.
 
 
 ### API reference

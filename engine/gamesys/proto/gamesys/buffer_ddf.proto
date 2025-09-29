@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmBufferDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -22,14 +23,15 @@ enum ValueType
 
 message StreamDesc
 {
-    required string name = 1;
+    required string name          = 1;
     required ValueType value_type = 2;
-    required uint32 value_count = 3;
-    repeated uint32 ui   = 4;
-    repeated int32  i    = 5;
-    repeated uint64 ui64 = 6;
-    repeated int64  i64  = 7;
-    repeated float  f    = 8;
+    required uint32 value_count   = 3;
+    repeated uint32 ui            = 4;
+    repeated int32  i             = 5;
+    repeated uint64 ui64          = 6;
+    repeated int64  i64           = 7;
+    repeated float  f             = 8;
+    required uint64 name_hash     = 9;
 }
 
 message BufferDesc

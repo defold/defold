@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmPhysicsDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -67,6 +68,8 @@ message CollisionShape
         required dmMath.Quat rotation   = 3;
         required uint32 index           = 4;
         required uint32 count           = 5;
+        optional string id              = 6;
+        optional uint64 id_hash         = 7 [(runtime_only) = true];
     }
 
     repeated Shape shapes = 1;
@@ -96,6 +99,10 @@ message CollisionObjectDesc
     optional float                  angular_damping = 10 [default=0];
     optional bool                   locked_rotation = 11 [default=false];
     optional bool                   bullet          = 12 [default=false];
+    // Should the component generate events
+    optional bool                   event_collision = 13 [default=true];
+    optional bool                   event_contact   = 14 [default=true];
+    optional bool                   event_trigger   = 15 [default=true];
 }
 
 /*# Collision object physics API documentation
@@ -103,6 +110,7 @@ message CollisionObjectDesc
  * @document
  * @name Collision object
  * @namespace physics
+ * @language Lua
  */
 
 /*# applies a force on a collision object
@@ -143,8 +151,8 @@ message ApplyForce
  * @name collision_response
  * @param other_id [type:hash] the id of the instance the collision object collided with
  * @param other_position [type:vector3] the world position of the instance the collision object collided with
- * @param other_group [type:hash] the collision group of the other collision object (hash)
- * @param own_group [type:hash] the collision group of the own collision object (hash)
+ * @param other_group [type:hash] the collision group of the other collision object
+ * @param own_group [type:hash] the collision group of the own collision object
  * @examples
  *
  * How to take action when a collision occurs:
@@ -190,8 +198,8 @@ message CollisionResponse
  * @param other_mass [type:number] the mass of the other collision object in kg
  * @param other_id [type:hash] the id of the instance the collision object is in contact with
  * @param other_position [type:vector3] the world position of the other collision object
- * @param other_group [type:hash] the collision group of the other collision object (hash)
- * @param own_group [type:hash] the collision group of the own collision object (hash)
+ * @param other_group [type:hash] the collision group of the other collision object
+ * @param own_group [type:hash] the collision group of the own collision object
  * @examples
  *
  * How to take action when a contact point occurs:
@@ -235,10 +243,10 @@ message ContactPointResponse
  *
  * @message
  * @name trigger_response
- * @param other_id [type:hash] the id of the instance the collision object collided with (hash)
+ * @param other_id [type:hash] the id of the instance the collision object collided with
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param other_group [type:hash] the collision group of the triggering collision object (hash)
- * @param own_group [type:hash] the collision group of the own collision object (hash)
+ * @param other_group [type:hash] the collision group of the triggering collision object
+ * @param own_group [type:hash] the collision group of the own collision object
  * @examples
  *
  * How to take action when a trigger interaction occurs:
@@ -265,18 +273,20 @@ message TriggerResponse
     required uint64 own_group               = 5;
 }
 
+// Runtime only (not public)
 message RequestRayCast
 {
-    required dmMath.Point3  from = 1;
-    required dmMath.Point3  to = 2;
-    required uint32         mask = 3;
-    required uint32         request_id = 4;
+    required dmMath.Point3  from            = 1;
+    required dmMath.Point3  to              = 2;
+    required uint32         mask            = 3;
+    required uint32         request_id      = 4;
 }
 
 /*# reports a ray cast hit
  *
- * This message is sent back to the sender of a `ray_cast_request`, if the ray hit a
- * collision object. See `physics.raycast_async` for examples of how to use it.
+ * This message is sent back to the sender of a [ref:ray_cast_request], or to the physics world listener
+ * if it is set (see [ref:physics.set_event_listener]), if the ray hits a collision object.
+ * See [ref:physics.raycast_async] for examples of how to use it.
  *
  * @message
  * @name ray_cast_response
@@ -299,8 +309,9 @@ message RayCastResponse
 
 /*# reports a ray cast miss
  *
- * This message is sent back to the sender of a `ray_cast_request`, if the ray didn't hit any
- * collision object. See `physics.raycast_async` for examples of how to use it.
+ * This message is sent back to the sender of a [ref:ray_cast_request], or to the physics world listener
+ * if it is set (see [ref:physics.set_event_listener]), if the ray didn't hit any collision object.
+ * See [ref:physics.raycast_async] for examples of how to use it.
  *
  * @message
  * @name ray_cast_missed
@@ -336,4 +347,256 @@ message EnableGridShapeLayer
 {
     required uint32 shape = 1;
     required uint32 enable = 2;
+}
+
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
+message ContactPoint
+{
+    required dmMath.Point3  position                 = 1; // World position of contact point
+    required dmMath.Point3  instance_position        = 2; // World position of instance point
+    required dmMath.Vector3 normal                   = 3;
+    required dmMath.Vector3 relative_velocity        = 4;
+    required float          mass                     = 5;
+    required uint64         id                       = 6;
+    required uint64         group                    = 7;
+}
+
+/*# reports a contact point between two collision objects in cases where a listener is specified.
+ * See [ref:physics.set_event_listener].
+ *
+ * This message is sent to a function specified in [ref:physics.set_event_listener] when
+ * a collision object has contact points with another collision object.
+ *
+ * Since multiple contact points can occur for two colliding objects, this event can be sent
+ * multiple times in the same frame for the same two colliding objects. To only be notified once
+ * when the collision occurs, check for the [ref:collision_event] event instead.
+ *
+ * @message
+ * @name contact_point_event
+ * @param applied_impulse [type:number] the impulse the contact resulted in
+ * @param distance [type:number] the penetration distance between the objects, which is always positive
+ * @param a [type:table] contact point information for object A
+ *
+ * `position`
+ * : [type:vector3] The world position of object A
+ *
+ * `id`
+ * : [type:hash] The ID of object A
+ *
+ * `group`
+ * : [type:hash] The collision group of object A
+ *
+ * `relative_velocity`
+ * : [type:vector3] The relative velocity of the collision object A as observed from B object
+ *
+ * `mass`
+ * : [type:number] The mass of the collision object A in kg
+ *
+ * `normal`
+ * : [type:vector3] normal in world space of the contact point, which points from B object towards A object
+ *
+ * @param b [type:table] contact point information for object B
+ *
+ * `position`
+ * : [type:vector3] The world position of object B
+ *
+ * `id`
+ * : [type:hash] The ID of object B
+ *
+ * `group`
+ * : [type:hash] The collision group of object B
+ *
+ * `relative_velocity`
+ * : [type:vector3] The relative velocity of the collision object B as observed from A object
+ *
+ * `mass`
+ * : [type:number] The mass of the collision object B in kg
+ *
+ * `normal`
+ * : [type:vector3] normal in world space of the contact point, which points from A object towards B object
+ *
+ * @examples
+ *
+ * How to take action when a contact point occurs:
+ *
+ * ```lua
+ * physics.set_event_listener(function(self, events)
+ *   for _,event in ipairs(events):
+ *     if event['type'] == hash("contact_point_event") then
+ *         pprint(event)
+ *         -- {
+ *         --  applied_impulse = 310.00769042969,
+ *         --  distance = 0.0714111328125,
+ *         --  a = {
+ *         --      position = vmath.vector3(446, 371, 0),
+ *         --      relative_velocity = vmath.vector3(1.1722083854693e-06, -20.667181015015, -0),
+ *         --      mass = 0,
+ *         --      group = hash: [default],
+ *         --      id = hash: [/flat],
+ *         --      normal = vmath.vector3(-0, -1, -0)
+ *         --  },
+ *         --  b = {
+ *         --      position = vmath.vector3(185, 657.92858886719, 0),
+ *         --      relative_velocity = vmath.vector3(-1.1722083854693e-06, 20.667181015015, 0),
+ *         --      mass = 10,
+ *         --      group = hash: [default],
+ *         --      id = hash: [/go2],
+ *         --      normal = vmath.vector3(0, 1, 0)
+ *         --  },
+ *         --  type = hash: [contact_point_event]
+ *         -- }
+ *      end
+ *    end
+ * end)
+ * ```
+ */
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
+message ContactPointEvent
+{   
+    required ContactPoint   a                         = 1;
+    required ContactPoint   b                         = 2;
+    required float          distance                  = 3;
+    required float          applied_impulse           = 4;
+}
+
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
+message Collision
+{
+    required dmMath.Point3 position                  = 1;
+    required uint64 id                               = 2;
+    required uint64 group                            = 3;
+}
+
+/*# reports a collision between two collision objects in cases where a listener is specified.
+ * See [ref:physics.set_event_listener].
+ *
+ * This message is sent to a function specified in [ref:physics.set_event_listener]
+ * when two collision objects collide.
+ *
+ * This message only reports that a collision has occurred and will be sent once per frame and per colliding pair.
+ * For more detailed information, check for the [ref:contact_point_event].
+ *
+ * @message
+ * @name collision_event
+ * @param a [type:table] collision information for object A
+ *
+ * `position`
+ * : [type:vector3] The world position of object A
+ *
+ * `id`
+ * : [type:hash] The ID of object A
+ *
+ * `group`
+ * : [type:hash] The collision group of object A
+ *
+ * @param b [type:table] collision information for object B
+ *
+ * `position`
+ * : [type:vector3] The world position of object B
+ *
+ * `id`
+ * : [type:hash] The ID of object B
+ *
+ * `group`
+ * : [type:hash] The collision group of object B
+ *
+ * @examples
+ *
+ * How to take action when a collision occurs:
+ *
+ * ```lua
+ * physics.set_event_listener(function(self, event, data)
+ *   if event == hash("collision_event") then
+ *       pprint(data)
+ *       -- {
+ *       --  a = {
+ *       --          group = hash: [default],
+ *       --          position = vmath.vector3(183, 666, 0),
+ *       --          id = hash: [/go1]
+ *       --      },
+ *       --  b = {
+ *       --          group = hash: [default],
+ *       --          position = vmath.vector3(185, 704.05865478516, 0),
+ *       --          id = hash: [/go2]
+ *       --      }
+ *       -- }
+ *   end
+ * end)
+ * ```
+ */
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
+message CollisionEvent
+{
+    required Collision a                            = 1;
+    required Collision b                            = 2;
+}
+
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
+message Trigger
+{
+    required uint64 id                              = 1;
+    required uint64 group                           = 2;
+}
+
+/*# reports interaction (enter/exit) between a trigger collision object and another collision object
+ * See [ref:physics.set_event_listener].
+ *
+ * This message is sent to a function specified in [ref:physics.set_event_listener]
+ * when a collision object interacts with another collision object and one of them is a trigger.
+ *
+ * This message only reports that an interaction actually happened and will be sent once per colliding pair and frame.
+ * For more detailed information, check for the [ref:contact_point_event].
+ *
+ * @message
+ * @name trigger_event
+ * @param enter [type:boolean] if the interaction was an entry or not
+ * @param a [type:table] interaction information for object A
+ * `id`
+ * : [type:hash] The ID of object A
+ *
+ * `group`
+ * : [type:hash] The collision group of object A
+ *
+ * @param b [type:table] collision information for object B
+ *
+ * `id`
+ * : [type:hash] The ID of object B
+ *
+ * `group`
+ * : [type:hash] The collision group of object B
+ *
+ * @examples
+ *
+ * How to take action when a trigger interaction occurs:
+ *
+ * ```lua
+ * physics.set_event_listener(function(self, event, data)
+ *  if event ==  hash("trigger_event") then
+ *      if data.enter then
+ *         -- take action for entry
+ *      else
+ *         -- take action for exit
+ *      end
+ *      pprint(data)
+ *      -- {
+ *      --  enter = true,
+ *      --  b = {
+ *      --      group = hash: [default],
+ *      --      id = hash: [/go2]
+ *      --  },
+ *      --  a = {
+ *      --      group = hash: [default],
+ *      --      id = hash: [/go1]
+ *      --  }
+ *      -- },
+ *   end
+ * end)
+ * ```
+ */
+// CAUTION: If you change this, you need to change the Push-function in script_physics.cpp!
+message TriggerEvent
+{
+    required bool enter                             = 1;
+    required Trigger a                              = 2;
+    required Trigger b                              = 3;
 }

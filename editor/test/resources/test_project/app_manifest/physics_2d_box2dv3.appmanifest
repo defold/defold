@@ -1,0 +1,106 @@
+platforms:
+    armv7-ios:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            frameworks: []
+            linkFlags: []
+    arm64-ios:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            frameworks: []
+            linkFlags: []
+    x86_64-ios:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            frameworks: []
+            linkFlags: []
+    armv7-android:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+            jetifier: true
+    arm64-android:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+            jetifier: true
+    arm64-osx:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            libs: [physics_2d, box2d, script_box2d]
+    x86_64-osx:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            frameworks: []
+            linkFlags: []
+    x86_64-linux:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+    arm64-linux:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            libs: [physics_2d, box2d, script_box2d]
+    x86-win32:
+        context:
+            excludeLibs: [libphysics, libLinearMath, libBulletDynamics, libBulletCollision, libbox2d_defold, libscript_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
+            linkFlags: []
+    x86_64-win32:
+        context:
+            excludeLibs: [libphysics, libLinearMath, libBulletDynamics, libBulletCollision, libbox2d_defold, libscript_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
+            linkFlags: []
+    js-web:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+            excludeJslibs: []
+    wasm-web:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+            excludeJslibs: []
+    wasm_pthread-web:
+        context:
+            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+            excludeJslibs: []

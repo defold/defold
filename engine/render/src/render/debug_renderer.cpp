@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,7 +36,7 @@ namespace dmRender
         Vector4 m_Color;
     };
 
-    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* vp_desc, uint32_t vp_desc_size, const void* fp_desc, uint32_t fp_desc_size)
+    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* sp_desc, uint32_t sp_desc_size)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         debug_renderer.m_MaxVertexCount = max_vertex_count;
@@ -45,51 +45,39 @@ namespace dmRender
         const uint32_t buffer_size = max_vertex_count * sizeof(DebugVertex);
         const uint32_t total_buffer_size = MAX_DEBUG_RENDER_TYPE_COUNT * buffer_size;
         debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, total_buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        dmGraphics::VertexElement ve[] =
-        {
-            {"position", 0, 4, dmGraphics::TYPE_FLOAT, false },
-            {"color", 1, 4, dmGraphics::TYPE_FLOAT, false }
-        };
-        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, 2);
 
-        dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
-        dmGraphics::ShaderDesc* shader_desc;
-        if (vp_desc_size > 0)
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(render_context->m_GraphicsContext);
+
+        dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_FLOAT, false);
+
+        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, stream_declaration);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
+        dmGraphics::HProgram program = dmGraphics::INVALID_PROGRAM_HANDLE;
+
+        if (sp_desc_size > 0)
         {
-            dmDDF::Result e = dmDDF::LoadMessage(vp_desc, vp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
+            dmGraphics::ShaderDesc* shader_desc;
+            dmDDF::Result e = dmDDF::LoadMessage(sp_desc, sp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
             if (e != dmDDF::RESULT_OK)
             {
-                dmLogWarning("Failed to create DebugRenderer vertex shader (%d)", e);
+                dmLogWarning("Failed to create DebugRenderer shader (%d)", e);
             }
             else
             {
-                dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(render_context->m_GraphicsContext, shader_desc);
-                vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, shader);
-                dmDDF::FreeMessage(shader_desc);
-            }
-        }
-        dmGraphics::HFragmentProgram fragment_program = dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE;
-        if ((vertex_program != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE) && (fp_desc_size > 0))
-        {
-            dmDDF::Result e = dmDDF::LoadMessage(fp_desc, fp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
-            if (e != dmDDF::RESULT_OK)
-            {
-                dmLogWarning("Failed to create DebugRenderer fragment shader (%d)", e);
-            }
-            else
-            {
-                dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(render_context->m_GraphicsContext, shader_desc);
-                fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, shader);
+                program = dmGraphics::NewProgram(render_context->m_GraphicsContext, shader_desc, 0, 0);
                 dmDDF::FreeMessage(shader_desc);
             }
         }
 
-        HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
+        HMaterial material3d = NewMaterial(render_context, program);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_3d = dmHashString64(DEBUG_3D_NAME);
         SetMaterialTags(material3d, 1, &debug_tag_3d);
 
-        HMaterial material2d = NewMaterial(render_context, vertex_program, fragment_program);
+        HMaterial material2d = NewMaterial(render_context, program);
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_2d = dmHashString64(DEBUG_2D_NAME);
         SetMaterialTags(material2d, 1, &debug_tag_2d);
@@ -124,12 +112,9 @@ namespace dmRender
         DebugRenderer& debug_renderer = context->m_DebugRenderer;
         HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
 
-        dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
-        if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
-            dmGraphics::DeleteVertexProgram(vp);
-        dmGraphics::HFragmentProgram fp = GetMaterialFragmentProgram(material);
-        if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
-            dmGraphics::DeleteFragmentProgram(fp);
+        dmGraphics::HProgram program = GetMaterialProgram(material);
+        if (program != dmGraphics::INVALID_PROGRAM_HANDLE)
+            dmGraphics::DeleteProgram(context->m_GraphicsContext, program);
 
         DeleteMaterial(context, material);
         material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;

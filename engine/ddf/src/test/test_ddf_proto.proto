@@ -1,3 +1,4 @@
+syntax = "proto2";
 package TestDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -256,5 +257,96 @@ message TestFieldAlignment
     required string pad = 1;
     required string needs_to_be_aligned1 = 2 [(field_align)=true];
     required string needs_to_be_aligned2 = 3 [(field_align)=true];
+}
+
+message OneOfMessage
+{
+    message Nested
+    {
+        oneof nested_field_name
+        {
+            int32  nested_int_val    = 1;
+            string nested_string_val = 2;
+        }
+
+        optional int32 nested_but_not_in_oneof = 3 [ default = 13 ];
+    }
+
+    oneof one_of_field_one
+    {
+        int32 int_val       = 1;
+        TestEnum enum_val   = 2;
+        Simple01 simple_val = 3;
+    }
+
+    oneof one_of_field_two
+    {
+        int32 int_val_two        = 4;
+        TestEnum enum_val_two    = 5;
+        string simple_string_two = 6;
+    }
+
+    optional int32 not_in_oneof = 7;
+    optional Nested nested_val  = 8;
+}
+
+message OneOfMessageRepeat
+{
+    message Nested
+    {
+        // Note: Default values are not supported for oneof blocks!
+        oneof values
+        {
+            uint64 val_a = 1 [default = 2];
+            int32  val_b = 2 [default = 1];
+        }
+    }
+
+    repeated Nested nested_one_of = 3;
+    optional Nested nested_one_of_with_defaults = 4;
+}
+
+message OneOfMessageNested
+{
+    message SubOne
+    {
+        oneof Values
+        {
+            int32 value_one = 1;
+            float value_two = 2;
+        }
+
+        optional uint64 non_one_of = 3;
+    }
+
+    message SubTwo
+    {
+        oneof Values
+        {
+            int32 value_one      = 1;
+            SubOne value_sub_one = 2;
+        }
+    }
+
+    oneof composite
+    {
+        int32  one = 1;
+        SubTwo two = 2;
+    }
+}
+
+message OneOfMessageSave
+{
+    oneof one_of_field
+    {
+        int32 int_val = 1;
+        bool bool_val = 2;
+    }
+
+    oneof one_of_field_string
+    {
+        int32 int_val_no_string = 3;
+        string string_val       = 4;
+    }
 }
 

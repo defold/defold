@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,13 +27,13 @@ namespace dmIntersection
 }
 
 /*# Render API documentation
- * [file:<dmsdk/render/render.h>]
  *
  * Api for render specific data
  *
  * @document
  * @name Render
  * @namespace dmRender
+ * @language C++
  */
 
 namespace dmRender
@@ -55,9 +55,13 @@ namespace dmRender
     /*#
      * Font map handle
      * @typedef
-     * @name HFontMap
+     * @name HFont
      */
+    typedef struct FontMap* HFont;
+
+    // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;
+
 
     /*#
      * Shader constant handle
@@ -72,6 +76,8 @@ namespace dmRender
      * @name HNamedConstantBuffer
      */
     typedef struct NamedConstantBuffer* HNamedConstantBuffer;
+
+    typedef struct Sampler*                 HSampler;
 
     /*#
      * @enum
@@ -89,6 +95,7 @@ namespace dmRender
         RESULT_OUT_OF_RESOURCES = -2,
         RESULT_BUFFER_IS_FULL = -3,
         RESULT_INVALID_PARAMETER = -4,
+        RESULT_TYPE_MISMATCH = -5,
     };
 
     /*#
@@ -177,13 +184,23 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT = 8;
-        HNamedConstantBuffer            m_ConstantBuffer;
+        static const uint32_t MAX_TEXTURE_COUNT       = 8;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
+        HNamedConstantBuffer            m_ConstantBuffer;
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        union
+        {
+            dmGraphics::HVertexBuffer m_VertexBuffer;
+            dmGraphics::HVertexBuffer m_VertexBuffers[MAX_VERTEX_BUFFER_COUNT];
+        };
+
+        union
+        {
+            dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+            dmGraphics::HVertexDeclaration  m_VertexDeclarations[MAX_VERTEX_BUFFER_COUNT];
+        };
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         HMaterial                       m_Material;
         dmGraphics::HTexture            m_Textures[MAX_TEXTURE_COUNT];
@@ -193,8 +210,10 @@ namespace dmRender
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
+        uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
+        uint32_t                        m_InstanceCount;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
         uint8_t                         m_SetFaceWinding : 1;
@@ -216,6 +235,7 @@ namespace dmRender
      * @param m_MajorOrder [type: uint32_t:2] If RENDER_ORDER_WORLD, then sorting is done based on the world position.
                                               Otherwise the sorting uses the m_Order value directly.
      * @param m_Dispatch [type: uint32_t:8] The dispatch function callback (dmRender::HRenderListDispatch)
+     * @param m_Visibility [type: uint32_t:1] Visibility flag. Used for frustrum culling. See enum Visibility
      */
     struct RenderListEntry
     {
@@ -274,6 +294,32 @@ namespace dmRender
     };
 
     /*#
+     * Frustum planes to use in a frustum
+     * @enum
+     * @name FrustumPlanes
+     * @member FRUSTUM_PLANES_SIDES
+     * @member FRUSTUM_PLANES_ALL
+     */
+    enum FrustumPlanes
+    {
+        FRUSTUM_PLANES_SIDES = 4,
+        FRUSTUM_PLANES_ALL   = 6
+    };
+
+    /*#
+     * Frustum options used when setting up a draw call
+     * @struct
+     * @name FrustumOptions
+     * @member m_FrustumMatrix [type: matrix4] the frustum matrix
+     * @member m_SkipNearFarPlanes [type: bool] should the frustum culling use the near and far planes
+     */
+    struct FrustumOptions
+    {
+        dmVMath::Matrix4 m_Matrix;
+        FrustumPlanes    m_NumPlanes;
+    };
+
+    /*#
      * Visibility dispatch function callback.
      * @struct
      * @name RenderListVisibilityParams
@@ -290,10 +336,10 @@ namespace dmRender
     };
 
     /*#
-     * Render dispatch function callback.
+     * Render visibility function callback.
      * @typedef
-     * @name RenderListDispatchFn
-     * @param params [type: dmRender::RenderListDispatchParams] the params
+     * @name RenderListVisibilityFn
+     * @param params [type: dmRender::RenderListVisibilityParams] the params
      */
     typedef void (*RenderListVisibilityFn)(RenderListVisibilityParams const &params);
 
@@ -439,15 +485,15 @@ namespace dmRender
      * @param constant [type: dmRender::HConstant] The shader constant
      * @return location [type: int32_t] the location
     */
-    int32_t GetConstantLocation(HConstant constant);
+    dmGraphics::HUniformLocation GetConstantLocation(HConstant constant);
 
     /*#
      * Sets the shader program constant location
      * @name SetConstantLocation
      * @param constant [type: dmRender::HConstant] The shader constant
-     * @param location [type: int32_t] the location
+     * @param location [type: dmGraphics::HUniformLocation] the location
     */
-    void SetConstantLocation(HConstant constant, int32_t location);
+    void SetConstantLocation(HConstant constant, dmGraphics::HUniformLocation location);
 
     /*#
      * Gets the type of the constant
@@ -495,7 +541,7 @@ namespace dmRender
     void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash);
 
     /*#
-     * Sets a named constant to the buffer
+     * Sets one or more named constants to the buffer
      * @name SetNamedConstant
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
      * @param name_hash [type: dmhash_t] the name of the constant
@@ -505,6 +551,19 @@ namespace dmRender
     void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values);
 
     /*#
+     * Sets one or more named constants to the buffer with a specified data type.
+     * Currently only dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER and dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4
+     * are supported.
+     * @name SetNamedConstant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param values [type: dmVMath::Vector4*] the values
+     * @param num_values [type: uint32_t] the number of values
+     * @param constant_type [type: dmRenderDDF::MaterialDesc::ConstantType] The constant type
+     */
+    void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, dmRenderDDF::MaterialDesc::ConstantType constant_type);
+
+    /*#
      * Sets a list of named constants to the buffer
      * @name SetNamedConstants
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
@@ -512,6 +571,17 @@ namespace dmRender
      * @param num_constants [type: uint32_t] the number of constants
      */
     void SetNamedConstants(HNamedConstantBuffer buffer, HConstant* constants, uint32_t num_constants);
+
+    /*#
+     * Sets a named constant in the buffer at a specific index
+     * @name SetNamedConstantAtIndex
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param value [type: dmVMath::Vector4] the value
+     * @param value_index [type: uint32_t] the index of the value to set
+     * @return result [type: Result] the result
+     */
+    Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type);
 
     /*#
      * Gets a named constant from the buffer
@@ -526,12 +596,134 @@ namespace dmRender
     bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values);
 
     /*#
+     * Gets a named constant from the buffer - with type information
+     * @name GetNamedConstant
+     * @note This give access to the internal memory of the constant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param values [type: dmVMath::Vector4**] (out) the values. May not be null.
+     * @param num_values [type: uint32_t*] (out) the number of values. May not be null.
+     * @param constant_type [type: dmRenderDDF::MaterialDesc::ConstantType*] (out) the constant type.
+     * @return ok [type: bool] true if constant existed.
+     */
+    bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type);
+
+    /*#
      * Gets number of constants in the buffer
      * @name GetNamedConstantCount
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
      * @return ok [type: bool] true if constant existed.
      */
     uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
+
+
+    /*#
+     * @typedef
+     * @name IterateNamedConstantsFn
+     * @param name_hash [type:dmhash_t]
+     * @param ctx [type:void*]
+     */
+    typedef void (*IterateNamedConstantsFn)(dmhash_t name_hash, void* ctx);
+
+    /*#
+     * Iterates over the constants
+     * @name IterateNamedConstants
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param callback [type: IterateNamedConstantsFn] the callback function
+     * @param ctx [type: void*] the callback context
+     */
+    void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx);
+
+    /*#
+     * @name GetViewMatrix
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @return view_matrix [type:const dmVMath::Matrix4&]
+     */
+    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
+
+    /*#
+     * @name NewMaterial
+     * @param render_context [type:dmRender::HContext] Render context
+     * @param program [type:dmGraphics::HProgram]
+     * @return new_material [type:dmRender::HMaterial]
+     */
+    HMaterial NewMaterial(HRenderContext render_context, dmGraphics::HProgram program);
+
+    /*#
+     * @name DeleteMaterial
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @param material [type:dmRender::Material]
+     */
+    void DeleteMaterial(HRenderContext render_context, HMaterial material);
+
+    /*#
+     * @name ClearMaterialTags
+     * @param material [type:dmRender::HMaterial]
+     */
+    void ClearMaterialTags(HMaterial material);
+
+    /*#
+     * @name SetMaterialTags
+     * @param material [type:dmRender::Material]
+     * @param tag_count [type:uint32_t]
+     * @param tags [type:const dmhash_t*]
+     */
+    void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
+
+    /*#
+     * @name SetMaterialSampler
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @param unit [type:uint32_t]
+     * @param u_wrap [type:dmGraphics::TextureWrap]
+     * @param v_wrap [type:dmGraphics::TextureWrap]
+     * @param min_filter [type:dmGraphics::TextureFilter]
+     * @param mag_filter [type:dmGraphics::TextureFilter]
+     * @param max_anisotropy [type:float]
+     * @return is_succeed [type:bool]
+     */
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
+    /*#
+     * @name GetMaterialSampler
+     */
+    //! TODO: not implemented
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit);
+
+    /*#
+     * @name GetMaterialSamplerNameHash
+     * @param material [type:dmRender::HMaterial]
+     * @param unit [type:uint32_t]
+     * @return name_hash [type:dmhash_t]
+     */
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
+
+    /*#
+     * @name GetMaterialSamplerUnit
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @return sampler_unit [type:uint32_t]
+     */
+    uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
+
+    /*#
+     * @name ApplyMaterialConstants
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @param material [type:dmRender::Material]
+     * @param render_object [type:const dmRender::RenderObject*]
+     */
+    void ApplyMaterialConstants(HRenderContext render_context, HMaterial material, const RenderObject* render_object);
+
+    /*#
+     * @name ApplyMaterialSampler
+     * @param render_context [type:dmRender::HRenderContext]
+     * @param material [type:dmRender::HMaterial]
+     * @param sampler [type:dmRender::HSampler]
+     * @param value_index [type:uint8_t]
+     * @param texture [type:dmGraphics::HTexture]
+     */
+    //! TODO: not implemented
+    void ApplyMaterialSampler(HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
 }
 

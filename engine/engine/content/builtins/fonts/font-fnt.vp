@@ -1,15 +1,20 @@
-uniform highp mat4 view_proj;
+#version 140
 
-varying mediump vec2 var_texcoord0;
-varying lowp vec4 var_face_color;
-varying lowp vec4 var_outline_color;
+out mediump vec2 var_texcoord0;
+out mediump vec4 var_face_color;
+out mediump vec4 var_outline_color;
 
 // positions are in world space
-attribute mediump vec4 position;
-attribute mediump vec2 texcoord0;
-attribute lowp vec4 face_color;
-attribute lowp vec4 outline_color;
-attribute lowp vec4 shadow_color;
+in mediump vec4 position;
+in mediump vec2 texcoord0;
+in mediump vec4 face_color;
+in mediump vec4 outline_color;
+in mediump vec4 shadow_color;
+
+uniform vs_uniforms
+{
+    mat4 view_proj;
+};
 
 void main()
 {

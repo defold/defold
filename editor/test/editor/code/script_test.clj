@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,7 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.code.data :as data]
-            [editor.code.data-test :refer [c cr layout-info]]
+            [editor.code.data-test :refer [layout-info]]
             [editor.code.script :as script]))
 
 (def ^:private indent-string "    ")
@@ -233,60 +233,3 @@
     ["    s = 'will end something'|"]
     ["    s = 'will end something'"
      "    |"]))
-
-(def strip-go-prop-declarations #'script/strip-go-property-declarations)
-
-(deftest strip-go-prop-declarations-test
-  (are [code expected]
-    (= expected (strip-go-prop-declarations code))
-
-    ["go.property()"]
-    ["             "]
-
-    ["go.property('name', hash())"]
-    ["                           "]
-
-    ["go.property('name', resource.texture('/image.png'))"]
-    ["                                                   "]
-
-    ["go.property('name', 1) -- comment"]
-    ["                       -- comment"]
-
-    ["go.property('name1', 1) --[[comment]] go.property('name2', 2)"]
-    ["                        --[[comment]]                        "]
-
-    ["go.property('name',"
-     "            123456) -- comment"]
-    ["                   "
-     "                    -- comment"]
-
-    ["do"
-     "    go.property('name', 1)"
-     "end"]
-    ["do"
-     "                          "
-     "end"]
-
-    ["go.property();"]
-    ["              "]
-
-    ["go.property()"
-     ";"]
-    ["             "
-     " "]
-
-    ["go.property(); -- comment"]
-    ["               -- comment"]
-
-    ["go.property()"
-     "; -- comment"]
-    ["             "
-     "  -- comment"]
-
-    ["go.property('name;', resource.texture('/image.png'));"]
-    ["                                                     "]
-
-    ["go.property('name;',"
-     "            123456); -- comment"]
-    ["                    "
-     "                     -- comment"]))

@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,11 +21,12 @@
 #include <dlib/sslsocket.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include "testutil.h"
+#include <dlib/testutil.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 int g_HttpPort = -1;
+char g_HttpAddress[128] = "localhost";
 
 static const uint32_t MAX_CONNECTIONS = 8;
 
@@ -61,7 +62,6 @@ TEST_F(dmConnectionPoolTest, Basic)
 {
 }
 
-#ifndef _WIN32
 
 // NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
 
@@ -69,7 +69,7 @@ TEST_F(dmConnectionPoolTest, Connect)
 {
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
     dmConnectionPool::Close(pool, c);
 }
@@ -83,7 +83,7 @@ TEST_F(dmConnectionPoolTest, MaxConnections)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
     }
@@ -93,7 +93,7 @@ TEST_F(dmConnectionPoolTest, MaxConnections)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -115,7 +115,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
         dmSocket::Address a;
@@ -129,7 +129,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -144,7 +144,7 @@ TEST_F(dmConnectionPoolTest, KeepAlive)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
 
         dmSocket::Address a;
@@ -177,7 +177,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         connections.push_back(c);
 
@@ -192,7 +192,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
 
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OUT_OF_RESOURCES, r);
 
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
@@ -209,7 +209,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     for (uint32_t i = 0; i < MAX_CONNECTIONS; ++i) {
         dmConnectionPool::HConnection c;
         dmSocket::Result sr;
-        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", g_HttpPort, false, 0, &c, &sr);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
         ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
         dmSocket::Address a;
         uint16_t p;
@@ -231,13 +231,11 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     CheckStats(MAX_CONNECTIONS, 0, 0);
 }
 
-#endif
-
 TEST_F(dmConnectionPoolTest, ConnectFailed)
 {
     dmConnectionPool::HConnection c;
     dmSocket::Result sr;
-    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", 1111, false, 0, &c, &sr);
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, 1111, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_SOCKET_ERROR, r);
 }
 
@@ -252,14 +250,22 @@ int main(int argc, char **argv)
 {
     if(argc > 1)
     {
+        char path[256];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
         dmConfigFile::HConfig config;
-        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
-            dmLogError("Could not read config file '%s'", argv[1]);
+            dmLogError("Could not read config file '%s'", path);
             Usage();
             return 1;
         }
         dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        if (!dmTestUtil::GetIpFromConfig(config, g_HttpAddress, sizeof(g_HttpAddress))) {
+            dmLogError("Failed to get server ip!");
+        } else {
+            dmLogInfo("Server ip: %s", g_HttpAddress);
+        }
         dmConfigFile::Delete(config);
     }
     else
@@ -268,7 +274,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     jc_test_init(&argc, argv);

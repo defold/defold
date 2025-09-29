@@ -1,18 +1,17 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <stdint.h>
@@ -20,7 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
-
+#include <dmsdk/resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
@@ -36,8 +35,10 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/bones");
-        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/bones");
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_Factory = m_Factory;
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -60,7 +61,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmGameObject::Result result;
 
         // A has component_user_data
@@ -101,13 +102,13 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-static dmResource::Result NullResourceCreate(const dmResource::ResourceCreateParams& params)
+static dmResource::Result NullResourceCreate(const dmResource::ResourceCreateParams* params)
 {
-    params.m_Resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
+    ResourceDescriptorSetResource(params->m_Resource, (void*)1); // asserted for != 0 in dmResource
     return dmResource::RESULT_OK;
 }
 
-static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyParams& params)
+static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
     return dmResource::RESULT_OK;
 }
@@ -191,12 +192,4 @@ TEST_F(BonesTest, ComponentCreatingInstances)
 
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }

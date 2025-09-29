@@ -12,6 +12,7 @@
  * @document
  * @name Base
  * @namespace base
+ * @language Lua
  */
 
 /*# asserts that condition is not nil and not false
@@ -23,8 +24,8 @@
  * 
  * 
  * @name assert
- * @param v
- * @param [message]
+ * @param v [type:boolean]
+ * @param [message] [type:string]
  */
 
 /*# collects garbage
@@ -84,8 +85,8 @@
  * 
  * 
  * @name collectgarbage
- * @param [opt]
- * @param [arg]
+ * @param [opt] [type:table]
+ * @param [arg] [type:number]
  */
 
 /*# executes a Lua file
@@ -98,7 +99,7 @@
  * 
  * 
  * @name dofile
- * @param [filename]
+ * @param [filename] [type:string]
  */
 
 /*# raises an error message
@@ -118,8 +119,8 @@
  * 
  * 
  * @name error
- * @param message
- * @param [level]
+ * @param message [type:string]
+ * @param [level] [type:number]
  */
 
 /*# global variable that holds the global environment
@@ -147,7 +148,7 @@
  * 
  * 
  * @name getfenv
- * @param [f]
+ * @param [f] [type:function]
  */
 
 /*# returns the metatable for the object
@@ -160,7 +161,7 @@
  * 
  * 
  * @name getmetatable
- * @param object
+ * @param object [type:table]
  */
 
 /*# iterates over a numerically keyed table
@@ -178,7 +179,7 @@
  * 
  * 
  * @name ipairs
- * @param t
+ * @param t [type:table]
  */
 
 /*# loads a chunk by calling a function repeatedly
@@ -200,8 +201,8 @@
  * 
  * 
  * @name load
- * @param func
- * @param [chunkname]
+ * @param func [type:function]
+ * @param [chunkname] [type:string]
  */
 
 /*# loads a Lua file and parses it
@@ -213,7 +214,7 @@
  * 
  * 
  * @name loadfile
- * @param [filename]
+ * @param [filename] [type:string]
  */
 
 /*# compiles a string of Lua code
@@ -234,8 +235,8 @@
  * 
  * 
  * @name loadstring
- * @param string
- * @param [chunkname]
+ * @param string [type:string]
+ * @param [chunkname] [type:string]
  */
 
 /*# returns next key / value pair in a table
@@ -268,8 +269,8 @@
  * 
  * 
  * @name next
- * @param table
- * @param [index]
+ * @param table [type:table]
+ * @param [index] [type:number]
  */
 
 /*# traverse all items in a table
@@ -289,7 +290,7 @@
  * 
  * 
  * @name pairs
- * @param t
+ * @param t [type:string]
  */
 
 /*# calls a function in protected mode
@@ -307,9 +308,9 @@
  * 
  * 
  * @name pcall
- * @param f
- * @param arg1
- * @param ...
+ * @param f [type:function]
+ * @param arg1 [type:any]
+ * @param ... [type:...]
  */
 
 /*# prints its arguments
@@ -323,7 +324,7 @@
  * 
  * 
  * @name print
- * @param ...
+ * @param ... [type:...]
  */
 
 /*# compares two values for equality without invoking metamethods
@@ -333,8 +334,8 @@
  * 
  * 
  * @name rawequal
- * @param v1
- * @param v2
+ * @param v1 [type:any]
+ * @param v2 [type:any]
  */
 
 /*# gets the value of a table item without invoking metamethods
@@ -345,8 +346,8 @@
  * 
  * 
  * @name rawget
- * @param table
- * @param index
+ * @param table [type:table]
+ * @param index [type:number]
  */
 
 /*# sets the value of a table item without invoking metamethods
@@ -360,9 +361,9 @@
  * 
  * 
  * @name rawset
- * @param table
- * @param index
- * @param value
+ * @param table [type:table]
+ * @param index [type:number]
+ * @param value [type:any]
  */
 
 /*# returns items in a list
@@ -374,8 +375,8 @@
  * 
  * 
  * @name select
- * @param index
- * @param ...
+ * @param index [type:number]
+ * @param ... [type:...]
  */
 
 /*# sets a function's environment
@@ -392,8 +393,8 @@
  * 
  * 
  * @name setfenv
- * @param f
- * @param table
+ * @param f [type:function]
+ * @param table [type:table]
  */
 
 /*# sets the metatable for a table
@@ -409,8 +410,8 @@
  * 
  * 
  * @name setmetatable
- * @param table
- * @param metatable
+ * @param table [type:table]
+ * @param metatable [type:table]
  */
 
 /*# converts a string (of the given base) to a number
@@ -430,8 +431,8 @@
  * 
  * 
  * @name tonumber
- * @param e
- * @param [base]
+ * @param e [type:string]
+ * @param [base] [type:number]
  */
 
 /*# converts its argument to a string
@@ -447,7 +448,7 @@
  * 
  * 
  * @name tostring
- * @param e
+ * @param e [type:any]
  */
 
 /*# returns the type of a variable
@@ -464,7 +465,7 @@
  * 
  * 
  * @name type
- * @param v
+ * @param v [type:any]
  */
 
 /*# unpacks a table into individual items
@@ -483,9 +484,9 @@
  * 
  * 
  * @name unpack
- * @param list
- * @param [i]
- * @param [j]
+ * @param list [type:table]
+ * @param [i] [type:number]
+ * @param [j] [type:number]
  */
 
 /*# global variable containing the running Lua version
@@ -518,8 +519,8 @@
  * 
  * 
  * @name xpcall
- * @param f
- * @param err
+ * @param f [type:function]
+ * @param err [type:string]
  */
 
 /*# creates a Lua module
@@ -554,8 +555,8 @@
  * 
  * 
  * @name module
- * @param name
- * @param [...]
+ * @param name [type:string]
+ * @param [...] [type:...]
  */
 
 /*# loads a module
@@ -600,6 +601,6 @@
  * 
  * 
  * @name require
- * @param modname
+ * @param modname [type:string]
  */
 

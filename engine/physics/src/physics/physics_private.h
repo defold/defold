@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,7 +25,7 @@ namespace dmPhysics
      */
     struct Overlap
     {
-        void* m_Object;
+        uint64_t m_Object;
         uint32_t m_Count;
     };
 
@@ -57,7 +57,7 @@ namespace dmPhysics
     struct OverlapCache {
     	OverlapCache(uint32_t triggerOverlapCapacity);
 
-    	dmHashTable<uintptr_t, OverlapEntry> m_OverlapCache;
+    	dmHashTable<uint64_t, OverlapEntry> m_OverlapCache;
 
         /**
          * Max count of tracked overlaps per object.
@@ -86,11 +86,11 @@ namespace dmPhysics
         /// Trigger entered callback user data
         void*                   m_TriggerEnteredUserData;
         /// First object of the pair
-        void*                   m_ObjectA;
+        uint64_t                m_ObjectA;
         /// First object user data of the pair
         void*                   m_UserDataA;
         /// Second object of the pair
-        void*                   m_ObjectB;
+        uint64_t                m_ObjectB;
         /// Second object user data of the pair
         void*                   m_UserDataB;
         /// Collision group of the first object
@@ -98,6 +98,8 @@ namespace dmPhysics
         /// Collision group of the second object
         uint16_t                m_GroupB;
     };
+
+    void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object);
 
     /**
      * Adds an overlap to the cache and potentially calls the trigger entered callback
@@ -108,7 +110,7 @@ namespace dmPhysics
     /**
      * Removes an object from the cache, which cleans all occurences of the object.
      */
-    void OverlapCacheRemove(OverlapCache* cache, void* object);
+    void OverlapCacheRemove(OverlapCache* cache, uint64_t object);
 
     struct OverlapCachePruneData
     {

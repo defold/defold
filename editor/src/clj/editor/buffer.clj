@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,8 +15,9 @@
 (ns editor.buffer
   (:require [dynamo.graph :as g]
             [editor.buffers :as buffers]
+            [editor.code.lang.json :as json]
             [editor.code.resource :as r]
-            [editor.json :as json]
+            [util.murmur :as murmur]
             [editor.pipeline :as pipeline])
   (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
@@ -74,6 +75,7 @@
 
 (defn- json-stream->pb-stream [{:keys [name type count data] :as _json-stream}]
   (assoc {:name name
+          :name-hash (murmur/hash64 name)
           :value-type type
           :value-count count}
     (pb-value-type->pb-stream-field type) data))
@@ -86,11 +88,9 @@
                                   :type (type->pb-value-type v)
                                   v))))
 
-(g/defnk produce-build-targets [streams resource]
-  [(pipeline/make-protobuf-build-target resource nil
-                                        BufferProto$BufferDesc
-                                        {:streams (map json-stream->pb-stream streams)}
-                                        nil)])
+(g/defnk produce-build-targets [_node-id streams resource]
+  (let [pb-map {:streams (mapv json-stream->pb-stream streams)}]
+    [(pipeline/make-protobuf-build-target _node-id resource BufferProto$BufferDesc pb-map)]))
 
 (g/defnk produce-streams [_node-id lines]
   (let [streams (try
@@ -115,10 +115,11 @@
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
-                                 :ext "buffer"
-                                 :label "Buffer"
-                                 :icon buffer-icon
-                                 :view-types [:code :default]
-                                 :view-opts {:code {:grammar json/json-grammar}}
-                                 :node-type BufferNode
-                                 :eager-loading? false))
+    :ext "buffer"
+    :label "Buffer"
+    :icon buffer-icon
+    :view-types [:code :default]
+    :view-opts {:code {:grammar json/grammar}}
+    :node-type BufferNode
+    :built-pb-class BufferProto$BufferDesc
+    :lazy-loaded true))

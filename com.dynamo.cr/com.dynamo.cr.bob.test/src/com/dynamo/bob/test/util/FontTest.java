@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -45,9 +45,10 @@ import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.FontMap.Glyph;
+import com.dynamo.render.proto.Font.GlyphBank;
+import com.dynamo.render.proto.Font.GlyphBank.Glyph;
 
 public class FontTest {
 
@@ -58,7 +59,7 @@ public class FontTest {
 
         InputStream inputStream = getClass().getResourceAsStream(resName);
         File outputFile = new File(outputPath);
-        outputFile.deleteOnExit();
+        FileUtil.deleteOnExit(outputFile);
         OutputStream outputStream = new FileOutputStream(outputFile);
         IOUtils.copy(inputStream, outputStream);
         inputStream.close();
@@ -210,8 +211,8 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -226,22 +227,23 @@ public class FontTest {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
-        FontMap fontMap = fontc.getFontMap();
-        fontMap.writeTo(fontOutputStream);
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        glyphBank.writeTo(fontOutputStream);
 
         fontInputStream.close();
         fontOutputStream.close();
 
         // verify output
-        BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
-        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+        BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
+        glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         // glyph count
         int expectedCharCount = (127 - 32) + 7; // (127 - 32) default chars, 7 extra åäöÅÄÖ
-        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
+        assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
 
         // unicode chars
-        assertEquals(0xF8FF, fontMap.getGlyphs(fontMap.getGlyphsCount() - 1).getCharacter());
+        assertEquals(0xF8FF, glyphBank.getGlyphs(glyphBank.getGlyphsCount() - 1).getCharacter());
     }
 
     @Test
@@ -256,8 +258,8 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -272,19 +274,19 @@ public class FontTest {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
-        FontMap fontMap = fontc.getFontMap();
-        fontMap.writeTo(fontOutputStream);
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        glyphBank.writeTo(fontOutputStream);
 
         fontInputStream.close();
         fontOutputStream.close();
 
         // verify output
-        BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
-        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+        BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
+        glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         // glyph count
         int expectedCharCount = 6639; // Taken from font information of DroidSansJapanese.ttf
-        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
+        assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
     @Test
@@ -299,8 +301,8 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -315,19 +317,19 @@ public class FontTest {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
-        FontMap fontMap = fontc.getFontMap();
-        fontMap.writeTo(fontOutputStream);
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        glyphBank.writeTo(fontOutputStream);
 
         fontInputStream.close();
         fontOutputStream.close();
 
         // verify output
-        BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
-        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+        BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
+        glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         // glyph count
         int expectedCharCount = 1519; // Taken from font information of Tuffy.ttf
-        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
+        assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
     @Test
@@ -353,7 +355,7 @@ public class FontTest {
                     return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                 }
             });
-        FontMap fontMap = fontc.getFontMap();
+        GlyphBank glyphBank = fontc.getGlyphBank();
 
         fontInputStream.close();
 
@@ -361,16 +363,16 @@ public class FontTest {
         assertEquals(previewImage.getWidth(), 1024);
         assertEquals(previewImage.getHeight(), 2048);
 
-        // For previews we don't inlcude all glyphs
-        assertTrue(fontMap.getGlyphsCount() < 1519);
+        // For previews we don't include all glyphs
+        assertTrue(glyphBank.getGlyphsCount() < 1519);
 
         // Check that all glyphs are inside cache space
-        for (int i = 0; i < fontMap.getGlyphsCount(); i++) {
-            Glyph g = fontMap.getGlyphs(i);
+        for (int i = 0; i < glyphBank.getGlyphsCount(); i++) {
+            Glyph g = glyphBank.getGlyphs(i);
             assertTrue(g.getX() >= 0);
             assertTrue(g.getY() >= 0);
-            assertTrue(g.getX() + g.getWidth() < fontMap.getCacheWidth());
-            assertTrue(g.getY() + g.getAscent() + g.getDescent() < fontMap.getCacheHeight());
+            assertTrue(g.getX() + g.getWidth() < glyphBank.getCacheWidth());
+            assertTrue(g.getY() + g.getAscent() + g.getDescent() < glyphBank.getCacheHeight());
         }
     }
 
@@ -384,7 +386,7 @@ public class FontTest {
                 .build();
 
         File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         boolean success = true;
@@ -400,8 +402,8 @@ public class FontTest {
                         return new FileInputStream(Paths.get(searchPath, resourceName).toString());
                     }
                 });
-            FontMap fontMap = fontc.getFontMap();
-            fontMap.writeTo(fontOutputStream);
+            GlyphBank glyphBank = fontc.getGlyphBank();
+            glyphBank.writeTo(fontOutputStream);
         } catch (FontFormatException e) {
             success = false;
         }
@@ -420,7 +422,7 @@ public class FontTest {
 
         // copy fnt and texture file
         final Path tmpDir = Files.createTempDirectory("fnt-tmp");
-        tmpDir.toFile().deleteOnExit();
+        FileUtil.deleteOnExit(tmpDir.toFile());
         String tmpFnt = copyResourceToDir(tmpDir.toString(), "bmfont.fnt");
         copyResourceToDir(tmpDir.toString(), "bmfont.png");
 
@@ -433,7 +435,7 @@ public class FontTest {
 
         // temp output file
         File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -447,16 +449,74 @@ public class FontTest {
                 return new FileInputStream(Paths.get(tmpDir.toString(), resourceName).toString());
             }
         });
-        FontMap fontMap = fontc.getFontMap();
-        fontMap.writeTo(fontOutputStream);
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        glyphBank.writeTo(fontOutputStream);
+
         fontInputStream.close();
         fontOutputStream.close();
 
-        // verify glyphs
-        BufferedInputStream fontcStream = new BufferedInputStream(new FileInputStream(outfile));
-        fontMap = FontMap.newBuilder().mergeFrom(fontcStream).build();
+        // verify output
+        BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
+        glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         int expectedCharCount = 96; // Taken from bmfont.fnt
-        assertEquals(expectedCharCount, fontMap.getGlyphsCount());
+        assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
+
+
+    // https://github.com/defold/defold/issues/7346
+    @Test
+    public void testUncompressedChars() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("monogram.ttf")
+            .setMaterial("font.material")
+            .setSize(16)
+            .setAllChars(false)
+            .build();
+
+        // temp output file
+        File outfile = File.createTempFile("font-output", ".fontc");
+        FileUtil.deleteOnExit(outfile);
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        FileOutputStream fontOutputStream = new FileOutputStream(outfile);
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        byte[] glyphData = glyphBank.getGlyphData().toByteArray();
+        int glyphCount = glyphBank.getGlyphsCount();
+        for (int i = 0; i < glyphCount; i++) {
+            Glyph g = glyphBank.getGlyphs(i);
+            if ((char)g.getCharacter() == '.') {
+                byte[] expectedBytes = new byte[] {
+                    0x00, // uncompressed
+                    0x00, 0x00, 0x00, 0x00,
+                    0x00, (byte)0xff, 0x00, 0x00,
+                    0x00, (byte)0xff, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00
+                };
+                int glyphDataSize = (int)g.getGlyphDataSize();
+                int glyphDataOffset = (int)g.getGlyphDataOffset();
+                assertEquals(expectedBytes.length, glyphDataSize);
+                for (int gi = 0; gi < expectedBytes.length; gi++) {
+                    assertEquals(expectedBytes[gi], glyphData[glyphDataOffset + gi]);
+                }
+                return;
+            }
+        }
+        // we should not get here unless the '.' glyph wasn't found
+        assertTrue(false);
+    }
+
 }

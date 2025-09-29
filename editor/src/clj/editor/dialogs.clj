@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,110 +14,125 @@
 
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
+            [cljfx.ext.list-view :as fx.ext.list-view]
+            [cljfx.fx.group :as fx.group]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.hyperlink :as fx.hyperlink]
+            [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.progress-bar :as fx.progress-bar]
+            [cljfx.fx.progress-indicator :as fx.progress-indicator]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.v-box :as fx.v-box]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.prop :as fx.prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g]
-            [editor.core :as core]
-            [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
-            [editor.fuzzy-text :as fuzzy-text]
             [editor.fxui :as fxui]
             [editor.github :as github]
-            [editor.handler :as handler]
-            [editor.icons :as icons]
+            [editor.localization :as localization]
+            [editor.os :as os]
             [editor.progress :as progress]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
-            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
-            [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
            [javafx.application Platform]
+           [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.geometry Pos]
-           [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ListView TextField]
-           [javafx.scene.input KeyCode]
-           [javafx.scene.layout HBox VBox]
-           [javafx.scene.text Text TextFlow]
+           [javafx.scene.control ListView TextField]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn- dialog-stage
+(defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
 
-  Scene graph is configured using these keys:
-  - `:size` (optional, default `:default`) - a dialog width, either `:small`,
-    `:default` or `:large`
-  - `:header` (required, fx description) - header of a dialog, padded
-  - `:content` (optional, nil allowed) - content of a dialog, not padded, you
-    can use \"dialog-content-padding\" style class to set desired padding (or
-    \"text-area-with-dialog-content-padding\" for text areas)
-  - `:footer` (required, fx description) - footer of a dialog, padded"
-  [{:keys [size header content footer]
-    :or {size :default}
+  Required keys:
+
+    :header    cljfx description, header of a dialog, already padded
+    :footer    cljfx description, footer of a dialog, already padded
+
+  Optional keys:
+
+    :size          dialog width, either :small, :default or :large
+    :content       a content of a dialog, not padded; you can use
+                   \"dialog-content-padding\" style class to set desired padding
+                   (or \"text-area-with-dialog-content-padding\" for text areas)
+    :root-props    extra props to scene root's v-box lifecycle (sans :children)"
+  [{:keys [size header content footer root-props]
+    :or {size :default root-props {}}
     :as props}]
   (-> props
-      (dissoc :size :header :content :footer)
+      (dissoc :size :header :content :footer :root-props)
       (assoc :fx/type fxui/dialog-stage
-             :scene {:fx/type :scene
-                     :stylesheets ["dialogs.css"]
-                     :root {:fx/type :v-box
-                            :style-class ["dialog-body" (case size
-                                                          :small "dialog-body-small"
-                                                          :default "dialog-body-default"
-                                                          :large "dialog-body-large")]
-                            :children (if (some? content)
-                                        [{:fx/type :v-box
-                                          :style-class "dialog-with-content-header"
-                                          :children [header]}
-                                         {:fx/type :v-box
-                                          :style-class "dialog-content"
-                                          :children [content]}
-                                         {:fx/type :v-box
-                                          :style-class "dialog-with-content-footer"
-                                          :children [footer]}]
-                                        [{:fx/type :v-box
-                                          :style-class "dialog-without-content-header"
-                                          :children [header]}
-                                         {:fx/type :region :style-class "dialog-no-content"}
-                                         {:fx/type :v-box
-                                          :style-class "dialog-without-content-footer"
-                                          :children [footer]}])}})))
+             :scene {:fx/type fx.scene/lifecycle
+                     :stylesheets [(str (io/resource "dialogs.css"))]
+                     :root (-> root-props
+                               (fxui/add-style-classes
+                                 "dialog-body"
+                                 (case size
+                                   :small "dialog-body-small"
+                                   :default "dialog-body-default"
+                                   :large "dialog-body-large"))
+                               (assoc :fx/type fx.v-box/lifecycle
+                                      :children (if (some? content)
+                                                  [{:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-with-content-header"
+                                                    :children [header]}
+                                                   {:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-content"
+                                                    :children [content]}
+                                                   {:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-with-content-footer"
+                                                    :children [footer]}]
+                                                  [{:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-without-content-header"
+                                                    :children [header]}
+                                                   {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
+                                                   {:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-without-content-footer"
+                                                    :children [footer]}])))})))
 
-(defn- confirmation-dialog-header->fx-desc [header]
-  (if (string? header)
-    {:fx/type fxui/label
+(defn- confirmation-dialog-header->fx-desc [localization header]
+  {:pre [header]}
+  (if (or (string? header) (localization/message-pattern? header))
+    {:fx/type fxui/legacy-label
      :variant :header
-     :text header}
+     :text (localization header)}
     header))
 
-(defn- dialog-buttons [props]
+(defn dialog-buttons [props]
   (-> props
-      (assoc :fx/type :h-box)
-      (fxui/provide-defaults :alignment :center-right)
+      (assoc :fx/type fx.h-box/lifecycle)
+      (util/provide-defaults :alignment :center-right)
       (fxui/add-style-classes "spacing-smaller")))
 
-(defn- confirmation-dialog [{:keys [buttons icon]
+(defn- confirmation-dialog [{:keys [buttons icon localization]
                              :or {icon ::no-icon}
                              :as props}]
   (let [button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
                                                    (assoc :fx/type fxui/button
                                                           :on-action {:result (:result button-props)})
+                                                   (update :text localization)
                                                    (dissoc :result))]
                                (if (:default-button button-props)
                                  {:fx/type fxui/ext-focused-by-default
-                                  :desc (fxui/provide-defaults button-desc :variant :primary)}
+                                  :desc (util/provide-defaults button-desc :variant :primary)}
                                  button-desc)))
                            buttons)]
     (-> props
@@ -126,12 +141,13 @@
                :footer {:fx/type dialog-buttons
                         :children button-descs}
                :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))})
-        (dissoc :buttons :icon ::fxui/result)
+        (dissoc :buttons :icon ::fxui/result :localization)
+        (update :title localization)
         (update :header (fn [header]
-                          (let [header-desc (confirmation-dialog-header->fx-desc header)]
+                          (let [header-desc (confirmation-dialog-header->fx-desc localization header)]
                             (if (= icon ::no-icon)
                               header-desc
-                              {:fx/type :h-box
+                              {:fx/type fx.h-box/lifecycle
                                :style-class "spacing-smaller"
                                :alignment :center-left
                                :children [(if (keyword? icon)
@@ -139,66 +155,83 @@
                                             icon)
                                           header-desc]})))))))
 
-(defn make-confirmation-dialog
-  "Shows a dialog and blocks current thread until users selects one option.
-
-  `props` is a prop map for `editor.dialogs/dialog-stage`, but instead of
-  `:footer` you use `:buttons`
-
-  Additional keys:
-  - `:buttons` (optional) - a coll of button descriptions. Button
-  description is a prop map for `editor.fxui/button` with few caveats:
-    * you don't have to specify `:fx/type`
-    * it should have `:result` key, it's value will be returned from this
-      function (default `nil`)
-    * if you specify `:default-button`, it will be styled as primary and receive
-      focus by default
-    * if you specify `:cancel-button`, closing window using `x` button will
-      return `:result` from that button (and `nil` otherwise)
-  - `:icon` (optional) - a keyword valid as `:type` for `editor.fxui/icon`, if
-    present, will add an icon to the left of a header"
-  [props]
-  (fxui/show-dialog-and-await-result!
-    :event-handler (fn [state event]
-                     (assoc state ::fxui/result (:result event)))
-    :description (assoc props :fx/type confirmation-dialog)))
-
-(defn- info-dialog-text-area [props]
+(defn content-text-area [props]
   (-> props
-      (assoc :fx/type fxui/text-area)
+      (assoc :fx/type fxui/legacy-text-area)
       (fxui/add-style-classes "text-area-with-dialog-content-padding")
-      (fxui/provide-defaults
+      (util/provide-defaults
         :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
         :variant :borderless
         :editable false)))
+
+(defn- coerce-dialog-content [content localization]
+  (cond
+    (:fx/type content)
+    content
+
+    (or (string? content) (localization/message-pattern? content))
+    {:fx/type content-text-area
+     :text (localization content)}
+
+    (map? content)
+    (-> content
+        (assoc :fx/type content-text-area)
+        (update :text localization))))
+
+(defn make-confirmation-dialog
+  "Shows a dialog and blocks current thread until users selects one option.
+
+  props is a prop map to configure the dialog, supports all options from
+  [[dialog-stage]] with these changes:
+    :title      can be a MessagePattern in addition to string
+    :header     can be a string or MessagePattern in addition to cljfx desc
+    :footer     not supported; use :buttons instead
+    :content    can be:
+                  * cljfx description (used as is)
+                  * prop map (map without :fx/type key) for
+                    [[editor.fxui/text-area]] - readonly by default to allow
+                    user select and copy text; :text prop is required, can be a
+                    MessagePattern in addition to string
+                  * string - text or MessagePattern for readonly text area
+    :buttons    use instead of :footer; a coll of button descriptions, where
+                a button description is a prop map for [[editor.fxui/button]]
+                with a few caveats:
+                  * you don't have to specify :fx/type
+                  * it should have :result key; its value will be returned from
+                    this function (default nil)
+                  * if you specify :default-button, it will be styled as primary
+                    and receive focus by default
+                  * if you specify :cancel-button, dismissing the window will
+                    return :result from that button (and nil otherwise)
+                  * :text prop will be localized (can be a MessagePattern in
+                    addition to string)"
+  [localization props]
+  (fxui/show-dialog-and-await-result!
+    :event-handler (fn [state event]
+                     (assoc state ::fxui/result (:result event)))
+    :description (-> props
+                     (assoc :fx/type confirmation-dialog
+                            :localization localization)
+                     (update :content coerce-dialog-content localization))))
+
+(def ^String indented-bullet
+  ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+  "\u00A0\u00A0\u2022\u00A0")
+
+(def indent-with-bullet (partial str indented-bullet))
 
 (defn make-info-dialog
   "Shows a dialog with selectable text content and blocks current thread until
   user closes it.
 
-  `props` is a map to configure the dialog, supports all options from
-  `editor.dialogs/make-confirmation-dialog` with these changes:
-  - `:buttons` have a close button by default
-  - `:content` can be:
-    * fx description (a map with `:fx/type` key) - used as is
-    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
-      readonly by default to allow user select and copy text, `:text` prop is
-      required
-    * string - text for readonly text area"
-  [props]
+  props is a map to configure the dialog, supports all options from
+  [[make-confirmation-dialog]] with these changes:
+    * :buttons include a close button by default"
+  [localization props]
   (make-confirmation-dialog
+    localization
     (-> props
-        (update :content (fn [content]
-                           (cond
-                             (:fx/type content)
-                             content
-
-                             (map? content)
-                             (assoc content :fx/type info-dialog-text-area)
-
-                             (string? content)
-                             {:fx/type info-dialog-text-area :text content})))
-        (fxui/provide-defaults :buttons [{:text "Close"
+        (util/provide-defaults :buttons [{:text (localization/message "dialog.button.close")
                                           :cancel-button true
                                           :default-button true}]))))
 
@@ -207,31 +240,31 @@
        (pos? (.length x))
        (every? #(Character/isDigit ^char %) x)))
 
-(defn resolution-dialog [{:keys [width-text height-text] :as props}]
+(defn resolution-dialog [{:keys [width-text height-text localization] :as props}]
   (let [width-valid (digit-string? width-text)
         height-valid (digit-string? height-text)]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "Set Custom Resolution"
+     :title (localization (localization/message "dialog.custom-resolution.title"))
      :size :small
-     :header {:fx/type :v-box
-              :children [{:fx/type fxui/label
+     :header {:fx/type fx.v-box/lifecycle
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Set custom game resolution"}
-                         {:fx/type fxui/label
-                          :text "Game window will be resized to this size"}]}
+                          :text (localization (localization/message "dialog.custom-resolution.header"))}
+                         {:fx/type fxui/legacy-label
+                          :text (localization (localization/message "dialog.custom-resolution.detail"))}]}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
-                           :text "Width"}
-                          {:fx/type fxui/text-field
+               :children [{:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.custom-resolution.label.width"))}
+                          {:fx/type fxui/legacy-text-field
                            :variant (if width-valid :default :error)
                            :text width-text
                            :on-text-changed {:event-type :set-width}}
-                          {:fx/type fxui/label
-                           :text "Height"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.custom-resolution.label.height"))}
+                          {:fx/type fxui/legacy-text-field
                            :variant (if height-valid :default :error)
                            :text height-text
                            :on-text-changed {:event-type :set-height}}]}
@@ -239,18 +272,18 @@
               :children [{:fx/type fxui/button
                           :cancel-button true
                           :on-action {:event-type :cancel}
-                          :text "Cancel"}
+                          :text (localization (localization/message "dialog.button.cancel"))}
                          {:fx/type fxui/button
                           :variant :primary
                           :disable (or (not width-valid) (not height-valid))
                           :default-button true
-                          :text "Set Resolution"
+                          :text (localization (localization/message "dialog.custom-resolution.button.set-resolution"))
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-resolution-dialog []
+(defn make-resolution-dialog [data localization]
   (fxui/show-dialog-and-await-result!
-    :initial-state {:width-text "320"
-                    :height-text "420"}
+    :initial-state {:width-text (str (or (:width data) "320"))
+                    :height-text (str (or (:height data) "420"))}
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-width (assoc state :width-text event)
@@ -258,73 +291,78 @@
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result {:width (field-expression/to-int (:width-text state))
                                                             :height (field-expression/to-int (:height-text state))})))
-    :description {:fx/type resolution-dialog}))
+    :description {:fx/type resolution-dialog
+                  :localization localization}))
 
-(defn make-update-failed-dialog [^Stage owner]
+(defn make-update-failed-dialog [^Stage owner localization]
   (let [result (make-confirmation-dialog
-                 {:title "Update Failed"
+                 localization
+                 {:title (localization/message "updater.update-failed.title")
                   :owner owner
                   :icon :icon/triangle-error
-                  :header {:fx/type :v-box
-                           :children [{:fx/type fxui/label
+                  :header {:fx/type fx.v-box/lifecycle
+                           :children [{:fx/type fxui/legacy-label
                                        :variant :header
-                                       :text "An error occurred during update installation"}
-                                      {:fx/type fxui/label
-                                       :text "You probably should perform a fresh install"}]}
-                  :buttons [{:text "Quit"
+                                       :text (localization (localization/message "updater.update-failed.header"))}
+                                      {:fx/type fxui/legacy-label
+                                       :text (localization (localization/message "updater.update-failed.detail"))}]}
+                  :buttons [{:text (localization/message "dialog.button.quit")
                              :cancel-button true
                              :result false}
-                            {:text "Open defold.com"
+                            {:text (localization/message "dialog.button.open-defold-website")
                              :default-button true
                              :result true}]})]
     (when result
       (ui/open-url "https://www.defold.com/"))))
 
-(defn make-download-update-or-restart-dialog [^Stage owner]
+(defn make-download-update-or-restart-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Install Update?"
+    localization
+    {:title (localization/message "updater.download-or-restart-dialog.title")
      :icon :icon/circle-info
      :size :large
      :owner owner
-     :header {:fx/type :v-box
-              :children [{:fx/type fxui/label
+     :header {:fx/type fx.v-box/lifecycle
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Update is ready, but there is even newer version available"}
-                         {:fx/type fxui/label
-                          :text "You can install downloaded update or download newer one"}]}
-     :buttons [{:text "Not Now"
+                          :text (localization (localization/message "updater.download-or-restart-dialog.header"))}
+                         {:fx/type fxui/legacy-label
+                          :text (localization (localization/message "updater.download-or-restart-dialog.detail"))}]}
+     :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result :cancel}
-               {:text "Install and Restart"
+               {:text (localization/message "updater.dialog.button.install-and-restart")
                 :result :restart}
-               {:text "Download Newer Version"
+               {:text (localization/message "updater.dialog.button.download-newer-version")
                 :result :download}]}))
 
-(defn make-platform-no-longer-supported-dialog [^Stage owner]
+(defn make-platform-no-longer-supported-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Platform not supported"
+    localization
+    {:title (localization/message "updater.platform-not-supported-dialog.title")
      :icon :icon/circle-sad
      :owner owner
-     :header {:fx/type :v-box
-              :children [{:fx/type fxui/label
+     :header {:fx/type fx.v-box/lifecycle
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Updates are no longer provided for this platform"}
-                         {:fx/type fxui/label
-                          :text "Supported platforms are 64-bit Linux, macOS and Windows"}]}
-     :buttons [{:text "Close"
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.header"))}
+                         {:fx/type fxui/legacy-label
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.detail"))}]}
+     :buttons [{:text (localization/message "dialog.button.close")
                 :cancel-button true
                 :default-button true}]}))
 
-(defn make-download-update-dialog [^Stage owner]
+(defn make-download-update-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Download Update?"
-     :header "A newer version of Defold is available!"
+    localization
+    {:title (localization/message "updater.download-dialog.title")
+     :header (localization/message "updater.download-dialog.header")
      :icon :icon/circle-happy
      :owner owner
-     :buttons [{:text "Not Now"
+     :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result false}
-               {:text "Download Update"
+               {:text (localization/message "updater.dialog.button.download")
                 :default-button true
                 :result true}]}))
 
@@ -340,42 +378,43 @@
                 (format "%s: %s" type-name (or message "Unknown")))))
        (string/join "\n")))
 
-(defn- unexpected-error-dialog [{:keys [ex-map] :as props}]
+(defn- unexpected-error-dialog [{:keys [ex-map localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
-   :title "Error"
-   :header {:fx/type :h-box
+   :title (localization (localization/message "dialog.error.title"))
+   :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
                         :type :icon/triangle-sad}
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :variant :header
-                        :text "An error occurred"}]}
-   :content {:fx/type info-dialog-text-area
+                        :text (localization (localization/message "dialog.error.header"))}]}
+   :content {:fx/type content-text-area
              :text (messages ex-map)}
-   :footer {:fx/type :v-box
+   :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
-            :children [{:fx/type fxui/label
-                        :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
+            :children [{:fx/type fxui/legacy-label
+                        :text (localization (localization/message "dialog.error.footer"))}
                        {:fx/type dialog-buttons
                         :children [{:fx/type fxui/button
                                     :cancel-button true
                                     :on-action {:result false}
-                                    :text "Dismiss"}
+                                    :text (localization (localization/message "dialog.button.dismiss"))}
                                    {:fx/type fxui/ext-focused-by-default
                                     :desc {:fx/type fxui/button
                                            :variant :primary
                                            :default-button true
                                            :on-action {:result true}
-                                           :text "Report"}}]}]}})
+                                           :text (localization (localization/message "dialog.button.report"))}}]}]}})
 
-(defn make-unexpected-error-dialog [ex-map sentry-id-promise]
+(defn make-unexpected-error-dialog [ex-map sentry-id-promise localization]
   (when (fxui/show-dialog-and-await-result!
           :event-handler (fn [state event]
                            (assoc state ::fxui/result (:result event)))
           :description {:fx/type unexpected-error-dialog
+                        :localization localization
                         :ex-map ex-map})
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (if sentry-id
@@ -388,25 +427,26 @@
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request (fn [_] (Platform/exit))
-   :header {:fx/type :h-box
+   :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-default"
             :alignment :center-left
-            :children [{:fx/type :group
-                        :children [{:fx/type :image-view
+            :children [{:fx/type fx.group/lifecycle
+                        :children [{:fx/type fx.image-view/lifecycle
                                     :scale-x 0.25
                                     :scale-y 0.25
                                     :image "logo.png"}]}
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :variant :header
                         :text "Loading project"}]}
-   :content {:fx/type :v-box
+   :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
-             :children [{:fx/type fxui/label
+             :children [{:fx/type fxui/legacy-label
                          :wrap-text false
                          :text (:message progress)}
-                        {:fx/type :progress-bar
+                        {:fx/type fx.progress-bar/lifecycle
                          :max-width Double/MAX_VALUE
-                         :progress (progress/fraction progress)}]}
+                         :progress (or (progress/fraction progress)
+                                       -1.0)}]} ; Indeterminate.
    :footer {:fx/type dialog-buttons
             :children [{:fx/type fxui/button
                         :disable true
@@ -430,32 +470,38 @@
         (throw ret)
         ret))))
 
-(defn make-gl-support-error-dialog [support-error]
-  (let [root ^VBox (ui/load-fxml "gl-error.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)
-        result (atom :quit)]
-    (ui/with-controls root [message ^Button quit ^Button continue glgenbuffers-link opengl-linux-link]
-      (when-not (util/is-linux?)
-        (.. root getChildren (remove opengl-linux-link)))
-      (ui/context! root :dialog {:stage stage} nil)
-      (ui/title! stage "Insufficient OpenGL Support")
-      (ui/text! message support-error)
-      (ui/on-action! continue (fn [_] (reset! result :continue) (ui/close! stage)))
-      (.setDefaultButton continue true)
-      (ui/bind-action! quit ::close)
-      (.setCancelButton quit true)
-      (ui/on-action! glgenbuffers-link (fn [_] (ui/open-url (github/glgenbuffers-link))))
-      (ui/on-action! opengl-linux-link (fn [_] (ui/open-url "https://www.defold.com/faq/#_linux_issues")))
-      (.setScene stage scene)
-      ;; We want to show this dialog before the main ui is up running
-      ;; so we can't use ui/show-and-wait! which does some extra menu
-      ;; update magic.
-      (.showAndWait stage)
-      @result)))
+(defn make-gl-support-error-dialog [support-error localization]
+  (make-confirmation-dialog
+    localization
+    {:title (localization/message "dialog.gl-support.title")
+     :header {:fx/type fx.v-box/lifecycle
+              :children
+              (-> [{:fx/type fxui/legacy-label
+                    :variant :header
+                    :text (localization (localization/message "dialog.gl-support.header"))}]
+                  (cond->
+                    (os/is-linux?)
+                    (conj {:fx/type fx.hyperlink/lifecycle
+                           :text (localization (localization/message "dialog.gl-support.linux"))
+                           :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))
+                  (conj
+                    {:fx/type fx.hyperlink/lifecycle
+                     :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
+                     :text (localization (localization/message "dialog.gl-support.gl-gen-buffers"))}
+                    {:fx/type fxui/legacy-label
+                     :text (localization (localization/message "dialog.gl-support.detail"))}))}
+     :icon :icon/circle-sad
+     :content {:fx/type content-text-area
+               :text support-error}
+     :buttons [{:text (localization/message "dialog.button.quit")
+                :cancel-button true
+                :result :quit}
+               {:text (localization/message "dialog.button.disable-scene-editor")
+                :default-button true
+                :result :continue}]}))
 
 (defn make-file-dialog
-  ^File [title filter-descs ^File initial-file ^Window owner-window]
+  ^File [^String title filter-descs ^File initial-file ^Window owner-window]
   (let [chooser (FileChooser.)
         initial-directory (some-> initial-file .getParentFile)
         initial-file-name (some-> initial-file .getName)
@@ -472,210 +518,239 @@
     (.setTitle chooser title)
     (.showOpenDialog chooser owner-window)))
 
-(handler/defhandler ::confirm :dialog
-  (enabled? [selection]
-            (seq selection))
-  (run [^Stage stage selection]
-       (ui/user-data! stage ::selected-items selection)
-       (ui/close! stage)))
+(defn make-directory-dialog
+  ^File [^String title ^File initial-dir ^Window owner-window]
+  (-> (doto (DirectoryChooser.)
+        (.setInitialDirectory initial-dir)
+        (.setTitle title))
+      (.showDialog owner-window)))
 
-(handler/defhandler ::close :dialog
-  (run [^Stage stage]
-       (ui/close! stage)))
+(defn- default-filter-fn [filter-on text items]
+  (if (coll/empty? text)
+    items
+    (let [text (string/lower-case text)]
+      (filterv (fn [item]
+                 (thread-util/throw-if-interrupted!)
+                 (string/starts-with? (string/lower-case (filter-on item)) text))
+               items))))
 
-(handler/defhandler ::focus :dialog
-  (active? [user-data] (if-let [active-fn (:active-fn user-data)]
-                         (active-fn nil)
-                         true))
-  (run [^Stage stage user-data]
-       (when-let [^Node node (:node user-data)]
-         (ui/request-focus! node))))
+(def ext-with-identity-items-props
+  (fx/make-ext-with-props
+    {:items (fx.prop/make (fxui/identity-aware-observable-list-mutator #(.getItems ^ListView %))
+                          fx.lifecycle/scalar)}))
 
-(defn- default-filter-fn [cell-fn text items]
-  (let [text (string/lower-case text)
-        str-fn (comp string/lower-case :text cell-fn)]
-    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
+(defn- select-first-list-item-on-items-changed! [^ListView view]
+  (let [items (.getItems view)
+        properties (.getProperties view)
+        selection-model (.getSelectionModel view)]
+    (when (pos? (count items))
+      (.select selection-model 0))
+    (.addListener items (reify ListChangeListener
+                          (onChanged [_ _]
+                            (when (pos? (count items))
+                              (.select selection-model 0)
+                              ;; ListViewBehavior's selectedIndicesListener sets the selection anchor
+                              ;; to the end of the list on items change unless the list view has default anchor.
+                              ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
+                              (.put properties "isDefaultAnchor" true)))))))
 
-(defn make-select-list-dialog [items options]
-  (let [^Parent root (ui/load-fxml "select-list.fxml")
-        scene (Scene. root)
-        ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
-                       (ui/title! (or (:title options) "Select Item"))
-                       (.setScene scene))
-        controls (ui/collect-controls root ["filter" "item-list" "ok"])
-        ok-label (:ok-label options "OK")
-        ^TextField filter-field (:filter controls)
-        filter-value (or (:filter options)
-                         (some-> (:filter-atom options) deref)
+(defn- select-list-dialog
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization]
+    :as props}]
+  {:fx/type dialog-stage
+   :title (localization title)
+   :showing (fxui/dialog-showing? props)
+   :owner owner
+   :on-close-request {:event-type :cancel}
+   :size :large
+   :header {:fx/type fxui/legacy-text-field
+            :prompt-text (localization prompt)
+            :text filter-term
+            :on-text-changed {:event-type :set-filter-term}}
+   :root-props {:event-filter {:event-type :filter-root-events}}
+   :content {:fx/type fx.ext.list-view/with-selection-props
+             :props {:selection-mode selection
+                     :on-selected-indices-changed {:event-type :set-selected-indices}}
+             :desc {:fx/type fx/ext-on-instance-lifecycle
+                    :on-created select-first-list-item-on-items-changed!
+                    :desc {:fx/type ext-with-identity-items-props
+                           :props {:items filtered-items}
+                           :desc {:fx/type fx.list-view/lifecycle
+                                  :fixed-cell-size 27
+                                  :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                 :describe cell-fn}}}}}
+   :footer {:fx/type fx.h-box/lifecycle
+            :alignment :center-left
+            :children [{:fx/type fx.progress-indicator/lifecycle
+                        :h-box/hgrow :never
+                        :pref-width 32.0
+                        :pref-height 32.0
+                        :visible filter-in-progress}
+                       {:fx/type dialog-buttons
+                        :h-box/hgrow :always
+                        :children [{:fx/type fxui/button
+                                    :text (localization ok-label)
+                                    :variant :primary
+                                    :disable (zero? (count filtered-items))
+                                    :on-action {:event-type :confirm}
+                                    :default-button true}]}]}})
+
+(defn- wrap-cell-fn [f]
+  (fn [item]
+    (when (some? item)
+      (assoc (f item) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
+
+(defn- select-list-dialog-event-handler [set-filter-term-fn]
+  (fn [state event]
+    (case (:event-type event)
+      :cancel (assoc state ::fxui/result nil)
+      :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
+                                           :selected-items (mapv (:filtered-items state) (:selected-indices state))})
+      :set-selected-indices (assoc state :selected-indices (:fx/event event))
+      :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
+                                     (if (and (= MouseButton/PRIMARY (.getButton e))
+                                              (= 2 (.getClickCount e)))
+                                       (recur state (assoc event :event-type :confirm))
+                                       state))
+      :filter-root-events (let [^Event e (:fx/event event)]
+                            (if (and (instance? KeyEvent e)
+                                     (= KeyEvent/KEY_PRESSED (.getEventType e)))
+                              (let [^KeyEvent e e]
+                                (condp = (.getCode e)
+                                  KeyCode/UP (let [view (.getTarget e)]
+                                               (when (instance? ListView (.getTarget e))
+                                                 (let [^ListView view view]
+                                                   (when (zero? (.getSelectedIndex (.getSelectionModel view)))
+                                                     (.consume e)
+                                                     (.fireEvent view (KeyEvent.
+                                                                        KeyEvent/KEY_PRESSED
+                                                                        "\t"
+                                                                        "\t"
+                                                                        KeyCode/TAB
+                                                                        #_shift true
+                                                                        #_control false
+                                                                        #_alt false
+                                                                        #_meta false)))))
+                                               state)
+                                  KeyCode/DOWN (let [view (.getTarget e)]
+                                                 (when (instance? TextField view)
+                                                   (let [^TextField view view]
+                                                     (.consume e)
+                                                     (.fireEvent view (KeyEvent.
+                                                                        KeyEvent/KEY_PRESSED
+                                                                        "\t"
+                                                                        "\t"
+                                                                        KeyCode/TAB
+                                                                        #_shift false
+                                                                        #_control false
+                                                                        #_alt false
+                                                                        #_meta false))))
+                                                 state)
+                                  KeyCode/ENTER (if (empty? (:filtered-items state))
+                                                  state
+                                                  (recur state (assoc event :event-type :confirm)))
+                                  KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
+                                  state))
+                              state))
+      :set-filter-term (let [filter-term (:fx/event event)]
+                         (set-filter-term-fn state filter-term)))))
+
+(defn make-select-list-dialog
+  "Show dialog that allows the user to select one or many of the suggested items
+
+  Returns a coll of selected items or nil if nothing was selected
+
+  Supported options keys (all optional):
+
+      :title          dialog title, string or MessagePattern, defaults to
+                      \"dialog.select-item.title\" message
+      :ok-label       label on confirmation button, string or MessagePattern,
+                      defaults to \"dialog.select-item.button.ok\" message
+      :filter         initial filter term string, defaults to value in
+                      :filter-atom, or, if absent, to empty string
+      :filter-atom    atom with initial filter term string; if supplied, its
+                      value will be reset to final filter term on confirm
+      :cell-fn        cell factory fn, defaults to identity; should return a
+                      cljfx prop map for a list cell
+      :selection      a selection mode, either :single (default) or :multiple
+      :filter-fn      filtering fn of 2 args (filter term and items), should
+                      return a filtered coll of items
+      :filter-on      if no custom :filter-fn is supplied, use this fn of item
+                      to string for default filtering, defaults to str
+      :prompt         filter text field's prompt, string or MessagePattern,
+                      defaults to \"dialog.select-item.prompt\" message
+      :owner          the owner window, defaults to main stage"
+  ([items localization]
+   (make-select-list-dialog items localization {}))
+  ([items localization options]
+   (let [cell-fn (wrap-cell-fn (:cell-fn options identity))
+         filter-atom (:filter-atom options)
+         filter-fn (or (:filter-fn options)
+                       (fn [text items]
+                         (default-filter-fn (:filter-on options str) text items)))
+         filter-term (or (:filter options)
+                         (some-> filter-atom deref)
                          "")
-        cell-fn (:cell-fn options identity)
-        ^ListView item-list (doto ^ListView (:item-list controls)
-                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
-                              (ui/cell-factory! cell-fn)
-                              (ui/selection-mode! (:selection options :single)))]
-    (doto item-list
-      (ui/observe-list (ui/items item-list)
-                       (fn [_ items]
-                         (when (not (empty? items))
-                           (ui/select-index! item-list 0))))
-      (ui/items! (if (string/blank? filter-value) items [])))
-    (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
-      (ui/observe (.textProperty filter-field)
-                  (fn [_ _ ^String new]
-                    (let [filtered-items (filter-fn new items)]
-                      (ui/items! item-list filtered-items)))))
-    (doto filter-field
-      (.setText filter-value)
-      (.setPromptText (:prompt options "")))
+         filter-future-atom (atom nil)
+         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
+                           :filter-in-progress false
+                           :filtered-items []
+                           :selected-indices []})
 
-    (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
-    (ui/text! (:ok controls) ok-label)
-    (ui/bind-action! (:ok controls) ::confirm)
-    (ui/observe-selection item-list (fn [_ _] (ui/refresh-bound-action-enabled! (:ok controls))))
-    (ui/bind-double-click! item-list ::confirm)
-    (ui/bind-keys! root {KeyCode/ENTER ::confirm
-                         KeyCode/ESCAPE ::close
-                         KeyCode/DOWN [::focus {:active-fn (fn [_] (and (seq (ui/items item-list))
-                                                                        (ui/focus? filter-field)))
-                                                :node item-list}]
-                         KeyCode/UP [::focus {:active-fn (fn [_] (= 0 (.getSelectedIndex (.getSelectionModel item-list))))
-                                              :node filter-field}]})
+         set-filter-term
+         (fn set-filter-term [state filter-term]
+           (if (= (:filter-term state) filter-term)
+             state
+             (do (swap! filter-future-atom
+                        (fn [pending-filter-future]
+                          (thread-util/cancel-future! pending-filter-future)
+                          (future
+                            (try
+                              (let [filtered-items (vec (filter-fn filter-term items))
+                                    selected-indices (if (coll/empty? filtered-items) [] [0])]
+                                (thread-util/throw-if-interrupted!)
+                                (swap! state-atom
+                                       (fn [state]
+                                         (thread-util/throw-if-interrupted!)
+                                         (assoc state
+                                           :filter-in-progress false
+                                           :filtered-items filtered-items
+                                           :selected-indices selected-indices))))
+                              (catch InterruptedException _
+                                nil)
+                              (catch Throwable error
+                                (error-reporting/report-exception! error))))))
+                 (assoc state
+                   :filter-term filter-term
+                   :filter-in-progress true))))
 
-    (ui/show-and-wait! stage)
-
-    (let [selected-items (ui/user-data stage ::selected-items)
-          filter-atom (:filter-atom options)]
-      (when (and (some? selected-items) (some? filter-atom))
-        (reset! filter-atom (.getText filter-field)))
-      selected-items)))
-
-(def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
-
-(defn- override-seq [node-id]
-  (tree-seq g/overrides g/overrides node-id))
-
-(defn- file-scope [node-id]
-  (last (take-while (fn [n] (and n (not (g/node-instance? project/Project n)))) (iterate core/scope node-id))))
-
-(defn- refs-filter-fn [project filter-value items]
-  ;; Temp limitation to avoid stalls
-  ;; Optimally we would do the work in the background with a progress-bar
-  (if-let [n (project/get-resource-node project filter-value)]
-    (->>
-      (let [all (override-seq n)]
-        (mapcat (fn [n]
-                  (keep (fn [[src src-label node-id label]]
-                          (when-let [node-id (file-scope node-id)]
-                            (when (and (not= n node-id)
-                                       (g/node-instance? resource-node/ResourceNode node-id))
-                              (when-let [r (g/node-value node-id :resource)]
-                                (when (resource/exists? r)
-                                  r)))))
-                        (g/outputs n)))
-                all))
-      distinct)
-    []))
-
-(defn- sub-nodes [n]
-  (g/node-value n :nodes))
-
-(defn- sub-seq [n]
-  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
-
-(defn- deps-filter-fn [project filter-value items]
-  ;; Temp limitation to avoid stalls
-  ;; Optimally we would do the work in the background with a progress-bar
-  (if-let [node-id (project/get-resource-node project filter-value)]
-    (->>
-      (let [all (sub-seq node-id)]
-        (mapcat
-          (fn [n]
-            (keep (fn [[src src-label tgt tgt-label]]
-                    (when-let [src (file-scope src)]
-                      (when (and (not= node-id src)
-                                 (g/node-instance? resource-node/ResourceNode src))
-                        (when-let [r (g/node-value src :resource)]
-                          (when (resource/exists? r)
-                            r)))))
-                  (g/inputs n)))
-          all))
-      distinct)
-    []))
-
-(defn- make-text-run [text style-class]
-  (let [text-view (Text. text)]
-    (when (some? style-class)
-      (.add (.getStyleClass text-view) style-class))
-    text-view))
-
-(defn- matched-text-runs [text matching-indices]
-  (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
-    (into []
-          (mapcat (fn [[matched? start end]]
-                    (cond
-                      matched?
-                      [(make-text-run (subs text start end) "matched")]
-
-                      (< start / end)
-                      [(make-text-run (subs text start /) "diminished")
-                       (make-text-run (subs text / end) nil)]
-
-                      (<= start end /)
-                      [(make-text-run (subs text start end) "diminished")]
-
-                      :else
-                      [(make-text-run (subs text start end) nil)])))
-          (fuzzy-text/runs (count text) matching-indices))))
-
-(defn- make-matched-list-item-graphic [icon text matching-indices]
-  (let [icon-view (icons/get-image-view icon 16)
-        text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
-    (doto (HBox. (ui/node-array [icon-view text-view]))
-      (.setAlignment Pos/CENTER_LEFT)
-      (.setSpacing 4.0))))
-
-(defn make-resource-dialog [workspace project options]
-  (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
-        accepted-ext (if (seq exts) (set exts) (constantly true))
-        accept-fn    (or (:accept-fn options) (constantly true))
-        items        (into []
-                           (filter #(and (= :file (resource/source-type %))
-                                         (accepted-ext (resource/type-ext %))
-                                         (not (resource/internal? %))
-                                         (accept-fn %)))
-                           (g/node-value workspace :resource-list))
-        options (-> {:title "Select Resource"
-                     :prompt "Type to filter"
-                     :cell-fn (fn [r]
-                                (let [text (resource/proj-path r)
-                                      icon (workspace/resource-icon r)
-                                      style (resource/style-classes r)
-                                      tooltip (when-let [tooltip-gen (:tooltip-gen options)] (tooltip-gen r))
-                                      matching-indices (:matching-indices (meta r))]
-                                  (cond-> {:style style
-                                           :tooltip tooltip}
-
-                                          (empty? matching-indices)
-                                          (assoc :icon icon :text text)
-
-                                          :else
-                                          (assoc :graphic (make-matched-list-item-graphic icon text matching-indices)))))
-                     :filter-fn (fn [filter-value items]
-                                  (let [fns {"refs" (partial refs-filter-fn project)
-                                             "deps" (partial deps-filter-fn project)}
-                                        [command arg] (let [parts (string/split filter-value #":")]
-                                                        (if (< 1 (count parts))
-                                                          parts
-                                                          [nil (first parts)]))
-                                        f (get fns command fuzzy-resource-filter-fn)]
-                                    (f arg items)))}
-                  (merge options))]
-    (make-select-list-dialog items options)))
+         _ (swap! state-atom set-filter-term filter-term)
+         event-handler (select-list-dialog-event-handler set-filter-term)
+         result (fxui/show-dialog-and-await-result!
+                  :state-atom state-atom
+                  :event-handler event-handler
+                  :description {:fx/type select-list-dialog
+                                :localization localization
+                                :title (or (:title options)
+                                           (localization/message "dialog.select-item.title"))
+                                :ok-label (or (:ok-label options)
+                                              (localization/message "dialog.select-item.button.ok"))
+                                :prompt (or (:prompt options)
+                                            (localization/message "dialog.select-item.prompt"))
+                                :cell-fn cell-fn
+                                :owner (or (:owner options) (ui/main-stage))
+                                :selection (:selection options :single)})]
+     (swap! filter-future-atom thread-util/cancel-future!)
+     (when result
+       (let [{:keys [filter-term selected-items]} result]
+         (when (and filter-atom selected-items)
+           (reset! filter-atom filter-term))
+         selected-items)))))
 
 (declare sanitize-folder-name)
 
 (defn- new-folder-dialog
-  [{:keys [name validate] :as props}]
+  [{:keys [name validate localization] :as props}]
   (let [sanitized-name ^String (sanitize-folder-name name)
         path-empty (zero? (.length sanitized-name))
         error-msg (validate sanitized-name)
@@ -683,38 +758,39 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "New Folder"
+     :title (localization (localization/message "dialog.new-folder.title"))
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
-              :text "Enter New Folder Name"}
+              :text (localization (localization/message "dialog.new-folder.header"))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
-                           :text "Name"}
-                          {:fx/type fxui/text-field
+               :children [{:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.new-folder.label.name"))}
+                          {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
-                          {:fx/type fxui/label
-                           :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.new-folder.label.preview"))}
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (or invalid path-empty)
-                          :text "Create Folder"
+                          :text (localization (localization/message "dialog.new-folder.button.create-folder"))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-new-folder-dialog
-  [^String base-dir {:keys [validate]}]
+  [{:keys [validate localization]}]
+  {:pre [(some? localization)]}
   (fxui/show-dialog-and-await-result!
     :initial-state {:name ""
                     :validate (or validate (constantly nil))}
@@ -723,39 +799,40 @@
                        :set-folder-name (assoc state :name event)
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (sanitize-folder-name (:name state)))))
-    :description {:fx/type new-folder-dialog}))
+    :description {:fx/type new-folder-dialog
+                  :localization localization}))
 
-(defn- target-ip-dialog [{:keys [msg ^String ip] :as props}]
+(defn- target-ip-dialog [{:keys [msg ^String ip localization] :as props}]
   (let [ip-valid (pos? (.length ip))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "Enter Target IP"
+     :title (localization (localization/message "dialog.target-ip.title"))
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text msg}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
-                           :text "Target IP Address"}
-                          {:fx/type fxui/text-field
+               :children [{:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.target-ip.label.ip"))}
+                          {:fx/type fxui/legacy-text-field
                            :variant (if ip-valid :default :error)
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (not ip-valid)
-                          :text "Add Target IP"
+                          :text (localization (localization/message "dialog.target-ip.button.add"))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-target-ip-dialog [ip msg]
+(defn make-target-ip-dialog [ip msg localization]
   (fxui/show-dialog-and-await-result!
     :initial-state {:ip (or ip "")}
     :event-handler (fn [state {:keys [fx/event event-type]}]
@@ -764,23 +841,41 @@
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (:ip state))))
     :description {:fx/type target-ip-dialog
-                  :msg (or msg "Enter Target IP Address")}))
+                  :localization localization
+                  :msg (or msg (localization (localization/message "dialog.target-ip.header")))}))
 
 (defn- sanitize-common [name]
   (-> name
-      string/trim
       (string/replace #"[/\\]" "") ; strip path separators
-      (string/replace #"[\"']" "") ; strip quotes
-      (string/replace #"^\.+" "") ; prevent hiding files (.dotfile)
-      (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
+      (string/replace #"[\"'«»]" "") ; strip quotes
+      (string/replace #"[<>:|?*]" "") ; Additional Windows forbidden characters
+      string/trim))
 
 (defn sanitize-file-name [extension name]
-  (-> name
-      sanitize-common
-      (#(if (empty? extension) (string/replace % #"\..*" "") %)) ; disallow adding extension = resource type
-      (#(if (and (seq extension) (seq %))
-          (str % "." extension)
-          %)))) ; append extension if there was one
+  (let [name (sanitize-common name)]
+    (cond-> name
+            ; disallow "." and ".." names (only necessary when there is no extension)
+            (not (seq extension)) (string/replace #"^\.{1,2}$" "")
+            ; append extension if there was one
+            (and (seq extension) (seq name)) (str "." extension))))
+
+(defn- apply-extension [name extension]
+  (cond-> name (seq extension) (str "." extension)))
+
+(defn- sanitize-against-extensions
+  "Sanitizes the file/folder name against a coll of possible extensions
+
+  Returns a valid (and possibly empty!), file/folder name, or nil"
+  [name extensions]
+  {:pre [(string? name) (seq extensions)]}
+  (let [name (sanitize-common name)]
+    (when (every? (fn [extension]
+                    (let [full-name (apply-extension name extension)]
+                      (and (pos? (count full-name))
+                           (not= "." full-name)
+                           (not= ".." full-name))))
+                  extensions)
+      name)))
 
 (defn sanitize-folder-name [name]
   (sanitize-common name))
@@ -793,65 +888,75 @@
                        (map sanitize-folder-name))
                      (string/split path #"[\\\/]"))))
 
-(defn- rename-dialog [{:keys [initial-name name title label validate sanitize] :as props}]
-  (let [sanitized (some-> (not-empty name) sanitize)
-        validation-msg (some-> sanitized validate)
-        invalid (or (empty? sanitized) (some? validation-msg))]
+(defn- rename-dialog [{:keys [initial-name name title label extensions validate localization] :as props}]
+  (let [sanitized (sanitize-against-extensions name extensions)
+        validation-msg (when sanitized
+                         (some #(validate (apply-extension sanitized %)) extensions))
+        invalid (or (not sanitized) (some? validation-msg))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title title
+     :title (localization title)
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
-              :text (str "Rename " initial-name)}
+              :text (localization (localization/message "dialog.rename.title" {"name" initial-name}))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type :label
-                           :text label}
-                          {:fx/type fxui/text-field
+               :children [{:fx/type fx.label/lifecycle
+                           :text (localization label)}
+                          {:fx/type fxui/legacy-text-field
                            :text name
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-name}}
-                          {:fx/type :label
-                           :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fx.label/lifecycle
+                           :text (localization (localization/message "dialog.rename.preview"))}
+                          {:fx/type fxui/legacy-text-field
                            :editable false
-                           :text (or validation-msg sanitized)}]}
+                           :text (or (some-> validation-msg localization)
+                                     (->> extensions
+                                          (map #(apply-extension sanitized %))
+                                          (string/join ", ")))}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :variant :primary
                           :default-button true
                           :disable invalid
-                          :text "Rename"
+                          :text (localization (localization/message "dialog.rename.button.rename"))
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-rename-dialog
   "Shows rename dialog
 
-  Options expect keys:
-  - `:title`
-  - `:label`
-  - `:validate`
-  - `:sanitize`"
-  ^String [name options]
-  (let [sanitize (:sanitize options)]
-    (fxui/show-dialog-and-await-result!
-      :initial-state {:name name}
-      :event-handler (fn [state event]
-                       (case (:event-type event)
-                         :set-name (assoc state :name (:fx/event event))
-                         :cancel (assoc state ::fxui/result nil)
-                         :confirm (assoc state ::fxui/result (-> state
-                                                                 :name
-                                                                 sanitize
-                                                                 not-empty))))
-      :description (assoc options :fx/type rename-dialog
-                                  :initial-name (sanitize name)))))
+  Returns either file name that fits all extensions (might be empty!) or nil
+
+  Options expect kv-args:
+    :localization    a Localization instance
+    :title           dialog title, a MessagePattern
+    :label           name input label, a MessagePattern
+    :extensions      non-empty coll of used extension for renamed file(s), where
+                     empty string or nil item means the renamed file will be
+                     used without any extensions
+    :validate        1-arg fn from a sanitized file name to either nil (if
+                     valid) or MessagePattern (error message)"
+  ^String [name & {:as options}]
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:name name}
+    :event-handler (fn [state event]
+                     (case (:event-type event)
+                       :set-name (assoc state :name (:fx/event event))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result
+                                             (sanitize-against-extensions
+                                               (:name state)
+                                               (:extensions options)))))
+    :description (assoc options :fx/type rename-dialog
+                                :localization (:localization options)
+                                :initial-name name)))
 
 (defn- relativize [^File base ^File path]
   (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]
@@ -862,7 +967,7 @@
              (.toString))))))
 
 (defn- new-file-dialog
-  [{:keys [^File base-dir ^File location type ext name] :as props}]
+  [{:keys [^File base-dir ^File location type ext name localization] :as props}]
   (let [sanitized-name (sanitize-file-name ext name)
         empty (empty? sanitized-name)
         relative-path (FilenameUtils/separatorsToUnix (relativize base-dir location))
@@ -871,24 +976,28 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title (str "New " type)
+     :title (if type
+              (localization (localization/message "dialog.new-file.title.resource" {"type" type}))
+              (localization (localization/message "dialog.new-file.title.file")))
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
-              :text (str "Enter " type " File Name")}
+              :text (if type
+                      (localization (localization/message "dialog.new-file.header.resource" {"type" type}))
+                      (localization (localization/message "dialog.new-file.header.file")))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
-                           :text "Name"}
-                          {:fx/type fxui/text-field
+               :children [{:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.new-file.label.name"))}
+                          {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if empty :error :default)
                            :on-text-changed {:event-type :set-file-name}}
-                          {:fx/type fxui/label
-                           :text "Location"}
-                          {:fx/type :h-box
+                          {:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.new-file.label.location"))}
+                          {:fx/type fx.h-box/lifecycle
                            :spacing 4
-                           :children [{:fx/type fxui/text-field
+                           :children [{:fx/type fxui/legacy-text-field
                                        :h-box/hgrow :always
                                        :variant (if location-exists :default :error)
                                        :on-text-changed {:event-type :set-location}
@@ -897,27 +1006,29 @@
                                        :variant :icon
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
-                          {:fx/type fxui/label
-                           :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-label
+                           :text (localization (localization/message "dialog.new-file.label.preview"))}
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (if valid-input
                                    (str relative-path \/ sanitized-name)
                                    "")}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (not valid-input)
-                          :text (str "Create " type)
+                          :text (if type
+                                  (localization (localization/message "dialog.new-file.button.create.resource" {"type" type}))
+                                  (localization (localization/message "dialog.new-file.button.create.file")))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-new-file-dialog
-  [^File base-dir ^File location type ext]
+  [^File base-dir ^File location type ext localization]
   (fxui/show-dialog-and-await-result!
     :initial-state {:name ""
                     :base-dir base-dir
@@ -929,15 +1040,12 @@
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir (sanitize-path event)))
                        :pick-location (assoc state :location
-                                             (let [window (.getWindow (.getScene ^Node (.getSource ^Event event)))
+                                             (let [window (fxui/event->window event)
                                                    previous-location (:location state)
                                                    initial-dir (if (.exists ^File previous-location)
                                                                  previous-location
                                                                  base-dir)
-                                                   path (-> (doto (DirectoryChooser.)
-                                                              (.setInitialDirectory initial-dir)
-                                                              (.setTitle "Set Path"))
-                                                            (.showDialog window))]
+                                                   path (make-directory-dialog (localization (localization/message "dialog.directory.title.set-path")) initial-dir window)]
                                                (if path
                                                  (io/file base-dir (relativize base-dir path))
                                                  previous-location)))
@@ -951,43 +1059,31 @@
                                            ;; sensitive unlike the NTFS file
                                            ;; system.
                                            (.getCanonicalFile)))))
-    :description {:fx/type new-file-dialog}))
-
-(handler/defhandler ::rename-conflicting-files :dialog
-  (run [^Stage stage]
-    (ui/user-data! stage ::file-conflict-resolution-strategy :rename)
-    (ui/close! stage)))
-
-(handler/defhandler ::overwrite-conflicting-files :dialog
-  (run [^Stage stage]
-    (ui/user-data! stage ::file-conflict-resolution-strategy :overwrite)
-    (ui/close! stage)))
+    :description {:fx/type new-file-dialog
+                  :localization localization}))
 
 (defn ^:dynamic make-resolve-file-conflicts-dialog
-  [src-dest-pairs]
-  (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
-        scene (Scene. root)
-        ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
-                       (ui/title! "Name Conflict")
-                       (.setScene scene))
-        controls (ui/collect-controls root ["message" "rename" "overwrite" "cancel"])]
-    (ui/context! root :dialog {:stage stage} nil)
-    (ui/bind-action! (:rename controls) ::rename-conflicting-files)
-    (ui/bind-action! (:overwrite controls) ::overwrite-conflicting-files)
-    (ui/bind-action! (:cancel controls) ::close)
-    (.setCancelButton ^Button (:cancel controls) true)
-    (ui/text! (:message controls) (let [conflict-count (count src-dest-pairs)]
-                                    (if (= 1 conflict-count)
-                                      "The destination has an entry with the same name."
-                                      (format "The destination has %d entries with conflicting names." conflict-count))))
-    (ui/show-and-wait! stage)
-    (ui/user-data stage ::file-conflict-resolution-strategy)))
+  [src-dest-pairs localization]
+  (make-confirmation-dialog
+    localization
+    {:icon :icon/circle-question
+     :size :large
+     :title (localization/message "dialog.name-conflict.title")
+     :header (localization/message "dialog.name-conflict.header" {"count" (count src-dest-pairs)})
+     :buttons [{:text (localization/message "dialog.button.cancel")
+                :cancel-button true
+                :default-button true}
+               {:text (localization/message "dialog.name-conflict.button.name-differently")
+                :result :rename}
+               {:text (localization/message "dialog.name-conflict.button.overwrite-files")
+                :variant :danger
+                :result :overwrite}]}))
 
 (def ext-with-selection-props
   (fx/make-ext-with-props
     {:selection fxui/text-input-selection-prop}))
 
-(defn make-target-log-dialog [log-atom clear! restart!]
+(defn make-target-log-dialog [log-atom clear! restart! localization]
   (let [renderer-ref (volatile! nil)
         renderer (fx/create-renderer
                    :error-handler error-reporting/report-exception!
@@ -1000,29 +1096,29 @@
                    (fx/wrap-map-desc
                      (fn [log]
                        {:fx/type dialog-stage
-                        :title "Target Discovery Log"
+                        :title (localization (localization/message "dialog.target-discovery-log.title"))
                         :modality :none
                         :showing true
                         :size :large
-                        :header {:fx/type fxui/label
+                        :header {:fx/type fxui/legacy-label
                                  :variant :header
-                                 :text "Target discovery log"}
+                                 :text (localization (localization/message "dialog.target-discovery-log.header"))}
                         :content (let [str (string/join "\n" log)]
                                    {:fx/type ext-with-selection-props
                                     :props {:selection [(count str) (count str)]}
-                                    :desc {:fx/type info-dialog-text-area
+                                    :desc {:fx/type content-text-area
                                            :pref-row-count 20
                                            :text str}})
                         :footer {:fx/type dialog-buttons
                                  :children [{:fx/type fxui/button
-                                             :text "Close"
+                                             :text (localization (localization/message "dialog.button.close"))
                                              :cancel-button true
                                              :on-action {:event-type :cancel}}
                                             {:fx/type fxui/button
-                                             :text "Clear Log"
+                                             :text (localization (localization/message "dialog.target-discovery-log.button.clear-log"))
                                              :on-action {:event-type :clear}}
                                             {:fx/type fxui/button
-                                             :text "Restart Discovery"
+                                             :text (localization (localization/message "dialog.target-discovery-log.button.restart-discovery"))
                                              :on-action {:event-type :restart}}]}})))]
     (vreset! renderer-ref renderer)
     (fx/mount-renderer log-atom renderer)))

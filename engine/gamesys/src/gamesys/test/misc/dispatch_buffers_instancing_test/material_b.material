@@ -1,0 +1,32 @@
+name: "dispatch_material_custom_attributes"
+vertex_program: "/misc/dispatch_buffers_instancing_test/vs_format_b.vp"
+fragment_program: "/fragment_program/valid.fp"
+
+attributes {
+  name: "my_custom_vertex_attribute"
+  semantic_type: SEMANTIC_TYPE_NONE
+  vector_type: VECTOR_TYPE_VEC2
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 4.0
+    v: 3.0
+  }
+}
+
+attributes {
+  name: "my_custom_instance_attribute"
+  semantic_type: SEMANTIC_TYPE_NONE
+  vector_type: VECTOR_TYPE_VEC4
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  double_values {
+    v: 1.0
+    v: 2.0
+    v: 3.0
+    v: 4.0
+  }
+}

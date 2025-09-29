@@ -13,6 +13,9 @@
 		background-color: #1a72eb;
 		text-align: center;
 		line-height: 20px;
+		transition: transform 1s ease;
+		transform-origin: left;
+		transform: scaleX(1.0);
 	}
 {{#html5.show_fullscreen_button}}	
 	.button {

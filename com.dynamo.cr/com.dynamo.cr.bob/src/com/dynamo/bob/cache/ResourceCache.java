@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,10 +20,12 @@ import java.net.URL;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.logging.Logger;
 
 public class ResourceCache {
+
+	private static Logger logger = Logger.getLogger(ResourceCache.class.getName());
 
 	private String localCacheDir;
 
@@ -36,7 +38,7 @@ public class ResourceCache {
 	public ResourceCache() {}
 
 	public void init(String localCacheDir, String remoteCacheUrl) {
-		Bob.verbose("Initialising resource cache with local cache dir '%s' and remote '%s'", localCacheDir, remoteCacheUrl);
+		logger.fine("Initialising resource cache with local cache dir '%s' and remote '%s'", localCacheDir, remoteCacheUrl);
 		this.localCacheDir = localCacheDir;
 		this.remoteCacheUrl = remoteCacheUrl;
 		this.enabled = localCacheDir != null;
@@ -57,13 +59,13 @@ public class ResourceCache {
 	}
 
 	private void saveToLocalCache(File file, byte[] data) throws IOException {
-		Bob.verbose("Resource '%s' saved to the local cache", file);
+		logger.fine("Resource '%s' saved to the local cache", file);
 		Files.write(file.toPath(), data);
 	}
 
 	private byte[] loadFromLocalCache(File file) throws IOException {
 		if (file.exists()) {
-			Bob.verbose("Resource '%s' loaded from the local cache", file);
+			logger.fine("Resource '%s' loaded from the local cache", file);
 			return Files.readAllBytes(file.toPath());
 		}
 		return null;
@@ -79,10 +81,10 @@ public class ResourceCache {
 		URL url = urlFromFile(file);
 		if (!http.exists(url)) {
 			http.uploadFile(url, file);
-			Bob.verbose("Resource '%s' uploaded to the remote cache", file);
+			logger.fine("Resource '%s' uploaded to the remote cache", file);
 		}
 		else {
-			Bob.verbose("Resource '%s' already exists in the remote cache", file);
+			logger.fine("Resource '%s' already exists in the remote cache", file);
 		}
 	}
 
@@ -93,10 +95,10 @@ public class ResourceCache {
 		URL url = urlFromFile(file);
 		if (http.exists(url)) {
 			http.downloadToFile(url, file);
-			Bob.verbose("Resource '%s' downloaded from the remote cache", file);
+			logger.fine("Resource '%s' downloaded from the remote cache", file);
 		}
 		else {
-			Bob.verbose("Resource '%s' does not exist in the remote cache", file);
+			logger.fine("Resource '%s' does not exist in the remote cache", file);
 		}
 	}
 
@@ -136,7 +138,7 @@ public class ResourceCache {
 			return;
 		}
 
-		Bob.verbose("Caching resource '%s'", file);
+		logger.fine("Caching resource '%s'", file);
 		saveToLocalCache(file, data);
 		uploadToRemoteCache(file);
 	}

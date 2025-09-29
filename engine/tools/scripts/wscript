@@ -1,7 +1,4 @@
 #! /usr/bin/env python
 def build(bld):
-    obj = bld.new_task_gen()
-    obj.find_sources_in_dirs('.')
-    bld.install_files('${PREFIX}/bin', 'modelviewer.py', chmod = 0755)
-    bld.install_files('${PREFIX}/bin', 'output_stream_fast.py', chmod = 0755)
-    bld.install_files('${PREFIX}/bin', 'watch.py', chmod = 0755)
+    bld.install_files('${PREFIX}/bin', 'output_stream_fast.py', chmod = 0O755)
+    bld.install_files('${PREFIX}/bin', 'watch.py', chmod = 0O755)

@@ -2,8 +2,8 @@
 
 import sys, re, os
 import waf_dynamo
-import Task, Utils
-from TaskGen import taskgen, feature, after, before
+import waflib.Task, waflib.Utils
+from waflib.TaskGen import taskgen_method, feature, after, before
 
 VERSION='0.1'
 APPNAME='extender'
@@ -12,78 +12,76 @@ srcdir = '.'
 blddir = 'build'
 
 def append_yaml(task):
-    path = task.outputs[0].bldpath(task.env)
+    path = task.outputs[0].abspath()
     with open(path, 'wb') as out_f:
         for i in task.inputs:
             with open(i.abspath(), 'rb') as in_f:
-                data = in_f.read();
+                data = in_f.read()
                 out_f.write(data)
 
-    digest = Utils.h_file(path)
+    digest = waflib.Utils.h_file(path)
     for i in task.inputs:
-        task.generator.bld.node_sigs[i.variant(task.env)][i.id] = digest
+        task.generator.bld.node_sigs[task.inputs[0]] = digest
     return 0
 
-task = Task.task_type_from_func('merge_yaml',
+task = waflib.Task.task_factory('merge_yaml',
                                 func  = append_yaml,
                                 color = 'PINK',
-                                before  = 'cc cxx')
-@taskgen
+                                before  = 'c cxx')
+@taskgen_method
 @feature('merge_yaml')
 def feature_merge_yaml(self):
     inputs = []
     for name in self.yaml_source:
-        i = self.path.find_or_declare(name)
-        inputs.append(i)
+        inputs.append(self.path.make_node(name))
 
-    out = self.path.find_or_declare([self.yaml_target])
-
+    out = self.path.find_or_declare(self.yaml_target)
     task = self.create_task('merge_yaml')
     task.set_inputs(inputs)
     task.set_outputs(out)
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
 def build(bld):
 
     private_platforms = ('nx64', 'ps4')
 
-    source = ['build.yml']
-    for platform in private_platforms:
-        private_source = 'build_%s.yml' % platform
-        if os.path.exists(private_source):
-            source += [private_source]
+    source = ['build_input.yml']
+    private_source = 'build_vendor.yml'
+    if os.path.exists(private_source):
+        source += [private_source]
 
-    bld.new_task_gen(features = 'merge_yaml',
-                     yaml_source = source,
-                     yaml_target = 'build.yml',
-                     name='Build Yaml')
+    bld(features = 'merge_yaml',
+        yaml_source = source,
+        yaml_target = 'build.yml',
+        name='Build Yaml')
 
     variants = ('debug', 'release', 'headless')
     for variant in variants:
-        source = ['variants/%s.appmanifest' % variant]
-        for platform in private_platforms:
-            private_source = 'variants/%s_%s.appmanifest' % (variant, platform)
-            if os.path.exists(private_source):
-                source += [private_source]
+        source = ['variants/%s_input.appmanifest' % variant]
+        source_target = 'variants/%s.appmanifest' % variant
 
-        bld.new_task_gen(features = 'merge_yaml',
-                         yaml_source = source,
-                         yaml_target = source[0],
-                         name='Build Yaml %s' % variant)
+        private_source = 'variants/%s_vendor.appmanifest' % variant
+        if os.path.exists(private_source):
+            source += [private_source]
+
+        bld(features = 'merge_yaml',
+            yaml_source = source,
+            yaml_target = source_target,
+            name='Build Yaml %s' % variant)
 
     bld.add_group()
-    bld.install_files('${PREFIX}/extender', 'build.yml')
-    bld.install_files('${PREFIX}/extender/variants', 'variants/debug.appmanifest')
-    bld.install_files('${PREFIX}/extender/variants', 'variants/release.appmanifest')
-    bld.install_files('${PREFIX}/extender/variants', 'variants/headless.appmanifest')
+    bld.install_files('${PREFIX}/extender/', 'build.yml')
+    bld.install_files('${PREFIX}/extender/variants/', 'variants/debug.appmanifest')
+    bld.install_files('${PREFIX}/extender/variants/', 'variants/release.appmanifest')
+    bld.install_files('${PREFIX}/extender/variants/', 'variants/headless.appmanifest')
 
-def shutdown():
+def shutdown(ctx):
     pass

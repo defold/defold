@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,19 +18,23 @@
 #include <gameobject/script.h>
 
 #include "gamesys.h"
-#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 #include "../components/comp_model.h"
 #include "../resources/res_model.h"
 #include "../resources/res_skeleton.h"
+#include "../resources/res_rig_scene.h"
 
-#include "script_model.h"
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/model_ddf.h>
+#include <extension/extension.hpp>
 
 extern "C"
 {
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
 }
+
+#define MODEL_MODULE_NAME "model"
 
 namespace dmGameSystem
 {
@@ -41,6 +45,7 @@ namespace dmGameSystem
      * @document
      * @name Model
      * @namespace model
+     * @language Lua
      */
 
     /*# [type:number] model cursor
@@ -160,14 +165,16 @@ namespace dmGameSystem
      * ```
      */
 
-    int LuaModelComp_Play(lua_State* L)
+    static int LuaModelComp_Play(lua_State* L)
     {
+        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
+
         int top = lua_gettop(L);
         // default values
         float offset = 0.0f;
         float playback_rate = 1.0f;
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
@@ -194,7 +201,7 @@ namespace dmGameSystem
         msg.m_Offset = offset;
         msg.m_PlaybackRate = playback_rate;
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -240,7 +247,7 @@ namespace dmGameSystem
      * `playback_rate`
      * : [type:number] The rate with which the animation will be played. Must be positive.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
      *
      * `self`
      * : [type:object] The current object.
@@ -282,12 +289,12 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_PlayAnim(lua_State* L)
+    static int LuaModelComp_PlayAnim(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0)
+        DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
@@ -297,7 +304,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        if (top > 3) // table with args
+        if (top > 3 && !lua_isnil(L, 4)) // table with args
         {
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
@@ -335,8 +342,7 @@ namespace dmGameSystem
         msg.m_Offset = offset;
         msg.m_PlaybackRate = playback_rate;
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -346,11 +352,11 @@ namespace dmGameSystem
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
      */
-    int LuaModelComp_Cancel(lua_State* L)
+    static int LuaModelComp_Cancel(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -358,7 +364,7 @@ namespace dmGameSystem
 
         dmModelDDF::ModelCancelAnimation msg;
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmModelDDF::ModelCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmModelDDF::ModelCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -386,18 +392,15 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_GetGO(lua_State* L)
+    static int LuaModelComp_GetGO(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        ModelWorld* world = 0;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
-        ModelComponent* component = CompModelGetComponent(world, user_data);
+        ModelComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
@@ -410,22 +413,15 @@ namespace dmGameSystem
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmRigDDF::Skeleton* skeleton = resource->m_RigScene->m_SkeletonRes->m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        uint32_t bone_index = ~0u;
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            if (skeleton->m_Bones[i].m_Id == bone_id)
-            {
-                bone_index = i;
-                break;
-            }
-        }
-        if (bone_index == ~0u)
+        const dmHashTable64<uint32_t>& bone_indices = resource->m_RigScene->m_SkeletonRes->m_BoneIndices;
+        const uint32_t* bone_index = bone_indices.Get(bone_id);
+
+        if (!bone_index)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, bone_index);
+
+        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, *bone_index);
         if (instance == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
@@ -437,7 +433,7 @@ namespace dmGameSystem
         }
         dmScript::PushHash(L, instance_id);
 
-        assert(top + 1 == lua_gettop(L));
+        assert((top + 1) == lua_gettop(L));
         return 1;
     }
 
@@ -465,11 +461,11 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_SetConstant(lua_State* L)
+    static int LuaModelComp_SetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
         dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
@@ -483,7 +479,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -510,11 +506,11 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_ResetConstant(lua_State* L)
+    static int LuaModelComp_ResetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
         dmGameSystemDDF::ResetConstant msg;
@@ -524,27 +520,208 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
 
-    static const luaL_reg MODEL_COMP_FUNCTIONS[] =
+    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id)
     {
-            {"play",    LuaModelComp_Play},
-            {"play_anim", LuaModelComp_PlayAnim},
-            {"cancel",  LuaModelComp_Cancel},
-            {"get_go",  LuaModelComp_GetGO},
-            {"set_constant",    LuaModelComp_SetConstant},
-            {"reset_constant",  LuaModelComp_ResetConstant},
-            {0, 0}
-    };
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-    void ScriptModelRegister(const ScriptLibContext& context)
-    {
-        lua_State* L = context.m_LuaState;
-        luaL_register(L, "model", MODEL_COMP_FUNCTIONS);
-        lua_pop(L, 1);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)out_component, 0, 0);
+        *out_mesh_id = dmScript::CheckHashOrString(L, 2);
     }
 
+    /*# enable or disable a mesh
+     * Enable or disable visibility of a mesh
+     *
+     * @name model.set_mesh_enabled
+     * @param url [type:string|hash|url] the model
+     * @param mesh_id [type:string|hash|url] the id of the mesh
+     * @param enabled [type:boolean] true if the mesh should be visible, false if it should be hideen
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     model.set_mesh_enabled("#model", "Sword", false) -- hide the sword
+     *     model.set_mesh_enabled("#model", "Axe", true)    -- show the axe
+     * end
+     * ```
+     */
+    static int LuaModelComp_SetMeshEnabled(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        ModelComponent* component = 0;
+        dmhash_t mesh_id = 0;
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        bool enable = dmScript::CheckBoolean(L, 3);
+        bool result = CompModelSetMeshEnabled(component, mesh_id, enable);
+        if (!result)
+            return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get the enabled state of a mesh
+     * Get the enabled state of a mesh
+     *
+     * @name model.get_mesh_enabled
+     * @param url [type:string|hash|url] the model
+     * @param mesh_id [type:string|hash|url] the id of the mesh
+     * @return enabled [type:boolean] true if the mesh is visible, false otherwise
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     if model.get_mesh_enabled("#model", "Sword") then
+     *        -- set properties specific for the sword
+     *        self.weapon_properties = game.data.weapons["Sword"]
+     *     end
+     * end
+     * ```
+     */
+    static int LuaModelComp_GetMeshEnabled(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        ModelComponent* component = 0;
+        dmhash_t mesh_id = 0;
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        bool enabled = true;
+        bool result = CompModelGetMeshEnabled(component, mesh_id, &enabled);
+        if (!result)
+            return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
+
+        lua_pushboolean(L, enabled);
+        assert((top + 1) == lua_gettop(L));
+        return 1;
+    }
+
+    /*# get the AABB of the whole model in local coordinate space
+     * Get AABB of the whole model in local coordinate space.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
+     *
+     * @name model.get_aabb
+     * @param url [type:string|hash|url] the model
+     * @return aabb [type:table] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
+     * @examples
+     *
+     * ```lua
+     * model.get_aabb("#model") -> { min = vmath.vector3(-2.5, -3.0, 0), max = vmath.vector3(1.5, 5.5, 0) }
+     * model.get_aabb("#empty") -> { min = vmath.vector3(0, 0, 0), max = vmath.vector3(0, 0, 0) }
+     * ```
+     */
+    static int LuaModelComp_GetAabb(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+        lua_newtable(L);
+        dmVMath::Vector3 min, max;
+        CompModelGetAABB(component, &min, &max);
+
+        dmScript::PushVector3(L, min);
+        lua_setfield(L, -2, "min");
+        dmScript::PushVector3(L, max);
+        lua_setfield(L, -2, "max");
+
+        return 1;
+    }
+
+    /*# get the AABB of all meshes
+     * Get AABB of all meshes.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
+     *
+     * @name model.get_mesh_aabb
+     * @param url [type:string|hash|url] the model
+     * @return aabb [type:table] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
+     * @examples
+     *
+     * ```lua
+     * model.get_mesh_aabb("#model") -> { hash("Sword") = { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }, hash("Shield") = { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) } }
+     * ```
+     */
+    static int LuaModelComp_GetMeshAabb(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        uint32_t mesh_count = CompModelGetMeshCount(component);
+        lua_createtable(L, 0, mesh_count);
+        for (uint32_t idx = 0; idx < mesh_count; ++idx)
+        {
+            dmVMath::Vector3 min, max;
+            dmhash_t mesh_id;
+            CompModelGetMeshAABB(component, idx, &mesh_id, &min, &max);
+            dmScript::PushHash(L, mesh_id);
+
+            lua_newtable(L);
+            dmScript::PushVector3(L, min);
+            lua_setfield(L, -2, "min");
+            dmScript::PushVector3(L, max);
+            lua_setfield(L, -2, "max");
+
+            lua_settable(L, -3);
+        }
+        return 1;
+    }
+
+    static const luaL_reg MODEL_COMP_FUNCTIONS[] =
+    {
+        {"play",    LuaModelComp_Play}, // Deprecated
+        {"play_anim", LuaModelComp_PlayAnim},
+        {"cancel",  LuaModelComp_Cancel},
+        {"get_go",  LuaModelComp_GetGO},
+        {"set_constant",    LuaModelComp_SetConstant},
+        {"reset_constant",  LuaModelComp_ResetConstant},
+
+        {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
+        {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
+        {"get_aabb",          LuaModelComp_GetAabb},
+        {"get_mesh_aabb",     LuaModelComp_GetMeshAabb},
+        {0, 0}
+    };
+
+    static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)
+    {
+        lua_State* L = params->m_L;
+        luaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
+        lua_pop(L, 1);
+        return dmExtension::RESULT_OK;
+    }
+
+
+    static dmExtension::Result ScriptModelFinalize(dmExtension::Params* params)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptModelExt, "ScriptModel", 0, 0, ScriptModelInitialize, 0, 0, ScriptModelFinalize)
 }

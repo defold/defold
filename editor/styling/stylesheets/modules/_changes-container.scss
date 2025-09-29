@@ -1,9 +1,10 @@
 #changes-container {
     -fx-padding: 0 0 0 0;
+
     >.tool-bar {
         -fx-background-color: -df-background-light;
         -fx-border-width: 0;
-        -fx-padding: 10 0 10 15;
+        -fx-padding: 10 15 10 15;
     }
 
     .list-view {
@@ -16,4 +17,8 @@
             -fx-background-insets: 0 5 0 0;
         }
     }
+}
+
+#changes-progress-overlay {
+    -fx-background-color: #2c2e33bf; // -df-background-light with alpha 0.75.
 }

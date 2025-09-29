@@ -1,40 +1,43 @@
 #! /usr/bin/env python
 
 import os
-import Task
-import TaskGen
-from TaskGen import extension
-from Options import options
+import waflib.Task
+import waflib.TaskGen
+from waflib.TaskGen import extension
+from waflib.Options import options
+from waf_dynamo import platform_supports_feature
 
-Task.simple_task_type('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
+waflib.Task.task_factory('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
                       color='PINK',
-                      before='cc cxx')
+                      before='c cxx')
 
 @extension('.pf')
 def pf_file(self, node):
-        obj_ext = '.pfb'
-
-        proto_encode = self.create_task('proto_encode')
-        proto_encode.set_inputs(node)
-        proto_encode.set_outputs(node.change_ext(obj_ext))
-        curnode = self.path
-        proto_file =  curnode.find_resource(self.proto_file)
-        self.env['proto_file'] = proto_file.srcpath()
-        self.env['proto_include'] = os.path.dirname(proto_file.srcpath())
-        self.env['proto_type'] = self.proto_type
+    obj_ext = '.pfb'
+    proto_encode = self.create_task('proto_encode')
+    proto_encode.set_inputs(node)
+    proto_encode.set_outputs(node.change_ext(obj_ext))
+    curnode = self.path
+    proto_file =  curnode.find_resource(self.proto_file)
+    self.env['proto_file'] = proto_file.srcpath()
+    self.env['proto_include'] = os.path.dirname(proto_file.srcpath())
+    self.env['proto_type'] = self.proto_type
 
 def build(bld):
     if options.skip_build_tests:
        return
-    bld.new_task_gen(features = 'cxx cprogram ddf test',
-                    source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
-                    uselib = 'TESTMAIN PROTOBUF DLIB PTHREAD',
-                    uselib_local = 'ddf',
-                    web_libs = ['library_sys.js'],
-                    ddf_namespace = 'DUMMY',
-                    proto_gen_cc = True,
-                    proto_compile_cc = True,
-                    protoc_includes = '. ..',
-                    includes = '. .. ../ddf',
-                    target = 'test_ddf')
 
+    if not platform_supports_feature(bld.env.PLATFORM, "test_ddf", None):
+        print("test_ddf isn't supported on this platform", bld.env.PLATFORM)
+        return
+
+    bld(features = 'cxx cprogram ddf test',
+        source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
+        use = 'TESTMAIN PROTOBUF DLIB PROFILE_NULL PTHREAD SOCKET ddf',
+        web_libs = ['library_sys.js'],
+        ddf_namespace = 'DUMMY',
+        proto_gen_cc = True,
+        proto_compile_cc = True,
+        protoc_includes = '. ..',
+        includes = '. .. ../ddf',
+        target = 'test_ddf')

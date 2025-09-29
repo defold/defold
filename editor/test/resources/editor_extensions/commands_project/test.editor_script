@@ -1,0 +1,52 @@
+local command_label = require('command-label')
+
+local M = {}
+
+
+function M.get_commands()
+    return {
+        {
+            label = command_label,
+            locations = {"Outline"},
+            query = {selection = {type = "outline", cardinality = "one"}},
+            active = function(opts)
+                local node = opts.selection
+                return editor.can_get(node, "position") 
+                and editor.can_set(node, "position")
+                and editor.can_get(node, "playback_rate")
+                and editor.can_set(node, "playback_rate")
+            end,
+            run = function (opts)
+                local node = opts.selection
+                local pos = editor.get(node, "position")
+                local playback_rate = editor.get(node, "playback_rate")
+                pos[1] = pos[1] + 1.5
+                pos[2] = pos[2] + 1.5
+                pos[3] = pos[3] + 1.5
+                return {
+                    { action = "set", node_id = node, property = "position", value = pos },
+                    { action = "set", node_id = node, property = "playback_rate", value = playback_rate + 1.5 }
+                }
+            end
+        },
+        {
+            label = command_label,
+            locations = {"Scene"},
+            query = {selection = {type = "scene", cardinality = "one"}},
+            active = function(opts)
+                local node = opts.selection
+                return editor.can_get(node, "scale") 
+                and editor.can_set(node, "scale")
+            end,
+            run = function (opts)
+                local node = opts.selection
+                local scale = editor.get(node, "scale")
+                return {
+                    { action = "set", node_id = node, property = "scale", value = {2, 2, 2} }
+                }
+            end
+        }
+    }
+end
+
+return M

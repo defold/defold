@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,34 +25,304 @@ import java.text.ParseException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
+import java.lang.reflect.Field;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalAccessException;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.Bob;
 
 /**
  * .ini-file-link parser abstraction
- * @note Copy-paste of ProjectProperties in order to avoid adding bob as a dependency to most plugins
- * @author chmu
  *
  */
 public class BobProjectProperties {
-    private Map<String, Map<String, String>> properties;
 
-    // A way to store what properties are the defaults
-    // and also not overridden by the properties member.
-    private Map<String, Map<String, String>> defaults;
+    public final static String PROPERTIES_PROJECT_FILE = "game.properties";
+    public final static String PROPERTIES_EXTENSION_FILE = "ext.properties";
+    public final static String PROPERTIES_INTERNAL_FILE = "meta.properties";
+
+    public enum PropertyType {
+        BOOL("bool"),
+        STRING("string"),
+        NUMBER("number"),
+        INTEGER("integer"),
+        STRING_ARRAY("string_array"),
+        RESOURCE("resource");
+
+        private String type;
+
+        PropertyType(String propType) {
+            this.type = type;
+        }
+
+        public String getType() {
+            return this.type;
+        }
+    }
+
+    private class ProjectProperty {
+        private String value;
+        private String defaultValue;
+        PropertyType type;
+        private Boolean isPrivate;
+
+        private Map<Integer, String> valuesArray;
+
+        public ProjectProperty() {
+        }
+
+        public String toString() {
+            return getValue();
+        }
+
+        public void setAttribute(String key, String value) {
+            if (key == null || key.isEmpty() || value == null) {
+                return;
+            }
+            switch(key) {
+                case "value":
+                    this.value = value;
+                    break;
+                case "type":
+                    this.type = PropertyType.valueOf(StringUtil.toUpperCase(value));
+                    break;
+                case "default":
+                    this.defaultValue = value;
+                    break;
+                case "help":
+                    // no need in bob
+                    break;
+                case "private":
+                    this.isPrivate = value.equals("1");
+                    break;
+            }
+        }
+
+        public Object getTypedValue(PropertyType type) {
+            try {
+                String val = getValue();
+                Object result = null;
+                if (val == null) {
+                    return null;
+                }
+                switch(type) {
+                    case STRING:
+                    case RESOURCE:
+                        result = val;
+                        break;
+                    case INTEGER:
+                        result = Integer.parseInt(val);
+                        break;
+                    case NUMBER:
+                        result = Float.parseFloat(val);
+                        break;
+                    case BOOL:
+                        result = val.equals("1");
+                        break;
+                    case STRING_ARRAY:
+                        if (this.valuesArray == null) {
+                            parseValueAsValuesArray();
+                        }
+                        result = this.valuesArray;
+                        break;
+                }
+                return result;
+
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to get typed value for property", e);
+            }
+        }
+
+        public Object getTypedValue() {
+            return getTypedValue(this.type);
+        }
+
+        public void overrideBy(ProjectProperty prop) {
+            try {
+                Field[] fields = ProjectProperty.class.getDeclaredFields();
+                for(Field f : fields) {
+                    Class t = f.getType();
+                    Object v = f.get(prop);
+                    if ((v != null) && (t.isEnum() || t.equals(String.class) || t.equals(Boolean.class))) {
+                        f.set(this, v);
+                        if (f.getName() == "value") {
+                            // it's important to reset old parsed values from value Array if value is overwritten
+                            valuesArray = null;
+                        }
+                    }
+                }
+            }
+            catch (IllegalArgumentException e) {
+                throw new RuntimeException("Can't override field ", e);
+            }
+            catch (IllegalAccessException e) {
+                throw new RuntimeException("Can't access field ", e);
+            }
+        }
+
+        public String getValue() {
+            return this.value != null ? this.value : this.defaultValue;
+        }
+        
+        public PropertyType getType() {
+            return this.type;
+        }
+
+        public void addArrayValue(String index, String value) {
+            if (this.valuesArray == null) {
+                this.valuesArray = new TreeMap<Integer, String>();
+            }
+            if (index == null || index.isEmpty() || value == null) {
+                return;
+            }
+            try {
+                int indexNum = Integer.parseInt(index);
+                this.valuesArray.put(indexNum, value);
+                this.value = this.valuesArray.values().stream().collect(Collectors.joining(","));
+            }
+            catch (Exception e) {
+                throw new RuntimeException("Can't add element from array property", e);
+            }
+
+        }
+
+        public boolean isDefault() {
+            return this.value == null && this.defaultValue != null;
+        }
+
+        public Boolean isPrivate() {
+            return this.isPrivate == null ? false : this.isPrivate;
+        }
+
+        // parse string as comma separater list of strings
+        private void parseValueAsValuesArray() {
+            String[] values = this.value.trim().split(",");
+            Map<Integer, String> outValues = new TreeMap<Integer, String>();
+            int counter = 0;
+            for (String v : values) {
+                v = v.trim();
+                if (v.length() > 0) {
+                    outValues.put(counter, v);
+                    counter++;
+                }
+            }
+            this.valuesArray = outValues;
+        }
+
+    }
+
+    private Map<String, Map<String, ProjectProperty>> properties;
 
     /**
      * Constructor with initially empty
      */
     public BobProjectProperties() {
-        this.properties = new LinkedHashMap<String, Map<String, String>>();
-        this.defaults = new LinkedHashMap<String, Map<String, String>>();
+        this.properties = new LinkedHashMap<String, Map<String, ProjectProperty>>();
+    }
+
+    public Map<String, Map<String, Object>> createTypedMap(PropertyType[] types) {
+        Map<String, Map<String, Object>> result = new HashMap<String, Map<String, Object>>();
+        for (String categoryName : properties.keySet()) {
+            Map<String, Object> resultCategory = new HashMap<String, Object>();
+            result.put(categoryName, resultCategory);
+            Map<String, ProjectProperty> category = properties.get(categoryName);
+            for (String key : category.keySet()) {
+                ProjectProperty prop = category.get(key);
+                if (ArrayUtils.contains(types, prop.getType())) {
+                    resultCategory.put(key, prop.getTypedValue());
+                }
+                else {
+                    resultCategory.put(key, prop.getValue());
+                }
+                
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Load properties in-place from {@link InputStream}
+     * @param in {@link InputStream} to load from
+     * @param isMeta if loads meta file or not
+     * @throws IOException
+     * @throws ParseException
+     */
+    public void load(InputStream in, boolean isMeta) throws IOException, ParseException {
+        try {
+            Map<String, Map<String, ProjectProperty>> props = doLoad(in, isMeta);
+            // merge into properties
+            BobProjectProperties.mergeProperties(properties, props);
+        } finally {
+            IOUtils.closeQuietly(in);
+        }
+    }
+
+    /**
+     * Load properties in-place from {@link InputStream} as non-meta file
+     * @param in {@link InputStream} to load from
+     * @throws IOException
+     * @throws ParseException
+     */
+    public void load(InputStream in) throws IOException, ParseException {
+        load(in, false);
+    }
+
+    /**
+     * Load default properties from the internal meta.properties file
+     * @throws IOException
+     * @throws ParseException
+     */
+    public void loadDefaultMetaFile()  throws IOException, ParseException {
+        InputStream is = Bob.class.getResourceAsStream(PROPERTIES_INTERNAL_FILE);
+        try {
+            load(is, true);
+        } catch (ParseException e) {
+            throw new RuntimeException("Failed to parse meta.properties", e);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+    }
+
+    /**
+     * Get property as an array of strings based on a comma separated value, with default value
+     * @param category property category
+     * @param key category key
+     * @param defaultValue
+     * @return property value as an array of strings. defaultValue if not set
+     */
+    public String[] getStringArrayValue(String category, String key, String[] defaultValue) {
+        Map<String, ProjectProperty> group = this.properties.get(category);
+        if (group != null) {
+            ProjectProperty val = group.get(key);
+            if (val != null) {
+                if (val.valuesArray == null) {
+                    if (val.value == null) {
+                        return defaultValue;
+                    }
+                    val.parseValueAsValuesArray();
+                }
+                return val.valuesArray.values().toArray(new String[val.valuesArray.size()]);
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Get property as an array of strings based on a comma separated value
+     * @param category property category
+     * @param key category key
+     * @return property value as an array of strings. defaultValue if not set
+     */
+    public String[] getStringArrayValue(String category, String key) {
+        return getStringArrayValue(category, key, new String[0]);
     }
 
     /**
@@ -73,84 +343,11 @@ public class BobProjectProperties {
      * @return property value. defaultValue if not set
      */
     public String getStringValue(String category, String key, String defaultValue) {
-        Map<String, String> group = this.properties.get(category);
-        if (group != null) {
-            String val = group.get(key);
-            if (val != null) {
-                return val;
-            }
-        }
-        return defaultValue;
-    }
-
-    /**
-     * Get property as an array of strings based on a comma separated value, with default value
-     * @param category property category
-     * @param key category key
-     * @param defaultValue
-     * @return property value as an array of strings. defaultValue if not set
-     */
-    public String[] getStringArrayValue(String category, String key, String[] defaultValue) {
-        Map<String, String> group = this.properties.get(category);
-        if (group != null) {
-            String val = group.get(key);
-            if (val != null) {
-                String[] values = val.trim().split(",");
-                ArrayList<String> outValues = new ArrayList<String>();
-                for (String v : values) {
-                    v = v.trim();
-                    if (v.length() > 0) {
-                        outValues.add(v);
-                    }
-                }
-                return outValues.toArray(new String[outValues.size()]);
-            }
-        }
-        return defaultValue;
-    }
-
-    /**
-     * Get property as an array of strings based on a comma separated value
-     * @param category property category
-     * @param key category key
-     * @return property value as an array of strings. null if not set
-     */
-    public String[] getStringArrayValue(String category, String key) {
-        return getStringArrayValue(category, key, null);
-    }
-
-    /**
-     * Get property as integer
-     * @param category property category
-     * @param key category key
-     * @return property value as integer. null if not set or on number format errors
-     */
-    public Integer getIntValue(String category, String key) {
-        String value = getStringValue(category, key);
-        try {
-            return new Integer(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /**
-     * Get property as integer with default value
-     * @param category property category
-     * @param key category key
-     * @param defaultValue
-     * @return property value as integer. defaultValue if not set or on number format errors
-     */
-    public Integer getIntValue(String category, String key, Integer defaultValue) {
-        Map<String, String> group = this.properties.get(category);
-        if (group != null) {
-            String val = group.get(key);
-            if (val != null) {
-                try {
-                    return new Integer(val);
-                } catch (NumberFormatException e) {
-                    return defaultValue;
-                }
+        ProjectProperty val = getValue(category, key);
+        if (val != null) {
+            String result = val.getValue();
+            if (result != null) {
+                return result;
             }
         }
         return defaultValue;
@@ -163,9 +360,9 @@ public class BobProjectProperties {
      * @return property value as boolean. null if not set.
      */
     public Boolean getBooleanValue(String category, String key) {
-        String value = getStringValue(category, key);
-        if (value != null) {
-            return value.equals("1");
+        ProjectProperty val = getValue(category, key);
+        if (val != null) {
+            return (Boolean)val.getTypedValue(BobProjectProperties.PropertyType.BOOL);
         }
         return null;
     }
@@ -177,11 +374,74 @@ public class BobProjectProperties {
      * @return property value as boolean. defaultValue if not set
      */
     public Boolean getBooleanValue(String category, String key, Boolean defaultValue) {
-        String value = getStringValue(category, key);
-        if (value != null) {
-            return value.equals("1");
+        ProjectProperty val = getValue(category, key);
+        if (val != null) {
+            Boolean result = (Boolean)val.getTypedValue(BobProjectProperties.PropertyType.BOOL);
+            if (result != null) {
+                return result;
+            }
         }
         return defaultValue;
+    }
+
+    /**
+     * Get property as integer
+     * @param category property category
+     * @param key category key
+     * @return property value as integer. null if not set or on number format errors
+     */
+    public Integer getIntValue(String category, String key) {
+        ProjectProperty val = getValue(category, key);
+        if (val != null) {
+            return (Integer)val.getTypedValue(BobProjectProperties.PropertyType.INTEGER);
+        }
+        return null;
+    }
+
+    /**
+     * Get property as integer with default value
+     * @param category property category
+     * @param key category key
+     * @param defaultValue
+     * @return property value as integer. defaultValue if not set or on number format errors
+     */
+    public Integer getIntValue(String category, String key, Integer defaultValue) {
+       ProjectProperty val = getValue(category, key);
+        if (val != null) {
+            Integer result = (Integer)val.getTypedValue(BobProjectProperties.PropertyType.INTEGER);
+            if (result != null) {
+                return result;
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Check if the user didn't set this value
+     * @param category property category
+     * @param key category key
+     * @return return true if default value;
+     */
+    public Boolean isDefault(String category, String key) {
+        Map<String, ProjectProperty> group = this.properties.get(category);
+        if (group != null && group.containsKey(key)) {
+            return group.get(key).isDefault();
+        }
+        return false;
+    }
+
+    /**
+     * Check if value is private
+     * @param category property category
+     * @param key category key
+     * @return return true if private value;
+     */
+    public Boolean isPrivate(String category, String key) {
+        Map<String, ProjectProperty> group = this.properties.get(category);
+        if (group != null && group.containsKey(key)) {
+            return group.get(key).isPrivate();
+        }
+        return false;
     }
 
     /**
@@ -191,18 +451,20 @@ public class BobProjectProperties {
      * @param value value. if value is null the key/value-pair is effectively removed
      */
     public void putStringValue(String category, String key, String value) {
-        Map<String, String> group = this.properties.get(category);
+        Map<String, ProjectProperty> group = this.properties.get(category);
         if (group == null) {
             if (value == null) {
                 // Category doesn't exists and the value is null
                 // Just return
                 return;
             }
-            group = new LinkedHashMap<String, String>();
+            group = new LinkedHashMap<String, ProjectProperty>();
             this.properties.put(category, group);
         }
         if (value != null) {
-            group.put(key, value);
+            ProjectProperty prop = new ProjectProperty();
+            prop.setAttribute("value", value);
+            group.put(key, prop);
         } else {
             group.remove(key);
         }
@@ -229,92 +491,53 @@ public class BobProjectProperties {
     }
 
     /**
-     * Remove a property
-     * @param category property category
-     * @param key category key
+     * Remove all private fields
      */
-    public void remove(String category, String key) {
-        putStringValue(category, key, null);
-    }
-
-    // Helper class to pass tuple of Key+Value
-    // via doLoad and a KeyValueFilter class.
-    static private class StringKeyValue {
-        public String key;
-        public String value;
-        StringKeyValue(String key, String value) {
-            this.key = key;
-            this.value = value;
+    public void removePrivateFields() {
+        for (String categoryName : properties.keySet()) {
+            Map<String, ProjectProperty> category = properties.get(categoryName);
+            category.entrySet().removeIf(entry -> entry.getValue().isPrivate());
         }
     }
 
-    // Helper interface to create a filter for doLoad
-    // Used when loading default properties to filter
-    // out entries that has valid default values.
-    @FunctionalInterface
-    private interface KeyValueFilter {
-        public boolean filter(StringKeyValue entry);
-    }
-
-    static private Map<String, String> copyMap(Map<String, String> map) {
-        Map<String, String> dst = new LinkedHashMap<String, String>();
-        for (String key : map.keySet()) {
-            dst.put(key, map.get(key));
-        }
-        return dst;
-    }
-
-    static private Map<String, Map<String, String>> copyProperties(Map<String, Map<String, String>> src) {
-        Map<String, Map<String, String>> dst = new LinkedHashMap<String, Map<String, String>>();
-        for (String category : src.keySet()) {
-            Map<String, String> propGroup = src.get(category);
-            dst.put(category, copyMap(propGroup));
-        }
-        return dst;
-    }
-
-    static private void mergeMultilineKey(Map<String, Map<String, String>> properties, String group, String keyToMerge) {
-        Map<String, String> propGroup = properties.get(group);
-        if (propGroup == null) {
-            return;
-        }
-        // TreeMap implements SortedMap which give us values sorted by key
-        // find all matching keys and add them based on their indices, ie foo.0,
-        // foo.1, foo.123 etc
-        // a key without an index in the key name is treated as having index 0
-        Map<Integer, String> values = new TreeMap<Integer, String>();
-        for(String key : propGroup.keySet().stream().collect(Collectors.toList())) {
-            if (key.startsWith(keyToMerge)) {
-                int index = 0;
-                int keyIndex = key.indexOf("#");
-                if (keyIndex != -1) {
-                    try {
-                        index = Integer.parseInt(key.substring(keyIndex + 1).trim());
-                    }
-                    catch(Exception e) {
-                        continue;
-                    }
-                }
-                String value = propGroup.get(key);
-                values.put(index, value);
-                propGroup.remove(key);
+    private ProjectProperty getValue(String category, String key) {
+        Map<String, ProjectProperty> group = this.properties.get(category);
+        if (group != null) {
+            ProjectProperty val = group.get(key);
+            if (val != null) {
+                return val;
             }
         }
-        if (!values.isEmpty()) {
-            // merge the individual values back to a single long comma separated list in memory
-            String mergedValues = values.values().stream().collect(Collectors.joining(","));
-            propGroup.put(keyToMerge, mergedValues);
+        return null;
+    }
+
+    // Merge properties from b to a
+    private static void mergeProperties(Map<String, Map<String, ProjectProperty>> a, Map<String, Map<String, ProjectProperty>> b) {
+        for (String category : b.keySet()) {
+            if (!a.containsKey(category)) {
+                a.put(category, new LinkedHashMap<String, ProjectProperty>());
+            }
+            Map<String, ProjectProperty> propGroupA = a.get(category);
+            Map<String, ProjectProperty> propGroupB = b.get(category);
+            for (String key : propGroupB.keySet()) {
+                if (!propGroupA.containsKey(key)) {
+                    propGroupA.put(key, propGroupB.get(key));
+                }
+                else {
+                    propGroupA.get(key).overrideBy(propGroupB.get(key));
+                }
+            }
         }
     }
 
-    static private Map<String, Map<String, String>> doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
-        Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
+    private Map<String, Map<String, ProjectProperty>> doLoad(InputStream in, boolean isMeta) throws IOException, ParseException {
+        Map<String, Map<String, ProjectProperty>> properties = new LinkedHashMap<String, Map<String, ProjectProperty>>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-        Map<String, String> propGroup = null;
+        Map<String, ProjectProperty> propGroup = null;
         int cursor = 0;
         String line = reader.readLine();
         while (line != null) {
-            line.trim();
+            line = line.trim();
             if (line.startsWith("[")) {
                 if (!line.endsWith("]")) {
                     throw new ParseException("invalid category: " + line, cursor);
@@ -322,7 +545,7 @@ public class BobProjectProperties {
                 String category = line.substring(1, line.length() - 1);
                 propGroup = properties.get(category);
                 if (propGroup == null) {
-                    propGroup = new LinkedHashMap<String, String>();
+                    propGroup = new LinkedHashMap<String, ProjectProperty>();
                     properties.put(category, propGroup);
                 }
             } else if (line.length() > 0) {
@@ -333,15 +556,37 @@ public class BobProjectProperties {
                 boolean valid = true;
                 if (sep != -1) {
                     try {
-                        String key = line.substring(0, sep).trim();
+                        String fullKey = line.substring(0, sep).trim();
                         String value = line.substring(sep + 1).trim();
-                        if (passFunc != null) {
-                            StringKeyValue keyVal = new StringKeyValue(key, value);
-                            if (passFunc.filter(keyVal)) {
-                                propGroup.put(keyVal.key, value);
+                        if(fullKey.contains(".")) {
+                            String[] keyAndAttr = fullKey.split("\\.");
+                            String key = keyAndAttr[0];
+                            ProjectProperty prop = propGroup.get(key);
+                            if (prop == null) {
+                                prop = new ProjectProperty();
                             }
-                        } else {
-                            propGroup.put(key, value);
+                            prop.setAttribute(keyAndAttr[1], value);
+                            propGroup.put(key, prop);
+                        }
+                        else if (!isMeta && fullKey.contains("#")) {
+                            String[] keyAndIndex = fullKey.split("#");
+                            String key = keyAndIndex[0];
+                            ProjectProperty prop = propGroup.get(key);
+                            if (prop == null) {
+                                prop = new ProjectProperty();
+                            }
+                            prop.addArrayValue(keyAndIndex[1], value);
+                            propGroup.put(key, prop);
+                        }
+                        else if (!isMeta)
+                        {
+                            String key = fullKey;
+                            ProjectProperty prop = propGroup.get(key);
+                            if (prop == null) {
+                                prop = new ProjectProperty();
+                            }
+                            prop.setAttribute("value", value);
+                            propGroup.put(key, prop); 
                         }
                     } catch (IndexOutOfBoundsException e) {
                         valid = false;
@@ -360,110 +605,25 @@ public class BobProjectProperties {
     }
 
     /**
-     * Load default properties from the internal meta.properties file
-     * @throws IOException
-     * @throws ParseException
-     */
-    public void loadDefaults() throws IOException, ParseException {
-        KeyValueFilter filterDefaults = new KeyValueFilter(){
-           @Override
-           public boolean filter(StringKeyValue entry) {
-                // Only keep entries where key ends with ".default"
-                if (entry.key.endsWith(".default") && !entry.value.isEmpty()) {
-
-                    // Modify key to remove ".default" part
-                    entry.key = entry.key.substring(0, entry.key.length() - ".default".length());
-                    return true;
-                }
-
-                return false;
-            }
-        };
-
-        InputStream is = Bob.class.getResourceAsStream("meta.properties");
-        try {
-            defaults = doLoad(is, filterDefaults);
-            properties = copyProperties(defaults);
-        } catch (ParseException e) {
-            throw new RuntimeException("Failed to parse meta.properties", e);
-        } finally {
-            IOUtils.closeQuietly(is);
-        }
-    }
-
-    public void removeProperty(String category, String key) throws RuntimeException {
-        Map<String, String> propGroup = properties.get(category);
-        if (propGroup != null) {
-            propGroup.remove(key);
-            return;
-        }
-        throw new RuntimeException(String.format("No such property %s.%s", category, key));
-    }
-
-    // remove any properties in b from a
-    private static void removeProperties(Map<String, Map<String, String>> a, Map<String, Map<String, String>> b) {
-        for (String category : b.keySet()) {
-            if (!a.containsKey(category)) {
-                continue;
-            }
-            Map<String, String> propGroupA = a.get(category);
-            Map<String, String> propGroupB = b.get(category);
-            for (String key : propGroupB.keySet()) {
-                if (propGroupA.containsKey(key)) {
-                    propGroupA.remove(key);
-                }
-            }
-        }
-    }
-
-    // Merge properties from b to a
-    private static void mergeProperties(Map<String, Map<String, String>> a, Map<String, Map<String, String>> b) {
-        for (String category : b.keySet()) {
-            if (!a.containsKey(category)) {
-                a.put(category, new LinkedHashMap<String, String>());
-            }
-            Map<String, String> propGroupA = a.get(category);
-            Map<String, String> propGroupB = b.get(category);
-            for (String key : propGroupB.keySet()) {
-                propGroupA.put(key, propGroupB.get(key));
-            }
-        }
-    }
-
-    // returns true if the user didn't set this value
-    public boolean isDefault(String category, String key) {
-        return defaults.containsKey(category) && defaults.get(category).containsKey(key);
-    }
-
-    public boolean containsProperty(String category, String key) {
-        return properties.containsKey(category) && properties.get(category).containsKey(key);
-    }
-
-    /**
-     * Load properties in-place from {@link InputStream}
-     * @param in {@link InputStream} to load from
-     * @throws IOException
-     * @throws ParseException
-     */
-    public void load(InputStream in) throws IOException, ParseException {
-        try {
-            Map<String, Map<String, String>> props = doLoad(in, null);
-            mergeMultilineKey(props, "project", "dependencies");
-            // remove any properties in props from defaults
-            removeProperties(defaults, props);
-            // merge into properties
-            mergeProperties(properties, props);
-        } finally {
-            IOUtils.closeQuietly(in);
-        }
-    }
-
-    /**
      * Get all category names
      * @return {@link Collection} of cateory names
      */
     public Collection<String> getCategoryNames() {
         return properties.keySet();
+    }
+
+    /**
+     * Get all keys for given category
+     * @param category category to get keys for
+     * @return collection of keys
+     */
+    public Collection<String> getKeys(String category) {
+        Map<String, ProjectProperty> group = this.properties.get(category);
+        if (group != null) {
+            return group.keySet();
+        } else {
+            return Collections.emptySet();
+        }
     }
 
     /**
@@ -475,8 +635,11 @@ public class BobProjectProperties {
             pw.format("[%s]%n", category);
 
             for (String key : getKeys(category)) {
-                String value = getStringValue(category, key);
-                pw.format("%s = %s%n", key, value);
+                ProjectProperty prop = getValue(category, key);
+                String value = prop.getValue();
+                if (value != null) {
+                    pw.format("%s = %s%n", key, value);
+                }
             }
             pw.println();
         }
@@ -503,20 +666,6 @@ public class BobProjectProperties {
         PrintWriter pw = new PrintWriter(sw);
         save(pw);
         return sw.toString();
-    }
-
-    /**
-     * Get all keys for given category
-     * @param category category to get keys for
-     * @return collection of keys
-     */
-    public Collection<String> getKeys(String category) {
-        Map<String, String> group = this.properties.get(category);
-        if (group != null) {
-            return group.keySet();
-        } else {
-            return Collections.emptySet();
-        }
     }
 
 }

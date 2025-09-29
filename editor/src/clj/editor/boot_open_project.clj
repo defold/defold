@@ -1,19 +1,19 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot-open-project
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -21,20 +21,25 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
+            [editor.color-dropper :as color-dropper]
+            [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
-            [editor.disk-availability :as disk-availability]
             [editor.editor-extensions :as extensions]
+            [editor.engine-profiler :as engine-profiler]
             [editor.fxui :as fxui]
             [editor.git :as git]
-            [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.icons :as icons]
+            [editor.localization :as localization]
+            [editor.notifications :as notifications]
+            [editor.notifications-view :as notifications-view]
+            [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
@@ -43,14 +48,11 @@
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
-            [editor.sync :as sync]
-            [editor.system :as system]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.targets :as targets]
-            [editor.text :as text]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
-            [editor.util :as util]
-            [editor.web-profiler :as web-profiler]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
@@ -58,8 +60,8 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
-           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent KeyCombination]
-           [javafx.scene.layout VBox]
+           [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
+           [javafx.scene.layout StackPane]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -70,22 +72,20 @@
 
 (def the-root (atom nil))
 
-;; invoked to control the timing of when the namespaces load
-(defn load-namespaces []
-  (println "loaded namespaces"))
+(defn initialize-systems! [prefs]
+  (code-view/initialize! prefs))
 
-(defn initialize-project []
+(defn initialize-project! [system-config]
   (when (nil? @the-root)
-    (g/initialize! {})
+    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn setup-workspace [project-path build-settings]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings)]
+(defn- setup-workspace! [project-path build-settings workspace-config localization]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
     (g/transact
       (concat
-        (text/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)
@@ -97,28 +97,15 @@
     (workspace/load-build-cache! workspace)
     workspace))
 
-(defn- async-reload!
-  ([workspace changes-view]
-   (async-reload! workspace changes-view []))
-  ([workspace changes-view moved-files]
-   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)]
-     (disk/async-reload! render-reload-progress! workspace moved-files changes-view))))
-
-(defn- handle-application-focused! [workspace changes-view]
-  (app-view/clear-build-launch-progress!)
-  (when (and (not (sync/sync-dialog-open?))
-             (disk-availability/available?))
-    (async-reload! workspace changes-view)))
-
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view render-progress!]
+(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
-  (changes-view/refresh! changes-view render-progress!))
+  (changes-view/refresh! changes-view))
 
-(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
+(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
         render-download-progress! (app-view/make-render-task-progress :download-update)
@@ -127,27 +114,26 @@
                                (disk/async-save!
                                  render-reload-progress!
                                  render-save-progress!
+                                 project/dirty-save-data
                                  project
                                  nil ; Use nil for changes-view to skip refresh.
                                  (fn [successful?]
                                    (if successful?
-                                     (ui.updater/install-and-restart! stage updater)
+                                     (ui.updater/install-and-restart! stage updater localization)
                                      (do (ui/enable-ui!)
-                                         (changes-view/refresh! changes-view render-reload-progress!))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
+                                         (changes-view/refresh! changes-view))))))]
+    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
 
-(defn- show-tracked-internal-files-warning! []
+(defn- show-tracked-internal-files-warning! [localization]
   (dialogs/make-info-dialog
-    {:title "Internal Files Under Version Control"
+    localization
+    {:title (localization/message "dialog.tracked-internal-files.title")
      :size :large
      :icon :icon/triangle-error
-     :header "Internal files were placed under version control"
+     :header (localization/message "dialog.tracked-internal-files.header")
      :content {:pref-row-count 6
                :wrap-text true
-               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under version control.\n"
-                          "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
-                          "\n"
-                          "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}}))
+               :text (localization/message "dialog.tracked-internal-files.content")}}))
 
 (def ^:private interaction-event-types
   #{DragEvent/DRAG_DONE
@@ -156,10 +142,10 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage [workspace project prefs updater newly-created?]
-  (let [^VBox root (ui/load-fxml "editor.fxml")
-        stage      (ui/make-stage)
-        scene      (Scene. root)]
+(defn- load-stage! [workspace project prefs localization project-path cli-options updater newly-created?]
+  (let [^StackPane root (ui/load-fxml "editor.fxml")
+        stage (ui/make-stage)
+        scene (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -179,18 +165,15 @@
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
+          notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
-          properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
-          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
-                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
-                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
-                                   http-server/start!)
-          open-resource        (partial app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
+          open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
+          color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
+          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
@@ -198,37 +181,82 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload!
-                                                               (.lookup root "#changes-container"))
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
+                                                               (fn [changes-view moved-files]
+                                                                 (app-view/async-reload! app-view changes-view workspace moved-files)))
+          curve-tab            (find-tab tool-tabs "curve-editor-tab")
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
-                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})
+                                                      {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))]
-      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
-      (extensions/reload! project :all (app-view/make-extensions-ui workspace changes-view prefs))
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+          server-handler (web-server/make-dynamic-handler
+                           (into []
+                                 cat
+                                 [(engine-profiler/routes)
+                                  (console/routes console-view)
+                                  (hot-reload/routes workspace)
+                                  (bob/routes project)
+                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))]))
+          server-port (:port cli-options)
+          web-server (try
+                       (http-server/start! server-handler :port server-port)
+                       (catch Exception e
+                         (let [server (http-server/start! server-handler)]
+                           (notifications/show!
+                             (workspace/notifications workspace)
+                             {:type :warning
+                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
+                                            server-port
+                                            (.getMessage e)
+                                            (http-server/port server))})
+                           server)))
+          port-file-content (str (http-server/port web-server))
+          port-file (doto (io/file project-path ".internal" "editor.port")
+                      (io/make-parents)
+                      (spit port-file-content))]
+      (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
+      (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
+      (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
+      (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
+      (localization/localize! console-tab localization (localization/message "pane.console"))
+      (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
+      (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
+      (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
+      (.addShutdownHook
+        (Runtime/getRuntime)
+        (Thread.
+          (fn []
+            ;; Content might change if another editor is open in the same project
+            ;; In that case, we let the other instance to clean up the file
+            (when (and (.exists port-file) (= port-file-content (slurp port-file)))
+              (.delete port-file)))))
+      (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
+      (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
+      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
-          (init-pending-update-indicator! stage update-link project changes-view updater)))
+          (init-pending-update-indicator! stage update-link project changes-view updater localization)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
-      (let [collapse-menu-bar? (and (util/is-mac-os?)
+      (let [collapse-menu-bar? (and (os/is-mac-os?)
                                     (.isUseSystemMenuBar menu-bar))]
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))
 
       (workspace/add-resource-listener! workspace 0
                                         (reify resource/ResourceListener
-                                          (handle-changes [_ _ render-progress!]
+                                          (handle-changes [_ _ _]
                                             (let [open-views (g/node-value app-view :open-views)
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
-                                              (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
+                                              (handle-resource-changes! scene panes open-views changes-view)))))
 
       (.addEventFilter scene
                        InputEvent/ANY
@@ -250,15 +278,16 @@
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
                                                (dialogs/make-confirmation-dialog
-                                                 {:title "Quit Defold?"
+                                                 localization
+                                                 {:title (localization/message "dialog.quit-defold.title")
                                                   :icon :icon/circle-question
                                                   :size :large
-                                                  :header "Unsaved changes exist, are you sure you want to quit?"
-                                                  :buttons [{:text "Cancel and Keep Working"
+                                                  :header (localization/message "dialog.quit-defold.header")
+                                                  :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
                                                              :default-button true
                                                              :cancel-button true
                                                              :result false}
-                                                            {:text "Quit Without Saving"
+                                                            {:text (localization/message "dialog.quit-defold.button.quit")
                                                              :variant :danger
                                                              :result true}]}))]
                                 (when result
@@ -268,6 +297,7 @@
                                 result)))
 
       (ui/on-closed! stage (fn [_]
+                             (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
 
                              ;; TODO: This takes a long time in large projects.
@@ -280,6 +310,7 @@
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
+                         :localization        localization
                          :workspace           (g/node-value project :workspace)
                          :outline-view        outline-view
                          :web-server          web-server
@@ -303,10 +334,11 @@
           (g/connect app-view :selected-node-ids outline-view :selection)
           (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
-          (g/connect app-view :active-resource-node scene-visibility :active-resource-node)
+          (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
+          (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
@@ -318,96 +350,49 @@
                             [debug-view :update-available-controls]
                             [debug-view :update-call-stack]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
-      (if (system/defold-dev?)
-        (graph-view/setup-graph-view root)
-        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]
-        (if (sync/flow-in-progress? git)
+        ;; If the project was just created, we automatically open the readme resource.
+        (when newly-created?
           (ui/run-later
-            (if-not (dialogs/make-confirmation-dialog
-                      {:title "Resume Sync?"
-                       :size :large
-                       :header {:fx/type :v-box
-                                :children [{:fx/type fxui/label
-                                            :variant :header
-                                            :text "The editor was shut down while synchronizing with the server"}
-                                           {:fx/type fxui/label
-                                            :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
-                       :buttons [{:text "Cancel and Revert"
-                                  :cancel-button true
-                                  :result false}
-                                 {:text "Resume Sync"
-                                  :default-button true
-                                  :result true}]})
+            (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+              (open-resource readme-resource))))
 
-              ;; User chose to cancel sync.
-              (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                  (async-reload! workspace changes-view))
-
-              ;; User chose to resume sync.
-              (let [flow (sync/resume-flow git)]
-                (sync/open-sync-dialog flow prefs)
-                (async-reload! workspace changes-view))))
-
-          ;; A sync was not in progress.
-          (do
-            ;; If the project was just created, we automatically open the readme resource.
-            (when newly-created?
+        ;; Ensure .gitignore is configured to ignore build output and metadata files.
+        (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
+              internal-files-are-tracked? (git/internal-files-are-tracked? git)]
+          (if gitignore-was-modified?
+            (do (changes-view/refresh! changes-view)
+                (ui/run-later
+                  (dialogs/make-info-dialog
+                    localization
+                    {:title (localization/message "dialog.gitignore-updated.title")
+                     :icon :icon/circle-info
+                     :header (localization/message "dialog.gitignore-updated.header")
+                     :content {:wrap-text true
+                               :text (localization/message "dialog.gitignore-updated.content")}})
+                  (when internal-files-are-tracked?
+                    (show-tracked-internal-files-warning! localization))))
+            (when internal-files-are-tracked?
               (ui/run-later
-                (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
-                  (open-resource readme-resource))))
-
-            ;; Ensure .gitignore is configured to ignore build output and metadata files.
-            (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
-                  internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-              (if gitignore-was-modified?
-                (do (changes-view/refresh! changes-view app-view/render-main-task-progress!)
-                    (ui/run-later
-                      (dialogs/make-info-dialog
-                        {:title "Updated .gitignore File"
-                         :icon :icon/circle-info
-                         :header "Updated .gitignore file"
-                         :content {:fx/type fxui/label
-                                   :style-class "dialog-content-padding"
-                                   :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                              "You should include it along with your changes the next time you synchronize.")}})
-                      (when internal-files-are-tracked?
-                        (show-tracked-internal-files-warning!))))
-                (when internal-files-are-tracked?
-                  (ui/run-later
-                    (show-tracked-internal-files-warning!)))))))))
+                (show-tracked-internal-files-warning! localization)))))))
 
     (reset! the-root root)
     (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
-(defn- show-missing-dependencies-alert! [dependencies]
-  (dialogs/make-info-dialog
-    {:title "Missing Dependencies"
-     :size :large
-     :icon :icon/triangle-error
-     :header "There are missing dependencies"
-     :content (string/join "\n" (concat ["The following dependencies are missing:"]
-                                        (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                             (sort-by str dependencies))
-                                        [""
-                                         "The project might not work without them. "
-                                         "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
-
-(defn open-project
-  [^File game-project-file prefs render-progress! updater newly-created?]
+(defn open-project!
+  [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace (setup-workspace project-path build-settings)
+        workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+        workspace (setup-workspace! project-path build-settings workspace-config localization)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage workspace project prefs updater newly-created?)
-      (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
-        (show-missing-dependencies-alert! missing-dependencies)))
+      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))

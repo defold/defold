@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,23 +21,18 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#ifdef _WIN32
-#include <io.h>
-#include <stdio.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "../ddf/ddf.h"
 #include <dlib/memory.h>
 #include <dlib/dstrings.h>
+#include <dlib/sys.h>
+#include <dlib/testutil.h>
 
 /*
  * TODO:
- * Tester
- * - Fält
- *   - Extra fält
- *   - Fält som fattas
+ * Tests
+ * - Fields
+ *   - Extra fields
+ *   - Fields that are missing
  */
 
 #ifndef DDF_EXPOSE_DESCRIPTORS
@@ -51,17 +46,6 @@ enum MyEnum
 {
     MYENUM,
 };
-
-static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
-{
-#if defined(__NX__)
-    dmStrlCpy(dst, "host:/", dst_len);
-    dmStrlCat(dst, path, dst_len);
-    return dst;
-#else
-    return path;
-#endif
-}
 
 static bool DDFStringSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
 {
@@ -148,7 +132,7 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
-#if !(defined(__APPLE__) && (defined(__arm__) || defined(__arm64__)))
+#if !defined(DM_PLATFORM_IOS)
 // TODO: Disabled on iOS
 // We have add functionality to located tmp-dir on iOS. See issue #624
 TEST(Simple, LoadFromFile)
@@ -161,7 +145,7 @@ TEST(Simple, LoadFromFile)
         simple.set_a(test_values[i]);
 
         char path[512];
-        const char* file_name = MakeHostPath(path, sizeof(path), "__TEMPFILE__");
+        const char* file_name = dmTestUtil::MakeHostPath(path, sizeof(path), "__TEMPFILE__");
         {
             std::fstream output(file_name,  std::ios::out | std::ios::trunc | std::ios::binary);
             ASSERT_EQ(true, simple.SerializeToOstream(&output));
@@ -171,11 +155,7 @@ TEST(Simple, LoadFromFile)
         dmDDF::Result e = dmDDF::LoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
         ASSERT_EQ(dmDDF::RESULT_OK, e);
 
-        #ifdef _WIN32
-        _unlink(file_name);
-        #else
-        unlink(file_name);
-        #endif
+        dmSys::Unlink(file_name);
 
         DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
         ASSERT_EQ(simple.a(), msg->m_A);
@@ -188,7 +168,7 @@ TEST(Simple, LoadFromFile)
 TEST(Simple, LoadFromFile2)
 {
     char path[512];
-    const char* file_name = MakeHostPath(path, sizeof(path), "DOES_NOT_EXISTS");
+    const char* file_name = dmTestUtil::MakeHostPath(path, sizeof(path), "DOES_NOT_EXISTS");
     void *message;
     dmDDF::Result e = dmDDF::LoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
     ASSERT_EQ(dmDDF::RESULT_IO_ERROR, e);
@@ -782,6 +762,148 @@ TEST(AlignmentTests, AlignField)
     ASSERT_EQ(0, ((unsigned long)(&(dummy->m_NeedsToBeAligned2))) % 16);
 
     dmMemory::AlignedFree(dummy);
+}
+
+TEST(OneOfTests, LoadSimple)
+{
+    TestDDF::OneOfMessage oneof_message_desc;
+
+    oneof_message_desc.set_not_in_oneof(99);
+
+    // the second call will overwrite the enum value for the one_of_field_one oneof
+    oneof_message_desc.set_enum_val(::TestDDF::TEST_ENUM_VAL2);
+    oneof_message_desc.set_int_val(1337);
+
+    // Set a nested oneof
+    TestDDF::OneOfMessage::Nested nested;
+    nested.set_nested_int_val(10);
+    *oneof_message_desc.mutable_nested_val() = nested;
+
+    // Set a string
+    std::string simple_string_valid = "set_simple_string_two_test_string";
+    oneof_message_desc.set_simple_string_two(simple_string_valid);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessage* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessage_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(1337, message->m_OneOfFieldOne.m_IntVal);
+    ASSERT_EQ(99,   message->m_NotInOneof);
+    ASSERT_EQ(10,   message->m_NestedVal.m_NestedFieldName.m_NestedIntVal);
+    ASSERT_EQ(13,   message->m_NestedVal.m_NestedButNotInOneof);
+    ASSERT_STREQ(simple_string_valid.c_str(), message->m_OneOfFieldTwo.m_SimpleStringTwo);
+
+    dmDDF::FreeMessage(message);
+}
+
+TEST(OneOfTests, Repeated)
+{
+    TestDDF::OneOfMessageRepeat oneof_message_desc;
+
+    uint64_t large_number = 0x100000001;
+
+    TestDDF::OneOfMessageRepeat::Nested* nested_one_valid = oneof_message_desc.add_nested_one_of();
+    nested_one_valid->set_val_b(256);
+
+    TestDDF::OneOfMessageRepeat::Nested* nested_two_valid = oneof_message_desc.add_nested_one_of();
+    nested_two_valid->set_val_a(large_number);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageRepeat* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(2,            message->m_NestedOneOf.m_Count);
+    ASSERT_EQ(256,          message->m_NestedOneOf[0].m_Values.m_ValB);
+    ASSERT_EQ(large_number, message->m_NestedOneOf[1].m_Values.m_ValA);
+    ASSERT_EQ(0,            message->m_NestedOneOfWithDefaults.m_Values.m_ValA);
+
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    // Note: We can't compare the serialized input with the saved string..
+    //       When we load a repeated field, we load all the internal fields in the repeated field,
+    //       because we don't know which ones have been set. This is not the case for non-repeated fields,
+    //       since the fields that haven't been set will not be present in the input buffer.
+    //       This is not a problem per se, other than that the serialized string will contain a bit more data.
+    // ASSERT_EQ(msg_str, save_str);
+
+    DUMMY::TestDDF::OneOfMessageRepeat* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(256,          saved_message->m_NestedOneOf[0].m_Values.m_ValB);
+    ASSERT_EQ(large_number, saved_message->m_NestedOneOf[1].m_Values.m_ValA);
+
+    dmDDF::FreeMessage(message);
+}
+
+TEST(OneOfTests, Save)
+{
+    std::string oneof_string_val = "This is a somewhat long string!";
+    TestDDF::OneOfMessageSave oneof_message_desc;
+    oneof_message_desc.set_int_val(999);
+    oneof_message_desc.set_string_val(oneof_string_val);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageSave* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(msg_str, save_str);
+    ASSERT_STREQ(oneof_string_val.c_str(), message->m_OneOfFieldString.m_StringVal);
+
+    DUMMY::TestDDF::OneOfMessageSave* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(message->m_OneOfField.m_IntVal, saved_message->m_OneOfField.m_IntVal);
+    ASSERT_EQ((int)message->m_OneOfField.m_BoolVal, (int)saved_message->m_OneOfField.m_BoolVal);
+    ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
+
+    dmDDF::FreeMessage(message);
+}
+
+TEST(OneOfTests, Nested)
+{
+    TestDDF::OneOfMessageNested oneof_message_desc;
+
+    TestDDF::OneOfMessageNested_SubTwo* sub_two = new TestDDF::OneOfMessageNested_SubTwo();
+    TestDDF::OneOfMessageNested_SubOne* sub_one_for_two = new TestDDF::OneOfMessageNested_SubOne;
+    sub_one_for_two->set_value_two(13.0f);
+    sub_one_for_two->set_non_one_of(1337);
+
+    sub_two->set_allocated_value_sub_one(sub_one_for_two);
+    oneof_message_desc.set_allocated_two(sub_two);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageNested* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageNested_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_NEAR(13.0f, message->m_Composite.m_Two.m_Values.m_ValueSubOne.m_Values.m_ValueTwo, 0.0001f);
+    ASSERT_EQ(1337, message->m_Composite.m_Two.m_Values.m_ValueSubOne.m_NonOneOf);
+
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageNested_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(msg_str, save_str);
+
+    dmDDF::FreeMessage(message);
 }
 
 int main(int argc, char **argv)

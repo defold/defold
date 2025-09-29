@@ -1,31 +1,33 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.game-project
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
             [editor.build-target :as bt]
+            [editor.form :as form]
+            [editor.fs :as fs]
+            [editor.game-project-core :as gpcore]
+            [editor.graph-util :as gu]
+            [editor.code.lang.ini :as ini]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [editor.fs :as fs]
-            [editor.graph-util :as gu]
-            [editor.game-project-core :as gpcore]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node])
+            [util.murmur :as murmur])
   (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -64,7 +66,7 @@
                                          (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
                        (let [transformed-settings-map (transform-settings! settings-map)]
                          (sort-by first transformed-settings-map)))
-        ^String user-data-content (settings-core/settings->str settings)]
+        user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
 (defn- resource-content [resource]
@@ -94,12 +96,14 @@
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] (resource/openable? resource))
+  (editable? [this] (resource/editable? resource))
+  (loaded? [this] (resource/loaded? resource))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/input-stream resource))
-  (io/make-reader        [this opts] (io/reader resource))
-  (io/make-output-stream [this opts] (io/output-stream resource))
-  (io/make-writer        [this opts] (io/writer resource)))
+  (make-input-stream  [this opts] (io/input-stream resource))
+  (make-reader        [this opts] (io/reader resource))
+  (make-output-stream [this opts] (io/output-stream resource))
+  (make-writer        [this opts] (io/writer resource)))
 
 (defn- make-custom-build-target [node-id resource]
   (bt/with-content-hash
@@ -142,7 +146,7 @@
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (g/precluding-errors build-errors
+  (g/precluding-errors (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
      (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
            dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
            deps-by-source (into {} (map
@@ -182,7 +186,6 @@
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
-  (input setting-errors g/Any)
 
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
@@ -229,8 +232,8 @@
                     (g/connect settings-node :raw-settings self :raw-settings)
                     (g/connect settings-node :meta-info self :meta-info)
                     (g/connect settings-node :resource-settings self :resource-settings)
-                    (g/connect settings-node :setting-errors self :setting-errors)
-                    (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
+                    (g/connect settings-node :setting-errors self :build-errors)
+                    (settings/load-settings-node project self settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
 ;; Test support
@@ -238,13 +241,14 @@
 (defn set-setting!
   "Exposed for tests"
   [game-project path value]
-  (let [form-data (g/node-value game-project :form-data)]
-    (let [{:keys [user-data set]} (:form-ops form-data)]
-      (set user-data path value))))
+  (g/transact (form/set-value (:form-ops (g/node-value game-project :form-data)) path value)))
 
 (defn get-setting
-  [game-project path]
-  ((g/node-value game-project :settings-map) path))
+  ([game-project path]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-setting game-project path evaluation-context)))
+  ([game-project path evaluation-context]
+   ((g/node-value game-project :settings-map evaluation-context) path)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
@@ -252,5 +256,9 @@
     :label "Project"
     :node-type GameProjectNode
     :load-fn load-game-project
+    :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
-    :view-types [:cljfx-form-view :text]))
+    :icon-class :property
+    :view-types [:cljfx-form-view :text]
+    :language "ini"
+    :view-opts {:text {:grammar ini/grammar}}))

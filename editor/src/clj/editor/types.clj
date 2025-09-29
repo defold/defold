@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -84,6 +84,21 @@
                     (s/one s/Num "y")
                     (s/one s/Num "z")
                     (s/one s/Num "w")])
+
+(g/deftype Mat2 [(s/one s/Num "m00") (s/one s/Num "m01")
+                 (s/one s/Num "m10") (s/one s/Num "m11")])
+
+(g/deftype Mat3 [(s/one s/Num "m00") (s/one s/Num "m01") (s/one s/Num "m02")
+                 (s/one s/Num "m10") (s/one s/Num "m11") (s/one s/Num "m12")
+                 (s/one s/Num "m20") (s/one s/Num "m21") (s/one s/Num "m22")])
+
+(g/deftype Mat4 [(s/one s/Num "m00") (s/one s/Num "m01") (s/one s/Num "m02") (s/one s/Num "m03")
+                 (s/one s/Num "m10") (s/one s/Num "m11") (s/one s/Num "m12") (s/one s/Num "m13")
+                 (s/one s/Num "m20") (s/one s/Num "m21") (s/one s/Num "m22") (s/one s/Num "m23")
+                 (s/one s/Num "m30") (s/one s/Num "m31") (s/one s/Num "m32") (s/one s/Num "m33")])
+
+(def TLines [s/Str])
+(g/deftype Lines TLines)
 
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
@@ -182,13 +197,16 @@
           :sprite-trim-mode-5
           :sprite-trim-mode-6
           :sprite-trim-mode-7
-          :sprite-trim-mode-8))
+          :sprite-trim-mode-8
+          :sprite-trim-polygons))
 
 (s/defrecord Image
   [path     :- s/Any
    contents :- (s/maybe BufferedImage)
    width    :- Int32
    height   :- Int32
+   pivot-x  :- s/Num
+   pivot-y  :- s/Num
    sprite-trim-mode :- sprite-trim-modes]
   ImageHolder
   (contents [this] contents))

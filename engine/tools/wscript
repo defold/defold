@@ -9,16 +9,24 @@ blddir = 'build'
 import sys, re
 import waf_dynamo, waf_ddf
 from BuildUtility import create_build_utility
+import waflib.Options
+import TestContext
+from build_constants import TargetOS
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
+    target_os = conf.env['TARGET_OS']
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -26,42 +34,47 @@ def configure(conf):
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin" or platform == "x86_64-darwin":
+    glfw_library = 'dmglfw'
+
+    if waf_dynamo.platform_glfw_version(conf.env.PLATFORM) == 3:
+        glfw_library = 'glfw3'
+
+    if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif platform == 'x86_64-ios':
         pass
-    elif platform == "linux" or platform == "x86_64-linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif "win32" in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
-    elif re.match('arm.*?android', platform):
+    elif target_os == TargetOS.WINDOWS:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
+    elif target_os == TargetOS.ANDROID:
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_HID'] = 'hid'
-    conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
-    conf.env['STATICLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
-    if platform == "x86_64-darwin":
-        conf.env['STATICLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
+    conf.env.append_value('INCLUDES', "default/src")
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
+    conf.env['STLIB_HID'] = 'hid'
+    conf.env['STLIB_TEXC'] = ['texc', 'basis_encoder']
+    conf.env['STLIB_INPUT'] = 'input'
+    conf.env['STLIB_DMGLFW'] = glfw_library
+    conf.env['STLIB_GRAPHICS'] = 'graphics'
+    conf.env['STLIB_GRAPHICS_WEBGPU'] = ['graphics_webgpu']
+    conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
+    conf.env['STLIB_GRAPHICS_PS4'] = ['graphics_ps4']
+    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
+    if target_os == TargetOS.MACOS:
+        conf.env['STLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
-
-    sha1 = build_util.git_sha1()
-    conf.env.append_unique('CCDEFINES', 'DEFOLD_SHA1="%s"' % sha1)
-    conf.env.append_unique('CXXDEFINES', 'DEFOLD_SHA1="%s"' % sha1)
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
+    conf.env.append_unique('DEFINES', 'DEFOLD_SHA1="%s"' % build_util.git_sha1())
 
 def build(bld):
-    bld.add_subdirs('scripts')
-    bld.add_subdirs('src')
+    global test_context
+    bld.recurse('scripts')
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
-def shutdown():
-    waf_dynamo.run_tests(valgrind = True)
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

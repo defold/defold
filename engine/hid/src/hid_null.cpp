@@ -1,24 +1,26 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "hid.h"
-
 #include <string.h>
 
 #include <dlib/hashtable.h>
+#include <dlib/dstrings.h>
+
+#include <platform/platform_window.h>
 
 #include "hid_private.h"
+#include "hid.h"
 
 namespace dmHID
 {
@@ -34,16 +36,7 @@ namespace dmHID
         }
         if (context != 0x0)
         {
-            for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
-            {
-                Gamepad& gamepad = context->m_Gamepads[i];
-                gamepad.m_Index = i;
-                gamepad.m_Connected = 0;
-                gamepad.m_AxisCount = 0;
-                gamepad.m_ButtonCount = 0;
-                memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
-            }
-
+            memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
             g_DummyData->Put((uintptr_t)context, new char);
             return true;
         }
@@ -67,6 +60,7 @@ namespace dmHID
 
     void Update(HContext context)
     {
+        dmPlatform::PollEvents(context->m_Window);
         context->m_Keyboards[0].m_Connected = !context->m_IgnoreKeyboard;
         context->m_Mice[0].m_Connected = !context->m_IgnoreMouse;
         context->m_TouchDevices[0].m_Connected = !context->m_IgnoreTouchDevice;
@@ -75,24 +69,18 @@ namespace dmHID
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        *device_name = "null_device";
+        dmStrlCpy(name, "null_device", MAX_GAMEPAD_NAME_LENGTH);
     }
 
-    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
+    // platform implementations
+    bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
     {
-    }
-
-    void HideKeyboard(HContext context)
-    {
+        return false;
     }
 
     void ResetKeyboard(HContext context)
-    {
-    }
-
-    void EnableAccelerometer()
     {
     }
 }

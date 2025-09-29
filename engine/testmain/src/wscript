@@ -3,7 +3,7 @@
 import os
 from BuildUtility import create_build_utility
 
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(conf):
@@ -15,12 +15,13 @@ def build(bld):
     source_dirs = []
 
     for platform in [build_util.get_target_os(), 'common']:
-        d = os.path.join(platform)
-        if os.path.exists(os.path.join('src',d)):
-            source_dirs.extend([d])
+        d = platform
+        if os.path.exists(os.path.join('src', platform)):
+            source_dirs.extend(['%s/*.cpp' % platform])
 
-    b = bld.new_task_gen(features   = 'cc cxx cstaticlib',
-                      includes  = '. ..',
-                      target    = 'testmain')
-    b.find_sources_in_dirs(source_dirs)
+    b = bld.stlib(features     = 'c cxx',
+                  includes     = '. ..',
+                  source       = bld.path.ant_glob(source_dirs),
+                  target       = 'testmain')
 
+    bld.install_files('${PREFIX}/include/testmain', 'common/testmain.h')

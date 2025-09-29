@@ -2,105 +2,129 @@
 
 import sys, os
 
-import Task, TaskGen, Options
-from TaskGen import extension, declare_extension
-
-sys.path.insert(0, "src")
-import waf_gamesys
-
-if sys.platform == "win32":
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto;../src"
-else:
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto:../src"
+import waflib.Task, waflib.TaskGen, waflib.Options
+from waflib.TaskGen import extension
+from waf_dynamo import platform_supports_feature
 
 def configure(conf):
-    pass
+    if platform_supports_feature(conf.env.PLATFORM, 'compute', None):
+        conf.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
 
 def build(bld):
-    dirs = ['animationset',
-            'camera',
-            'collection_proxy',
-            'collision_object',
-            'convex_shape',
-            'emitter',
-            'factory',
-            'collection_factory',
-            'font',
-            'fragment_program',
-            'gui',
-            'input',
-            'label',
-            'light',
-            'material',
-            'mesh',
-            'meshset',
-            'model',
-            'particlefx',
-            'render',
-            'render_script',
-            'display_profiles',
-            'resource',
-            'script',
-            'sound',
-            'sprite',
-            'tile',
-            'texture',
-            'textureset',
-            'vertex_program',
-            'window']
-    exts = ['animationset',
-            'buffer',
-            'camera',
-            'collisionobject',
-            'convexshape',
-            'emitter',
-            'factory',
-            'collectionfactory',
-            'font',
-            'fp',
-            'gui',
-            'gui_script',
-            'gamepads',
-            'input_binding',
-            'jpg',
-            'label',
-            'light',
-            'material',
-            'mesh',
-            'meshset',
-            'model',
-            'particlefx',
-            'png',
-            'render',
-            'render_script',
-            'display_profiles',
-            'resource',
-            'script',
-            'sprite',
-            'vp',
-            'wav',
-            'sound']
+    dirs = ['animationset/*',
+            'atlas/*',
+            'buffer/*',
+            'camera/*',
+            'collection_factory/*',
+            'collection_proxy/*',
+            'collision_object/*',
+            'convex_shape/*',
+            'display_profiles/*',
+            'emitter/*',
+            'factory/*',
+            'font/*',
+            'fragment_program/*',
+            'gui/**',
+            'image/*',
+            'input/*',
+            'label/*',
+            'light/*',
+            'lua/*',
+            'material/*',
+            'mesh/*',
+            'meshset/*',
+            'misc/**',
+            'model/*',
+            'particlefx/*',
+            'render/*',
+            'render_script/*',
+            'render_target/*',
+            'resource/*',
+            'script/*',
+            'shader/*',
+            'sound/*',
+            'sprite/**',
+            'sys/**',
+            'texture/*',
+            'textureset/*',
+            'tile/*',
+            'tilegrid/*',
+            'vertex_program/*',
+            'window/*']
 
-    exported_symbols = ['ResourceTypeGameObject',
-                        'ResourceTypeCollection',
-                        'ResourceTypeLua',
-                        'ResourceTypeScript',
-                        'ComponentTypeScript',
-                        'ResourceTypeAnim',
-                        'ComponentTypeAnim',
-                        'ResourceTypeAnimationSet',
+    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd', '**/*.DS_Store']
+
+    if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
+        excl_pattern.append('**/*.cp')
+        excl_pattern.append('**/*.compute')
+
+    exported_symbols = ['ComponentTypeAnim',
                         'ComponentTypeGui',
-                        'ResourceTypeGui','ResourceTypeGuiScript']
-    test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
-                                     includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES',
-                                     uselib_local = 'gamesys',
-                                     exported_symbols = exported_symbols,
-                                     web_libs = ['library_sys.js', 'library_script.js'],
-                                     proto_gen_py = True,
-                                     content_root='.',
-                                     target = 'test_gamesys')
-    test_task_gen.find_sources_in_dirs('. ' + ' '.join(dirs), exts)
+                        'ComponentTypeMesh',
+                        'ComponentTypeScript',
+                        'ComponentTypeSound',
+                        'ResourceProviderFile',
+                        'ResourceTypeAnim',
+                        'ResourceTypeAnimationSet',
+                        'ResourceTypeCollection',
+                        'ResourceTypeGameObject',
+                        'ResourceTypeGui',
+                        'ResourceTypeGuiScript',
+                        'ResourceTypeLua',
+                        'ResourceTypeOgg',
+                        'ResourceTypeOpus',
+                        'ResourceTypeScript',
+                        'ResourceTypeTTF',
+                        'ResourceTypeFont',
+                        'ResourceTypeWav',
+                        'GraphicsAdapterNull',
+                        'ScriptImageExt',
+                        'ScriptFont',
+                        'ScriptHttp']
 
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux')  and not Options.options.with_vulkan:
-        bld.add_subdirs('fontview')
+    embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
+
+    dynamic_fonts = [
+        'dyn_glyph_bank_test_1.font'
+    ]
+
+    test_gamesys = bld.program(features = 'cxx cprogram embed test',
+                               includes = '../../../src ../../../proto .',
+                               use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                               exported_symbols = exported_symbols + ['ScriptModelExt'],
+                               web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                               content_root='../test',
+                               dynamic_fonts = dynamic_fonts,
+                               source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
+                               embed_source = embed_source,
+                               target = 'test_gamesys')
+
+    test_gamesys_physics = bld.program(features='cxx cprogram embed test',
+                                includes='../../../src ../../../proto',
+                                use='TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                                exported_symbols = exported_symbols + ['ScriptModelExt'],
+                                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                                content_root='../test',
+                                source=bld.path.ant_glob('test_gamesys_physics.cpp') + bld.path.ant_glob('collision_object/*'),
+                                embed_source = embed_source,
+                                target='test_gamesys_physics')
+
+    if not 'web' in bld.env['PLATFORM']:
+        test_gamesys_http = bld.program(features = 'cxx cprogram test',
+                                        includes = '../../../src ../../../proto',
+                                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig_null gamesys_model_null',
+                                        exported_symbols = exported_symbols,
+                                        source = bld.path.ant_glob('test_gamesys_http.cpp') + bld.path.ant_glob('http/*'),
+                                        target = 'test_gamesys_http')
+
+        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+            bld.add_group() # uses test data from http/* and we only want to build it once
+            bld.program(features = 'cxx test',
+                        includes = '../../../src ../../../proto .',
+                        exported_symbols = exported_symbols,
+                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_NULL SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB TEST_SCRIPT gamesys gamesys_rig_null gamesys_model_null',
+                        source = ['test_script_http.cpp'],
+                        target = 'test_script_http')
+
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
+        bld.recurse('fontview')

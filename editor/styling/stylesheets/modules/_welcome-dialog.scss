@@ -1,25 +1,8 @@
 #welcome-dialog {
-  -fx-background-color: -df-background-light;
+  -fx-background-color: -df-background;
 
   HBox, VBox {
     -fx-spacing: 0; // Fight crazy non-zero default.
-  }
-
-  .list-view {
-    -fx-background-color: transparent;
-    -fx-padding: 0;
-
-    .list-cell {
-      -fx-pref-width: 0; // Stretched by ListView. Without this, we get horizontal scrolling.
-      -fx-background-color: transparent;
-      -fx-border-width: 0;
-      -fx-padding: 0;
-
-      // Counteract too-broad application of styling from _file-extensions.scss.
-      .image-view {
-        -fx-effect: none;
-      }
-    }
   }
 
   .scroll-bar {
@@ -65,7 +48,7 @@
   }
 
   #left-pane {
-    -fx-background-color: -df-background;
+    -fx-background-color: -df-background-darker;
 
     .defold-logo {
       -fx-padding: 16px;
@@ -163,7 +146,7 @@
   }
 
   .form-pane {
-    -fx-background-color: -df-background-lighter;
+    -fx-background-color: -df-background-light;
     -fx-padding: 24px;
     -fx-spacing: 16px;
 
@@ -199,11 +182,24 @@
     }
   }
 
+  @mixin welcome-list-view {
+      -fx-background-color: transparent;
+          -fx-padding: 0;
+
+          .list-cell {
+            -fx-pref-width: 0; // Stretched by ListView. Without this, we get horizontal scrolling.
+            -fx-background-color: transparent;
+            -fx-border-width: 0;
+            -fx-padding: 0;
+          }
+  }
+
   .project-list-view {
+    @include welcome-list-view();
     -fx-padding: 0px 16px 0px 0px;
 
     .list-cell {
-      -fx-border-width: 0px 0px 0px 3px;
+      -fx-border-width: 0px 3px 0px 0px;
       -fx-border-color: transparent;
 
       &:selected {
@@ -214,6 +210,7 @@
   }
 
   .template-list-view {
+    @include welcome-list-view();
     -fx-padding: 0px 16px 0px 0px;
 
     .list-cell {
@@ -264,7 +261,7 @@
   }
 
   .template-entry {
-    -fx-background-color: -df-component-darker;
+    -fx-background-color: -df-component-dark;
     -fx-background-radius: 2px;
     -fx-border-width: 1px;
     -fx-border-color: transparent;
@@ -369,20 +366,20 @@
     Button {
       -fx-border-width: 0px;
       -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: -df-background-lighter;
+      -fx-background-color: -df-component-dark;
       -fx-min-width: 30px;
       -fx-padding: 0px;
       -fx-font-size: 90%;
 
       &:hover {
-        -fx-background-color: -df-component-light;
+        -fx-background-color: -df-component-lighter;
       }
     }
 
     .path-field {
       -fx-alignment: center-left;
       -fx-background-color: transparent;
-      -fx-border-color: -df-background-lighter;
+      -fx-border-color: -df-component-dark;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
     }
@@ -415,4 +412,8 @@
   & .project-entry:hover .remove-button {
     visibility: visible;
   }
+}
+#language-selector {
+    // 115 (defold logo width) + 16 * 2 (defold logo padding) - 24 * 2 (vbox margins)
+    -fx-max-width: 99px;
 }

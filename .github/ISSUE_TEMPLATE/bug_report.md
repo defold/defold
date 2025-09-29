@@ -7,6 +7,9 @@ assignees: ''
 
 ---
 
+_Is it a private platform, and a platform specific issue? (i.e. would it break your NDA?)<br>
+Then please report your issue in the corresponding extension repository!_
+
 **Describe the bug (REQUIRED)**
 A clear and concise description of what the bug is.
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,8 @@ set -eu
 SCRIPT_NAME="$(basename "${0}")"
 SCRIPT_PATH="$(cd "$(dirname "${0}")"; pwd)"
 
+eval $(python $SCRIPT_PATH/../../build_tools/set_sdk_vars.py VERSION_XCODE VERSION_XCODE_CLANG)
+
 
 # ----------------------------------------------------------------------------
 # Script functions
@@ -31,7 +33,7 @@ function terminate() {
 
 function terminate_usage() {
     echo "Usage: ${SCRIPT_NAME} <platform> <identity> <profile> <source>"
-    echo "  platform - 'arm64-darwin'"
+    echo "  platform - 'arm64-ios'"
     echo "  identity - name of the iPhone developer identity"
     echo "  profile  - absolute filepath to the provisioning profile"
     echo "  source   - absolute filepath to the source ipa to repack"
@@ -57,7 +59,7 @@ PLATFORM="${1:-}" && [ ! -z "${PLATFORM}" ] || terminate_usage
 IDENTITY="${2:-}" && [ ! -z "${IDENTITY}" ] || terminate_usage
 PROFILE="${3:-}" && [ ! -z "${PROFILE}" ] || terminate_usage
 SOURCE="${4:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
-[[ "arm64-darwin" =~ "${PLATFORM}" ]] || terminate_usage
+[[ "arm64-ios" =~ "${PLATFORM}" ]] || terminate_usage
 
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 PROFILE="$(cd "$(dirname "${PROFILE}")"; pwd)/$(basename "${PROFILE}")"
@@ -79,7 +81,7 @@ ENGINE="${DYNAMO_HOME:-}/bin/${PLATFORM:-}/dmengine"
 [ -f "${PROFILE}" ] || terminate "Profile does not exist: ${PROFILE}"
 [ -f "${ENGINE}" ] || terminate "Engine does not exist: ${ENGINE}"
 
-ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/lib/clang/9.0.0/lib/darwin
+ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${VERSION_XCODE}.xctoolchain/usr/lib/clang/${VERSION_XCODE_CLANG}/lib/darwin
 # e.g. libclang_rt.asan_ios_dynamic.dylib
 
 ASAN_DEPENDENCY=$(otool -L ${ENGINE} | grep libclang_rt.asan | awk '{print $1;}')

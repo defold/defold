@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,7 @@
             [editor.defold-project-search :as project-search]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]
+            [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 
@@ -94,12 +94,15 @@
 (defn- consumer-consumed [consumer]
   (-> consumer :consumed-atom deref))
 
-(defn- match->trimmed-text [{:keys [line] :as _match}]
-  (string/trim line))
+(defn- match->value [match]
+  (case (:match-type match)
+    :match-type-text (string/trim (:text match)) ; Trim lines to disregard indentation in tests below.
+    :match-type-protobuf (:value match)
+    :match-type-setting (:value match)))
 
 (defn- matched-text-by-proj-path [consumed]
   (mapv (fn [{:keys [resource matches]}]
-          [(resource/proj-path resource) (mapv match->trimmed-text matches)])
+          [(resource/proj-path resource) (mapv match->value matches)])
         consumed))
 
 (defn- match-proj-paths [consumed]
@@ -108,7 +111,7 @@
         consumed))
 
 (deftest mock-consumer-test
-  (let [report-error! (test-util/make-call-logger)
+  (let [report-error! (fn/make-call-logger)
         consumer (make-consumer report-error!)
         queue (LinkedBlockingQueue. 4)
         poll-fn #(.poll queue timeout-ms TimeUnit/MILLISECONDS)]
@@ -131,42 +134,41 @@
     (is (false? (consumer-finished? consumer)))
     (is (true? (consumer-stopped? consumer)))))
 
-(deftest compile-find-in-files-regex-test
-  (is (= "(?i)\\Qfoo\\E" (str (project-search/compile-find-in-files-regex "foo"))))
-  (testing "* is handled correctly"
-    (is (= "(?i)\\Qfoo\\E.*\\Qbar\\E" (str (project-search/compile-find-in-files-regex "foo*bar")))))
-  (testing "other wildcard chars are quoted"
-    (is (= "(?i)\\Qfoo\\E.*\\Qbar[]().$^\\E" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
-  (testing "case insensitive search strings"
-    (let [pattern (project-search/compile-find-in-files-regex "fOoO")]
-      (is (= "fooo" (re-matches pattern "fooo"))))))
-
-(defn- try-make-save-data-future [project]
-  (let [report-error! (test-util/make-call-logger)
-        save-data-future (project-search/make-file-resource-save-data-future report-error! project)]
-    (when (is (= [] (test-util/call-logger-calls report-error!)))
-      (let [search-paths (into #{}
-                               (map (comp resource/proj-path :resource))
-                               (deref save-data-future))]
-        (when (is (= search-paths
-                     (into #{}
-                           (comp (keep #(some-> (g/node-value % :save-data) :resource))
-                                 (remove resource/internal?)
-                                 (keep resource/proj-path))
-                           (g/node-value project :nodes))))
-          save-data-future)))))
+(defn- try-make-search-data-future [project]
+  (let [report-error! (fn/make-call-logger)
+        search-data-future (project-search/make-search-data-future report-error! project)]
+    (deref search-data-future)
+    (when (is (= [] (fn/call-logger-calls report-error!)))
+      search-data-future)))
 
 (deftest file-searcher-test
   (test-util/with-loaded-project search-project-path
     (test-util/with-ui-run-later-rebound
-      (when-some [save-data-future (try-make-save-data-future project)]
+      (when-some [search-data-future (try-make-search-data-future project)]
+
+        (testing "All editable files are searched."
+          ;; Note: This is more of a sanity-check than anything else.
+          ;; As we make the search system more flexible, these assumptions might
+          ;; not hold.
+          (is (= (into (sorted-set)
+                       (comp (keep (fn [[node-id]]
+                                     (when-some [save-data (g/node-value node-id :save-data)]
+                                       (:resource save-data))))
+                             (filter resource/loaded?)
+                             (remove resource/internal?)
+                             (filter resource/textual?)
+                             (map resource/proj-path))
+                       (g/node-value project :node-id+resources))
+                 (into (sorted-set)
+                       (map (comp resource/proj-path :resource))
+                       (deref search-data-future)))))
 
         (testing "Matches expected results"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace search-data-future start-consumer! stop-consumer! report-error!)
                 perform-search! (fn [term exts]
                                   (start-search! term exts true)
                                   (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -190,26 +192,26 @@
             (is (= [["/foo.bar" ["Buckle my shoe;"]]] (perform-search! "buckle" nil)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))
+            (is (= [] (fn/call-logger-calls report-error!)))))
 
         (testing "Search can be aborted"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)]
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace search-data-future start-consumer! stop-consumer! report-error!)]
             (start-search! "*" nil true)
             (is (true? (consumer-started? consumer)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))
+            (is (= [] (fn/call-logger-calls report-error!)))))
 
         (testing "Matches among specified file extensions"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace search-data-future start-consumer! stop-consumer! report-error!)
                 search-string "peaNUTbutterjellytime"
                 perform-search! (fn [term exts]
                                   (start-search! term exts true)
@@ -231,14 +233,14 @@
               1 "script")
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))
+            (is (= [] (fn/call-logger-calls report-error!)))))
 
         (testing "Include or exclude matches inside libraries"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace search-data-future start-consumer! stop-consumer! report-error!)
                 perform-search! (fn [term exts include-libraries?]
                                   (start-search! term exts include-libraries?)
                                   (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -249,4 +251,4 @@
                    (perform-search! "socket" "lua" true)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))))))
+            (is (= [] (fn/call-logger-calls report-error!)))))))))

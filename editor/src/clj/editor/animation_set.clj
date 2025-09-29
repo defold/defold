@@ -1,95 +1,122 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.animation-set
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
+            [service.log :as log]
             [util.murmur :as murmur])
-  (:import [clojure.lang ExceptionInfo]
+  (:import [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException ModelUtil]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$AnimationSetDesc]
-           [org.apache.commons.io FilenameUtils]))
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private animation-set-icon "icons/32/Icons_24-AT-Animation.png")
 
+(defn is-animation-set? [resource]
+  (= (:ext resource) "animationset"))
+
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
 
-(g/defnk produce-desc-pb-msg [animations]
-  {:animations (mapv animation-instance-desc-pb-msg animations)})
+(g/defnk produce-save-value [animation-resources]
+  (protobuf/make-map-without-defaults Rig$AnimationSetDesc
+    :animations (mapv animation-instance-desc-pb-msg animation-resources)))
 
-(defn- prefix-animation-id [animation-resource animation]
-  (update animation :id (fn [^String id]
-                          (cond
-                            (and (= "animationset" (resource/type-ext animation-resource))
-                                 (neg? (.indexOf id "/")))
-                            (str (resource/base-name animation-resource) "/" id)
+(defn- update-animation-info [resource animations-resource info]
+  (let [parent-resource (:parent-resource info)
+        animation-set-resource (or animations-resource resource) ; animations-resource is nil when resource is an animation set
+        ;; If we're at the top level, the parent id should be ""
+        parent-id (if (or (nil? parent-resource)
+                          (= parent-resource animation-set-resource))
+                    ""
+                    (resource/base-name parent-resource))]
+    (-> info
+        (assoc :parent-id parent-id)
+        (assoc :parent-resource (or parent-resource resource)))))
 
-                            :else
-                            id))))
+;; Also used by model.clj
+(g/defnk produce-animation-info [resource animations-resource animation-infos]
+  (into []
+        (comp cat
+              (map (partial update-animation-info resource animations-resource)))
+        animation-infos))
 
-(defn- merge-animations [merged-animations animations resource]
-  (let [prefix-animation-id (partial prefix-animation-id resource)]
-    (into merged-animations (map prefix-animation-id) animations)))
+(defn- load-and-validate-animation-set [resource animations-resource animation-info]
+  (let [animations-resource (if (nil? animations-resource) resource animations-resource)
+        is-animation-set (is-animation-set? animations-resource)
+        paths (map (fn [x] (:path x)) animation-info)
+        streams (map (fn [x] (io/input-stream (:resource x))) animation-info)
+        ;; clean up the parent-id if it's the current resource
+        parent-ids (map (fn [x] (:parent-id x)) animation-info)
+        parent-resources (map (fn [x] (:parent-resource x)) animation-info)
 
-(defn- merge-bone-list [merged-bone-list bone-list]
-  (when-not (every? true? (map = merged-bone-list bone-list))
-    (throw (ex-info "The bone lists are incompatible."
-                    {:cause :incompatible-bone-list
-                     :bone-list bone-list
-                     :merged-bone-list merged-bone-list})))
-  (if (> (count bone-list) (count merged-bone-list))
-    bone-list
-    merged-bone-list))
+        animation-set-builder (Rig$AnimationSet/newBuilder)
+        animation-ids (ArrayList.)
+        workspace (resource/workspace resource)
+        project-directory (workspace/project-directory workspace)
+        data-resolver (ModelUtil/createFileDataResolver project-directory)]
 
-(g/defnk produce-animation-set [_node-id animation-resources animation-sets]
-  (assert (= (count animation-resources) (count animation-sets)))
+    (AnimationSetBuilder/buildAnimations is-animation-set paths streams data-resolver parent-ids animation-set-builder animation-ids)
+    (let [animation-set (protobuf/pb->map-with-defaults (.build animation-set-builder))]
+      {:animation-set animation-set
+       :animation-ids (vec animation-ids)})))
+
+;; Also used by model.clj
+(g/defnk produce-animation-set-info [_node-id resource animations-resource animation-info]
   (try
-    (reduce (fn [merged-animation-set [resource animation-set]]
-              (-> merged-animation-set
-                  (update :animations merge-animations (:animations animation-set) resource)
-                  (update :bone-list merge-bone-list (:bone-list animation-set))))
-            {:animations []
-             :bone-list []}
-            (map vector animation-resources animation-sets))
-    (catch ExceptionInfo e
-      (if (= :incompatible-bone-list (:cause (ex-data e)))
-        (g/->error _node-id :animations :fatal animation-resources "The bone hierarchies of the animations are incompatible.")
-        (throw e)))))
+    (if (empty? animation-info)
+      {:animation-set []
+       :animation-ids []}
+      (load-and-validate-animation-set resource animations-resource animation-info))
+    (catch LoaderException e
+      (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
+      (g/->error _node-id :animations :fatal resource
+                 (str "Failed to build " (resource/resource->proj-path resource)
+                      ": " (.getMessage e))))))
 
+(g/defnk produce-animation-set [animation-set-info]
+  (:animation-set animation-set-info))
+
+(g/defnk produce-animation-ids [resource animation-set-info]
+  (:animation-ids animation-set-info))
+
+;; used by the model.clj
 (defn hash-animation-set-ids [animation-set]
   (update animation-set :animations (partial mapv #(update % :id murmur/hash64))))
 
 (defn- build-animation-set [resource _dep-resources user-data]
-  (let [animation-set-with-hash-ids (hash-animation-set-ids (:animation-set user-data))]
-    {:resource resource
-     :content (protobuf/map->bytes Rig$AnimationSet animation-set-with-hash-ids)}))
+  {:resource resource
+   :content (protobuf/map->bytes Rig$AnimationSet (:animation-set user-data))})
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
-  (bt/with-content-hash
-    {:node-id _node-id
-     :resource (workspace/make-build-resource resource)
-     :build-fn build-animation-set
-     :user-data {:animation-set animation-set}}))
+  (when (not (empty? animation-set))
+    (bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-animation-set
+        :user-data {:animation-set animation-set}})))
 
 (def ^:private form-sections
   {:navigation false
@@ -99,32 +126,33 @@
                :type :list
                :label "Animations"
                :element {:type :resource
-                         :filter #{"animationset" "dae"}
+                         :filter model-scene/animation-file-types
                          :default nil}}]}]})
 
-(defn- set-form-op [{:keys [node-id]} path value]
-  (assert (= path [:animations]))
-  (g/set-property! node-id :animations value))
-
-(g/defnk produce-form-data [_node-id animations]
-  (let [values {[:animations] animations}]
+(g/defnk produce-form-data [_node-id animation-resources]
+  (let [values {[:animations] animation-resources}]
     (-> form-sections
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set set-form-op})
+                          :set protobuf-forms-util/set-form-op
+                          :clear protobuf-forms-util/clear-form-op})
         (assoc :values values))))
 
 (g/defnode AnimationSetNode
   (inherits resource-node/ResourceNode)
 
+  (input animations-resource resource/Resource)
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
+  (input animation-infos g/Any :array)
+  (output animation-info g/Any :cached produce-animation-info)
 
-  (property animations resource/ResourceVec
+  (property animations resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :animation-resources]
-                                      [:animation-set :animation-sets]]]
+                                      [:animation-set :animation-sets]
+                                      [:animation-info :animation-infos]]]
                      (concat
                        (for [old-resource old-value]
                          (if old-resource
@@ -137,24 +165,30 @@
             (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
-
-  (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
-  (output save-value g/Any (gu/passthrough desc-pb-msg))
-  (output animation-set g/Any :cached produce-animation-set)
+  (output save-value g/Any :cached produce-save-value)
+  (output animation-set-info g/Any :cached produce-animation-set-info)
+  (output animation-set g/Any produce-animation-set)
+  (output animation-ids g/Any produce-animation-ids)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
-(defn- load-animation-set [_project self resource pb]
-  (let [proj-path->resource (partial workspace/resolve-resource resource)
-        animation-proj-paths (map :animation (:animations pb))
-        animation-resources (mapv proj-path->resource animation-proj-paths)]
-    (g/set-property self :animations animation-resources)))
+(defn- load-animation-set [_project self resource animation-set-desc]
+  {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
+    (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
+      animations (animation-instance-descs->animation-resources :animations))))
+
+(defn- sanitize-animation-set [animation-set-desc]
+  (dissoc animation-set-desc :skeleton)) ; Deprecated field.
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "animationset"
     :icon animation-set-icon
+    :icon-class :property
     :label "Animation Set"
     :load-fn load-animation-set
+    :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :view-types [:cljfx-form-view]))
+    :view-types [:cljfx-form-view :text]))

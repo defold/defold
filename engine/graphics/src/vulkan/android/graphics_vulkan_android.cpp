@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,6 +30,7 @@ PFN_vkEnumerateDeviceExtensionProperties vkEnumerateDeviceExtensionProperties;
 PFN_vkEnumerateDeviceLayerProperties vkEnumerateDeviceLayerProperties;
 PFN_vkGetPhysicalDeviceFormatProperties vkGetPhysicalDeviceFormatProperties;
 PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
+PFN_vkGetPhysicalDeviceFeatures2 vkGetPhysicalDeviceFeatures2;
 PFN_vkGetPhysicalDeviceQueueFamilyProperties vkGetPhysicalDeviceQueueFamilyProperties;
 PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
 PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier;
@@ -50,6 +51,7 @@ PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
 PFN_vkCmdCopyImage vkCmdCopyImage;
 PFN_vkCmdBlitImage vkCmdBlitImage;
 PFN_vkCmdClearAttachments vkCmdClearAttachments;
+PFN_vkCmdClearColorImage vkCmdClearColorImage;
 PFN_vkCreateSampler vkCreateSampler;
 PFN_vkDestroySampler vkDestroySampler;
 PFN_vkDestroyImage vkDestroyImage;
@@ -132,6 +134,9 @@ PFN_vkGetPhysicalDeviceSurfaceFormatsKHR vkGetPhysicalDeviceSurfaceFormatsKHR;
 PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfacePresentModesKHR;
 PFN_vkQueuePresentKHR vkQueuePresentKHR;
 PFN_vkResetCommandBuffer vkResetCommandBuffer;
+PFN_vkResetDescriptorPool vkResetDescriptorPool;
+PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer;
+PFN_vkGetFenceStatus vkGetFenceStatus;
 
 namespace dmGraphics
 {
@@ -176,6 +181,7 @@ namespace dmGraphics
         vkEnumerateDeviceLayerProperties = (PFN_vkEnumerateDeviceLayerProperties) vkGetInstanceProcAddr(vk_instance, "vkEnumerateDeviceLayerProperties");
         vkGetPhysicalDeviceFormatProperties = (PFN_vkGetPhysicalDeviceFormatProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFormatProperties");
         vkGetPhysicalDeviceFeatures = (PFN_vkGetPhysicalDeviceFeatures) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures");
+        vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2");
         vkGetPhysicalDeviceQueueFamilyProperties = (PFN_vkGetPhysicalDeviceQueueFamilyProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceQueueFamilyProperties");
         vkGetPhysicalDeviceMemoryProperties = (PFN_vkGetPhysicalDeviceMemoryProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceMemoryProperties");
         vkCmdPipelineBarrier = (PFN_vkCmdPipelineBarrier) vkGetInstanceProcAddr(vk_instance, "vkCmdPipelineBarrier");
@@ -196,6 +202,7 @@ namespace dmGraphics
         vkCmdCopyImage = (PFN_vkCmdCopyImage) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImage");
         vkCmdBlitImage = (PFN_vkCmdBlitImage) vkGetInstanceProcAddr(vk_instance, "vkCmdBlitImage");
         vkCmdClearAttachments = (PFN_vkCmdClearAttachments) vkGetInstanceProcAddr(vk_instance, "vkCmdClearAttachments");
+        vkCmdClearColorImage = (PFN_vkCmdClearColorImage) vkGetInstanceProcAddr(vk_instance, "vkCmdClearColorImage");
         vkCreateSampler = (PFN_vkCreateSampler) vkGetInstanceProcAddr(vk_instance, "vkCreateSampler");
         vkDestroySampler = (PFN_vkDestroySampler) vkGetInstanceProcAddr(vk_instance, "vkDestroySampler");
         vkDestroyImage = (PFN_vkDestroyImage) vkGetInstanceProcAddr(vk_instance, "vkDestroyImage");
@@ -278,6 +285,9 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfacePresentModesKHR = (PFN_vkGetPhysicalDeviceSurfacePresentModesKHR) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceSurfacePresentModesKHR");
         vkQueuePresentKHR = (PFN_vkQueuePresentKHR) vkGetInstanceProcAddr(vk_instance, "vkQueuePresentKHR");
         vkResetCommandBuffer = (PFN_vkResetCommandBuffer) vkGetInstanceProcAddr(vk_instance, "vkResetCommandBuffer");
+        vkResetDescriptorPool = (PFN_vkResetDescriptorPool) vkGetInstanceProcAddr(vk_instance, "vkResetDescriptorPool");
+        vkCmdCopyImageToBuffer = (PFN_vkCmdCopyImageToBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImageToBuffer");
+        vkGetFenceStatus = (PFN_vkGetFenceStatus) vkGetInstanceProcAddr(vk_instance, "vkGetFenceStatus");
         g_functions_loaded = 1;
     }
 }

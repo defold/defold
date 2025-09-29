@@ -1,22 +1,24 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns support.test-support
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.fs :as fs]
-            [clojure.java.io :as io]
             [internal.system :as is]))
+
+(set! *warn-on-reflection* true)
 
 (def enable-performance-tests
   (nil? (get (System/getenv)
@@ -56,7 +58,7 @@
 
 ;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 
-(defn write-until-new-mtime [write-fn f & args]
+(defn do-until-new-mtime [write-fn f & args]
   (let [f (io/as-file f)
         mtime (.lastModified f)]
     (loop []
@@ -67,18 +69,26 @@
           (recur))))))
 
 (defn spit-until-new-mtime [f content & args]
-  (apply write-until-new-mtime spit f content args))
+  (apply do-until-new-mtime spit f content args))
 
 (defn touch-until-new-mtime [f]
-  (write-until-new-mtime (fn [f] (fs/touch-file! f)) f))
+  (do-until-new-mtime (fn [f] (fs/touch-file! f)) f))
+
+(defn write-until-new-mtime [f content]
+  (do-until-new-mtime (fn [f] (fs/create-file! f content)) f))
 
 (defn graph-dependencies
   ([tgts]
    (graph-dependencies (g/now) tgts))
   ([basis tgts]
-   (->> tgts
-        (reduce (fn [m [nid l]]
-                  (update m nid (fn [s l] (if s (conj s l) #{l})) l))
-                {})
-        (g/dependencies basis)
-        (into #{} (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))))
+   (g/dependencies basis tgts)))
+
+(defmacro with-post-ec
+  "Given a symbol that resolves to a function, returns a fn that executes that
+  function in an implicit evaluation-context supplied as the final argument to
+  the function."
+  [fn-sym]
+  {:pre [(symbol? fn-sym)]}
+  `(fn ~(symbol (name fn-sym)) [& ~'args]
+     (g/with-auto-evaluation-context ~'evaluation-context
+       (apply ~fn-sym (conj (vec ~'args) ~'evaluation-context)))))

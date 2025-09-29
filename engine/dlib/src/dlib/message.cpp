@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,13 +18,16 @@
 #include "atomic.h"
 #include "hash.h"
 #include "hashtable.h"
-#include "profile.h"
 #include "array.h"
 #include "condition_variable.h"
 #include "dstrings.h"
 #include <dlib/mutex.h>
 #include <dlib/static_assert.h>
 #include <dlib/spinlock.h>
+#include <dlib/profile/profile.h>
+
+DM_PROPERTY_GROUP(rmtp_Message, "dmMessage", 0);
+DM_PROPERTY_U32(rmtp_Messages, 0, PROFILE_PROPERTY_FRAME_RESET, "# messages/frame", &rmtp_Message);
 
 namespace dmMessage
 {
@@ -59,6 +62,8 @@ namespace dmMessage
         }
 
     } g_MessageInit;
+
+    static Result GetSocketNoLock(dmhash_t name_hash, HSocket* out_socket);
 
     static void AllocateNewPage(MemoryAllocator* allocator)
     {
@@ -110,7 +115,7 @@ namespace dmMessage
 
     struct MessageSocket
     {
-        uint32_t        m_RefCount; // Is protected by "g_MessageContext->m_Spinlock"
+        uint32_t        m_RefCount; // Is protected by "g_MessageSpinlock"
         dmhash_t        m_NameHash;
         Message*        m_Header;
         Message*        m_Tail;
@@ -125,16 +130,16 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmSpinlock::Spinlock m_Spinlock;
     };
 
     MessageContext* g_MessageContext = 0;
+    dmSpinlock::Spinlock g_MessageSpinlock;
 
     static MessageContext* Create(uint32_t max_sockets)
     {
         MessageContext* ctx = new MessageContext;
         ctx->m_Sockets.SetCapacity(max_sockets, max_sockets);
-        dmSpinlock::Init(&ctx->m_Spinlock);
+
         return ctx;
     }
 
@@ -142,40 +147,58 @@ namespace dmMessage
     // The context is created on demand, and we also need to destroy it automatically
     struct ContextDestroyer
     {
+        ContextDestroyer()
+        {
+            dmAtomicStore32(&m_Deleted, 0);
+            dmSpinlock::Create(&g_MessageSpinlock);
+        }
+
         ~ContextDestroyer()
         {
-            if (g_MessageContext)
+            dmAtomicStore32(&m_Deleted, 1);
             {
-                delete g_MessageContext;
-                g_MessageContext = 0;
+                DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+                if (g_MessageContext)
+                {
+                    delete g_MessageContext;
+                    g_MessageContext = 0;
+                }
             }
+            dmSpinlock::Destroy(&g_MessageSpinlock);
         }
+        int32_atomic_t m_Deleted;
     } g_ContextDestroyer;
 
     Result NewSocket(const char* name, HSocket* socket)
     {
-        if (g_MessageContext == 0)
+        if (dmAtomicGet32(&g_ContextDestroyer.m_Deleted))
         {
-            g_MessageContext = Create(MAX_SOCKETS);
+            return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
+
         if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
         {
             return RESULT_INVALID_SOCKET_NAME;
         }
 
-        HSocket tmp;
-        if (GetSocket(name, &tmp) == RESULT_OK)
-        {
-            return RESULT_SOCKET_EXISTS;
-        }
-
         dmhash_t name_hash = dmHashString64(name);
 
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+
+        if (g_MessageContext == 0)
+        {
+            g_MessageContext = Create(MAX_SOCKETS);
+        }
 
         if (g_MessageContext->m_Sockets.Full())
         {
             return RESULT_SOCKET_OUT_OF_RESOURCES;
+        }
+
+        HSocket tmp;
+        if (GetSocketNoLock(name_hash, &tmp) == RESULT_OK)
+        {
+            return RESULT_SOCKET_EXISTS;
         }
 
         MessageSocket s;
@@ -236,7 +259,7 @@ namespace dmMessage
     static void ReleaseSocket(MessageSocket* s)
     {
         {
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
             --s->m_RefCount;
 
             if (s->m_RefCount > 0)
@@ -249,7 +272,12 @@ namespace dmMessage
 
     static MessageSocket* AcquireSocket(HSocket socket)
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        if (dmAtomicGet32(&g_ContextDestroyer.m_Deleted))
+        {
+            return 0; // The system has already been shut down
+        }
+
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
 
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
 
@@ -269,7 +297,7 @@ namespace dmMessage
     {
         MessageSocket* s = 0x0;
         {
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
             s = g_MessageContext->m_Sockets.Get(socket);
             if (s == 0x0)
             {
@@ -289,9 +317,21 @@ namespace dmMessage
         return RESULT_OK;
     }
 
+    static Result GetSocketNoLock(dmhash_t name_hash, HSocket* out_socket)
+    {
+        *out_socket = name_hash; // to silence an existing test
+
+        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
+        if (!message_socket)
+        {
+            return RESULT_NAME_OK_SOCKET_NOT_FOUND;
+        }
+        return RESULT_OK;
+    }
+
     Result GetSocket(const char *name, HSocket* out_socket)
     {
-        DM_PROFILE(Message, "GetSocket")
+        DM_PROFILE("GetSocket");
 
         if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
         {
@@ -299,21 +339,15 @@ namespace dmMessage
         }
 
         dmhash_t name_hash = dmHashString64(name);
-        *out_socket = name_hash;
 
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
 
-        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
-        if (message_socket)
-        {
-            return RESULT_OK;
-        }
-        return RESULT_NAME_OK_SOCKET_NOT_FOUND;
+        return GetSocketNoLock(name_hash, out_socket);
     }
 
     const char* GetSocketName(HSocket socket)
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
 
         MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
         if (message_socket != 0x0)
@@ -326,11 +360,26 @@ namespace dmMessage
         }
     }
 
+    dmhash_t GetSocketNameHash(HSocket socket)
+    {
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+
+        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
+        if (message_socket != 0x0)
+        {
+            return message_socket->m_NameHash;
+        }
+        else
+        {
+            return 0x0;
+        }
+    }
+
     bool IsSocketValid(HSocket socket)
     {
         if (socket != 0)
         {
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
             MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
             return message_socket != 0;
         }
@@ -399,8 +448,8 @@ namespace dmMessage
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
                     uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
-        DM_PROFILE(Message, "Post")
-        DM_COUNTER("Messages", 1)
+        DM_PROFILE("Post");
+        //Currently called out by the Thread Sanitizer: DM_PROPERTY_ADD_U32(rmtp_Messages, 1);
 
         if (receiver == 0x0)
         {
@@ -479,24 +528,18 @@ namespace dmMessage
         return w_ptr;
     }
 
-    // Low level string concatenation to void the overhead of dmSnPrintf and having to call strlen
-    static const char* GetProfilerString(const char* socket_name, uint32_t* out_profiler_hash)
+    // Low level string concatenation to avoid the overhead of dmSnPrintf and having to call strlen
+    static const char* GetProfilerString(const char* socket_name, char* buffer, uint32_t buffer_size)
     {
-        const char* profiler_string = 0;
-        if (dmProfile::g_IsInitialized)
-        {
-            char buffer[128];
-            char* w_ptr = buffer;
-            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
-            w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
-            w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
-            uint32_t str_len = (uint32_t)(w_ptr - buffer);
-            *w_ptr++ = 0;
-            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
-            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
-            *out_profiler_hash = hash;
-        }
-        return profiler_string;
+        if (!ProfileIsInitialized())
+            return 0;
+
+        char* w_ptr = buffer;
+        const char* w_ptr_end = buffer + buffer_size - 1;
+        w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
+        w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
+        *w_ptr++ = 0;
+        return buffer;
     }
 
     uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
@@ -522,9 +565,10 @@ namespace dmMessage
             }
         }
 
-        uint32_t profiler_hash = 0;
-        const char* profiler_string = GetProfilerString(s->m_Name, &profiler_hash);
-        DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
+
+        char buffer[128];
+        const char* profiler_string = GetProfilerString(s->m_Name, buffer, sizeof(buffer));
+        DM_PROFILE_DYN(profiler_string, 0);
 
         uint32_t dispatch_count = 0;
 
@@ -658,4 +702,3 @@ namespace dmMessage
         return RESULT_OK;
     }
 }
-

@@ -1,42 +1,51 @@
 #! /usr/bin/env python
 
 def build(bld):
-    libs = 'TESTMAIN PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA CARES'
+    libs = 'TESTMAIN SOCKET APP GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL PLATFORM_NULL LUA render render_font_default'
     exported_symbols = ['GraphicsAdapterNull']
 
-    bld.new_task_gen(features = 'cxx cprogram test',
-                    source = 'test_render.cpp',
-                    uselib = libs,
-                    exported_symbols = exported_symbols,
-                    uselib_local = 'render',
-                    web_libs = ['library_sys.js', 'library_script.js'],
-                    includes = ['../../src', '../../proto'],
-                    target = 'test_render')
+    if 'web' in bld.env['PLATFORM']:
+        lib_dirs = {}
+        lib_dirs['library_render.js'] = '../src/js'
+        bld.env['JS_LIB_PATHS'] = lib_dirs
 
-    bld.new_task_gen(features = 'cxx cprogram test',
-                    source = 'test_display_profiles.cpp',
-                    uselib = libs,
-                    exported_symbols = exported_symbols,
-                    uselib_local = 'render',
-                    web_libs = ['library_sys.js', 'library_script.js'],
-                    includes = ['../../src', '../../proto'],
-                    target = 'test_display_profiles')
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_render.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_render')
 
-    bld.new_task_gen(features = 'cxx cprogram test',
-                    source = 'test_material.cpp',
-                    uselib = libs,
-                    exported_symbols = exported_symbols,
-                    uselib_local = 'render',
-                    web_libs = ['library_sys.js', 'library_script.js'],
-                    includes = ['../../src', '../../proto'],
-                    target = 'test_material')
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_display_profiles.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_display_profiles')
 
-    bld.new_task_gen(features = 'cxx cprogram test',
-                    source = 'test_render_script.cpp',
-                    uselib = libs,
-                    exported_symbols = exported_symbols,
-                    uselib_local = 'render',
-                    web_libs = ['library_sys.js', 'library_script.js'],
-                    includes = ['../../src', '../../proto'],
-                    target = 'test_render_script')
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_render_programs.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_render_programs')
+
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_render_script.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_render_script')
+
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_render_buffer.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_render_buffer')
 

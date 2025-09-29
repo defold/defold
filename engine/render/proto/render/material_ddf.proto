@@ -1,7 +1,9 @@
+syntax = "proto2";
 package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Material";
@@ -19,6 +21,7 @@ message MaterialDesc
         CONSTANT_TYPE_NORMAL = 6;
         CONSTANT_TYPE_WORLDVIEW = 7;
         CONSTANT_TYPE_WORLDVIEWPROJ = 8;
+        CONSTANT_TYPE_USER_MATRIX4 = 9;
     }
 
     message Constant
@@ -43,36 +46,61 @@ message MaterialDesc
 
     enum FilterModeMin
     {
-        FILTER_MODE_MIN_NEAREST = 0;
-        FILTER_MODE_MIN_LINEAR  = 1;
+        FILTER_MODE_MIN_NEAREST                = 0;
+        FILTER_MODE_MIN_LINEAR                 = 1;
         FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST = 2;
         FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR  = 3;
         FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST  = 4;
         FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR   = 5;
+        FILTER_MODE_MIN_DEFAULT                = 6;
     }
 
     enum FilterModeMag
     {
         FILTER_MODE_MAG_NEAREST = 0;
         FILTER_MODE_MAG_LINEAR  = 1;
+        FILTER_MODE_MAG_DEFAULT = 2;
+    }
+
+    message PbrParameters
+    {
+        optional bool has_parameters          = 1;
+        optional bool has_metallic_roughness  = 2;
+        optional bool has_specular_glossiness = 3;
+        optional bool has_clearcoat           = 4;
+        optional bool has_transmission        = 5;
+        optional bool has_ior                 = 6;
+        optional bool has_specular            = 7;
+        optional bool has_volume              = 8;
+        optional bool has_sheen               = 9;
+        optional bool has_emissive_strength   = 10;
+        optional bool has_iridescence         = 11;
     }
 
     message Sampler
     {
-        required string name           = 1; // uniform name
-        required WrapMode wrap_u       = 2;
-        required WrapMode wrap_v       = 3;
+        required string name              = 1; // uniform name
+        required WrapMode wrap_u          = 2;
+        required WrapMode wrap_v          = 3;
         required FilterModeMin filter_min = 4;
         required FilterModeMag filter_mag = 5;
+        optional float max_anisotropy     = 6 [default = 1.0];
+        repeated uint64 name_indirections = 7 [(runtime_only)=true]; // sampler name -> list of shader uniform hashes
+        optional string texture           = 8 [(resource)=true];
+        optional uint64 name_hash         = 9 [(runtime_only)=true]; // Internal, for faster lookups
     }
 
-    required string name = 1;
-    repeated string tags = 2;
-    required string vertex_program = 3 [(resource)=true];
-    required string fragment_program = 4 [(resource)=true];
-    optional VertexSpace vertex_space = 5;
-    repeated Constant vertex_constants = 6;
-    repeated Constant fragment_constants = 7;
-    repeated string textures = 8;
-    repeated Sampler samplers = 9;
+    required string name                           = 1;
+    repeated string tags                           = 2;
+    required string vertex_program                 = 3 [(resource)=true];
+    required string fragment_program               = 4 [(resource)=true];
+    optional VertexSpace vertex_space              = 5;
+    repeated Constant vertex_constants             = 6;
+    repeated Constant fragment_constants           = 7;
+    repeated string textures                       = 8; // deprecated
+    repeated Sampler samplers                      = 9;
+    optional uint32 max_page_count                 = 10 [default = 0];
+    repeated dmGraphics.VertexAttribute attributes = 11;
+    optional string program                        = 12 [(resource)=true, (runtime_only)=true];
+    optional PbrParameters pbr_parameters          = 13 [(runtime_only)=true];
 }

@@ -1,0 +1,28 @@
+name: "sprite_paged_atlas"
+tags: "tile"
+vertex_program: "/builtins/materials/sprite_paged_atlas.vp"
+fragment_program: "/builtins/materials/sprite_paged_atlas.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+fragment_constants {
+  name: "tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+}
+samplers {
+  name: "texture_sampler"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_DEFAULT
+  filter_mag: FILTER_MODE_MAG_DEFAULT
+  max_anisotropy: 1.0
+}
+max_page_count: 4

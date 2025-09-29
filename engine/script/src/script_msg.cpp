@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -47,18 +47,14 @@ namespace dmScript
      * @document
      * @name Message
      * @namespace msg
+     * @language Lua
      */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
 
-    bool IsURL(lua_State *L, int index)
-    {
-        return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
-    }
-
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
-        char tmp[32];
+        DM_HASH_REVERSE_MEM(hash_ctx, 512);
         *buffer = '\0';
 
         const char* unknown = "<unknown>";
@@ -72,21 +68,20 @@ namespace dmScript
 
         if( !socketname )
         {
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Socket));
-            socketname = tmp;
+            socketname = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Socket);
         }
 
         dmStrlCpy(buffer, socketname ? socketname : unknown, buffer_size);
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Path));
+            const char* tmp = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Path);
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
+            const char* tmp = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Fragment);
             dmStrlCat(buffer, "#", buffer_size);
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Fragment));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         return buffer;
@@ -95,7 +90,7 @@ namespace dmScript
     static int URL_tostring(lua_State *L)
     {
         dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
-        char buffer[64];
+        char buffer[512];
         UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s: [%s]", SCRIPT_TYPE_NAME_URL, buffer);
         return 1;
@@ -105,7 +100,7 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         dmMessage::URL* url = CheckURL(L, 2);
-        char buffer[64];
+        char buffer[512];
         UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s[%s]", s, buffer);
         return 1;
@@ -165,9 +160,10 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
         {
-            if (IsHash(L, 3))
+            dmhash_t* phash = dmScript::ToHash(L, 3);
+            if (phash != 0)
             {
-                url->m_Socket = *(dmhash_t*)lua_touserdata(L, 3);
+                url->m_Socket = *phash;
             }
             else if (lua_isstring(L, 3))
             {
@@ -204,13 +200,17 @@ namespace dmScript
             {
                 url->m_Path = 0;
             }
-            else if (IsHash(L, 3))
-            {
-                url->m_Path = CheckHash(L, 3);
-            }
             else
             {
-                return luaL_error(L, "Invalid type for path, must be hash, string or nil.");
+                dmhash_t* phash = dmScript::ToHash(L, 3);
+                if (phash != 0)
+                {
+                    url->m_Path = *phash;
+                }
+                else
+                {
+                    return luaL_error(L, "Invalid type for path, must be hash, string or nil.");
+                }
             }
         }
         else if (strcmp("fragment", key) == 0)
@@ -223,13 +223,17 @@ namespace dmScript
             {
                 url->m_Fragment = 0;
             }
-            else if (IsHash(L, 3))
-            {
-                url->m_Fragment = *(dmhash_t*)lua_touserdata(L, 3);
-            }
             else
             {
-                return luaL_error(L, "Invalid type for fragment, must be hash, string or nil.");
+                dmhash_t* phash = dmScript::ToHash(L, 3);
+                if (phash != 0)
+                {
+                    url->m_Fragment = *phash;
+                }
+                else
+                {
+                    return luaL_error(L, "Invalid type for fragment, must be hash, string or nil.");
+                }
             }
         }
         else
@@ -349,9 +353,10 @@ namespace dmScript
             }
             if (!lua_isnil(L, 1))
             {
-                if (IsHash(L, 1))
+                dmhash_t* phash = dmScript::ToHash(L, 1);
+                if (phash != 0)
                 {
-                    url.m_Socket = *(dmhash_t*)lua_touserdata(L, 1);
+                    url.m_Socket = *phash;
                 }
                 else
                 {
@@ -500,7 +505,7 @@ namespace dmScript
             message_id = CheckHash(L, 2);
         }
 
-        DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
+        char DM_ALIGNED(16) data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
 
@@ -536,11 +541,11 @@ namespace dmScript
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
         if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
         {
-            char receiver_buffer[64];
+            char receiver_buffer[512];
             UrlToString(&receiver, receiver_buffer, sizeof(receiver_buffer));
-            char sender_buffer[64];
+            char sender_buffer[512];
             UrlToString(&sender, sender_buffer, sizeof(sender_buffer));
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
+            return luaL_error(L, "Could not find socket '%s' when sending message '%s' from '%s' to '%s'.", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }
         else if (result != dmMessage::RESULT_OK)
         {
@@ -575,6 +580,16 @@ namespace dmScript
         *urlp = url;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_URL);
         lua_setmetatable(L, -2);
+    }
+
+    bool IsURL(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == SCRIPT_URL_TYPE_HASH;
+    }
+
+    dmMessage::URL* ToURL(lua_State* L, int index)
+    {
+        return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
     }
 
     dmMessage::URL* CheckURL(lua_State* L, int index)
@@ -755,15 +770,19 @@ namespace dmScript
                     }
                 }
             }
-            else if (IsHash(L, index))
-            {
-                out_url->m_Socket = default_url.m_Socket;
-                out_url->m_Path = *(dmhash_t*)lua_touserdata(L, index);
-                out_url->m_Fragment = 0;
-            }
             else
             {
-                return luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
+                dmhash_t* phash = dmScript::ToHash(L, index);
+                if (phash != 0)
+                {
+                    out_url->m_Socket = default_url.m_Socket;
+                    out_url->m_Path = *phash;
+                    out_url->m_Fragment = 0;
+                }
+                else
+                {
+                    return luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
+                }
             }
         }
         return 0;

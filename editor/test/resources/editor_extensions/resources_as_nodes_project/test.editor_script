@@ -1,0 +1,40 @@
+local M = {}
+
+local function expect_error(initial_message, fn, ...)
+    local success, message = pcall(fn, ...)
+    if success then
+        print(("  %s => ??? unexpected success ???"):format(initial_message))
+    else
+        print(("  %s => %s"):format(initial_message, message))
+    end
+end
+
+
+function M.get_commands()
+    return {
+        editor.command({
+            id = "defold.test",
+            label = "Test",
+            locations = {"Edit"},
+            run = function()
+                print("Directory read:")
+                print(("  can get path: %s"):format(tostring(editor.can_get("/assets", "path"))))
+                print(("  can set path: %s"):format(tostring(editor.can_set("/assets", "path"))))
+                print(("  can get children: %s"):format(tostring(editor.can_get("/assets", "children"))))
+                print(("  can set children: %s"):format(tostring(editor.can_set("/assets", "children"))))
+                print(("  can add children: %s"):format(tostring(editor.can_add("/assets", "children"))))
+                print("Assets path:")
+                print(("  %s"):format(editor.get("/assets", "path")))
+                print("Assets images:")
+                local assets = editor.get("/assets", "children")
+                for i = 1, #assets do 
+                    print(("  %s"):format(assets[i]))
+                end
+                print("Expected errors:")
+                expect_error("Setting a property", editor.tx.set, "/assets", "path", "/art")
+            end
+        })
+    }
+end
+
+return M

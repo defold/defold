@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,7 +36,8 @@ namespace dmDeviceOpenAL
     {
         ALCdevice*      m_Device;
         ALCcontext*     m_Context;
-        dmArray<ALuint> m_Buffers;
+        dmArray<ALuint> m_AllBuffers;   // All original buffers
+        dmArray<ALuint> m_Buffers;      // The pool
         ALuint          m_Source;
         uint32_t        m_MixRate;
 
@@ -49,13 +50,14 @@ namespace dmDeviceOpenAL
         }
     };
 
-    static void CheckAndPrintError()
+    static ALenum CheckAndPrintError()
     {
         ALenum error = alGetError();
         if (error != AL_NO_ERROR)
         {
-            dmLogError("%s", alGetString(error));
+            dmLogError("OPENAL error 0x%04x: %s", error, alGetString(error));
         }
+        return error;
     }
 
     dmSound::Result DeviceOpenALOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
@@ -71,7 +73,24 @@ namespace dmDeviceOpenAL
             return dmSound::RESULT_UNKNOWN_ERROR;
         }
 
-        al_context = alcCreateContext(al_device, 0);
+        // Since the alcGetIntegerv(al_device, ALC_FREQUENCY, ...) is giving me bogus... /MAWE
+        ALCint frequencies[] = {48000, 44100};
+        ALCint frequency = 0;
+        for (int i = 0; i < DM_ARRAY_SIZE(frequencies); ++i)
+        {
+            ALCint attrs[] = {
+                ALC_FREQUENCY, frequencies[i],
+                0 // sentinel
+            };
+
+            al_context = alcCreateContext(al_device, attrs);
+            if (al_context)
+            {
+                frequency = frequencies[i];
+                break;
+            }
+        }
+
         if (al_context == 0) {
             dmLogError("Failed to create OpenAL context");
             alcCloseDevice(al_device);
@@ -89,15 +108,22 @@ namespace dmDeviceOpenAL
         openal->m_Device = al_device;
         openal->m_Context = al_context;
 
-        openal->m_Buffers.SetCapacity(params->m_BufferCount);
-        openal->m_Buffers.SetSize(params->m_BufferCount);
-        alGenBuffers(params->m_BufferCount, openal->m_Buffers.Begin());
+        openal->m_AllBuffers.SetCapacity(params->m_BufferCount);
+        openal->m_AllBuffers.SetSize(params->m_BufferCount);
+        openal->m_Buffers.SetCapacity(openal->m_AllBuffers.Capacity());
+        openal->m_Buffers.SetSize(openal->m_AllBuffers.Capacity());
+        alGenBuffers(params->m_BufferCount, openal->m_AllBuffers.Begin());
         CheckAndPrintError();
+
+        for (uint32_t i = 0; i < params->m_BufferCount; ++i)
+        {
+            openal->m_Buffers[i] = openal->m_AllBuffers[i];
+        }
 
         alGenSources(1, &openal->m_Source);
         CheckAndPrintError();
 
-        openal->m_MixRate = 44100;
+        openal->m_MixRate = frequency;
 
         *device = openal;
 
@@ -118,41 +144,27 @@ namespace dmDeviceOpenAL
         alcMakeContextCurrent(openal->m_Context);
         alcProcessContext(openal->m_Context);
 
-        int iter = 0;
-        while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
-        {
-            int processed;
-            alGetSourcei(openal->m_Source, AL_BUFFERS_PROCESSED, &processed);
-            while (processed > 0) {
-                ALuint buffer;
-                alSourceUnqueueBuffers(openal->m_Source, 1, &buffer);
-                CheckAndPrintError();
-                openal->m_Buffers.Push(buffer);
-                --processed;
-            }
-
-            if ((iter + 1) % 10 == 0) {
-                dmLogInfo("Waiting for OpenAL device to complete");
-            }
-            ++iter;
-            dmTime::Sleep(10 * 1000);
-
-            if (iter > 1000) {
-                dmLogError("Still buffers in OpenAL. Bailing.");
-            }
-        }
-
         alSourceStop(openal->m_Source);
-        alDeleteSources(1, &openal->m_Source);
-
-        alDeleteBuffers(openal->m_Buffers.Size(), openal->m_Buffers.Begin());
         CheckAndPrintError();
 
-        if (alcMakeContextCurrent(0)) {
+        alDeleteSources(1, &openal->m_Source);
+        CheckAndPrintError();
+
+        alDeleteBuffers(openal->m_AllBuffers.Size(), openal->m_AllBuffers.Begin());
+        CheckAndPrintError();
+
+        bool active = alcMakeContextCurrent(0);
+#if defined(__EMSCRIPTEN__)
+        active = true; // the function seems to always return false
+#endif
+
+        if (active) {
             alcDestroyContext(openal->m_Context);
+            openal->m_Context = 0;
             if (!alcCloseDevice(openal->m_Device)) {
                 dmLogError("Failed to close OpenAL device");
             }
+            openal->m_Device = 0;
         } else {
             dmLogError("Failed to make OpenAL context current");
         }
@@ -160,7 +172,7 @@ namespace dmDeviceOpenAL
         delete openal;
     }
 
-    dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
@@ -172,7 +184,7 @@ namespace dmDeviceOpenAL
         }
         ALuint buffer = openal->m_Buffers[0];
         openal->m_Buffers.EraseSwap(0);
-        alBufferData(buffer, AL_FORMAT_STEREO16, samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
+        alBufferData(buffer, AL_FORMAT_STEREO16, (const int16_t*)samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
         CheckAndPrintError();
 
         alSourceQueueBuffers(openal->m_Source, 1, &buffer);
@@ -213,6 +225,7 @@ namespace dmDeviceOpenAL
         assert(info);
         OpenALDevice* openal = (OpenALDevice*) device;
         info->m_MixRate = openal->m_MixRate;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceOpenALStart(dmSound::HDevice device)
@@ -246,5 +259,6 @@ namespace dmDeviceOpenAL
         }
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue,
+                            DeviceOpenALFreeBufferSlots, 0, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
 }

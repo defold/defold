@@ -1,0 +1,816 @@
+local M = {}
+
+local function expect_error(initial_message, fn, ...)
+    local success, message = pcall(fn, ...)
+    if success then
+        print(("  %s => ??? unexpected success ???"):format(initial_message))
+    else
+        print(("  %s => %s"):format(initial_message, message))
+    end
+end
+
+local function print_atlas_contents(atlas)
+    local images = editor.get("/test.atlas", "images")
+    print(("  images: %s"):format(#images))
+    for i = 1, #images do
+        local image_node = images[i]
+        print(("    image: %s"):format(editor.get(image_node, "image")))
+    end
+    local animations = editor.get("/test.atlas", "animations")
+    print(("  animations: %s"):format(#animations))
+    for i = 1, #animations do
+        local animation_node = animations[i]
+        print(("    animation id: %s"):format(editor.get(animation_node, "id")))
+        local animation_images = editor.get(animation_node, "images")
+        print(("    animation images: %s"):format(#animation_images))
+        for j = 1, #animation_images do
+            local animation_image_node = animation_images[j]
+            print(("      animation image: %s"):format(editor.get(animation_image_node, "image")))
+        end
+    end
+end
+
+local function print_tilesource_contents(tilesource)
+    local animations = editor.get(tilesource, "animations")
+    print(("  animations: %s"):format(#animations))
+    for i = 1, #animations do
+        local animation_node = animations[i]
+        print(("    animation: %s"):format(editor.get(animation_node, "id")))
+    end
+    local collision_groups = editor.get(tilesource, "collision_groups")
+    print(("  collision groups: %s"):format(#collision_groups))
+    for i = 1, #collision_groups do
+        local node = collision_groups[i]
+        print(("    collision group: %s"):format(editor.get(node, "id")))
+    end
+    local tile_collision_groups = editor.get(tilesource, "tile_collision_groups")
+    local tile_collision_groups_count = 0
+    for _, _ in pairs(tile_collision_groups) do
+        tile_collision_groups_count = tile_collision_groups_count + 1
+    end
+    print(("  tile collision groups: %s"):format(tile_collision_groups_count))
+    for k, v in pairs(tile_collision_groups) do
+        print(("    tile collision group: %s %s"):format(k, v))
+    end
+end
+
+local function print_tilemap_contents(tilemap_resource)
+    local layers = editor.get(tilemap_resource, "layers")
+    print(("  layers: %s"):format(#layers))
+    for i = 1, #layers do
+        local layer = layers[i]
+        print(("    layer: %s"):format(editor.get(layer, "id")))
+        print("    tiles: {")
+        for x, y, tile in tilemap.tiles.iterator(editor.get(layer, "tiles")) do
+            print(("      [%s, %s] = %s"):format(x,y,tile))
+        end
+        print("    }")
+    end
+end
+
+local function print_particlefx_contents(particlefx)
+    local emitters = editor.get(particlefx, "emitters")
+    print(("  emitters: %s"):format(#emitters))
+    for i = 1, #emitters do
+        local emitter = emitters[i]
+        print(("    emitter: %s"):format(editor.get(emitter, "id")))
+        local modifiers = editor.get(emitter, "modifiers")
+        print(("    modifiers: %s"):format(#modifiers))
+        for j = 1, #modifiers do
+            print(("      modifier: %s"):format(editor.get(modifiers[j], "type")))
+        end
+    end
+    local modifiers = editor.get(particlefx, "modifiers")
+    print(("  modifiers: %s"):format(#modifiers))
+    for i = 1, #modifiers do
+        print(("    modifier: %s"):format(editor.get(modifiers[i], "type")))
+    end
+end
+
+local function print_collision_object(collision, indent)
+    indent = indent or "  "
+    local shapes = editor.get(collision, "shapes")
+    print(("%scollision_type: %s"):format(indent, editor.get(collision, "collision_type")))
+    print(("%sshapes: %s"):format(indent, #shapes))
+    for i = 1, #shapes do
+        local shape = shapes[i]
+        print(("%s- id: %s"):format(indent, editor.get(shape, "id")))
+        local type = editor.get(shape, "type")
+        print(("%s  type: %s"):format(indent, type))
+        if type == "shape-type-sphere" then
+            print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
+        elseif type == "shape-type-box" then
+            local x,y,z = table.unpack(editor.get(shape, "dimensions"))
+            print(("%s  dimensions: %s %s %s"):format(indent, x, y, z))
+        elseif type == "shape-type-capsule" then
+            print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
+            print(("%s  height: %s"):format(indent, editor.get(shape, "height")))
+        end
+    end
+end
+
+local function print_gui(gui)
+    local layers = editor.get(gui, "layers")
+    print(("  layers: %s"):format(#layers))
+    for i = 1, #layers do
+        local layer = layers[i]
+        print(("    layer: %s"):format(editor.get(layer, "name")))
+    end
+    local materials = editor.get(gui, "materials")
+    print(("  materials: %s"):format(#materials))
+    for i = 1, #materials do
+        local material = materials[i]
+        local material_res = editor.get(material, "material")
+        print(("    material: %s%s"):format(editor.get(material, "name"), material_res and " " .. material_res or ""))
+    end
+    local particlefxs = editor.get(gui, "particlefxs")
+    print(("  particlefxs: %s"):format(#particlefxs))
+    for i = 1, #particlefxs do
+        local particlefx = particlefxs[i]
+        local particlefx_res = editor.get(particlefx, "particlefx")
+        print(("    particlefx: %s%s"):format(editor.get(particlefx, "name"), particlefx_res and " " .. particlefx_res or ""))
+    end
+    local textures = editor.get(gui, "textures")
+    print(("  textures: %s"):format(#textures))
+    for i = 1, #textures do
+        local texture = textures[i]
+        local texture_res = editor.get(texture, "texture")
+        print(("    texture: %s%s"):format(editor.get(texture, "name"), texture_res and " " .. texture_res or ""))
+    end
+    local layouts = editor.get(gui, "layouts")
+    print(("  layouts: %s"):format(#layouts))
+    for i = 1, #layouts do
+        local layout = layouts[i]
+        print(("    layout: %s"):format(editor.get(layout, "name")))
+    end
+    local spine_scenes = editor.get(gui, "spine_scenes")
+    print(("  spine scenes: %s"):format(#spine_scenes))
+    for i = 1, #spine_scenes do
+        local spine_scene = spine_scenes[i]
+        local spine_scene_res = editor.get(spine_scene, "spine_scene")
+        print(("    spine scene: %s%s"):format(editor.get(spine_scene, "name"), spine_scene_res and " " .. spine_scene_res or ""))
+    end
+    local fonts = editor.get(gui, "fonts")
+    print(("  fonts: %s"):format(#fonts))
+    for i = 1, #fonts do
+        local font = fonts[i]
+        local font_res = editor.get(font, "font")
+        print(("    font: %s%s"):format(editor.get(font, "name"), font_res and " " .. font_res or ""))
+    end
+    local function print_gui_nodes(nodes, indent)
+        print(("%snodes: %s"):format(indent, #nodes))
+        local child_indent = indent .. "  "
+        for i = 1, #nodes do
+            local node = nodes[i]
+            local id_prop = editor.can_get(node, "id") and "id" or "generated_id"
+            print(("%s- type: %s"):format(indent, editor.get(node, "type")))
+            print(("%s  id: %s"):format(indent, editor.get(node, id_prop)))
+            print_gui_nodes(editor.get(node, "nodes"), child_indent)
+        end
+    end
+    print_gui_nodes(editor.get(gui, "nodes"), "  ")
+end
+
+local function print_gui_node_positions(node)
+    local props = {"position", "Landscape:position", "Portrait:position"}
+    for i = 1, #props do
+        local prop = props[i]
+        local position = editor.get(node, prop)
+        local can_reset = editor.can_reset(node, prop)
+        print(("  %s = {%s, %s, %s}, can reset = %s"):format(prop, position[1], position[2], position[3], tostring(can_reset)))
+    end
+end
+
+local transform_props = {"position", "rotation", "scale"}
+
+local function print_go(go, indent)
+    indent = indent or "  "
+    local components = editor.get(go, "components")
+    print(("%scomponents: %s"):format(indent, #components))
+    for i = 1, #components do
+        local component = components[i]
+        local type = editor.get(component, "type")
+        print(("%s- type: %s"):format(indent, type))
+        print(("%s  id: %s"):format(indent, editor.get(component, "id")))
+        for j = 1, #transform_props do
+            local p = transform_props[j]
+            if editor.can_get(component, p) then
+                local v = editor.get(component, p)
+                print(("%s  %s: {%s, %s, %s}"):format(indent, p, v[1], v[2], v[3]))
+            end
+        end
+        if type == "collisionobject" then
+            print_collision_object(component, indent .. "  ")
+        end
+    end
+end
+
+local function print_coll(coll, indent)
+    indent = indent or "  "
+    local children = editor.get(coll, "children")
+    local editable = editor.can_add(coll, "children")
+    print(("%schildren: %s (%s)"):format(indent, #children, editable and "editable" or "readonly"))
+    for i = 1, #children do
+        local child = children[i]
+        local type = editor.get(child, "type")
+        print(("%s- id: %s"):format(indent, editor.get(child, "id")))
+        print(("%s  url: %s"):format(indent, editor.get(child, "url")))
+        print(("%s  type: %s"):format(indent, type))
+        if type == "go-reference" or type == "collection-reference" then
+            print(("%s  path: %s"):format(indent, editor.get(child, "path") or "-"))
+        end
+        for j = 1, #transform_props do
+            local p = transform_props[j]
+            local v = editor.get(child, p)
+            print(("%s  %s: {%s, %s, %s}"):format(indent, p, v[1], v[2], v[3]))
+        end
+        local child_indent = indent .. "  "
+        if editor.can_get(child, "components") then
+            print_go(child, child_indent)
+        end
+        if editor.can_get(child, "children") then
+            print_coll(child, child_indent)
+        end
+    end
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            id = "defold.test",
+            label = "Test",
+            locations = {"Edit"},
+            run = function()
+                print("Atlas initial state:")
+                print_atlas_contents("/test.atlas")
+                print(("  can add images: %s"):format(tostring(editor.can_add("/test.atlas", "images"))))
+                print(("  can add animations: %s"):format(tostring(editor.can_add("/test.atlas", "animations"))))
+
+                print("Transaction: add image and animation")
+                editor.transact({
+                    editor.tx.add("/test.atlas", "images", {image = "/builtins/assets/images/logo/logo_256.png"}),
+                    editor.tx.add("/test.atlas", "animations", {
+                        id = "logos", 
+                        images = {
+                            {image = "/builtins/assets/images/logo/logo_blue_256.png"},
+                            {image = "/builtins/assets/images/logo/logo_256.png"}
+                        }
+                    })
+                })
+
+                print("After transaction (add):")
+                print_atlas_contents("/test.atlas")
+                local images = editor.get("/test.atlas", "images")
+                local animations = editor.get("/test.atlas", "animations")
+
+                print("Transaction: remove image")
+                editor.transact({editor.tx.remove("/test.atlas", "images", images[1])})
+
+                print("After transaction (remove image):")
+                print_atlas_contents("/test.atlas")
+
+                print("Transaction: clear animation images")
+                editor.transact({editor.tx.clear(animations[1], "images")})
+
+                print("After transaction (clear):")
+                print_atlas_contents("/test.atlas")
+
+                print("Transaction: remove animation")
+                editor.transact({editor.tx.remove("/test.atlas", "animations", animations[1])})
+
+                print("After transaction (remove animation):")
+                print_atlas_contents("/test.atlas")
+
+                print("Expected errors:")
+                expect_error("Wrong list name to add", editor.tx.add, "/test.atlas", "layers", {})
+                expect_error("Wrong list name to remove", editor.tx.remove, "/test.atlas", "layers", "/test.atlas")
+                expect_error("Wrong list item to remove", editor.tx.remove, "/test.atlas", "images", "/test.atlas")
+                expect_error("Wrong list name to clear", editor.tx.clear, "/test.atlas", "layers")
+                expect_error("Wrong child property name", editor.transact, { editor.tx.add("/test.atlas", "animations", { no_such_prop = true}) })
+                expect_error("Added value is not a table", editor.tx.add, "/test.atlas", "images", "/foo.png")
+                expect_error("Added nested value is not a table", editor.transact, { editor.tx.add("/test.atlas", "animations", { images = { "/foo.png" } }) })
+                expect_error("Added node has invalid property value", editor.transact, { editor.tx.add("/test.atlas", "images", { pivot = "invalid-pivot" }) })
+                expect_error("Added resource has wrong type", editor.transact, { editor.tx.add("/test.atlas", "images", { image = "/game.project" }) })
+
+                print("Tilesource initial state:")
+                local tilesource = "/test.tilesource"
+                print_tilesource_contents(tilesource)
+
+                print("Transaction: add animations and collision groups")
+                editor.transact({
+                    editor.tx.add(tilesource, "animations", {id = "idle"}),
+                    editor.tx.add(tilesource, "animations", {id = "walk", start_tile = 2, end_tile = 6}),
+                    editor.tx.add(tilesource, "collision_groups", {id = "obstacle"}),
+                    editor.tx.add(tilesource, "collision_groups", {id = "character"}),
+                    editor.tx.add(tilesource, "collision_groups", {}),
+                    editor.tx.add(tilesource, "collision_groups", {}),
+                    editor.tx.set(tilesource, "tile_collision_groups", {[1] = "obstacle", [3] = "character"})
+                })
+
+                print("After transaction (add animations and collision groups):")
+                print_tilesource_contents(tilesource)
+
+                print("Transaction: set tile_collision_groups to its current value")
+                editor.transact({editor.tx.set(tilesource, "tile_collision_groups", editor.get(tilesource, "tile_collision_groups"))})
+
+                print("After transaction (tile_collision_groups roundtrip):")
+                print_tilesource_contents(tilesource)
+
+                print("Expected errors")
+                expect_error("Using non-existent collision group", editor.transact, {editor.tx.set(tilesource, "tile_collision_groups", {[2] = "does-not-exist"})})
+
+                print("Transaction: clear tilesource")
+                editor.transact({
+                    editor.tx.clear(tilesource, "animations"),
+                    editor.tx.clear(tilesource, "collision_groups"),
+                })
+
+                print("After transaction (clear):")
+                print_tilesource_contents(tilesource)
+
+                print("Tilemap initial state:")
+                local test_tilemap = "/test.tilemap"
+                print_tilemap_contents(test_tilemap)
+
+                print("Transaction: add 2 layers")
+                local tiles = tilemap.tiles.new()
+                for x = 1, 3 do 
+                    for y = 1, 3 do
+                        tilemap.tiles.set(tiles, x, y, math.max(x, y))
+                    end
+                end
+                editor.transact({
+                    editor.tx.add(test_tilemap, "layers", {
+                        id = "background",
+                        tiles = tiles
+                    }),
+                    editor.tx.add(test_tilemap, "layers", {
+                        id = "items",
+                        tiles = tilemap.tiles.set(tilemap.tiles.new(), 2, 2, 3)
+                    })
+                })
+
+                print("After transaction (add 2 layers):")
+                print_tilemap_contents(test_tilemap)
+
+                print("Transaction: clear tilemap")
+                editor.transact({editor.tx.clear(test_tilemap, "layers")})
+
+                print("After transaction (clear):")
+                print_tilemap_contents(test_tilemap)
+
+                print("Particlefx initial state:")
+                local pfx = "/test.particlefx"
+                print_particlefx_contents(pfx)
+
+                print("Transaction: add emitter and modifier")
+                editor.transact({
+                    editor.tx.add(pfx, "emitters", { 
+                        type = "emitter-type-circle",
+                        modifiers = {
+                            {type = "modifier-type-vortex"},
+                            {type = "modifier-type-drag"}
+                        }
+                    }),
+                    editor.tx.add(pfx, "modifiers", {})
+                })
+
+                print("After transaction (add emitter and modifier):")
+                print_particlefx_contents(pfx)
+
+                print("Transaction: clear particlefx")
+                editor.transact({
+                    editor.tx.clear(pfx, "emitters"),
+                    editor.tx.clear(pfx, "modifiers")
+                })
+
+                print("After transaction (clear):")
+                print_particlefx_contents(pfx)
+
+                local collision = "/test.collisionobject"
+                
+                print("Collision object initial state:")
+                print_collision_object(collision)
+
+                print("Transaction: add 3 shapes")
+                editor.transact({
+                    editor.tx.set(collision, "collision_type", "collision-object-type-static"),
+                    editor.tx.add(collision, "shapes", {
+                        id = "box",
+                        type = "shape-type-box"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "sphere",
+                        type = "shape-type-sphere"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "capsule",
+                        type = "shape-type-capsule"
+                    })
+                })
+
+                print("After transaction (add 3 shapes):")
+                print_collision_object(collision)
+
+                print("Transaction: clear")
+                editor.transact({
+                    editor.tx.set(collision, "collision_type", "collision-object-type-dynamic"),
+                    editor.tx.clear(collision, "shapes")
+                })
+
+                print("After transaction (clear):")
+                print_collision_object(collision)
+
+                print("Expected errors:")
+                expect_error("missing type", editor.tx.add, collision, "shapes", {})
+                expect_error("wrong type", editor.tx.add, collision, "shapes", {type = "box"})
+
+                local gui = "/test.gui"
+                print("GUI initial state:")
+                print_gui(gui)
+
+                print("Transaction: edit GUI")
+                editor.transact({
+                    editor.tx.add(gui, "layers", {name = "bg"}),
+                    editor.tx.add(gui, "layers", {name = "fg"}),
+                    editor.tx.add(gui, "layouts", {name = "Landscape"}),
+                    editor.tx.add(gui, "layouts", {name = "Portrait"}),
+                    editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "nodes", {
+                        type = "gui-node-type-box",
+                        position = {10, 10, 10},
+                        nodes = {
+                            {type = "gui-node-type-pie"},
+                            {type = "gui-node-type-text"},
+                            {
+                                type = "gui-node-type-template",
+                                template = "/button.gui"
+                            },
+                            {type = "gui-node-type-particlefx"},
+                            {
+                                type = "gui-node-type-spine",
+                                nodes = {{type = "gui-node-type-box"}}
+                            },
+                        }
+                    }),
+                    editor.tx.add(gui, "nodes", {type = "gui-node-type-text"}),
+                    editor.tx.add(gui, "particlefxs", {}),
+                    editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
+                    editor.tx.add(gui, "particlefxs", {}),
+                    editor.tx.add(gui, "spine_scenes", {}),
+                    editor.tx.add(gui, "spine_scenes", {name = "explicit name"}),
+                    editor.tx.add(gui, "spine_scenes", {spine_scene = "/defold-spine/assets/template/template.spinescene"}),
+                    editor.tx.add(gui, "spine_scenes", {}),
+                    editor.tx.add(gui, "textures", {texture = "/test.tilesource"}),
+                    editor.tx.add(gui, "textures", {texture = "/test.atlas"}),
+                    editor.tx.add(gui, "fonts", {font = "/test.font"}),
+                    editor.tx.add(gui, "fonts", {}),
+                    editor.tx.add(gui, "fonts", {})
+                })
+
+                print("After transaction (edit):")
+                print_gui(gui)
+
+                local nodes = editor.get(gui, "nodes")
+                local node = nodes[1]
+                print("Transaction: set Landscape position")
+                editor.transact({editor.tx.set(node, "Landscape:position", {20, 20, 20})})
+                print_gui_node_positions(node)
+
+                print("Transaction: reset Landscape position")
+                editor.transact({editor.tx.reset(node, "Landscape:position")})
+                print_gui_node_positions(node)
+
+                local template_node = editor.get(node, "nodes")[3]
+                print(("Template node: %s"):format(editor.get(template_node, "id")))
+                print(("  can add: %s"):format(tostring(editor.can_add(template_node, "nodes"))))
+                print(("  can reorder: %s"):format(tostring(editor.can_reorder(template_node, "nodes"))))
+                local override_text_node = editor.get(template_node, "nodes")[2]
+                print(("Override text node: %s"):format(editor.get(override_text_node, "generated_id")))
+                print(("  can add: %s"):format(tostring(editor.can_add(override_text_node, "nodes"))))
+                print(("  can reorder: %s"):format(tostring(editor.can_reorder(override_text_node, "nodes"))))
+
+                print("Transaction: set override node property")
+                editor.transact({editor.tx.set(override_text_node, "text", "custom text")})
+                print(("  text: %s"):format(editor.get(override_text_node, "text")))
+                print(("  can reset: %s"):format(tostring(editor.can_reset(override_text_node, "text"))))
+
+                print("Transaction: reset override node property")
+                editor.transact({editor.tx.reset(override_text_node, "text")})
+                print(("  text: %s"):format(editor.get(override_text_node, "text")))
+                print(("  can reset: %s"):format(tostring(editor.can_reset(override_text_node, "text"))))
+
+                print("Transaction: set override position and layout position properties")
+                editor.transact({
+                    editor.tx.set(override_text_node, "position", {10, 10, 10}),
+                    editor.tx.set(override_text_node, "Landscape:position", {20, 20, 20})
+                })
+                print_gui_node_positions(override_text_node)
+
+                print(("can reorder layers: %s"):format(tostring(editor.can_reorder(gui, "layers"))))
+                print(("can reorder nodes: %s"):format(tostring(editor.can_reorder(gui, "nodes"))))
+                local bg_layer, fg_layer = table.unpack(editor.get(gui, "layers"))
+                local node_a, node_b = nodes[1], nodes[2]
+                print("Transaction: reorder")
+                editor.transact({
+                    editor.tx.reorder(gui, "layers", {fg_layer, bg_layer}),
+                    editor.tx.reorder(gui, "nodes", {node_b, node_a}),
+                })
+                print("After transaction (reorder):")
+                print_gui(gui)
+
+                print("Expected reorder errors:")
+                expect_error("undefined property", editor.tx.reorder, gui, "not-a-property", {})
+                expect_error("reorder not defined", editor.tx.reorder, collision, "shapes", {})
+                expect_error("duplicates", editor.tx.reorder, gui, "layers", {fg_layer, fg_layer, bg_layer})
+                expect_error("missing children", editor.tx.reorder, gui, "layers", {fg_layer})
+                expect_error("wrong child nodes", editor.tx.reorder, gui, "layers", {fg_layer, gui})
+                expect_error("add to template node", editor.tx.add, template_node, "nodes", {type = "gui-node-type-box"})
+                expect_error("reorder template node", editor.tx.reorder, template_node, "nodes", {})
+                expect_error("add to overridden text node", editor.tx.add, override_text_node, "nodes", {type = "gui-node-type-box"})
+                expect_error("reorder overridden text node", editor.tx.reorder, override_text_node, "nodes", editor.get(override_text_node, "nodes"))
+                expect_error("reset unresettable", editor.tx.reset, override_text_node, "text")
+
+                print("Transaction: clear GUI")
+                editor.transact({
+                    editor.tx.clear(gui, "layers"),
+                    editor.tx.clear(gui, "layouts"),
+                    editor.tx.clear(gui, "materials"),
+                    editor.tx.clear(gui, "nodes"),
+                    editor.tx.clear(gui, "particlefxs"),
+                    editor.tx.clear(gui, "spine_scenes"),
+                    editor.tx.clear(gui, "textures"),
+                    editor.tx.clear(gui, "fonts")
+                })
+
+                print("Expected layout errors:")
+                expect_error("no name", editor.transact, {editor.tx.add(gui, "layouts", {})})
+                expect_error("unknown profile", editor.transact, {editor.tx.add(gui, "layouts", {name = "Not a profile"})})
+                expect_error("duplicates", editor.transact, {
+                    editor.tx.add(gui, "layouts", {name = "Landscape"}),
+                    editor.tx.add(gui, "layouts", {name = "Landscape"})
+                })
+
+                print("After transaction (clear):")
+                print_gui(gui)
+
+                local go = "/test.go"
+                print("Go initial state:")
+                print_go(go)
+
+                print("Transaction: add go components")
+
+                editor.transact({
+                    editor.tx.add(go, "components", {
+                        type = "camera",
+                        near_z = 1,
+                        far_z = 10
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "collectionfactory"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "collectionproxy"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "collectionproxy"
+                    }),
+                    editor.tx.add(go, "components", {
+                        id = "collisionobject-embedded",
+                        type = "collisionobject",
+                        locked_rotation = true,
+                        collision_type = "collision-object-type-static",
+                        shapes = {
+                            {
+                                id = "box",
+                                type = "shape-type-box",
+                                dimensions = {2.5, 2.5, 2.5},
+                            }
+                        }
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "factory",
+                        load_dynamically = true
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "label",
+                        text = "Hello label!",
+                        scale = {0.05, 0.05, 0.05}
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "mesh"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "model",
+                        mesh = "/builtins/assets/meshes/cube.dae"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "sound",
+                        id = "boom"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "spinemodel",
+                        position = {3.14, 3.14, 0}
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "sprite",
+                        id = "blob"
+                    }),
+                    editor.tx.add(go, "components", { 
+                        type = "component-reference",
+                        path = "/test.script",
+                        __num = 42
+                    }),
+                    editor.tx.add(go, "components", {
+                        id = "collisionobject-referenced",
+                        type = "component-reference",
+                        path = "/test.collisionobject"
+                    }),
+                    editor.tx.add(go, "components", {
+                        id = "referenced-tilemap",
+                        type = "component-reference",
+                        path = "/test.tilemap"
+                    })
+                })
+
+                print("After transaction (add go components):")
+                print_go(go)
+
+                local referenced_collision
+                local embedded_collision
+                local components = editor.get(go, "components")
+                for i = 1, #components do
+                    local c = components[i]
+                    local id = editor.get(c, "id")
+                    if id == "collisionobject-referenced" then
+                        referenced_collision = c
+                    elseif id == "collisionobject-embedded" then
+                        embedded_collision = c
+                    end
+                end
+
+                print("Collision object components found:")
+                print(("  referenced: %s"):format(tostring(not not referenced_collision)))
+                print(("  embedded: %s"):format(tostring(not not embedded_collision)))
+                
+                print("Collision object components have shapes property:")
+                print(("  referenced: %s"):format(tostring(editor.can_get(referenced_collision, "shapes"))))
+                print(("  embedded: %s"):format(tostring(editor.can_get(embedded_collision, "shapes"))))
+
+                print("Transaction: clear go components")
+                editor.transact({
+                    editor.tx.clear(go, "components")
+                })
+
+                print("After transaction (clear go components):")
+                print_go(go)
+
+                print("Collection initial state")
+                local coll = "/test.collection"
+                print_coll(coll)
+
+                print("Transaction: add gos and collections")
+                editor.transact({
+                    editor.tx.add(coll, "children", {
+                        type = "go",
+                        scale = {0.5, 0.5, 0.5},
+                        children = {
+                            {
+                                type = "go"
+                            },
+                            {
+                                type = "go-reference",
+                                path = "/ref.go",
+                                position = {3.14, 3.14, 0}
+                            },
+                            {
+                                type = "go",
+                                children = {
+                                    {
+                                        type = "go",
+                                        id = "char",
+                                        components = {
+                                            {
+                                                type = "sprite",
+                                                position = {0.5, 0.5, 0.5}
+                                            },
+                                            {
+                                                type = "collisionobject",
+                                                shapes = {
+                                                    {
+                                                        id = "box",
+                                                        type = "shape-type-box",
+                                                        dimensions = {2.5, 2.5, 2.5},
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                type = "component-reference",
+                                                path = "/test.script",
+                                                __num = 37
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                type = "go-reference",
+                                id = "empty-ref"
+                            }
+                        }
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "collection-reference",
+                        id = "empty-collection"
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "collection-reference",
+                        path = "/ref.collection"
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "collection-reference",
+                        path = "/readonly/readonly.collection"
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "go-reference",
+                        path = "/readonly/readonly.go",
+                        children = {
+                            {
+                                type = "go",
+                                id = "allowed-child-of-readonly-go"
+                            }
+                        }
+                    })
+                })
+
+                print("After transaction (add gos and collections):")
+                print_coll(coll)
+
+                local embedded_go
+                local referenced_go
+                local referenced_coll
+                local referenced_coll_go
+                local readonly_referenced_go
+                local readonly_referenced_coll
+                local children = editor.get(coll, "children")
+                for i = 1, #children do
+                    local child = children[i]
+                    if editor.get(child, "type") == "go" then
+                        embedded_go = child
+                        local go_children = editor.get(child, "children")
+                        for j = 1, #go_children do
+                            local go_child = go_children[j]
+                            if editor.can_get(go_child, "path") and editor.get(go_child, "path") == "/ref.go" then
+                                referenced_go = go_child
+                            end
+                        end
+                    elseif editor.can_get(child, "path") then
+                        local path = editor.get(child, "path")
+                        if path == "/ref.collection" then
+                            referenced_coll = child
+                            referenced_coll_go = editor.get(referenced_coll, "children")[1]
+                        elseif path == "/readonly/readonly.collection" then
+                            readonly_referenced_coll = child
+                        elseif path == "/readonly/readonly.go" then
+                            readonly_referenced_go = child
+                        end
+                    end
+                end
+                assert(embedded_go, "embedded go not found")
+                assert(referenced_go, "referenced go not found")
+                assert(referenced_coll, "referenced collection not found")
+                assert(referenced_coll_go, "referenced collection's go not found")
+                assert(readonly_referenced_coll, "readonly referenced collection not found")
+                assert(readonly_referenced_go, "readonly referenced go not found")
+
+                print("Transaction: edit already existing collection elements")
+                editor.transact({
+                    editor.tx.add(embedded_go, "children", {type = "go", id = "new-embedded-go-child"}),
+                    editor.tx.add(referenced_go, "children", {type = "go", id = "new-referenced-go-child"}),
+                    editor.tx.add(readonly_referenced_go, "children", {type = "go", id = "new-readonly-referenced-go-child"}),
+                })
+
+                print("After transaction (edit already existing collection elements):")
+                print_coll(coll)
+
+                print("Expected collection errors:")
+                expect_error("add child to referenced collection", editor.tx.add, referenced_coll, "children", {type = "go"})
+                expect_error("remove child of referenced collection", editor.tx.remove, referenced_coll, "children", referenced_coll_go)
+                expect_error("add child to go in referenced collection", editor.tx.add, referenced_coll_go, "children", {type = "go"})
+                expect_error("clear children of a go in referenced collection", editor.tx.clear, referenced_coll_go, "children")
+                expect_error("add child to readonly referenced collection", editor.tx.add, readonly_referenced_coll, "children", {type = "go"})
+
+                print("Transaction: clear collection")
+                editor.transact({ editor.tx.clear(coll, "children") })
+
+                print("After transaction (clear collection)")
+                print_coll(coll)
+            end
+        })
+    }
+end
+
+return M

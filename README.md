@@ -13,6 +13,8 @@ Repository for the Defold engine, editor and command line tools.
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/rive-black.png)](https://www.rive.app)
 ![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/poki-black.png)](https://www.poki.com)
+![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/op-games-color.png)](https://www.opgames.org)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)
@@ -26,9 +28,11 @@ Repository for the Defold engine, editor and command line tools.
 * **com.dynamo.cr** - Bob
 * **engine** - Engine
 * **editor** - Editor
-* **packages** - External packages
+* **external** - External libraries that can be rebuilt using our build system
+* **packages** - Prebuilt external packages
 * **scripts** - Build and utility scripts
 * **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
+* **share/ext** - External libraries that are built using custom build steps
 
 ## Setup and Build
 
@@ -46,7 +50,7 @@ Follow the [instructions](editor/README.md) in the editor folder.
 
 ## Engine Overview
 
-An overview of the engine architecture and additional engine information can be [viewed here](README_ENGINE.md).
+An overview of the engine architecture and additional engine information can be [viewed here](./engine/docs/README.md).
 
 ### Platform Specifics
 

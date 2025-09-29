@@ -1,19 +1,19 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef GAMEOBJECT_H
-#define GAMEOBJECT_H
+#ifndef DM_GAMEOBJECT_H
+#define DM_GAMEOBJECT_H
 
 #include <stdint.h>
 
@@ -48,6 +48,7 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
+    typedef struct PropertyContainer* HPropertyContainer;
 
     /**
      * Create a new component type register
@@ -77,7 +78,7 @@ namespace dmGameObject
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-32766).
+     * @param capacity Default capacity of collections in this register (0-65534).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
@@ -113,32 +114,6 @@ namespace dmGameObject
      */
     void DeleteCollection(HCollection collection);
 
-
-    /**
-     * Get the component type index
-     * @name GetComponentTypeIndex
-     * @param collection Collection handle
-     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
-     * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
-     */
-    uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
-
-    /**
-     * Retrieve the world in the collection connected to the supplied component
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
-     * @return world [type:void*] The pointer to the world, 0x0 if not found
-     */
-    void* GetWorld(HCollection collection, uint32_t component_type_index);
-
-    /**
-     * Retrieve the context for a component type
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
-     * @return context [type:void*] The pointer to the context, 0x0 if not found
-     */
-    void* GetContext(HCollection collection, uint32_t component_type_index);
-
     /**
      * Return an instance index to the index pool for the collection.
      * @param index The index to return.
@@ -147,34 +122,20 @@ namespace dmGameObject
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
     /**
-     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
-     * @param collection Gameobject collection
-     * @param prototype_name Prototype file name
-     * @param id Id of the spawned instance
-     * @param property_buffer Buffer with serialized properties
-     * @param property_buffer_size Size of property buffer
-     * @param position Position of the spawed object
-     * @param rotation Rotation of the spawned object
-     * @param scale Scale of the spawned object
-     * return the spawned instance, 0 at failure
+     * Spawns a new game object instance.
+     * @param collection Collection to spawn into
+     * @param proto Prototype
+     * @param prototype_name Name of the prototype
+     * @param id Identifier for the new instance, must be unique within the collection
+     * @param property_container Properties that should be set on the new instance
+     * @param position Position
+     * @param rotation Rotation
+     * @param scale Scale
+     * @param out_instance Output parameter for the new instance
+     * @return RESULT_OK on success
      */
-    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
-
-    struct InstancePropertyBuffer
-    {
-        uint8_t *property_buffer;
-        uint32_t property_buffer_size;
-    };
-
-    /**
-     * Used for mapping instance ids from a collection definition to newly spawned instances
-     */
-    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
-
-    /**
-     * Contains property buffers for game objects to be spawned
-     */
-    typedef dmHashTable<dmhash_t, InstancePropertyBuffer> InstancePropertyBuffers;
+    Result Spawn(HCollection collection, HPrototype proto, const char *prototype_name, dmhash_t id, 
+                        HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance);
 
     /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties
@@ -183,16 +144,18 @@ namespace dmGameObject
      *
      * @param collection Gameobject collection to spawn into
      * @param collection_desc Description data of collections
-     * @param property_buffers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
+     * @param id_prefix Identifier prefix, must start with a forward slash (/) and must be unique within the collection. Pass nullptr to use the default identifier (e.g. /collection1, /collection2 etc.).
+     * @param property_containers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
      * @param position Position for the root object
      * @param rotation Rotation for the root object
      * @param scale Scale of the root object
      * @param instances Hash table to be filled with instance identifier mapping.
-     * return true on success
+     * @return RESULT_OK on success
      */
-    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
+    Result SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, const char* id_prefix, 
+                             InstancePropertyContainers *property_containers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
-                             InstanceIdMap *instances);
+                             InstanceIdMap *out_instances);
 
     /**
      * Delete all gameobject instances in the collection
@@ -210,17 +173,6 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
-     * Get absolute identifier relative to #instance. The returned identifier is the
-     * representation of the qualified name, i.e. the path from root-collection to the sub-collection which the #instance belongs to.
-     * Example: if #instance is part of a sub-collection in the root-collection named "sub" and id == "a" the returned identifier represents the path "sub.a"
-     * @param instance Instance to absolute identifier to
-     * @param id Identifier relative to #instance
-     * @param id_size Lenght of the id
-     * @return Absolute identifier
-     */
-    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id, uint32_t id_size);
-
-    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id
@@ -228,13 +180,6 @@ namespace dmGameObject
      * @return RESULT_OK if the comopnent was found
      */
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
-
-    /**
-     * Returns whether the scale of the supplied instance should be applied along Z or not.
-     * @param instance Instance
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HInstance instance);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -319,13 +264,6 @@ namespace dmGameObject
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
 
     /**
-     * Returns whether the scale of the instances in a collection should be applied along Z or not.
-     * @param collection Collection
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HCollection collection);
-
-    /**
      * Get instance hierarchical depth
      * @param instance Gameobject instance
      * @return Hierarchical depth
@@ -357,9 +295,6 @@ namespace dmGameObject
      * @return PROPERTY_RESULT_OK if the out-parameters were written
      */
     PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
-
-
-    uint32_t GetPropertyArrayLength(HInstance instance, dmhash_t component_id, dmhash_t property_id);
 
     /**
      * Sets the value of a property.
@@ -416,6 +351,13 @@ namespace dmGameObject
      * Allows for updating transforms an extra time
      */
     void UpdateTransforms(HCollection hcollection);
+
+    /**
+     * Remove the reference to a dynamically created resource. This implies
+     * that the resource has been externally removed and should no longer be
+     * tracked by the collection, e.g resource.release(id) has been called
+     */
+    void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }
 
-#endif // GAMEOBJECT_H
+#endif // DM_GAMEOBJECT_H

@@ -6,40 +6,63 @@ APPNAME='script'
 srcdir = '.'
 blddir = 'build'
 
-import sys, os
+import sys, os, socket
 import waf_dynamo, waf_ddf
-import Options
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('waf_ddf')
+
+    conf.load('waf_dynamo')
+    conf.load('waf_ddf')
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
+    conf.env.append_value('INCLUDES', 'src')
+    conf.env.append_value('INCLUDES', '../')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
+    conf.env['STLIB_RESOURCE'] = 'resource'
+    conf.env['STLIB_EXTENSION'] = 'extension'
 
 def build(bld):
+    global test_context
     python_path = os.environ.get('PYTHONPATH', '')
-    os.environ['PYTHONPATH'] = os.path.abspath('build/default/src/script') + os.pathsep + python_path
-    bld.add_subdirs('src')
+    os.environ['PYTHONPATH'] = os.path.abspath('build/src/script') + os.pathsep + python_path
+    bld.recurse('src')
 
-def shutdown():
-    if not Options.commands['build']:
+    bld.install_files('${PREFIX}/lib/python', 'test_script_server.py')
+
+    TestContext.initialize_test_context(test_context, bld)
+
+def _get_local_ip(self):
+    hostname = socket.gethostname()
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
+    return local_ip
+
+def shutdown(self):
+    if not TestContext.is_valid(test_context):
+        return
+
+    if getattr(waflib.Options.options, 'skip_tests', False):
         return
 
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
@@ -48,14 +71,21 @@ def shutdown():
     os.environ['DM_SAVEGAME_HOME'] = 'build'
     sys.path.append('.')
 
-    import server
+    import test_script_server
 
-    serv = None
-    if not getattr(Options.options, 'skip_tests', False):
-        serv = server.Server()
-        serv.start()
+    local_ip = _get_local_ip(self)
+
+    if test_context.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos'):
+        local_ip = "localhost"
+
+    PORT=9001
+    configfile = waf_dynamo.create_test_server_config(self, port=PORT, ip=local_ip)
+
+    serv = test_script_server.Server(port=PORT, ip=local_ip)
+    serv.start()
     try:
-        waf_dynamo.run_tests(valgrind = True)
+        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
     finally:
         if serv:
             serv.stop()
+        os.remove(configfile)

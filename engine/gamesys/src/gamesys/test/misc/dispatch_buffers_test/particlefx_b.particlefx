@@ -1,0 +1,65 @@
+emitters {
+  id: "emitter"
+  mode: PLAY_MODE_LOOP
+  duration: 1.0
+  space: EMISSION_SPACE_WORLD
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  tile_source: "/misc/dispatch_buffers_test/particlefx.tilesource"
+  animation: "anim"
+  material: "/misc/dispatch_buffers_test/material_b.material"
+  blend_mode: BLEND_MODE_ADD
+  particle_orientation: PARTICLE_ORIENTATION_DEFAULT
+  inherit_velocity: 0.0
+  max_particle_count: 1
+  type: EMITTER_TYPE_2DCONE
+  start_delay: 0.0
+  properties {
+    key: EMITTER_KEY_SPAWN_RATE
+    points {
+      x: 0.0
+      y: 32.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_SIZE
+    points {
+      x: 0.0
+      y: 20.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  particle_properties {
+    key: PARTICLE_KEY_SCALE
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+  }
+  size_mode: SIZE_MODE_AUTO
+  start_delay_spread: 0.0
+  duration_spread: 0.0
+  stretch_with_velocity: false
+  start_offset: 0.0
+  pivot {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+}

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,68 +15,18 @@
 (ns editor.diff-view
   (:require [clojure.string :as str]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.ui :as ui]
+            [util.diff :as diff]
             [util.text-util :as text-util])
   (:import [javafx.scene Group Parent Scene]
            [javafx.scene.control Control ScrollBar]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Pane]
            [javafx.scene.shape Line Rectangle]
-           [javafx.scene.text Font Text]
-           [org.eclipse.jgit.diff Edit Edit$Type HistogramDiff RawTextComparator RawText]))
+           [javafx.scene.text Font Text]))
 
 (set! *warn-on-reflection* true)
-
-(defn- diff-strings [^String str-left ^String str-right]
-  (.diff (HistogramDiff.) RawTextComparator/DEFAULT (RawText. (.getBytes str-left)) (RawText. (.getBytes str-right))))
-
-(def edit-type->keyword {Edit$Type/REPLACE :replace Edit$Type/DELETE :delete Edit$Type/INSERT :insert Edit$Type/EMPTY :empty})
-
-(defn- edit->map [^Edit edit]
-  {:left {:begin (.getBeginA edit) :end (.getEndA edit)}
-   :right {:begin (.getBeginB edit) :end (.getEndB edit)}
-   :type (get edit-type->keyword (.getType edit))})
-
-; TODO: Lot of logic to get "correct" number of lines
-; NOTE: CRLF characters are expected to have been converted to LF in str
-; NOTE: -1 is required to keep empty lines
-(defn- split-lines [^String str]
-  (let [lines (.split str "\n" -1)]
-    (vec
-      (if (.endsWith str "\n")
-       (drop-last lines)
-       lines))))
-
-(defn- cut-edit [edit cutter]
-  [(-> edit
-     (assoc-in [:left :end]  (get-in cutter [:left :begin]))
-     (assoc-in [:right :end] (get-in cutter [:right :begin])))
-   cutter
-   (-> edit
-     (assoc-in [:left :begin] (get-in cutter [:left :end]))
-     (assoc-in [:right :begin] (get-in cutter [:right :end])))])
-
-(defn- redundant? [{left :left right :right type :type}]
-  (and (= type :nop)
-       (= (:begin left) (:end left))
-       (= (:begin right) (:end right))))
-
-(defn- insert-nop-edits [nop-edit edits]
-  (let [[nop-edit' edits'] (->> edits (reduce (fn [[nop-edit' edits'] edit]
-                                                (let [[a b c] (cut-edit nop-edit' edit)]
-                                                  [c (conj edits' a b)]))
-                                              [nop-edit []]))]
-    (conj edits' nop-edit')))
-
-(defn diff [^String str-left ^String str-right]
-  (let [edits (map edit->map (diff-strings str-left str-right))
-        lines-left (split-lines str-left)
-        lines-right (split-lines str-right)
-        nop-edit {:left {:begin 0 :end (count lines-left)}
-                  :right {:begin 0 :end (count lines-right)}
-                  :type :nop}
-        edits' (insert-nop-edits nop-edit edits)]
-    (remove redundant? edits')))
 
 (defn- make-text [font lines edit selector]
   (let [{:keys [begin end]} (selector edit)
@@ -141,9 +91,7 @@
         scene (Scene. root)
         str-left (text-util/crlf->lf raw-str-left)
         str-right (text-util/crlf->lf raw-str-right)
-        lines-left (split-lines str-left)
-        lines-right (split-lines str-right)
-        edits (diff str-left str-right)]
+        {:keys [left-lines right-lines edits]} (diff/find-edits str-left str-right)]
 
     (ui/title! stage "Diff")
     (.setOnKeyPressed scene (ui/event-handler event (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE) (.close stage))))
@@ -157,8 +105,8 @@
           left-group (Group.)
           right-group (Group.)
           ^ScrollBar hscroll (.lookup root "#hscroll")
-          texts-left (make-texts left-group lines-left edits :left)
-          texts-right (make-texts right-group lines-right edits :right)]
+          texts-left (make-texts left-group left-lines edits :left)
+          texts-right (make-texts right-group right-lines edits :right)]
 
       (ui/text! (.lookup root "#left-file") left-name)
       (ui/text! (.lookup root "#right-file") right-name)
@@ -184,20 +132,22 @@
       (.toFront left-group)
       (.toFront right-group))))
 
-(defn present-diff-data [diff-data]
+(defn present-diff-data [diff-data localization]
   (let [{:keys [binary? new new-path old old-path]} diff-data]
     (cond
       (= old new)
       (dialogs/make-info-dialog
-        {:title "The File Is Unchanged"
+        localization
+        {:title (localization/message "dialog.diff-view.unchanged.title")
          :icon :icon/triangle-error
-         :header "The file is unchanged"})
+         :header (localization/message "dialog.diff-view.unchanged.header")})
 
       binary?
       (dialogs/make-info-dialog
-        {:title "Unable to Diff Binary Files"
+        localization
+        {:title (localization/message "dialog.diff-view.binary.title")
          :icon :icon/triangle-error
-         :header "Unable to diff binary files"})
+         :header (localization/message "dialog.diff-view.binary.header")})
 
       :else
       (make-diff-viewer old-path old new-path new))))

@@ -1,0 +1,30 @@
+syntax = "proto2";
+package dmRenderDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
+
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "RenderTarget";
+
+message RenderTargetDesc
+{
+    message ColorAttachment
+    {
+        required uint32 width                                  = 1;
+        required uint32 height                                 = 2;
+        optional dmGraphics.TextureImage.TextureFormat format  = 3 [default = TEXTURE_FORMAT_RGBA];
+    }
+
+    message DepthStencilAttachment
+    {
+        required uint32                        width           = 1;
+        required uint32                        height          = 2;
+        optional dmGraphics.DepthStencilFormat format          = 3 [default = DEPTH_STENCIL_FORMAT_D24U_S8U];
+        optional bool                          texture_storage = 4;
+    }
+
+    repeated ColorAttachment        color_attachments        = 1;
+    optional DepthStencilAttachment depth_stencil_attachment = 2;
+}

@@ -1,0 +1,19 @@
+attribute vec4 position;
+attribute vec4 custom_value_1;
+attribute vec4 custom_value_2;
+attribute vec4 custom_value_3;
+attribute vec4 custom_value_4;
+
+varying vec4 var_custom_value_1;
+varying vec4 var_custom_value_2;
+varying vec4 var_custom_value_3;
+varying vec4 var_custom_value_4;
+
+void main()
+{
+    gl_Position        = position;
+    var_custom_value_1 = custom_value_1;
+    var_custom_value_2 = custom_value_2;
+    var_custom_value_3 = custom_value_3;
+    var_custom_value_4 = custom_value_4;
+}

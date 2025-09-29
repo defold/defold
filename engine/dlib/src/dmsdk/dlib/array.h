@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,14 +27,14 @@
  *
  * ```cpp
  * dmArray<int> a;
+ * a.SetCapacity(1);
  * a.Push(1);
  * int b = a[0];
  * ```
  *
  * @document
  * @name Array
- * @namespace dmArray
- * @path engine/dlib/src/dmsdk/dlib/array.h
+ * @language C++
  */
 
 /**
@@ -59,7 +59,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
 /*# get number of elements in C array
  * @macro
  * @name DM_ARRAY_SIZE
- * @param Array [type:]
+ * @param A [type:T] C array to count
  * @return Number of elements
  */
 #define DM_ARRAY_SIZE(A) (sizeof(ArraySizeHelper(A)))
@@ -71,7 +71,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
  *
  * @class
  * @name dmArray
- * @tparam T [type:typename T] Contained type, must obey memcpy semantics
+ * @tparam T Contained type, must obey memcpy semantics
  */
 template <typename T>
 class dmArray
@@ -206,7 +206,7 @@ public:
      * The array is full when the size is equal to the capacity.
      *
      * @name Full
-     * @return boolean [type:boolean] true if the array is full
+     * @return boolean [type:bool] true if the array is full
      */
     bool Full() const;
 
@@ -216,7 +216,7 @@ public:
      * The array is empty when the size is zero.
      *
      * @name Empty
-     * @return boolean [type:boolean] true if the array is empty
+     * @return boolean [type:bool] true if the array is empty
      */
     bool Empty() const;
 
@@ -281,6 +281,18 @@ public:
      */
     void SetSize(uint32_t size);
 
+    /*# Set user-allocated memory
+     *
+     * user-allocated array with initial size and capacity
+     *
+     * @name dmArray
+     * @param user_array [type:T*] User-allocated array to be used as storage.
+     * @param size [type:uint32_t] Initial size
+     * @param capacity [type:uint32_t] Initial capacity
+     * @param user_allocated [type:bool] If false, the ownership is transferred to the dmArray
+     */
+    void Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated);
+
     /*# array eraseswap
      *
      * Remove the element at the specified index.
@@ -321,7 +333,7 @@ public:
      * Only allowed when the capacity is larger than size + count
      *
      * @name PushArray
-     * @param array [type:const T&] array of elements to add
+     * @param array [type:const T*] array of elements to add
      * @param count [type:uint32_t] amount of elements in the array
      */
     void PushArray(const T* array, uint32_t count);
@@ -341,15 +353,15 @@ public:
      * Swap the content of two arrays
      *
      * @name Swap
-     * @param rhs [type:dmArray`<T>`&] reference to array to swap content with
+     * @param rhs [type:dmArray<T>&] reference to array to swap content with
      */
     void Swap(dmArray<T>& rhs);
 
     /*# map a function on all values
      * map a function on all values
      * @name Map
-     * @param fn function that will be called for each element
-     * @param ctx user defined context that will be passed in with each callback
+     * @param fn [type:void*]function that will be called for each element
+     * @param ctx [type:void*] user defined context that will be passed in with each callback
      */
     void Map(void (*fn)(T* value, void* ctx), void* ctx);
 
@@ -373,12 +385,8 @@ dmArray<T>::dmArray()
 template <typename T>
 dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
 {
-    assert(user_array != 0);
-    assert(size  <= capacity);
-    m_Front = user_array;
-    m_End = user_array + size;
-    m_Back = user_array + capacity;
-    m_UserAllocated = 1;
+    memset(this, 0, sizeof(*this));
+    Set(user_array, size, capacity, true);
 }
 
 template <typename T>
@@ -504,6 +512,22 @@ void dmArray<T>::SetSize(uint32_t size)
 {
     assert(size <= Capacity());
     m_End = m_Front + size;
+}
+
+template <typename T>
+void dmArray<T>::Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated)
+{
+    assert(user_array != 0);
+    assert(size  <= capacity);
+
+    if (!m_UserAllocated && m_Front)
+    {
+        delete[] (uint8_t*) m_Front;
+    }
+    m_Front = user_array;
+    m_End = user_array + size;
+    m_Back = user_array + capacity;
+    m_UserAllocated = user_allocated;
 }
 
 template <typename T>

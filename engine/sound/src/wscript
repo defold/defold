@@ -1,63 +1,133 @@
 #! /usr/bin/env python
 import os, sys, re
-import Options
+import waflib.Options
 
 def configure(conf):
     pass
 
 def build(bld):
-    source        = 'sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
-    source_null   = 'devices/device_null.cpp sound_null.cpp'.split()
-    decoders      = 'decoders/decoder_wav.cpp decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
+    source      = 'sound_codec.cpp sound_decoder.cpp'.split()
+    source_null = 'devices/device_null.cpp sound_null.cpp'.split()
 
-    if bld.env['PLATFORM'] not in ['arm64-nx64']:
-        decoders += 'decoders/decoder_tremolo.cpp'.split()
+    decoder_wav     = ['decoders/decoder_wav.cpp']
+    decoder_opus    = ['decoders/decoder_opus.cpp']
+    decoder_ogg     = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
 
-    source += decoders
+    if bld.env['PLATFORM'] not in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
+        decoder_ogg.append("decoders/decoder_tremolo.cpp")
 
     defines = ''
     include = ''
 
     if 'android' in bld.env.PLATFORM:
         source += ['sound_android.cpp']
-    elif bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    elif bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         source += ['sound_ios.mm']
+    elif bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5',):
+        source += ['sound_ps4.cpp']
     else:
         source += ['sound_generic.cpp']
 
+    source_openal = source.copy()
+    source_openal += ['sound_openal.cpp', 'devices/device_openal.cpp']
+
+    source += ['sound.cpp']
+
     if 'android' in bld.env.PLATFORM:
-        #include = 'openal/include'
         source += ['devices/device_opensl.cpp']
     elif 'web' in bld.env.PLATFORM:
         source += ['devices/device_js.cpp']
     elif 'nx64' in bld.env.PLATFORM:
         source += ['devices/device_nx64.cpp']
+    elif bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5',):
+        source += ['devices/device_ps4.cpp']
+    elif bld.env.PLATFORM in ('x86_64-win32','win32',):
+        source += ['devices/device_wasapi.cpp']
     else:
         source += ['devices/device_openal.cpp']
-        bld.add_subdirs('openal')
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)
     elif re.match('arm.*?android', bld.env['PLATFORM']):
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = [bld.env.ANDROID_JAR]
         classpath = os.pathsep.join(classpath)
-        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
-        bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')
-        bld.new_task_gen(features='jar seq', basedir='java', destfile='sound_android.jar')
+        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
+        bld(features='javac seq',
+            classpath=classpath,
+            outdir='java',
+            source_root='java')
+        bld(features='jar seq',
+            basedir='java',
+            destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
 
+    bld.stlib(features = 'c cxx',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'decoder_wav',
+                      source   = decoder_wav)
 
-    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                             includes = '. %s' % include,
-                             defines = defines,
-                             target = 'sound',
-                             source = source)
+    bld.stlib(features = 'c cxx',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'decoder_ogg',
+                      source   = decoder_ogg)
 
-    sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                                  includes = '.',
-                                  defines = defines,
-                                  target = 'sound_null',
-                                  source = source_null)
+    bld.stlib(features = 'c cxx',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'decoder_opus',
+                      source   = decoder_opus)
+
+    sound = bld.stlib(features = 'c cxx ddf',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'sound',
+                      source   = source)
+
+    sound = bld.stlib(features = 'c cxx ddf',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'sound_openal',
+                      source   = source_openal)
+
+    simd_flags = []
+
+    if bld.env['PLATFORM'] in ['wasm-web', 'wasm_pthread-web']:
+        simd_flags = ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM']
+
+    elif bld.env['PLATFORM'] in ['x86_64-linux']:
+        simd_flags = ['-msse4.1', '-DDM_SOUND_DSP_IMPL=SSE']
+
+    elif bld.env['PLATFORM'] in ['x86_64-macos']:
+        simd_flags = ['-DDM_SOUND_DSP_IMPL=SSE']
+
+    elif bld.env['PLATFORM'] in ['x86_64-win32', 'win32']:
+        if bld.env['PLATFORM'] in ['x86_64-win32']:
+            simd_flags = ['/arch:SSE4.2']
+        simd_flags += ['/DDM_SOUND_DSP_IMPL=SSE']
+
+    else:
+        simd_flags = ['-DDM_SOUND_DSP_IMPL=Fallback']
+
+    for f in ['CFLAGS', 'CXXFLAGS']:
+        sound.env.append_value(f, simd_flags)
+
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        sound_nosimd = bld.stlib(features = 'c cxx ddf',
+                                 includes = '. %s' % include,
+                                 defines  = defines,
+                                 target   = 'sound_nosimd',
+                                 source   = source)
+        for f in ['CFLAGS', 'CXXFLAGS']:
+            sound_nosimd.env.append_value(f, ['-DDM_SOUND_DSP_IMPL=Fallback'])
+
+
+    sound_null = bld.stlib(features = 'c cxx ddf',
+                           includes = '.',
+                           defines  = defines,
+                           target   = 'sound_null',
+                           source   = source_null)
 
     bld.install_files('${PREFIX}/include/sound', 'sound.h')
 
@@ -66,5 +136,5 @@ def build(bld):
         sound.defines = '_XBOX'
         sound_null.defines = '_XBOX'
 
-    if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

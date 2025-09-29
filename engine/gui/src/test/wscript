@@ -1,6 +1,6 @@
 #! /usr/bin/env python
-import Task
-from TaskGen import declare_extension
+import waflib.Task
+from waflib.TaskGen import extension
 from waf_dynamo import copy_file_task
 
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../../particle/proto/particle/particle_ddf.proto'):
@@ -11,48 +11,46 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         task.set_outputs(out)
 
     cmd = 'protoc --encode=%s -I ../../particle/proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
-    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
-    declare_extension([ext], create)
+    waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
+    extension(ext)(create)
 
-create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
+create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='c cxx')
 
 def build(bld):
-    uselib = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PLATFORM_SOCKET', 'LUA', 'CARES']
+    uselib = ['TESTMAIN', 'APP', 'SCRIPT', 'GRAPHICS_NULL', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PROFILE_NULL', 'PLATFORM_NULL', 'SOCKET', 'LUA', 'GRAPHICS_PROTO', 'GAMEOBJECT']
 
-    test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
-                    includes = '. ..',
-                    uselib = uselib,
-                    uselib_local = 'gui',
-                    web_libs = ['library_sys.js', 'library_script.js'],
-                    target = 'test_gui',
-                    source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
-                    embed_source = 'bug352.lua')
+    test_gui = bld.program(features = 'cxx cprogram embed test',
+                           includes = '. ..',
+                           use = uselib + ['gui'],
+                           web_libs = ['library_sys.js', 'library_script.js'],
+                           target = 'test_gui',
+                           source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
+                           embed_source = 'bug352.lua')
 
-    test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_gui_script = bld.program(features = 'cxx cprogram embed test',
                     includes = '. ..',
-                    uselib = uselib,
-                    uselib_local = 'gui',
+                    use = uselib + ['gui'],
                     web_libs = ['library_sys.js', 'library_script.js'],
                     target = 'test_gui_script',
                     source = 'test_gui_script.cpp')
 
-    test_gui_clipping = bld.new_task_gen(features = 'cxx cprogram embed test',
+    test_gui_clipping = bld.program(features = 'cxx cprogram embed test',
                     includes = '. ..',
-                    uselib = uselib,
-                    uselib_local = 'gui',
+                    use = uselib + ['gui'],
                     web_libs = ['library_sys.js', 'library_script.js'],
                     target = 'test_gui_clipping',
                     source = 'test_gui_clipping.cpp')
+
+    bld.add_group()
 
     # Note that these null tests won't actually work since the tests aren't written that way.
     # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
     # We do this by removing the 'test' feature which excludes it from the test run
     for test in (test_gui, test_gui_script, test_gui_clipping):
-        bld.new_task_gen(features = 'cxx cprogram embed test skip_test',
+        bld.program(features = 'cxx cprogram embed test skip_test',
                         source = test.source,
                         embed_source = 'bug352.lua',
-                        uselib = uselib,
-                        uselib_local = 'gui_null',
+                        use = uselib + ['gui_null'],
                         web_libs = ['library_sys.js', 'library_script.js'],
                         includes = '. ..',
                         target = test.target + '_null')

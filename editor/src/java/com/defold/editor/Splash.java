@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,18 +19,14 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Text;
-import javafx.scene.text.TextFlow;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.paint.Color;
+import javafx.scene.text.TextFlow;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
@@ -42,8 +38,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-
-import com.defold.editor.UIUtil;
 
 public class Splash {
 
@@ -81,39 +75,29 @@ public class Splash {
     }
 
     private static void randomGame(Scene scene) {
-        String imagePath = "";
-        String gameName = "";
-        switch(randomInt(6)) {
-            case 1:
-                imagePath = "/games/familyisland.jpg";
-                gameName = "Family Island";
-                break;
-            case 2:
-                imagePath = "/games/solitairejazztravel.jpg";
-                gameName = "Solitaire Jazz Travel";
-                break;
-            case 3:
-                imagePath = "/games/duozombies.jpg";
-                gameName = "Duo Zombies";
-                break;
-            case 4:
-                imagePath = "/games/fatesofort.jpg";
-                gameName = "Fates of Ort";
-                break;
-            case 5:
-                imagePath = "/games/plaguelords.jpg";
-                gameName = "Plague Lords";
-                break;
-            default:
-                imagePath = "/games/lookyourloot.jpg";
-                gameName = "Look Your Loot";
-                break;
-        }
+        List<String[]> games = new ArrayList<>();
+        
+        games.add(new String[]{"Family Island", "/games/familyisland.jpg"});
+        games.add(new String[]{"Solitaire Jazz Travel", "/games/solitairejazztravel.jpg"});
+        games.add(new String[]{"Duo Zombies", "/games/duozombies.jpg"});
+        games.add(new String[]{"Fates of Ort", "/games/fatesofort.jpg"});
+        games.add(new String[]{"Plague Lords", "/games/plaguelords.jpg"});
+        games.add(new String[]{"Void Scrappers", "/games/voidscrappers.jpg"});
+        games.add(new String[]{"Monkey Mart", "/games/monkeymart.jpg"});
+        games.add(new String[]{"Look Your Loot", "/games/lookyourloot.jpg"});
+        games.add(new String[]{"Warnament", "/games/warnament.jpg"});
+        games.add(new String[]{"Craftomation 101", "/games/craftomation101.jpg"});
+        games.add(new String[]{"BORE BLASTERS", "/games/boreblasters.jpg"});
+        games.add(new String[]{"Skull Horde", "/games/skullhorde.jpg"});
+        games.add(new String[]{"SuperWEIRD", "/games/superweird.jpg"});
+        games.add(new String[]{"Tiny Racing", "/games/tinyracing.jpeg"});
+
+        String[] game = games.get(randomInt(games.size()));
 
         ImageView gameScreenshot = (ImageView) scene.lookup("#game-screenshot");
-        gameScreenshot.setImage(new Image(imagePath));
+        gameScreenshot.setImage(new Image(game[1]));
         Label gameNameLabel = (Label) scene.lookup("#game-name");
-        gameNameLabel.setText(gameName);
+        gameNameLabel.setText(game[0]);
     }
 
     public void show() throws IOException {

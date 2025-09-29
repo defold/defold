@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,7 +29,7 @@ namespace dmBuffer
      * @document
      * @name Buffer
      * @namespace dmBuffer
-     * @path engine/dlib/src/dmsdk/dlib/buffer.h
+     * @language C++
      */
 
     /*# HBuffer type definition
@@ -91,6 +91,8 @@ namespace dmBuffer
      * @member dmBuffer::RESULT_STREAM_MISSING
      * @member dmBuffer::RESULT_STREAM_TYPE_MISMATCH
      * @member dmBuffer::RESULT_STREAM_COUNT_MISMATCH
+     * @member dmBuffer::RESULT_METADATA_INVALID
+     * @member dmBuffer::RESULT_METADATA_MISSING
      *
      */
     enum Result
@@ -105,6 +107,8 @@ namespace dmBuffer
         RESULT_STREAM_TYPE_MISMATCH,
         RESULT_STREAM_COUNT_MISMATCH,
         RESULT_STREAM_MISMATCH,
+        RESULT_METADATA_INVALID,
+        RESULT_METADATA_MISSING,
     };
 
     /*# StreamDeclaration struct
@@ -395,6 +399,35 @@ namespace dmBuffer
      * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
      */
     Result UpdateContentVersion(HBuffer hbuffer);
+
+    /*# set a metadata entry
+     *
+     * Create or update a new metadata entry with a number of values of a specific type.
+     * It will allocate space to store these values.
+     *
+     * @name dmBuffer::SetMetaData
+     * @param hbuffer [type:dmBuffer::HBuffer] A buffer handle
+     * @param name_hash [type:dmhash_t] The entry name as a hash
+     * @param data [type:void*] A pointer to an array of the values
+     * @param count [type:uint32_t] Number of values in the array
+     * @param type [type:dmBuffer::ValueType] The type of the values
+     * @return result [type:dmBuffer::Result] RESULT_OK if the metadata entry was successfully stored
+     */
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type);
+
+    /*# retrieve a metadata entry
+     *
+     * Retrieve metadata entry information
+     *
+     * @name dmBuffer::GetMetaData
+     * @param hbuffer [type:dmBuffer::HBuffer] A buffer handle
+     * @param name_hash [type:dmhash_t] The entry name as a hash
+     * @param data [type:void**] Gets the internal address of metadata values
+     * @param count [type:uint32_t] Gets the number of metadata values stored
+     * @param type [type:dmBuffer::ValueType] Gets the type of values of the metadata
+     */
+    Result GetMetaData(HBuffer hbuffer, dmhash_t name_hash, void** data, uint32_t* count, ValueType* type);
+
 }
 
 #endif // DMSDK_BUFFER_H

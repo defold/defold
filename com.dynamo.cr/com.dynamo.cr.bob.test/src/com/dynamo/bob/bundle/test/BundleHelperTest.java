@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,11 +16,10 @@ package com.dynamo.bob.bundle.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,7 +36,6 @@ import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.util.BobProjectProperties;
 
 public class BundleHelperTest {
 
@@ -52,23 +50,6 @@ public class BundleHelperTest {
     @After
     public void tearDown() throws Exception {
         this.mp.unmount();
-    }
-
-    void testValue(String p, String c, String k, Object expected) throws IOException, ParseException {
-        BobProjectProperties properties = new BobProjectProperties();
-        properties.load(new ByteArrayInputStream(p.getBytes()));
-        Map<String, Map<String, Object>> map = BundleHelper.createPropertiesMap(properties);
-
-        Object actual = map.get(c).get(k);
-        assertEquals(expected, actual);
-    }
-
-    @Test
-    public void testProperties() throws IOException, ParseException {
-        testValue("[project]\nwrite_log=0", "project", "write_log", false);
-        testValue("[project]\nwrite_log=1", "project", "write_log", true);
-        testValue("", "project", "write_log", false);
-        testValue("", "project", "title", "unnamed");
     }
 
     // Thx, Java
@@ -129,8 +110,10 @@ public class BundleHelperTest {
     public void testProjectNameToBinaryName() {
         assertEquals("dmengine", BundleHelper.projectNameToBinaryName(""));
         assertEquals("dmengine", BundleHelper.projectNameToBinaryName(" "));
-        assertEquals("dmengine", BundleHelper.projectNameToBinaryName("åäö"));
         assertEquals("dmengine", BundleHelper.projectNameToBinaryName("Лорем ипсум"));
+        assertEquals("aao", BundleHelper.projectNameToBinaryName("åäö"));
+        assertEquals("aao", BundleHelper.projectNameToBinaryName("âäó"));
+        assertEquals("KyHoang", BundleHelper.projectNameToBinaryName("Kỳ Hoàng"));
         assertEquals("test_project", BundleHelper.projectNameToBinaryName("test_projectЛорем ипсум"));
         assertEquals("test_project", BundleHelper.projectNameToBinaryName("test_project"));
         assertEquals("testproject", BundleHelper.projectNameToBinaryName("test project"));
@@ -276,4 +259,76 @@ public class BundleHelperTest {
         List<String> result = BundleHelper.excludeItems(input, expressions);
         assertEquals(Arrays.asList(new String[]{"com.other.package"}), result);
     }
-}
+
+    @Test
+    public void testValidAndroidPackageName() {
+        // two or more segments
+        assertTrue(BundleHelper.isValidAndroidPackageName("a.b"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo.bar"));
+        assertFalse(BundleHelper.isValidAndroidPackageName(""));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com."));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com.foo."));
+
+        // numbers
+        assertTrue(BundleHelper.isValidAndroidPackageName("com1.foo"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo1"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("1com.foo"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com.1foo"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("123.456"));
+        
+        // underscore
+        assertTrue(BundleHelper.isValidAndroidPackageName("com_.foo"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo_"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("c_m.f_o"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("_com.foo"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com._foo"));
+
+        // uppercase
+        assertTrue(BundleHelper.isValidAndroidPackageName("A.B"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("CoM.fOo"));
+
+        // only a-z, A-Z, 0-9, _
+        assertFalse(BundleHelper.isValidAndroidPackageName("cöm.föö"));
+    }
+
+    @Test
+    public void testValidBundleIdentifier() {
+        // two or more segments
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("a.b"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo.bar"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier(""));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com."));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com.foo."));
+
+        // numbers
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com1.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo1"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("1com.foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com.1foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("123.456"));
+        
+        // underscore
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com_.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo_"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("c_m.f_o"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("_com.foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com._foo"));
+
+        // hypen
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com-.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo-"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("c-m.f-o"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("-com.foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com.-foo"));
+
+        // uppercase
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("A.B"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("CoM.fOo"));
+
+        // only a-z, A-Z, 0-9, _
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("cöm.föö"));
+    }}

@@ -9,28 +9,24 @@ blddir = 'build'
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
-import Logs
-import Options
+from waflib import Logs
+import waflib.Options
+import TestContext
+from build_constants import TargetOS
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
-    opt.tool_options('waf_ddf')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
 
-def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
-    conf.check_tool('waf_resource')
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
+    opt.load('waf_ddf')
 
-    build_util = None
-    try:
-        build_util = create_build_utility(conf.env)
-    except BuildUtilityException as ex:
-        conf.fatal(ex.msg)
-
+def create_engine_version(self):
     engine_version = """
 namespace dmEngineVersion
 {
@@ -39,17 +35,33 @@ namespace dmEngineVersion
     static const char* VERSION_SHA1 = "%(sha1)s";
 }
 """
-    full = os.sep.join([conf.blddir, conf.env.variant(), 'engine_version.h'])
+    full = self.outputs[0].abspath()
+
     try:
         os.mkdir(os.path.dirname(full))
     except:
         pass
     full = os.path.normpath(full)
-    with open('../../VERSION', 'r') as f:
-        version = f.readline().strip()
-    sha1 = build_util.git_sha1()
+
+    sha1 = self.env['ENGINE_SHA1']
+    platform = self.env['ENGINE_PLATFORM']
+    version = self.env['ENGINE_VERSION']
     with open(full, 'w') as f:
-        f.write(engine_version % {"version": version, "sha1": sha1, "platform": build_util.get_target_platform()})
+        f.write(engine_version % {"version": version, "sha1": sha1, "platform": platform})
+
+
+def configure(conf):
+    conf.load('waf_dynamo')
+    conf.load('java')
+    conf.load('waf_resource')
+    target_os = conf.env['TARGET_OS']
+
+
+    build_util = None
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
 
     waf_graphics.configure(conf)
     waf_ddf.configure(conf)
@@ -57,93 +69,115 @@ namespace dmEngineVersion
     waf_render.configure(conf)
     waf_gamesys.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
-    operating_sys = build_util.get_target_os()
     architecture = build_util.get_target_architecture()
 
-    sound_lib = 'sound'
+    simd_supported = True
+    if target_os == TargetOS.WEB:
+        simd_supported = False
 
-    if operating_sys == 'osx':
+    if not simd_supported and 'simd' in waflib.Options.options.enable_features:
+        Logs.info("simd enabled")
+        simd_supported = True
+
+    sound_lib = []
+    if waflib.Options.options.with_openal:
+        sound_lib += ['sound_openal']
+    elif simd_supported:
+        sound_lib += ['sound']
+    else:
+        sound_lib += ['sound_nosimd']
+
+    sound_lib += ['decoder_wav', 'decoder_ogg']
+    glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
+    platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
+
+    if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
-        if Options.options.with_vulkan and architecture == 'x86_64':
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
+        if waflib.Options.options.with_vulkan:
+            # JG: for now, we only support validation layers on macos for x86_64 archs. I'll fix this later when/if needed.
+            if architecture == 'x86_64':
+                conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
-            # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
-            validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))
-            conf.env.append_value('LINKFLAGS', ['-l', validation and 'vulkan' or 'MoltenVK'])
+                # Link with vulkan.dylib if the flag has been set (see graphics/vulkan/README.md) for more information
+                conf.env.append_value('LINKFLAGS', ['-l', waflib.Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'])
 
-            # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
-            conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
+                # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
+                conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
 
-    elif operating_sys == 'ios':
+    elif target_os == TargetOS.IOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
 
         # For Vulkan/MoltenVK
-        if Options.options.with_vulkan and architecture == 'arm64':
-            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal'])
-    elif operating_sys == 'android':
+        if waflib.Options.options.with_vulkan and architecture == 'arm64':
+            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
+    elif target_os == TargetOS.ANDROID:
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
-        conf.env['STATICLIB_CPP_RUNTIME'] = 'c++_static'
-    elif operating_sys == "linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+        conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
 
-        if Options.options.with_vulkan:
-            conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
-    elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
-        # For Vulkan
-        if Options.options.with_vulkan:
+    elif target_os == TargetOS.WINDOWS:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
+
+        if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
-    elif 'web' in operating_sys:
+
+        if waflib.Options.options.with_dx12:
+            conf.env.append_value('LINKFLAGS', ['D3D12.lib', 'DXGI.lib', 'D3DCompiler.lib'])
+
+    elif target_os == TargetOS.WEB:
         pass
 
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_GAMESYS'] = 'gamesys'
-    conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-    conf.env['STATICLIB_GUI'] = 'gui'
-    conf.env['STATICLIB_PARTICLE'] = 'particle'
-    conf.env['STATICLIB_RIG'] = 'rig'
-    conf.env['STATICLIB_SOUND'] = sound_lib
-    conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STATICLIB_OPENAL_SOFT'] = 'openal_soft'
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_RESOURCE'] = 'resource'
+    conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
+    if 'box2dv3' in waflib.Options.options.enable_features:
+        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
+    else:
+        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+    conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_DMGLFW'] = glfw_lib
+    conf.env['STLIB_GUI'] = 'gui'
+    conf.env['STLIB_PARTICLE'] = 'particle'
+    conf.env['STLIB_PLATFORM'] = platform_lib
+    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
+    conf.env['STLIB_RIG'] = 'rig'
+    conf.env['STLIB_SOUND'] = sound_lib
+    conf.env['STLIB_SOUND_NULL'] = 'sound_null'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
-    conf.env['STATICLIB_HID'] = 'hid'
-    conf.env['STATICLIB_HID_NULL'] = 'hid_null'
-    conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
+    conf.env['STLIB_HID'] = 'hid'
+    conf.env['STLIB_HID_NULL'] = 'hid_null'
+    conf.env['STLIB_INPUT'] = 'input'
+    conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
-    if operating_sys != "osx":
-        conf.env['STATICLIB_UNWIND'] = 'unwind'
+    if target_os != TargetOS.MACOS:
+        conf.env['STLIB_UNWIND'] = 'unwind'
 
-    conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_IAPEXT'] = 'iapext'
-    conf.env['STATICLIB_PUSHEXT'] = 'pushext'
-    conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
-    conf.env['STATICLIB_IACEXT'] = 'iacext'
-    conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
-    conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
+    conf.env['STLIB_PROFILEREXT'] = 'profilerext'
+    conf.env['STLIB_PROFILEREXT_NULL'] = 'profilerext_null'
+    conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
+    conf.env['STLIB_PROFILER_JS'] = ['profiler_js']
 
-    conf.env['STATICLIB_TREMOLO'] = 'tremolo'
+    conf.env['STLIB_TREMOLO'] = 'tremolo'
 
-    if operating_sys == "linux":
+    conf.env['STLIB_OPUS'] = 'opus decoder_opus'.split()
+
+    if target_os == TargetOS.LINUX:
         conf.env['LIB_OPENAL'] = 'openal'
-    elif operating_sys == "osx":
+    elif target_os == TargetOS.MACOS:
         pass
-    elif operating_sys == "win" and architecture == "x86":
+    elif target_os == TargetOS.WINDOWS and architecture == "x86":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-        conf.env.append_value('CPPPATH', build_util.get_dynamo_ext("include", "AL"))
+        conf.env.append_value('INCLUDES', build_util.get_dynamo_ext("include", "AL"))
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
 
 def build(bld):
+    global test_context
+
     # for the content build
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gamesys'))
@@ -154,30 +188,37 @@ def build(bld):
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/resource'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/rig'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/script'))
-    sys.path.insert(0, os.path.abspath('build/default/proto/engine'))
-    sys.path.insert(0, os.path.abspath('default/proto/engine'))
-
-    bld.add_subdirs('content')
-    bld.add_group()
-    bld.add_subdirs('src')
-
-    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0755)
+    sys.path.insert(0, os.path.abspath('build/proto/engine'))
+    sys.path.insert(0, os.path.abspath('proto/engine'))
 
     build_util = None
     try:
         build_util = create_build_utility(bld.env)
     except BuildUtilityException as ex:
-        conf.fatal(ex.msg)
+        bld.fatal(ex.msg)
 
-    if build_util.get_target_os() == 'web':
-        srcPath = os.path.join('build', 'default', 'src')
+    bld.recurse('content')
+
+    b = bld(rule = create_engine_version, target = 'engine_version.h', always = True)
+    b.env['ENGINE_SHA1'] = build_util.git_sha1()
+    b.env['ENGINE_PLATFORM'] = build_util.get_target_platform()
+    b.env['ENGINE_VERSION'] = build_util.get_defold_version()
+
+    bld.add_group()
+    bld.recurse('src')
+
+    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0O755)
+
+    if build_util.get_target_os() in [TargetOS.WEB, TargetOS.MACOS, TargetOS.IOS]:
+        srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
-            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map'):
+            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map', '.wasm.debug.wasm', '.dSYM.zip'):
                 filePath = os.path.join(srcPath, 'dmengine' + build + suffix)
                 if (os.path.exists(filePath)):
                     bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
+    TestContext.initialize_test_context(test_context, bld)
 
-def shutdown():
+def shutdown(self):
     # unit tests disabled on win32 for now
-    waf_dynamo.run_tests(valgrind = True)
+    waf_dynamo.run_tests(test_context, valgrind = True)

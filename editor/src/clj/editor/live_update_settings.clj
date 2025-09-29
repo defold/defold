@@ -1,22 +1,26 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.live-update-settings
-  (:require [amazonica.aws.s3 :as s3]
+  (:require [clojure.java.io :as io]
+            [cognitect.aws.client.api :as aws]
+            [cognitect.aws.config :as aws.config]
+            [cognitect.aws.credentials :as aws.credentials]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.form :as form]
+            [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -27,20 +31,30 @@
 (def live-update-icon "icons/32/Icons_04-Project-file.png")
 
 (def get-bucket-names
-  (memoize (fn [cred]
-             (try
-               (mapv :name (s3/list-buckets cred))
-               (catch Exception e
-                 (log/warn :exception e)
-                 [])))))
+  (memoize
+    (fn [{:keys [profile]}]
+      (try
+        (let [credentials (aws.credentials/profile-credentials-provider profile)
+              client (aws/client {:api :s3 :credentials-provider credentials})]
+          (->> (aws/invoke client {:op :ListBuckets})
+               :Buckets
+               (mapv :Name)))
+        (catch Exception e
+          (log/warn :exception e)
+          [])))))
 
 (defn- get-config-file-profiles []
-  (try
-    (let [pcf (com.amazonaws.auth.profile.ProfilesConfigFile.)]
-      (vec (keys (.getAllBasicProfiles pcf))))
-    (catch Exception e
-      (log/warn :exception e)
-      [])))
+  ;; Lookup sequence taken from [[aws.credentials/profile-credentials-provider]]
+  (if-let [file-path (or
+                       (some-> (fs/evaluate-path "$AWS_SHARED_CREDENTIALS_FILE") fs/existing-path)
+                       (some-> (fs/evaluate-path "$AWS_CREDENTIAL_PROFILES_FILE") fs/existing-path)
+                       (fs/existing-path (fs/evaluate-path "~/.aws/credentials")))]
+    (try
+      (vec (sort (keys (aws.config/parse (io/file file-path)))))
+      (catch Exception e
+        (log/warn :exception e)
+        []))
+    []))
 
 (g/defnode LiveUpdateSettingsNode
   (inherits resource-node/ResourceNode)
@@ -52,7 +66,7 @@
                  (let [profile (get settings-map ["liveupdate" "amazon-credential-profile"])]
                    (when (and profile (pos? (count profile)))
                      {:profile profile}))))
-                 
+
   (output amazon-buckets g/Any :cached (g/fnk [amazon-creds] (if amazon-creds (get-bucket-names amazon-creds) [])))
 
   (input form-data g/Any)
@@ -66,7 +80,7 @@
                                                        :from-string str :to-string str
                                                        :options (mapv (fn [profile]
                                                                         [profile profile])
-                                                                      (get-config-file-profiles))))
+                                                                      (sort (get-config-file-profiles)))))
                      (form/update-form-setting ["liveupdate" "amazon-bucket"]
                                                #(assoc %
                                                        :type :choicebox
@@ -74,16 +88,15 @@
                                                        :to-string str
                                                        :options (mapv (fn [bucket]
                                                                         [bucket bucket])
-                                                                      amazon-buckets))))))
+                                                                      (sort amazon-buckets)))))))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
   (output build-targets g/Any :cached (g/constantly [])))
 
-(def ^:private basic-meta-info (with-open [r (-> "live-update-meta.edn"
-                                                 settings-core/resource-reader
-                                                 settings-core/pushback-reader)]
-                                 (settings-core/load-meta-info r)))
+(def ^:private basic-meta-info
+  (with-open [rdr (io/reader (io/resource "liveupdate-meta.properties"))]
+    (settings-core/load-meta-properties rdr)))
 
 (defn- load-live-update-settings [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)]
@@ -93,7 +106,7 @@
                     (g/connect settings-node :settings-map self :settings-map)
                     (g/connect settings-node :save-value self :save-value)
                     (g/connect settings-node :form-data self :form-data)
-                    (settings/load-settings-node settings-node resource source-value basic-meta-info nil)))))
+                    (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
@@ -101,6 +114,7 @@
     :label "Live Update Settings"
     :node-type LiveUpdateSettingsNode
     :load-fn load-live-update-settings
+    :meta-settings (:settings basic-meta-info)
     :icon live-update-icon
     :view-types [:cljfx-form-view :text]))
 

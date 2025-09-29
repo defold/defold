@@ -1,5 +1,4 @@
 uniform mediump mat4 view_proj;
-uniform mediump mat4 world;
 
 attribute mediump vec4 position;
 attribute mediump vec2 texcoord0;

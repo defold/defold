@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,11 +16,14 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
+#include "atomic.h"
 #include "dlib.h"
 #include "array.h"
 #include "dstrings.h"
 #include "log.h"
+#include "profile/profile.h"
 #include "socket.h"
+#include "spinlock.h"
 #include "message.h"
 #include "thread.h"
 #include "math.h"
@@ -31,6 +34,12 @@
 
 #ifdef ANDROID
 #include <android/log.h>
+#endif
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
 #endif
 
 namespace dmLog
@@ -59,23 +68,38 @@ struct dmLogServer
         m_Connections.SetCapacity(DLIB_MAX_LOG_CONNECTIONS);
         m_ServerSocket = server_socket;
         m_Port = port;
-        m_MessgeSocket = message_socket;
+        m_MessageSocket = message_socket;
         m_Thread = 0;
     }
 
     dmArray<dmLogConnection> m_Connections;
     dmSocket::Socket         m_ServerSocket;
     uint16_t                 m_Port;
-    dmMessage::HSocket       m_MessgeSocket;
+    dmMessage::HSocket       m_MessageSocket;
     dmThread::Thread         m_Thread;
 };
 
+static int32_atomic_t g_LogServerInitialized = 0;
+static dmSpinlock::Spinlock g_LogServerLock;
 static dmLogServer* g_dmLogServer = 0;
-static Severity g_LogLevel = LOG_SEVERITY_USER_DEBUG;
+static LogSeverity g_LogLevel = LOG_SEVERITY_USER_DEBUG;
 static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
-static CustomLogCallback g_CustomLogCallback = 0;
-static void* g_CustomLogCallbackUserData = 0;
+static dmSpinlock::Spinlock g_ListenerLock; // Protects the array of listener functions
+
+#if defined(DM_HAS_NO_GETENV)
+static const char* getenv(const char*) {
+    return 0;
+}
+#endif
+static const int g_MaxListeners = 32;
+static FLogListener g_Listeners[g_MaxListeners];
+static int32_atomic_t g_ListenersCount;
+
+static inline bool IsServerInitialized()
+{
+    return dmAtomicGet32(&g_LogServerInitialized) > 0;
+}
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
@@ -183,22 +207,34 @@ static dmSocket::Result SendAll(dmSocket::Socket socket, const char* buffer, int
 
 static void dmLogUpdateNetwork()
 {
-    dmLogServer* self = g_dmLogServer;
+    dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
+    bool connections_full = false;
+    {
+        DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
+        if (!IsServerInitialized())
+            return;
+        server_socket = g_dmLogServer->m_ServerSocket;
+        connections_full = g_dmLogServer->m_Connections.Full();
+    }
+
+    if (server_socket == dmSocket::INVALID_SOCKET_HANDLE)
+        return;
 
     dmSocket::Selector selector;
-    dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, self->m_ServerSocket);
+    dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, server_socket);
     dmSocket::Result r = dmSocket::Select(&selector, 0);
     if (r == dmSocket::RESULT_OK)
     {
         // Check for new connections
-        if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_READ, self->m_ServerSocket))
+        if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_READ, server_socket))
         {
             dmSocket::Address address;
             dmSocket::Socket client_socket;
-            r = dmSocket::Accept(self->m_ServerSocket, &address, &client_socket);
+            r = dmSocket::Accept(server_socket, &address, &client_socket);
+
             if (r == dmSocket::RESULT_OK)
             {
-                if (self->m_Connections.Full())
+                if (connections_full)
                 {
                     dmLogError("Too many log connections opened");
                     const char* resp = "1 Too many log connections opened\n";
@@ -214,7 +250,11 @@ static void dmLogUpdateNetwork()
                     dmLogConnection connection;
                     memset(&connection, 0, sizeof(connection));
                     connection.m_Socket = client_socket;
-                    self->m_Connections.Push(connection);
+
+                    DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
+                    if (!IsServerInitialized())
+                        return;
+                    g_dmLogServer->m_Connections.Push(connection);
                 }
             }
             else if (r == dmSocket::RESULT_BADF || r == dmSocket::RESULT_CONNABORTED)
@@ -226,182 +266,8 @@ static void dmLogUpdateNetwork()
     }
 }
 
-static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
-{
-    dmLogServer* self = g_dmLogServer;
-
-    bool* run = (bool*) user_ptr;
-    LogMessage* log_message = (LogMessage*) &message->m_Data[0];
-    if (log_message->m_Type == LogMessage::SHUTDOWN)
-    {
-        *run = false;
-        return;
-    }
-    int msg_len = (int) strlen(log_message->m_Message);
-
-    // NOTE: Keep i as signed! See --i below after EraseSwap
-    int n = (int) self->m_Connections.Size();
-    for (int i = 0; i < n; ++i)
-    {
-        dmLogConnection* c = &self->m_Connections[i];
-        dmSocket::Result r;
-        int sent_bytes;
-        int total_sent = 0;
-        do
-        {
-            r = dmSocket::Send(c->m_Socket, log_message->m_Message + total_sent, msg_len - total_sent, &sent_bytes);
-            if (r == dmSocket::RESULT_OK)
-            {
-                total_sent += sent_bytes;
-            }
-            else if (r == dmSocket::RESULT_TRY_AGAIN)
-            {
-                // Ok
-            }
-            else
-            {
-                dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
-                dmSocket::Delete(c->m_Socket);
-                c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                self->m_Connections.EraseSwap(i);
-                --n;
-                --i;
-                break;
-            }
-        } while (total_sent < msg_len);
-    }
-}
-
-static void dmLogThread(void* args)
-{
-    dmLogServer* self = g_dmLogServer;
-
-    volatile bool run = true;
-    while (run)
-    {
-        // NOTE: We have support for blocking dispatch in dmMessage
-        // but we have to wait for both new messages and on sockets.
-        // Currently no support for that and hence the sleep here
-        dmTime::Sleep(1000 * 30);
-        dmLogUpdateNetwork();
-        dmMessage::Dispatch(self->m_MessgeSocket, dmLogDispatch, (void*) &run);
-    }
-}
-
-void LogInitialize(const LogParams* params)
-{
-    g_TotalBytesLogged = 0;
-
-    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
-        return;
-
-    if (g_dmLogServer)
-    {
-        fprintf(stderr, "ERROR:DLIB: dmLog already initialized\n");
-        return;
-    }
-
-    dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
-    dmSocket::Address address;
-    uint16_t port;
-    dmLogInitSocket(server_socket);
-    if (server_socket == dmSocket::INVALID_SOCKET_HANDLE)
-    {
-        return;
-    }
-    dmSocket::GetName(server_socket, &address, &port);
-
-    dmMessage::HSocket message_socket = 0;
-    dmMessage::Result mr;
-    dmThread::Thread thread = 0;
-
-    mr = dmMessage::NewSocket("@log", &message_socket);
-    if (mr != dmMessage::RESULT_OK)
-    {
-        fprintf(stderr, "ERROR:DLIB: Unable to create @log message socket\n");
-        if (message_socket != 0)
-            dmMessage::DeleteSocket(message_socket);
-        dmSocket::Delete(server_socket);
-        return;
-    }
-
-    g_dmLogServer = new dmLogServer(server_socket, port, message_socket);
-    thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
-    g_dmLogServer->m_Thread = thread;
-
-    /*
-     * This message is parsed by editor 2 - don't remove or change without
-     * corresponding changes in engine.clj
-     */
-    dmLogInfo("Log server started on port %u", (unsigned int) port);
-}
-
-static void CloseLogFile()
-{
-    if (g_LogFile) {
-        fclose(g_LogFile);
-        g_LogFile = 0;
-    }
-}
-
-void LogFinalize()
-{
-    if (!g_dmLogServer)
-    {
-        CloseLogFile();
-        return;
-    }
-    dmLogServer* self = g_dmLogServer;
-
-    LogMessage msg;
-    msg.m_Type = LogMessage::SHUTDOWN;
-    dmMessage::URL receiver;
-    receiver.m_Socket = self->m_MessgeSocket;
-    receiver.m_Path = 0;
-    receiver.m_Fragment = 0;
-    dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
-    dmThread::Join(self->m_Thread);
-
-    uint32_t n = self->m_Connections.Size();
-    for (uint32_t i = 0; i < n; ++i)
-    {
-        dmLogConnection* c = &self->m_Connections[i];
-        dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
-        dmSocket::Delete(c->m_Socket);
-        c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-    }
-
-    if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
-    {
-        dmSocket::Delete(self->m_ServerSocket);
-        self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
-    }
-
-    if (self->m_MessgeSocket != 0)
-    {
-        dmMessage::DeleteSocket(self->m_MessgeSocket);
-    }
-
-    delete self;
-    g_dmLogServer = 0;
-    CloseLogFile();
-}
-
-uint16_t GetPort()
-{
-    if (!g_dmLogServer)
-        return 0;
-
-    return g_dmLogServer->m_Port;
-}
-
-void Setlevel(Severity severity)
-{
-    g_LogLevel = severity;
-}
-
 #ifdef ANDROID
-static android_LogPriority ToAndroidPriority(Severity severity)
+static android_LogPriority ToAndroidPriority(LogSeverity severity)
 {
     switch (severity)
     {
@@ -429,165 +295,265 @@ static android_LogPriority ToAndroidPriority(Severity severity)
 }
 #endif
 
-#define MAX_LISTENERS (32)
-static LogListener g_dmLog_Listeners[MAX_LISTENERS];
-static int g_dmLog_ListenersCount = 0;
-static bool g_isSendingLogs = false;
-
-void RegisterLogListener(LogListener listener)
+static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
 {
-    if (g_dmLog_ListenersCount >= MAX_LISTENERS) {
-        dmLogWarning("Max dmLog listeners reached (%d)", MAX_LISTENERS);
-    } else {
-        g_dmLog_Listeners[g_dmLog_ListenersCount++] = listener;
-    }
-}
-
-void UnregisterLogListener(LogListener listener)
-{
-    for (int i = 0; i < g_dmLog_ListenersCount; ++i)
-    {
-        if (g_dmLog_Listeners[i] == listener)
-        {
-            g_dmLog_Listeners[i] = g_dmLog_Listeners[g_dmLog_ListenersCount - 1];
-            g_dmLog_ListenersCount--;
-            return;
-        }
-    }
-    dmLogWarning("dmLog listener not found");
-}
-
-#undef MAX_LISTENERS
-
-void LogInternal(Severity severity, const char* domain, const char* format, ...)
-{
-    bool is_debug_mode = dLib::IsDebugMode();
-
-    if (!is_debug_mode && g_dmLog_ListenersCount == 0)
-    {
-        return;
-    }
-
-    if (severity < g_LogLevel)
-    {
-        return;
-    }
-
-    va_list lst;
-    va_start(lst, format);
-
-    const char* severity_str = 0;
-    switch (severity)
-    {
-        case LOG_SEVERITY_DEBUG:
-            severity_str = "DEBUG";
-            break;
-        case LOG_SEVERITY_USER_DEBUG:
-            severity_str = "DEBUG";
-            break;
-        case LOG_SEVERITY_INFO:
-            severity_str = "INFO";
-            break;
-        case LOG_SEVERITY_WARNING:
-            severity_str = "WARNING";
-            break;
-        case LOG_SEVERITY_ERROR:
-            severity_str = "ERROR";
-            break;
-        case LOG_SEVERITY_FATAL:
-            severity_str = "FATAL";
-            break;
-        default:
-            assert(0);
-            break;
-    }
-
-    char tmp_buf[sizeof(LogMessage) + MAX_STRING_SIZE];
-    LogMessage* msg = (LogMessage*) &tmp_buf[0];
-    char* str_buf = &tmp_buf[sizeof(LogMessage)];
-
-    int n = 0;
-    n += dmSnPrintf(str_buf + n, MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
-    if (n < MAX_STRING_SIZE)
-    {
-        n += vsnprintf(str_buf + n, MAX_STRING_SIZE - n, format, lst);
-    }
-
-    if (n < MAX_STRING_SIZE)
-    {
-        n += dmSnPrintf(str_buf + n, MAX_STRING_SIZE - n, "\n");
-    }
-
-    if (n >= MAX_STRING_SIZE)
-    {
-        strcpy(&str_buf[MAX_STRING_SIZE - (strlen(LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], LOG_OUTPUT_TRUNCATED_MESSAGE);
-    }
-
-    str_buf[MAX_STRING_SIZE-1] = '\0';
-    int actual_n = dmMath::Min(n, (int)(MAX_STRING_SIZE-1));
-
-    g_TotalBytesLogged += actual_n;
-
-    va_end(lst);
-
-    if (!g_isSendingLogs)
-    {
-        g_isSendingLogs = true;
-        for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
-        {
-            g_dmLog_Listeners[i](severity, domain, str_buf);
-        }
-        g_isSendingLogs = false;
-    }
-
-    if (!is_debug_mode)
-    {
-        return;
-    }
-
-    if (g_CustomLogCallback != 0x0)
-    {
-        g_CustomLogCallback(g_CustomLogCallbackUserData, str_buf);
-        return;
-    }
-
 #ifdef ANDROID
-    __android_log_print(ToAndroidPriority(severity), "defold", "%s", str_buf);
+        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
 
 // iOS
-#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
-    __ios_log_print(severity, str_buf);
+#elif TARGET_OS_IOS==1
+        dmLog::__ios_log_print(severity, output);
 #endif
 
 #ifdef __EMSCRIPTEN__
-    //Emscripten maps stderr to console.error and stdout to console.log.
-    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
-        fwrite(str_buf, 1, actual_n, stderr);
-    } else {
-        fwrite(str_buf, 1, actual_n, stdout);
-    }
+
+        //Emscripten maps stderr to console.error and stdout to console.log.
+        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
+            EM_ASM_({
+                Module.printErr(UTF8ToString($0));
+            }, output);
+        } else {
+            EM_ASM_({
+                Module.print(UTF8ToString($0));
+            }, output);
+        }
 #elif !defined(ANDROID)
-    fwrite(str_buf, 1, actual_n, stderr);
+        fwrite(output, 1, output_len, stderr);
 #endif
+}
 
-    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+// Here we put logging that needs to be thread safe
+// We either push it on the logger thread, or from the main thread if threads aren't supported (e.g. html5)
+static void DoLogSynchronized(LogSeverity severity, const char* domain, const char* output, int output_len)
+{
+    DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during the scope
+
+    int count = dmAtomicGet32(&dmLog::g_ListenersCount);
+    for (int i = count - 1; i >= 0 ; --i)
+    {
+        g_Listeners[i]((LogSeverity)severity, domain, output);
+    }
+
+    ProfileLogText("%s", output);
+}
+
+static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
+{
+    dmLogServer* server = g_dmLogServer;
+
+    bool* run = (bool*) user_ptr;
+    LogMessage* log_message = (LogMessage*) &message->m_Data[0];
+    if (log_message->m_Type == LogMessage::SHUTDOWN)
+    {
+        *run = false;
         return;
+    }
 
-    if (g_LogFile && g_TotalBytesLogged < MAX_LOG_FILE_SIZE) {
-        fwrite(str_buf, 1, actual_n, g_LogFile);
-        fflush(g_LogFile);
+    int msg_len = (int) strlen(log_message->m_Message);
+    DoLogSynchronized((LogSeverity)log_message->m_Severity, log_message->m_Domain, log_message->m_Message, msg_len);
+
+    // NOTE: Keep i as signed! See --i below after EraseSwap
+    int n = 0;
+    {
+        DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
+        if (!dmLog::IsServerInitialized())
+            return; // The log system may have been shut down in between
+        n = (int) server->m_Connections.Size();
+    }
+
+    for (int i = 0; i < n; ++i)
+    {
+        dmLogConnection* c = 0;
+        dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
+        {
+            DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
+            if (!dmLog::IsServerInitialized())
+                return; // The log system may have been shut down in between
+            c = &server->m_Connections[i];
+            socket = c->m_Socket;
+        }
+
+        dmSocket::Result r;
+        int sent_bytes;
+        int total_sent = 0;
+        do
+        {
+            r = dmSocket::Send(socket, log_message->m_Message + total_sent, msg_len - total_sent, &sent_bytes);
+            if (r == dmSocket::RESULT_OK)
+            {
+                total_sent += sent_bytes;
+            }
+            else if (r == dmSocket::RESULT_TRY_AGAIN)
+            {
+                // Ok
+            }
+            else
+            {
+                dmSocket::Shutdown(socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+                dmSocket::Delete(socket);
+
+                {
+                    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
+                    if (!dmLog::IsServerInitialized())
+                        return; // The log system may have been shut down in between
+                    c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                    server->m_Connections.EraseSwap(i);
+                }
+
+                --n;
+                --i;
+                break;
+            }
+        } while (total_sent < msg_len);
+    }
+}
+
+static void dmLogThread(void* args)
+{
+    dmLogServer* server = g_dmLogServer;
+
+    volatile bool run = true;
+    while (run)
+    {
+        // NOTE: We have support for blocking dispatch in dmMessage
+        // but we have to wait for both new messages and on sockets.
+        // Currently no support for that and hence the sleep here
+        dmTime::Sleep(1000 * 30);
+        dmLogUpdateNetwork();
+        dmMessage::Dispatch(server->m_MessageSocket, dmLogDispatch, (void*) &run);
+    }
+}
+
+void LogInitialize(const LogParams* params)
+{
+    g_TotalBytesLogged = 0;
+
+    if (dmAtomicGet32(&g_LogServerInitialized) != 0)
+    {
+        fprintf(stderr, "ERROR:DLIB: dmLog already initialized\n");
+        return;
+    }
+
+    dmSpinlock::Create(&g_LogServerLock);
+
+    dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
+    uint16_t port = 0;
+
+    if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    {
+        dmLogInitSocket(server_socket);
+        if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Address address;
+            dmSocket::GetName(server_socket, &address, &port);
+        }
+    }
+
+    dmMessage::HSocket message_socket = 0;
+    dmMessage::Result mr;
+
+    mr = dmMessage::NewSocket("@log", &message_socket);
+    if (mr != dmMessage::RESULT_OK)
+    {
+        fprintf(stderr, "ERROR:DLIB: Unable to create @log message socket\n");
+        if (message_socket != 0)
+            dmMessage::DeleteSocket(message_socket);
+        if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+            dmSocket::Delete(server_socket);
+        return;
+    }
+
+    dmLogServer* server = new dmLogServer(server_socket, port, message_socket);
+    g_dmLogServer = server;
+
+    server->m_Thread = 0;
+    if(dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten doesn't support it
+    {
+        server->m_Thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
+    }
+
+    dmAtomicStore32(&g_LogServerInitialized, 1);
+
+    dmAtomicStore32(&g_ListenersCount, 0);
+    dmSpinlock::Create(&g_ListenerLock);
+
+    /*
+     * This message is parsed by editor 2 - don't remove or change without
+     * corresponding changes in engine.clj
+     */
+    dmLogInfo("Log server started on port %u", (unsigned int) port);
+}
+
+static void CloseLogFile()
+{
+    if (g_LogFile) {
+        fclose(g_LogFile);
+        g_LogFile = 0;
+    }
+}
+
+void LogFinalize()
+{
+    if (!IsServerInitialized())
+    {
+        CloseLogFile();
+        return;
     }
 
     dmLogServer* self = g_dmLogServer;
-    if (self)
+
+    LogMessage msg;
+    msg.m_Type = LogMessage::SHUTDOWN;
+    dmMessage::URL receiver;
+    receiver.m_Socket = self->m_MessageSocket;
+    receiver.m_Path = 0;
+    receiver.m_Fragment = 0;
+    dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
+
+    // Make sure we have control of the context
+    dmAtomicStore32(&g_LogServerInitialized, 0);
+
+    if (self->m_Thread)
+        dmThread::Join(self->m_Thread);
+
     {
-        msg->m_Type = LogMessage::MESSAGE;
-        dmMessage::URL receiver;
-        receiver.m_Socket = self->m_MessgeSocket;
-        receiver.m_Path = 0;
-        receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+        DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
+
+        uint32_t n = self->m_Connections.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            dmLogConnection* c = &self->m_Connections[i];
+            dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+            dmSocket::Delete(c->m_Socket);
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(self->m_ServerSocket);
+            self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (self->m_MessageSocket != 0)
+        {
+            dmMessage::DeleteSocket(self->m_MessageSocket);
+        }
+
+        delete self;
+        g_dmLogServer = 0;
+        CloseLogFile();
     }
+
+    dmSpinlock::Destroy(&g_ListenerLock);
+    dmSpinlock::Destroy(&g_LogServerLock);
+}
+
+uint16_t GetPort()
+{
+    if (!g_dmLogServer)
+        return 0;
+
+    return g_dmLogServer->m_Port;
 }
 
 bool SetLogFile(const char* path)
@@ -606,10 +572,159 @@ bool SetLogFile(const char* path)
     return true;
 }
 
-void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
+} //namespace dmLog
+
+void dmLogRegisterListener(FLogListener listener)
 {
-    g_CustomLogCallback = callback;
-    g_CustomLogCallbackUserData = user_data;
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
+    if (dmAtomicGet32(&dmLog::g_ListenersCount) >= dmLog::g_MaxListeners) {
+        dmLogWarning("Max dmLog listeners reached (%d)", dmLog::g_MaxListeners);
+    } else {
+        dmLog::g_Listeners[dmAtomicAdd32(&dmLog::g_ListenersCount, 1)] = listener;
+    }
 }
 
-} //namespace dmLog
+void dmLogUnregisterListener(FLogListener listener)
+{
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
+    for (int i = 0; i < dmAtomicGet32(&dmLog::g_ListenersCount); ++i)
+    {
+        if (dmLog::g_Listeners[i] == listener)
+        {
+            int new_count = dmAtomicSub32(&dmLog::g_ListenersCount, 1) - 1;
+            dmLog::g_Listeners[i] = dmLog::g_Listeners[new_count];
+            return;
+        }
+    }
+    dmLogWarning("dmLog listener not found");
+}
+
+void dmLogSetLevel(LogSeverity severity)
+{
+    dmLog::g_LogLevel = severity;
+}
+
+LogSeverity dmLogGetLevel()
+{
+    return dmLog::g_LogLevel;
+}
+
+// Deprecated. Try to move back to the C api
+namespace dmLog {
+    void RegisterLogListener(FLogListener listener)     { dmLogRegisterListener(listener); }
+    void UnregisterLogListener(FLogListener listener)   { dmLogUnregisterListener(listener); }
+    void Setlevel(LogSeverity severity)                 { dmLogSetLevel(severity); }
+}
+
+
+void LogInternal(LogSeverity severity, const char* domain, const char* format, ...)
+{
+    if (severity < dmLog::g_LogLevel)
+    {
+        return;
+    }
+
+    // In release mode, if there are no custom listeners, and no log.txt file, we'll return here
+    bool is_debug_mode = dLib::IsDebugMode();
+    if (!is_debug_mode && !dmLog::g_LogFile && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
+    {
+        return;
+    }
+
+    va_list lst;
+    va_start(lst, format);
+
+    const char* severity_str = 0;
+    switch (severity)
+    {
+        case LOG_SEVERITY_DEBUG:        severity_str = "DEBUG"; break;
+        case LOG_SEVERITY_USER_DEBUG:   severity_str = "DEBUG"; break;
+        case LOG_SEVERITY_INFO:         severity_str = "INFO"; break;
+        case LOG_SEVERITY_WARNING:      severity_str = "WARNING"; break;
+        case LOG_SEVERITY_ERROR:        severity_str = "ERROR"; break;
+        case LOG_SEVERITY_FATAL:        severity_str = "FATAL"; break;
+        default:
+            assert(0);
+            break;
+    }
+
+    char tmp_buf[sizeof(dmLog::LogMessage) + dmLog::MAX_STRING_SIZE];
+    dmLog::LogMessage* msg = (dmLog::LogMessage*) &tmp_buf[0];
+    char* str_buf = &tmp_buf[sizeof(dmLog::LogMessage)];
+
+    int n = 0;
+    n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
+    if (n < dmLog::MAX_STRING_SIZE)
+    {
+        int length = vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        if (length > 0)
+        {
+            n += length;
+        }
+    }
+
+    if (n < dmLog::MAX_STRING_SIZE)
+    {
+        n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+    }
+
+    if (n >= dmLog::MAX_STRING_SIZE)
+    {
+        strcpy(&str_buf[dmLog::MAX_STRING_SIZE - (strlen(dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE);
+    }
+
+    str_buf[dmLog::MAX_STRING_SIZE-1] = '\0';
+    int actual_n = dmMath::Min(n, (int)(dmLog::MAX_STRING_SIZE-1));
+
+    va_end(lst);
+
+    // Could potentially be moved to the thread, but these are already thread safe, and
+    // I think it's good to output info directly to the native platform as soon as possible.
+    if (is_debug_mode)
+    {
+        dmLog::DoLogPlatform(severity, str_buf, actual_n);
+    }
+
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE)
+    {
+        dmLog::g_TotalBytesLogged += actual_n;
+        fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
+    }
+
+    if (!dmLog::IsServerInitialized()) // in case the server lock isn't even created
+        return;
+
+    // Make sure we have the lock, so that the log system cannot shut down in between
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
+    if (!dmLog::IsServerInitialized())
+        return; // The log system may have been shut down in between
+
+    dmLog::dmLogServer* server = dmLog::g_dmLogServer;
+    if (!server->m_Thread) // e.g. Emscripten
+    {
+        dmLog::DoLogSynchronized(severity, domain, str_buf, actual_n);
+    }
+
+    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten
+        return;
+
+    if (dmThread::GetCurrentThread() == server->m_Thread)
+    {
+        // Due to the recursive nature, we're not allowed make new dmLogXxx calls from the dispatch thread
+        // However, we may call the print functions
+        return;
+    }
+
+    if (server)
+    {
+        msg->m_Type = dmLog::LogMessage::MESSAGE;
+        msg->m_Severity = severity;
+        dmStrlCpy(msg->m_Domain, domain, sizeof(msg->m_Domain));
+        dmMessage::URL receiver;
+        receiver.m_Socket = server->m_MessageSocket;
+        receiver.m_Path = 0;
+        receiver.m_Fragment = 0;
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+    }
+}

@@ -7,12 +7,41 @@
 }
 
 .search-results-view {
+    .override-inspector-tool-bar {
+        -fx-background-color: -df-background-light;
+        -fx-padding: 12px;
+        -fx-spacing: 12px;
+        -fx-border-color: -df-background-lighter;
+        -fx-border-width: 0 1px 0 0;
+
+        .button-icon {
+            -fx-min-width: 26px;
+            -fx-min-height: 26px;
+            -fx-border-width: 0;
+            -fx-background-radius: 2px;
+        }
+
+        .separator {
+            visibility: hidden;
+        }
+    }
+
+    .tree-table-view {
+        -fx-padding: 0;
+        -fx-border-color: -df-background-lighter;
+        -fx-border-width: 1px 0 0 0;
+    }
+
     .tree-view {
         .tree-cell {
             -fx-pref-width: 0;
             -fx-text-overrun: ellipsis;
             Label {
                 &.line-number {
+                    -fx-opacity: 0.5;
+                    -fx-padding: 0.0 0.0 0.0 4.0;
+                }
+                &.value-path {
                     -fx-opacity: 0.5;
                     -fx-padding: 0.0 0.0 0.0 4.0;
                 }

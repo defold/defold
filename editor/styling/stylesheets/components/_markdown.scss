@@ -1,0 +1,134 @@
+.md {
+  &-paragraph {
+    -fx-font-family: "Source Sans Pro";
+    & > Text {-fx-fill: -md-text-fill;}
+    & > .md {
+      &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
+      &-h2 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
+      &-h3 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
+      &-h4 { -fx-font-size: 20px; }
+      &-h5 { -fx-font-size: 18px; }
+      &-h6 { -fx-font-size: 16px; }
+
+      &-error { -fx-fill: -df-defold-red; }
+
+      &-em      { -fx-font-family: "Source Sans Pro Italic"; }
+      &-strong  { -fx-font-family: "Source Sans Pro Semibold"; }
+      &-strong.md-em { -fx-font-family: "Source Sans Pro Semibold Italic";}
+      &-code    { -fx-font-family: "Dejavu Sans Mono"; -fx-fill: #DDDDDD; }
+      &-small   { -fx-fill: -df-text-dark; }
+      &-sub     { -fx-font-size: 85%; -fx-translate-y: 3px; }
+      &-sup     { -fx-font-size: 85%; -fx-translate-y: -5px; }
+      &-a {
+        -fx-underline: true;
+        -fx-fill: -df-defold-blue;
+        -fx-cursor: hand;
+        &:hover {
+          -fx-fill: -df-defold-blue-lighter;
+        }
+      }
+      // code highlight
+      &-n  { -fx-fill: #DDDDDD; }
+      &-c1 { -fx-fill: #B0B0B0; }
+      &-na { -fx-fill: #DDDDDD; }
+      &-nf { -fx-fill: -df-script-function; }
+      &-nt { -fx-fill: -df-script-constant; }
+      &-p  { -fx-fill: #DDDDDD; }
+      &-s  { -fx-fill: -df-script-string; }
+      &-s1 { -fx-fill: -df-script-string; }
+      &-s2 { -fx-fill: -df-script-string; }
+      &-se { -fx-fill: -df-script-constant; }
+      &-m  { -fx-fill: -df-script-number; }
+      &-mi { -fx-fill: -df-script-number; }
+      &-mf { -fx-fill: -df-script-number; }
+      &-mh { -fx-fill: -df-script-number; }
+      &-k  { -fx-fill: -df-script-keyword; }
+      &-kd { -fx-fill: -df-script-keyword; }
+      &-kr { -fx-fill: -df-script-keyword; }
+      &-kc { -fx-fill: -df-script-constant; }
+      &-o  { -fx-fill: -df-script-keyword; }
+      &-ow { -fx-fill: -df-script-keyword; }
+      &-nb { -fx-fill: -df-script-operator; }
+    }
+  }
+  &-hr {
+    -fx-background-color: derive(#212428, 30%);
+    -fx-min-height: 1px;
+    -fx-background-insets: 0px 8px;
+  }
+  &-icon {
+    -fx-background-color: -df-text;
+    -fx-translate-y: 2px;
+  }
+  &-separator {
+    &-0 {-fx-min-height: 0px; }
+    &-1 {-fx-min-height: 2px; }
+    &-2 {-fx-min-height: 4px; }
+    &-3 {-fx-min-height: 8px; }
+    &-4 {-fx-min-height: 12px; }
+    &-5 {-fx-min-height: 16px; }
+    &-6 {-fx-min-height: 20px; }
+  }
+  &-code-block {
+    -fx-padding: 10px;
+    -fx-background-color: #27292D;
+    -fx-background-radius: 4px;
+    &-hover { visibility: hidden; }
+    &:hover > &-hover { visibility: visible; }
+    &-button {
+      -fx-cursor: hand;
+      -fx-background-color: -df-component-dark;
+      -fx-background-insets: -2px -4px;
+      -fx-background-radius: 2px;
+      -fx-text-fill: -df-text;
+      &:hover {
+        -fx-background-color: -df-component-light;
+        -fx-text-fill: -df-text-selected;
+        & > .md-code-block-icon {
+          -fx-fill: -df-text-selected;
+        }
+      }
+    }
+    &-icon {
+      -fx-fill: -df-text;
+    }
+  }
+  &-kbd {
+    -fx-background-color: -df-component-light;
+    -fx-background-radius: 4px;
+    -fx-border-color: -df-component-darker;
+    -fx-border-radius: 4px;
+    -fx-border-width: 0 0 1px 0;
+    -fx-background-insets: -1px 0px;
+    -fx-border-insets: -2px 0px;
+    -fx-padding: 0px 4px;
+  }
+  &-blockquote {
+    -fx-min-width: 2px;
+    -fx-background-color: -df-component-light;
+  }
+  &-root {
+    -fx-padding: 6px 8px;
+    -fx-font-size: 13.5px;
+    -md-text-fill: -df-text;
+    &.md-page-root {
+        -fx-padding: 30px 30px;
+        -fx-font-size: 15px;
+        -md-text-fill: #DDDDDD;
+    }
+  }
+  &-scroll-pane {
+    -fx-min-height: 0px;
+  }
+  &-titled-pane {
+    & > .title > .arrow-button {
+      -fx-padding: 0 7px 0 0;
+      & > .arrow {
+        -fx-background-color: -df-text;
+        -fx-background-insets: 1 0 -1 0, 0;
+        -fx-padding: 0.25em 0.3125em 0.25em 0.3125em;
+        -fx-shape: "M 0 0 h 7 l -3.5 4 z";
+      }
+    }
+  }
+}

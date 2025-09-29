@@ -92,7 +92,7 @@
               <Insets top="20.0"/>
             </VBox.margin>
         </TextFlow>
-        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2022">
+        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2025">
           <VBox.margin>
             <Insets top="20.0"/>
           </VBox.margin>

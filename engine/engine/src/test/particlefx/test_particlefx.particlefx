@@ -219,6 +219,11 @@ emitters {
       spread: 0.0
     }
   }
+  pivot: {
+    x: 0
+    y: 0
+    z: 0
+  }
 }
 emitters {
   id: "emitter_2"
@@ -440,5 +445,10 @@ emitters {
       }
       spread: 0.0
     }
+  }
+  pivot: {
+    x: 0
+    y: 0
+    z: 0
   }
 }

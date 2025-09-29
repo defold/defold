@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,11 +15,13 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include "dalloca.h"
 #include "dlib.h"
 #include "hash.h"
 #include "array.h"
 #include "index_pool.h"
 #include "align.h"
+#include <dlib/dstrings.h>
 #include <dlib/mutex.h>
 #include <dlib/hashtable.h>
 
@@ -30,11 +32,16 @@ struct ReverseHashEntry
     uint16_t m_Length;
 };
 
+template<typename TABLE>
+static void IncreaseTableCapacity(TABLE* table, uint32_t increment)
+{
+    uint32_t capacity = table->Capacity() + increment;
+    table->SetCapacity((capacity*5)/7, capacity);
+}
+
 struct ReverseHashContainer
 {
-    static const size_t m_HashTableSize = 1024;
-    static const size_t m_HashTableCapacity = 512;
-    static const size_t m_HashTableCapacityIncrement = 256;
+    static const size_t m_HashTableCapacityIncrement = 16 * 1024;
     static const size_t m_HashStatesCapacity = 512;
     static const size_t m_HashStatesCapacityIncrement = 256;
 
@@ -79,12 +86,10 @@ struct ReverseHashContainer
 
         if(enable)
         {
-
-            if(m_HashTable32Entries.Capacity() < m_HashTableCapacity)
-                m_HashTable32Entries.SetCapacity(m_HashTableSize, m_HashTableCapacity);
-            m_HashTable32Entries.Clear();
-            if(m_HashTable64Entries.Capacity() < m_HashTableCapacity)
-                m_HashTable64Entries.SetCapacity(m_HashTableSize, m_HashTableCapacity);
+            if (m_HashTable32Entries.Full())
+                IncreaseTableCapacity(&m_HashTable32Entries, m_HashTableCapacityIncrement);
+            if (m_HashTable64Entries.Full())
+                IncreaseTableCapacity(&m_HashTable64Entries, m_HashTableCapacityIncrement);
             m_HashTable64Entries.Clear();
             m_HashStates.SetCapacity(m_HashStatesCapacity);
             m_HashStates.SetSize(m_HashStatesCapacity);
@@ -232,7 +237,7 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             char* copy = (char*) malloc(len + 1);
             memcpy(copy, key, len);
@@ -309,7 +314,7 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             char* copy = (char*) malloc(len + 1);
             memcpy(copy, key, len);
@@ -436,7 +441,7 @@ uint32_t dmHashFinal32(HashState32* hash_state)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             hash_table->Put(hash_state->m_Hash, dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex]);
         }
@@ -572,7 +577,7 @@ uint64_t dmHashFinal64(HashState64* hash_state)
         {
             if (hash_table->Full())
             {
-                hash_table->SetCapacity(dmHashContainer().m_HashTableSize, hash_table->Capacity() + dmHashContainer().m_HashTableCapacityIncrement);
+                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             hash_table->Put(hash_state->m_Hash, dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex]);
         }
@@ -616,6 +621,31 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length)
     return 0;
 }
 
+DM_DLLEXPORT const void* dmHashReverse32Alloc(dmAllocator* allocator, uint32_t hash, uint32_t* length)
+{
+    if (dmHashContainer().m_Enabled)
+    {
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        ReverseHashEntry* reverse = dmHashContainer().m_HashTable32Entries.Get(hash);
+        if (reverse)
+        {
+            if (length)
+            {
+                *length = reverse->m_Length;
+            }
+
+            uint8_t* out = (uint8_t*)dmMemAlloc(allocator, reverse->m_Length+1);
+            if (out)
+            {
+                memcpy(out, reverse->m_Value, reverse->m_Length);
+                out[reverse->m_Length] = 0; // make sure it's null terminated
+            }
+            return out;
+        }
+    }
+    return 0;
+}
+
 DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
 {
     if (dmHashContainer().m_Enabled)
@@ -629,6 +659,31 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
                 *length = reverse->m_Length;
             }
             return reverse->m_Value;
+        }
+    }
+    return 0;
+}
+
+DM_DLLEXPORT const void* dmHashReverse64Alloc(dmAllocator* allocator, uint64_t hash, uint32_t* length)
+{
+    if (dmHashContainer().m_Enabled)
+    {
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        ReverseHashEntry* reverse = dmHashContainer().m_HashTable64Entries.Get(hash);
+        if (reverse)
+        {
+            if (length)
+            {
+                *length = reverse->m_Length;
+            }
+
+            uint8_t* out = (uint8_t*)dmMemAlloc(allocator, reverse->m_Length+1);
+            if (out)
+            {
+                memcpy(out, reverse->m_Value, reverse->m_Length);
+                out[reverse->m_Length] = 0; // make sure it's null terminated
+            }
+            return out;
         }
     }
     return 0;
@@ -662,9 +717,58 @@ DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
     }
 }
 
+// Deprecated
 DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash)
 {
     const char* s = (const char*)dmHashReverse64(hash, 0);
     return s != 0 ? s : "<unknown>";
 }
+// Deprecated
+DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
+{
+    const char* s = (const char*)dmHashReverse32(hash, 0);
+    return s != 0 ? s : "<unknown>";
+}
 
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dmsdk/dlib/hash_vendor.h>
+#elif defined(__linux__) && !defined(__ANDROID__)
+    #define DM_HASH_LONG_FMT "%lu"
+#else
+    #define DM_HASH_LONG_FMT "%llu"
+#endif
+
+DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash)
+{
+    uint32_t length = 0;
+    const char* reverse = (const char*)dmHashReverse64Alloc(allocator, hash, &length);
+    if (reverse)
+    {
+        return reverse;
+    }
+
+    const uint32_t out_length = 31; // unknown + <> + count(18446744073709551615) + 1 = 8 + 2 + 20 + 1 = 31
+    char* out = (char*)dmMemAlloc(allocator, out_length);
+    if (!out)
+        return "<unknown>";
+
+    dmSnPrintf(out, out_length, "<unknown:" DM_HASH_LONG_FMT ">", hash);
+    return out;
+}
+
+#undef DM_HASH_LONG_FMT
+
+DM_DLLEXPORT const char* dmHashReverseSafe32Alloc(dmAllocator* allocator, uint32_t hash)
+{
+    uint32_t length = 0;
+    const char* reverse = (const char*)dmHashReverse32Alloc(allocator, hash, &length);
+    if (reverse)
+        return reverse;
+
+    const uint32_t out_length = 21; // unknown + <> + count(4294967295) + 1 = 8 + 2 + 10 + 1 = 21
+    char* out = (char*)dmMemAlloc(allocator, out_length);
+    if (!out)
+        return "<unknown>";
+    dmSnPrintf(out, out_length, "<unknown:%u>", hash);
+    return out;
+}

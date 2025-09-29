@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -99,73 +99,71 @@ namespace dmGui
         dmArray<uint16_t>               m_StencilScopeIndices;
         dmArray<HNode>                  m_ScratchBoneNodes;
         dmHID::HContext                 m_HidContext;
-        void*                           m_DefaultFont;
         void*                           m_DisplayProfiles;
         SceneTraversalCache             m_SceneTraversalCache;
     };
 
     struct Node
     {
-        dmVMath::Vector4    m_Properties[PROPERTY_COUNT];
-        dmVMath::Vector4    m_ResetPointProperties[PROPERTY_COUNT];
-        dmVMath::Matrix4    m_LocalTransform;
-        dmVMath::Vector4    m_LocalAdjustScale;
-        uint32_t            m_ResetPointState;
+        dmVMath::Matrix4        m_LocalTransform;
+        dmVMath::Vector4        m_Properties[PROPERTY_COUNT];
+        dmVMath::Vector4        m_LocalAdjustScale;
 
-        uint32_t    m_HasResetPoint         : 1; // If true, we have stored a copy of the m_State, into m_ResetPointState
-        uint32_t    m_PerimeterVertices     :31;
-        PieBounds   m_OuterBounds;
+        uint64_t                m_TextureHash;
+        uint64_t                m_FlipbookAnimHash;
+        uint64_t                m_FontHash;
+        uint64_t                m_ParticlefxHash;
+        dmhash_t                m_LayerHash;
+        dmhash_t                m_MaterialNameHash;
+
+        HTextureSource          m_Texture;
+        void*                   m_Font;
+        void*                   m_Material;
+        void*                   m_RenderConstants;
+        void*                   m_CustomData;
+        void*                   m_ParticlefxPrototype;
+        dmParticle::HInstance   m_ParticleInstance;
+        dmVMath::Vector4*       m_ResetPointProperties;
+        uint32_t                m_ResetPointState;
+        uint32_t                m_RenderConstantsHash;
+        uint32_t                m_CustomType; // Only valid if m_NodeType == NODE_TYPE_CUSTOM
+
+        uint32_t                m_PerimeterVertices : 31;
+        uint32_t                m_HasResetPoint : 1;
 
         union
         {
             struct
             {
-                uint32_t    m_BlendMode : 4;
-                uint32_t    m_NodeType : 4;
-                uint32_t    m_XAnchor : 2;
-                uint32_t    m_YAnchor : 2;
-                uint32_t    m_Pivot : 4;
-                uint32_t    m_AdjustMode : 2;
-                uint32_t    m_SizeMode : 1;
-                uint32_t    m_LineBreak : 1;
-                uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
-                uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_InheritAlpha : 1;
-                uint32_t    m_ClippingMode : 2;
-                uint32_t    m_ClippingVisible : 1;
-                uint32_t    m_ClippingInverted : 1;
-                uint32_t    m_IsBone : 1;
-                uint32_t    m_HasHeadlessPfx : 1;
-                uint32_t    m_Reserved : 3;
+                uint32_t        m_BlendMode : 4;
+                uint32_t        m_NodeType : 4;
+                uint32_t        m_XAnchor : 2;
+                uint32_t        m_YAnchor : 2;
+                uint32_t        m_Pivot : 4;
+                uint32_t        m_AdjustMode : 2;
+                uint32_t        m_SizeMode : 1;
+                uint32_t        m_LineBreak : 1;
+                uint32_t        m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
+                uint32_t        m_IsVisible : 1;
+                uint32_t        m_DirtyLocal : 1;
+                uint32_t        m_InheritAlpha : 1;
+                uint32_t        m_ClippingMode : 2;
+                uint32_t        m_ClippingVisible : 1;
+                uint32_t        m_ClippingInverted : 1;
+                uint32_t        m_IsBone : 1;
+                uint32_t        m_HasHeadlessPfx : 1;
+                uint32_t        m_Reserved : 2;
             };
-
             uint32_t m_State;
         };
 
-        uint32_t    m_CustomType; // Valid if m_State.m_NodeType == NODE_TYPE_CUSTOM
-
-        const char* m_Text;
-
-        uint64_t    m_TextureHash;
-        void*       m_Texture;
-        NodeTextureType m_TextureType;
-
-        TextureSetAnimDesc m_TextureSetAnimDesc;
-        uint64_t    m_FlipbookAnimHash;
-        float       m_FlipbookAnimPosition;
-
-        uint64_t    m_FontHash;
-        void*       m_Font;
-        dmhash_t    m_LayerHash;
-        uint16_t    m_LayerIndex;
-
-        void**      m_NodeDescTable;
-
-        void*       m_CustomData;
-
-        uint64_t                m_ParticlefxHash;
-        void*                   m_ParticlefxPrototype;
-        dmParticle::HInstance   m_ParticleInstance;
+        const char*             m_Text;
+        void**                  m_NodeDescTable;
+        TextureSetAnimDesc      m_TextureSetAnimDesc;
+        float                   m_FlipbookAnimPosition;
+        uint16_t                m_LayerIndex;
+        PieBounds               m_OuterBounds;
+        NodeTextureType         m_TextureType;
     };
 
     struct InternalNode
@@ -223,33 +221,19 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
+        , m_ImageType(image_type)
         , m_OriginalWidth(original_width)
-        , m_OriginalHeight(original_height) {}
+        , m_OriginalHeight(original_height)
+        {}
 
-        void*    m_TextureSource;
+        HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
-        uint32_t m_OriginalWidth : 16;
-        uint32_t m_OriginalHeight : 16;
-    };
-
-    struct DynamicTexture
-    {
-        DynamicTexture(void* handle)
-        {
-            memset(this, 0, sizeof(*this));
-            m_Handle = handle;
-            m_Type = (dmImage::Type) -1;
-        }
-        void*           m_Handle;
-        uint32_t        m_Created : 1;
-        uint32_t        m_Deleted : 1;
-        uint32_t        m_Width;
-        uint32_t        m_Height;
-        void*           m_Buffer;
-        dmImage::Type   m_Type;
+        dmImage::Type   m_ImageType;
+        uint32_t        m_OriginalWidth : 16;
+        uint32_t        m_OriginalHeight : 16;
     };
 
     struct ParticlefxComponent
@@ -265,47 +249,59 @@ namespace dmGui
 
     struct Scene
     {
-        int                     m_InstanceReference;
-        int                     m_DataReference;
-        int                     m_ContextTableReference;
-        Context*                m_Context;
-        Script*                 m_Script;
-        dmIndexPool16           m_NodePool;
-        dmArray<InternalNode>   m_Nodes;
-        dmArray<Animation>      m_Animations;
-        dmHashTable<uintptr_t, dmhash_t> m_ResourceToPath;
-        dmHashTable64<void*>    m_Fonts;
-        dmHashTable64<TextureInfo>    m_Textures;
-        dmHashTable64<DynamicTexture> m_DynamicTextures;
-        dmParticle::HParticleContext m_ParticlefxContext;
-        dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
-        dmArray<ParticlefxComponent> m_AliveParticlefxs;
-        dmHashTable64<uint16_t> m_Layers;
-        dmArray<dmhash_t>       m_Layouts;
-        dmArray<void*>          m_LayoutsNodeDescs;
-        dmhash_t                m_LayoutId;
-        AdjustReference         m_AdjustReference;
-        dmArray<dmhash_t>       m_DeletedDynamicTextures;
-        void*                   m_DefaultFont;
-        void*                   m_UserData;
-        uint16_t                m_RenderHead;
-        uint16_t                m_RenderTail;
-        uint16_t                m_NextVersionNumber;
-        uint16_t                m_RenderOrder; // For the render-key
-        uint16_t                m_NextLayerIndex;
-        uint16_t                m_ResChanged : 1;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
-        dmScript::ScriptWorld*  m_ScriptWorld;
-        CreateCustomNodeCallback    m_CreateCustomNodeCallback;
-        DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
-        CloneCustomNodeCallback     m_CloneCustomNodeCallback;
-        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
-        void*                       m_CreateCustomNodeCallbackContext;
-        GetResourceCallback         m_GetResourceCallback;
-        void*                       m_GetResourceCallbackContext;
-        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        OnWindowResizeCallback   m_OnWindowResizeCallback;
+        int                                   m_InstanceReference;
+        int                                   m_DataReference;
+        int                                   m_ContextTableReference;
+        uint32_t                              m_UniqueScriptId;
+        Context*                              m_Context;
+        Script*                               m_Script;
+        dmIndexPool16                         m_NodePool;
+        dmArray<InternalNode>                 m_Nodes;
+        dmArray<Animation>                    m_Animations;
+        dmHashTable<uintptr_t, dmhash_t>      m_ResourceToPath;
+        dmHashTable64<void*>                  m_Fonts;
+        dmHashTable64<TextureInfo>            m_Textures;
+        dmHashTable64<TextureInfo>            m_DynamicTextures;
+        dmHashTable64<void*>                  m_MaterialResources;
+        dmParticle::HParticleContext          m_ParticlefxContext;
+        dmHashTable64<dmParticle::HPrototype> m_Particlefxs;
+        dmArray<ParticlefxComponent>          m_AliveParticlefxs;
+        dmHashTable64<uint16_t>               m_Layers;
+        dmArray<dmhash_t>                     m_Layouts;
+        dmArray<void*>                        m_LayoutsNodeDescs;
+        dmhash_t                              m_LayoutId;
+        AdjustReference                       m_AdjustReference;
+        void*                                 m_DefaultFont;
+        void*                                 m_UserData;
+        uint16_t                              m_RenderHead;
+        uint16_t                              m_RenderTail;
+        uint16_t                              m_NextVersionNumber;
+        uint16_t                              m_RenderOrder; // For the render-key
+        uint16_t                              m_NextLayerIndex;
+        uint16_t                              m_ResChanged : 1;
+        uint32_t                              m_Width;
+        uint32_t                              m_Height;
+        dmScript::ScriptWorld*                m_ScriptWorld;
+        CreateCustomNodeCallback              m_CreateCustomNodeCallback;
+        DestroyCustomNodeCallback             m_DestroyCustomNodeCallback;
+        CloneCustomNodeCallback               m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback              m_UpdateCustomNodeCallback;
+        void*                                 m_CreateCustomNodeCallbackContext;
+        GetResourceCallback                   m_GetResourceCallback;
+        void*                                 m_GetResourceCallbackContext;
+        FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
+        OnWindowResizeCallback                m_OnWindowResizeCallback;
+        ApplyLayoutCallback                   m_ApplyLayoutCallback;
+        GetMaterialPropertyCallback           m_GetMaterialPropertyCallback;
+        void*                                 m_GetMaterialPropertyCallbackContext;
+        SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
+        void*                                 m_SetMaterialPropertyCallbackContext;
+        DestroyRenderConstantsCallback        m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback          m_CloneRenderConstantsCallback;
+        NewTextureResourceCallback            m_NewTextureResourceCallback;
+        DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
+        SetTextureResourceCallback            m_SetTextureResourceCallback;
+        GetDisplayProfileDescCallback         m_GetDisplayProfileDescCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
@@ -526,6 +522,18 @@ namespace dmGui
     dmVMath::Vector4 CalculateReferenceScale(HScene scene, InternalNode* node);
 
     HNode GetNodeHandle(InternalNode* node);
+
+    struct PropDesc
+    {
+        dmhash_t m_Hash;
+        Property m_Property;
+        uint8_t  m_Component;
+    };
+
+    PropDesc* GetPropertyDesc(dmhash_t property_hash);
+
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& material_prop, const dmGameObject::PropertyOptions* material_prop_options);
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* material_prop_options);
 }
 
 #endif

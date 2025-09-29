@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,12 +16,15 @@
 #include "script_timer_private.h"
 
 #include <string.h>
-#include <dlib/index_pool.h>
-#include <dlib/hashtable.h>
+#include <dlib/object_pool.h>
 #include <dlib/profile.h>
+#include <dlib/set.h>
 
 #include "script.h"
 #include "script_private.h"
+
+DM_PROPERTY_EXTERN(rmtp_Script);
+DM_PROPERTY_U32(rmtp_TimerCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# timers", &rmtp_Script);
 
 namespace dmScript
 {
@@ -36,19 +39,11 @@ namespace dmScript
      * @document
      * @name Timer
      * @namespace timer
+     * @language Lua
      */
 
     /*
-        The timers are stored in a flat array with no holes which we scan sequenctially on each update.
-
-        When a timer is removed the last timer in the list may change location (EraseSwap).
-
-        This is to keep the array sweep fast and handle cases where multiple short lived timers are
-        created followed by one long-lived timer. If we did not re-shuffle and keep holes we would keep
-        scanning the array to the end where the only live timer exists skipping all the holes.
-        How much of an issue this is guesswork at this point.
-
-        The timer identity is an index into an indirection layer combined with a generation counter,
+        The timer handle is an index into an indirection layer combined with a generation counter,
         this makes it possible to reuse the index for the indirection layer without risk of using
         stale indexes - the caller to CancelTimer is allowed to call with an handle of a timer that already
         has expired.
@@ -75,27 +70,31 @@ namespace dmScript
         // The timer delay, we need to keep this for repeating timers
         float           m_Delay;
 
+        // The time that exceeded the delay in previous cycle in repeat timer.
+        float           m_PrevCycleExcess;
+
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
         // Flag if the timer is alive
         uint32_t        m_IsAlive : 1;
     };
 
-    #define INVALID_TIMER_LOOKUP_INDEX  0xffffu
     #define INITIAL_TIMER_CAPACITY      8u
-    #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65535 since 65535 is reserved for invalid index
     #define TIMER_CAPACITY_GROWTH       16u
 
     struct TimerWorld
     {
-        dmArray<Timer>                      m_Timers;
-        dmArray<uint16_t>                   m_IndexLookup;
-        dmIndexPool<uint16_t>               m_IndexPool;
-        uint16_t                            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
-        uint16_t                            m_InUpdate : 1;
+        dmObjectPool<Timer> m_Timers;
+        dmSet<uint16_t>     m_Instances; // the pool indices
+        dmArray<uint16_t>   m_ScratchBuffer; // When doing operations on the timer instances, we need a copy to avoid self modification of m_Instances
+        uint16_t            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
+        uint16_t            m_InUpdate : 1;
+        uint16_t            m_IsDirty : 1;
     };
 
-    static uint16_t GetLookupIndex(HTimer handle)
+    dmArray<TimerWorld*> g_Worlds;
+
+    static uint16_t GetIndexFromHandle(HTimer handle)
     {
         return (uint16_t)(handle & 0xffffu);
     }
@@ -108,78 +107,68 @@ namespace dmScript
     static Timer* AllocateTimer(HTimerWorld timer_world, uintptr_t owner)
     {
         assert(timer_world != 0x0);
-        uint32_t timer_count = timer_world->m_Timers.Size();
-        if (timer_count == MAX_TIMER_CAPACITY)
+
+        if (timer_world->m_Timers.Full() && timer_world->m_Timers.Capacity() == MAX_TIMER_CAPACITY)
         {
             dmLogError("Timer could not be stored since the timer buffer is full (%d).", MAX_TIMER_CAPACITY);
             return 0x0;
         }
 
-        if (timer_world->m_IndexPool.Remaining() == 0)
-        {
-            uint32_t old_capacity = timer_world->m_IndexPool.Capacity();
-            uint32_t capacity = dmMath::Min(old_capacity + TIMER_CAPACITY_GROWTH, MAX_TIMER_CAPACITY);
-            timer_world->m_IndexPool.SetCapacity(capacity);
-            timer_world->m_IndexLookup.SetCapacity(capacity);
-            timer_world->m_IndexLookup.SetSize(capacity);
-            memset(&timer_world->m_IndexLookup[old_capacity], 0u, (capacity - old_capacity) * sizeof(uint16_t));
-        }
-
-        HTimer handle = MakeHandle(timer_world->m_Version, timer_world->m_IndexPool.Pop());
-
         if (timer_world->m_Timers.Full())
         {
-            uint32_t capacity = timer_world->m_Timers.Capacity();
-            capacity = dmMath::Min(capacity + TIMER_CAPACITY_GROWTH, MAX_TIMER_CAPACITY);
-            timer_world->m_Timers.SetCapacity(capacity);
+            uint32_t cap = timer_world->m_Timers.Capacity() + TIMER_CAPACITY_GROWTH;
+            if (cap > MAX_TIMER_CAPACITY)
+                cap = MAX_TIMER_CAPACITY;
+            timer_world->m_Timers.SetCapacity(cap);
+            timer_world->m_Instances.SetCapacity(cap);
         }
 
-        timer_world->m_Timers.SetSize(timer_count + 1);
-        Timer& timer = timer_world->m_Timers[timer_count];
-        timer.m_Handle = handle;
-        timer.m_Owner = owner;
+        uint16_t timer_index = (uint16_t)timer_world->m_Timers.Alloc();
+        Timer* timer = &timer_world->m_Timers.Get(timer_index);
+        timer_world->m_Instances.Add(timer_index);
 
-        uint16_t lookup_index = GetLookupIndex(handle);
+        memset(timer, 0, sizeof(Timer));
+        timer->m_Handle = MakeHandle(timer_world->m_Version, timer_index);
+        timer->m_Owner = owner;
 
-        timer_world->m_IndexLookup[lookup_index] = timer_count;
-        return &timer;
+        timer_world->m_IsDirty = 1;
+        return timer;
     }
 
-    static void EraseTimer(HTimerWorld timer_world, uint32_t timer_index)
+    static void DeallocateTimer(HTimerWorld timer_world, uint16_t timer_index)
     {
         assert(timer_world != 0x0);
 
-        Timer& movedTimer = timer_world->m_Timers.EraseSwap(timer_index);
+        timer_world->m_Instances.Remove(timer_index);
+        timer_world->m_Timers.Free(timer_index, true);
+        timer_world->m_IsDirty = 1;
+    }
 
-        if (timer_index < timer_world->m_Timers.Size())
+    static void FreeTimer(HTimerWorld timer_world, Timer* timer)
+    {
+        assert(timer_world != 0x0);
+        assert(timer->m_IsAlive == 0);
+
+        LuaCallbackInfo* callback = (LuaCallbackInfo*) timer->m_UserData;
+        timer->m_UserData = 0;
+        if (IsCallbackValid(callback))
         {
-            uint16_t moved_lookup_index = GetLookupIndex(movedTimer.m_Handle);
-            timer_world->m_IndexLookup[moved_lookup_index] = timer_index;
+            DestroyCallback(callback);
         }
-    }
 
-    static void FreeTimer(HTimerWorld timer_world, Timer& timer)
-    {
-        assert(timer_world != 0x0);
-        assert(timer.m_IsAlive == 0);
-
-        uint16_t lookup_index = GetLookupIndex(timer.m_Handle);
-        uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
-        timer_world->m_IndexPool.Push(lookup_index);
-
-        EraseTimer(timer_world, timer_index);
+        uint16_t index = GetIndexFromHandle(timer->m_Handle);
+        DeallocateTimer(timer_world, index);
     }
 
     HTimerWorld NewTimerWorld()
     {
         TimerWorld* timer_world = new TimerWorld();
         timer_world->m_Timers.SetCapacity(INITIAL_TIMER_CAPACITY);
-        timer_world->m_IndexLookup.SetCapacity(INITIAL_TIMER_CAPACITY);
-        timer_world->m_IndexLookup.SetSize(INITIAL_TIMER_CAPACITY);
-        memset(&timer_world->m_IndexLookup[0], 0u, INITIAL_TIMER_CAPACITY * sizeof(uint16_t));
-        timer_world->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
+        timer_world->m_Instances.SetCapacity(INITIAL_TIMER_CAPACITY);
+
         timer_world->m_Version = 0;
         timer_world->m_InUpdate = 0;
+        timer_world->m_IsDirty = 0;
         return timer_world;
     }
 
@@ -189,21 +178,64 @@ namespace dmScript
         delete timer_world;
     }
 
+    static Timer* GetTimerFromIndex(HTimerWorld timer_world, uint16_t index)
+    {
+        assert(timer_world != 0x0);
+        if (!timer_world->m_Instances.Contains(index))
+        {
+            return 0;
+        }
+        return &timer_world->m_Timers.Get(index);
+    }
+
+    static Timer* GetTimerFromHandle(HTimerWorld timer_world, HTimer handle)
+    {
+        uint16_t index = GetIndexFromHandle(handle);
+        Timer* timer = GetTimerFromIndex(timer_world, index);
+        if (!timer)
+            return 0;
+        if (timer->m_Handle != handle)
+            return 0; // Stale handle
+        return timer;
+    }
+
+    static uint32_t CopyIndices(dmSet<uint16_t>& src, dmArray<uint16_t>& tgt)
+    {
+        uint32_t size = src.Size();
+        if (size > tgt.Capacity())
+        {
+            tgt.SetCapacity(size);
+        }
+        tgt.SetSize(size);
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            tgt[i] = src[i];
+        }
+        return size;
+    }
+
     void UpdateTimers(HTimerWorld timer_world, float dt)
     {
         assert(timer_world != 0x0);
-        DM_PROFILE(TimerWorld, "Update");
+        DM_PROFILE("Update");
 
         timer_world->m_InUpdate = 1;
 
-        // We only scan timers for trigger if the timer *existed at entry to UpdateTimers*, any timers added
-        // in a trigger callback will always be added at the end of m_Timers and not triggered in this scope.
-        uint32_t size = timer_world->m_Timers.Size();
-        DM_COUNTER("timerc", size);
+        // We make a copy of the indices, as it's possible the m_Instances may be altered
+        // Any timers added during this update call, will be updated the next frame
+        uint32_t size = CopyIndices(timer_world->m_Instances, timer_world->m_ScratchBuffer);
+
+        DM_PROPERTY_ADD_U32(rmtp_TimerCount, size);
 
         for (uint32_t i = 0; i < size; ++i)
         {
-            Timer* timer = &timer_world->m_Timers[i];
+            uint16_t index = timer_world->m_ScratchBuffer[i];
+            Timer* timer = GetTimerFromIndex(timer_world, index);
+            if (!timer)
+            {
+                continue;
+            }
+
             if (timer->m_IsAlive == 0)
             {
                 continue;
@@ -215,14 +247,17 @@ namespace dmScript
                 continue;
             }
 
-            float elapsed_time = timer->m_Delay - timer->m_Remaining;
+            float elapsed_time = timer->m_Delay - timer->m_Remaining - timer->m_PrevCycleExcess;
 
             TimerEventType eventType = timer->m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
-
             timer->m_Callback(timer_world, eventType, timer->m_Handle, elapsed_time, timer->m_Owner, timer->m_UserData);
 
-            // The array might have been reallocated here! So grab the pointer again...
-            timer = &timer_world->m_Timers[i];
+            if (timer_world->m_IsDirty)
+            {
+                // If the containers were reallocated, the current timer pointer needs to get fetched again
+                timer = GetTimerFromIndex(timer_world, index);
+                assert(timer);
+            }
 
             if (timer->m_IsAlive == 0)
             {
@@ -238,38 +273,39 @@ namespace dmScript
             if (timer->m_Delay == 0.0f)
             {
                 timer->m_Remaining = 0.0f;
+                timer->m_PrevCycleExcess = 0.0f;
                 continue;
             }
 
             float wrapped_count = ((-timer->m_Remaining) / timer->m_Delay) + 1.f;
             float offset_to_next_trigger  = floor(wrapped_count) * timer->m_Delay;
             timer->m_Remaining += offset_to_next_trigger;
-            assert(timer->m_Remaining >= 0.f);
+            timer->m_PrevCycleExcess = timer->m_Delay - timer->m_Remaining;
+            if (timer->m_Remaining < 0) {// If the delay is very small, the floating point precision might produce issues
+                timer->m_Remaining = timer->m_Delay; // reset the timer
+                timer->m_PrevCycleExcess = 0.0f;
+            }
         }
 
         timer_world->m_InUpdate = 0;
 
-        size = timer_world->m_Timers.Size();
-        uint32_t original_size = size;
-        uint32_t i = 0;
-        while (i < size)
+        // We need to do the deletes in a separate pass, as the
+        // callbacks may remove/add indices from the pool, thus messing up the current set of indices
+        for (uint32_t i = 0; i < size; ++i)
         {
-            Timer& timer = timer_world->m_Timers[i];
-            if (timer.m_IsAlive == 0)
+            uint16_t index = timer_world->m_ScratchBuffer[i];
+            Timer* timer = GetTimerFromIndex(timer_world, index);
+            if (timer && timer->m_IsAlive == 0)
             {
                 FreeTimer(timer_world, timer);
-                --size;
-            }
-            else
-            {
-                ++i;
             }
         }
 
-        if (size != original_size)
+        if (timer_world->m_IsDirty)
         {
             ++timer_world->m_Version;
         }
+        timer_world->m_IsDirty = 0;
     }
 
     HTimer AddTimer(HTimerWorld timer_world,
@@ -282,6 +318,7 @@ namespace dmScript
         assert(timer_world != 0x0);
         assert(delay >= 0.f);
         assert(timer_callback != 0x0);
+
         Timer* timer = AllocateTimer(timer_world, owner);
         if (timer == 0x0)
         {
@@ -293,6 +330,7 @@ namespace dmScript
         timer->m_UserData = userdata;
         timer->m_Callback = timer_callback;
         timer->m_Repeat = repeat;
+        timer->m_PrevCycleExcess = 0.0f;
         timer->m_IsAlive = 1;
 
         return timer->m_Handle;
@@ -300,38 +338,25 @@ namespace dmScript
 
     bool CancelTimer(HTimerWorld timer_world, HTimer handle)
     {
-        assert(timer_world != 0x0);
-        uint16_t lookup_index = GetLookupIndex(handle);
-        if (lookup_index >= timer_world->m_IndexLookup.Size())
+        Timer* timer = GetTimerFromHandle(timer_world, handle);
+        if (!timer)
+        {
+            return false;
+        }
+        if (timer->m_IsAlive == 0)
         {
             return false;
         }
 
-        uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
-        if (timer_index >= timer_world->m_Timers.Size())
-        {
-            return false;
-        }
-
-        Timer& timer = timer_world->m_Timers[timer_index];
-        if (timer.m_Handle != handle)
-        {
-            return false;
-        }
-
-        if (timer.m_IsAlive == 0)
-        {
-            return false;
-        }
-
-        timer.m_IsAlive = 0;
-        timer.m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer.m_Handle, 0.f, timer.m_Owner, timer.m_UserData);
+        timer->m_IsAlive = 0;
+        timer->m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer->m_Handle, 0.f, timer->m_Owner, timer->m_UserData);
 
         if (timer_world->m_InUpdate == 0)
         {
             FreeTimer(timer_world, timer);
             ++timer_world->m_Version;
         }
+
         return true;
     }
 
@@ -339,58 +364,51 @@ namespace dmScript
     {
         assert(timer_world != 0x0);
 
-        uint32_t size = timer_world->m_Timers.Size();
+        uint32_t size = CopyIndices(timer_world->m_Instances, timer_world->m_ScratchBuffer);
         uint32_t cancelled_count = 0;
-        uint32_t timer_index = 0;
-        while (timer_index < size)
+        for (uint32_t i = 0; i < size; ++i)
         {
-            Timer& timer = timer_world->m_Timers[timer_index];
-            if (timer.m_Owner != owner)
+            uint16_t index = timer_world->m_ScratchBuffer[i];
+            Timer* timer = GetTimerFromIndex(timer_world, index);
+
+            if (!timer)
             {
-                ++timer_index;
                 continue;
             }
 
-            if (timer.m_IsAlive == 1)
+            if (timer->m_Owner != owner)
             {
-                timer.m_IsAlive = 0;
+                continue;
+            }
+
+            if (timer->m_IsAlive == 1)
+            {
+                timer->m_IsAlive = 0;
                 ++cancelled_count;
             }
 
             if (timer_world->m_InUpdate == 0)
             {
                 FreeTimer(timer_world, timer);
-                --size;
             }
-            else
-            {
-                ++timer_index;
-            }
-        }
-
-        if (cancelled_count > 0)
-        {
-            ++timer_world->m_Version;
         }
 
         return cancelled_count;
     }
 
+    // For testing
     uint32_t GetAliveTimers(HTimerWorld timer_world)
     {
         assert(timer_world != 0x0);
 
         uint32_t alive_timers = 0u;
-        uint32_t size = timer_world->m_Timers.Size();
-        uint32_t i = 0;
-        while (i < size)
+        uint32_t size = timer_world->m_Instances.Size();
+        for (uint32_t i = 0; i < size; ++i)
         {
-            Timer& timer = timer_world->m_Timers[i];
-            if(timer.m_IsAlive == 1)
-            {
-                ++alive_timers;
-            }
-            ++i;
+            uint16_t index = timer_world->m_Instances[i]; // the pool indices
+            Timer* timer = GetTimerFromIndex(timer_world, index);
+
+            alive_timers += timer->m_IsAlive != 0 ? 1 : 0;
         }
         return alive_timers;
     }
@@ -419,7 +437,7 @@ namespace dmScript
         return timer_world;
     }
 
-    void TimerNewScriptWorld(HScriptWorld script_world)
+    static void TimerNewScriptWorld(HScriptWorld script_world)
     {
         assert(script_world != 0x0);
         HContext context = GetScriptWorldContext(script_world);
@@ -434,7 +452,7 @@ namespace dmScript
         SetScriptWorldContextValue(script_world);
     }
 
-    void TimerDeleteScriptWorld(HScriptWorld script_world)
+    static void TimerDeleteScriptWorld(HScriptWorld script_world)
     {
         assert(script_world != 0x0);
         HTimerWorld timer_world = GetTimerWorld(script_world);
@@ -445,7 +463,7 @@ namespace dmScript
         }
     }
 
-    void TimerUpdateScriptWorld(HScriptWorld script_world, float dt)
+    static void TimerUpdateScriptWorld(HScriptWorld script_world, float dt)
     {
         assert(script_world != 0x0);
         HTimerWorld timer_world = GetTimerWorld(script_world);
@@ -455,7 +473,7 @@ namespace dmScript
         }
     }
 
-    void TimerInitializeInstance(HScriptWorld script_world)
+    static void TimerInitializeScriptInstance(HScriptWorld script_world)
     {
         HContext context = GetScriptWorldContext(script_world);
         lua_State* L = GetLuaState(context);
@@ -467,7 +485,7 @@ namespace dmScript
         SetInstanceContextValue(L);
     }
 
-    void TimerFinalizeInstance(HScriptWorld script_world)
+    static void TimerFinalizeScriptInstance(HScriptWorld script_world)
     {
         HContext context = GetScriptWorldContext(script_world);
         lua_State* L = GetLuaState(context);
@@ -493,10 +511,12 @@ namespace dmScript
         LuaTimerCallbackArgs* args = (LuaTimerCallbackArgs*)user_context;
         lua_pushinteger(L, args->timer_handle);
         lua_pushnumber(L, args->time_elapsed);
+
     }
 
     static void LuaTimerCallback(HTimerWorld timer_world, TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
     {
+
         LuaCallbackInfo* callback = (LuaCallbackInfo*)userdata;
         if (!IsCallbackValid(callback))
         {
@@ -513,6 +533,9 @@ namespace dmScript
         if ((event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT) && IsCallbackValid(callback))
         {
             DestroyCallback(callback);
+
+            Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
+            timer->m_UserData = 0;
         }
     }
 
@@ -532,8 +555,19 @@ namespace dmScript
         return world;
     }
 
+    static dmScript::HTimerWorld CheckTimerWorld(lua_State* L)
+    {
+        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
+        if (timer_world == 0x0)
+        {
+            luaL_error(L, "Unable to trigger callback, the lua context does not have a timer world");
+            return 0;
+        }
+        return timer_world;
+    }
+
     /*# create a timer
-     * Adds a timer and returns a unique handle
+     * Adds a timer and returns a unique handle.
      *
      * You may create more timers from inside a timer callback.
      *
@@ -546,7 +580,7 @@ namespace dmScript
      *
      * @name timer.delay
      * @param delay [type:number] time interval in seconds
-     * @param repeat [type:boolean] true = repeat timer until cancel, false = one-shot timer
+     * @param repeating [type:boolean] true = repeat timer until cancel, false = one-shot timer
      * @param callback [type:function(self, handle, time_elapsed)] timer callback function
      *
      * `self`
@@ -558,7 +592,28 @@ namespace dmScript
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return [type:hash] handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return handle [type:number] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @examples
+     *
+     * A simple one-shot timer
+     * ```lua
+     * timer.delay(1, false, function() print("print in one second") end)
+     * ```
+     *
+     * Repetitive timer which canceled after 10 calls
+     * ```lua
+     * local function call_every_second(self, handle, time_elapsed)
+     *   self.counter = self.counter + 1
+     *   print("Call #", self.counter)
+     *   if self.counter == 10 then
+     *     timer.cancel(handle) -- cancel timer after 10 calls
+     *   end
+     * end
+     *
+     * self.counter = 0
+     * timer.delay(1, true, call_every_second)
+     * ```
+     *
      */
     static int TimerDelay(lua_State* L) {
         int top = lua_gettop(L);
@@ -573,14 +628,7 @@ namespace dmScript
         }
 
         bool repeat = lua_toboolean(L, 2);
-
-        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
-        if (timer_world == 0x0)
-        {
-            dmLogError("Unable to create a timer, the lua context does not have a timer world");
-            lua_pushnumber(L, dmScript::INVALID_TIMER_HANDLE);
-            return 1;
-        }
+        dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         uintptr_t owner = dmScript::GetInstanceId(L);
 
@@ -599,20 +647,26 @@ namespace dmScript
      * Cancelling a timer that is already executed or cancelled is safe.
      *
      * @name timer.cancel
-     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @param handle [type:number] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @examples
+     *
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second") end)
+     * ...
+     * local result = timer.cancel(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled")
+     * end
+     * ```
+     *
      */
     static int TimerCancel(lua_State* L)
     {
         int top = lua_gettop(L);
         const int handle = luaL_checkint(L, 1);
 
-        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
-        if (timer_world == 0x0)
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
+        dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         bool cancelled = dmScript::CancelTimer(timer_world, (dmScript::HTimer)handle);
         lua_pushboolean(L, cancelled ? 1 : 0);
@@ -625,50 +679,99 @@ namespace dmScript
      * Manual triggering a callback for a timer.
      *
      * @name timer.trigger
-     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @param handle [type:number] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @examples
+     *
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second or manually by timer.trigger") end)
+     * ...
+     * local result = timer.trigger(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled or complete")
+     * end
+     * ```
      */
     static int TimerTrigger(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
         const int timer_handle = luaL_checkint(L, 1);
-        
-        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
-        if (timer_world == 0x0)
-        {
-            dmLogError("Unable to trigger callback, the lua context does not have a timer world");
-            lua_pushboolean(L, 0);
-            return 1;
-        }
+        dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
-        uint16_t lookup_index = GetLookupIndex(timer_handle);
-        if (lookup_index >= timer_world->m_IndexLookup.Size())
+        Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
+        if (!timer)
         {
             lua_pushboolean(L, 0);
             return 1;
         }
 
-        uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
-        if (timer_index >= timer_world->m_Timers.Size())
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        Timer& timer = timer_world->m_Timers[timer_index];
-
-        LuaCallbackInfo* callback = (LuaCallbackInfo*)timer.m_UserData;
+        LuaCallbackInfo* callback = (LuaCallbackInfo*)timer->m_UserData;
         if (!IsCallbackValid(callback))
         {
             lua_pushboolean(L, 0);
             return 1;
         }
 
-        LuaTimerCallbackArgs args = { timer.m_Handle, timer.m_Delay - timer.m_Remaining };
+        LuaTimerCallbackArgs args = { timer->m_Handle, timer->m_Delay - timer->m_Remaining };
         InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
 
         lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    /*# get information about timer
+     *
+     * Get information about timer.
+     *
+     * @name  timer.get_info
+     * @param handle [type:number] the timer handle returned by timer.delay()
+     * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
+     *
+     * `time_remaining`
+     * : [type:number] Time remaining until the next time a timer.delay() fires.
+     *
+     * `delay`
+     * : [type:number] Time interval.
+     *
+     * `repeating`
+     * : [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     * @examples
+     *
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second") end)
+     * ...
+     * local result = timer.get_info(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled or complete")
+     * else
+     *    pprint(result) -- delay, time_remaining, repeating
+     * end
+     *
+     * ```
+     *
+     */
+    static int TimerGetInfo(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int timer_handle = luaL_checkint(L, 1);
+        dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
+
+        Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
+        if (!timer)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        lua_newtable(L);
+        lua_pushnumber(L,timer->m_Remaining);
+        lua_setfield(L, -2, "time_remaining");
+        lua_pushnumber(L,timer->m_Delay);
+        lua_setfield(L, -2, "delay");
+        lua_pushboolean(L,timer->m_Repeat==1);
+        lua_setfield(L, -2, "repeating");
         return 1;
     }
 
@@ -676,6 +779,7 @@ namespace dmScript
         { "delay", TimerDelay },
         { "cancel", TimerCancel },
         { "trigger", TimerTrigger},
+        { "get_info", TimerGetInfo},
         { 0, 0 }
     };
 
@@ -693,7 +797,7 @@ namespace dmScript
         /*# Indicates an invalid timer handle
          *
          * @name timer.INVALID_TIMER_HANDLE
-         * @variable
+         * @constant
          */
         SETCONSTANT(INVALID_TIMER_HANDLE);
 
@@ -708,8 +812,8 @@ namespace dmScript
         sl.DeleteScriptWorld = TimerDeleteScriptWorld;
         sl.UpdateScriptWorld = TimerUpdateScriptWorld;
         sl.FixedUpdateScriptWorld = 0;
-        sl.InitializeScriptInstance = TimerInitializeInstance;
-        sl.FinalizeScriptInstance = TimerFinalizeInstance;
+        sl.InitializeScriptInstance = TimerInitializeScriptInstance;
+        sl.FinalizeScriptInstance = TimerFinalizeScriptInstance;
         RegisterScriptExtension(context, &sl);
     }
 }

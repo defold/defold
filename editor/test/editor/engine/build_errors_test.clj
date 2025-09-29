@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,6 @@
             [editor.engine.build-errors :as build-errors]
             [editor.workspace :as workspace]
             [integration.test-util :as tu]
-            [support.test-support :as ts]
             [dynamo.graph :as g]))
 
 (defn- slurp-test-file
@@ -26,7 +25,7 @@
   (slurp (str "test/resources/native_extension_error_parsing/" name)))
 
 (defn- make-fake-file-resource [workspace proj-path text opts]
-  (let [root-dir (workspace/project-path workspace)]
+  (let [root-dir (workspace/project-directory workspace)]
     (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8") opts)))
 
 (defn- make-fake-empty-files

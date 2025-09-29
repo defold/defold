@@ -1,0 +1,93 @@
+name: Package Android SDKs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Build
+      run: |
+        ./scripts/package/package_android_sdk.sh linux
+        eval "$(python ./build_tools/set_sdk_vars.py ANDROID_TARGET_API_LEVEL ANDROID_BUILD_TOOLS_VERSION)"
+        echo "ANDROID_TARGET_API_LEVEL=$ANDROID_TARGET_API_LEVEL" >> $GITHUB_ENV
+        echo "ANDROID_BUILD_TOOLS_VERSION=$ANDROID_BUILD_TOOLS_VERSION" >> $GITHUB_ENV
+
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-sdk-linux-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+        path: |
+          ${{ github.workspace }}/local_sdks/android-sdk-linux-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
+
+  build-macos:
+    runs-on: macOS-14
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Install Rosetta if running on Apple Silicon
+      run: |
+        # Detect architecture
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "arm64" ]; then
+          echo "Running on Apple Silicon (arm64), installing Rosetta..."
+          
+          # Install Rosetta 2
+          softwareupdate --install-rosetta --agree-to-license
+          
+          echo "ROSETTA_INSTALLED=true" >> $GITHUB_ENV
+        else
+          echo "Running on Intel, no need to install Rosetta."
+        fi
+
+    - name: Install x86 Java JDK if running on Apple Silicon
+      if: env.ROSETTA_INSTALLED == 'true'
+      uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        architecture: 'x64'
+
+    - name: Build
+      run: |
+        ./scripts/package/package_android_sdk.sh darwin
+        eval $(python ./build_tools/set_sdk_vars.py  ANDROID_TARGET_API_LEVEL ANDROID_BUILD_TOOLS_VERSION)
+        echo "ANDROID_TARGET_API_LEVEL=$ANDROID_TARGET_API_LEVEL" >> $GITHUB_ENV
+        echo "ANDROID_BUILD_TOOLS_VERSION=$ANDROID_BUILD_TOOLS_VERSION" >> $GITHUB_ENV
+
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-sdk-darwin-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+        path: |
+          ${{ github.workspace }}/local_sdks/android-sdk-darwin-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
+
+  build-windows:
+    runs-on: windows-2025
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Install wget (for downloading dependencies)
+      run: |
+        choco install wget -y
+
+    - name: Build
+      shell: bash
+      run: |
+        ./scripts/package/package_android_sdk.sh win
+        eval "$(python ./build_tools/set_sdk_vars.py ANDROID_TARGET_API_LEVEL ANDROID_BUILD_TOOLS_VERSION)"
+        echo "ANDROID_TARGET_API_LEVEL=$ANDROID_TARGET_API_LEVEL" >> $GITHUB_ENV
+        echo "ANDROID_BUILD_TOOLS_VERSION=$ANDROID_BUILD_TOOLS_VERSION" >> $GITHUB_ENV
+
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-sdk-windows-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+        path: |
+          ${{ github.workspace }}/local_sdks/android-sdk-win-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz

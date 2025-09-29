@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGameObjectDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -18,7 +19,8 @@ enum PropertyType
     PROPERTY_TYPE_VECTOR4 = 4;
     PROPERTY_TYPE_QUAT = 5;
     PROPERTY_TYPE_BOOLEAN = 6;
-    PROPERTY_TYPE_COUNT = 7;
+    PROPERTY_TYPE_MATRIX4 = 7;
+    PROPERTY_TYPE_COUNT = 8;
 }
 
 message PropertyDesc
@@ -35,7 +37,8 @@ message ComponentDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     repeated PropertyDesc properties    = 5;
-    optional dmPropertiesDDF.PropertyDeclarations property_decls = 6;
+    optional dmPropertiesDDF.PropertyDeclarations property_decls = 6 [(runtime_only) = true];
+    optional dmMath.Vector3One scale    = 7;
 }
 
 message EmbeddedComponentDesc
@@ -45,20 +48,21 @@ message EmbeddedComponentDesc
     required string data = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
+    optional dmMath.Vector3One scale    = 6;
 }
 
 message PrototypeDesc
 {
     repeated ComponentDesc components = 1;
     repeated EmbeddedComponentDesc embedded_components = 2;
-    repeated string property_resources = 3 [(resource) = true];
+    repeated string property_resources = 3 [(runtime_only) = true, (resource) = true];
 }
 
 message ComponentPropertyDesc
 {
     required string id = 1;
     repeated PropertyDesc properties = 2;
-    optional dmPropertiesDDF.PropertyDeclarations property_decls = 3;
+    optional dmPropertiesDDF.PropertyDeclarations property_decls = 3 [(runtime_only) = true];
 }
 
 message ComponenTypeDesc
@@ -76,7 +80,7 @@ message InstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 8;
+    optional dmMath.Vector3One scale3   = 8;
 }
 
 message EmbeddedInstanceDesc
@@ -88,7 +92,7 @@ message EmbeddedInstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 8;
+    optional dmMath.Vector3One scale3   = 8;
 }
 
 message InstancePropertyDesc
@@ -104,7 +108,7 @@ message CollectionInstanceDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     optional float          scale       = 5 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 7;
+    optional dmMath.Vector3One scale3   = 7;
     repeated InstancePropertyDesc instance_properties = 6;
 }
 
@@ -113,10 +117,10 @@ message CollectionDesc
     required string                 name                    = 1;
     repeated InstanceDesc           instances               = 2;
     repeated CollectionInstanceDesc collection_instances    = 3;
-    optional uint32                 scale_along_z           = 4 [default = 0];
+    optional uint32                 scale_along_z           = 4 [default = 0]; // Deprecated
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
-    repeated string                 property_resources      = 6 [(resource)=true];
-    repeated ComponenTypeDesc       component_types         = 7;
+    repeated string                 property_resources      = 6 [(runtime_only) = true, (resource) = true];
+    repeated ComponenTypeDesc       component_types         = 7 [(runtime_only) = true];
 }
 
 /*# Game object API documentation
@@ -124,22 +128,23 @@ message CollectionDesc
  * @document
  * @name Game object
  * @namespace go
+ * @language Lua
  */
 
 /*# acquires the user input focus
  *
  * Post this message to a game object instance to make that instance acquire the user input focus.
  *
- * User input is distributed by the engine to every instance that has 
+ * User input is distributed by the engine to every instance that has
  * requested it. The last instance to request focus will receive it first.
  * This means that the scripts in the instance will have first-hand-chance
- * at reacting on user input, possibly consuming it (by returning 
+ * at reacting on user input, possibly consuming it (by returning
  * <code>true</code> from <code>on_input</code>) so that no other instances
  * can react on it. The most common case is for a script to send this message
  * to itself when it needs to respond to user input.
  *
  * A script belonging to an instance which has the user input focus will
- * receive the input actions in its <code>on_input</code> callback function. 
+ * receive the input actions in its <code>on_input</code> callback function.
  * See [ref:on_input] for more information on how user input can be
  * handled.
  *
@@ -181,78 +186,6 @@ message AcquireInputFocus {}
  * ```
  */
 message ReleaseInputFocus {}
-
-/* DEPRECATED. OMITTED FROM API DOCS.
- *
- * requests the transform from an instance
- * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
- * Send this message to an instance to request its transform (position, rotation, scale).
- * The sending script will receive the answer as a <code>transform_response</code>-message
- * at a later time.
- *
- * @message
- * @name request_transform
- * @examples
- * <p>
- * How to obtain the position of another game object instance:
- * </p>
- * <pre>
- * function init(self)
- *     -- create a url to the interesting instance for later use, assuming the instance has id "my_friend_instance"
- *     self.friend_url = msg.url("my_friend_instance")
- * end
- *
- * function update(self, dt)
- *     -- request the transform
- *     msg.post(self.friend_url, "request_transform")
- *     -- check if we have received the position yet
- *     if self.my_friends_position then
- *         -- do something useful with the position
- *     end
- * end
- *
- * function on_message(self, message_id, message, sender)
- *     -- check if its the transform response
- *     if message_id == hash("transform_response") then
- *         -- if it comes from the right instance (in case we send out several queries to different instances)
- *         if sender == self.friend_url then
- *             -- store the position so we can use it in the update-function
- *             self.my_friends_position = message.position
- *         end
- *     end
- * end
- * </pre>
- */
-message RequestTransform {}
-
-/* DEPRECATED. OMITTED FROM API DOCS.
- *
- * reports back the transform of an instance
- * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
- * The response a script receives after it has requested the transform from an instance
- * using the <code>request_transform</code>-message. See the description of that message
- * for a complete example on how to use it.
- *
- * @message
- * @name transform_response
- * @param position local position of the instance (vector3)
- * @param rotation local rotation of the instance (quaternion)
- * @param scale local scale of the instance (number)
- * @param world_position world position of the instance (vector3)
- * @param world_rotation world rotation of the instancee (quaternion)
- * @param world_scale world scale of the instance (number)
- */
-message TransformResponse
-{
-    required dmMath.Point3  position        = 1;
-    required dmMath.Quat    rotation        = 2;
-    required dmMath.Point3  world_position  = 3;
-    required dmMath.Quat    world_rotation  = 4;
-    optional float          scale           = 5 [default = 1.0];
-    optional dmMath.Vector3 scale3          = 7;
-    optional float          world_scale     = 6 [default = 1.0];
-    optional dmMath.Vector3 world_scale3    = 8;
-}
 
 /*# sets the parent of the receiving instance
  * When this message is sent to an instance, it sets the parent of that instance. This means that the instance will exist
@@ -297,6 +230,7 @@ message SetParent
  *
  * [icon:alert] Components that currently supports this message are:
  *
+ * - Camera
  * - Collection Proxy
  * - Collision Object
  * - Gui
@@ -328,6 +262,7 @@ message Enable
  *
  * [icon:alert] Components that currently supports this message are:
  *
+ * - Camera
  * - Collection Proxy
  * - Collision Object
  * - Gui
@@ -353,11 +288,17 @@ message Disable
 }
 
 
-// Script message wrapper for added typesafety
+// Internal engine script message wrapper for added typesafety
 message ScriptMessage
 {
     required uint64 descriptor_hash     = 1; // The descriptor name hash of the message
     required uint32 payload_size        = 2; // The payload ddf message. The payload will begin directly after this message
     optional uint32 function            = 3; // If 0, it will call the "on_message" function
     optional bool   unref_function      = 4; // unreference function after call
+}
+
+// Internal engine message for removing script references (typically used for callbacks)
+message ScriptUnrefMessage
+{
+    required uint32 reference = 1;
 }

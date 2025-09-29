@@ -1,30 +1,31 @@
 import os
 from waf_dynamo import dmsdk_add_files
 
-def set_options(opt):
+def options(opt):
     pass
 
 def configure(conf):
-    conf.sub_config('gamesys')
+    conf.recurse('gamesys')
 
 def build(bld):
-    bld.add_subdirs('gamesys')
+    bld.recurse('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     if 'android' in bld.env['PLATFORM']:
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = [bld.env.ANDROID_JAR]
         classpath = os.pathsep.join(classpath)
 
-        bld.new_task_gen(features='javac seq',
-                         classpath=classpath,
-                         source_root='java')
+        bld(features='javac seq',
+            classpath=classpath,
+            outdir='java',
+            source_root='java')
 
-        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
+        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
 
-        bld.new_task_gen(features='jar seq',
-                         basedir='java',
-                         destfile='gamesys_android.jar')
+        bld(features='jar seq',
+            basedir='java',
+            destfile='gamesys_android.jar')
 
         bld.install_files('${PREFIX}/share/java', 'gamesys_android.jar')

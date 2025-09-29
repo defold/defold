@@ -1,8 +1,0 @@
-set -e
-echo '#ifndef GL_ES' > $2
-echo '#define lowp' >> $2
-echo '#define mediump' >> $2
-echo '#define highp' >> $2
-echo '#endif' >> $2
-cat $1 >> $2
-cgc -q -oglsl -profile arbvp1 $2 >/dev/null

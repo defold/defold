@@ -1,0 +1,273 @@
+diff --git a/include/GLFW/glfw3.h b/include/GLFW/glfw3.h
+index 9c55ac9..799edfa 100644
+--- a/include/GLFW/glfw3.h
++++ b/include/GLFW/glfw3.h
+@@ -6511,6 +6511,11 @@ GLFWAPI VkResult glfwCreateWindowSurface(VkInstance instance, GLFWwindow* window
+ 
+ #endif /*VK_VERSION_1_0*/
+ 
++// DEFOLD CHANGE BEGIN
++typedef void (* GLFWwindowmarkedtextfun)(GLFWwindow* window, char* str);
++GLFWAPI GLFWwindowmarkedtextfun glfwSetMarkedTextCallback(GLFWwindow* window, GLFWwindowmarkedtextfun callback);
++// DEFOLD CHANGE END
++
+ 
+ /*************************************************************************
+  * Global definition cleanup
+diff --git a/src/cocoa_init.m b/src/cocoa_init.m
+index e75a551..b05b18b 100644
+--- a/src/cocoa_init.m
++++ b/src/cocoa_init.m
+@@ -448,6 +448,17 @@ static GLFWbool initializeTIS(void)
+         _glfwRestoreVideoModeCocoa(_glfw.monitors[i]);
+ }
+ 
++// DEFOLD CHANGE BEGIN
++
++// macos 12+
++// https://sector7.computest.nl/post/2022-08-process-injection-breaking-all-macos-security-layers-with-a-single-vulnerability/
++- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
++{
++    return YES;
++}
++
++// DEFOLD CHANGE END
++
+ @end // GLFWApplicationDelegate
+ 
+ 
+diff --git a/src/cocoa_window.m b/src/cocoa_window.m
+index 0dcf0a3..0a9ed4d 100644
+--- a/src/cocoa_window.m
++++ b/src/cocoa_window.m
+@@ -676,11 +676,18 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
+         markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
+     else
+         markedText = [[NSMutableAttributedString alloc] initWithString:string];
++
++    // DEFOLD CHANGE BEGIN
++    _glfwSetMarkedText(window, (char*)[[markedText string] UTF8String]);
++    // DEFOLD CHANGE END
+ }
+ 
+ - (void)unmarkText
+ {
+     [[markedText mutableString] setString:@""];
++    // DEFOLD CHANGE BEGIN
++    _glfwSetMarkedText(window, "");
++    // DEFOLD CHANGE END
+ }
+ 
+ - (NSArray*)validAttributesForMarkedText
+diff --git a/src/internal.h b/src/internal.h
+index 8873359..7fd47bc 100644
+--- a/src/internal.h
++++ b/src/internal.h
+@@ -571,6 +571,10 @@ struct _GLFWwindow
+         GLFWcharfun               character;
+         GLFWcharmodsfun           charmods;
+         GLFWdropfun               drop;
++
++        // DEFOLD CHANGE BEGIN
++        GLFWwindowmarkedtextfun markedText;
++        // DEFOLD CHANGE END
+     } callbacks;
+ 
+     // This is defined in platform.h
+@@ -941,6 +945,10 @@ void _glfwInputError(int code, const char* format, ...)
+ void _glfwInputError(int code, const char* format, ...);
+ #endif
+ 
++// DEFOLD CHANGE BEGIN
++void _glfwSetMarkedText(_GLFWwindow* window, char* str);
++// DEFOLD CHANGE END
++
+ 
+ //////////////////////////////////////////////////////////////////////////
+ //////                       GLFW internal API                      //////
+diff --git a/src/win32_init.c b/src/win32_init.c
+index 824e383..610f7ea 100644
+--- a/src/win32_init.c
++++ b/src/win32_init.c
+@@ -167,6 +167,28 @@ static GLFWbool loadLibraries(void)
+             _glfwPlatformGetModuleSymbol(_glfw.win32.ntdll.instance, "RtlVerifyVersionInfo");
+     }
+ 
++    // DEFOLD CHANGE BEGIN
++    _glfw.win32.imm32.instance = _glfwPlatformLoadModule("imm32.dll");
++    if (_glfw.win32.imm32.instance)
++    {
++        _glfw.win32.imm32.ImmGetContext = (IMMGETCONTEXT_T)
++            _glfwPlatformGetModuleSymbol(_glfw.win32.imm32.instance, "ImmGetContext");
++        _glfw.win32.imm32.ImmReleaseContext = (IMMRELEASECONTEXT_T)
++            _glfwPlatformGetModuleSymbol(_glfw.win32.imm32.instance, "ImmReleaseContext");
++        _glfw.win32.imm32.ImmGetCompositionStringW = (IMMGETCOMPOSITIONSTRING_T)
++            _glfwPlatformGetModuleSymbol(_glfw.win32.imm32.instance, "ImmGetCompositionStringW");
++
++        if( _glfw.win32.imm32.ImmGetContext             == NULL ||
++            _glfw.win32.imm32.ImmReleaseContext         == NULL ||
++            _glfw.win32.imm32.ImmGetCompositionStringW  == NULL )
++        {
++            _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,"Win32: Failed to load imm32.dll");
++            return GLFW_FALSE;
++        }
++    }
++
++    // DEFOLD CHANGE END
++
+     return GLFW_TRUE;
+ }
+ 
+@@ -191,6 +213,11 @@ static void freeLibraries(void)
+ 
+     if (_glfw.win32.ntdll.instance)
+         _glfwPlatformFreeModule(_glfw.win32.ntdll.instance);
++
++    // DEFOLD CHANGE BEGIN
++    if (_glfw.win32.imm32.instance)
++        _glfwPlatformFreeModule(_glfw.win32.imm32.instance);
++    // DEFOLD CHANGE END
+ }
+ 
+ // Create key code translation tables
+diff --git a/src/win32_platform.h b/src/win32_platform.h
+index 7e3d884..e317646 100644
+--- a/src/win32_platform.h
++++ b/src/win32_platform.h
+@@ -316,6 +316,17 @@ typedef HRESULT (WINAPI * PFN_GetDpiForMonitor)(HMONITOR,MONITOR_DPI_TYPE,UINT*,
+ typedef LONG (WINAPI * PFN_RtlVerifyVersionInfo)(OSVERSIONINFOEXW*,ULONG,ULONGLONG);
+ #define RtlVerifyVersionInfo _glfw.win32.ntdll.RtlVerifyVersionInfo_
+ 
++// DEFOLD CHANGE BEGIN
++// imm32.dll function pointer typedefs
++typedef HIMC (WINAPI * IMMGETCONTEXT_T) (HWND);
++typedef BOOL (WINAPI * IMMRELEASECONTEXT_T) (HWND, HIMC);
++typedef BOOL (WINAPI * IMMGETCOMPOSITIONSTRING_T) (HIMC, DWORD, LPVOID, DWORD);
++
++#define _glfw_ImmGetContext             _glfw.win32.imm32.ImmGetContext
++#define _glfw_ImmReleaseContext         _glfw.win32.imm32.ImmReleaseContext
++#define _glfw_ImmGetCompositionString   _glfw.win32.imm32.ImmGetCompositionStringW
++// DEFOLD CHANGE END
++
+ // WGL extension pointer typedefs
+ typedef BOOL (WINAPI * PFNWGLSWAPINTERVALEXTPROC)(int);
+ typedef BOOL (WINAPI * PFNWGLGETPIXELFORMATATTRIBIVARBPROC)(HDC,int,int,UINT,const int*,int*);
+@@ -502,6 +513,18 @@ typedef struct _GLFWlibraryWin32
+         HINSTANCE                       instance;
+         PFN_RtlVerifyVersionInfo        RtlVerifyVersionInfo_;
+     } ntdll;
++
++    // DEFOLD CHANGE BEGIN
++
++    struct {
++        HINSTANCE                 instance;
++        IMMGETCONTEXT_T           ImmGetContext;
++        IMMRELEASECONTEXT_T       ImmReleaseContext;
++        IMMGETCOMPOSITIONSTRING_T ImmGetCompositionStringW;
++    } imm32;
++
++    // DEFOLD CHANGE END
++
+ } _GLFWlibraryWin32;
+ 
+ // Win32-specific per-monitor data
+diff --git a/src/win32_window.c b/src/win32_window.c
+index e6a9496..0fc24b2 100644
+--- a/src/win32_window.c
++++ b/src/win32_window.c
+@@ -703,6 +703,68 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
+             return 0;
+         }
+ 
++        // DEFOLD CHANGE BEGIN
++
++        case WM_IME_ENDCOMPOSITION:
++        {
++            _glfwSetMarkedText(window, "");
++            break;
++        }
++
++        case WM_IME_COMPOSITION:
++        {
++            HIMC hIMC = _glfw_ImmGetContext(hWnd);
++            if (hIMC)
++            {
++                if (lParam & GCS_COMPSTR)
++                {
++                    LONG nSize = _glfw_ImmGetCompositionString(hIMC, GCS_COMPSTR, NULL, 0);
++                    if (nSize)
++                    {
++                        LPWSTR psz = (LPWSTR)LocalAlloc(LPTR, nSize + sizeof(WCHAR));
++                        if (psz)
++                        {
++                            _glfw_ImmGetCompositionString(hIMC, GCS_COMPSTR, psz, nSize);
++
++                            char* markedText = _glfwCreateUTF8FromWideStringWin32(psz);
++                            if (markedText)
++                            {
++                                _glfwSetMarkedText(window, markedText);
++                                free(markedText);
++                            }
++                            LocalFree(psz);
++                        }
++                    }
++                }
++
++                if (lParam & GCS_RESULTSTR)
++                {
++                    LONG nSize = _glfw_ImmGetCompositionString(hIMC, GCS_RESULTSTR, NULL, 0);
++                    if (nSize)
++                    {
++                        LPWSTR psz = (LPWSTR)LocalAlloc(LPTR, nSize + sizeof(WCHAR));
++                        if (psz)
++                        {
++                            _glfw_ImmGetCompositionString(hIMC, GCS_RESULTSTR, psz, nSize);
++
++                            char* markedText = _glfwCreateUTF8FromWideStringWin32(psz);
++                            if (markedText)
++                            {
++                                _glfwSetMarkedText(window, markedText);
++                                free(markedText);
++                            }
++                            LocalFree(psz);
++                        }
++                    }
++                }
++
++                _glfw_ImmReleaseContext(hWnd, hIMC);
++            }
++            break;
++        }
++
++        // DEFOLD CHANGE END
++
+         case WM_KEYDOWN:
+         case WM_SYSKEYDOWN:
+         case WM_KEYUP:
+diff --git a/src/window.c b/src/window.c
+index 1463d16..d0031e6 100644
+--- a/src/window.c
++++ b/src/window.c
+@@ -1170,3 +1170,22 @@ GLFWAPI void glfwPostEmptyEvent(void)
+     _glfw.platform.postEmptyEvent();
+ }
+ 
++// DEFOLD CHANGE BEGIN
++void _glfwSetMarkedText(_GLFWwindow* window, char* str)
++{
++    if (window->callbacks.markedText)
++        window->callbacks.markedText((GLFWwindow*) window, str);
++}
++
++GLFWAPI GLFWwindowmarkedtextfun glfwSetMarkedTextCallback(GLFWwindow* handle,
++                                                          GLFWwindowmarkedtextfun cbfun)
++{
++    _GLFWwindow* window = (_GLFWwindow*) handle;
++    assert(window != NULL);
++
++    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
++    _GLFW_SWAP(GLFWwindowmarkedtextfun, window->callbacks.markedText, cbfun);
++    return cbfun;
++}
++
++// DEFOLD CHANGE END

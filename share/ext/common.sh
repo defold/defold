@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,28 +18,67 @@ set -e
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-# config
-IOS_SDK_VERSION=15.2
-IOS_SIMULATOR_SDK_VERSION=15.2
-IOS_MIN_SDK_VERSION=8.0
+eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
-OSX_MIN_SDK_VERSION=10.7
-OSX_SDK_VERSION=12.1
-XCODE_VERSION=13.2.1
+# config
+IOS_SDK_VERSION=$VERSION_IPHONEOS
+IOS_SIMULATOR_SDK_VERSION=$VERSION_IPHONESIMULATOR
+IOS_MIN_SDK_VERSION=$VERSION_IPHONEOS_MIN
+
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
+OSX_SDK_VERSION=$VERSION_MACOSX
+XCODE_VERSION=$VERSION_XCODE
 
 OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
 DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
 
-ANDROID_NDK_VERSION=20
-ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
+EMSCRIPTEN_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/${PACKAGES_EMSCRIPTEN_SDK}
+export EMSCRIPTEN_BIN_DIR=${EMSCRIPTEN_SDK_ROOT}/upstream/emscripten
+export EM_CACHE=${EMSCRIPTEN_SDK_ROOT}/.defold_cache
+export EM_CONFIG=${EMSCRIPTEN_SDK_ROOT}/.emscripten
 
-ANDROID_VERSION=16 # Android 4.1
-ANDROID_GCC_VERSION='4.9'
+readonly HOST_UNAME=$(uname)
+readonly HOST_ARCH=$(arch)
 
+HOST_PLATFORM=${HOST_UNAME}
+if [ "Darwin" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-macos"
+    if [ "arm64" == "${HOST_ARCH}" ]; then
+        HOST_PLATFORM="arm64-macos"
+    fi
+fi
+# if [ "Linux" == "${HOST_PLATFORM}" ]; then
+
+# fi
+
+if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
+    echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"
+    exit 1
+fi
+
+
+if [ "Darwin" == "$(uname)" ]; then
+    if [ ! -d "${DARWIN_TOOLCHAIN_ROOT}" ]; then
+        DARWIN_TOOLCHAIN_ROOT=$(xcode-select -print-path)/Toolchains/XcodeDefault.xctoolchain
+    fi
+    if [ ! -d "${OSX_SDK_ROOT}" ]; then
+        OSX_SDK_ROOT=$(xcrun -f --sdk macosx --show-sdk-path)
+    fi
+    if [ ! -d "${IOS_SDK_ROOT}" ]; then
+        IOS_SDK_ROOT=$(xcrun -f --sdk iphoneos --show-sdk-path)
+    fi
+    if [ ! -d "${IOS_SIMULATOR_SDK_ROOT}" ]; then
+        IOS_SIMULATOR_SDK_ROOT=$(xcrun -f --sdk iphonesimulator --show-sdk-path)
+    fi
+fi
+
+ANDROID_NDK_VERSION=25b
+ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT:-"${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"}
+
+ANDROID_VERSION=19 # Android 4.4
 ANDROID_64_VERSION=21 # Android 5.0
-ANDROID_64_GCC_VERSION='4.9'
 
 MAKEFILE=Makefile
 MAKEFILE_ARGS=
@@ -134,7 +173,7 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
+    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
@@ -238,12 +277,9 @@ function cmi_setup_vs2019_env() {
     export PATH="$TMPPATH${PATHSEP}${PATH}"
 }
 
-function cmi() {
-    export PREFIX=`pwd`/build
-    export PLATFORM=$1
-
+function cmi_setup_cc() {
     case $1 in
-        arm64-darwin)
+        arm64-ios)
             [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
@@ -252,7 +288,7 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot ${IOS_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
+            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -260,7 +296,6 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-darwin
             ;;
 
         x86_64-ios)
@@ -272,7 +307,7 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
+            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -280,104 +315,113 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 x86_64-ios
             ;;
 
          armv7-android)
             local platform=`uname | awk '{print tolower($0)}'`
-            local bin="${ANDROID_NDK_ROOT}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
             local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
             #  -fstack-protector
 
             # Note: no-c++11-narrowing is added for the upgrade from NDK 10e to 20. Clang is much more vigilant than gcc,
             #       so to save time by not having to patch bullet (and others presumably) we skip narrowing.
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID "
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -Wno-c++11-narrowing -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
             export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
             export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
-            export AR=${bin}/arm-linux-androideabi-ar
-            export AS=${bin}/arm-linux-androideabi-as
-            export LD=${bin}/arm-linux-androideabi-ld
-            export RANLIB=${bin}/arm-linux-androideabi-ranlib
-            cmi_cross $1 arm-linux
+
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
             ;;
 
         arm64-android)
             local platform=`uname | awk '{print tolower($0)}'`
-            local bin="${ANDROID_NDK_ROOT}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
             local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
 
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID "
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -Wno-c++11-narrowing -stdlib=libc++ ${CFLAGS}"
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
-            export AR=${bin}/aarch64-linux-android-ar
-            export AS=${bin}/aarch64-linux-android-as
-            export LD=${bin}/aarch64-linux-android-ld
-            export RANLIB=${bin}/aarch64-linux-android-ranlib
-            cmi_cross $1 arm-linux
+
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
             ;;
 
-        darwin)
+        x86_64-macos)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
-            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
-            export LDFLAGS="-m32"
-            cmi_buildplatform $1
-            ;;
-
-        x86_64-darwin)
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} "
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
-            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export CPP="arch -x86_64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC="arch -x86_64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
+            export CXX="arch -x86_64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++"
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-
-            cmi_buildplatform $1
             ;;
 
-        linux)
-            export CPPFLAGS="-m32 -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
-            export CFLAGS="${CFLAGS} -m32 -fPIC"
-            export LDFLAGS="-m32"
-            cmi_buildplatform $1
+        arm64-macos)
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export SDKROOT="${OSX_SDK_ROOT}"
+            export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -arch arm64 -target arm64-apple-darwin19 -m64 "
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -arch arm64 -target arm64-apple-darwin19 -m64 -stdlib=libc++ "
+            export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
+            export CXX="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++"
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
+
 
         x86_64-linux)
-            export CFLAGS="${CFLAGS} -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -fPIC"
-            export CPPFLAGS="${CPPFLAGS} -fPIC"
-            cmi_buildplatform $1
+            export CFLAGS="${CFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
+            ;;
+
+        arm64-linux)
+            export CFLAGS="${CFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
             ;;
 
         win32)
-            cmi_buildplatform $1
             ;;
 
         x86_64-win32)
-            cmi_buildplatform $1
             ;;
 
         i586-mingw32msvc)
@@ -386,31 +430,61 @@ function cmi() {
             export CXX=i586-mingw32msvc-g++
             export AR=i586-mingw32msvc-ar
             export RANLIB=i586-mingw32msvc-ranlib
-            cmi_cross $1 $1
             ;;
 
-        js-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
+        js-web|wasm-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
             export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
             export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
-            cmi_cross $1 $1
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
             ;;
 
-        wasm-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
-            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
-            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
-            cmi_cross $1 $1
+        wasm_pthread-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
+            export CC=${EMSCRIPTEN_BIN_DIR}/emcc
+            export CXX=${EMSCRIPTEN_BIN_DIR}/em++
+            export AR=${EMSCRIPTEN_BIN_DIR}/emar
+            export LD=${EMSCRIPTEN_BIN_DIR}/em++
+            export RANLIB=${EMSCRIPTEN_BIN_DIR}/emranlib
+            export CFLAGS="${CFLAGS} -fPIC -fno-exceptions -pthread"
+            export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions -pthread"
+            export CMAKE_TOOLCHAIN_FILE="${EMSCRIPTEN_BIN_DIR}/cmake/Modules/Platform/Emscripten.cmake"
+            ;;
+
+        *)
+            if [ -f "$SCRIPTDIR/common_private.sh" ]; then
+                source $SCRIPTDIR/common_private.sh
+                cmi_setup_cc_private $@
+            else
+                echo "Unknown target $1" && exit 1
+            fi
+            ;;
+    esac
+}
+
+function cmi() {
+    export PREFIX=`pwd`/build
+    export PLATFORM=$1
+
+    cmi_setup_cc $1
+
+    case $1 in
+        armv7-android|arm64-android)
+            cmi_cross $1 arm-linux
+            ;;
+
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web|wasm_pthread-web)
+            cmi_cross $1 arm-ios
+            ;;
+
+        # desktop
+        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
+            cmi_buildplatform $1
             ;;
 
         *)

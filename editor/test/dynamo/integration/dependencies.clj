@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 (ns dynamo.integration.dependencies
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system tx-nodes graph-dependencies]]
             [schema.core :as s]))
 
@@ -33,8 +34,8 @@
     (with-clean-system
       (let [[node-id] (tx-nodes (g/make-node world ChainedOutputNode))]
         (is (= "cake" (g/node-value node-id :c-output)))
-        (are [label expected-dependencies] (= (set (map (fn [l] [node-id l]) expected-dependencies))
-                                              (graph-dependencies [[node-id label]]))
+        (are [label expected-dependencies] (= (set (map (fn [l] (gt/endpoint node-id l)) expected-dependencies))
+                                              (graph-dependencies [(gt/endpoint node-id label)]))
           :c-output  [:c-output]
           :b-output  [:b-output :c-output]
           :a-output  [:a-output :b-output :c-output]
@@ -46,10 +47,10 @@
                                           (g/make-node world GladosNode))]
         (g/transact
          (g/connect anode-id :c-output gnode-id :encouragement))
-        (is (= #{[anode-id :c-output]
-                 [anode-id :b-output]
-                 [gnode-id :cake-output]}
-               (graph-dependencies [[anode-id :b-output]])))))))
+        (is (= #{(gt/endpoint anode-id :c-output)
+                 (gt/endpoint anode-id :b-output)
+                 (gt/endpoint gnode-id :cake-output)}
+               (graph-dependencies [(gt/endpoint anode-id :b-output)])))))))
 
 (defn- find-node [self path]
   (let [graph (g/node-id->graph-id self)

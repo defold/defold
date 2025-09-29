@@ -1,0 +1,78 @@
+pages {
+  name: "skin2.png"
+  size {
+    width: 64.0
+    height: 64.0
+  }
+  sprites {
+    name: "triangle_fill_64"
+    trimmed: false
+    rotated: false
+    is_solid: false
+    untrimmed_size {
+      width: 64.0
+      height: 64.0
+    }
+    corner_offset {
+      x: 0.0
+      y: 0.0
+    }
+    source_rect {
+      x: 0.0
+      y: 0.0
+      width: 64.0
+      height: 64.0
+    }
+    frame_rect {
+      x: 0.0
+      y: 0.0
+      width: 64.0
+      height: 64.0
+    }
+    vertices {
+      x: 64.0
+      y: 58.0
+    }
+    vertices {
+      x: 64.0
+      y: 64.0
+    }
+    vertices {
+      x: 0.0
+      y: 64.0
+    }
+    vertices {
+      x: 0.0
+      y: 57.0
+    }
+    vertices {
+      x: 28.0
+      y: 1.0
+    }
+    vertices {
+      x: 29.0
+      y: 0.0
+    }
+    vertices {
+      x: 35.0
+      y: 0.0
+    }
+    indices: 4
+    indices: 5
+    indices: 6
+    indices: 0
+    indices: 4
+    indices: 6
+    indices: 2
+    indices: 0
+    indices: 1
+    indices: 2
+    indices: 3
+    indices: 0
+    indices: 0
+    indices: 3
+    indices: 4
+  }
+}
+version: "1.0"
+description: "Exported using TexturePacker"

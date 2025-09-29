@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmSystemDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -14,6 +15,7 @@ option java_outer_classname = "System";
  * @document
  * @name System
  * @namespace sys
+ * @language Lua
  */
 
 /*# exits application
@@ -168,7 +170,7 @@ message StopRecord
  *
  * ```lua
  * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
- * local arg2 = 'build/default/game.projectc'
+ * local arg2 = 'build/game.projectc'
  * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
  * ```
  */
@@ -200,7 +202,7 @@ message Reboot
  *
  * @message
  * @name set_vsync
- * @param swap_interval target swap interval.
+ * @param swap_interval [type:number] target swap interval.
  * @examples
  * <pre>
  * msg.post("@system:", "set_vsync", { swap_interval = 1 } )
@@ -222,7 +224,7 @@ message SetVsync
  *
  * @message
  * @name set_update_frequency
- * @param frequency target frequency. 60 for 60 fps
+ * @param frequency [type:number] target frequency. 60 for 60 fps
  * @examples
  * <pre>
  * msg.post("@system:", "set_update_frequency", { frequency = 60 } )
@@ -231,4 +233,19 @@ message SetVsync
 message SetUpdateFrequency
 {
     required int32 frequency = 1;
+}
+
+/*# resume rendering
+ * Resume rendering.
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name resume_rendering
+ * @examples
+ * <pre>
+ * msg.post("@system:", "resume_rendering")
+ * </pre>
+ */
+message ResumeRendering
+{
 }

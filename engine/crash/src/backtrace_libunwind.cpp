@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,9 +37,6 @@ namespace dmCrash
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
-    // This array contains the default behavior for each signal.
-    static struct sigaction sigdfl[SIGNAL_MAX];
-
     void EnableHandler(bool enable)
     {
         g_CrashDumpEnabled = enable;
@@ -59,8 +56,10 @@ namespace dmCrash
         fflush(stdout);
         fflush(stderr);
 
-        g_AppState.m_Signum = signo;
-        g_AppState.m_PtrCount = 0;
+        AppState* state = GetAppState();
+
+        state->m_Signum = signo;
+        state->m_PtrCount = 0;
 
 #ifdef ANDROID
         int umw_map_ret = unw_map_local_create();
@@ -73,7 +72,7 @@ namespace dmCrash
 
         uint32_t stack_index = 0;
         uint32_t offset_extra = 0; // How much we've written to the extra field
-        while (unw_step(&cursor) > 0 && g_AppState.m_PtrCount < AppState::PTRS_MAX)
+        while (unw_step(&cursor) > 0 && state->m_PtrCount < AppState::PTRS_MAX)
         {
             unw_word_t offset, pc = 0;
             unw_get_reg(&cursor, UNW_REG_IP, &pc);
@@ -85,8 +84,8 @@ namespace dmCrash
             // Store stack pointers as absolute values.
             // They can be turned into offsets using `crash.get_modules`, but we also store
             // them as offsets (if available) inside the extras field for convenience.
-            g_AppState.m_Ptr[g_AppState.m_PtrCount] = (void*)(uintptr_t)pc;
-            g_AppState.m_PtrCount++;
+            state->m_Ptr[state->m_PtrCount] = (void*)(uintptr_t)pc;
+            state->m_PtrCount++;
 
             // Figure out the relative pc within the dylib
             // Currently only available on Android due to unw_map_* functions being
@@ -112,14 +111,14 @@ namespace dmCrash
             const char* best_match_name = 0x0;
             for (uint32_t i=0; i < AppState::MODULES_MAX; i++)
             {
-                void* addr = g_AppState.m_ModuleAddr[i];
+                void* addr = state->m_ModuleAddr[i];
                 if (!addr)
                 {
                     break;
                 }
                 if ((void*)pc >= addr) {
                     best_match_addr = addr;
-                    best_match_name = g_AppState.m_ModuleName[i];
+                    best_match_name = state->m_ModuleName[i];
                 }
             }
             if (best_match_addr && best_match_name) {
@@ -163,8 +162,8 @@ namespace dmCrash
             int extra_len = strlen(extra);
             if ((offset_extra + extra_len) < (dmCrash::AppState::EXTRA_MAX - 1))
             {
-                memcpy(g_AppState.m_Extra + offset_extra, extra, extra_len);
-                g_AppState.m_Extra[offset_extra + extra_len] = '\n';
+                memcpy(state->m_Extra + offset_extra, extra, extra_len);
+                state->m_Extra[offset_extra + extra_len] = '\n';
                 offset_extra += extra_len + 1;
             }
             else
@@ -180,15 +179,15 @@ namespace dmCrash
 
         if (g_CrashExtraInfoCallback)
         {
-            int extra_len = strlen(g_AppState.m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            int extra_len = strlen(state->m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), GetAppState());
 
         bool is_debug_mode = dLib::IsDebugMode();
         dLib::SetDebugMode(true);
-        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
+        dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
         dLib::SetDebugMode(is_debug_mode);
     }
 
@@ -197,12 +196,22 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
+    static void ResetToDefaultHandler(const int signum)
+    {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_handler = SIG_DFL;
+        sa.sa_flags = 0;
+        sigaction(signum, &sa, NULL);
+    }
+
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        // The previous (default) behavior is restored for the signal.
+        // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        sigaction(signum, &sigdfl[signum], NULL);
+        ResetToDefaultHandler(signum);
         OnCrash(signum);
     }
 
@@ -215,9 +224,8 @@ namespace dmCrash
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
-
-        // The current (default) behavior is stored in sigdfl.
-        sigaction(signum, &sa, &sigdfl[signum]);
+        
+        sigaction(signum, &sa, NULL);
     }
 
     void SetCrashFilename(const char*)

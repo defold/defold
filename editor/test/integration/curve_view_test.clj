@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,8 +22,8 @@
             [editor.scene-selection :as selection]
             [editor.types :as types]
             [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d]
-           [editor.curve_view SubSelectionProvider]))
+  (:import [editor.curve_view SubSelectionProvider]
+           [javax.vecmath Point3d]))
 
 (defn- world->screen [view x y]
   (let [world-p (Point3d. x y 0.0)
@@ -108,44 +108,55 @@
   (test-util/with-loaded-project
     (let [curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
-          emitter (:node-id (test-util/outline node-id [0]))]
+          emitter (:node-id (test-util/outline node-id [0]))
+          original-curve (g/node-value emitter :particle-key-alpha)]
       (app-view/select! app-view [emitter])
       (mouse-move! curve-view -100.0 -100.0)
       (mouse-move! curve-view 0.0 0.0)
       (mouse-drag! curve-view 0.0 0.0 0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ;; X limit for first control point
       (mouse-drag! curve-view 0.0 0.1 0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       (mouse-drag! curve-view 0.0 0.1 -0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ;; Box selection
       (mouse-drag! curve-view -1.0 -1.0 0.2 1.0)
       ;; Multi-selection movement
       (mouse-drag! curve-view 0.0 0.1 0.0 0.2)
       (is (cp? [0.00 0.20] (cp emitter :particle-key-alpha 1)))
       (is (cp? [0.11 1.09] (cp emitter :particle-key-alpha 2)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ;; X limit for second control point
       (mouse-drag! curve-view 0.11 1.09 -0.1 1.09)
       (is (< (first (cp emitter :particle-key-alpha 1))
-             (first (cp emitter :particle-key-alpha 2)))))))
+             (first (cp emitter :particle-key-alpha 2))))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
 
 (deftest add-delete-control-point
   (test-util/with-loaded-project
     (let [curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))
-          context (handler/->context :curve-view {} (SubSelectionProvider. app-view))]
+          context (handler/->context :curve-view {} (SubSelectionProvider. app-view))
+          original-curve (g/node-value emitter :particle-key-alpha)]
       (app-view/select! app-view [emitter])
       ; First control point can't be deleted
       (mouse-dbl-click! curve-view 0.0 0.0)
       (is (cp? [0.0 0.0] (cp emitter :particle-key-alpha 1)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ; But second can
       (mouse-dbl-click! curve-view 0.05 0.5)
       (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       (mouse-dbl-click! curve-view 0.05 0.62)
       (is (nil? (cp emitter :particle-key-alpha 9)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
-      (test-util/handler-run :delete [context] {})
-      (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6))))))
+      (test-util/handler-run :edit.delete [context] {})
+      (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))

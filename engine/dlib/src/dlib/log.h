@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -45,7 +45,9 @@ struct LogMessage
         SHUTDOWN = 1,
     };
 
-    uint8_t m_Type;
+    uint8_t m_Type:2;
+    uint8_t m_Severity:6;
+    char    m_Domain[15];
     char    m_Message[0];
 };
 
@@ -76,13 +78,6 @@ void LogFinalize();
  */
 uint16_t GetPort();
 
-
-/**
- * Set log level
- * @param severity Log severity
- */
-void Setlevel(Severity severity);
-
 /**
  * Set log file. The file will be created and truncated.
  * Subsequent invocations to this function will close previous opened file.
@@ -91,21 +86,6 @@ void Setlevel(Severity severity);
  * @return true if file successfully created.
  */
 bool SetLogFile(const char* path);
-
-/**
- * Callback declaration for SetCustomLogCallback
- */
-typedef void (*CustomLogCallback)(void* user_data, const char* s);
-
-/**
- * Sets a custom callback for log output, if this function is set output
- * will only be sent to this callback.
- * Useful for testing purposes to validate logging output from a test
- * Calling SetCustomLogCallback with (0x0, 0x0) will restore normal operation
- * @param callback the callback to call with output, once per logging call
- * @param user_data user data pointer that is provided as context in the callback
- */
-void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
 
 /**
  * iOS specific print function that wraps NSLog to be able to
@@ -117,7 +97,7 @@ void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
  * @param severity Log severity
  * @param str_buf String buffer to print
  */
-void __ios_log_print(Severity severity, const char* str_buf);
+void __ios_log_print(LogSeverity severity, const char* str_buf);
 
 
 } //namespace dmLog

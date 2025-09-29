@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,16 +35,16 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
@@ -118,9 +118,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
-            streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
-            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+            streams_decl[i].m_Name                    = ddf_stream.m_NameHash;
+            streams_decl[i].m_Type                    = (dmBuffer::ValueType)ddf_stream.m_ValueType;
+            streams_decl[i].m_Count                   = ddf_stream.m_ValueCount;
 
             assert(streams_decl[i].m_Count > 0);
 
@@ -205,13 +205,13 @@ namespace dmGameSystem
         return true;
     }
 
-    dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
     {
         BufferResource* buffer_resource = new BufferResource();
         memset(buffer_resource, 0, sizeof(BufferResource));
-        buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params.m_PreloadData;
-        params.m_Resource->m_Resource = (void*) buffer_resource;
-        buffer_resource->m_NameHash = dmHashString64(params.m_Filename);
+        buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params->m_PreloadData;
+        ResourceDescriptorSetResource(params->m_Resource, buffer_resource);
+        buffer_resource->m_NameHash = dmHashString64(params->m_Filename);
 
         if (!BuildBuffer(buffer_resource))
         {
@@ -223,24 +223,24 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResBufferDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResBufferDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, buffer_resource);
+        BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, buffer_resource);
         delete buffer_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, buffer_resource);
+        BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, buffer_resource);
         buffer_resource->m_BufferDDF = ddf;
 
         if (!BuildBuffer(buffer_resource))

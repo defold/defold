@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -666,3 +666,33 @@
         (is (= ["destination.txt"] (test-util/file-tree dir)))
         (is (= src-contents (slurp tgt)))))))
 
+(deftest below-directory-test
+  (test-util/with-temp-dir! project-dir
+    (is (true? (fs/below-directory? (io/file project-dir "file.txt") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (true? (fs/below-directory? (io/file project-dir "otherdirectory" ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir "subdirectory") (io/file project-dir "subdir"))))
+    (is (false? (fs/below-directory? project-dir project-dir)))
+
+    (if fs/case-sensitive?
+      (is (false? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory"))))
+      (is (true? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory")))))))
+
+(deftest path-evaluator-test
+  (are [actual expected] (= expected (fs/evaluate-path actual))
+    ;; leading ~ is expanded
+    "~" (System/getProperty "user.home")
+    "~/adb" (str (System/getProperty "user.home") "/adb")
+    ;; non-leading ~ is preserved
+    "/usr/bin/~/adb" "/usr/bin/~/adb"
+    ;; $ENV vars are expanded
+    "$USER" (System/getenv "USER")
+    "/home/$USER/adb" (str "/home/" (System/getenv "USER") "/adb")
+    ;; absent env vars make the whole output collapse into nil
+    "/home/$UHHH" nil
+    "/home/$/foo" nil
+    "/home/$$" nil))

@@ -1,86 +1,32 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
-
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 
 #include <stdio.h>
 #include <stdint.h>
 
 #include "script.h"
 #include "script_vmath.h"
+#include "test_script.h"
 
+#include <testmain/testmain.h>
 #include <dlib/log.h>
-#include <dlib/dstrings.h>
-
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/default/src/test/%s"
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
 
 using namespace dmVMath;
 
-class ScriptVmathTest : public jc_test_base_class
+class ScriptVmathTest : public dmScriptTest::ScriptTest
 {
-protected:
-    virtual void SetUp()
-    {
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
-
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
-bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
 
 TEST_F(ScriptVmathTest, TestNumber)
 {
@@ -91,7 +37,6 @@ TEST_F(ScriptVmathTest, TestVector)
 {
 
     ASSERT_TRUE(RunFile(L, "test_vector.luac"));
-
 }
 
 TEST_F(ScriptVmathTest, TestVectorFail)
@@ -212,6 +157,7 @@ TEST_F(ScriptVmathTest, TestVector4Fail)
 
 }
 
+#if !defined(__SCE__)
 TEST_F(ScriptVmathTest, TestQuat)
 {
     int top = lua_gettop(L);
@@ -228,6 +174,7 @@ TEST_F(ScriptVmathTest, TestQuat)
 
     ASSERT_TRUE(RunFile(L, "test_quat.luac"));
 }
+#endif
 
 TEST_F(ScriptVmathTest, TestQuatFail)
 {
@@ -259,6 +206,8 @@ TEST_F(ScriptVmathTest, TestQuatFail)
     ASSERT_FALSE(RunString(L, "local q = vmath.lerp(1, vmath.quat(0, 0, 0, 1), vmath.vector3(0, 0, 0))"));
     // Slerp
     ASSERT_FALSE(RunString(L, "local q = vmath.slerp(1, vmath.quat(0, 0, 0, 1), vmath.vector3(0, 0, 0))"));
+    // From matrix4
+    ASSERT_FALSE(RunString(L, "local q = vmath.quat_matrix4()"));
 }
 
 TEST_F(ScriptVmathTest, TestTransform)
@@ -345,6 +294,10 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
     // translation
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_translation()"));
+    // scale
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_scale()"));
+    // compose
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_compose()"));
 }
 
 
@@ -415,10 +368,17 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptVmathTest, TestVMathClamp)
+{
+    ASSERT_TRUE(RunFile(L, "test_script_vmath.luac"));
+}
+
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

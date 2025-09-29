@@ -1,0 +1,107 @@
+platforms:
+  armv7-ios:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
+  arm64-ios:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
+  x86_64-ios:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
+  armv7-android:
+    context:
+      excludeLibs: []
+      excludeJars: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+      jetifier: true
+  arm64-android:
+    context:
+      excludeLibs: []
+      excludeJars: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+      jetifier: true
+  arm64-osx:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
+  x86_64-osx:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
+  x86_64-linux:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+  x86-win32:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+  x86_64-win32:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      linkFlags: []
+  js-web:
+    context:
+      excludeLibs: []
+      excludeJsLibs: []
+      excludeSymbols: []
+      symbols: [GraphicsAdapterWebGPU]
+      libs: [graphics_webgpu]
+      linkFlags: []
+      emscriptenLinkFlags: [USE_WEBGPU=1, GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0]
+  wasm-web:
+    context:
+      excludeLibs: []
+      excludeJsLibs: []
+      excludeSymbols: []
+      symbols: [GraphicsAdapterWebGPU]
+      libs: [graphics_webgpu]
+      linkFlags: []
+      emscriptenLinkFlags: [USE_WEBGPU=1, GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0, ASYNCIFY=1, ASYNCIFY_IGNORE_INDIRECT=1, 'ASYNCIFY_ADD=["main","dmEngineCreate(*)","requestDeviceCallback(*)","WebGPUCreateSwapchain(*)","instanceRequestAdapterCallback(*)"]']
+  wasm_pthread-web:
+    context:
+      excludeLibs: []
+      excludeJsLibs: []
+      excludeSymbols: []
+      symbols: [GraphicsAdapterWebGPU]
+      libs: [graphics_webgpu]
+      linkFlags: []
+      emscriptenLinkFlags: [USE_WEBGPU=1, GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0, ASYNCIFY=1, ASYNCIFY_IGNORE_INDIRECT=1, 'ASYNCIFY_ADD=["main","dmEngineCreate(*)","requestDeviceCallback(*)","WebGPUCreateSwapchain(*)","instanceRequestAdapterCallback(*)"]', PTHREAD_POOL_SIZE=1]

@@ -1,0 +1,55 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+function init(self)
+	msg.post("#collectionproxy", "load")
+	self.count = 0
+end
+
+function final(self)
+end
+
+function update(self, dt)
+	self.count = self.count + 1
+
+	--if self.count == 23 then
+	--	msg.post("#collectionproxy", "unload")
+	--end
+end
+
+function on_message(self, message_id, message, sender)
+	print(message_id)
+	if message_id == hash("proxy_loaded") then
+		msg.post("#collectionproxy", "init")
+		msg.post("#collectionproxy", "enable")
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here. The game object this script is attached to
+	-- must have acquired input focus:
+	--
+	--    msg.post(".", "acquire_input_focus")
+	--
+	-- All mapped input bindings will be received. Mouse and touch input will
+	-- be received regardless of where on the screen it happened.
+	-- Learn more: https://defold.com/manuals/input/
+	-- Remove this function if not needed
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Learn more: https://defold.com/manuals/hot-reload/
+	-- Remove this function if not needed
+end

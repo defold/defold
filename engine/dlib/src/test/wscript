@@ -6,16 +6,17 @@ from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None, skip_run = False):
+                extra_includes = None, extra_defines = None, extra_source = None,
+                skip_run = False, extra_local_libs = None, exclude_libs = None, target_name = None):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
-        print "Skipping test '%s' due to platform missing feature" % name
+        print ("Skipping test '%s' due to platform missing feature" % name)
         return
 
     build_util = create_build_utility(bld.env)
 
-    req_libs = ['CARES']
+    req_libs = ['TESTMAIN']
     req_defines = []
 
     if 'DM_IPV6_UNSUPPORTED' in os.environ:
@@ -25,60 +26,91 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     req_includes = ['../../src']
     req_embed = None
 
-    if is_platform_private(bld.env.PLATFORM):
-        req_includes.insert(0, '../dlib/%s' % build_util.get_target_os())
+    if extra_libs is None:
+        extra_libs = []
 
-    platform_source = ''
-    platform_source_path = '%s/test_platform.cpp' % build_util.get_target_os()
-    if os.path.exists('src/test/' + platform_source_path):
-        platform_source = ' ' + platform_source_path
+    for lib in ('SOCKET', 'APP'):
+        if not lib in extra_libs:
+            extra_libs.append(lib)
+
+    req_includes.insert(0, '..')
+
+    target_os = build_util.get_target_os()
+    if target_os == 'ps5':
+        target_os = 'ps4'
+
+    platform_source = bld.path.ant_glob('%s/**/*.cpp' % target_os)
 
     req_features.append('test')
     if skip_run:
         req_features.append('skip_test')
-        
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:
         req_libs.extend(extra_libs)
+    if extra_local_libs == None:
+        extra_local_libs = []
     if extra_defines != None:
         req_defines.extend(extra_defines)
+
+    local_libs = 'dlib mbedtls zip'.split()
+
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        local_libs += ['profile_null']
+    else:
+        local_libs += ['profile']
+
+    if exclude_libs != None:
+        req_libs = [x for x in req_libs if not x in exclude_libs]
+        extra_local_libs = [x for x in extra_local_libs if not x in exclude_libs]
+        local_libs = [x for x in local_libs if x not in exclude_libs]
 
     if embed_source != None:
         req_embed = embed_source
     if extra_includes != None:
         req_includes.extend(extra_includes)
 
+    if extra_source is None:
+        extra_source = []
+
+    use_lib_list = '%s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
-        'source': name + '.cpp' + ' testutil.cpp' + platform_source,
-        'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib mbedtls zip',
+        'source': extra_source + (name + '.cpp').split() + platform_source + bld.path.ant_glob('../dlib/testutil.cpp'),
+        'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
-        'target': name
+        'target': target_name or name
     }
+
     if req_embed != None:
         task_args['embed_source'] = ' '.join(req_embed)
 
-    test = bld.new_task_gen(**task_args)
+    test = bld(**task_args)
     test.install_path = None
 
     js_lib_paths = {}
     js_lib_paths['library_sys.js'] = '../src/dlib/js'
     test.env['JS_LIB_PATHS'] = js_lib_paths
 
+    return test
+
+def configure(conf):
+    conf.env.append_value('CLASSPATH', '../ext/*')
+    conf.env.append_value('CLASSPATH', '../ext/jetty/*')
+    conf.env.append_value('CLASSPATH', '../ext/jetty/logging/*')
+
 def build(bld):
+    bld(features='javac seq',
+        outdir='http_server',
+        name='test_http_server',
+        source_root='http_server')
 
-    bld.new_task_gen(features='javac seq',
-                     classpath=os.pathsep.join(['../ext/jetty-all-7.0.2.v20100331.jar','../ext/servlet-api-2.5.jar']),
-                     source_root='http_server')
-
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
 
     extra_defines = []
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     skip_run = False
@@ -93,54 +125,88 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM'] or sdk.is_wsl():
         skip_ssdp = True
 
+    skip_http = False
+    skip_threads = False
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        skip_http = True
+        if bld.env in ('js-web', 'wasm-web'):
+            skip_threads = True
+
     create_test(bld, 'test_memory')
+
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
     create_test(bld, 'test_buffer')
     create_test(bld, 'test_math', extra_libs = ['THREAD'])
     create_test(bld, 'test_transform', extra_libs = ['THREAD'])
     create_test(bld, 'test_hashtable')
     create_test(bld, 'test_array')
+    create_test(bld, 'test_double_linked_list')
+    create_test(bld, 'test_set')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+
     create_test(bld, 'test_time')
-    create_test(bld, 'test_thread', extra_libs = ['THREAD'])
-    create_test(bld, 'test_mutex', extra_libs =['THREAD'])
-    create_test(bld, 'test_profile', extra_libs = ['THREAD'])
+
+    if not skip_threads:
+        create_test(bld, 'test_socket', extra_libs = ['THREAD'])
+        create_test(bld, 'test_thread', extra_libs = ['THREAD'])
+        create_test(bld, 'test_mutex', extra_libs =['THREAD'])
+
+    create_test(bld, 'test_profile', extra_libs = ['THREAD'], extra_source = ['test_profiler_dummy.cpp'])
+    create_test(bld, 'test_profile',
+                                        extra_libs = ['THREAD'],
+                                        extra_local_libs = ['profile_null'],
+                                        extra_source = ['test_profiler_dummy.cpp'],
+                                        exclude_libs = ['PROFILE', 'profile'],
+                                        skip_run = True,
+                                        target_name = 'test_profile_null')
+
     create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
-    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'THREAD'])
+    create_test(bld, 'test_message', extra_libs = ['THREAD'])
+    create_test(bld, 'test_configfile', extra_libs = ['THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+
+    if not skip_http:
+        create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
+                    extra_includes = ['.'], extra_defines = extra_defines)
+
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
-    bld.new_task_gen(rule = 'echo generated data > ${TGT}',
+    bld(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')
 
     bld.add_group()
 
     create_test(bld, 'test_embed', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/test.embed', 'generated.embed'])
-    create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
-    create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
+
+    if not skip_threads:
+        create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
+        create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
+        create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
+        create_test(bld, 'test_job_thread')
+
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
-    create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
+    if not skip_threads:
+        create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
     create_test(bld, 'test_intersection', extra_libs = ['THREAD'])
     create_test(bld, 'test_easing', extra_libs = ['THREAD'])
-    create_test(bld, 'test_json', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/flickr.json'], extra_includes = ['.'])
     create_test(bld, 'test_utf8', extra_libs = ['THREAD'])
+
+    if bld.env.PLATFORM in ['arm64-linux', 'x86_64-linux']:
+        create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
 
     create_test(bld, 'test_zip', extra_features = ['embed'], extra_libs = ['THREAD'], embed_source = ['data/foo.zip'])
     create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
@@ -162,10 +228,19 @@ def build(bld):
                 extra_includes = ['.']
                 )
 
-    create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
-                extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
-    create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')
+    create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
+
+    if bld.env.DOTNET:
+        b = bld.stlib(features= 'cs_stlib',
+                      project = 'cs/test_dlib_cs.csproj')
+        b.install_path = None
+
+        bld.add_group() # Until the cs_stlib can work with the 'use' mechanism properly
+        t = create_test(bld, 'test_csharp', extra_libs = ['CSHARP'])
+        t.env.append_value('LINKFLAGS', [t.env.LIB_ST % 'test_dlib_cs'])
+        t.env.append_value('LIBPATH', ['./src/test/cs'])
+

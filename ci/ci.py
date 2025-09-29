@@ -1,19 +1,17 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
-
-
 
 import sys
 import subprocess
@@ -21,10 +19,10 @@ import platform
 import os
 import base64
 from argparse import ArgumentParser
-from ci_helper import is_platform_supported, is_repo_private
+from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -32,7 +30,7 @@ def call(args, failonerror = True):
 
     output = ''
     while True:
-        line = process.stdout.readline()
+        line = process.stdout.readline().decode()
         if line != '':
             output += line
             print(line.rstrip())
@@ -47,10 +45,17 @@ def call(args, failonerror = True):
 
 def platform_from_host():
     system = platform.system()
+    machine = platform.machine()
     if system == "Linux":
-        return "x86_64-linux"
+        if machine == 'aarch64':
+            return "arm64-linux"
+        else:
+            return "x86_64-linux"
     elif system == "Darwin":
-        return "x86_64-darwin"
+        if machine in ['aarch64', 'arm64']:
+            return "arm64-macos"
+        else:
+            return "x86_64-macos"
     else:
         return "x86_64-win32"
 
@@ -67,6 +72,14 @@ def choco(package):
 def mingwget(package):
     call("mingw-get install " + package)
 
+
+def string_to_file(str, destfile):
+    with open(destfile, "wb") as f:
+        f.write(str.encode())
+
+def b64decode_to_file(str, destfile):
+    with open(destfile, "wb") as f:
+        f.write(base64.decodebytes(str.encode()))
 
 def setup_keychain(args):
     print("Setting up keychain")
@@ -90,8 +103,8 @@ def setup_keychain(args):
     print("Decoding certificate")
     cert_path = os.path.join("ci", "cert.p12")
     cert_pass = args.keychain_cert_pass
-    with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.keychain_cert))
+    b64decode_to_file(args.keychain_cert, cert_path)
+
     print("Importing certificate")
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
@@ -110,81 +123,120 @@ def setup_keychain(args):
 def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
-def setup_windows_cert(args):
-    print("Setting up certificate")
-    cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
-    with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.windows_cert_b64))
-    print("Wrote cert to", cert_path)
-    cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
-    with open(cert_pass_path, "wb") as file:
-        file.write(args.windows_cert_pass)
-    print("Wrote cert password to", cert_pass_path)
+def install_linux(args):
+    host_platform = platform_from_host()
 
+    # # we use apt-fast to speed up apt-get downloads
+    # # https://github.com/ilikenwf/apt-fast
+    # call("sudo add-apt-repository ppa:apt-fast/stable")
+    call("sudo apt-get update", failonerror=False)
+    # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
+    # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
+    # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
+    # call("sudo apt-get install -y apt-fast aria2")
+
+    call("sudo apt-get install -y software-properties-common")
+
+    call("update-alternatives --display clang")
+    call("update-alternatives --display clang++")
+
+    # libtinfo needed when building wasm-web
+    if host_platform == "arm64-linux":
+        call("wget http://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+    else:
+        call("wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+
+    clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
+    clang_version = 17
+    clang_path = "/usr/bin"
+    clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
+
+    # On older ubuntu 20 clang-16 isn't available
+    # Also note that this is before the install_sdk step
+    # if we had to install it ourselves, let's use the correct path
+    if not os.path.exists(clang_exe):
+        print(f"{clang_exe} not found. Installing LLVM + CLANG {clang_version} ...")
+
+        call(f"wget https://apt.llvm.org/llvm.sh")
+        call(f"chmod +x ./llvm.sh")
+        call(f"sudo ./llvm.sh {clang_version}")
+        call(f"rm ./llvm.sh")
+
+        clang_path = f"/usr/lib/llvm-{clang_version}/bin"
+
+        # Add and select the correct version
+        call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar {clang_priority}")
+
+    else:
+        print(f"{clang_exe} found. Selecting LLVM + CLANG {clang_version} ...")
+        # Add and select the correct version
+        call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp-{clang_version} {clang_priority}")
+        call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar-{clang_version} {clang_priority}")
+
+    call("update-alternatives --display clang")
+    call("update-alternatives --display clang++")
+    call("update-alternatives --display clang-cpp")
+    call("update-alternatives --display llvm-ar")
+
+    packages = [
+        "autoconf",
+        "automake",
+        "build-essential",
+        "freeglut3-dev",
+        "libssl-dev",
+        "libtool",
+        "libxi-dev",
+        "libx11-xcb-dev",
+        "libxrandr-dev",
+        "libopenal-dev",
+        "libgl1-mesa-dev",
+        "libglw1-mesa-dev",
+        "openssl",
+        "tofrodos",
+        "tree",
+        "valgrind",
+        "uuid-dev",
+        "xvfb"
+    ]
+    aptget(" ".join(packages))
+
+
+def install_macos(args):
+    if args.keychain_cert:
+        setup_keychain(args)
 
 def install(args):
-    # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+    # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2404-Readme.md
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # we use apt-fast to speed up apt-get downloads
-        # https://github.com/ilikenwf/apt-fast
-        call("sudo add-apt-repository ppa:apt-fast/stable")
-        call("sudo apt-get update", failonerror=False)
-        call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
-        call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
-        call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
-        call("sudo apt-get install -y apt-fast aria2")
-
-        call("sudo apt-get install -y software-properties-common")
-
-        call("echo MAWE list clang executables")
-        call("ls /usr/bin/clang*")
-        call("echo MAWE after")
-
-        call("sudo update-alternatives --remove-all clang")
-        call("sudo update-alternatives --remove-all clang++")
-        call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
-
-        packages = [
-            "libssl-dev",
-            "openssl",
-            "libtool",
-            "autoconf",
-            "automake",
-            "build-essential",
-            "uuid-dev",
-            "libxi-dev",
-            "libopenal-dev",
-            "libgl1-mesa-dev",
-            "libglw1-mesa-dev",
-            "freeglut3-dev",
-            "tofrodos",
-            "tree",
-            "valgrind",
-            "lib32z1",
-            "xvfb"
-        ]
-        aptfast(" ".join(packages))
+        install_linux(args)
 
     elif system == "Darwin":
-        if args.keychain_cert:
-            setup_keychain(args)
-    elif system == "Windows":
-        if args.windows_cert_b64:
-            setup_windows_cert(args)
+        install_macos(args)
 
+def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
+                with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
+                skip_docs = False, skip_builtins = False, archive = False):
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean install_sdk install_ext'.split()
+    install_sdk = 'install_sdk'
+    # for some platforms, we use the locally installed platform sdk
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-linux', 'x86_64-linux'):
+        install_sdk = ''
+
+    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
 
     opts = []
     waf_opts = []
 
     opts.append('--platform=%s' % platform)
-
-    if platform == 'js-web' or platform == 'wasm-web':
-        args.append('install_ems')
 
     args.append('build_engine')
 
@@ -202,14 +254,22 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         opts.append('--skip-builtins')
     if skip_tests:
         opts.append('--skip-tests')
+    if skip_build_tests:
         waf_opts.append('--skip-build-tests')
 
     if with_valgrind:
         waf_opts.append('--with-valgrind')
     if with_asan:
         waf_opts.append('--with-asan')
+    if with_ubsan:
+        waf_opts.append('--with-ubsan')
+    if with_tsan:
+        waf_opts.append('--with-tsan')
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
+
+    if platform == 'x86_64-linux':
+        args.append('build_sdk_headers') # gather headers after a successful build
 
     cmd = ' '.join(args + opts)
 
@@ -259,29 +319,38 @@ def download_editor2(channel, platform = None):
         call('python scripts/build.py %s install_ext download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
 
 
-def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
+def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
     args = 'python scripts/build.py sign_editor2'.split()
     opts = []
 
     opts.append('--platform=%s' % platform)
 
-    if windows_cert:
-        windows_cert = os.path.abspath(windows_cert)
-        if not os.path.exists(windows_cert):
-            print("Certificate file not found:", windows_cert)
-            sys.exit(1)
-        print("Using cert", windows_cert)
-        opts.append('--windows-cert=%s' % windows_cert)
+    # windows EV Code Signing with key in Google Cloud KMS
+    if gcloud_keyfile and gcloud_certfile:
+        opts.append("--gcloud-location=europe-west3")
+        opts.append("--gcloud-keyname=ev-windows-key")
+        opts.append("--gcloud-keyringname=ev-key-ring")
+        opts.append("--gcloud-projectid=defold-editor")
 
-    if windows_cert_pass:
-        windows_cert_pass = os.path.abspath(windows_cert_pass)
-        opts.append("--windows-cert-pass=%s" % windows_cert_pass)
+        gcloud_keyfile = os.path.abspath(gcloud_keyfile)
+        if not os.path.exists(gcloud_keyfile):
+            print("Google Cloud key file not found:", gcloud_keyfile)
+            sys.exit(1)
+        print("Using Google Cloud key file", gcloud_keyfile)
+        opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
+
+        gcloud_certfile = os.path.abspath(gcloud_certfile)
+        if not os.path.exists(gcloud_certfile):
+            print("Google Cloud certificate not found:", gcloud_certfile)
+            sys.exit(1)
+        print("Using Google Cloud certificate ", gcloud_certfile)
+        opts.append('--gcloud-certfile=%s' % gcloud_certfile)
 
     cmd = ' '.join(args + opts)
     call(cmd)
 
 
-def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None, platform = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
         exit(1)
@@ -290,7 +359,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
 
-    opts.append('--platform=x86_64-darwin')
+    opts.append('--platform=%s' % platform)
 
     opts.append('--notarization-username="%s"' % notarization_username)
     opts.append('--notarization-password="%s"' % notarization_password)
@@ -330,7 +399,7 @@ def install_ext(platform = None):
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
 def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
+    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -367,17 +436,21 @@ def smoke_test():
 def get_branch():
     # The name of the head branch. Only set for pull request events.
     branch = os.environ.get('GITHUB_HEAD_REF', '')
-    if branch is '':
+    if branch == '':
         # The branch or tag name that triggered the workflow run.
         branch = os.environ.get('GITHUB_REF_NAME', '')
 
-    if branch is '':
+    if branch == '':
         # https://stackoverflow.com/a/55276236/1266551
         branch = call("git rev-parse --abbrev-ref HEAD").strip()
         if branch == "HEAD":
             branch = call("git rev-parse HEAD")
 
     return branch
+
+def get_pull_request_target_branch():
+    # The name of the base (or target) branch. Only set for pull request events.
+    return os.environ.get('GITHUB_BASE_REF', '')
 
 def is_workflow_enabled_in_repo():
     if not is_repo_private():
@@ -397,18 +470,19 @@ def main(argv):
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
+    parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
+    parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
-    parser.add_argument("--windows-cert-b64", dest="windows_cert_b64", help="String containing Windows certificate (pfx) encoded as base 64")
-    parser.add_argument("--windows-cert", dest="windows_cert", help="File containing Windows certificate (pfx)")
-    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="File containing password for the Windows certificate")
+    parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
@@ -426,9 +500,15 @@ def main(argv):
 
     # saving lots of CI minutes and waiting by not building the editor, which we don't use
     if is_repo_private():
+        repo = os.environ.get('GITHUB_REPOSITORY', 'defold')
         for command in args.commands:
-            if 'editor' in command:
-                print("Platform {} is private we've disabled building the editor. Skipping".format(platform))
+            if 'editor' in command or 'bob' in command:
+                print("The repo {} is private. We've disabled building the editor and bob. Skipping".format(repo))
+                return
+
+        if platform and not is_platform_private(platform):
+            if platform not in ['x86_64-win32', 'x86_64-linux']:
+                print("The repo {} is private. We've disabled building the platform {}. Skipping".format(repo, platform))
                 return
 
     branch = get_branch()
@@ -436,15 +516,13 @@ def main(argv):
     # configure build flags based on the branch
     release_channel = None
     skip_editor_tests = False
+    make_release = False
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
-        release_channel = "editor-stable"
-        make_release = False
+        release_channel = "stable"
+        make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
-        if is_repo_private():
-            release_channel = "stable"
-            make_release = True
     elif branch == "beta":
         engine_channel = "beta"
         editor_channel = "beta"
@@ -463,16 +541,13 @@ def main(argv):
         release_channel = "editor-alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts
-    elif branch and branch.startswith("DEFEDIT-"):
+    elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
         engine_channel = None
         editor_channel = "editor-dev"
-        make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
         engine_channel = "dev"
         editor_channel = "dev"
-        make_release = False
-        skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
@@ -487,9 +562,12 @@ def main(argv):
                 engine_channel,
                 with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
                 with_asan = args.with_asan,
+                with_ubsan = args.with_ubsan,
+                with_tsan = args.with_tsan,
                 with_vanilla_lua = args.with_vanilla_lua,
                 archive = args.archive,
                 skip_tests = args.skip_tests,
+                skip_build_tests = args.skip_build_tests,
                 skip_builtins = args.skip_builtins,
                 skip_docs = args.skip_docs)
         elif command == "build-editor":
@@ -500,11 +578,18 @@ def main(argv):
             notarize_editor2(
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider)
+                notarization_itc_provider = args.notarization_itc_provider,
+                platform = platform)
         elif command == "sign-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            sign_editor2(platform, windows_cert = args.windows_cert, windows_cert_pass = args.windows_cert_pass)
+            gcloud_certfile = None
+            gcloud_keyfile = None
+            if args.gcloud_service_key:
+                gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
+                gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
+                b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
+            sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":

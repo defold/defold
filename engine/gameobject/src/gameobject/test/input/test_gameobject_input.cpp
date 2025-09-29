@@ -1,18 +1,17 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <dmsdk/dlib/vmath.h>
@@ -20,12 +19,12 @@
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
 
-#include <resource/resource.h>
-
 #include "../gameobject.h"
 #include "../component.h"
 
 #include "gameobject/test/input/test_gameobject_input_ddf.h"
+
+#include <dmsdk/resource/resource.h>
 
 using namespace dmVMath;
 
@@ -41,8 +40,9 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/input");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/input");
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -66,7 +66,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "it", this, 0, ResInputTargetCreate, 0, ResInputTargetDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "it", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType it_type;
@@ -91,8 +91,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResInputTargetCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResInputTargetDestroy(const dmResource::ResourceDestroyParams& params);
+    static dmResource::Result ResInputTargetCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResInputTargetDestroy(const dmResource::ResourceDestroyParams* params);
 
     static dmGameObject::CreateResult CompInputTargetCreate(const dmGameObject::ComponentCreateParams& params);
     static dmGameObject::CreateResult CompInputTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
@@ -111,13 +111,13 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-dmResource::Result InputTest::ResInputTargetCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result InputTest::ResInputTargetCreate(const dmResource::ResourceCreateParams* params)
 {
     TestGameObjectDDF::InputTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::InputTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::InputTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -126,9 +126,9 @@ dmResource::Result InputTest::ResInputTargetCreate(const dmResource::ResourceCre
     }
 }
 
-dmResource::Result InputTest::ResInputTargetDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result InputTest::ResInputTargetDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
@@ -305,12 +305,4 @@ TEST_F(InputTest, TestDeleteFocusInstance)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }

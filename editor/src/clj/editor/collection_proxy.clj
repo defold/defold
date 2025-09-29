@@ -1,51 +1,40 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.collection-proxy
-  (:require
-   [clojure.string :as s]
-   [plumbing.core :as pc]
-   [dynamo.graph :as g]
-   [editor.build-target :as bt]
-   [editor.defold-project :as project]
-   [editor.graph-util :as gu]
-   [editor.outline :as outline]
-   [editor.properties :as properties]
-   [editor.protobuf :as protobuf]
-   [editor.resource :as resource]
-   [editor.resource-node :as resource-node]
-   [editor.types :as types]
-   [editor.validation :as validation]
-   [editor.workspace :as workspace])
-  (:import
-   (com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc)))
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
+            [editor.outline :as outline]
+            [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]))
 
 (set! *warn-on-reflection* true)
 
 (def collection-proxy-icon "icons/32/Icons_52-Collection-proxy.png")
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id collection-resource]
   {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title "Collection Proxy"
                :fields [{:path [:collection]
@@ -54,10 +43,11 @@
                          :filter "collection"}]}]
    :values {[:collection] collection-resource}})
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [collection-resource exclude]
-  (cond-> {:collection (resource/resource->proj-path collection-resource)}
-    (some? exclude) (assoc :exclude exclude)))
+  (protobuf/make-map-without-defaults GameSystem$CollectionProxyDesc
+    :collection (resource/resource->proj-path collection-resource)
+    :exclude exclude))
 
 (defn build-collection-proxy
   [resource dep-resources user-data]
@@ -68,7 +58,7 @@
      :content (protobuf/map->bytes GameSystem$CollectionProxyDesc pb-msg)}))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg dep-build-targets collection]
+  [_node-id resource save-value dep-build-targets collection]
   (or (validation/prop-error :fatal _node-id :collection validation/prop-nil? collection "collection")
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
@@ -77,14 +67,16 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-collection-proxy
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
-(defn load-collection-proxy [project self resource collection-proxy]
-  (concat
-    (g/set-property self :collection (workspace/resolve-resource resource (:collection collection-proxy)))
-    (g/set-property self :exclude (boolean (:exclude collection-proxy)))))
+(defn load-collection-proxy [_project self resource collection-proxy-desc]
+  {:pre [(map? collection-proxy-desc)]} ; GameSystem$CollectionProxyDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (gu/set-properties-from-pb-map self GameSystem$CollectionProxyDesc collection-proxy-desc
+      collection (resolve-resource :collection)
+      exclude :exclude)))
 
 (g/defnode CollectionProxyNode
   (inherits resource-node/ResourceNode)
@@ -92,19 +84,19 @@
   (input dep-build-targets g/Any)
   (input collection-resource resource/Resource)
 
-  (property collection resource/Resource
+  (property collection resource/Resource ; Required protobuf field.
             (value (gu/passthrough collection-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collection-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id collection-resource]
-                                  (or (validation/prop-error :info _node-id :prototype validation/prop-nil? collection-resource "Collection")
-                                      (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource "Collection"))))
+                             (or (validation/prop-error :info _node-id :prototype validation/prop-nil? collection-resource "Collection")
+                                 (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource "Collection"))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource :ext "collection"})))
 
-  (property exclude g/Bool)
+  (property exclude g/Bool (default (protobuf/default GameSystem$CollectionProxyDesc :exclude)))
 
   (output form-data g/Any produce-form-data)
 
@@ -114,24 +106,23 @@
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 
-                                                             (resource/openable-resource? collection)
+                                                             (resource/resource? collection)
                                                              (assoc :link collection :outline-reference? false))))
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
-
 
 (defn register-resource-types
   [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "collectionproxy"
-                                    :node-type CollectionProxyNode
-                                    :ddf-type GameSystem$CollectionProxyDesc
-                                    :load-fn load-collection-proxy
-                                    :icon collection-proxy-icon
-                                    :view-types [:cljfx-form-view :text]
-                                    :view-opts {}
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Collection Proxy"))
+    :ext "collectionproxy"
+    :node-type CollectionProxyNode
+    :ddf-type GameSystem$CollectionProxyDesc
+    :load-fn load-collection-proxy
+    :icon collection-proxy-icon
+    :icon-class :property
+    :view-types [:cljfx-form-view :text]
+    :view-opts {}
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{}}}
+    :label "Collection Proxy"))

@@ -1,22 +1,21 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dmsdk/dlib/json.h>
 #include <script/script.h>
 #include <stdlib.h>
 
@@ -40,6 +39,7 @@ namespace dmCrash
      * @document
      * @name Crash
      * @namespace crash
+     * @language Lua
      */
 
     static HDump CheckHandle(lua_State* L, int index)
@@ -85,7 +85,7 @@ namespace dmCrash
      * load, so loading is one-shot.
      *
      * @name crash.load_previous
-     * @return handle [type:number] handle to the loaded dump, or nil if no dump was found
+     * @return handle [type:number|nil] handle to the loaded dump, or `nil` if no dump was found
      */
     static int Crash_LoadPrevious(lua_State* L)
     {
@@ -171,13 +171,13 @@ namespace dmCrash
             lua_pushnumber(L, i+1);
 
             lua_newtable(L);
-            lua_pushstring(L, "name");
+            lua_pushliteral(L, "name");
             lua_pushstring(L, name);
             lua_settable(L, -3);
 
             char str[64];
-            sprintf(str, "%p", addr);
-            lua_pushstring(L, "address");
+            dmSnPrintf(str, sizeof(str), "%p", addr);
+            lua_pushliteral(L, "address");
             lua_pushstring(L, str);
             lua_settable(L, -3);
 
@@ -222,7 +222,7 @@ namespace dmCrash
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
      * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
-     * @return value [type:string] value recorded in the crash dump, or nil if it didn't exist
+     * @return value [type:string|nil] value recorded in the crash dump, or `nil` if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)
     {
@@ -276,7 +276,7 @@ namespace dmCrash
       for (uint32_t i=0;i!=count;i++)
         {
             char str[64];
-            sprintf(str, "%p", GetBacktraceAddr(h, i));
+            dmSnPrintf(str, sizeof(str), "%p", GetBacktraceAddr(h, i));
             lua_pushnumber(L, i+1);
             lua_pushstring(L, str);
             lua_settable(L, -3);
@@ -334,77 +334,77 @@ namespace dmCrash
         /*# engine version as release number
          *
          * @name crash.SYSFIELD_ENGINE_VERSION
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_ENGINE_VERSION);
 
         /*# engine version as hash
          *
          * @name crash.SYSFIELD_ENGINE_HASH
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_ENGINE_HASH);
 
         /*# device model as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_DEVICE_MODEL
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_DEVICE_MODEL);
 
         /*# device manufacturer as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_MANUFACTURER
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_MANUFACTURER);
 
         /*# system name as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_SYSTEM_NAME
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_SYSTEM_NAME);
 
         /*# system version as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_SYSTEM_VERSION
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_SYSTEM_VERSION);
 
         /*# system language as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_LANGUAGE
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_LANGUAGE);
 
         /*# system device language as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_DEVICE_LANGUAGE
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_DEVICE_LANGUAGE);
 
         /*# system territory as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_TERRITORY
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_TERRITORY);
 
         /*# android build fingerprint
          *
          * @name crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_ANDROID_BUILD_FINGERPRINT);
 
         /*# The max number of sysfields.
          *
          * @name crash.SYSFIELD_MAX
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_MAX);
 
@@ -418,14 +418,14 @@ namespace dmCrash
         /*# The max number of user fields.
          *
          * @name crash.USERFIELD_MAX
-         * @variable
+         * @constant
          */
         SETCUSTOMCONSTANT(USERFIELD_MAX, AppState::USERDATA_SLOTS);
 
         /*# The max size of a single user field.
          *
          * @name crash.USERFIELD_SIZE
-         * @variable
+         * @constant
          */
         SETCUSTOMCONSTANT(USERFIELD_SIZE, AppState::USERDATA_SIZE-1);
 
@@ -443,4 +443,3 @@ namespace dmCrash
 
     DM_DECLARE_EXTENSION(CrashExt, "Crash", 0, 0, InitializeCrash, 0, 0, FinalizeCrash)
 }
-

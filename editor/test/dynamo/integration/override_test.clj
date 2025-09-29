@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,15 +17,14 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.integration.override-test-support :as support]
-            [editor.defold-project :as project]
-            [editor.resource :as resource]
             [editor.util :as util]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [internal.util]
             [schema.core :as s]
-            [support.test-support :as ts])
-  (:import  [javax.vecmath Vector3d]))
+            [support.test-support :as ts]
+            [util.fn :as fn])
+  (:import [javax.vecmath Vector3d]))
 
 (g/defnode BaseNode
   (property base-property g/Str))
@@ -37,7 +36,7 @@
   (property virt-property g/Str
             (value (g/fnk [a-property] a-property)))
   (property dyn-property g/Str
-            (dynamic override? (g/fnk [_node-id _basis] (some? (g/override-original _basis _node-id)))))
+            (dynamic override? (g/fnk [_this] (g/node-override? _this))))
   (input sub-nodes g/NodeID :array :cascade-delete)
   (output sub-nodes [g/NodeID] (g/fnk [sub-nodes] sub-nodes))
   (output cached-output g/Str :cached (g/fnk [a-property] a-property))
@@ -49,7 +48,9 @@
                                          (update :display-order conj :c-property)))))
 
 (g/defnode SubNode
-  (property value g/Str))
+  (property value g/Str)
+  (input sub-nodes g/NodeID :array :cascade-delete)
+  (output sub-nodes [g/NodeID] (g/fnk [sub-nodes] sub-nodes)))
 
 (defn- override [node-id]
   (-> (g/override node-id {})
@@ -96,6 +97,63 @@
                     (get-in p [:properties :dyn-property :override?])))]
           (is (false? (f main)))
           (is (true? (f or-main))))))))
+
+(deftest connect
+  (testing "Connecting to original spawns override nodes in direct override layers"
+    (ts/with-clean-system
+      ;; Test with two direct overrides of main.
+      (let [[main] (ts/tx-nodes (g/make-nodes world [main MainNode]
+                                  (g/override main)
+                                  (g/override main)))
+            [new1-sub new2-sub] (ts/tx-nodes (g/make-nodes world [new1-sub SubNode
+                                                                  new2-sub SubNode
+                                                                  new2-sub-sub SubNode]
+                                               (g/connect new2-sub-sub :_node-id new2-sub :sub-nodes)))
+            node-count-before-connection (-> world g/graph :nodes count)]
+        (g/connect! new1-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2) ; Single node cloned to two override layers.
+               (-> world g/graph :nodes count)))
+        (g/connect! new2-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2 4) ; Two-node chain cloned to two override layers.
+               (-> world g/graph :nodes count))))))
+  (testing "Connecting to original spawns override nodes in recursive override layers"
+    (ts/with-clean-system
+      ;; Test with one direct override of main, and one override of that override.
+      (let [[main] (ts/tx-nodes (g/make-node world MainNode))
+            [or-main] (ts/tx-nodes (g/override main))
+            [_or2-main] (ts/tx-nodes (g/override or-main))
+            [new1-sub new2-sub] (ts/tx-nodes (g/make-nodes world [new1-sub SubNode
+                                                                  new2-sub SubNode
+                                                                  new2-sub-sub SubNode]
+                                               (g/connect new2-sub-sub :_node-id new2-sub :sub-nodes)))
+            node-count-before-connection (-> world g/graph :nodes count)]
+        (g/connect! new1-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2) ; Single node cloned to two override layers.
+               (-> world g/graph :nodes count)))
+        (g/connect! new2-sub :_node-id main :sub-nodes)
+        (is (= (+ node-count-before-connection 2 4) ; Two-node chain cloned to two override layers.
+               (-> world g/graph :nodes count))))))
+  (testing "Connecting to override only spawns override nodes in subsequent override layers"
+    (ts/with-clean-system
+      ;; Test with one direct override of main, and one override of that override.
+      (let [[main] (ts/tx-nodes (g/make-node world MainNode))
+            [or-main] (ts/tx-nodes (g/override main))
+            [or2-main] (ts/tx-nodes (g/override or-main))
+            [new1-sub new2-sub new3-sub] (ts/tx-nodes (g/make-nodes world [new1-sub SubNode
+                                                                           new2-sub SubNode
+                                                                           new3-sub SubNode
+                                                                           new3-sub-sub SubNode]
+                                                        (g/connect new3-sub-sub :_node-id new3-sub :sub-nodes)))
+            node-count-before-connection (-> world g/graph :nodes count)]
+        (g/connect! new1-sub :_node-id or2-main :sub-nodes)
+        (is (= node-count-before-connection)
+            (-> world g/graph :nodes count)) ; Connecting to override with no subsequent overrides spawns no nodes.
+        (g/connect! new2-sub :_node-id or-main :sub-nodes)
+        (is (= (+ node-count-before-connection 1) ; Single node cloned to one override layer.
+               (-> world g/graph :nodes count)))
+        (g/connect! new3-sub :_node-id or-main :sub-nodes)
+        (is (= (+ node-count-before-connection 1 2) ; Two-node chain cloned to one override layer.
+               (-> world g/graph :nodes count)))))))
 
 (deftest delete
   (ts/with-clean-system
@@ -229,7 +287,7 @@
       (let [[main cache-node or-main] (ts/tx-nodes (g/make-nodes world [main StringInput
                                                                         cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                      (g/connect cache :cached-value main :value)
-                                                     (g/override main {:traverse? (constantly false)})))]
+                                                     (g/override main {:traverse-fn g/never-override-traverse-fn})))]
         (is (= cache-node (ffirst (g/sources-of main :value))))
         (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
   (testing "existing override"
@@ -349,7 +407,7 @@
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (g/transact (g/set-property or-main :a-property "override"))
-      (let [fragment (g/copy [or-main] {:traverse? (constantly true)})
+      (let [fragment (g/copy [or-main] {:traverse? fn/constantly-true})
             paste-data (g/paste (g/node-id->graph-id or-main) fragment {})
             copy-id (first (:root-node-ids paste-data))]
         (g/transact (:tx-data paste-data))
@@ -778,7 +836,7 @@
 
 (defn- outs [nodes output]
   (for [n nodes]
-    [n output]))
+    (gt/endpoint n output)))
 
 (defn- conn? [[src src-label tgt tgt-label]]
   (let [basis (g/now)]
@@ -808,9 +866,9 @@
           mains (mapv first all)
           subs (mapv second all)]
       (testing "value fnk"
-        (is (every? (deps [[main-0 :a-property]]) (outs mains :virt-property))))
+        (is (every? (set (deps [(gt/endpoint main-0 :a-property)])) (outs mains :virt-property))))
       (testing "output"
-        (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
+        (is (every? (set (deps [(gt/endpoint main-0 :a-property)])) (outs mains :cached-output))))
       (testing "connections"
         (is (every? conn? (for [[m s] all]
                             [s :_node-id m :sub-nodes])))
@@ -826,9 +884,9 @@
                                          (g/connect src :a-property tgt :in-value)
                                          (g/override src)))]
       (testing "regular dep"
-        (is (every? (deps [[src :a-property]]) [[tgt :out-value]])))
+        (is (every? (set (deps [(gt/endpoint src :a-property)])) [(gt/endpoint tgt :out-value)])))
       (testing "no override deps"
-        (is (not-any? (deps [[src-1 :a-property]]) [[tgt :out-value]])))
+        (is (not-any? (set (deps [(gt/endpoint src-1 :a-property)])) [(gt/endpoint tgt :out-value)])))
       (testing "connections"
         (is (conn? [src :a-property tgt :in-value]))
         (is (no-conn? [src-1 :a-property tgt :in-value])))))
@@ -838,7 +896,9 @@
                                          (g/connect src :a-property tgt :in-value)
                                          (g/override tgt)))]
       (testing "regular dep"
-        (is (every? (deps [[src :a-property]]) [[tgt :out-value] [tgt-1 :out-value]])))
+        (is (every? (set (deps [(gt/endpoint src :a-property)]))
+                    [(gt/endpoint tgt :out-value)
+                     (gt/endpoint tgt-1 :out-value)])))
       (testing "connections"
         (is (conn? [src :a-property tgt :in-value]))
         (is (conn? [src :a-property tgt-1 :in-value])))))
@@ -869,7 +929,7 @@
     (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
           [go comp or-script] (ts/tx-nodes (g/make-nodes world [go GameObject
                                                                 comp Component]
-                                             (g/override script {:traverse? (constantly true)}
+                                             (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                          (fn [evaluation-context id-mapping]
                                                            (let [or-script (id-mapping script)]
                                                              (concat
@@ -877,14 +937,14 @@
                                                                (g/connect or-script :_node-id comp :instance)))))))
           [coll inst or-go] (ts/tx-nodes (g/make-nodes world [coll Collection
                                                               inst GameObjectInstance]
-                                           (g/override go {:traverse? (constantly true)}
+                                           (g/override go {:traverse-fn g/always-override-traverse-fn}
                                                        (fn [evaluation-context id-mapping]
                                                          (let [or-go (id-mapping go)]
                                                            (concat
                                                              (g/connect inst :_node-id coll :instances)
                                                              (g/connect or-go :_node-id inst :source)))))))
           [comp-2 or-script-2] (ts/tx-nodes (g/make-nodes world [comp Component]
-                                              (g/override script {:traverse? (constantly true)}
+                                              (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                           (fn [evaluation-context id-mapping]
                                                             (let [or-script (id-mapping script)]
                                                               (g/connect or-script :_node-id comp :instance))))))
@@ -897,7 +957,7 @@
     (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
           [go comp or-script] (ts/tx-nodes (g/make-nodes world [go GameObject
                                                                 comp Component]
-                                             (g/override script {:traverse? (constantly true)}
+                                             (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                          (fn [evaluation-context id-mapping]
                                                            (let [or-script (id-mapping script)]
                                                              (concat
@@ -905,7 +965,7 @@
                                                                (g/connect or-script :_node-id comp :instance)))))))
           [coll inst or-go] (ts/tx-nodes (g/make-nodes world [coll Collection
                                                               inst GameObjectInstance]
-                                           (g/override go {:traverse? (constantly false)}
+                                           (g/override go {:traverse-fn g/never-override-traverse-fn}
                                                        (fn [evaluation-context id-mapping]
                                                          (let [or-go (id-mapping go)]
                                                            (concat
@@ -930,18 +990,18 @@
                                       (ts/tx-nodes (g/make-nodes world [coll Collection
                                                                         go-inst GameObjectInstance]
                                                      (g/connect go-inst :_node-id coll :instances)
-                                                     (g/override go {:traverse? (constantly true)}
+                                                     (g/override go {:traverse-fn g/always-override-traverse-fn}
                                                                  (fn [evaluation-context id-mapping]
                                                                    (let [or-go (id-mapping go)]
                                                                      (g/connect or-go :_node-id go-inst :source)))))))
           [comp or-script] (ts/tx-nodes (g/make-nodes world [comp Component]
-                                          (g/override script {:traverse? (constantly true)}
+                                          (g/override script {:traverse-fn g/always-override-traverse-fn}
                                                       (fn [evaluation-context id-mapping]
                                                         (let [or-script (id-mapping script)]
                                                           (concat
                                                             (g/connect or-script :_node-id comp :instance)
                                                             (g/connect comp :_node-id go :components)))))))]
-      (let [all-script-nodes (doall (tree-seq (constantly true) g/overrides script))]
+      (let [all-script-nodes (doall (tree-seq fn/constantly-true g/overrides script))]
         (is (= 4 (count all-script-nodes)))
         (g/transact (g/delete-node comp))
         (is (= 1 (count (keep g/node-by-id all-script-nodes))))
@@ -1007,4 +1067,3 @@
         (let [output-freqs (frequencies (mapcat g/outputs all-nodes))
               input-freqs (frequencies (mapcat g/inputs all-nodes))]
           (is (= output-freqs input-freqs)))))))
-

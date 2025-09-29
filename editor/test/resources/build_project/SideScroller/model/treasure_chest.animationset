@@ -4,3 +4,4 @@ animations {
 animations {
   animation: "/model/treasure_chest_sub_animation.animationset"
 }
+skeleton: "/model/treasure_chest.dae"

@@ -1,0 +1,172 @@
+name: Build GLFW
+
+on:
+  workflow_dispatch:
+
+env:
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        platform: [x86_64-linux]
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: 3.13
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Install linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxi-dev \
+          libxext-dev \
+          libwayland-dev \
+          libxkbcommon-dev \
+          wayland-protocols
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Check artifact existence and list folder
+      run: |
+        if [ ! -f share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz ]; then
+          echo "Artifact not found. Listing contents of share/ext/glfw:"
+          ls -lh share/ext/glfw || echo "Directory missing"
+        fi
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+
+  build-linux-arm:
+    strategy:
+      matrix:
+        platform: [arm64-linux]
+    runs-on: ubuntu-22.04-arm
+    steps:
+        
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: 3.13
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Install linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxi-dev \
+          libxext-dev \
+          libwayland-dev \
+          libxkbcommon-dev \
+          wayland-protocols
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Check artifact existence and list folder
+      run: |
+        if [ ! -f share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz ]; then
+          echo "Artifact not found. Listing contents of share/ext/glfw:"
+          ls -lh share/ext/glfw || echo "Directory missing"
+        fi
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+
+  build-macos:
+    strategy:
+      matrix:
+        platform: [arm64-macos, x86_64-macos]
+    runs-on: macOS-14
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: 3.13
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+    - name: Check artifact existence and list folder
+      run: |
+        if [ ! -f share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz ]; then
+          echo "Artifact not found. Listing contents of share/ext/glfw:"
+          ls -lh share/ext/glfw || echo "Directory missing"
+        fi
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+
+  build-windows:
+    strategy:
+      matrix:
+        platform: [win32, x86_64-win32]
+    runs-on: windows-2025
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: 3.13
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+      shell: bash
+    - name: Build GLFW
+      run: |
+        cd share/ext
+        ./build.sh glfw ${{ matrix.platform }}
+      shell: bash
+    - name: Check artifact existence and list folder
+      run: |
+        if [ ! -f share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz ]; then
+          echo "Artifact not found. Listing contents of share/ext/glfw:"
+          ls -lh share/ext/glfw || echo "Directory missing"
+        fi
+      shell: bash
+    - name: Archive results
+      uses: actions/upload-artifact@v4
+      with:
+        name: glfw-3.4-${{ matrix.platform }}.tar.gz
+        path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1

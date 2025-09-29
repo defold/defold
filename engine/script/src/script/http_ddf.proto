@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmHttpDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -31,6 +32,19 @@ message HttpRequest
     // Explicitly ignore the http cache.
     // It's for 304 requests where we just want to confirm the 304 (e.g. for liveupdate).
     optional bool   ignore_cache   = 9;
+
+    // Use chunked transfer encoding
+    optional bool   chunked_transfer   = 10 [default=true];
+
+    optional bool report_progress = 11;
+}
+
+message HttpRequestProgress
+{
+    required uint32 bytes_sent     = 1;
+    required uint32 bytes_received = 2;
+    required uint32 bytes_total    = 3;
+    optional string url            = 4;
 }
 
 message HttpResponse
@@ -52,5 +66,10 @@ message HttpResponse
     required uint64 response        = 4;
     required uint32 response_length = 5;
 
-    required string path            = 6;
+    required string path            = 6; // Path on disc where the response is written to
+    required string url             = 7;
+
+    optional uint32 range_start     = 8;
+    optional uint32 range_end       = 9;
+    optional uint32 document_size   = 10;
 }

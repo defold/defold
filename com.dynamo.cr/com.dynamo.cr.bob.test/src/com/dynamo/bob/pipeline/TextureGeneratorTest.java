@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,23 +15,23 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
 
+import com.defold.extension.pipeline.texture.*;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.dynamo.graphics.proto.Graphics;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.TexcLibrary.FlipAxis;
+import com.dynamo.bob.pipeline.Texc.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
-import com.dynamo.graphics.proto.Graphics.TextureImage.CompressionType;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -44,7 +44,13 @@ public class TextureGeneratorTest {
     private static int pixelGreen = 0xFF002200;
     private static int pixelBlue  = 0xFF330000;
 
-    // Create a 2x2 image that will be easy to verfy after different flip operations.
+    @Before
+    public void setUp() throws Exception {
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
+        TextureCompression.registerCompressor(new TextureCompressorASTC());
+    }
+
+    // Create a 2x2 image that will be easy to verify after different flip operations.
     // +---+
     // |W|R|  W= White
     // +---+  R= Red
@@ -62,14 +68,14 @@ public class TextureGeneratorTest {
     }
 
     // Asserts that the pixel at x and y is of a certain color.
-    static void assertPixel(Image image, int x, int y, int color)
+    static void assertPixel(Image image, byte[] data, int x, int y, int color)
     {
         int width = image.getWidth();
         int offset = (width*y + x)*4;
-        assertEquals((byte) (color >> 16), image.getData().byteAt(offset+0)); // B
-        assertEquals((byte) (color >> 8), image.getData().byteAt(offset+1));  // G
-        assertEquals((byte) (color >> 0), image.getData().byteAt(offset+2));  // R
-        assertEquals((byte) (color >> 24), image.getData().byteAt(offset+3)); // A
+        assertEquals((byte) (color >> 16),  data[offset+0]); // B
+        assertEquals((byte) (color >> 8), data[offset+1]);  // G
+        assertEquals((byte) (color >> 0), data[offset+2]);  // R
+        assertEquals((byte) (color >> 24), data[offset+3]); // A
     }
 
     @Test
@@ -84,10 +90,10 @@ public class TextureGeneratorTest {
                 { 2,1 },
                 { 1,1 } };
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"));
 
-        assertEquals(1, texture.getAlternativesCount());
-        Image image = texture.getAlternatives(0);
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, image.getFormat());
         assertEquals(mipMaps.length, image.getMipMapOffsetCount());
 
@@ -104,37 +110,37 @@ public class TextureGeneratorTest {
 
     @Test
     public void testRGB() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"));
 
-        assertEquals(1, texture.getAlternativesCount());
-        Image image = texture.getAlternatives(0);
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, image.getFormat());
     }
 
     @Test
     public void testLuminance() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_lum.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_lum.png"));
 
-        assertEquals(1, texture.getAlternativesCount());
-        Image image = texture.getAlternatives(0);
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, image.getFormat());
     }
 
     @Test
     public void testLuminanceAlpha() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_luma.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_luma.png"));
 
-        assertEquals(1, texture.getAlternativesCount());
-        Image image = texture.getAlternatives(0);
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA, image.getFormat());
     }
 
     @Test
     public void testIndexed() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_idx.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_idx.png"));
 
-        assertEquals(1, texture.getAlternativesCount());
-        Image image = texture.getAlternatives(0);
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, image.getFormat());
     }
 
@@ -151,10 +157,10 @@ public class TextureGeneratorTest {
                 { 2, 2 },
                 { 1, 1 } };
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("btn_next_level.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("btn_next_level.png"));
 
-        assertEquals(1, texture.getAlternativesCount());
-        Image image = texture.getAlternatives(0);
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, image.getFormat());
         assertEquals(mipMaps.length, image.getMipMapOffsetCount());
 
@@ -167,14 +173,20 @@ public class TextureGeneratorTest {
             offset += size;
             ++i;
         }
-        assertEquals(offset, image.getData().size());
+
+        int resultLength = 0;
+        for (byte[] bytes : result.imageDatas) {
+            resultLength += bytes.length;
+        }
+
+        assertEquals(offset, resultLength);
     }
 
     @Test
     public void testClosestPowerTwoScale() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("127_65_rgba.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("127_65_rgba.png"));
 
-        Image image = texture.getAlternatives(0);
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(128, image.getWidth());
         assertEquals(64, image.getHeight());
         assertEquals(127, image.getOriginalWidth());
@@ -183,9 +195,9 @@ public class TextureGeneratorTest {
 
     @Test
     public void testCompile16BitPerChannelTexture() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("16_bit_texture.png"));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("16_bit_texture.png"));
 
-        Image image = texture.getAlternatives(0);
+        Image image = result.textureImage.getAlternatives(0);
         assertEquals(8, image.getWidth());
         assertEquals(8, image.getHeight());
         assertEquals(6, image.getOriginalWidth());
@@ -215,13 +227,66 @@ public class TextureGeneratorTest {
         // full transparent white pixel
         int pixel = (0 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
         srcImage.setRGB(0, 0, pixel);
-        TextureImage texture = TextureGenerator.generate(srcImage, null, true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(srcImage, null, true);
 
-        Image image = texture.getAlternatives(0);
-        assertEquals((byte) 0, image.getData().byteAt(0));
-        assertEquals((byte) 0, image.getData().byteAt(1));
-        assertEquals((byte) 0, image.getData().byteAt(2));
-        assertEquals((byte) 0, image.getData().byteAt(3));
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals((byte) 0, result.imageDatas.get(0)[0]);
+        assertEquals((byte) 0, result.imageDatas.get(0)[1]);
+        assertEquals((byte) 0, result.imageDatas.get(0)[2]);
+        assertEquals((byte) 0, result.imageDatas.get(0)[3]);
+    }
+
+    @Test
+    public void testTextureProfileCompressors() throws TextureGeneratorException, IOException {
+        BufferedImage srcImage = new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR);
+        // full transparent white pixel
+        int pixel = (0 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
+        srcImage.setRGB(0, 0, pixel);
+
+        // Create the texture compressor + preset
+        TextureCompressorPreset presetOne = new TextureCompressorPreset("TestCompressorPresetOne", "Test Compressor One", "TestCompressor");
+        assertNotNull(presetOne);
+
+        presetOne.setOptionInt("test_int", 1337);
+        presetOne.setOptionFloat("test_float", 99.0f);
+        presetOne.setOptionString("test_string", "test_string");
+
+        TestTextureCompressor testCompressor = new TestTextureCompressor();
+        testCompressor.expectedOptionOne = 1337;
+        testCompressor.expectedOptionTwo = 99.0f;
+        testCompressor.expectedOptionThree = "test_string";
+        testCompressor.expectedBytes[0] = (byte) 32;
+        testCompressor.expectedBytes[1] = (byte) 64;
+        testCompressor.expectedBytes[2] = (byte) 128;
+        testCompressor.expectedBytes[3] = (byte) 255;
+
+        TextureCompression.registerCompressor(testCompressor);
+        TextureCompression.registerPreset(presetOne);
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt1.setCompressor("TestCompressor");
+        textureFormatAlt1.setCompressorPreset("TestCompressorPresetOne");
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+        platformProfile.setPremultiplyAlpha(false);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(srcImage, textureProfile.build(), true);
+
+        assertEquals((byte) 32, result.imageDatas.get(0)[0]);
+        assertEquals((byte) 64,  result.imageDatas.get(0)[1]);
+        assertEquals((byte) 128, result.imageDatas.get(0)[2]);
+        assertEquals((byte) 255, result.imageDatas.get(0)[3]);
     }
 
     @Test
@@ -248,13 +313,12 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(srcImage, textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(srcImage, textureProfile.build(), true);
 
-        Image image = texture.getAlternatives(0);
-        assertEquals((byte) 255,   image.getData().byteAt(0));
-        assertEquals((byte) 255, image.getData().byteAt(1));
-        assertEquals((byte) 255, image.getData().byteAt(2));
-        assertEquals((byte) 0, image.getData().byteAt(3));
+        assertEquals((byte) 255, result.imageDatas.get(0)[0]);
+        assertEquals((byte) 255, result.imageDatas.get(0)[1]);
+        assertEquals((byte) 255, result.imageDatas.get(0)[2]);
+        assertEquals((byte) 0,   result.imageDatas.get(0)[3]);
     }
 
     @Test
@@ -275,13 +339,13 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
+        // Generate texture without compression applied
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
-        assertEquals(1, texture.getAlternativesCount());
-        assertEquals(128, texture.getAlternatives(0).getWidth());
-        assertEquals(64, texture.getAlternatives(0).getHeight());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        assertEquals(128, result.textureImage.getAlternatives(0).getWidth());
+        assertEquals(64, result.textureImage.getAlternatives(0).getHeight());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(0).getFormat());
     }
 
     @Test
@@ -302,57 +366,57 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
+        // Generate texture without compression applied
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
-        assertEquals(1, texture.getAlternativesCount());
-        assertEquals(128, texture.getAlternatives(0).getWidth());
-        assertEquals(64, texture.getAlternatives(0).getHeight());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(0).getFormat());
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        assertEquals(128, result.textureImage.getAlternatives(0).getWidth());
+        assertEquals(64, result.textureImage.getAlternatives(0).getHeight());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, result.textureImage.getAlternatives(0).getFormat());
     }
 
     @Test
     public void testNoFlip() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.noneOf(FlipAxis.class));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.noneOf(FlipAxis.class));
 
-        Image image = texture.getAlternatives(0);
-        assertPixel(image, 0, 0, pixelWhite);
-        assertPixel(image, 1, 0, pixelRed);
-        assertPixel(image, 0, 1, pixelGreen);
-        assertPixel(image, 1, 1, pixelBlue);
+        Image image = result.textureImage.getAlternatives(0);
+        assertPixel(image, result.imageDatas.get(0), 0, 0, pixelWhite);
+        assertPixel(image, result.imageDatas.get(0), 1, 0, pixelRed);
+        assertPixel(image, result.imageDatas.get(0), 0, 1, pixelGreen);
+        assertPixel(image, result.imageDatas.get(0), 1, 1, pixelBlue);
     }
 
     @Test
     public void testFlipX() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X));
 
-        Image image = texture.getAlternatives(0);
-        assertPixel(image, 0, 0, pixelRed);
-        assertPixel(image, 1, 0, pixelWhite);
-        assertPixel(image, 0, 1, pixelBlue);
-        assertPixel(image, 1, 1, pixelGreen);
+        Image image = result.textureImage.getAlternatives(0);
+        assertPixel(image, result.imageDatas.get(0), 0, 0, pixelRed);
+        assertPixel(image, result.imageDatas.get(0), 1, 0, pixelWhite);
+        assertPixel(image, result.imageDatas.get(0), 0, 1, pixelBlue);
+        assertPixel(image, result.imageDatas.get(0), 1, 1, pixelGreen);
     }
 
     @Test
     public void testFlipY() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
 
-        Image image = texture.getAlternatives(0);
-        assertPixel(image, 0, 0, pixelGreen);
-        assertPixel(image, 1, 0, pixelBlue);
-        assertPixel(image, 0, 1, pixelWhite);
-        assertPixel(image, 1, 1, pixelRed);
+        Image image = result.textureImage.getAlternatives(0);
+        assertPixel(image, result.imageDatas.get(0), 0, 0, pixelGreen);
+        assertPixel(image, result.imageDatas.get(0), 1, 0, pixelBlue);
+        assertPixel(image, result.imageDatas.get(0), 0, 1, pixelWhite);
+        assertPixel(image, result.imageDatas.get(0), 1, 1, pixelRed);
     }
 
     @Test
     public void testFlipXY() throws TextureGeneratorException, IOException {
-        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X, FlipAxis.FLIP_AXIS_Y));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X, FlipAxis.FLIP_AXIS_Y));
 
-        Image image = texture.getAlternatives(0);
-        assertPixel(image, 0, 0, pixelBlue);
-        assertPixel(image, 1, 0, pixelGreen);
-        assertPixel(image, 0, 1, pixelRed);
-        assertPixel(image, 1, 1, pixelWhite);
+        Image image = result.textureImage.getAlternatives(0);
+        assertPixel(image, result.imageDatas.get(0), 0, 0, pixelBlue);
+        assertPixel(image, result.imageDatas.get(0), 1, 0, pixelGreen);
+        assertPixel(image, result.imageDatas.get(0), 0, 1, pixelRed);
+        assertPixel(image, result.imageDatas.get(0), 1, 1, pixelWhite);
     }
 
     @Test
@@ -374,15 +438,15 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
 
-        assertEquals(1, texture.getAlternativesCount());
-        assertEquals(128, texture.getAlternatives(0).getWidth());
-        assertEquals(64, texture.getAlternatives(0).getHeight());
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        assertEquals(128, result.textureImage.getAlternatives(0).getWidth());
+        assertEquals(64, result.textureImage.getAlternatives(0).getHeight());
 
         // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
         //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, texture.getAlternatives(0).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(0).getFormat());
     }
 
     @Test
@@ -404,10 +468,10 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
 
-        assertEquals(16, texture.getAlternatives(0).getWidth());
-        assertEquals(8, texture.getAlternatives(0).getHeight());
+        assertEquals(16, result.textureImage.getAlternatives(0).getWidth());
+        assertEquals(8, result.textureImage.getAlternatives(0).getHeight());
     }
 
 
@@ -444,29 +508,29 @@ public class TextureGeneratorTest {
         textureProfile.addPlatforms(platformProfile1.build());
         textureProfile.addPlatforms(platformProfile2.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
 
-        assertEquals(3, texture.getAlternativesCount());
+        assertEquals(3, result.textureImage.getAlternativesCount());
 
         // PVR will result in square textures
 
         // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
 
         //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
-        assertEquals(16, texture.getAlternatives(0).getWidth());
-        assertEquals(8, texture.getAlternatives(0).getHeight());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(0).getFormat());
+        assertEquals(16, result.textureImage.getAlternatives(0).getWidth());
+        assertEquals(8, result.textureImage.getAlternatives(0).getHeight());
 
         //assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, texture.getAlternatives(1).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(1).getFormat());
-        assertEquals(16, texture.getAlternatives(1).getWidth());
-        assertEquals(8, texture.getAlternatives(1).getHeight());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, result.textureImage.getAlternatives(1).getFormat());
+        assertEquals(16, result.textureImage.getAlternatives(1).getWidth());
+        assertEquals(8, result.textureImage.getAlternatives(1).getHeight());
 
 
         //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
-        assertEquals(128, texture.getAlternatives(2).getWidth());
-        assertEquals(64, texture.getAlternatives(2).getHeight());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(2).getFormat());
+        assertEquals(128, result.textureImage.getAlternatives(2).getWidth());
+        assertEquals(64, result.textureImage.getAlternatives(2).getHeight());
     }
 
 
@@ -489,15 +553,15 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
 
         // PVR will result in square textures
-        assertEquals(128, texture.getAlternatives(0).getWidth());
-        assertEquals(64, texture.getAlternatives(0).getHeight());
+        assertEquals(128, result.textureImage.getAlternatives(0).getWidth());
+        assertEquals(64, result.textureImage.getAlternatives(0).getHeight());
 
         // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
         //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(0).getFormat());
     }
 
 
@@ -520,12 +584,12 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build(), true);
 
         // NOTE: We've currently disabled the PVRTC/ETC compression, and use UASTC as default instead
         // If input has less channels than target format, it should use a format in the same family with fewer channels (if available).
         //assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(0).getFormat());
     }
 
 
@@ -548,11 +612,11 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_lum.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_lum.png"), textureProfile.build(), true);
 
         // If input has less channels than target format (and is uncompressed) pick the format with equal components to not waste memory.
-        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
-        assertEquals(128*64*1, texture.getAlternatives(0).getData().toByteArray().length);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, result.textureImage.getAlternatives(0).getFormat());
+        assertEquals(128*64*1, result.imageDatas.get(0).length);
 
     }
 
@@ -575,11 +639,11 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build(), true);
 
         // If input has more channels than target format (and is uncompressed) discard channels.
-        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
-        assertEquals(128*64*1, texture.getAlternatives(0).getData().toByteArray().length);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, result.textureImage.getAlternatives(0).getFormat());
+        assertEquals(128*64*1, result.imageDatas.get(0).length);
 
     }
 
@@ -605,12 +669,47 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), true);
 
         // If input has more channels than target format (and is uncompressed) discard channels.
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_16BPP, texture.getAlternatives(0).getFormat());
-        assertEquals(128*64*2, texture.getAlternatives(0).getData().toByteArray().length);
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP, texture.getAlternatives(1).getFormat());
-        assertEquals(128*64*2, texture.getAlternatives(1).getData().toByteArray().length);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_16BPP, result.textureImage.getAlternatives(0).getFormat());
+        assertEquals(128*64*2, result.imageDatas.get(0).length);
+
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP, result.textureImage.getAlternatives(1).getFormat());
+        assertEquals(128*64*2, result.imageDatas.get(1).length);
+    }
+
+    @Test
+    public void testHavingProfileWithNoCompression() throws TextureGeneratorException, IOException {
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt1.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+
+        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt2.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.addFormats(textureFormatAlt2.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        // Run the generator WITHOUT compression so we force a default profile
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
+
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, result.textureImage.getAlternatives(0).getFormat());
+        assertEquals(128*64, result.textureImage.getAlternatives(0).getDataSize());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(1).getFormat());
+        assertEquals(128*64*3, result.textureImage.getAlternatives(1).getDataSize());
     }
 }

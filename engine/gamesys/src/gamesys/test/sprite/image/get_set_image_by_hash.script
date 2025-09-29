@@ -1,0 +1,48 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local function assert_error(func)
+    local r, err = pcall(func)
+    if not r then
+        print(err)
+    end
+    assert(not r)
+end
+
+function init(self)
+	local valid_atlas = hash("/atlas/valid.t.texturesetc")
+	local valid_atlas_64 = hash("/atlas/valid_64x64.t.texturesetc")
+
+	-- all of these should be the same initially.
+	local without_options = go.get("#sprite", "image")
+	local with_options_tex0 = go.get("#sprite", "image", { key = "tex0" })
+	local with_options_tex1 = go.get("#sprite", "image", { key = "tex1" })
+
+	assert(without_options == valid_atlas)
+	assert(without_options == with_options_tex0)
+	assert(without_options == with_options_tex1)
+
+	go.set("#sprite", "image", valid_atlas_64, { key = "tex1" })
+	assert(valid_atlas_64 == go.get("#sprite", "image", { key = "tex1" }))
+
+	go.set("#sprite", "image", valid_atlas_64)
+	assert(valid_atlas_64 == go.get("#sprite", "image"))
+
+	go.set("#sprite", "image", valid_atlas_64, { key = "tex0" })
+	assert(valid_atlas_64 == go.get("#sprite", "image", { key = "tex0" }))
+
+	-- error tests
+	assert_error(function() go.set("#sprite", "image", "missing_atlas") end)
+	assert_error(function() go.set("#sprite", "image", valid_atlas_64, { key = "missing_sampler" }) end)
+end

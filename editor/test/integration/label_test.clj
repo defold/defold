@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,17 +17,20 @@
             [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
-            [editor.app-view :as app-view]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.label :as label]
             [editor.math :as math]
+            [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [util.fn :as fn])
   (:import [editor.types Region]))
 
-(deftest label-validation
+(deftest label-validation-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (doseq [[prop cases] [[:font {"no font" ""
@@ -39,7 +42,7 @@
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
 
-(deftest label-aabb
+(deftest label-aabb-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (let [aabb (g/node-value node-id :aabb)
@@ -48,7 +51,7 @@
         (is (< 0.0 y))
         (is (= 0.0 z))))))
 
-(deftest label-scene
+(deftest label-scene-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (let [scene (g/node-value node-id :scene)
@@ -58,8 +61,8 @@
         (is (= node-id (some-> scene :renderable :select-batch-key)))
         (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
         (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader :verts) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader :frags) "gl_FragColor"))))))
+        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
@@ -71,7 +74,7 @@
     (into {}
           (keep (fn [pass]
                   (let [render-args (scene/pass-render-args (Region. 0 100 0 100) camera pass)
-                        calls (test-util/with-logged-calls [label/render-lines label/render-tris]
+                        calls (fn/with-logged-calls [label/render-lines label/render-tris]
                                 (let [patched-renderables (walk/postwalk-replace {old-render-lines label/render-lines
                                                                                   old-render-tris label/render-tris}
                                                                                  renderables)]
@@ -90,10 +93,10 @@
                            calls-by-fn)]))
         render-calls-by-pass))
 
-(deftest label-batch-render
+(deftest label-batch-render-test
   (test-util/with-loaded-project
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-label-component! (partial test-util/add-embedded-component! app-view (fn [node-ids] (app-view/select app-view node-ids)) (workspace/get-resource-type workspace "label"))
+          add-label-component! #(test-util/add-embedded-component! % (workspace/get-resource-type workspace "label"))
           [go view] (test-util/open-scene-view! project app-view "/game_object/test.go" 128 128)
           render-calls (fn [selection key-fn]
                          (get-render-calls-by-pass
@@ -157,10 +160,57 @@
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
 
-(deftest label-scene
+(deftest label-scene-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (test-util/test-uses-assigned-material workspace project node-id
                                              :material
                                              [:renderable :user-data :material-shader]
                                              [:renderable :user-data :gpu-texture]))))
+
+(deftest label-migration-test
+  (test-util/with-loaded-project "test/resources/label_migration_project"
+    (let [resources-with-dirty-save-data (into #{}
+                                               (map :resource)
+                                               (project/dirty-save-data project))]
+      (letfn [(resource-has-dirty-save-data? [resource]
+                (assert (resource/file-resource? resource))
+                (contains? resources-with-dirty-save-data resource))
+
+              (verify-embedded-component [host-resource-proj-path embedded-component-outline-path expected-scale expected-dirty]
+                (let [host-resource (workspace/find-resource workspace host-resource-proj-path)]
+                  (is (resource/resource? host-resource))
+                  (let [host-resource-node-id (project/get-resource-node project host-resource)
+                        embedded-component-node-id (:node-id (test-util/outline host-resource-node-id embedded-component-outline-path))]
+                    (is (g/node-instance? game-object/EmbeddedComponent embedded-component-node-id))
+                    (is (= expected-scale (g/node-value embedded-component-node-id :scale)))
+                    (is (= expected-dirty (resource-has-dirty-save-data? host-resource))))))
+
+              (verify-referenced-component [host-resource-proj-path referenced-component-outline-path expected-scale expected-dirty]
+                (let [host-resource (workspace/find-resource workspace host-resource-proj-path)]
+                  (is (resource/resource? host-resource))
+                  (let [host-resource-node-id (project/get-resource-node project host-resource)
+                        referenced-component-node-id (:node-id (test-util/outline host-resource-node-id referenced-component-outline-path))]
+                    (is (g/node-instance? game-object/ReferencedComponent referenced-component-node-id))
+                    (is (= expected-scale (g/node-value referenced-component-node-id :scale)))
+                    (let [referenced-label-resource (g/node-value referenced-component-node-id :source-resource)]
+                      (is (resource/resource? referenced-label-resource))
+                      (is (= expected-dirty (resource-has-dirty-save-data? referenced-label-resource)))
+                      (is (= expected-dirty (resource-has-dirty-save-data? host-resource)))))))]
+
+        (testing "Scale value was moved from LabelDesc to ComponentDesc in game object."
+          (verify-embedded-component "/scale_migration/embedded_scaled_label.go" [0] [3.0 4.0 5.0] false)
+          (verify-referenced-component "/scale_migration/referenced_scaled_label.go" [0] [2.0 3.0 4.0] true))
+
+        (testing "Scale value was moved from LabelDesc to ComponentDesc in game object embedded inside collection."
+          (verify-embedded-component "/scale_migration/embedded_scaled_label.collection" [0 0] [3.0 4.0 5.0] false)
+          (verify-referenced-component "/scale_migration/referenced_scaled_label.collection" [0 0] [2.0 3.0 4.0] true))
+
+        (testing "Scale value was moved from LabelDesc to ComponentDesc in child game object embedded inside collection."
+          (verify-embedded-component "/scale_migration/embedded_scaled_label_child.collection" [0 0 0] [3.0 4.0 5.0] false)
+          (verify-referenced-component "/scale_migration/referenced_scaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] true))
+
+        (testing "After migration, the default scale read from the LabelDesc does not overwrite the migrated scale in the ComponentDesc."
+          (verify-referenced-component "/scale_migration/referenced_unscaled_label.go" [0] [2.0 3.0 4.0] false)
+          (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
+          (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))

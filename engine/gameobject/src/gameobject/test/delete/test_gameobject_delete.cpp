@@ -1,29 +1,29 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <algorithm>
 #include <map>
+#include <random>
 #include <vector>
-
-#include <resource/resource.h>
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
+
+#include <dmsdk/resource/resource.h>
 
 class DeleteTest : public jc_test_base_class
 {
@@ -35,8 +35,9 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/delete");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/delete");
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -61,7 +62,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, 0, ResDeleteSelfDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType ds_type;
@@ -84,8 +85,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResDeleteSelfCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params);
+    static dmResource::Result ResDeleteSelfCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams* params);
 
     static dmGameObject::CreateResult     DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
     static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
@@ -110,16 +111,16 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCreateParams* params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
+    DeleteTest* game_object_test = (DeleteTest*) params->m_Context;
     game_object_test->m_CreateCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
     TestGameObjectDDF::DeleteSelfResource* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::DeleteSelfResource>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::DeleteSelfResource>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -128,12 +129,12 @@ dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCre
     }
 }
 
-dmResource::Result DeleteTest::ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result DeleteTest::ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
+    DeleteTest* game_object_test = (DeleteTest*) params->m_Context;
     game_object_test->m_DestroyCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
@@ -181,6 +182,9 @@ TEST_F(DeleteTest, DeleteSelf)
      * Component instances of type 'A' is used here. We need a specific ComponentUpdate though. (DeleteSelfComponentsUpdate)
      * See New(..., goproto01.goc") below.
      */
+    std::random_device rd;
+    std::mt19937 g(rd());
+
     for (int iter = 0; iter < 4; ++iter)
     {
         m_DeleteSelfInstances.clear();
@@ -196,7 +200,7 @@ TEST_F(DeleteTest, DeleteSelf)
             m_DeleteSelfIndices.push_back(i);
         }
 
-        std::random_shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end());
+        std::shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end(), g);
 
         while (m_DeleteSelfIndices.size() > 0)
         {
@@ -433,12 +437,4 @@ TEST_F(DeleteTest, TestScriptDeleteNonExistent)
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }

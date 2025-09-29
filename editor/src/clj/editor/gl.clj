@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -140,17 +140,22 @@
       (.glBindVertexArray gl vba-name)
       vba-name)))
 
-(defn gl-gen-buffers [^GL2 gl nbufs]
-  (let [names (IntBuffer/allocate nbufs)]
-    (.glGenBuffers gl nbufs names)
-    (.array names)))
+(defn gl-gen-buffers
+  ^ints [^GL2 gl nbufs]
+  (let [names (int-array nbufs)]
+    (.glGenBuffers gl nbufs names 0)
+    names))
 
-(defn gl-delete-buffers [^GL2 gl & bufs]
-  (let [names (IntBuffer/allocate (count bufs))]
-    (doseq [^int buf bufs]
-      (.put names buf))
-    (.flip names)
-    (.glDeleteBuffers gl (count bufs) ^IntBuffer names)))
+(defn gl-gen-buffer
+  ^long [^GL2 gl]
+  (let [names (int-array 1)]
+    (.glGenBuffers gl 1 names 0)
+    (aget names 0)))
+
+(defn gl-delete-buffers [^GL2 gl bufs]
+  (let [names (int-array bufs)
+        nbufs (alength names)]
+    (.glDeleteBuffers gl nbufs names 0)))
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
 
@@ -158,6 +163,7 @@
 (defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))
 (defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~gl ~type ~size ~data ~usage))
 (defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~gl ~idx ~size ~type ~norm ~stride ~offset))
+(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~gl ~idx ~divisor))
 (defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~gl ~idx))
 (defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~gl ~idx))
 (defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~gl ~idx))
@@ -167,18 +173,23 @@
 (defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~gl ~sfactor ~dfactor))
 (defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~gl ~mode))
 
-(defn gl-get-integer-v
-  [^GL2 gl ^Integer param sz]
-  (let [buff (int-array sz)]
-    (.glGetIntegerv gl param buff 0)
-    buff))
+(defmacro ^:private gl-get-integer [gl param]
+  `(int
+     (let [out# (int-array 1)]
+       (.glGetIntegerv ~(with-meta gl {:tag `GL2}) (int ~param) out# 0)
+       (aget out# 0))))
 
 (defn gl-max-texture-units
-  [^GL2 gl]
-  (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
+  ^long [^GL2 gl]
+  (gl-get-integer gl GL2/GL_MAX_TEXTURE_UNITS))
 
-(defn gl-current-program [^GL2 gl]
-  (first (gl-get-integer-v gl GL2/GL_CURRENT_PROGRAM 1)))
+(defn gl-active-texture
+  ^long [^GL2 gl]
+  (gl-get-integer gl GL2/GL_ACTIVE_TEXTURE))
+
+(defn gl-current-program
+  ^long [^GL2 gl]
+  (gl-get-integer gl GL2/GL_CURRENT_PROGRAM))
 
 (defn text-renderer [font-name font-style font-size]
   (doto (TextRenderer. (Font. font-name font-style font-size) false false)
@@ -236,7 +247,7 @@
        (when (satisfies? p/GlBind b#)
          (p/bind b# gl# render-args#)))
      (let [res# (do ~@body)]
-       (doseq [b# (reverse items#)]
+       (doseq [b# (rseq items#)]
          (when (satisfies? p/GlBind b#)
            (p/unbind b# gl# render-args#)))
        res#)))

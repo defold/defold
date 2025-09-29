@@ -1,0 +1,35 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+go.property("skin1", resource.atlas())
+go.property("skin2", resource.atlas())
+
+local function switch_skin(self)
+	self.skin = self.skin + 1
+	if self.skin > 2 then
+		self.skin = 1
+	end
+	local texture = nil
+	if self.skin == 1 then
+		texture = self.skin1
+	elseif self.skin == 2 then
+		texture = self.skin2
+	end
+	go.set("#sprite", "image", texture)
+end
+
+function init(self)
+	self.skin = 1
+	timer.delay(1, true, switch_skin)
+end

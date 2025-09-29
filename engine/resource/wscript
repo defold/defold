@@ -1,69 +1,144 @@
 #! /usr/bin/env python
 
+import socket
+from contextlib import closing
+
+
 VERSION='0.1'
 APPNAME='resource'
 
 srcdir = '.'
 blddir = 'build'
 
-import os, subprocess
-import sys
-sys.path = ["src"] + sys.path
-import urllib2, time, atexit
-from Logs import error
-import Options
+import os, sys, subprocess, socket
+import http, urllib, time, atexit, urllib.error, urllib.request
+from waflib import Logs
+import waflib.Options
+sys.path = ["src"] + sys.path # in order to import waf_resource
 import waf_dynamo, waf_ddf, waf_resource
+import TestContext
+
+test_context = None
 
 os.environ['PATH'] = os.path.abspath('src') + os.pathsep + os.environ['PATH']
 
-def init():
-    pass
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('waf_resource')
-    conf.check_tool('java')
+    conf.load('waf_dynamo')
+    conf.load('waf_resource')
+    conf.load('java')
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    # For some reason, the ranged server doesn't work on Win32
+    if 'win32' == sys.platform:
+        conf.env.append_value('DEFINES', 'DM_TEST_NO_SUPPORT_RANGE_REQUEST')
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.recurse('src')
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
+    conf.env.append_value('INCLUDES', "src")
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
+
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
 
 def build(bld):
-    bld.add_subdirs('src')
+    global test_context
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
 def kill_proc(proc):
     proc.kill()
 
-def shutdown():
-    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
-        return
+def _get_local_ip(self):
+    hostname = socket.gethostname()
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
+    return local_ip
 
-    proc = subprocess.Popen(["python", "-m", "SimpleHTTPServer", "6123"],
+def _start_server(self, local_ip, port, configname=None):
+    Logs.info('Starting test server at http://%s:%d' % (local_ip, port))
+    configfile = waf_dynamo.create_test_server_config(self, port=port, ip=local_ip, config_name=configname)
+
+    # For some reason, the ranged server doesn't work on Win32
+    servertype = "RangeHTTPServer"
+    if 'win32' == sys.platform:
+        servertype = "http.server"
+
+    proc = subprocess.Popen(["python", "-m", servertype, str(port)],
                             shell = False,
-                            cwd = "build/default/src/test")
-    atexit.register(kill_proc, proc)
+                            cwd = "build/src/test")
+    return proc, configfile
 
+def _wait_for_server(self, proc, local_ip, port):
+    timeout = 8 # seconds
     start = time.time()
     while True:
-        if time.time() - start > 5:
-            error('HTTP server failed to start within 5 seconds')
+        if time.time() - start > timeout:
+            Logs.error('HTTP server failed to start within %d seconds' % timeout)
             sys.exit(1)
         try:
-            urllib2.urlopen('http://localhost:6123')
+            urllib.request.urlopen('http://%s:%d' % (local_ip, port))
             break
-        except urllib2.URLError:
+        except urllib.error.URLError:
             print('Waiting for HTTP testserver to start...')
             sys.stdout.flush()
             time.sleep(0.5)
+        except Exception as e:
+            self.fatal('Failed to start test server at http://%s:%d: %s: %s, Is there another test server running?' % (local_ip, port, type(e), e))
 
-    waf_dynamo.run_tests(valgrind = True)
+
+def _cleanup_server(args):
+    proc, configpath = args
+    kill_proc(proc)
+    if os.path.exists(configpath):
+        os.remove(configpath)
+
+def server(self):
+    local_ip = _get_local_ip(self)
+    port = find_free_port()
+    proc, configfile = _start_server(self, local_ip, port, "unittest.cfg")
+    atexit.register(_cleanup_server, (proc, configfile))
+
+    _wait_for_server(self, proc, local_ip, port)
+
+    timeout = 240 # seconds
+    start = time.time()
+    while True:
+        if time.time() - start > timeout:
+            print('Shutting down server after %d seconds' % timeout)
+            return
+        time.sleep(1.0)
+
+def shutdown(self):
+    if not TestContext.is_valid(test_context) or waflib.Options.options.skip_build_tests or waflib.Options.options.skip_tests:
+        return
+
+    local_ip = _get_local_ip(self)
+    port = find_free_port()
+    proc, configfile = _start_server(self, local_ip, port)
+    atexit.register(_cleanup_server, (proc, configfile))
+
+    _wait_for_server(self, proc, local_ip, port)
+
+    try:
+        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
+    finally:
+        os.remove(configfile)

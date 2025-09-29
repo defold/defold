@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,7 @@
 
 set -e
 
-ANDROID_NDK_VERSION=r20
+ANDROID_NDK_VERSION=r25b
 ANDROID_NDK=android-ndk-${ANDROID_NDK_VERSION}
 
 HOST=$1
@@ -33,10 +33,9 @@ else
 fi
 
 # Contains the entire NDK (we only need the standalone toochain)
-ANDROID_NDK_BASENAME=android-ndk-${ANDROID_NDK_VERSION}-${HOST}-x86_64
+ANDROID_NDK_BASENAME=android-ndk-${ANDROID_NDK_VERSION}-${HOST}
 ANDROID_NDK_FILENAME=${ANDROID_NDK_BASENAME}.zip
 ANDROID_NDK_URL=https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
-
 # Contains the sdkmanager, which is used to install the sdk
 ANDROID_TOOLS_FILENAME=sdk-tools-${HOST}-4333796.zip
 ANDROID_TOOLS_URL=https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
@@ -63,7 +62,7 @@ if [ ! -e "${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	# Cleanup the package, shrinking 2.9GB down to 1.6GB (extracted)
 	echo "Cleaning NDK" ${TMP}/${ANDROID_NDK}
 
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/prebuilt)
+	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/prebuilt) -- it's easier to rebuild packages using NDKs cmake
 	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/sources) // android_native_app_glue.h
 
 	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-16)

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,15 +15,16 @@
 (ns integration.asset-browser-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
-            [editor.dialogs :as dialogs]
-            [editor.workspace :as workspace]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-watch :as resource-watch]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]))
 
@@ -43,7 +44,8 @@
                   :let [results (project/find-resources project query)]]
             (is (= 1 (count results)))
             (let [resource-node (get (first results) 1)
-                  resource-type (project/get-resource-type resource-node)
+                  resource (resource-node/resource resource-node)
+                  resource-type (resource/resource-type resource)
                   view-type (first (:view-types resource-type))
                   make-preview-fn (:make-preview-fn view-type)
                   view-opts (assoc ((:id view-type) (:view-opts resource-type))
@@ -55,7 +57,7 @@
 
 (deftest allow-resource-move
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (fn [proj-path]
                       (io/file root-dir proj-path))
           make-dir-resource (fn [proj-path opts]
@@ -101,7 +103,7 @@
 (deftest paste
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world)
-          root-dir (workspace/project-path workspace)
+          root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           root-resource (make-dir-resource "" {})
@@ -131,9 +133,11 @@
         (are [target-resource src-files expected]
             (let [alerted (atom false)
                   message (atom "")]
-              (with-redefs [dialogs/make-info-dialog (fn [text] (reset! alerted true) (reset! message text))]
-                (asset-browser/paste! workspace target-resource src-files (constantly nil))
-                (= expected (not (or @alerted (string/includes? message "reserved"))))))
+              (with-redefs [dialogs/make-info-dialog (fn [_localization props]
+                                                       (reset! alerted true)
+                                                       (reset! message (:content props)))]
+                (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
+                (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
 
           root-resource [(make-file "car/car.script")] true
 
@@ -144,7 +148,7 @@
 
 (deftest rename
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -176,7 +180,7 @@
 
 (deftest delete
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -202,7 +206,7 @@
 
 (deftest new-folder
   (test-util/with-loaded-project
-    (let [root-dir (workspace/project-path workspace)
+    (let [root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -236,7 +240,7 @@
 (deftest drop-move
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world)
-          root-dir (workspace/project-path workspace)
+          root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           resource-map (g/node-value workspace :resource-map)]
       (testing "drag-moving game.project becomes copy"
@@ -250,3 +254,19 @@
             (is (some? (resource-map "/collection/game.project")))
             (is (not (some? (resource-map "/car/car.script"))))
             (is (some? (resource-map "/collection/car.script")))))))))
+
+(deftest replace-template-name
+  (are [name]
+    (= name
+       (->> name
+            (workspace/replace-template-name "string_value: \"{{NAME}}\"")
+            (protobuf/str->pb com.defold.editor.test.TestDdf$DefaultValue)
+            (.getStringValue)))
+
+    "single-quoted: 'text in quotes'"
+    "double-quoted: \"text in quotes\""
+    "slash: /"
+    "backslash: \\"
+    "newline: \n"
+    "carriage-return: \r"
+    "unicode: \u3042"))

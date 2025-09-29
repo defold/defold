@@ -1,0 +1,145 @@
+#! /usr/bin/env python
+
+VERSION = '2.7.1'
+APPNAME = 'glfw'
+
+srcdir = '.'
+blddir = 'build'
+
+import os, sys, re, run, shutil
+
+import waflib.Options
+import TestContext
+from waflib import Build
+
+from waf_dynamo import platform_supports_feature
+import waf_dynamo
+
+test_context = None
+
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
+    if not platform_supports_feature(conf.env.PLATFORM, "opengl", None):
+        print("GLFW isn't supported on this platform", conf.env.PLATFORM)
+        return
+
+    conf.load('waf_dynamo')
+    conf.load('java')
+
+    platform = conf.env.PLATFORM
+
+    if platform in ["x86_64-linux", "arm64-linux"]:
+        conf.env.append_value('CFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS', '-D_GLFW_USE_LINUX_JOYSTICKS', '-D_GLFW_HAS_PTHREAD', '-D_GLFW_HAS_SCHED_YIELD', '-D_GLFW_HAS_SYSCONF'])
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    if not dynamo_home:
+        conf.fatal("DYNAMO_HOME not set")
+    dynamo_ext = os.path.join(dynamo_home, "ext")
+
+    if platform in ('x86_64-macos','arm64-macos'):
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'IOKit', '-framework', 'CoreVideo'])
+        if not waflib.Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGL', '-framework', 'AGL'])
+    elif platform in ('arm64-ios', 'x86_64-ios'):
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+        if not waflib.Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGLES'])
+    elif re.match('arm.*?android', platform):
+        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
+    elif platform in ["x86_64-linux", "arm64-linux"]:
+        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+    elif 'win32' in platform:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'xinput9_1_0.lib', 'glu32.lib'])
+
+    conf.env.append_value('INCLUDES', '../src')
+    conf.env.append_value('DEFINES', 'SDL_JOYSTICK_IOKIT')
+
+def build(bld):
+    global test_context
+    if not platform_supports_feature(bld.env.PLATFORM, "opengl", None):
+        print("GLFW isn't supported on this platform", bld.env.PLATFORM)
+        return
+
+    name = "%s-%s" % (APPNAME, VERSION)
+
+    bld.recurse('lib')
+    bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw.h')
+    bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw_native.h')
+
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+        bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+
+    lib_name = bld.env.cxxstlib_PATTERN % 'dmglfw'
+    bld.install_files('${PREFIX}/%s/lib/%s' % (name, bld.env.PLATFORM), 'lib/%s' % lib_name)
+
+    if 'android' in bld.env['PLATFORM']:
+        classpath = [bld.env.ANDROID_JAR]
+        classpath = os.pathsep.join(classpath)
+
+        bld(features    = 'javac seq',
+            classpath   = classpath,
+            outdir      ='java',
+            source_root = 'java')
+
+        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
+
+        bld(features = 'jar seq',
+            basedir  = 'java',
+            destfile = 'glfw_android.jar')
+
+        bld.install_files('${PREFIX}/%s/share/java' % name, 'glfw_android.jar')
+    elif 'web' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/%s/lib/%s/js' % (name, bld.env['PLATFORM']), 'js/library_glfw.js')
+
+    TestContext.initialize_test_context(test_context, bld)
+
+    if isinstance(bld, Build.InstallContext):
+        bld.add_group() # make sure the previous install step is done before we create the archive
+
+        output_dir = '%s/%s' % (bld.env.PREFIX, name)
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
+                  always=True)
+
+def create_package(self):
+    target = self.outputs[0].abspath()
+    name = self.outputs[0].name
+    dirs = []
+    dirs_search = ['include', 'lib', 'sdk', 'share']
+
+    for x in dirs_search:
+        if os.path.exists(os.path.join(self.cwd, x)):
+            dirs.append(x)
+
+    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
+
+    run.command(args, cwd=self.cwd)
+    print("Wrote", target)
+
+    # copy to the defold package path
+    source = target
+    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(source, target)
+    print("Installed to", target)
+
+    shutil.rmtree(self.cwd)
+
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)
+
+def package(self):
+    pass

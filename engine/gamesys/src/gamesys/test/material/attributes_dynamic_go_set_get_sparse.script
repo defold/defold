@@ -1,0 +1,51 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local EPSILON = 0.001
+local function assert_near_vector4(a,b)
+    assert(math.abs(a.x-b.x) < EPSILON)
+    assert(math.abs(a.y-b.y) < EPSILON)
+    assert(math.abs(a.z-b.z) < EPSILON)
+    assert(math.abs(a.w-b.w) < EPSILON)
+end
+
+function assert_all(exp_v1,exp_v2,exp_v3,exp_v4)
+	local v1 = go.get("#sprite", "custom_value_1")
+	assert_near_vector4(exp_v1, v1)
+
+	local v2 = go.get("#sprite", "custom_value_2")
+	assert_near_vector4(exp_v2, v2)
+
+	local v3 = go.get("#sprite", "custom_value_3")
+	assert_near_vector4(exp_v3, v3)
+
+	local v4 = go.get("#sprite", "custom_value_4")
+	assert_near_vector4(exp_v4, v4)
+end
+
+function init(self)
+	assert_all(vmath.vector4(1,2,3,4), vmath.vector4(11,12,13,14), vmath.vector4(21,22,23,24), vmath.vector4(31,32,33,34))
+
+	go.set("#sprite", "custom_value_2", vmath.vector4(91, 92, 93, 94))
+	assert_all(vmath.vector4(1,2,3,4), vmath.vector4(91, 92, 93, 94), vmath.vector4(21,22,23,24), vmath.vector4(31,32,33,34))
+
+	go.set("#sprite", "custom_value_4", vmath.vector4(1337, 1338, 1339, 1340))
+	assert_all(vmath.vector4(1,2,3,4), vmath.vector4(91, 92, 93, 94), vmath.vector4(21,22,23,24), vmath.vector4(1337, 1338, 1339, 1340))
+
+	go.set("#sprite", "custom_value_1", vmath.vector4(-1, -2, -3, -4))
+	assert_all(vmath.vector4(-1, -2, -3, -4), vmath.vector4(91, 92, 93, 94), vmath.vector4(21,22,23,24), vmath.vector4(1337, 1338, 1339, 1340))
+
+	go.set("#sprite", "custom_value_3", vmath.vector4(-100, -101, -102, -103))
+	assert_all(vmath.vector4(-1, -2, -3, -4), vmath.vector4(91, 92, 93, 94), vmath.vector4(-100, -101, -102, -103), vmath.vector4(1337, 1338, 1339, 1340))
+end

@@ -1,0 +1,94 @@
+#! /usr/bin/env python
+
+import os, sys
+from waf_dynamo import dmsdk_add_files
+from waflib import Options
+from BuildUtility import create_build_utility
+
+import gen_java
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    if not conf.env.IS_TARGET_DESKTOP:
+        print("Skipping build of shaderc for non host platform")
+        return
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    includes = [os.getcwd(),
+                os.path.join(dynamo_home, 'sdk', 'include')]
+
+    def make_path(path):
+        cwd = os.getcwd()
+        script_dir = conf.path.abspath()
+        return os.path.relpath(os.path.normpath(os.path.join(script_dir, path)), cwd)
+
+    gen_java.generate(header_path   = make_path('./shaderc.h'),
+                     namespace      = 'dmShaderc',
+                     package_name   = 'com.dynamo.bob.pipeline',
+                     includes       = includes,
+                     java_outdir    = make_path('./java'),
+                     jni_outdir     = make_path('./jni'))
+
+    if conf.env.PLATFORM in ('x86_64-win32', 'win32'):
+        conf.env.append_value('LINKFLAGS', ['d3dcompiler.lib', 'uuid.lib', 'dxcompiler.lib', 'D3D12.lib', 'DXGI.lib'])
+
+def build(bld):
+    # We only need this library in the editor and bob
+    if not bld.env.IS_TARGET_DESKTOP:
+        print("Skipping build of shaderc for non host platform")
+        return
+
+    build_util = create_build_utility(bld.env)
+
+    shaderc_sources = [
+        'shaderc.cpp',
+        'shaderc_jni.cpp',
+        'shaderc_spirv.cpp',
+        'shaderc_spvc.cpp']
+    shaderc_sources_no_jni = []
+    shaderc_defines = []
+    shaderc_includes = []
+
+    if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+        shaderc_defines.append('DM_BINARY_HLSL_SUPPORTED')
+        shaderc_sources.append('shaderc_hlsl.cpp')
+        shaderc_includes.append(build_util.get_dynamo_ext('include', 'directx'))
+
+    for x in shaderc_sources:
+        if not 'jni' in x:
+            shaderc_sources_no_jni.append(x)
+
+    # really only used for the unit tests
+    shader = bld.stlib(features = 'c cxx',
+                      includes = ['.', './shader'] + shaderc_includes,
+                      defines = shaderc_defines,
+                      source = shaderc_sources_no_jni,
+                      target = 'shaderc')
+
+    # Used by bob.jar + editor
+    shaderc_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
+                       includes = ['.', './shader', './jni'] + shaderc_includes,
+                       defines = shaderc_defines,
+                       uselib = ['DLIB_NOASAN', 'APP', 'PROFILE_NULL_NOASAN','JNI_NOASAN','JDK', 'SPIRV_CROSS'],
+                       source = shaderc_sources + bld.path.ant_glob("jni/*.cpp"),
+                       target = 'shaderc_shared')
+
+    classpath = []
+
+    bld(features='javac seq',
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
+
+    bld.env["JAVACFLAGS"] = '-g'.split()
+
+    bld(features='jar seq',
+        basedir='java',
+        destfile='shaderc.jar')
+
+    bld.install_files('${PREFIX}/share/java', 'shaderc.jar')
+
+    if not Options.options.skip_build_tests:
+        bld.recurse('test')

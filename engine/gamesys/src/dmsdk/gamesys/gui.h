@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,9 +15,10 @@
 #ifndef DMSDK_GAMESYSTEM_GUI_H
 #define DMSDK_GAMESYSTEM_GUI_H
 
-#include <dmsdk/dlib/configfile.h>
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/script/script.h>
 #include <gamesys/gui_ddf.h>
@@ -34,7 +35,7 @@ namespace dmBuffer
  * @document
  * @name GameSystem Gui
  * @namespace dmGameSystem
- * @path engine/gamesys/src/dmsdk/gamesys/gui.h
+ * @language C++
  */
 
 namespace dmGameSystem
@@ -52,7 +53,7 @@ namespace dmGameSystem
     struct CompGuiNodeType;
 
     /*#
-     * @name GuiNodeTypeDestroyFunction
+     * @name GuiNodeTypeCreateFunction
      * @type typedef
      */
     typedef dmGameObject::Result (*GuiNodeTypeCreateFunction)(const struct CompGuiNodeTypeCtx* ctx, CompGuiNodeType* type);
@@ -97,27 +98,14 @@ namespace dmGameSystem
     #define DM_COMPGUI_PASTE_SYMREG(x, y) x ## y
     #define DM_COMPGUI_PASTE_SYMREG2(x, y) DM_COMPGUI_PASTE_SYMREG(x,y)
 
-    #ifdef __GNUC__
-        // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
-        // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
-        // The bug only happens when the symbol is in a static library though
-        #define DM_REGISTER_COMPGUI_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void __attribute__((constructor)) symbol () { \
-            dmGameSystem::RegisterCompGuiNodeTypeDescriptor((struct dmGameSystem::CompGuiNodeTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
-        }
-    #else
-        #define DM_REGISTER_COMPGUI_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void symbol () { \
-            dmGameSystem::RegisterCompGuiNodeTypeDescriptor((struct dmGameSystem::CompGuiNodeTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
-            }\
-            int symbol ## Wrapper(void) { symbol(); return 0; } \
-            __pragma(section(".CRT$XCU",read)) \
-            __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
-    #endif
-
+    #define DM_REGISTER_COMPGUI_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void symbol () { \
+        dmGameSystem::RegisterCompGuiNodeTypeDescriptor((struct dmGameSystem::CompGuiNodeTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
+    }
 
     /*# Registers a new gui node type to the Gui component
      * @name DM_DECLARE_COMPGUI_TYPE
      * @type macro
-     * @param symbol [type:C++ symbol name] The unique C++ symbol name
+     * @param symbol [type:symbol] The unique C++ symbol name
      * @param name [type:const char*] The name of the node type
      * @param type_create_fn [type:GuiNodeTypeCreateFunction] the create function
      * @param type_destroy_fn [type:GuiNodeTypeDestroyFunction] the destroy function. May be 0
@@ -154,10 +142,11 @@ namespace dmGameSystem
     void CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn);
     void CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn);
     void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn);
-    /*#
+    /**
      * Get the vertices in local space
      */
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);
+
 
 }
 

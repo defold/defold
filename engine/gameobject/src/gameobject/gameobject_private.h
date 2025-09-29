@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,21 +49,21 @@ namespace dmGameObject
         struct Component
         {
             Component(void* resource,
-                      uint32_t resource_type,
                       dmhash_t id,
                       dmhash_t resource_id,
                       ComponentType* type,
                       uint32_t type_index,
                       const Point3& position,
-                      const Quat& rotation) :
+                      const Quat& rotation,
+                      const Vector3& scale) :
                 m_Id(id),
                 m_ResourceId(resource_id),
                 m_Type(type),
                 m_TypeIndex(type_index),
                 m_Resource(resource),
-                m_ResourceType(resource_type),
                 m_Position(position),
                 m_Rotation(rotation),
+                m_Scale(scale),
                 m_PropertySet()
             {
             }
@@ -73,9 +73,9 @@ namespace dmGameObject
             ComponentType*  m_Type;
             uint32_t        m_TypeIndex;
             void*           m_Resource;
-            uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
+            Vector3         m_Scale;
             PropertySet     m_PropertySet;
         };
 
@@ -85,8 +85,8 @@ namespace dmGameObject
         dmArray<void*> m_PropertyResources;
     };
 
-    // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
-    const uint32_t INVALID_INSTANCE_INDEX = 0x7fff;
+    // Invalid instance index. Implies that maximum number of instances is 65534 (i.e. 0xffff - 1)
+    const uint32_t INVALID_INSTANCE_INDEX = 0xffff;
 
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
@@ -103,7 +103,6 @@ namespace dmGameObject
             dmHashInit64(&m_CollectionPathHashState, false);
             m_Depth = 0;
             m_Initialized = 0;
-            m_ScaleAlongZ = 0;
             m_Bone = 0;
             m_Generated = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
@@ -143,28 +142,27 @@ namespace dmGameObject
         uint16_t        m_Depth : 8;
         // If the instance was initialized or not (Init())
         uint16_t        m_Initialized : 1;
-        // If this game object should have the Z component of the position affected by scale
-        uint16_t        m_ScaleAlongZ : 1;
         // If this game object is part of a skeleton
         uint16_t        m_Bone : 1;
         // If this is a generated instance, i.e. if the instance id is uniquely generated
         uint16_t        m_Generated : 1;
+        // Used for deferred deletion
+        uint16_t        m_ToBeDeleted : 1;
+        // Used for deferred add-to-update
+        uint16_t        m_ToBeAdded : 1;
         // Padding
-        uint16_t        m_Pad : 4;
+        uint16_t        m_Pad : 3;
 
         // Index to parent
         uint16_t        m_Parent : 16;
 
         // Index to Collection::m_Instances
-        uint16_t        m_Index : 15;
-        // Used for deferred deletion
-        uint16_t        m_ToBeDeleted : 1;
+        uint16_t        m_Index : 16;
 
         // Index to Collection::m_LevelIndex. Index is relative to current level (m_Depth), eg first object in level L always has level-index 0
         // Level-index is used to reorder Collection::m_LevelIndex entries in O(1). Given an instance we need to find where the
         // instance index is located in Collection::m_LevelIndex
-        uint16_t        m_LevelIndex : 15;
-        uint16_t        m_Pad2 : 1;
+        uint16_t        m_LevelIndex : 16;
 
         // Index to next instance to delete or INVALID_INSTANCE_INDEX
         uint16_t        m_NextToDelete : 16;
@@ -173,12 +171,10 @@ namespace dmGameObject
         uint16_t        m_NextToAdd;
 
         // Next sibling index. Index to Collection::m_Instances
-        uint16_t        m_SiblingIndex : 15;
-        uint16_t        m_ToBeAdded : 1;
+        uint16_t        m_SiblingIndex : 16;
 
         // First child index. Index to Collection::m_Instances
-        uint16_t        m_FirstChildIndex : 15;
-        uint16_t        m_Pad4 : 1;
+        uint16_t        m_FirstChildIndex : 16;
 
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
@@ -194,7 +190,6 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
-        uint32_t                    m_ComponentProfileCounterIndex[MAX_COMPONENT_TYPES];
         dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
@@ -225,8 +220,6 @@ namespace dmGameObject
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
-        // Component type specific instance counters
-        uint32_t                 m_ComponentInstanceCount[MAX_COMPONENT_TYPES];
 
         // Maximum number of instances
         uint32_t                 m_MaxInstances;
@@ -259,6 +252,9 @@ namespace dmGameObject
         // Stack keeping track of which instance has the input focus
         dmArray<Instance*>       m_InputFocusStack;
 
+        // Array of dynamically created resources (i.e runtime-only resources)
+        dmArray<dmhash_t>        m_DynamicResources;
+
         // Name-hash of the collection.
         dmhash_t                 m_NameHash;
 
@@ -290,8 +286,6 @@ namespace dmGameObject
         uint32_t                 m_InUpdate : 1;
         // Used for deferred deletion
         uint32_t                 m_ToBeDeleted : 1;
-        // If the game object dynamically created in this collection should have the Z component of the position affected by scale
-        uint32_t                 m_ScaleAlongZ : 1;
         uint32_t                 m_DirtyTransforms : 1;
         uint32_t                 m_Initialized : 1;
         uint32_t                 m_FirstUpdate : 1;
@@ -302,11 +296,10 @@ namespace dmGameObject
         Collection* m_Collection;
     };
 
-    ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
-
     // Used by res_collection.cpp
     HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
-    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
+    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier); // TODO: Mostly duplicate: replace with HCollection version
+
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
     Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
     void ReleaseIdentifier(Collection* collection, HInstance instance);
@@ -314,6 +307,7 @@ namespace dmGameObject
     bool CreateComponents(Collection* collection, HInstance instance);
     void Delete(Collection* collection, HInstance instance, bool recursive);
     void UpdateTransforms(Collection* collection);
+    void UpdateTransformsForInstance(Collection* collection, Instance* instance);
     void DeleteCollection(Collection* collection);
     bool IsCollectionInitialized(Collection* collection);
     Result AttachCollection(Collection* collection, const char* name, dmResource::HFactory factory, HRegister regist, HCollection hcollection);

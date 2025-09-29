@@ -1,26 +1,29 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <dlib/log.h>
-#include "hid.h"
-#include "hid_private.h"
-
 #include <string.h>
 
+#include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/utf8.h>
+
+#include <platform/platform_window.h>
+#include <platform/platform_window_constants.h>
+
+#include "hid.h"
+#include "hid_private.h"
 
 namespace dmHID
 {
@@ -43,14 +46,18 @@ namespace dmHID
         context->m_IgnoreTouchDevice = params.m_IgnoreTouchDevice;
         context->m_IgnoreAcceleration = params.m_IgnoreAcceleration;
         context->m_FlipScrollDirection = params.m_FlipScrollDirection;
-
-        context->m_GamepadConnectivityCallback = params.m_GamepadConnectivityCallback;
         return context;
     }
 
-    void SetGamepadFuncUserdata(HContext context, void* userdata)
+    void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx)
     {
-        context->m_GamepadConnectivityUserdata = userdata;
+        context->m_GamepadConnectivityCallback = callback;
+        context->m_GamepadConnectivityUserdata = callback_ctx;
+    }
+
+    void SetWindow(HContext context, dmPlatform::HWindow window)
+    {
+        context->m_Window = window;
     }
 
     void DeleteContext(HContext context)
@@ -88,6 +95,15 @@ namespace dmHID
             return &context->m_TouchDevices[index];
         else
             return INVALID_TOUCH_DEVICE_HANDLE;
+    }
+
+    bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
+    {
+        #if defined(DM_PLATFORM_VENDOR)
+            return dmHID::GetPlatformGamepadUserId(context, gamepad, out);
+        #else
+            return false;
+        #endif
     }
 
     uint32_t GetGamepadButtonCount(HGamepad gamepad)
@@ -162,7 +178,8 @@ namespace dmHID
         }
     }
 
-    void AddKeyboardChar(HContext context, int chr) {
+    void AddKeyboardChar(HContext context, int chr)
+    {
         if (context) {
             char buf[5];
             uint32_t n = dmUtf8::ToUtf8((uint16_t) chr, buf);
@@ -189,7 +206,8 @@ namespace dmHID
         }
     }
 
-    void SetMarkedText(HContext context, char* text) {
+    void SetMarkedText(HContext context, char* text)
+    {
         if (context) {
             MarkedTextPacket* p = &context->m_MarkedTextPacket;
             p->m_HasText = 1;
@@ -197,7 +215,8 @@ namespace dmHID
         }
     }
 
-    void SetGamepadConnectivity(HContext context, int gamepad, bool connected) {
+    void SetGamepadConnectivity(HContext context, int gamepad, bool connected)
+    {
         assert(context);
 
         GamepadPacket* p = &context->m_Gamepads[gamepad].m_Packet;
@@ -261,8 +280,10 @@ namespace dmHID
 
     bool GetKey(KeyboardPacket* packet, Key key)
     {
+       int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+
         if (packet != 0x0)
-            return packet->m_Keys[key / 32] & (1 << (key % 32));
+            return packet->m_Keys[key_index / 32] & (1 << (key_index % 32));
         else
             return false;
     }
@@ -271,10 +292,12 @@ namespace dmHID
     {
         if (keyboard != 0x0)
         {
+            int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+
             if (value)
-                keyboard->m_Packet.m_Keys[key / 32] |= (1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key_index / 32] |= (1 << (key_index % 32));
             else
-                keyboard->m_Packet.m_Keys[key / 32] &= ~(1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key_index / 32] &= ~(1 << (key_index % 32));
         }
     }
 
@@ -398,11 +421,157 @@ namespace dmHID
         }
     }
 
+    // Test only
     void ClearTouches(HTouchDevice device)
     {
         if (device != 0x0 && device->m_Connected)
         {
             device->m_Packet.m_TouchCount = 0;
         }
+    }
+
+    int GetKeyValue(Key key)
+    {
+        int key_index = (int) key + dmPlatform::PLATFORM_KEY_START;
+
+        if (key_index >= HID_SPECIAL_START)
+        {
+            static const int translation_table_special[] = {
+                dmPlatform::PLATFORM_KEY_ESC,
+                dmPlatform::PLATFORM_KEY_F1,
+                dmPlatform::PLATFORM_KEY_F2,
+                dmPlatform::PLATFORM_KEY_F3,
+                dmPlatform::PLATFORM_KEY_F4,
+                dmPlatform::PLATFORM_KEY_F5,
+                dmPlatform::PLATFORM_KEY_F6,
+                dmPlatform::PLATFORM_KEY_F7,
+                dmPlatform::PLATFORM_KEY_F8,
+                dmPlatform::PLATFORM_KEY_F9,
+                dmPlatform::PLATFORM_KEY_F10,
+                dmPlatform::PLATFORM_KEY_F11,
+                dmPlatform::PLATFORM_KEY_F12,
+                dmPlatform::PLATFORM_KEY_UP,
+                dmPlatform::PLATFORM_KEY_DOWN,
+                dmPlatform::PLATFORM_KEY_LEFT,
+                dmPlatform::PLATFORM_KEY_RIGHT,
+                dmPlatform::PLATFORM_KEY_LSHIFT,
+                dmPlatform::PLATFORM_KEY_RSHIFT,
+                dmPlatform::PLATFORM_KEY_LCTRL,
+                dmPlatform::PLATFORM_KEY_RCTRL,
+                dmPlatform::PLATFORM_KEY_LALT,
+                dmPlatform::PLATFORM_KEY_RALT,
+                dmPlatform::PLATFORM_KEY_TAB,
+                dmPlatform::PLATFORM_KEY_ENTER,
+                dmPlatform::PLATFORM_KEY_BACKSPACE,
+                dmPlatform::PLATFORM_KEY_INSERT,
+                dmPlatform::PLATFORM_KEY_DEL,
+                dmPlatform::PLATFORM_KEY_PAGEUP,
+                dmPlatform::PLATFORM_KEY_PAGEDOWN,
+                dmPlatform::PLATFORM_KEY_HOME,
+                dmPlatform::PLATFORM_KEY_END,
+                dmPlatform::PLATFORM_KEY_KP_0,
+                dmPlatform::PLATFORM_KEY_KP_1,
+                dmPlatform::PLATFORM_KEY_KP_2,
+                dmPlatform::PLATFORM_KEY_KP_3,
+                dmPlatform::PLATFORM_KEY_KP_4,
+                dmPlatform::PLATFORM_KEY_KP_5,
+                dmPlatform::PLATFORM_KEY_KP_6,
+                dmPlatform::PLATFORM_KEY_KP_7,
+                dmPlatform::PLATFORM_KEY_KP_8,
+                dmPlatform::PLATFORM_KEY_KP_9,
+                dmPlatform::PLATFORM_KEY_KP_DIVIDE,
+                dmPlatform::PLATFORM_KEY_KP_MULTIPLY,
+                dmPlatform::PLATFORM_KEY_KP_SUBTRACT,
+                dmPlatform::PLATFORM_KEY_KP_ADD,
+                dmPlatform::PLATFORM_KEY_KP_DECIMAL,
+                dmPlatform::PLATFORM_KEY_KP_EQUAL,
+                dmPlatform::PLATFORM_KEY_KP_ENTER,
+                dmPlatform::PLATFORM_KEY_KP_NUM_LOCK,
+                dmPlatform::PLATFORM_KEY_CAPS_LOCK,
+                dmPlatform::PLATFORM_KEY_SCROLL_LOCK,
+                dmPlatform::PLATFORM_KEY_PAUSE,
+                dmPlatform::PLATFORM_KEY_LSUPER,
+                dmPlatform::PLATFORM_KEY_RSUPER,
+                dmPlatform::PLATFORM_KEY_MENU,
+                dmPlatform::PLATFORM_KEY_BACK,
+            };
+
+            key_index = key_index - HID_SPECIAL_START;
+            if (key_index >= DM_ARRAY_SIZE(translation_table_special))
+            {
+                return -1;
+            }
+            return translation_table_special[key_index];
+        }
+        return key_index;
+    }
+
+    int GetMouseButtonValue(MouseButton button)
+    {
+        static int translation_table[] = {
+            dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_MIDDLE,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_1,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_2,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_3,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_4,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_5,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_6,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_7,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_8,
+        };
+        assert((int) button < DM_ARRAY_SIZE(translation_table));
+        return translation_table[(int) button];
+    }
+
+    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
+    {
+        dmPlatform::DeviceState device_state;
+
+        switch (type)
+        {
+            case KEYBOARD_TYPE_DEFAULT:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT;
+                break;
+            case KEYBOARD_TYPE_NUMBER_PAD:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD;
+                break;
+            case KEYBOARD_TYPE_EMAIL:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL;
+                break;
+            case KEYBOARD_TYPE_PASSWORD:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD;
+                break;
+            default:
+                dmLogWarning("Unknown keyboard type %d\n", type);
+        }
+
+        dmPlatform::SetDeviceState(context->m_Window, device_state, true, autoclose);
+    }
+
+    void HideKeyboard(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT, false);
+    }
+
+    void EnableAccelerometer(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_ACCELEROMETER, true);
+    }
+
+    void ShowMouseCursor(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, true);
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, false);
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return !dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR_LOCK);
     }
 }

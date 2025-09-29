@@ -1,44 +1,86 @@
 #! /usr/bin/env python
 
-import Task, TaskGen, Options
-from TaskGen import extension, declare_extension
-import os, sys, glob, re
+import waflib.Task, waflib.TaskGen
+from waflib import Options
+import os, sys, glob, re, shutil
+import run, sdk
 import waf_gamesys
+
+# 1. We want to run it with run.py so that it logs nicely with [exec] ...
+# 2. We need to add DYLD_INSERT_LIBRARIES for macOS
+def run_bob(task):
+    env = dict(os.environ)
+    merged_table = task.env.get_merged_dict()
+    keys=list(merged_table.keys())
+    for key in keys:
+        v = merged_table[key]
+        if isinstance(v, str):
+            env[key] = v
+
+    if Options.options.with_asan:
+        platform = env['PLATFORM']
+        if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+            sdkinfo = sdk.get_sdk_info(sdk.SDK_ROOT, platform)
+            if 'DYLD_INSERT_LIBRARIES' in env:
+                env['DYLD_INSERT_LIBRARIES'] += os.pathsep
+            else:
+                env['DYLD_INSERT_LIBRARIES'] = ""
+            env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
+
+            # Making sure java can find its libmlib_image.dylib
+            # I didn't need this locally, but on Github CI /MAWE
+            java_lib_path = os.path.join(os.environ['JAVA_HOME'], 'lib')
+            if 'DYLD_LIBRARY_PATH' in env:
+                env['DYLD_LIBRARY_PATH'] += os.pathsep + java_lib_path
+            else:
+                env['DYLD_LIBRARY_PATH'] = java_lib_path
+
+    # The tests needs the compiled builtins folder locally for this test to work
+    builtins_src = "build/content/builtins"
+    builtins_dst = "src/test/build/default/builtins"
+    shutil.copytree(builtins_src, builtins_dst, dirs_exist_ok=True)
+
+    args = task.generator.run_args
+    output = run.env_command(env, args.split())
 
 def build(bld):
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-darwin'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
     graphics_lib = 'GRAPHICS_NULL'
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
 
+    # Currently a bug in Remotery where the quick shutdown of the remotery instance can cause problems
+    #profile_lib = ['PROFILE', 'PROFILEREXT']
+    profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
+
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
-                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui']
-    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
-    obj = bld.new_task_gen(
-        features = 'cc cxx cprogram test',
-        uselib = 'TESTMAIN RECORD CRASH VPX PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES'.split() + additional_libs,
+                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
+                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable',
+                             'ResourceTypeOgg','ResourceTypeOpus', 'ResourceTypeWav', 'ResourceTypeFont', 'ResourceTypeTTF']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
+    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt']
+
+    bld.add_group()
+    obj = bld(
+        features = 'c cxx cprogram test',
+        use = 'TESTMAIN APP RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE FONT GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB APP engine engine_service'.split() + additional_libs + profile_lib,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
-        uselib_local = 'engine engine_service',
-        web_libs = ['library_sys.js', 'library_script.js'],
+        web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
         includes = '../../proto .',
         defines = defines,
-        source = 'test_engine.cpp',
+        source = bld.path.ant_glob('**/*.cpp'),
         target = 'test_engine')
 
     # Psapi.lib is needed by ProfilerExt
     if 'win32' in bld.env.PLATFORM:
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
-
-    builtins_src = "content/builtins"
-    builtins_dst = "src/test/builtins"
 
     platform = bld.env.PLATFORM
     if platform == 'win32':
@@ -48,9 +90,29 @@ def build(bld):
     bob_flags.append("--platform=%s" % platform)
     if Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")
+    bob_flags = ' '.join(bob_flags)
 
-    # Build engine test content using bob
-    # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.new_task_gen(rule = 'java -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} -k distclean build %s' % ' '.join(bob_flags),
-                     source = '../../content/bob-engine.jar wscript',
-                     always = True)
+    classpath = os.pathsep.join(['./build/content/bob-engine.jar'] + bld.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR'])
+
+    # Clean folder
+    bld(rule = run_bob,
+        run_args = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test clean',
+        source = 'wscript',
+        always = True)
+
+    # Build custom collections first to prevent overrides in default game.projectc
+    settings = ['cross_script_messaging.ini', 'render_script.ini', 'camera_acquire_input_focus.ini']
+    for setting_file in settings:
+        bld.add_group()
+        bld(rule = run_bob,
+            run_args = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
+            source = 'wscript',
+            always = True)
+
+    # Build main setup
+    bob_command = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s' % bob_flags
+    bld.add_group()
+    bld(rule = run_bob,
+        run_args = bob_command,
+        source = 'wscript',
+        always = True)

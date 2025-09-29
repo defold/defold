@@ -1,0 +1,51 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+MAX_DYNAMIC_TEXTURES = 32
+WIDTH = 4
+HEIGHT = 4
+
+function init(self)
+    self.test = 0
+end
+
+function test_create(self)
+    local t_data = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+    t_data = string.rep(t_data, WIDTH * HEIGHT)
+
+    for i=1,MAX_DYNAMIC_TEXTURES do
+        local ok, reason = gui.new_texture("texture_" .. i, WIDTH, HEIGHT, "rgb", t_data, false)
+        assert(ok)
+    end
+
+    local ok, reason = gui.new_texture("texture_outside_of_range", WIDTH, HEIGHT, "rgb", t_data, false)
+    assert(not ok)
+    assert(reason == gui.RESULT_OUT_OF_RESOURCES)
+end
+
+function test_delete(self)
+    for i=1,MAX_DYNAMIC_TEXTURES do
+        gui.delete_texture("texture_" .. i)
+    end
+end
+
+function update(self, dt)
+    if self.test == 0 then
+        test_create(self)
+    elseif self.test == 1 then
+        test_delete(self)
+    end
+    self.test = self.test + 1
+end
+

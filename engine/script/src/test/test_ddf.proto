@@ -1,3 +1,4 @@
+syntax = "proto2";
 package TestScript;
 
 import "ddf/ddf_math.proto";

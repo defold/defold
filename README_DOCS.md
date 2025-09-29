@@ -76,7 +76,6 @@ Icons
 [icon:macos]
 [icon:linux]
 [icon:windows]
-[icon:facebook]
 [icon:google]
 [icon:amazon]
 ```
@@ -110,7 +109,7 @@ Documentation comments are denoted by comments in the following format, a standa
  */
 ```
 
-An API document usually consists of a series of doc comments, each one containing documentation for a function, a @message, a @property, a @variable or the @document itself.
+An API document usually consists of a series of doc comments, each one containing documentation for a function, a @message, a @property, a @constant or the @document itself.
 
 The first line of the comment contains a one line BRIEF of what the comment is about and subsequent lines up to the first type tag (denoted by '@' + the type name) should contain a DESCRIPTION. These blocks of text are processed by Markdown and can thus contain either markdown syntax or plain HTML.
 
@@ -138,13 +137,14 @@ Since the documentation for a specific namespace (component or feature) might sp
 The @document comment should contain a brief, a description, what @namespace the documentation belongs to (so it can be grouped with documentation from other files) as well as a @name:
 
 ```
-/*# Facebook API documentation
+/*# MyFeature API documentation
  *
- * Functions and constants for interacting with Facebook APIs.
+ * Functions and constants for interacting with MyFeature APIs.
  *
  * @document
- * @name Facebook
- * @namespace facebook
+ * @name MyFeature
+ * @namespace myfeature
+ * @path path/to/this/file.cpp
  */
 ```
 
@@ -164,7 +164,7 @@ There is no function tag. If the doc comment does not contain any of the other v
  */
 ```
 
-## The @message, @variable and @property tags
+## The @message, @constant and @property tags
 
 Use these tags to denote doc comments for messages:
 
@@ -188,13 +188,13 @@ Use these tags to denote doc comments for messages:
  */
 ```
 
-and for variables/constants:
+and for constants:
 
 ```
 /*# RGB image type
  *
  * @name image.TYPE_RGB
- * @variable
+ * @constant
  */
 ```
 
@@ -268,7 +268,7 @@ Also by convention definition lists are used to lay out the details of function 
  * - `date`: transaction date
  * - `original_trans`: original transaction (only set when state == TRANS_STATE_RESTORED)
  * - `trans_ident` : transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
- * - `request_id`: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
+ * - `request_id`: transaction request id. (only if receipt is set and for transactions when used in the iap.buy call parameters)
  * - `receipt`: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  *
  * `error`

@@ -8,33 +8,41 @@ blddir = 'build'
 
 import os, sys, re
 import waf_dynamo, waf_ddf
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
+    conf.load('waf_dynamo')
+    conf.load('java')
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_TREMOLO'] = 'tremolo'
+    conf.env.append_value('INCLUDES', "default/src")
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_TREMOLO'] = 'tremolo'
+    conf.env['STLIB_OPUS'] = 'opus'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
 
 def build(bld):
-    bld.add_subdirs('src')
+    global test_context
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
-def shutdown():
-    if sys.platform == 'linux2' and not os.path.exists('/dev/snd/controlC0'):
-        print "SKIPPING TESTS SINCE WE DETECTED NO SOUND CARD"
+def shutdown(self):
+    if sys.platform == 'linux' and not os.path.exists('/dev/snd/controlC0'):
+        print ("SKIPPING TESTS SINCE WE DETECTED NO SOUND CARD")
         return
-    waf_dynamo.run_tests(valgrind = True)
+    waf_dynamo.run_tests(test_context, valgrind = True)

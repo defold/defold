@@ -1,28 +1,61 @@
 #! /usr/bin/env python
 
-from waf_dynamo import platform_supports_feature
+import waflib.Options
+from waf_dynamo import platform_supports_feature, platform_glfw_version
 
 def build(bld):
-    for name in ['test_graphics', 'test_glsl_uniform_parser']:
-        bld.new_task_gen(features = 'cxx cprogram test',
-                         includes = ['../../src', '../../proto'],
-                         exported_symbols = ['GraphicsAdapterNull'],
-                         source = name + '.cpp',
-                         uselib = 'TESTMAIN DDF DLIB',
-                         uselib_local = 'graphics_null graphics_transcoder_null',
-                         target = name)
+    for name in ['test_graphics']:
+        bld.program(features = 'cxx cprogram test',
+                    includes = ['../../src', '../../proto'],
+                    exported_symbols = ['GraphicsAdapterNull'],
+                    source = name + '.cpp',
+                    use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL PLATFORM_NULL graphics_null graphics_transcoder_null',
+                    target = name)
 
-    print "MAWE", platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}), bld.env.PLATFORM 
-    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
+    if not bld.env.PLATFORM in ('x86_64-ios', 'x86_64-ps4', 'x86_64-ps5'):
 
         extra_libs = []
-        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
-            extra_libs += ['CARES', 'OPENGL']
+        extra_symbols = []
 
-        bld.new_task_gen(features = 'cxx cprogram test skip_test',
-                         includes = ['../../src', '../../proto'],
-                         exported_symbols = ['GraphicsAdapterVulkan'],
-                         source = 'test_app_vulkan.cpp',
-                         uselib = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
-                         uselib_local = 'graphics_vulkan graphics_transcoder_basisu',
-                         target = 'test_app_vulkan')
+        graphics_libs = ['GRAPHICS', 'graphics_transcoder_basisu']
+        platform_lib = ['PLATFORM']
+
+        glfw_lib = ['DMGLFW']
+        glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
+
+        if bld.env.PLATFORM in ('arm64-linux'):
+            graphics_libs = ['GRAPHICS_OPENGLES', 'graphics_transcoder_basisu']
+            extra_symbols = ['GraphicsAdapterOpenGLES']
+        elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+            extra_symbols += ['GraphicsAdapterOpenGL']
+
+        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+            extra_libs += ['OPENGL', 'graphics']
+            extra_symbols += ['GraphicsAdapterOpenGL']
+
+        if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and waflib.Options.options.with_vulkan:
+            extra_libs += ['VULKAN']
+            extra_symbols += ['GraphicsAdapterVulkan']
+            graphics_libs += ['GRAPHICS_VULKAN']
+            if platform_glfw_version(bld.env.PLATFORM) == 3:
+                platform_lib = ['PLATFORM_VULKAN']
+
+        if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}) and waflib.Options.options.with_dx12:
+            extra_libs += ['DX12', 'graphics_dx12']
+            extra_symbols += ['GraphicsAdapterDX12']
+
+        if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+            graphics_lib += ['GRAPHICS_WEBGPU']
+            extra_symbols += ['GraphicsAdapterWebGPU']
+
+        if bld.env.PLATFORM in ('arm64-nx64'):
+            glfw_lib = []
+
+        if len(extra_symbols) > 0:
+            bld.program(features = 'cxx cprogram test skip_test',
+                        includes = ['../../src', '../../proto'],
+                        exported_symbols = extra_symbols,
+                        source = 'test_app_graphics.cpp',
+                        use = 'TESTMAIN APP DDF DLIB PROFILE_NULL'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,
+                        web_libs = ['library_sys.js', glfw_js],
+                        target = 'test_app_graphics')

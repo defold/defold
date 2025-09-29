@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,7 +14,8 @@
 
 (ns internal.graph.error-values
   (:require [clojure.string :as string]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -83,15 +84,13 @@
 (defn- error-messages [e]
   (distinct (keep :message (error-seq e))))
 
-(defn error-message [e]
+(defn error-message
+  ^String [e]
   (string/join "\n" (error-messages e)))
 
 (defn error-aggregate
   ([es]
-   (let [max-severity (reduce (fn [result severity] (if (> (severity-levels result) (severity-levels severity))
-                                                      result
-                                                      severity))
-                              :info (keep :severity es))]
+   (let [max-severity (transduce (keep :severity) (completing #(max-key severity-levels %1 %2)) :info es)]
      (map->ErrorValue {:severity max-severity :causes (vec es)})))
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
@@ -135,13 +134,16 @@
                               {:value value}))))
           values))
 
+(def ^:private flatten-errors-xf
+  (comp
+    coll/flatten-xf
+    (map unpack-if-package)
+    (filter error-value?)))
+
 (defn flatten-errors [& errors]
-  (some->> errors
-           flatten
-           (map unpack-if-package)
-           (filter error-value?)
-           not-empty
-           error-aggregate))
+  (let [errors (into [] flatten-errors-xf errors)]
+    (when-not (coll/empty? errors)
+      (error-aggregate errors))))
 
 (defmacro precluding-errors [errors result]
   `(let [error-value# (flatten-errors ~errors)]
@@ -152,6 +154,11 @@
 (defn package-errors [node-id & errors]
   (assert (gt/node-id? node-id))
   (some-> errors (flatten-packages node-id) flatten-errors (assoc :_node-id node-id) ->ErrorPackage))
+
+(defn package-if-error [node-id maybe-error]
+  (if (error? maybe-error)
+    (package-errors node-id maybe-error)
+    maybe-error))
 
 (defn unpack-errors [error-package]
   (assert (or (nil? error-package) (instance? ErrorPackage error-package)))

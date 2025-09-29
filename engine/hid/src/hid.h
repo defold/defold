@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,10 +25,18 @@
 
 #include <dmsdk/hid/hid.h>
 
+namespace dmPlatform
+{
+    struct dmWindow;
+    typedef dmWindow* HWindow;
+};
+
 namespace dmHID
 {
     /// Constant that defines invalid context handles
     const HContext INVALID_CONTEXT = 0;
+    const uint8_t MAX_GAMEPAD_NAME_LENGTH = 128;
+    const uint8_t MAX_GAMEPAD_NAME_COUNT  = 2;
 
     enum KeyboardType
     {
@@ -65,7 +73,7 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
-    typedef void (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+    typedef bool (* FHIDGamepadFunc)(uint32_t, bool, void*);
 
     /// parameters to be passed to NewContext
     struct NewContextParams
@@ -84,9 +92,6 @@ namespace dmHID
         uint32_t m_IgnoreAcceleration : 1;
         /// if mouse wheel scroll direction should be flipped (see DEF-2450)
         uint32_t m_FlipScrollDirection : 1;
-
-        DMHIDGamepadFunc m_GamepadConnectivityCallback;
-
     };
 
     /**
@@ -107,10 +112,20 @@ namespace dmHID
     /**
      * Set user data that will be passed along to the gamepad connectivity callback.
      *
+     * @name SetGamepadConnectivityCallback
      * @params context context for which the userdata should be set
-     * @params userdata userdata that should be passed along to callback
+     * @params callback [type: DMHIDGamepadFunc] userdata that will be passed to the callback
+     * @params callback_ctx [type: void*] userdata that will be passed to the callback
      */
-    void SetGamepadFuncUserdata(HContext context, void* userdata);
+    void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
+
+    /**
+     * Set the window handle.
+     *
+     * @param context context for which the window handle should be set
+     * @param window [type: dmPlatform::HWindow] the window handle
+     */
+    void SetWindow(HContext context, dmPlatform::HWindow window);
 
     /**
      * Initializes a hid context.
@@ -150,13 +165,17 @@ namespace dmHID
      */
     uint32_t GetGamepadAxisCount(HGamepad gamepad);
 
+    uint32_t GetGamepadHatCount(HGamepad gamepad);
+
     /**
      * Retrieves the platform-specific device name of a given gamepad.
      *
+     * @param context the hid context
      * @param gamepad gamepad handle
-     * @param a pointer to the device name, or 0x0 if not specified
+     * @param buffer a pointer to memory where the name should be stored
+     * @param buffer_length the size of the buffer parameter
      */
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
 
     /**
      * Check if a keyboard is connected.
@@ -294,6 +313,22 @@ namespace dmHID
     void ResetKeyboard(HContext context);
 
     /**
+     * Show mouse cursor if applicable, e.g PC platform
+     */
+    void ShowMouseCursor(HContext context);
+
+    /**
+     * Hide mouse cursor if applicable, e.g PC platform.
+     * This effectively locks the mouse position to the center of the current window.
+     */
+    void HideMouseCursor(HContext context);
+
+    /**
+     * Gets the lock state of the current mouse if applicable, e.g PC platform
+     */
+    bool GetCursorVisible(HContext context);
+
+    /**
      * Convenience function to retrieve the position of a specific touch.
      * Used in unit tests (test_input.cpp)
      *
@@ -316,23 +351,9 @@ namespace dmHID
     void ClearTouches(HTouchDevice device);
 
     /**
-     * Get the name of a keyboard key.
-     * @param key Keyboard key
-     * @return The name of the key
-     */
-    const char* GetKeyName(Key key);
-
-    /**
-     * Get the name of a mouse button.
-     * @param button Mouse button
-     * @return The name of the button
-     */
-    const char* GetMouseButtonName(MouseButton button);
-
-    /**
      * Enables the accelerometer (if available)
      */
-    void EnableAccelerometer();
+    void EnableAccelerometer(HContext context);
 }
 
 #endif // DM_HID_H

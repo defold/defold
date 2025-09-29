@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,6 +23,7 @@
 #include <dlib/profile.h>
 #include <dmsdk/dlib/android.h>
 #include "sound.h"
+#include "sound_private.h"
 
 #include <SLES/OpenSLES.h>
 
@@ -199,9 +200,12 @@ namespace dmDeviceOpenSL
 
         jclass sound_class = dmAndroid::LoadClass(env, "com.defold.sound.Sound");
 
-        jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
+        jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;I)I");
         assert(get_sample_rate);
-        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz);
+        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz, 44100);
+
+        env->DeleteLocalRef(sound_class);
+
         return (int)sample_rate;
     }
 
@@ -234,6 +238,13 @@ namespace dmDeviceOpenSL
         // Actual initalization starts here.
 
         const int rate = GetSampleRate();
+        const int samples_per_second = rate * 1000;
+
+        uint32_t frame_count = params->m_FrameCount;
+        if (frame_count == 0)
+        {
+            frame_count = dmSound::GetDefaultFrameCount(samples_per_second);
+        }
 
         SLresult res = slCreateEngine(&sl, 1, options, 0, NULL, NULL);
         if (CheckAndPrintError(res))
@@ -262,7 +273,7 @@ namespace dmDeviceOpenSL
         SLDataFormat_PCM format;
         format.formatType = SL_DATAFORMAT_PCM;
         format.numChannels = 2;
-        format.samplesPerSec = rate * 1000;
+        format.samplesPerSec = samples_per_second;
         format.bitsPerSample = 16;
         // TODO: Correct?
         format.containerSize = 16;
@@ -313,8 +324,8 @@ namespace dmDeviceOpenSL
         opensl->m_Playing.SetSize(params->m_BufferCount);
 
         for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
-            uint32_t n = params->m_FrameCount * sizeof(uint16_t) * 2;
-            Buffer b(malloc(n), params->m_FrameCount);
+            uint32_t n = frame_count * sizeof(uint16_t) * 2;
+            Buffer b(malloc(n), frame_count);
             opensl->m_Free.Push(b);
         }
 
@@ -375,7 +386,7 @@ cleanup_sl:
         delete opensl;
     }
 
-    dmSound::Result DeviceOpenSLQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceOpenSLQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
@@ -388,7 +399,7 @@ cleanup_sl:
         assert(opensl->m_Free.Size() > 0);
         Buffer b = opensl->m_Free.Pop();
 
-        memcpy(b.m_Buffer, samples, sample_count * sizeof(uint16_t) * 2);
+        memcpy(b.m_Buffer, (const int16_t*)samples, sample_count * sizeof(uint16_t) * 2);
         b.m_FrameCount = sample_count;
         opensl->m_Ready.Push(b);
 
@@ -415,6 +426,7 @@ cleanup_sl:
         assert(info);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         info->m_MixRate = opensl->m_MixRate;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceOpenSLStart(dmSound::HDevice device)
@@ -437,5 +449,6 @@ cleanup_sl:
         opensl->m_IsPlaying = false;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue,
+                            DeviceOpenSLFreeBufferSlots, 0, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
 }

@@ -14,8 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -107,16 +105,7 @@ public abstract class BobNLS {
      * @param clazz the class where the constants will exist
      */
     public static void initializeMessages(final String baseName, final Class<?> clazz) {
-        if (System.getSecurityManager() == null) {
-            load(baseName, clazz);
-            return;
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Object>() {
-            public Object run() {
-                load(baseName, clazz);
-                return null;
-            }
-        });
+        load(baseName, clazz);
     }
 
     /*
@@ -254,8 +243,9 @@ public abstract class BobNLS {
                 // will fail later in the code and if so then we will see both the NPE and this error.
                 String value = "NLS missing message: " + field.getName() + " in: " + bundleName; //$NON-NLS-1$ //$NON-NLS-2$
                 log(SEVERITY_WARNING, value, null);
-                if (!isAccessible)
-                    field.setAccessible(true);
+                if (!isAccessible) {
+                    throw new Exception("Trying to set value " + value + " on non-public field " + field.getName());
+                }
                 field.set(null, value);
             } catch (Exception e) {
                 log(SEVERITY_ERROR, "Error setting the missing message value for: " + field.getName(), e); //$NON-NLS-1$

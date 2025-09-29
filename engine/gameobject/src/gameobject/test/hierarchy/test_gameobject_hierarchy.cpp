@@ -1,18 +1,17 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <algorithm>
@@ -43,8 +42,9 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/hierarchy");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/hierarchy");
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -317,6 +317,74 @@ TEST_F(HierarchyTest, TestHierarchy3)
             assert(false);
         }
     }
+}
+
+TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
+{
+    // Build a simple three-level hierarchy: parent -> child -> grandchild
+    dmGameObject::HInstance parent      = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child       = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance grandchild  = dmGameObject::New(m_Collection, "/go.goc");
+
+    // Initial local transforms
+    Point3 parent_pos(1, 2, 0);
+    const float parent_angle = 0.25f;
+    Quat   parent_rot = Quat::rotationZ(parent_angle);
+    Point3 child_pos(3, 0, 0);
+    const float child_angle = 0.5f;
+    Quat   child_rot = Quat::rotationZ(child_angle);
+    Point3 grandchild_pos(0, 4, 0);
+
+    dmGameObject::SetPosition(parent, parent_pos);
+    dmGameObject::SetRotation(parent, parent_rot);
+    dmGameObject::SetPosition(child, child_pos);
+    dmGameObject::SetRotation(child, child_rot);
+    dmGameObject::SetPosition(grandchild, grandchild_pos);
+
+    dmGameObject::SetParent(child, parent);
+    dmGameObject::SetParent(grandchild, child);
+
+    // Initialize world transforms
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+    ret = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(ret);
+
+    // Capture original world positions
+    Point3 child_world_before       = dmGameObject::GetWorldPosition(child);
+    Point3 grandchild_world_before  = dmGameObject::GetWorldPosition(grandchild);
+
+    // Modify parent local transform mid-frame
+    Point3 parent_pos_new(10, 0, 0);
+    dmGameObject::SetPosition(parent, parent_pos_new);
+
+    // Update transforms only for the child chain (parent -> child)
+    dmGameObject::UpdateTransformsForInstance(m_Collection->m_Collection, child);
+
+    // Manually compute expected child world using matrices
+    Matrix4 parent_world = Matrix4::rotationZ(parent_angle);
+    parent_world.setCol3(Vector4(parent_pos_new));
+    Matrix4 child_local = Matrix4::rotationZ(child_angle);
+    child_local.setCol3(Vector4(child_pos));
+    Point3 expected_child_world = Point3((parent_world * child_local).getCol3().getXYZ());
+
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_world), 0.001f);
+
+    // Parent world should also be updated by the chain update
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos_new), 0.001f);
+
+    // Grandchild should still have the old world transform (since descendants aren't updated)
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(grandchild) - grandchild_world_before), 0.001f);
+
+    // Now update grandchild specifically and verify it changes
+    dmGameObject::UpdateTransformsForInstance(m_Collection->m_Collection, grandchild);
+    Point3 grandchild_world_after = dmGameObject::GetWorldPosition(grandchild);
+    ASSERT_GT(length(grandchild_world_after - grandchild_world_before), 0.0001f);
+
+    // Cleanup
+    dmGameObject::Delete(m_Collection, parent, true);
+    ret = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(ret);
 }
 
 TEST_F(HierarchyTest, TestHierarchy4)
@@ -1054,11 +1122,3 @@ TEST_F(HierarchyTest, TestIterateHierarchy)
 }
 
 #undef EPSILON
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
-}

@@ -1,11 +1,13 @@
-import os, re, sys
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+import os, re, sys, time
+import importlib
+import waf_dynamo
+import waflib.Task, waflib.TaskGen, waflib.Errors
+from waflib.TaskGen import extension
 import dlib
 import google.protobuf.text_format
 from threading import Lock
-
 stderr_lock = Lock()
+importlib_lock = Lock()
 
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = ''):
     def create(self, node):
@@ -15,19 +17,29 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         task.set_outputs(out)
 
     cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
-    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
-    declare_extension([ext], create)
+    waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
+    extension(ext)(create)
 
-create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
-create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
-create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
-create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='cc cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
-create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='cc cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
-create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='cc cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
-create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='cc cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
+create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='c cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='c cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
+create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='c cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
+create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='c cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
+create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='c cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
+
+
+def clear_caches():
+    importlib_lock.acquire()
+    try:
+        importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    finally:
+        importlib_lock.release()
 
 def transform_properties(properties, out_properties):
+    clear_caches()
     import gameobject_ddf_pb2
+
     for property in properties:
         entry = None
         if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
@@ -78,7 +90,9 @@ def merge_collections(msg, sub_msg, sub_id):
         new_inst.id = sub_id + "/" + inst.id
 
 def read_collection(path):
+    clear_caches()
     import gameobject_ddf_pb2
+
     msg = gameobject_ddf_pb2.CollectionDesc()
     with open(path, 'rb') as in_f:
         google.protobuf.text_format.Merge(in_f.read(), msg)
@@ -86,33 +100,33 @@ def read_collection(path):
     for coll_inst in msg.collection_instances:
         sub_msg = read_collection(os.path.dirname(path) + coll_inst.collection)
         merge_collections(msg, sub_msg, coll_inst.id)
-    msg.collection_instances.__delslice__(0, len(msg.collection_instances))
+    msg.collection_instances.__delitem__(slice(0, len(msg.collection_instances)))
 
     return msg
 
 def compile_collection(task):
     try:
-        src_path = task.inputs[0].srcpath(task.env)
+        src_path = task.inputs[0].srcpath()
         msg = read_collection(src_path)
         msg = transform_collection(task, msg)
 
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
 
         return 0
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (src_path, str(e))
+            print ('%s: %s' % (src_path, str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
 
-task = Task.task_type_from_func('collection',
+task = waflib.Task.task_factory('collection',
                                 func    = compile_collection,
                                 color   = 'RED',
                                 after='proto_gen_py',
-                                before='cc cxx')
+                                before='c cxx')
 
 @extension('.collection')
 def collectionfile(self, node):
@@ -128,30 +142,31 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_go(task):
+    clear_caches()
+    import gameobject_ddf_pb2
+
     try:
-        import gameobject_ddf_pb2
         msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        with open(task.inputs[0].srcpath(), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
         msg = transform_gameobject(task, msg)
-
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
 
         return 0
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+            print ('%s: %s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         finally:
             stderr_lock.release()
         return 1
 
-task = Task.task_type_from_func('gameobject',
+task = waflib.Task.task_factory('gameobject',
                                 func    = compile_go,
                                 color   = 'RED',
-                                after='proto_gen_py',
-                                before='cc cxx')
+                                after=['proto_gen_py_package','proto_gen_py'],
+                                before='c cxx')
 
 @extension('.go_pb')
 def gofile(self, node):
@@ -161,7 +176,7 @@ def gofile(self, node):
     out = node.change_ext('.goc')
     task.set_outputs([out])
 
-from cStringIO import StringIO
+from io import StringIO
 def strip_single_lua_comments(str):
     str = str.replace("\r", "");
     sb = StringIO()
@@ -224,7 +239,9 @@ def parse_properties(props):
             key = "%s.%s" % (id, e)
             entry.element_ids.append(dlib.dmHashBuffer64(key))
 
+    clear_caches()
     import properties_ddf_pb2
+
     declarations = properties_ddf_pb2.PropertyDeclarations()
     if props:
         # http://docs.python.org/dev/library/re.html#simulating-scanf
@@ -313,25 +330,27 @@ def parse_properties(props):
     return declarations
 
 def compile_lua(task):
+    clear_caches()
     import lua_ddf_pb2
-    with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+
+    with open(task.inputs[0].srcpath(), 'r') as in_f:
         script = in_f.read()
         modules, props = scan_lua(script)
         script = strip_props(script)
         lua_module = lua_ddf_pb2.LuaModule()
-        lua_module.source.script = script
-        lua_module.source.filename = task.inputs[0].srcpath(task.env)
+        lua_module.source.script = script.encode()
+        lua_module.source.filename = task.inputs[0].srcpath()
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)
             lua_module.resources.append(module_file + 'c')
         lua_module.properties.CopyFrom(parse_properties(props))
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(lua_module.SerializeToString())
 
     return 0
 
-task = Task.task_type_from_func('luascript',
+task = waflib.Task.task_factory('luascript',
                                 func    = compile_lua,
                                 color   = 'PINK')
 
@@ -353,16 +372,22 @@ def script_file(self, node):
 
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
-        exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim','ComponentTypeScript', 'ComponentTypeAnim']
-        test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
-                                         includes = '../../../src . .. ../../../proto',
-                                         exported_symbols = exported_symbols,
-                                         uselib = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG HID',
-                                         uselib_local = 'gameobject',
-                                         web_libs = ['library_sys.js', 'library_script.js'],
-                                         proto_gen_py = True,
-                                         target = 'test_gameobject_%s' % dir)
-        test_task_gen.find_sources_in_dirs(dir, exts)
+        exported_symbols = ['ResourceTypeGameObject',
+                            'ResourceTypeCollection',
+                            'ResourceTypeScript',
+                            'ResourceTypeLua',
+                            'ResourceTypeAnim',
+                            'ResourceProviderFile',
+                            'ComponentTypeScript',
+                            'ComponentTypeAnim']
+        test_task_gen = bld.program(features = 'cxx cprogram test',
+                                    includes = '../../../src . .. ../../../proto',
+                                    source = ['test_main.cpp'] + bld.path.ant_glob('%s/*' % (dir), incl=exts),
+                                    exported_symbols = exported_symbols,
+                                    use = 'TESTMAIN APP SOCKET PLATFORM_THREAD RESOURCE DDF SCRIPT GRAPHICS_NULL PLATFORM_NULL LUA EXTENSION DLIB PLATFORM_NULL PROFILE_NULL RIG HID gameobject',
+                                    web_libs = ['library_sys.js', 'library_script.js'],
+                                    proto_gen_py = True,
+                                    target = 'test_gameobject_%s' % dir)
 
     new_test('anim')
     new_test('bones', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])
@@ -378,3 +403,4 @@ def build(bld):
     new_test('props')
     new_test('reload', exts = ['.go_pb', '.script', '.cpp', '.proto', '.rt_pb'])
     new_test('script')
+    new_test('lua')

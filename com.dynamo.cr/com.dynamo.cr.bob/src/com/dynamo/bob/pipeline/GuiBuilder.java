@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,37 +14,31 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.lang.reflect.Method;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
-import com.dynamo.gamesys.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.Type;
 import com.dynamo.gamesys.proto.Gui.SceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.FontDesc;
@@ -53,63 +47,17 @@ import com.dynamo.gamesys.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.TextureDesc;
+import com.dynamo.gamesys.proto.Gui.SceneDesc.MaterialDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.TextFormat;
 
+import org.apache.commons.io.FilenameUtils;
 
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
-
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        SceneDesc.Builder builder = SceneDesc.newBuilder();
-        ProtoUtil.merge(input, builder);
-
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        List<String> templateList = new ArrayList<>();
-        for (NodeDesc n : builder.getNodesList()) {
-            if(n.getType() == Type.TYPE_TEMPLATE) {
-                if(!n.getTemplate().isEmpty() && !templateList.contains(n.getTemplate())) {
-                    templateList.add(n.getTemplate());
-                    taskBuilder.addInput(this.project.getResource(n.getTemplate()));
-                }
-            }
-        }
-
-        // For backwards compatibility
-        List<String> spineSceneList = new ArrayList<>();
-        for (SpineSceneDesc f : builder.getSpineScenesList()) {
-            if(!f.getSpineScene().isEmpty() && !spineSceneList.contains(f.getSpineScene())) {
-                spineSceneList.add(f.getSpineScene());
-                taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
-            }
-        }
-
-        List<String> particlefxSceneList = new ArrayList<>();
-        for (ParticleFXDesc p : builder.getParticlefxsList()) {
-            if (!p.getParticlefx().isEmpty() && !particlefxSceneList.contains(p.getParticlefx())) {
-                particlefxSceneList.add(p.getParticlefx());
-                taskBuilder.addInput(this.project.getResource(p.getParticlefx()));
-            }
-        }
-
-        List<String> resourcesList = new ArrayList<>();
-        for (ResourceDesc resource : builder.getResourcesList()) {
-            if (!resource.getPath().isEmpty() && !resourcesList.contains(resource.getPath())) {
-                resourcesList.add(resource.getPath());
-                taskBuilder.addInput(this.project.getResource(resource.getPath()));
-            }
-        }
-
-        return taskBuilder.build();
-    }
 
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
         double heading;
@@ -176,11 +124,16 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             b.setInheritAlpha(parentNode.getInheritAlpha());
         }
 
+        // Apply Enabled. We want to disable the node if the parent Template is disabled.
+        if(b.getEnabled()) {
+            b.setEnabled(parentNode.getEnabled());
+        }
+
         // Apply parent scale
         Vector3d parentScale = new Vector3d(parentNode.getScale().getX(), parentNode.getScale().getY(), parentNode.getScale().getZ());
         Point3d scale = new Point3d(b.getScale().getX(), b.getScale().getY(), b.getScale().getZ());
         scale.set(scale.getX() * parentScale.getX(), scale.getY() * parentScale.getY(), scale.getZ() * parentScale.getZ());
-        b.setScale(Vector4.newBuilder().setX((float) scale.getX()).setY((float) scale.getY()).setZ((float) scale.getZ()).setW(1.0f).build());
+        b.setScale(Vector4One.newBuilder().setX((float) scale.getX()).setY((float) scale.getY()).setZ((float) scale.getZ()).setW(1.0f).build());
 
         // Apply parent position
         Vector3d parentRot = new Vector3d(parentNode.getRotation().getX(), parentNode.getRotation().getY(), parentNode.getRotation().getZ());
@@ -198,7 +151,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         eulerToQuat(rot, rQ);
         rQ.mul(pRQ, rQ);
         quatToEuler(rQ, rot);
-        b.setRotation(Vector4.newBuilder().setX((float) rot.getX()).setY((float) rot.getY()).setZ((float) rot.getZ()).setW(1.0f).build());
+        b.setRotation(Vector4.newBuilder().setX((float) rot.getX()).setY((float) rot.getY()).setZ((float) rot.getZ()).setW(0.0f).build());
 
         // resolve parent and do recursive transform
         b.setParent(parentNode.getParent());
@@ -235,7 +188,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames) throws CompileExceptionError {
+    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
         if(builder == null) {
             return;
         }
@@ -259,6 +212,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
             }
         }
+        if (n.hasMaterial() && !n.getMaterial().isEmpty()) {
+            if (!materialNames.contains(n.getMaterial())) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_MATERIAL, n.getMaterial()));
+            }
+        }
         if (n.hasFont() && !n.getFont().isEmpty()) {
             if (!fontNames.contains(n.getFont())) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
@@ -279,14 +237,17 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static String replaceTextureName(String str) {
+    private static String replaceTextureName(String str) throws CompileExceptionError {
         String out = str;
-        if(str.endsWith(".atlas")) {
-            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
-        } else if(str.endsWith(".tilesource")) {
-            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
-        } else {
-            out = ProtoBuilders.replaceTextureName(str);
+        String ext = "." + FilenameUtils.getExtension(str);
+        try {
+            if (TextureUtil.isAtlasFileType(ext)) {
+                out = ProtoBuilders.replaceTextureSetName(str);
+            } else {
+                out = ProtoBuilders.replaceTextureName(str);
+            }
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, e.getMessage(), e);
         }
         return out;
     }
@@ -304,19 +265,25 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return map;
     }
 
+    private static NodeDesc.Builder ApplyOverriddenFieldValues(NodeDesc.Builder targetBuilder, NodeDesc overrideNode) {
+        Descriptors.Descriptor typeDesc = NodeDesc.getDescriptor();
+
+        for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
+            FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
+            assert fieldDesc != null;
+            targetBuilder.setField(fieldDesc, overrideNode.getField(fieldDesc));
+        }
+
+        return targetBuilder;
+    }
+
     private static void ApplyLayoutOverrides(NodeDesc.Builder builder, HashMap<String, NodeDesc> nodeMapDefault, HashMap<String, NodeDesc> nodeMap) {
         NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.get(builder.getId());
         if((parentSceneNode == null) && (nodeMapDefault != null)) {
             parentSceneNode = nodeMapDefault.get(builder.getId());
         }
         if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
-            List<Integer> overriddenFields = parentSceneNode.getOverriddenFieldsList();
-            for(int fieldNumber : overriddenFields) {
-                FieldDescriptor fieldDesc = parentSceneNode.getDescriptorForType().findFieldByNumber(fieldNumber);
-                if(fieldDesc != null) {
-                   builder.setField(fieldDesc, parentSceneNode.getField(fieldDesc));
-                }
-            }
+            ApplyOverriddenFieldValues(builder, parentSceneNode);
         }
         // opt fields ignored by run-time
         builder.clearOverriddenFields();
@@ -337,7 +304,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
             b.setId(parentNode.getId() + "/" + b.getId());
 
-            // apply overridden fields from super-node to node, if there are any   
+            // apply overridden fields from super-node to node, if there are any
             // For defaut layout first
             if (applyDefaultLayout) {
                 HashMap<String, NodeDesc> nodeMapDefault = parentSceneNodeMap.get("");
@@ -389,10 +356,20 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         Set<String> resourceNames = new HashSet<String>();
         List<ResourceDesc> newResourcesList = new ArrayList<>();
 
+        Set<String> materialNames          = new HashSet<String>();
+        List<MaterialDesc> newMaterialList = new ArrayList<MaterialDesc>();
+
 
         if(builder != null) {
             // transform and register scene external resources (if compiling)
-            sceneBuilder.setScript(BuilderUtil.replaceExt(sceneBuilder.getScript(), ".gui_script", ".gui_scriptc"));
+            String scriptPath = sceneBuilder.getScript();
+            String suffix = BuilderUtil.getSuffix(scriptPath);
+            if (!suffix.isEmpty() && !suffix.equals("gui_script"))
+            {
+                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
+                         new String[] { scriptPath, suffix, "gui_script" } ));
+            }
+            sceneBuilder.setScript(BuilderUtil.replaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
             sceneBuilder.setMaterial(BuilderUtil.replaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
 
             for (FontDesc f : sceneBuilder.getFontsList()) {
@@ -430,6 +407,15 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 }
                 textureNames.add(f.getName());
                 newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
+            }
+
+            for (MaterialDesc f : sceneBuilder.getMaterialsList()) {
+                if (materialNames.contains(f.getName())) {
+                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_MATERIAL,
+                            f.getName()));
+                }
+                materialNames.add(f.getName());
+                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(BuilderUtil.replaceExt(f.getMaterial(), ".material", ".materialc")).build());
             }
 
             for (ResourceDesc f : sceneBuilder.getResourcesList()) {
@@ -491,27 +477,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 node = newNode.build();
             }
 
-            // backwards compatibility
-            if(!node.hasAlpha()) {
-                // We copy the color Vector4 W component from the old gui file format to the new separate alpha fields for color, outline and shadow.
-                // They need to be separate fields as they can be separately overridden from their corresponding color property.
-                // We distinct the new color/alpha separation by the fact that the alpha field (color alpha) is always present in the new format.
-                // Scenes containing layouts won't need this conversion (they will have been saved with separate fields), so this is a good place to do it in code.
-                // Templates are updated recursively, so conversion point will always be applied to default layout nodes.
-                NodeDesc.Builder newNode = node.toBuilder();
-                newNode.setAlpha(newNode.getColor().getW());
-                newNode.setShadowAlpha(newNode.getShadow().getW());
-                newNode.setOutlineAlpha(newNode.getOutline().getW());
-                node = newNode.build();
-            }
-
             // add current scene nodes
             newScene.get("").add(node);
-            validateNodeResources(node, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames);
+            validateNodeResources(node, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
-                    validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames);
+                    validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
                     newScene.get(layout).add(n);
                 }
             }
@@ -582,6 +554,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     textureNames.add(f.getName());
                     newTextureList.add(f);
                 }
+                for (MaterialDesc f : templateBuilder.getMaterialsList()) {
+                    if (materialNames.contains(f.getName())) {
+                        continue;
+                    }
+                    materialNames.add(f.getName());
+                    newMaterialList.add(f);
+                }
                 for (ResourceDesc f : templateBuilder.getResourcesList()) {
                     if (resourceNames.contains(f.getName())) {
                         continue;
@@ -637,10 +616,36 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         sceneBuilder.clearTextures();
         sceneBuilder.addAllTextures(newTextureList);
 
+        sceneBuilder.clearMaterials();
+        sceneBuilder.addAllMaterials(newMaterialList);
+
         sceneBuilder.clearResources();
         sceneBuilder.addAllResources(newResourcesList);
 
         return sceneBuilder;
+    }
+
+    private static void MergeOriginalValuesIntoLayouts(SceneDesc.Builder sceneBuilder) {
+        // Layout nodes will only have valid values for overridden properties.
+        // Copy the non-overridden property values from the original scene nodes
+        // into the layout nodes.
+        if(sceneBuilder.getLayoutsCount() > 0) {
+            Map<String, NodeDesc> sceneNodesById = sceneBuilder.getNodesList().stream().collect(Collectors.toMap(NodeDesc::getId, Function.identity()));
+
+            for(LayoutDesc.Builder layoutBuilder : sceneBuilder.getLayoutsBuilderList()) {
+                for(int i = 0, len = layoutBuilder.getNodesCount(); i < len; ++i) {
+                    NodeDesc layoutNode = layoutBuilder.getNodes(i);
+
+                    // Copy the original property values into our layout node,
+                    // but only if it is overriding a node owned by this scene.
+                    if (!layoutNode.getTemplateNodeChild()) {
+                        NodeDesc sceneNode = sceneNodesById.get(layoutNode.getId());
+                        NodeDesc fullyFormedLayoutNode = ApplyOverriddenFieldValues(sceneNode.toBuilder(), layoutNode).build();
+                        layoutBuilder.setNodes(i, fullyFormedLayoutNode);
+                    }
+                }
+            }
+        }
     }
 
     private class SceneBuilderIO implements ISceneBuilderIO {
@@ -656,6 +661,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 InputStreamReader reader = new InputStreamReader(new ByteArrayInputStream(templateSceneResource.getContent()), "ASCII");
                 sceneBuilder = SceneDesc.newBuilder();
                 TextFormat.merge(reader, sceneBuilder);
+                MergeOriginalValuesIntoLayouts(sceneBuilder);
                 resourceCache.put(resourcePath, sceneBuilder);
             }
             return sceneBuilder.clone();
@@ -663,12 +669,10 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     @Override()
-    protected SceneDesc.Builder transform(Task<Void> task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+    protected SceneDesc.Builder transform(Task task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
         HashMap<String, SceneDesc.Builder> sceneResourceCache = new HashMap<String, SceneDesc.Builder>(32);
-        SceneDesc.Builder builder = null;
-        builder = transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
-        return builder;
+        MergeOriginalValuesIntoLayouts(messageBuilder);
+        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
     }
 
 }
-

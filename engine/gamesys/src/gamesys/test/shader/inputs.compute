@@ -1,0 +1,101 @@
+compute_program: "/shader/inputs.cp"
+
+constants {
+  name: "buffer_a"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+}
+
+constants {
+  name: "buffer_b"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 11.0
+    y: 21.0
+    z: 31.0
+    w: 41.0
+  }
+}
+
+constants {
+  name: "buffer_c"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  value {
+    x: 5.0
+    y: 6.0
+    z: 7.0
+    w: 8.0
+  }
+  value {
+    x: 9.0
+    y: 10.0
+    z: 11.0
+    w: 12.0
+  }
+  value {
+    x: 13.0
+    y: 14.0
+    z: 15.0
+    w: 16.0
+  }
+}
+
+constants {
+  name: "buffer_d"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 11.0
+    y: 12.0
+    z: 13.0
+    w: 14.0
+  }
+  value {
+    x: 15.0
+    y: 16.0
+    z: 17.0
+    w: 18.0
+  }
+  value {
+    x: 19.0
+    y: 110.0
+    z: 111.0
+    w: 112.0
+  }
+  value {
+    x: 113.0
+    y: 114.0
+    z: 115.0
+    w: 116.0
+  }
+}
+
+
+
+samplers {
+  name: "texture_b"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 0.0
+}
+
+samplers {
+  name: "texture_c"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+  max_anisotropy: 14.0
+}

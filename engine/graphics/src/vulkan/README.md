@@ -8,47 +8,28 @@ download the bundles for each available platform. Copy the appropriate library f
 a tar ball as usual per platform. Make a common package for the headers - these can usually be taken from any of the SDKs.
 To see what SDK version the engine is using, look under the `packages` folder in ther root directory.
 
+* OSX - NOTE! The osx packages are a mix of custom built moltenvk packages + vulkan sdks, this is because we require this patch for some of our extensions to work correctly (https://github.com/jpd002/MoltenVK/commit/898553af81e3ee24e82d5c654c15776c3c1b4b78). To update the package, MoltenVK needs to be built manually together with this patch. At some point we should automate this process, but for now it needs to be done manually.
 * Android - the Vulkan SDK is distributed with the NDK, so it should already be available on that platform.
 
-## Enabling validation Layers
-
-To enable validation layers, set the environment variable `DM_VULKAN_VALIDATION=1`.
-This may not be a guarantee that validation is supported by your host platform, but
-the flag needs to be set for the graphics system to poll for support.
+## Validation Layers
 
 ### OSX
 
 By default, we link the engine with a static version of the MoltenVK library, which doesn't
-have any support for. To get validation layers to work on OSX and iOS platforms,
+have any support for validation layers. To get validation layers to work on OSX and iOS platforms,
 you need to copy the vulkan dylib files from the SDK (typically resides under `<path-to-sdk>/macOS/lib/)`
-to the `$DYNAMO_HOME/tmp/share/lib/x86_64-darwin` directory, the `engine/engine/wscript` will link with
-the dylib library when `DM_VULKAN_VALIDATION` is set. You don't need to copy the actual
+to the `$DYNAMO_HOME/tmp/share/lib/x86_64-macos` directory, the `engine/engine/wscript` will link with
+the dylib library when `--with-vulkan-validation` is passed to `wawf`. You don't need to copy the actual
 validation layer libraries, since they will be automatically picked up by the loader from the paths
 specified in the manifest files.
 
 For the loader to work correctly, you need to set a new environment variables to various
 places in the SDK. Currently, this has only been tested on OSX but the process should be similar
-for the other platforms.
+for the other platforms. To run the engine in "validation mode", use the `scripts/macos/macos-vulkan-validation-layers.sh` script.
 
 ```
-# Set the Vulkan SDK to the root of the SDK folder
-export VULKAN_SDK=<path-to-vulkan-sdk>
-
-# This outputs everything the loader does, from searching for layers to ICDs
-export VK_LOADER_DEBUG=all
-
-# This lets the loader know where the ICD's are located. By default it searches
-# for places like ~/.local/share/vulkan but it's likely better to use the SDK files.
-export VK_ICD_FILENAMES=$VULKAN_SDK/macOS/etc/vulkan/icd.d/MoltenVK_icd.json
-
-# Location where the loader should look for the layers. The folder contains a bunch
-# of JSON manifests that let's the loader know of the layers that are available.
-# The layer code is located in a bunch of dynamic libraries that gets loaded
-# automatically by the vulkan loader if we link against libvulkan and not libMoltenVK
-export VK_LAYER_PATH=$VULKAN_SDK/macOs/etc/vulkan/explicit_layer.d
-
-# Make sure the linker can find the layer dylibs
-export LD_LIBRARY_PATH=$VULKAN_SDK/macOS/lib/
+# from the defold base directory:
+./scripts/macos/macos-vulkan-validation-layers.sh arm64-macos
 ```
 
 ## Windows

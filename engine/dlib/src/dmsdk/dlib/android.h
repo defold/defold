@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,7 +26,7 @@
  * @document
  * @name Android
  * @namespace dmAndroid
- * @path engine/dlib/src/dmsdk/dlib/android.h
+ * @language C++
  */
 
 namespace dmAndroid {
@@ -164,7 +164,7 @@ typedef void (*OnActivityResult)(JNIEnv* env, jobject activity, int32_t request_
  *
  * @note [icon:android] Only available on Android
  * @name RegisterOnActivityResultListener
- * @param [type:dmAndroid::OnActivityResult] listener
+ * @param listener [type:dmAndroid::OnActivityResult]
  */
 void RegisterOnActivityResultListener(OnActivityResult listener);
 
@@ -174,7 +174,7 @@ void RegisterOnActivityResultListener(OnActivityResult listener);
  *
  * @note [icon:android] Only available on Android
  * @name UnregisterOnActivityResultListener
- * @param [type:dmAndroid::OnActivityResult] listener
+ * @param listener [type:dmAndroid::OnActivityResult]
  */
 void UnregisterOnActivityResultListener(OnActivityResult listener);
 
@@ -196,7 +196,7 @@ typedef void (*OnActivityCreate)(JNIEnv* env, jobject activity);
  *
  * @note [icon:android] Only available on Android
  * @name RegisterOnActivityCreateListener
- * @param [type:dmAndroid::OnActivityCreate] listener
+ * @param listener [type:dmAndroid::OnActivityCreate]
  */
 void RegisterOnActivityCreateListener(OnActivityCreate listener);
 
@@ -206,7 +206,7 @@ void RegisterOnActivityCreateListener(OnActivityCreate listener);
  *
  * @note [icon:android] Only available on Android
  * @name UnregisterOnActivityCreateListener
- * @param [type:dmAndroid::OnActivityCreate] listener
+ * @param listener [type:dmAndroid::OnActivityCreate]
  */
 void UnregisterOnActivityCreateListener(OnActivityCreate listener);
 

@@ -1,78 +1,28 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
+#include <string.h> // memcpy
 
 #include "script.h"
+#include "test_script.h"
 
-#include <dlib/dstrings.h>
-#include <dlib/hash.h>
+#include <testmain/testmain.h>
 #include <dlib/log.h>
-#include <dlib/configfile.h>
-#include <dmsdk/dlib/json.h>
 
-extern "C"
+class ScriptJsonTest : public dmScriptTest::ScriptTest
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/default/src/test/%s"
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
-
-class ScriptJsonTest : public jc_test_base_class
-{
-protected:
-    virtual void SetUp()
-    {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-
-        m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmConfigFile::Delete(m_ConfigFile);
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    dmConfigFile::HConfig m_ConfigFile;
-    lua_State* L;
 };
-
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
 
 TEST_F(ScriptJsonTest, TestJson)
 {
@@ -99,119 +49,93 @@ TEST_F(ScriptJsonTest, TestJson)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-struct JsonToLuaParams
-{
-    const char* m_JsonStr;
-    bool m_ExpectedParseOK;
-    bool m_ExpectedConvertOK;
-};
-
-class JsonToLuaTest : public jc_test_params_class<JsonToLuaParams>
-{
-protected:
-    virtual void SetUp()
-    {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-
-        m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmConfigFile::Delete(m_ConfigFile);
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    dmConfigFile::HConfig m_ConfigFile;
-    lua_State* L;
-};
-
-TEST_P(JsonToLuaTest, TestJsonToLua)
+TEST_F(ScriptJsonTest, TestJsonToLua)
 {
     int top = lua_gettop(L);
 
-    const JsonToLuaParams& p = GetParam();
-    dmLogInfo("Expected %s: %s", p.m_ExpectedParseOK && p.m_ExpectedConvertOK ? "valid" : "invalid", p.m_JsonStr);
+    {
+        const char* json_original = "{\"foo\":\"bar\",\"num\":16}hello";
+        size_t json_length = 22;
+        // Make it fully dynamic so that ASAN can catch it
+        const char* json = (const char*)malloc(json_length);
+        memcpy((void*)json, (void*)json_original, json_length);
 
-    dmJson::Document doc;
-    dmJson::Result r = dmJson::Parse(p.m_JsonStr, &doc);
-
-    if (p.m_ExpectedParseOK) {
-        ASSERT_EQ(r, dmJson::RESULT_OK);
-        ASSERT_TRUE(doc.m_NodeCount > 0);
-
-        char err_str[128];
-        int top_before_call = lua_gettop(L);
-        int convert_r = dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str));
-
-        if (p.m_ExpectedConvertOK) {
-            ASSERT_NE(-1, convert_r);
-            lua_pop(L, 1);
-        } else {
-            ASSERT_EQ(-1, convert_r);
-            ASSERT_EQ(top_before_call, lua_gettop(L));
-        }
-
-        dmJson::Free(&doc);
-    } else {
-        ASSERT_NE(r, dmJson::RESULT_OK);
+        int ret = dmScript::JsonToLua(L, json, json_length);
+        ASSERT_EQ(1, ret);
+        lua_pop(L, 1);
     }
 
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-const JsonToLuaParams json_to_lua_setups[] = {
-    // VALID
-    {"null", true, true},
-    {"true", true, true},
-    {"false", true, true},
-    {"10", true, true},
-    {"010", true, true},
-    {"-10", true, true},
-    {"-010", true, true},
-    {"0", true, true},
-    {"-0", true, true},
-    {"10.05", true, true},
-    {"10.0", true, true},
-    {"10.00", true, true},
-    {"010.0", true, true},
-    {"-10.05", true, true},
-    {"-10.0", true, true},
-    {"-10.00", true, true},
-    {"-010.0", true, true},
-    {"0.0", true, true},
-    {"-0.0", true, true},
-    {"00.0", true, true},
-    {"{ \"response\" : 123 }", true, true},
-    {"{ \"data\": \"asd\"}", true, true}, // DEF-3707
+TEST_F(ScriptJsonTest, TestJsonToLua_Issue10304)
+{
+    int top = lua_gettop(L);
 
-    // INVALID
-    {"{", false, false},
-    {"Null", true, false},
-    {"NULL", true, false},
-    {"True", true, false},
-    {"TRUE", true, false},
-    {"False", true, false},
-    {"FALSE", true, false},
-    {"defold", true, false},
-    {"0.d3", true, false},
-    {"{1 2 3}", true, false},
-    {"{1: 2, 3}", true, false},
-    {"{ response = \"ok\" }", true, false},
-    {"{ 'data': 'asd' }", true, false}, // DEF-3707
-};
+    {
+        const char* json_original = "xxxx";
+        size_t json_length = 4;
+        // Make it fully dynamic so that ASAN can catch it
+        const char* json = (const char*)malloc(json_length);
+        memcpy((void*)json, (void*)json_original, json_length);
 
-//INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, jc_test_values_in(json_to_lua_setups));
+        int ret = dmScript::JsonToLua(L, json, json_length);
+        ASSERT_EQ(0, ret);
+        int newtop = lua_gettop(L);
+        ASSERT_EQ(0, newtop - top);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+
+TEST_F(ScriptJsonTest, TestLuaToJson)
+{
+    int top = lua_gettop(L);
+
+    {
+        lua_newtable(L);
+            lua_pushstring(L, "str");
+            lua_setfield(L, -2, "a");
+            lua_pushnumber(L, 1.5);
+            lua_setfield(L, -2, "b");
+
+            lua_newtable(L);
+                lua_pushinteger(L, 7);
+                lua_setfield(L, -2, "d");
+
+            lua_setfield(L, -2, "c");
+
+        char* json = 0;
+        size_t json_length;
+        int ret = dmScript::LuaToJson(L, &json, &json_length);
+        ASSERT_EQ(1, ret);
+
+        ASSERT_EQ(31u, (uint32_t)json_length);
+        // Since the ordering will be different
+        // {"a":"str","b":1.5,"c":{"d":7}}
+        ASSERT_EQ('{', json[0]);
+        ASSERT_EQ('}', json[json_length-1]);
+        ASSERT_EQ('\0', json[json_length]);
+        ASSERT_TRUE(strstr(json, "\"a\":\"str\"") != 0);
+        ASSERT_TRUE(strstr(json, "\"b\":1.5") != 0);
+        ASSERT_TRUE(strstr(json, "\"c\":{\"d\":7}") != 0);
+
+        lua_pop(L, 1);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
 
     int ret = jc_test_run_all();
+    dmLog::LogFinalize();
     return ret;
 }

@@ -2,8 +2,12 @@
 /tmp
 .DS_Store
 .lock-wscript
+.lock-waf*
 /share/ext/build
 /share/ext/download
+/share/ext/tremolo/tmp/
+/share/ext/protobuf/tmp/
+/share/ext/protobuf/cross_tmp/
 /share/extender/build
 /go/pkg
 /go/bin
@@ -20,7 +24,10 @@
 *.apidoc_
 engine/.clang_complete
 /.vscode
+/.idea
 .npm
+/**/.project
+/**/.gradle
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath
@@ -30,8 +37,10 @@ scripts/android-v4/.settings/
 scripts/android-v4/build/
 
 # IntelliJ
-**/.idea
 editor/.gradle/
+
+# Clang compilation databse
+compile_commands.json
 
 # eastwood
 editor/.eastwood
@@ -46,7 +55,24 @@ com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.ja
 com.dynamo.cr/extensions/**/build
 
 /local_sdks
+engine/**/build/
 external/**/build/
 editor/resources/splash.css
 editor/.calva/output-window/output.calva-repl
 editor/.lsp/sqlite.db
+
+#build_external
+/packages/bullet-2.77/
+/packages/lib/
+
+#build bob
+/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.interp
+/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens
+/com.dynamo.cr/com.dynamo.cr.bob/libexec/**/lipo*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/**/OpenAL*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/**/wrap_oal*
+/com.dynamo.cr/out/
+/com.dynamo.cr/com.dynamo.cr.bob.test/test/proj/build/
+/com.dynamo.cr/test_resources/
+/build_times.json
+AGENTS.md

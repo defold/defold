@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
+#include "dlib/atomic.h"
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -23,14 +24,22 @@
 #include "dlib/math.h"
 #include "dlib/thread.h"
 #include "dlib/uri.h"
+#include "dlib/sys.h"
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
 #include "dlib/http_client.h"
 #include "dlib/http_cache_verify.h"
-#include "testutil.h"
+#include "dlib/testutil.h"
 
 #define JC_TEST_IMPLEMENTATION
+#if !defined(JC_TEST_NO_DEATH_TEST)
+    #define JC_TEST_NO_DEATH_TEST
+#endif
 #include <jc_test/jc_test.h>
+
+#if !defined(DM_NO_SIGNAL_FUNCTION)
+    #include <signal.h>
+#endif
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
@@ -40,10 +49,20 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
+
+#if defined(_WIN32)
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+    #define DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#endif
+
+
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
 int g_HttpPortSSLTest = -1;
+char SERVER_IP[64] = "localhost";
 
+#define NAME_SERVER_IP "localhost"
 #define NAME_SOCKET "{server_socket}"
 #define NAME_SOCKET_SSL "{server_socket_ssl}"
 #define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
@@ -57,7 +76,11 @@ public:
     std::string m_ToPost;
     int m_StatusCode;
     int m_XScale;
+    uint32_t m_RangeStart;
+    uint32_t m_RangeEnd;
+    uint32_t m_DocumentSize;
     dmURI::Parts m_URI;
+    char m_CacheDir[256];
 
     static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
@@ -65,10 +88,15 @@ public:
         self->m_Headers[key] = value;
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                            const char* method)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         self->m_StatusCode = status_code;
+        self->m_RangeStart = range_start;
+        self->m_RangeEnd = range_end;
+        self->m_DocumentSize = document_size;
         self->m_Content.append((const char*) content_data, content_data_size);
     }
 
@@ -92,9 +120,100 @@ public:
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         char scale[128];
         dmSnPrintf(scale, sizeof(scale), "%d", self->m_XScale);
-        return dmHttpClient::WriteHeader(response, "X-Scale", scale);
+        self->m_Headers["X-Scale"] = std::string(scale);
+
+        // Let's use the m_Headers for writing as well.
+        std::map<std::string, std::string>::iterator it;
+        for (it = self->m_Headers.begin(); it != self->m_Headers.end(); it++)
+        {
+            dmHttpClient::Result result = dmHttpClient::WriteHeader(response, it->first.c_str(), it->second.c_str());
+            if (result != dmHttpClient::RESULT_OK)
+            {
+                dmLogError("Failed to write header '%s=%s'", it->first.c_str(), it->second.c_str());
+                return result;
+            }
+        }
+
+        self->m_Headers.clear(); // Prepare for receiving
+        return dmHttpClient::RESULT_OK;
     }
 
+    dmHttpClient::Result HttpGet(const char* url)
+    {
+        m_StatusCode = -1;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
+        m_Content.clear();
+        m_Headers.clear();
+        dmHttpClient::SetCacheKey(m_Client, url);
+        return dmHttpClient::Get(m_Client, url);
+    }
+
+    dmHttpClient::Result HttpGetPartial(const char* url, int start, int end)
+    {
+        m_StatusCode = -1;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
+        m_Content.clear();
+        m_Headers.clear();
+
+        if (start >= 0 && end >= start)
+        {
+            char range[512] = "";
+            dmSnPrintf(range, sizeof(range), "bytes=%d-%d", start, end);
+            m_Headers["Range"] = range;
+
+            char cache_key[1024] = "";
+            dmSnPrintf(cache_key, sizeof(cache_key), "%s=%s", url, range);
+            dmHttpClient::SetCacheKey(m_Client, cache_key);
+        }
+
+        return dmHttpClient::Get(m_Client, url);
+    }
+
+    dmHttpClient::Result HttpPost(const char* url)
+    {
+        m_StatusCode = -1;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
+        m_Content.clear();
+        m_Headers.clear();
+        return dmHttpClient::Post(m_Client, url);
+    }
+
+    void CreateFile(const char* path, const char* content)
+    {
+        char apppath[256];
+        dmTestUtil::MakeHostPath(apppath, sizeof(apppath), path);
+
+        FILE* f = fopen(apppath, "wb");
+        ASSERT_NE((FILE*)0, f);
+        fwrite(content, 1, strlen(content), f);
+        fclose(f);
+    }
+
+    void SetupTestData()
+    {
+        char tmp_dir[256];
+        char http_files[256];
+        dmTestUtil::MakeHostPath(tmp_dir, sizeof(tmp_dir), "tmp");
+        dmTestUtil::MakeHostPath(m_CacheDir, sizeof(m_CacheDir), "tmp/cache");
+        dmTestUtil::MakeHostPath(http_files, sizeof(http_files), "tmp/http_files");
+
+        dmSys::RmTree(tmp_dir);
+
+        dmSys::Mkdir(tmp_dir, 0755);
+        dmSys::Mkdir(m_CacheDir, 0755);
+        dmSys::Mkdir(http_files, 0755);
+
+        CreateFile("tmp/http_files/a.txt", "You will find this data in a.txt and d.txt");
+        CreateFile("tmp/http_files/b.txt", "Some data in file b");
+        CreateFile("tmp/http_files/c.txt", "Some data in file c");
+        CreateFile("tmp/http_files/d.txt", "You will find this data in a.txt and d.txt");
+    }
 
     virtual void SetUp()
     {
@@ -102,6 +221,17 @@ public:
 
         char url[1024];
         strcpy(url, GetParam());
+
+        bool is_https = strstr(url, "https://") != 0;
+
+        char* host = strstr(url, NAME_SERVER_IP);
+        if (host != 0) {
+            char urlcopy[1024];
+            // poor mans replace
+            const char* rest = host + strlen(NAME_SERVER_IP);
+            dmSnPrintf(urlcopy, sizeof(urlcopy), "%s://%s%s", is_https?"https":"http", SERVER_IP, rest);
+            memcpy(url, urlcopy, sizeof(url));
+        }
 
         char* portstr = strrchr(url, ':');
         ++portstr;
@@ -125,18 +255,14 @@ public:
 
         if (port != -1)
         {
-            sprintf(portstr, "%d", port);
+            dmSnPrintf(portstr, sizeof(url) - (portstr - url), "%d", port);
         }
+
 
         dmURI::Result parse_r = dmURI::Parse(url, &m_URI);
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
 
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-        int ret = system("python src/test/test_httpclient.py");
-#else
-        int ret = -1;
-#endif
-        ASSERT_EQ(0, ret);
+        SetupTestData();
 
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
@@ -371,20 +497,22 @@ TEST_F(dmHttpClientParserTest, TestNoContent)
     ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
 }
 
-#ifndef _WIN32
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
-// NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
+#if defined(DM_PLATFORM_VENDOR)
+    #define NUM_ITERATIONS 25
+#else
+    #define NUM_ITERATIONS 100
+#endif
 
 TEST_P(dmHttpClientTest, Simple)
 {
     char buf[128];
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
     }
@@ -393,6 +521,9 @@ TEST_P(dmHttpClientTest, Simple)
 struct HttpStressHelper
 {
     int m_StatusCode;
+    uint32_t m_RangeStart;
+    uint32_t m_RangeEnd;
+    uint32_t m_DocumentSize;
     std::string m_Content;
     dmHttpClient::HClient m_Client;
 
@@ -400,6 +531,9 @@ struct HttpStressHelper
     {
         bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
+        m_RangeStart = 0xFFFFFFFF;
+        m_RangeEnd = 0xFFFFFFFF;
+        m_DocumentSize = 0xFFFFFFFF;
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
@@ -411,26 +545,37 @@ struct HttpStressHelper
         dmHttpClient::Delete(m_Client);
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                                const char* method)
     {
         HttpStressHelper* self = (HttpStressHelper*) user_data;
         self->m_StatusCode = status_code;
+        self->m_RangeStart = range_start;
+        self->m_RangeEnd = range_end;
+        self->m_DocumentSize = document_size;
         self->m_Content.append((const char*) content_data, content_data_size);
     }
 };
+
+#define T_ASSERT_EQ(_A, _B) \
+    if ( (_A) != (_B) ) { \
+        printf("%s:%d: ASSERT: %s != %s: %d != %d", __FILE__, __LINE__, #_A, #_B, (int)(_A), (int)(_B)); \
+    } \
+    assert( (_A) == (_B) );
 
 static void HttpStressThread(void* param)
 {
     char buf[128];
     int c = rand() % 3359;
     HttpStressHelper* h = (HttpStressHelper*) param;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < NUM_ITERATIONS; ++i) {
         h->m_Content = "";
-        sprintf(buf, "/add/%d/1000", i * c);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i * c);
         dmHttpClient::Result r;
         r = dmHttpClient::Get(h->m_Client, buf);
-        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
+        T_ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        T_ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
     }
 }
 
@@ -441,10 +586,10 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
-#if defined(GITHUB_CI)
+#if defined(GITHUB_CI) || defined(DM_PLATFORM_VENDOR)
     const int thread_count = 2;    // 32 is the maximum number of items in the connection pool, stay below that
 #else
-    const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
+    const int thread_count = 16;   // 32 is the maximum number of items in the connection pool, stay below that
 #endif
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
@@ -463,14 +608,18 @@ TEST_P(dmHttpClientTest, ThreadStress)
 
 TEST_P(dmHttpClientTest, NoKeepAlive)
 {
+#if defined(GITHUB_CI) && defined(DM_SANITIZE_ADDRESS)
+    if (strstr(GetParam(), "https://") != 0) {
+        dmLogWarning("Test '%s' skipped due to the added time it takes to perform", __FUNCTION__);
+        SKIP();
+    }
+#endif
     char buf[128];
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
-        sprintf(buf, "/no-keep-alive");
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
+        dmSnPrintf(buf, sizeof(buf), "/no-keep-alive");
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_STREQ("will close connection now.", m_Content.c_str());
     }
@@ -481,12 +630,10 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
     char buf[128];
 
     m_XScale = 123;
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
-        m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, buf);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
+        dmHttpClient::Result r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ((1000 + i) * m_XScale, strtol(m_Content.c_str(), 0, 10));
     }
@@ -496,17 +643,14 @@ TEST_P(dmHttpClientTest, ServerTimeout)
 {
     for (int i = 0; i < 3; ++i)
     {
-        dmHttpClient::Result r;
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/add/10/20");
+        dmHttpClient::Result r = HttpGet("/add/10/20");
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
         // NOTE: MaxIdleTime is set to 500ms, see TestHttpServer.cpp line 300
         dmTime::Sleep(1000 * 550);
 
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/add/100/20");
+        r = HttpGet("/add/100/20");
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(120, strtol(m_Content.c_str(), 0, 10));
     }
@@ -517,29 +661,372 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // The TCP + SSL connection handshake take up a considerable amount of time on linux (peaks of 60+ ms), and
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
+
+    int sleep_time_ms = 5 * 1000;
+    #if defined(DM_PLATFORM_VENDOR) || defined (DM_SANITIZE_THREAD)
+        const int timeout_us = 5000 * 1000;
+        sleep_time_ms = 50 * 1000;
+    #elif defined(__SCE__)
+        const int timeout_us = 1000 * 1000;
+    #else
+        const int timeout_us = 500 * 1000;
+    #endif
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout_us); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
+        dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms); // milliseconds
+        r = HttpGet(buf);
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_EQ(-1, m_StatusCode);
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
 
-        m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
-        r = dmHttpClient::Get(m_Client, buf);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
+        r = HttpGet(buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
         ASSERT_EQ(200, m_StatusCode);
     }
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0);
 }
+
+TEST_P(dmHttpClientTest, ServerClose)
+{
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
+    for (int i = 0; i < 10; ++i)
+    {
+        dmHttpClient::Result r = HttpGet("/close");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        dmSocket::Result sock_r = dmHttpClient::GetLastSocketResult(m_Client);
+        ASSERT_TRUE(r == dmHttpClient::RESULT_UNEXPECTED_EOF || sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);
+    }
+}
+
+struct ShutdownThreadContext
+{
+    int32_atomic_t m_GotIt;
+};
+
+static void ShutdownThread(void *args)
+{
+    ShutdownThreadContext* ctx = (ShutdownThreadContext*)args;
+    while (!dmAtomicGet32(&ctx->m_GotIt))
+    {
+        // Now we give the test time to connect and be in-flight
+
+        if (dmHttpClient::GetNumPoolConnections() == 0)
+        {
+            dmTime::Sleep(1);
+            continue;
+        }
+
+        // There is a small gap between it it in use and it is connected
+        dmTime::Sleep(100);
+
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            dmAtomicStore32(&ctx->m_GotIt, 1);
+        } else {
+            break; // done.
+        }
+    }
+}
+
+TEST_P(dmHttpClientTest, ClientThreadedShutdown)
+{
+    char buf[128];
+    ShutdownThreadContext ctx;
+    ctx.m_GotIt = 0;
+
+    int sleep_time_ms = 5 * 1000;
+    #if defined (DM_SANITIZE_THREAD)
+        sleep_time_ms = 5 * 1000;
+    #endif
+
+    for (int i=0;i<5;i++) {
+        // Create a request that proceeds for a long time and cancel it in-flight with the
+        // shutdown thread. If it managed to get the conneciton it will set gotit to true.
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts");
+        dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms);
+        dmHttpClient::Result r = HttpGet(buf);
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+
+        // Wait until no connections are open
+        dmThread::Join(thr);
+
+        // Pool shut down; must fail.
+        r = HttpGet("/sleep/10000");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+
+        dmHttpClient::ReopenConnectionPool();
+
+        if (dmAtomicGet32(&ctx.m_GotIt))
+            break;
+    }
+
+    ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
+
+    // Reopened so should succeed.
+    dmHttpClient::Result r = r = HttpGet("/sleep/10");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+}
+
+
+TEST_P(dmHttpClientTest, ContentSizes)
+{
+    char buf[128];
+
+    const uint32_t primes[] = { 0, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 };
+    for (int i = 0; i < 1000; i += 100)
+    {
+        for (uint32_t j = 0; j < sizeof(primes) / sizeof(primes[0]); ++j)
+        {
+            dmSnPrintf(buf, sizeof(buf), "/arb/%d", i + primes[j]);
+
+            dmHttpClient::Result r = HttpGet(buf);
+            ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+            ASSERT_EQ(i + primes[j], m_Content.size());
+            for (uint32_t k = 0; k < i + primes[j]; ++k)
+            {
+                ASSERT_EQ(k % 255, (uint32_t) (m_Content[k] & 0xff));
+            }
+        }
+    }
+}
+
+TEST_P(dmHttpClientTest, LargeFile)
+{
+    char buf[128];
+
+    int n = 1024 * 1024 + 59;
+    dmSnPrintf(buf, sizeof(buf), "/arb/%d", n);
+    dmHttpClient::Result r = HttpGet(buf);
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ((uint32_t) n, m_Content.size());
+
+    for (uint32_t i = 0; i < (uint32_t) n; ++i)
+    {
+        ASSERT_EQ(i % 255, (uint32_t) (m_Content[i] & 0xff));
+    }
+}
+
+TEST_P(dmHttpClientTest, TestHeaders)
+{
+    char buf[128];
+
+    int n = 123;
+    dmSnPrintf(buf, sizeof(buf), "/arb/%d", n);
+    dmHttpClient::Result r = HttpGet(buf);
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ((uint32_t) n, m_Content.size());
+    ASSERT_STREQ("123", m_Headers["Content-Length"].c_str());
+}
+
+TEST_P(dmHttpClientTest, Test404)
+{
+    for (int i = 0; i < 17; ++i)
+    {
+        dmHttpClient::Result r = HttpGet("/does_not_exists");
+        ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_EQ(404, m_StatusCode);
+    }
+}
+
+TEST_P(dmHttpClientTest, Post)
+{
+    for (int i = 0; i < 27; ++i)
+    {
+        int n = (rand() % 123) + 171;
+        int sum = 0;
+        m_ToPost = "";
+
+        for (int j = 0; j < n; ++j) {
+            int8_t buf[2] = { (int8_t)((rand() % 255) - 128), 0 };
+            sum += buf[0];
+            m_ToPost.append((char*)buf);
+        }
+
+        dmHttpClient::Result r = HttpPost("/post");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, m_StatusCode);
+        ASSERT_EQ(sum, atoi(m_Content.c_str()));
+    }
+}
+
+TEST_P(dmHttpClientTest, PostLarge)
+{
+    for (int i = 0; i < 10; ++i)
+    {
+        int n = 13777 * i;
+        int sum = 0;
+        m_ToPost = "";
+
+        for (int j = 0; j < n; ++j) {
+            int8_t buf[2] = { (int8_t)((rand() % 255) - 128), 0 };
+            m_ToPost.append((char*)buf);
+            sum += buf[0];
+        }
+
+        dmHttpClient::Result r = HttpPost("/post");
+        printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, m_StatusCode);
+        ASSERT_EQ(sum, atoi(m_Content.c_str()));
+    }
+}
+
+TEST_P(dmHttpClientTest, Cache)
+{
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = m_CacheDir;
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
+    ASSERT_NE((void*) 0, m_Client);
+
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
+    {
+        dmHttpClient::Result r = HttpGet("/cached/0");
+        if (r == dmHttpClient::RESULT_OK)
+        {
+            ASSERT_EQ(200, m_StatusCode);
+        }
+        else
+        {
+            ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+            ASSERT_EQ(304, m_StatusCode);
+        }
+        ASSERT_EQ(std::string("cached_content"), m_Content);
+    }
+
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
+    ASSERT_EQ(uint32_t(NUM_ITERATIONS), stats.m_Responses - stats.m_Reconnections);
+    ASSERT_EQ(uint32_t(NUM_ITERATIONS - 1), stats.m_CachedResponses);
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+}
+
+TEST_P(dmHttpClientTest, MaxAgeCache)
+{
+#if !defined(DM_NO_SIGNAL_FUNCTION)
+    signal(SIGPIPE, SIG_IGN);
+#endif
+
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = m_CacheDir;
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
+    ASSERT_NE((void*) 0, m_Client);
+
+    dmHttpClient::Result r = HttpGet("/max-age-cached");
+    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
+    std::string val = m_Content;
+
+    // The web-server is returning System.currentTimeMillis()
+    // Ensure next ms
+    dmTime::Sleep(1U);
+
+    r = HttpGet("/max-age-cached");
+    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
+    ASSERT_STREQ(m_Content.c_str(), val.c_str());
+
+    // max-age is 1 second
+    dmTime::Sleep(1000000U);
+
+    r = HttpGet("/max-age-cached");
+    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
+    ASSERT_STRNE(m_Content.c_str(), val.c_str());
+
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+}
+
+TEST_P(dmHttpClientTest, PathWithSpaces)
+{
+    char buf[128], uri[128];
+
+    // should fail since it is not properly encoded.
+    // NOTE: Really really should be only encoding the 'message' and not the whole path.
+    //       But Encode for now is kind to not encode '/'
+    const char* message = "testing 1 2";
+    snprintf(buf, 128, "/echo/%s", message);
+    dmURI::Encode(buf, uri, sizeof(uri), 0);
+
+    dmHttpClient::Result r = HttpGet(uri);
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_STREQ(message, m_Content.c_str());
+}
+
+TEST_P(dmHttpClientTestExternal, PostExternal)
+{
+    int n = 17000;
+
+    m_ToPost = "";
+
+    for (int j = 0; j < n; ++j) {
+        char buf[2] = { 'a', 0 };
+        m_ToPost.append(buf);
+    }
+
+    dmHttpClient::Result r;
+    m_Content = "";
+    m_StatusCode = -1;
+
+    printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
+    r = dmHttpClient::Post(m_Client, m_URI.m_Path);
+
+    printf("STATUS: %d\n", m_StatusCode);
+    if (503 == m_StatusCode)
+    {
+        // It's an external page, which may be down from time to time
+        return;
+    }
+
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, m_StatusCode);
+
+    printf("CONTENT:\n%s\n", m_Content.c_str());
+}
+
+// Until we've figured out how to access the local server on windows from the PS4
+#if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
+
+const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
+
+#endif
+
+#if !(defined(GITHUB_CI) || defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
+// For easier debugging, we can use external sites to monitor their responses
+// NOTE: These buckets might expire. If so, we'll have to disable that server test
+const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
+													// during development "https://hookb.in/je1lZ3X0ngTobX0plMME",
+                                                    //                    "https://webhook.site/e22f2d03-abf4-4f23-a8dc-7e24126cefab",
+                                                    "https://httpbin.org/post"
+                                                };
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
+#endif
 
 TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
 {
@@ -548,9 +1035,9 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
         uint64_t timeout = 130 * 1000;
         dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
 
-        uint64_t timestart = dmTime::GetTime();
+        uint64_t timestart = dmTime::GetMonotonicTime();
         dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
-        uint64_t timeend = dmTime::GetTime();
+        uint64_t timeend = dmTime::GetMonotonicTime();
 
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
@@ -573,374 +1060,117 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
     }
 }
 
-
-
-TEST_P(dmHttpClientTest, ServerClose)
-{
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
-    for (int i = 0; i < 10; ++i)
-    {
-        dmHttpClient::Result r;
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/close");
-        ASSERT_NE(dmHttpClient::RESULT_OK, r);
-        dmSocket::Result sock_r = dmHttpClient::GetLastSocketResult(m_Client);
-        ASSERT_TRUE(r == dmHttpClient::RESULT_UNEXPECTED_EOF || sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);
-    }
-}
-
-void ShutdownThread(void *args)
-{
-    bool* gotit = (bool*) args;
-    while (true)
-    {
-        // Now we give the test time to connect and be in-flight
-        dmTime::Sleep(1000 * 500);
-        if (dmHttpClient::ShutdownConnectionPool() > 0) {
-            // it was in flight and now it should be cancelled and fail.
-            *gotit = true;
-        } else {
-            break; // done.
-        }
-    }
-}
-
-TEST_P(dmHttpClientTest, ClientThreadedShutdown)
-{
-    bool gotit = false;
-    for (int i=0;i<5;i++) {
-        // Create a request that proceeds for a long time and cancel it in-flight with the
-        // shutdown thread. If it managed to get the conneciton it will set gotit to true.
-        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");
-        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10000");
-        ASSERT_NE(dmHttpClient::RESULT_OK, r);
-
-        // Wait until no are open
-        dmThread::Join(thr);
-
-        // Pool shut down; must fail.
-        r = dmHttpClient::Get(m_Client, "/sleep/10000");
-        ASSERT_NE(dmHttpClient::RESULT_OK, r);
-
-        dmHttpClient::ReopenConnectionPool();
-
-        if (gotit)
-            break;
-    }
-
-    ASSERT_TRUE(gotit);
-
-    // Reopened so should succeed.
-    dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-}
-
-TEST_P(dmHttpClientTest, ContentSizes)
-{
-    char buf[128];
-
-    const uint32_t primes[] = { 0, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 };
-    for (int i = 0; i < 1000; i += 100)
-    {
-        for (uint32_t j = 0; j < sizeof(primes) / sizeof(primes[0]); ++j)
-        {
-            sprintf(buf, "/arb/%d", i + primes[j]);
-
-            dmHttpClient::Result r;
-            m_Content = "";
-            r = dmHttpClient::Get(m_Client, buf);
-            ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-            ASSERT_EQ(i + primes[j], m_Content.size());
-            for (uint32_t k = 0; k < i + primes[j]; ++k)
-            {
-                ASSERT_EQ(k % 255, (uint32_t) (m_Content[k] & 0xff));
-            }
-        }
-    }
-}
-
-TEST_P(dmHttpClientTest, LargeFile)
-{
-    char buf[128];
-
-    int n = 1024 * 1024 + 59;
-    sprintf(buf, "/arb/%d", n);
-    dmHttpClient::Result r;
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, buf);
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-    ASSERT_EQ((uint32_t) n, m_Content.size());
-
-    for (uint32_t i = 0; i < (uint32_t) n; ++i)
-    {
-        ASSERT_EQ(i % 255, (uint32_t) (m_Content[i] & 0xff));
-    }
-}
-
-TEST_P(dmHttpClientTest, TestHeaders)
-{
-    char buf[128];
-
-    int n = 123;
-    sprintf(buf, "/arb/%d", n);
-    dmHttpClient::Result r;
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, buf);
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-    ASSERT_EQ((uint32_t) n, m_Content.size());
-    ASSERT_STREQ("123", m_Headers["Content-Length"].c_str());
-}
-
-TEST_P(dmHttpClientTest, Test404)
-{
-    for (int i = 0; i < 17; ++i)
-    {
-        dmHttpClient::Result r;
-        m_Content = "";
-        m_StatusCode = -1;
-        r = dmHttpClient::Get(m_Client, "/does_not_exists");
-        ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
-        ASSERT_EQ(404, m_StatusCode);
-    }
-}
-
-TEST_P(dmHttpClientTest, Post)
-{
-    for (int i = 0; i < 27; ++i)
-    {
-        int n = (rand() % 123) + 171;
-        int sum = 0;
-        m_ToPost = "";
-
-        for (int j = 0; j < n; ++j) {
-            char buf[2] = { (char)((rand() % 255) - 128), 0 };
-            m_ToPost.append(buf);
-            sum += buf[0];
-        }
-
-        dmHttpClient::Result r;
-        m_Content = "";
-        m_StatusCode = -1;
-        r = dmHttpClient::Post(m_Client, "/post");
-        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        ASSERT_EQ(200, m_StatusCode);
-        ASSERT_EQ(sum, atoi(m_Content.c_str()));
-    }
-}
-
-
-TEST_P(dmHttpClientTest, PostLarge)
-{
-    for (int i = 0; i < 10; ++i)
-    {
-        int n = 13777 * i;
-        int sum = 0;
-        m_ToPost = "";
-
-        for (int j = 0; j < n; ++j) {
-            char buf[2] = { (char)((rand() % 255) - 128), 0 };
-            m_ToPost.append(buf);
-            sum += buf[0];
-        }
-
-        dmHttpClient::Result r;
-        m_Content = "";
-        m_StatusCode = -1;
-        printf("m_ToPost: len: %lu\n", m_ToPost.size());
-
-        r = dmHttpClient::Post(m_Client, "/post");
-        printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
-        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        ASSERT_EQ(200, m_StatusCode);
-        ASSERT_EQ(sum, atoi(m_Content.c_str()));
-    }
-}
-
-TEST_P(dmHttpClientTest, Cache)
-{
-    dmHttpClient::Delete(m_Client);
-
-    // Reinit client with http-cache
-    dmHttpClient::NewParams params;
-    params.m_Userdata = this;
-    params.m_HttpContent = dmHttpClientTest::HttpContent;
-    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
-    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
-    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
-    ASSERT_NE((void*) 0, m_Client);
-
-    for (int i = 0; i < 100; ++i)
-    {
-        m_Content = "";
-        dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, "/cached/0");
-        if (r == dmHttpClient::RESULT_OK)
-        {
-            ASSERT_EQ(200, m_StatusCode);
-        }
-        else
-        {
-            ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
-            ASSERT_EQ(304, m_StatusCode);
-        }
-        ASSERT_EQ(std::string("cached_content"), m_Content);
-    }
-
-    dmHttpClient::Statistics stats;
-    dmHttpClient::GetStatistics(m_Client, &stats);
-    // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
-    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
-    ASSERT_EQ(99U, stats.m_CachedResponses);
-    cache_r = dmHttpCache::Close(params.m_HttpCache);
-    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-}
-
-TEST_P(dmHttpClientTest, MaxAgeCache)
-{
-    dmHttpClient::Delete(m_Client);
-
-    // Reinit client with http-cache
-    dmHttpClient::NewParams params;
-    params.m_Userdata = this;
-    params.m_HttpContent = dmHttpClientTest::HttpContent;
-    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
-    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
-    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
-    ASSERT_NE((void*) 0, m_Client);
-
-    dmHttpClient::Result r;
-    r = dmHttpClient::Get(m_Client, "/max-age-cached");
-    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
-    std::string val = m_Content;
-
-    // The web-server is returning System.currentTimeMillis()
-    // Ensure next ms
-    dmTime::Sleep(1U);
-
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, "/max-age-cached");
-    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
-    ASSERT_STREQ(m_Content.c_str(), val.c_str());
-
-    // max-age is 1 second
-    dmTime::Sleep(1000000U);
-
-    m_Content = "";
-    r = dmHttpClient::Get(m_Client, "/max-age-cached");
-    ASSERT_TRUE((r == dmHttpClient::RESULT_OK && m_StatusCode == 200) || (r == dmHttpClient::RESULT_NOT_200_OK && m_StatusCode == 304));
-    ASSERT_STRNE(m_Content.c_str(), val.c_str());
-
-    cache_r = dmHttpCache::Close(params.m_HttpCache);
-    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-}
-
-TEST_P(dmHttpClientTest, PathWithSpaces)
-{
-    char buf[128], uri[128];
-
-    // should fail since it is not properly encoded.
-    // NOTE: Really really should be only encoding the 'message' and not the whole path.
-    //       But Encode for now is kind to not encode '/'
-    const char* message = "testing 1 2";
-    snprintf(buf, 128, "/echo/%s", message);
-    dmURI::Encode(buf, uri, sizeof(uri), 0);
-
-    m_Content = "";
-    dmHttpClient::Result r = dmHttpClient::Get(m_Client, uri);
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-    ASSERT_STREQ(message, m_Content.c_str());
-}
-
-
-TEST_P(dmHttpClientTestExternal, PostExternal)
-{
-    int n = 17000;
-
-    if (strstr(m_URI.m_Location, "ptsv2.com")) {
-        n = 1500; // They have a max limit
-    }
-
-    m_ToPost = "";
-
-    for (int j = 0; j < n; ++j) {
-        char buf[2] = { 'a', 0 };
-        m_ToPost.append(buf);
-    }
-
-    dmHttpClient::Result r;
-    m_Content = "";
-    m_StatusCode = -1;
-
-    r = dmHttpClient::Post(m_Client, m_URI.m_Path);
-    printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
-
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-    ASSERT_EQ(200, m_StatusCode);
-
-    printf("STATUS: %d\n", m_StatusCode);
-    printf("CONTENT:\n%s\n", m_Content.c_str());
-}
-
-const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
-INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
-
-#if !defined(GITHUB_CI)
-// For easier debugging, we can use external sites to monitor their responses
-// NOTE: These buckets might expire. If so, we'll have to disable that server test
-const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
-													// during development "https://hookb.in/je1lZ3X0ngTobX0plMME",
-                                                    "https://httpbin.org/post",
-                                                    "https://ptsv2.com/t/csphn-1581795004/post"};
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
-#endif
-
+// Until we've figured out how to access the local server on windows from the device
+#if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
 
+#endif
 
 class dmHttpClientTestCache : public dmHttpClientTest
 {
 public:
-    void GetFiles(bool check_content)
+    void GetFiles(bool check_content, bool partial, uint32_t count)
     {
-        char buf[512];
-        for (int i = 0; i < 100; ++i)
+        std::string expected_data[4] = {
+            std::string("You will find this data in a.txt and d.txt"),
+            std::string("Some data in file b"),
+            std::string("Some data in file c"),
+            std::string("You will find this data in a.txt and d.txt")
+        };
+
+        const char* names[4] = {
+            "/tmp/http_files/a.txt",
+            "/tmp/http_files/b.txt",
+            "/tmp/http_files/c.txt",
+            "/tmp/http_files/d.txt",
+        };
+
+        // we want to make the same requests each time
+        uint32_t offsets[4];
+        uint32_t sizes[4];
+
+        if (partial)
         {
-            m_Content = "";
-            dmHttpClient::Result r;
-            snprintf(buf, sizeof(buf), "/tmp/http_files/%c.txt", 'a' + (i % 4));
-            r = dmHttpClient::Get(m_Client, buf);
-            if (r == dmHttpClient::RESULT_OK)
+            for (int i = 0; i < 4; ++i)
             {
-                ASSERT_EQ(200, m_StatusCode);
+                int idx = i % 4;
+                const char* expected = expected_data[idx].c_str();
+                // avoid rand() as we want deterministic ranges (which will affect the cache keys!)
+                // between runs
+                uint32_t size = strlen(expected);
+                uint32_t offset = size / 3;
+                size = (size - offset) / 2;
+                if (size == 0)
+                    size = 1;
+                offsets[idx] = offset;
+                sizes[idx] = size;
+            }
+        }
+
+        for (int i = 0; i < (int)count; ++i)
+        {
+            int idx = i % 4;
+            const char* name = names[idx];
+            const char* expected = expected_data[idx].c_str();
+
+            dmHttpClient::Result r;
+            if (partial)
+            {
+                uint32_t end = offsets[idx] + sizes[idx] - 1;
+                r = HttpGetPartial(name, offsets[idx], end);
+
+                if (r == dmHttpClient::RESULT_PARTIAL_CONTENT)
+                {
+                    ASSERT_EQ(206, m_StatusCode);
+                }
             }
             else
             {
-                ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
-                ASSERT_EQ(304, m_StatusCode);
+                r = HttpGet(name);
+
+                if (r == dmHttpClient::RESULT_OK)
+                {
+                    ASSERT_EQ(200, m_StatusCode);
+                }
+                else
+                {
+                    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+                    ASSERT_EQ(304, m_StatusCode);
+                }
+
             }
 
             if (check_content)
             {
-                if (i % 4 == 0)
-                    ASSERT_EQ(std::string("You will find this data in a.txt and d.txt"), m_Content);
-                else if (i % 4 == 1)
-                    ASSERT_EQ(std::string("Some data in file b"), m_Content);
-                else if (i % 4 == 2)
-                    ASSERT_EQ(std::string("Some data in file c"), m_Content);
-                else if (i % 4 == 3)
-                    ASSERT_EQ(std::string("You will find this data in a.txt and d.txt"), m_Content);
+                uint32_t document_size = (uint32_t)strlen(expected);
+                if (partial)
+                {
+                    uint32_t sz = sizes[idx];
+                    const char* expected_partial = &expected[offsets[idx]];
+                    ASSERT_ARRAY_EQ_LEN(expected_partial, m_Content.c_str(), sz);
+                    ASSERT_EQ(sz, (uint32_t)m_Content.size());
+
+                    uint32_t end = offsets[idx] + sizes[idx] - 1;
+                    ASSERT_EQ(offsets[idx], m_RangeStart);
+                    ASSERT_EQ(end, m_RangeEnd);
+                    ASSERT_EQ(document_size, m_DocumentSize);
+                }
                 else
-                    ASSERT_TRUE(false);
+                {
+                    ASSERT_STREQ(expected, m_Content.c_str());
+                    ASSERT_EQ(0U, m_RangeStart);
+                    ASSERT_EQ(document_size-1, m_RangeEnd);
+                    ASSERT_EQ(document_size, m_DocumentSize);
+                }
             }
         }
+    }
+
+    void GetFiles(bool check_content, bool partial)
+    {
+        GetFiles(check_content, partial, 100);
     }
 };
 
@@ -953,32 +1183,49 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+
+    params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
+    params.m_HttpWrite = dmHttpClientTest::HttpWrite;
+    params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
+
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
     ASSERT_NE((void*) 0, m_Client);
 
-    GetFiles(true);
+    uint32_t count = 50;
+    uint32_t iter = 2;
+    for (uint32_t i = 0; i < iter; ++i)
+    {
+        bool partial = i > 0;
+        GetFiles(true, partial, count);
+    }
 
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
     // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
-    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
-    ASSERT_EQ(96U, stats.m_CachedResponses);
+    ASSERT_EQ(count*iter, stats.m_Responses - stats.m_Reconnections);
+    ASSERT_EQ((count-4U)*iter, stats.m_CachedResponses);
     ASSERT_EQ(0U, stats.m_DirectFromCache);
 
     // Change consistency police to "trust-cache". All files are retrieved and should therefore be already verified
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
-    GetFiles(true);
+
+    for (uint32_t i = 0; i < iter; ++i)
+    {
+        bool partial = i > 0;
+        GetFiles(true, partial, count);
+    }
+
     dmHttpClient::GetStatistics(m_Client, &stats);
+
+    ASSERT_EQ(count*iter, stats.m_Responses - stats.m_Reconnections);
     // Should be equivalent to above
-    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
-    // Should be equivalent to above
-    ASSERT_EQ(96U, stats.m_CachedResponses);
+    ASSERT_EQ((count-4U)*iter, stats.m_CachedResponses);
     // All files directly from cache
-    ASSERT_EQ(100U, stats.m_DirectFromCache);
+    ASSERT_EQ(count*iter, stats.m_DirectFromCache);
 
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
@@ -994,7 +1241,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
@@ -1003,7 +1250,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
-    GetFiles(true);
+    GetFiles(true, false);
 
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
@@ -1030,14 +1277,14 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
     ASSERT_NE((void*) 0, m_Client);
 
     // Warmup cache
-    GetFiles(true);
+    GetFiles(true, false);
 
     // Reopen
     dmHttpClient::Delete(m_Client);
@@ -1055,7 +1302,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
-    GetFiles(true);
+    GetFiles(true, false);
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
@@ -1066,12 +1313,15 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(100U, stats.m_DirectFromCache);
 
     // Change a.txt file.
-    FILE* a_file = fopen("tmp/http_files/a.txt", "wb");
+    char path[512];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/http_files/a.txt");
+
+    FILE* a_file = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, a_file);
     fwrite("foo", 1, 3, a_file);
     fclose(a_file);
 
-    GetFiles(true);
+    GetFiles(true, false);
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
     ASSERT_EQ(0U, stats.m_Responses);
@@ -1081,14 +1331,14 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(200U, stats.m_DirectFromCache);
 
     // Change a.txt file again
-    a_file = fopen("tmp/http_files/a.txt", "wb");
+    a_file = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, a_file);
     fwrite("bar", 1, 3, a_file);
     fclose(a_file);
 
     // Change policy
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
-    GetFiles(false);
+    GetFiles(false, false);
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
     // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
@@ -1102,10 +1352,17 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+// Until we've figured out how to access the local server on windows from the device
+#if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
+
 const char* params_http_client_cache[] = {"http://localhost:" NAME_SOCKET};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_values_in(params_http_client_cache));
 
-#endif // #ifndef _WIN32
+#endif
+
+#else
+
+#endif // #ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
 TEST(dmHttpClient, HostNotFound)
 {
@@ -1123,7 +1380,7 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
     #if defined(WIN32)
     ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    #elif defined(__linux__)
+    #elif defined(__linux__) || defined(DM_PLATFORM_VENDOR)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, dmHttpClient::GetLastSocketResult(client));
     #else
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
@@ -1140,15 +1397,24 @@ static void Usage()
 
 int main(int argc, char **argv)
 {
+    jc_test_init(&argc, argv);
+
     if(argc > 1)
     {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
         dmConfigFile::HConfig config;
-        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
             dmLogError("Could not read config file '%s'", argv[1]);
             Usage();
             return 1;
         }
+
+        const char* ip = dmConfigFile::GetString(config, "server.ip", "localhost");
+        dmStrlCpy(SERVER_IP, ip, sizeof(SERVER_IP));
+
         dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
         dmConfigFile::Delete(config);
     }
@@ -1158,10 +1424,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
-    jc_test_init(&argc, argv);
+
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();

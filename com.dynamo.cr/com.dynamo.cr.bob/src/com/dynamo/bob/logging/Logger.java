@@ -1,0 +1,80 @@
+// Copyright 2020-2025 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+package com.dynamo.bob.logging;
+
+import java.util.logging.Level;
+
+import com.dynamo.bob.logging.LogHelper;
+
+/**
+ * Logger with support for varargs
+ */
+public class Logger extends java.util.logging.Logger {
+
+	protected Logger(String name, String resourceBundleName) {
+		super(name, resourceBundleName);
+	}
+
+	public static Logger getLogger(String name) {
+		Logger logger = new Logger(name, null);
+		LogHelper.configureLogger(logger);
+		return logger;
+	}
+
+	public static Logger getLogger(String name, String resourceBundleName) {
+		Logger logger = new Logger(name, resourceBundleName);
+		LogHelper.configureLogger(logger);
+		return logger;
+	}
+
+	public void severe(String message, Throwable t) {
+		super.log(Level.SEVERE, message, t);
+	}
+
+	public void severe(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.SEVERE, message, v);
+	}
+
+	public void warning(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.WARNING, message, v);
+	}
+
+	public void config(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.CONFIG, message, v);
+	}
+
+	public void info(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.INFO, message, v);
+	}
+
+	public void fine(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.FINE, message, v);
+	}
+
+	public void finer(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.FINER, message, v);
+	}
+
+	public void finest(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.FINEST, message, v);
+	}
+}

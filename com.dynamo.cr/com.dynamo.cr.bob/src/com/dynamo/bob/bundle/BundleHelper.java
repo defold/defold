@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,15 +22,11 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,21 +34,23 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import com.dynamo.bob.archive.publisher.FolderPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.util.TimeProfiler;
+import com.sun.istack.Nullable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NoHttpResponseException;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.MultipleCompileException.Info;
@@ -62,9 +60,9 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
 
 import java.awt.AlphaComposite;
@@ -78,16 +76,14 @@ public class BundleHelper {
     private Project project;
     private Platform platform;
     private BobProjectProperties projectProperties;
+    private IBundler platformBundler;
     private String title;
     private File buildDir;
     private File appDir;
     private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
-    public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
-    public static final String MANIFEST_NAME_IOS        = "Info.plist";
-    public static final String MANIFEST_NAME_OSX        = "Info.plist";
-    public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
+    private Map<String, Object> templateProperties = new HashMap<>();
 
     public static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
     private static final String[] ARCHIVE_FILE_NAMES = {
@@ -98,34 +94,35 @@ public class BundleHelper {
         "game.public.der"
     };
 
-    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
-
     public static void throwIfCanceled(ICanceled canceled) {
         if(canceled.isCanceled()) {
             throw new RuntimeException("Canceled");
         }
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String variant) throws CompileExceptionError {
+    private IBundler getOrCreateBundler() throws CompileExceptionError {
+        if (this.platformBundler == null) {
+            this.platformBundler = this.project.createBundler(this.platform);
+        }
+        return this.platformBundler;
+    }
+
+    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, @Nullable IBundler bundler) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
+        this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
+        this.platformBundler = bundler;
 
         this.project = project;
         this.platform = platform;
         this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             appDirSuffix = ".app";
         }
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
-
-        try {
-            this.propertiesMap = createPropertiesMap(project.getProjectProperties());
-        } catch (IOException e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
-        }
 
         this.variant = variant;
     }
@@ -141,127 +138,60 @@ public class BundleHelper {
     }
 
     public static String projectNameToBinaryName(String projectName) {
-        String output = projectName.replaceAll("[^a-zA-Z0-9_]", "");
+        String projectNameNoAccents = StringUtils.stripAccents(projectName);
+        String output = projectNameNoAccents.replaceAll("[^a-zA-Z0-9_]", "");
         if (output.equals("")) {
             return "dmengine";
         }
         return output;
     }
 
-    static Object convert(String value, String type) {
-        if (type != null && type.equals("bool")) {
-            if (value != null) {
-                return value.equals("1");
-            } else {
-                return false;
-            }
-        }
-        return value;
-    }
-
-    public static Map<String, Map<String, Object>> createPropertiesMap(BobProjectProperties projectProperties) throws IOException {
-        BobProjectProperties meta = new BobProjectProperties();
-        InputStream is = Bob.class.getResourceAsStream("meta.properties");
-        try {
-            meta.load(is);
-        } catch (ParseException e) {
-            throw new RuntimeException("Failed to parse meta.properties", e);
-        } finally {
-            IOUtils.closeQuietly(is);
-        }
-
-        Map<String, Map<String, Object>> map = new HashMap<>();
-
-        for (String c : meta.getCategoryNames()) {
-            map.put(c, new HashMap<String, Object>());
-
-            for (String k : meta.getKeys(c)) {
-                if (k.endsWith(".default")) {
-                    String k2 = k.split("\\.")[0];
-                    String v = meta.getStringValue(c, k);
-                    Object v2 = convert(v, meta.getStringValue(c, k2 + ".type"));
-                    map.get(c).put(k2, v2);
-                }
-            }
-        }
-
-        for (String c : projectProperties.getCategoryNames()) {
-            if (!map.containsKey(c)) {
-                map.put(c, new HashMap<String, Object>());
-            }
-
-            for (String k : projectProperties.getKeys(c)) {
-                String def = meta.getStringValue(c, k + ".default");
-                map.get(c).put(k, def);
-                String v = projectProperties.getStringValue(c, k);
-                Object v2 = convert(v, meta.getStringValue(c, k + ".type"));
-                map.get(c).put(k, v2);
-            }
-        }
-
-        return map;
-    }
-
     public IResource getResource(String category, String key) throws IOException {
-        Map<String, Object> c = propertiesMap.get(category);
-        if (c != null) {
-            Object o = c.get(key);
-            if (o != null && o instanceof String) {
-                String s = (String)o;
-                if (s != null && s.trim().length() > 0) {
-                    return project.getResource(s);
-                }
-            }
-        }
-        throw new IOException(String.format("No resource found for %s.%s", category, key));
+        return this.project.getResource(category, key);
     }
 
-    public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
-        byte[] data = resource.getContent();
+    public IResource getResource(String category, String key, boolean mustExist) throws IOException {
+        IResource resource = this.getResource(category, key);
+        if (mustExist && !resource.exists())
+        {
+            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        }
+        return resource;
+    }
+
+    static public String formatResource(Map<String, Map<String, Object>> propertiesMap, Map<String, Object> properties, IResource resource) throws IOException {
+        return formatResource(propertiesMap, properties, resource.getContent(), resource.getPath());
+    }
+    static public String formatResource(Map<String, Map<String, Object>> propertiesMap, Map<String, Object> properties, byte[] data, final String sourceLocation) throws IOException {
         if (data == null) {
             return "";
         }
         String s = new String(data);
-        Template template = Mustache.compiler().compile(s);
+        Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
-        template.execute(this.propertiesMap, properties, sw);
+        try {
+            template.execute(propertiesMap, properties, sw);
+         } catch (MustacheException e) {
+            MustacheException.Context context = (MustacheException.Context) e;
+            String key = context.key;
+            int lineNo = context.lineNo;
+            String cause = String.format("File '%s' requires '%s' in line %d. Make sure you have '%s' in your game.project", sourceLocation, key, lineNo, key);
+            throw new MustacheException(cause);
+         }
         sw.flush();
         return sw.toString();
     }
 
-    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
-        FileUtils.write(toFile, formatResource(properties, resource));
-        return this;
+    private String formatResource(byte[] content, final String sourceLocation) throws IOException {
+        return formatResource(this.propertiesMap, this.templateProperties, content, sourceLocation);
     }
 
-    // Formats all the manifest files.
-    // This is required for the manifest merger to not choke on the Mustasch patterns
-    private List<File> formatAll(List<IResource> sources, File toDir, Map<String, Object> properties) throws IOException {
-        List<File> out = new ArrayList<File>();
-        for (IResource source : sources) {
-            if (!source.exists()) {
-                throw new IOException(String.format("Resource %s does not exist.", source));
-            }
-            // converts a relative path to something we can easily see if we get a merge failure: a/b/c.xml -> a_b_c.xml
-            String name = source.getPath().replaceAll("[^a-zA-Z0-9_]", "_");
-            File target = new File(toDir, name);
-            format(properties, source, target);
-            out.add(target);
-        }
-        return out;
+    private void formatResourceToFile(IResource resource, File toFile) throws IOException {
+        formatResourceToFile(resource.getContent(), resource.getPath(),toFile);
     }
 
-    private String getManifestName(Platform platform) {
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
-            return BundleHelper.MANIFEST_NAME_IOS;
-        } else if (platform == Platform.X86_64Darwin) {
-            return BundleHelper.MANIFEST_NAME_OSX;
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            return BundleHelper.MANIFEST_NAME_ANDROID;
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            return BundleHelper.MANIFEST_NAME_HTML5;
-        }
-        return null;
+    public void formatResourceToFile(byte[] content, final String sourceLocation, File toFile) throws IOException {
+        FileUtils.write(toFile, formatResource(content, sourceLocation));
     }
 
     public File getTargetManifestDir(Platform platform){
@@ -275,33 +205,23 @@ public class BundleHelper {
     // Each manifest has to be named like the default name (much easier for the server), even the main manifest file
     // This isn't an issue since there cannot be two manifests in the same folder
     public List<ExtenderResource> writeManifestFiles(Platform platform, File manifestDir) throws CompileExceptionError, IOException {
+        updateTemplateProperties();
         List<ExtenderResource> resolvedManifests = new ArrayList<>();
-
-        String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = BundleHelper.projectNameToBinaryName(title);
-
         IResource mainManifest;
-        Map<String, Object> properties = new HashMap<>();
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
-            mainManifest = getResource("ios", "infoplist");
-            properties = createIOSManifestProperties(exeName);
-        } else if (platform == Platform.X86_64Darwin) {
-            mainManifest = getResource("osx", "infoplist");
-            properties = createOSXManifestProperties(exeName);
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            mainManifest = getResource("android", "manifest");
-            properties = createAndroidManifestProperties(exeName);
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            mainManifest = getResource("html5", "htmlfile");
-            properties = createHtml5ManifestProperties(exeName);
-        } else {
+        String mainManifestName;
+
+        IBundler bundler = getOrCreateBundler();
+
+        // The new code path we wish to use
+        mainManifest = bundler.getManifestResource(project, platform);
+        if (mainManifest == null) {
             return resolvedManifests;
         }
 
-        String mainManifestName = getMainManifestName(platform);
+        mainManifestName = bundler.getMainManifestName(platform);
 
         // First, list all extension manifests
-        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, getManifestName(platform));
+        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform);
         // Put the main manifest in front
         sourceManifests.add(0, mainManifest);
 
@@ -312,7 +232,8 @@ public class BundleHelper {
             if (!parent.exists()) {
                 parent.mkdirs();
             }
-            format(properties, resource, manifest);
+
+            formatResourceToFile(resource, manifest);
 
             String path = resource.getPath();
             // Store the main manifest at the root (and not in e.g. builtins/manifests/...)
@@ -325,30 +246,51 @@ public class BundleHelper {
         return resolvedManifests;
     }
 
-    public File getAppManifestFile(Platform platform, File appDir) {
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
-            return new File(appDir, "Info.plist");
-        } else if (platform == Platform.X86_64Darwin) {
-            return new File(appDir, "Contents/Info.plist");
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            return new File(appDir, "AndroidManifest.xml");
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            return new File(appDir, "index.html");
+    /**
+     * Copy a PrivacyInfo.xcprivacy to a target folder. The file will either be
+     * copied from the extender build results or if that doesn't exist it will
+     * copy from the privacy manifest set in game.project
+     * @param project
+     * @param platform
+     * @param appDir Directory to copy to
+     */
+    public static void copyPrivacyManifest(Project project, Platform platform, File appDir) throws IOException {
+        final String privacyManifestFilename = "PrivacyInfo.xcprivacy";
+        File targetPrivacyManifest = new File(appDir, privacyManifestFilename);
+
+        File extenderBuildDir = new File(project.getRootDirectory(), "build");
+        File extenderBuildPlatformDir = new File(extenderBuildDir, platform.getExtenderPair());
+
+        File extenderPrivacyManifest = new File(extenderBuildPlatformDir, privacyManifestFilename);
+        if (extenderPrivacyManifest.exists()) {
+            FileUtils.copyFile(extenderPrivacyManifest, targetPrivacyManifest);
         }
-        return null;
+        else {
+            IResource defaultPrivacyManifest = project.getResource(platform.getExtenderPaths()[0], "privacymanifest", false);
+            if (defaultPrivacyManifest.exists()) {
+                ExtenderUtil.writeResourceToFile(defaultPrivacyManifest, targetPrivacyManifest);
+            }
+        }
     }
 
-    public static String getMainManifestName(Platform platform) {
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
-            return MANIFEST_NAME_IOS;
-        } else if (platform == Platform.X86_64Darwin) {
-            return MANIFEST_NAME_OSX;
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            return MANIFEST_NAME_ANDROID;
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            return MANIFEST_NAME_HTML5;
-        }
-        return null;
+    public void updateTemplateProperties() throws CompileExceptionError, IOException {
+        String title = this.projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
+        this.templateProperties.put("exe-name", exeName);
+        this.templateProperties.put("build-timestamp", String.valueOf(System.currentTimeMillis() / 1000));
+        IBundler bundler = getOrCreateBundler();
+        bundler.updateManifestProperties(project, platform, this.projectProperties, this.propertiesMap, this.templateProperties);
+    }
+
+  private File getAppManifestFile(Platform platform, File appDir) throws CompileExceptionError {
+        IBundler bundler = getOrCreateBundler();
+        String name = bundler.getMainManifestTargetPath(platform);
+        return new File(appDir, name);
+    }
+
+    private String getMainManifestName(Platform platform) throws CompileExceptionError {
+        IBundler bundler = getOrCreateBundler();
+        return bundler.getMainManifestName(platform);
     }
 
     // either copies the merged manifest or writes a new resolved manifest from single source file
@@ -379,84 +321,6 @@ public class BundleHelper {
         return targetManifest;
     }
 
-    private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
-
-    // Extra packages are specified in the extensions nowadays
-    private void aaptMakePackageInternal(Platform platform, File manifestFile, File apk) throws CompileExceptionError {
-        try {
-            Map<String, String> aaptEnv = new HashMap<String, String>();
-            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
-                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
-            }
-
-            List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
-            args.add("package");
-            args.add("-f");
-            args.add("-m");
-            args.add("--auto-add-overlay");
-            args.add("-M"); args.add(manifestFile.getAbsolutePath());
-            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
-            args.add("-F"); args.add(apk.getAbsolutePath());
-
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-
-            // Get a list of relative paths, in the order gradle returned them
-            List<String> directories = new ArrayList<>();
-            File packagesList = new File(packagesDir, "packages.txt");
-            if (packagesList.exists()) {
-                try {
-                    List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
-                    for (String line : allLines) {
-
-                        File resDir = new File(packagesDir, line);
-                        if (!resDir.isDirectory())
-                            continue;
-
-                        directories.add(resDir.getAbsolutePath());
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            } else {
-                File[] dirs = packagesDir.listFiles(File::isDirectory);
-                for (File dir : dirs) {
-                    File resDir = new File(dir, "res");
-                    if (!resDir.isDirectory())
-                        continue;
-                    directories.add(resDir.getAbsolutePath());
-                }
-            }
-
-            for (String dir : directories) {
-                args.add("-S"); args.add(dir);
-            }
-
-            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
-
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-
-                // Try our best to visualize the error from aapt
-                Matcher m = aaptResourceErrorRe.matcher(msg);
-                if (m.matches()) {
-                    String path = m.group(1);
-                    if (path.startsWith(project.getRootDirectory())) {
-                        path = path.substring(project.getRootDirectory().length());
-                    }
-                    IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
-                    if (r != null) {
-                        throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
-                    }
-                }
-                throw new IOException(msg);
-            }
-
-        } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android resources to apk: " + e.getMessage());
-        }
-    }
-
     public static void createAndroidResourceFolders(File dir) throws IOException {
         FileUtils.forceMkdir(new File(dir, "drawable"));
         FileUtils.forceMkdir(new File(dir, "drawable-ldpi"));
@@ -467,36 +331,16 @@ public class BundleHelper {
         FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
     }
 
-    private File getAndroidResourceDir(File appDir) {
-        return new File(appDir, "res");
-    }
-
-    public File copyAndroidResources(Platform platform) throws IOException {
-        if (ExtenderUtil.hasNativeExtensions(project)) {
-            return null;
-        }
-
-        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-        packagesDir.mkdir();
-
-        File resDir = new File(packagesDir, "com.defold.android/res");
-        resDir.mkdirs();
-
-        BundleHelper.createAndroidResourceFolders(resDir);
-        copyAndroidIcons(resDir);
-        return resDir;
-    }
-
-    public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {
-        File manifestFile = getAppManifestFile(platform, appDir);
-        aaptMakePackageInternal(platform, manifestFile, apk);
-    }
-
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
         List<ExtenderResource> resources = new ArrayList<>();
 
         if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-            File packagesDir = new File(buildDir, "packages");
+            File platformDir = new File(buildDir, platform.toString());
+            if (!platformDir.exists()) {
+                platformDir.mkdirs();
+            }
+
+            File packagesDir = new File(platformDir, "packages");
             packagesDir.mkdir();
 
             File resDir = new File(packagesDir, "com.defold.android/res");
@@ -509,7 +353,7 @@ public class BundleHelper {
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
 
-            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, packagesDir));
+            resources.addAll(ExtenderUtil.listFilesRecursive(platformDir, packagesDir));
         }
 
         return resources;
@@ -542,22 +386,6 @@ public class BundleHelper {
             }
         }
         return items;
-    }
-
-    public static void findAndroidAssetDirs(File dir, List<String> result) {
-        if (!dir.isDirectory()) {
-            return;
-        }
-        if (ExtenderUtil.matchesAndroidAssetDirectoryName(dir.getName())) {
-            String parent = dir.getParentFile().getAbsolutePath();
-            if (!result.contains(parent)) {
-                result.add(parent);
-            }
-            return;
-        }
-        for (File file : dir.listFiles()) {
-            findAndroidAssetDirs(file, result);
-        }
     }
 
     private BufferedImage resizeImage(BufferedImage originalImage, int size) {
@@ -689,171 +517,13 @@ public class BundleHelper {
         return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
-    public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("exe-name", exeName);
-
-        // We copy and resize the default icon in builtins if no other icons are set.
-        // This means that the app will always have icons from now on.
-        properties.put("has-icons?", true);
-
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
-            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                properties.put("orientation-support", "landscape");
-            } else {
-                properties.put("orientation-support", "portrait");
-            }
-        } else {
-            properties.put("orientation-support", "sensor");
-        }
-
-        // Since we started to always fill in the default values to the propject properties
-        // it is harder to distinguish what is a user defined value.
-        // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
-        if (projectProperties.isDefault("android", "debuggable")) {
-            Map<String, Object> propGroup = propertiesMap.get("android");
-            if (propGroup != null && propGroup.containsKey("debuggable")) {
-                boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG);
-                propGroup.put("debuggable", debuggable ? "true":"false");
-            }
-        }
-
-        return properties;
-    }
-
-    private String derivedBundleName() {
-        String title = projectProperties.getStringValue("project", "title", "dmengine");
-        return title.substring(0, Math.min(title.length(), 15));
-    }
-
-    public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("exe-name", exeName);
-
-        String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
-        List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
-        properties.put("application-localizations", applicationLocalizations);
-
-        properties.put("bundle-name", projectProperties.getStringValue("osx", "bundle_name", derivedBundleName()));
-
-        return properties;
-    }
-
-    public Map<String, Object> createIOSManifestProperties(String exeName) throws IOException {
-        Map<String, Object> properties = new HashMap<>();
-
-        List<String> applicationQueriesSchemes = new ArrayList<String>();
-        List<String> urlSchemes = new ArrayList<String>();
-        String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
-        if (bundleId != null) {
-            urlSchemes.add(bundleId);
-        }
-
-        properties.put("exe-name", exeName);
-        properties.put("url-schemes", urlSchemes);
-        properties.put("application-queries-schemes", applicationQueriesSchemes);
-        properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
-        properties.put("bundle-version", projectProperties.getStringValue("ios", "bundle_version",
-            projectProperties.getStringValue("project", "version", "1.0")
-        ));
-
-        String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
-        properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));
-
-        List<String> orientationSupport = new ArrayList<String>();
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
-            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                orientationSupport.add("LandscapeRight");
-            } else {
-                orientationSupport.add("Portrait");
-            }
-        } else {
-            orientationSupport.add("Portrait");
-            orientationSupport.add("PortraitUpsideDown");
-            orientationSupport.add("LandscapeLeft");
-            orientationSupport.add("LandscapeRight");
-        }
-        properties.put("orientation-support", orientationSupport);
-
-        String applicationLocalizationsStr = projectProperties.getStringValue("ios", "localizations", null);
-        List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
-        properties.put("application-localizations", applicationLocalizations);
-
-        return properties;
-    }
-
-
-    public Map<String, Object> createHtml5ManifestProperties(String exeName) throws IOException {
-        Map<String, Object> properties = new HashMap<>();
-
-        properties.put("exe-name", exeName);
-
-        // Same value as engine is compiled with; 268435456
-        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
-
-        {// Deprecated method of setting the heap size. For backwards compatibility
-            if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
-                Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
-                if (null != size) {
-                    customHeapSize = size.intValue();
-                }
-            }
-        }
-        properties.put("DEFOLD_HEAP_SIZE", customHeapSize);
-
-        String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
-        if (splashImage != null) {
-            properties.put("DEFOLD_SPLASH_IMAGE", new File(project.getRootDirectory(), splashImage).getName());
-        } else {
-            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
-            // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
-            properties.put("DEFOLD_SPLASH_IMAGE", false);
-        }
-
-        // Check if game has configured a Facebook App ID
-        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
-
-        String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
-        List<String> engineArguments = createArrayFromString(engineArgumentsString);
-
-        properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
-        properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
-        properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
-
-        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
-        properties.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
-
-        /// Legacy properties for backwards compatibility
-        {
-            properties.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
-            properties.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
-
-            String version = projectProperties.getStringValue("project", "version", "0.0");
-            properties.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
-
-            properties.put("DEFOLD_BINARY_PREFIX", exeName);
-        }
-
-        // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        Boolean localLaunch = project.option("local-launch", "false").equals("true");
-        if (localLaunch) {
-            properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
-            properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
-            properties.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
-
-            engineArguments.add("--verify-graphics-calls=false");
-            properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
-        }
-
-        IResource customCSS = getResource("html5", "cssfile");
-        properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
-
-        return properties;
+    public static File copyResourceToTempFile(String resourcePath) throws IOException
+    {
+        String filename = FilenameUtils.getName(resourcePath);
+        File file = File.createTempFile("temp", filename);
+        URL url = BundleHelper.class.getResource(resourcePath);
+        FileUtils.writeByteArrayToFile(file, IOUtils.toByteArray(url));
+        return file;
     }
 
     public static class ResourceInfo
@@ -877,6 +547,7 @@ public class BundleHelper {
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
     private static Pattern resourceIssueLinkerLLDLINKre = Pattern.compile("^(?:.*lld-link|.*ld):\\s(?:(warning|error)?:\\s)?(?:([\\w-.]+)\\([\\w.]+\\):\\s)?(.*)");
+    private static Pattern resourceIssueLinkerUnresolvedSymbol = Pattern.compile("(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)[\\/\\\\]))?([\\w.\\/\\\\]+)\\s*\\(([0-9]+)\\):?\\s*(error|warning|note|):?\\s*(.+)");
 
     // Some errors/warning have an extra line before or after the the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
@@ -967,12 +638,19 @@ public class BundleHelper {
         parseLogGCC(lines, issues);
 
         for (int count = 0; count < lines.length; ++count) {
+            Matcher m;
             String line = lines[count];
+
+            m = resourceIssueLinkerUnresolvedSymbol.matcher(line);
+            if (m.matches()) {
+                issues.add(new BundleHelper.ResourceInfo(m.group(3), m.group(1), m.group(2), m.group(4)));
+            }
+
             // Compare with some lookahead if it matches
             for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
                 line += "\n" + lines[count+i];
             }
-            Matcher m = linkerPattern.matcher(line);
+            m = linkerPattern.matcher(line);
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
@@ -1056,6 +734,8 @@ public class BundleHelper {
             parseLogGCC(lines, allIssues);
         } else if (platform.contains("win32")) {
             parseLogWin32(lines, allIssues);
+        } else {
+            parseLogClang(lines, allIssues);
         }
 
         for (int count = 0; count < lines.length; ++count) {
@@ -1090,13 +770,14 @@ public class BundleHelper {
         }
     }
 
-    public static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
+
+    private static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
         Set<String> uniquePaths = new HashSet<>();
         for (ExtenderResource resource : resources) {
             String path = resource.getPath(); // The relative path
             if (uniquePaths.contains(path)) {
                 IResource iresource = ExtenderUtil.getResource(path, resources);
-                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getAbsPath());
+                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getPath());
             }
             uniquePaths.add(path);
         }
@@ -1107,7 +788,7 @@ public class BundleHelper {
 
         try {
             zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
-            zipFile.deleteOnExit();
+            FileUtil.deleteOnExit(zipFile);
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }
@@ -1131,11 +812,26 @@ public class BundleHelper {
                     buildError = FileUtils.readFileToString(logFile);
                     parseLog(platform, buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
-                    IResource projectResource = project.getGameProjectResource();
-                    IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
-                    if (extManifestResource == null) {
-                        extManifestResource = projectResource;
+
+                    IResource appManifestResource = null;
+                    IResource extManifestResource = null;
+
+                    // For now, find the first ext.manifest
+                    // Drawback of just picking one, is that build errors with no obvious "source", will be associated with the wrong ext.manifest
+                    for (ExtenderResource r : allSource) {
+                        if (extManifestResource == null && r.getPath().endsWith(ExtenderClient.extensionFilename)) {
+                            extManifestResource = ExtenderUtil.getResource(r.getPath(), allSource);
+                        }
+                        if (appManifestResource == null && r.getPath().endsWith(".appmanifest")) {
+                            appManifestResource = ExtenderUtil.getResource(r.getPath(), allSource);
+                        }
                     }
+
+                    IResource fallbackResource = extManifestResource;
+                    if (fallbackResource == null)
+                        fallbackResource = appManifestResource;
+                    if (fallbackResource == null)
+                        fallbackResource = project.getGameProjectResource();
 
                     IResource contextResource = null;
 
@@ -1146,7 +842,7 @@ public class BundleHelper {
                         // If it's the app manifest, let's translate it back into its original name
                         if (info.resource != null && info.resource.endsWith(ExtenderClient.appManifestFilename)) {
                             for (ExtenderResource extResource : allSource) {
-                                if (extResource.getAbsPath().endsWith(info.resource)) {
+                                if (((ExtenderUtil.FSAppManifestResource)extResource).getAbsPath().endsWith(info.resource)) {
                                     issueResource = ((ExtenderUtil.FSAppManifestResource)extResource).getResource();
                                     info.message = info.message.replace(extResource.getPath(), issueResource.getPath());
                                     break;
@@ -1154,12 +850,11 @@ public class BundleHelper {
                             }
                         }
 
-                        IResource exceptionResource = issueResource == null ? extManifestResource : issueResource;
+                        IResource exceptionResource = issueResource == null ? fallbackResource : issueResource;
                         int severity = info.severity.contains("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
                         exception.addIssue(severity, exceptionResource, info.message, info.lineNumber);
 
                         String msg = String.format("%s(%d): %s", info.resource != null ? info.resource : "<unknown>", info.lineNumber, info.message);
-                        logger.log(severity == Info.SEVERITY_ERROR ? Level.SEVERE : Level.WARNING, msg);
 
                         // The first resource generating errors should be related - we can use it to give context to the raw log.
                         if (contextResource == null && issueResource != null) {
@@ -1167,9 +862,9 @@ public class BundleHelper {
                         }
                     }
 
-                    // If we do not yet have a context resource - fall back on the project resource
+                    // If we do not yet have a context resource - fall back on another resource (possibly the wrong one!)
                     if (contextResource == null) {
-                        contextResource = projectResource;
+                        contextResource = fallbackResource;
                     }
 
                     exception.setLogPath(logFile.getAbsolutePath());
@@ -1240,11 +935,14 @@ public class BundleHelper {
     }
 
     public static List<File> getPipelinePlugins(Project project, String pluginsDir) {
+        TimeProfiler.start("getPipelinePlugins");
         List<File> files = ExtenderUtil.listFilesRecursive(new File(pluginsDir), ExtenderUtil.JAR_RE);
+        TimeProfiler.stop();
         return files;
     }
 
     public static void extractPipelinePlugins(Project project, String pluginsDir) throws CompileExceptionError {
+        TimeProfiler.start("extractPipelinePlugins");
         List<IResource> sources = new ArrayList<>();
         List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         for (String extension : extensionFolders) {
@@ -1257,6 +955,52 @@ public class BundleHelper {
         }
 
         ExtenderUtil.storeResources(new File(pluginsDir), sources);
+        TimeProfiler.stop();
     }
+
+    public static boolean isArchiveIncluded(Project project) {
+        return project.option("exclude-archive", "false").equals("false");
+    }
+
+
+    // must have two or more segments
+    // each segment must start with a letter
+    // all characters must be alphanumeric or an underscore
+    public static boolean isValidAndroidPackageName(String packageName) {
+        return packageName.matches("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$");
+    }
+
+
+    // must have two or more segments
+    // each segment must start with a letter
+    // all characters must be alphanumeric, an underscore or a hyphen
+    public static boolean isValidAppleBundleIdentifier(String bundleIdentifier) {
+        return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
+    }
+
+    // move archive into bundle folder if it's requested by a user
+    public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
+        Publisher publisher = project.getPublisher();
+        if (publisher != null)  {
+            if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
+                ZipPublisher zipPublisher = (ZipPublisher) publisher;
+                File zipFile = zipPublisher.getZipFile();
+                if (zipFile != null && zipFile.exists()) {
+                    Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } else if (publisher.shouldFolderBeMovedIntoBundleFolder() && publisher instanceof FolderPublisher) {
+                FolderPublisher folderPublisher = (FolderPublisher) publisher;
+                File outputDirectory = folderPublisher.getOutputDirectory();
+                if (outputDirectory != null && outputDirectory.exists()) {
+                    File destFolder = new File(bundleDir, outputDirectory.getName());
+                    if (destFolder.exists()) {
+                        FileUtils.deleteDirectory(destFolder);
+                    }
+                    FileUtils.moveDirectory(outputDirectory, destFolder);
+                }
+            }
+        }
+    }
+
 
 }

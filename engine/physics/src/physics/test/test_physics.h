@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,8 +17,6 @@
 
 #include <stdint.h>
 #include "../physics.h"
-#include "../physics_2d.h"
-#include "../physics_3d.h"
 #include <jc_test/jc_test.h>
 
 template <typename T> class dmArray;
@@ -57,6 +55,7 @@ protected:
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_MaxCollisionObjectsCount = 1024;
         m_World = (*m_Test.m_NewWorldFunc)(m_Context, world_params);
         m_CollisionCount = 0;
         m_ContactPointCount = 0;
@@ -66,6 +65,9 @@ protected:
         m_StepWorldContext.m_ContactPointCallback = ContactPointCallback;
         m_StepWorldContext.m_ContactPointUserData = &m_ContactPointCount;
         m_StepWorldContext.m_MaxFixedTimeSteps = 2;
+        m_StepWorldContext.m_Box2DVelocityIterations = 10;
+        m_StepWorldContext.m_Box2DPositionIterations = 10;
+        m_StepWorldContext.m_Box2DSubStepCount = 10;
     }
 
     virtual void TearDown()
@@ -129,6 +131,8 @@ struct Funcs
     typedef void (*SetGravityFunc)(typename T::WorldType world, const dmVMath::Vector3& gravity);
     typedef bool (*IsBulletFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetBulletFunc)(typename T::CollisionObjectType collision_object, bool value);
+    typedef void* (*GetWorldContextFunc)(typename T::WorldType world);
+    typedef void* (*GetCollisionObjectContextFunc)(typename T::CollisionObjectType collision_object);
     typedef dmVMath::Vector3 (*GetGravityFunc)(typename T::WorldType world);
 };
 
@@ -245,6 +249,8 @@ struct Test2D
     Funcs<Test2D>::GetGravityFunc                   m_GetGravityFunc;
     Funcs<Test2D>::IsBulletFunc                     m_IsBulletFunc;
     Funcs<Test2D>::SetBulletFunc                    m_SetBulletFunc;
+    Funcs<Test2D>::GetWorldContextFunc              m_GetWorldContextFunc;
+    Funcs<Test2D>::GetCollisionObjectContextFunc    m_GetCollisionObjectContextFunc;
 
     float*      m_Vertices;
     uint32_t    m_VertexCount;

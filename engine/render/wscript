@@ -7,71 +7,57 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys
-import Options
+import waflib.Options
 
 import waf_ddf, waf_dynamo
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
     platform = conf.env['PLATFORM']
-
-    if platform == "linux":
-        conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
-
-    if os.getenv('PYTHONPATH'):
-        if sys.platform == "win32":
-            ddf_search_lst = os.getenv('PYTHONPATH').split(';')
-        else:
-            ddf_search_lst = os.getenv('PYTHONPATH').split(':')
-
-    if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif platform == "linux":
-        conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    elif "win32" in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
-
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
-    conf.env.append_value('CPPPATH', "../src")
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
+    conf.env.append_value('INCLUDES', "../src")
+    conf.env.append_value('INCLUDES', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
+    conf.env.append_value('INCLUDES', os.path.join(dynamo_home, "include" ))
+    conf.env.append_value('INCLUDES', os.path.join(dynamo_home, "include", platform))
 
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
-    conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_DLIB']          = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF']           = 'ddf'
+    conf.env['STLIB_RESOURCE']      = 'resource'
+    conf.env['STLIB_GRAPHICS']      = ['graphics', 'graphics_proto']
+    conf.env['STLIB_GRAPHICS_NULL'] = ['graphics_null', 'graphics_proto']
+    conf.env['STLIB_SCRIPT']        = 'script'
+    conf.env['STLIB_EXTENSION']     = 'extension'
+    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
 
 def build(bld):
-    bld.add_subdirs('src')
-    bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
+    global test_context
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
-def shutdown():
-
-    waf_dynamo.run_tests(valgrind = True)
-
-
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

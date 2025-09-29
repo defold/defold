@@ -6,16 +6,21 @@ APPNAME='docs'
 srcdir = '.'
 blddir = 'build'
 
-import Utils
+import waflib.Utils
 import sys, os, re, fnmatch
-import Options
+import waflib.Options
 import waf_dynamo
+import TestContext
 
-def init():
-    pass
+test_context = None
+
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
 
 def configure(conf):
-    conf.sub_config('src')
+    conf.recurse('src')
     pass
 
 def clean(conf):
@@ -25,6 +30,7 @@ def clean(conf):
         os.remove(os.path.join('src', filename))
 
 def build(bld):
+    global test_context
     # Clean up src
     files = os.listdir('src')
     for filename in fnmatch.filter(files, '*.apidoc_'):
@@ -43,20 +49,21 @@ def build(bld):
             namespace_files[namespace] = []
         namespace_files[namespace].append(apidoc_file)
     for ns, files in namespace_files.items():
-        comments = '\n'.join([Utils.readf(f) for f in files])
+        comments = '\n'.join([waflib.Utils.readf(f, encoding='utf-8') for f in files])
         with open('src/%s.apidoc_' % ns, 'w') as out_f:
             out_f.write(comments)
-    bld.add_subdirs('src')
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
 
-def shutdown():
-    if not Options.commands['build']:
+def shutdown(self):
+    if not TestContext.is_valid(test_context):
         return
-    if not getattr(Options.options, 'skip_tests', False):
+    if not getattr(waflib.Options.options, 'skip_tests', False):
         python_path = os.environ.get('PYTHONPATH', '')
         os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/src' + os.pathsep + python_path
         ret = os.system('python %s' % 'src/test/test_script_doc.py')

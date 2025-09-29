@@ -1,42 +1,36 @@
 .color-picker {
+    -fx-max-width: 24px;
+    -fx-min-width: 24px;
+    -fx-max-height: 27px;
+    -fx-min-height: 27px;
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-background-color: -df-background-light;
+    -fx-border-color: -df-background-lighter;
+    -fx-background-color: -df-background-lighter;
     -fx-background-insets: 0;
-    &:showing {
-        -fx-background-color: -df-background-light;
-        -fx-color: -df-text;
-        .color-picker-label {
-            -fx-text-fill: -df-text;
-        }
+    -fx-padding: 0;
+
+    &:hover {
+        -fx-background-color: -df-component-lighter;
     }
-    &:showing .arrow {
-        -fx-background-color: -df-text;
-    }
+
     .color-picker-label {
-        -fx-border-width: 1;
-        -fx-border-color: -df-background-lighter;
-        -fx-background-insets: 0;
-        -fx-padding: 4px 8px;
+        -fx-padding: 5px;
     }
+
+    .arrow,
     .arrow-button {
-        -fx-background-radius: 0;
-        -fx-border-radius: 0;
-        -fx-border-width: 0;
-        -fx-background-insets: 0;
-        -fx-padding: 5 7;
-        -fx-background-color: -df-background-lighter;
-        &:hover {
-            -fx-background-color: -df-component-darker;
-        }
-        &:armed, &:pressed {
-            -fx-background-color: -df-background-light;
-        }
+        visibility: hidden;
     }
 }
+
+.color-input {
+    -fx-border-style: solid none solid solid;
+}
+
 .color-palette {
-  -fx-background-radius: 3;
-  -fx-border-radius: 3;
-  -fx-border-color: -df-background-lighter;
-  -fx-background-color: -df-component-darker;
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-border-color: -df-background-lighter;
+    -fx-background-color: -df-component-darker;
 }

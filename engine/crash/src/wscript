@@ -7,22 +7,20 @@ def configure(conf):
     pass
 
 def build(bld):
-
     load_addrs = 'load_addrs_null.cpp'
     sig_handler = 'backtrace_null.cpp'
     file_handler = 'file_null.cpp'
 
-    crashnull = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = ['.', '../proto'],
-                                proto_gen_py = True,
-                                proto_gen_cc = True,
-                                protoc_includes = '../proto',
-                                target = 'crashext_null')
-
-    crashnull.source = 'crash_null.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
+    crashnull = bld.stlib(features = 'cxx',
+                          includes = ['.', '../proto'],
+                          proto_gen_py = True,
+                          proto_gen_cc = True,
+                          protoc_includes = '../proto',
+                          source = 'crash_null.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
+                          target = 'crashext_null')
 
     if 'android' in bld.env['PLATFORM']:
-        sig_handler = 'backtrace_libunwind.cpp'
+        sig_handler = 'backtrace_libunwind_ndk.cpp'
         load_addrs = 'load_addrs_proc_smap.cpp'
         file_handler = 'file_posix.cpp'
     elif 'linux' in bld.env['PLATFORM']:
@@ -37,10 +35,10 @@ def build(bld):
         sig_handler = 'backtrace_jsweb.cpp';
         file_handler = 'file_posix.cpp';
 
-    if 'darwin' in bld.env['PLATFORM']:
+    if 'macos' in bld.env['PLATFORM'] or 'ios' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
 
-    if bld.env['PLATFORM'] in ['x86_64-darwin']:
+    if bld.env['PLATFORM'] in ['x86_64-macos']:
         sig_handler = 'backtrace_libunwind.cpp'
 
     if 'win32' in bld.env['PLATFORM']:
@@ -48,22 +46,21 @@ def build(bld):
         sig_handler = 'backtrace_win32.cpp'
         file_handler = 'file_win32.cpp'
 
-    if bld.env['PLATFORM'] in ('arm64-nx64',):
+    if bld.env['PLATFORM'] in ('arm64-nx64','x86_64-ps4','x86_64-ps5'):
         load_addrs = 'load_addrs_null.cpp'
         sig_handler = 'backtrace_null.cpp'
         file_handler = 'file_null.cpp'
 
-    crash = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = ['.', '../proto'],
-                                proto_gen_py = True,
-                                proto_gen_cc = True,
-                                protoc_includes = '../proto',
-                                target = 'crashext')
+    crash = bld.stlib(features = 'cxx',
+                      includes = ['.', '../proto'],
+                      proto_gen_py = True,
+                      proto_gen_cc = True,
+                      protoc_includes = '../proto',
+                      source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
+                      target = 'crashext')
 
-    crash.source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
-
-    bld.add_subdirs('test')
-    bld.add_subdirs('tool')
+    bld.recurse('test')
+    bld.recurse('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
 
     apidoc_extract_task(bld, ['script_crash.cpp'])

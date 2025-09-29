@@ -1,35 +1,39 @@
 #! /usr/bin/env python
 
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+import waflib.Task, waflib.TaskGen
+from waflib.TaskGen import extension
 import os, sys
 
-if sys.platform == "win32":
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto"
-else:
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto"
+def create_protoc_task(name, type):
+    return waflib.Task.task_factory(name, 
+                                    'protoc --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ../proto/input/input_ddf.proto < ${SRC} > ${TGT}' % type,
+                                    before='c cxx',
+                                    shell=True,
+                                    color='PINK')
 
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/input/input_ddf.proto'):
-    def create(self, node):
-        task = self.create_task(name)
-        task.set_inputs(node)
-        out = node.change_ext(compiled_ext)
-        task.set_outputs(out)
+create_protoc_task('input_binding', 'dmInputDDF.InputBinding')
+create_protoc_task('gamepads', 'dmInputDDF.GamepadMaps')
 
-    cmd = 'protoc --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
-    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
-    declare_extension([ext], create)
+@extension('.input_binding')
+def extension_cont_pb(self, node):
+    task = self.create_task('input_binding')
+    task.set_inputs(node)
+    out = node.change_ext('.input_bindingc')
+    task.set_outputs(out)
 
-create_simple_protoc_task('input_binding', '.input_binding', '.input_bindingc', 'dmInputDDF.InputBinding', before='cc cxx')
-create_simple_protoc_task('gamepads', '.gamepads', '.gamepadsc', 'dmInputDDF.GamepadMaps', before='cc cxx')
+@extension('.gamepads')
+def extension_cont_pb(self, node):
+    task = self.create_task('gamepads')
+    task.set_inputs(node)
+    out = node.change_ext('.gamepadsc')
+    task.set_outputs(out)
 
 def build(bld):
-    test_input = bld.new_task_gen(features = 'cc cxx cprogram test',
-                                     includes = '. .. ../../proto',
-                                     uselib = 'TESTMAIN DDF PLATFORM_SOCKET PLATFORM_THREAD HID_NULL DLIB',
-                                     uselib_local = 'input',
-                                     protoc_includes = '../../proto',
-                                     target = 'test_input')
-    test_input.find_sources_in_dirs(['.'])
+    test_input = bld(features = 'cc cxx cprogram test',
+                     includes = '. .. ../../proto',
+                     use = 'TESTMAIN PROFILE_NULL DDF SOCKET PLATFORM_THREAD PLATFORM_NULL HID_NULL DLIB input',
+                     source = bld.path.ant_glob('*', excl='wscript'),
+                     protoc_includes = '../../proto',
+                     target = 'test_input')
 
     test_input.install_path = None

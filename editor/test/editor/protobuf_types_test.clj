@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,10 +17,11 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system write-until-new-mtime]]))
+            [support.test-support :refer [with-clean-system]]))
 
 (def ^:private project-path "test/resources/all_types_project")
 
@@ -31,8 +32,7 @@
           true))))
 
 (def expected-dependencies
-  {
-   "/test.animationset" ["/test2.animationset"]
+  {"/test.animationset" ["/test2.animationset"]
    "/test.atlas" ["/builtins/graphics/particle_blob.png"]
    "/test.camera" []
    "/test.collection" []
@@ -150,8 +150,8 @@
               source-value (g/node-value node-id :source-value)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
           (is (some? (expected-dependencies resource-path)) resource-path)
-          (is (= (sort (dependencies-fn source-value))
-                 (sort (expected-dependencies resource-path))) resource-path))))))
+          (is (= (sort (expected-dependencies resource-path))
+                 (sort (dependencies-fn source-value))) resource-path))))))
 
 (deftest load-order-sanity
   (with-clean-system
@@ -159,20 +159,20 @@
           proj-graph (g/make-graph! :history true :volatility 1)
           extensions (extensions/make proj-graph)
           project (project/make-project proj-graph workspace extensions)]
-      (with-bindings {#'project/*load-cache* (atom #{})}
-        (let [nodes (#'project/make-nodes! project (g/node-value project :resources))
-              loaded-nodes-by-resource-path (into {} (map (fn [node-id]
-                                                            [(resource/proj-path (g/node-value node-id :resource)) node-id]))
-                                                  nodes)
-              evaluation-context (g/make-evaluation-context)
-              node-deps (fn [node-id] (#'project/node-load-dependencies node-id (set nodes) loaded-nodes-by-resource-path {} evaluation-context))
-              load-order (into {} (map-indexed
-                                    (fn [ix node-id]
-                                      [(resource/resource->proj-path (g/node-value node-id :resource)) ix])
-                                    (#'project/sort-nodes-for-loading nodes node-deps)))]
-          (doseq [[resource-path dependencies] expected-dependencies
-                  dependency dependencies]
-            (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))))
+      (let [node-id+resource-pairs
+            (project/make-node-id+resource-pairs proj-graph (g/node-value project :resources))
+
+            node-load-infos
+            (project/read-nodes node-id+resource-pairs)
+
+            load-order
+            (into {}
+                  (map-indexed (fn [node-index {:keys [resource]}]
+                                 [(resource/proj-path resource) node-index]))
+                  node-load-infos)]
+        (doseq [[resource-path dependencies] expected-dependencies
+                dependency dependencies]
+          (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path)))))))
 
 (def non-broken-dependencies
   {"/broken_embedded_gos.collection" [] ; embedded instance broken, so no dependencies
@@ -203,5 +203,6 @@
                   dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
-              (is (= (sort (dependencies-fn source-value))
-                     (sort (non-broken-dependencies resource-path))) resource-path))))))))
+              (is (= (sort (non-broken-dependencies resource-path))
+                     (sort (dependencies-fn source-value)))
+                  resource-path))))))))

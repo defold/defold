@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,7 +27,7 @@ extern "C" {
     // Implementation in library_sound.js
     int dmDeviceJSOpen(int buffers);
     int dmGetDeviceSampleRate(int device);
-    void dmDeviceJSQueue(int device, const int16_t* samples, uint32_t sample_count);
+    void dmDeviceJSQueue(int device, const float* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
 }
 
@@ -53,6 +53,10 @@ namespace dmDeviceJS
         dev->devId = deviceId;
         dev->isStarted = false;
         *device = dev;
+
+        dmLogInfo("Info");
+        dmLogInfo("  nSamplesPerSec:   %d", dmGetDeviceSampleRate(deviceId));
+
         return dmSound::RESULT_OK;
     }
 
@@ -62,7 +66,7 @@ namespace dmDeviceJS
         delete (JSDevice*)(device);
     }
 
-    dmSound::Result DeviceJSQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceJSQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         JSDevice *dev = (JSDevice*) device;
@@ -70,7 +74,7 @@ namespace dmDeviceJS
         {
             return dmSound::RESULT_INIT_ERROR;
         }
-        dmDeviceJSQueue(dev->devId, samples, sample_count);
+        dmDeviceJSQueue(dev->devId, (const float*)samples, sample_count);
         return dmSound::RESULT_OK;
     }
 
@@ -87,6 +91,10 @@ namespace dmDeviceJS
         assert(info);
         JSDevice *dev = (JSDevice*) device;
         info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
+
+        info->m_UseNonInterleaved = 1;
+        info->m_UseFloats = 1;
+        info->m_UseNormalized = 1;
     }
 
     void DeviceJSStart(dmSound::HDevice device)
@@ -103,5 +111,6 @@ namespace dmDeviceJS
         dev->isStarted = false;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceJSOpen, DeviceJSClose, DeviceJSQueue, DeviceJSFreeBufferSlots, DeviceJSDeviceInfo, DeviceJSStart, DeviceJSStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceJSOpen, DeviceJSClose, DeviceJSQueue,
+                            DeviceJSFreeBufferSlots, 0, DeviceJSDeviceInfo, DeviceJSStart, DeviceJSStop);
 }

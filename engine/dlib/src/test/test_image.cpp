@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -40,7 +40,7 @@
 TEST(dmImage, Empty)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(0, 0, false, &image);
+    dmImage::Result r =  dmImage::Load(0, 0, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
 
@@ -50,7 +50,7 @@ TEST(dmImage, Corrupt)
     void* b = malloc(size);
     memset(b, 0, size);
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(b, size, false, &image);
+    dmImage::Result r =  dmImage::Load(b, size, false, false, &image);
     free(b);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
@@ -59,7 +59,7 @@ TEST(dmImage, PngColor)
 {
     for (int iter = 0; iter < 2; iter++) {
         dmImage::Image image;
-        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, &image);
+        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, false, &image);
         ASSERT_EQ(dmImage::RESULT_OK, r);
         ASSERT_EQ(2U, image.m_Width);
         ASSERT_EQ(2U, image.m_Height);
@@ -91,7 +91,7 @@ TEST(dmImage, PngColor)
 TEST(dmImage, Premult)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PREMULT_PNG, COLOR_CHECK_2X2_PREMULT_PNG_SIZE, true, &image);
+    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PREMULT_PNG, COLOR_CHECK_2X2_PREMULT_PNG_SIZE, true, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -125,7 +125,7 @@ TEST(dmImage, Premult)
 TEST(dmImage, Indexed)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_INDEXED_PNG, COLOR_CHECK_2X2_INDEXED_PNG_SIZE, true, &image);
+    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_INDEXED_PNG, COLOR_CHECK_2X2_INDEXED_PNG_SIZE, true, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -160,7 +160,7 @@ TEST(dmImage, Png16Color)
     // ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
     for (int iter = 0; iter < 2; iter++) {
         dmImage::Image image;
-        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, &image);
+        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, false, &image);
         ASSERT_EQ(dmImage::RESULT_OK, r);
         ASSERT_EQ(2U, image.m_Width);
         ASSERT_EQ(2U, image.m_Height);
@@ -192,7 +192,7 @@ TEST(dmImage, Png16Color)
 TEST(dmImage, PngGray)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(GRAY_CHECK_2X2_PNG, GRAY_CHECK_2X2_PNG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(GRAY_CHECK_2X2_PNG, GRAY_CHECK_2X2_PNG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -210,28 +210,48 @@ TEST(dmImage, PngGray)
 
 TEST(dmImage, PngGrayAlpha)
 {
-    // Test implicit alpha channel removal for 2-component images.
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
-    ASSERT_EQ(dmImage::TYPE_LUMINANCE, image.m_Type);
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE_ALPHA, image.m_Type);
     ASSERT_NE((void*) 0, image.m_Buffer);
+
+    // DMSDK Test
+    dmImage::HImage h_image = &image;
+    ASSERT_EQ(2U, dmImage::GetWidth(h_image));
+    ASSERT_EQ(2U, dmImage::GetHeight(h_image));
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE_ALPHA, dmImage::GetType(h_image));
+    ASSERT_NE((void*) 0, dmImage::GetData(h_image));
+    ASSERT_EQ(image.m_Buffer, dmImage::GetData(h_image));
 
     const uint8_t* b = (const uint8_t*) image.m_Buffer;
     int i = 0;
+
+    // Pixel 1
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    // Pixel 2
     ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    // Pixel 3
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    // Pixel 4
     ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
     dmImage::Free(&image);
 }
 
 TEST(dmImage, Jpeg)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);
@@ -243,7 +263,7 @@ TEST(dmImage, Jpeg)
 TEST(dmImage, ProgressiveJpeg)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);
@@ -255,7 +275,7 @@ TEST(dmImage, ProgressiveJpeg)
 TEST(dmImage, case2319)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(CASE2319_JPG, CASE2319_JPG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(CASE2319_JPG, CASE2319_JPG_SIZE, false, false, &image);
 
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(165U, image.m_Width);

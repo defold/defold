@@ -23,6 +23,8 @@ emitters: {
     }
 
     duration_spread:    0.5
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     id:                 "emitter2"
@@ -49,4 +51,6 @@ emitters: {
     }
 
     duration_spread:    0.5
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }

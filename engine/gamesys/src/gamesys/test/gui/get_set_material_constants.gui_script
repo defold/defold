@@ -1,0 +1,100 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+require "lua.test_helpers"
+
+function test_v4_single(self, box)
+    assert_vec4(vmath.vector4(1,2,3,4), gui.get(box, "constant_v4"))
+    gui.set(box, "constant_v4", vmath.vector4(5,6,7,8))
+    assert_vec4(vmath.vector4(5,6,7,8), gui.get(box, "constant_v4"))
+    gui.set(box, "constant_v4", vmath.vector4(9,10,11,12), { index = 1 })
+    assert_vec4(vmath.vector4(9,10,11,12), gui.get(box, "constant_v4"))
+    gui.set(box, "constant_v4.x", 1337)
+    assert_number(1337, gui.get(box, "constant_v4.x"))
+
+    -- test failing
+    assert_error(function() gui.get(box, "constant_not_found") end)
+    assert_error(function() gui.get(box, "constant_v4", { index = 2 }) end)
+    assert_error(function() gui.set(box, "constant_v4", false) end)
+    assert_error(function() gui.set(box, "constant_v4", 1337.0) end)
+end
+
+function test_v4_array(self, box)
+    local v4_array = gui.get(box, "constant_v4_array")
+    for i=1,8 do
+        local start = (i-1) * 4
+        local v4 = vmath.vector4(start+1, start+2, start+3, start+4)
+        assert_vec4(v4, v4_array[i])
+    end
+
+    gui.set(box, "constant_v4_array", vmath.vector4(-1,-2,-3,-4))
+    assert_vec4(vmath.vector4(-1,-2,-3,-4), gui.get(box, "constant_v4_array", { index = 1 }))
+
+    gui.set(box, "constant_v4_array", vmath.vector4(-11,-21,-31,-41), { index = 1 })
+    assert_vec4(vmath.vector4(-11,-21,-31,-41), gui.get(box, "constant_v4_array", { index = 1 }))
+
+    gui.set(box, "constant_v4_array", vmath.vector4(-11,-12,-13,-14), { index = 2 })
+    assert_vec4(vmath.vector4(-11,-12,-13,-14), gui.get(box, "constant_v4_array", { index = 2 }))
+
+    gui.set(box, "constant_v4_array.x", 1337, { index = 3 })
+    assert_number(1337, gui.get(box, "constant_v4_array.x", { index = 3 }))
+
+    -- test failing
+    assert_error(function() gui.set(box, "constant_v4_array", vmath.vector4(), { index = -1 }) end)
+    -- We can't test OOB the other way, because comp_private::SetRenderConstant(...) doesn't return an error
+    -- assert_error(function() gui.set(box, "constant_v4_array", vmath.vector4(), { index = 99 }) end)
+    assert_error(function() gui.set(box, "constant_v4_array", 10.0, { index = 1 }) end)
+end
+
+local function matrix4(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p)
+    local mat = vmath.matrix4()
+    mat.c0 = vmath.vector4(a, b, c, d)
+    mat.c1 = vmath.vector4(e, f, g, h)
+    mat.c2 = vmath.vector4(i, j, k, l)
+    mat.c3 = vmath.vector4(m, n, o, p)
+    return mat
+end
+
+function test_m4_single(self, box)
+    assert_mat4(matrix4(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16), gui.get(box, "constant_m4"))
+
+    gui.set(box, "constant_m4", matrix4(17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32))
+    assert_mat4(matrix4(17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32), gui.get(box, "constant_m4"))
+
+    -- test failing
+    assert_error(function() gui.get(box, "constant_m4", { index = 2 }) end)
+    assert_error(function() gui.set(box, "constant_m4", false) end)
+    assert_error(function() gui.set(box, "constant_m4", 1337.0) end)
+    assert_error(function() gui.set(box, "constant_m4", matrix4(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16), { index = -1 }) end)
+end
+
+function test_m4_array(self, box)
+    assert_mat4(matrix4(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16), gui.get(box, "constant_m4_array", { index = 1 }))
+    assert_mat4(matrix4(17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32), gui.get(box, "constant_m4_array", { index = 2 }))
+
+    -- test failing
+    assert_error(function() gui.get(box, "constant_m4_array", { index = 3 }) end)
+    assert_error(function() gui.set(box, "constant_m4_array", false) end)
+    assert_error(function() gui.set(box, "constant_m4_array", 1337.0) end)
+    assert_error(function() gui.set(box, "constant_m4_array", matrix4(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16), { index = -1 }) end)
+end
+
+function init(self)
+    local box = gui.get_node("box")
+
+    test_v4_single(self, box)
+    test_v4_array(self, box)
+    test_m4_single(self, box)
+    test_m4_array(self, box)
+end

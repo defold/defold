@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,8 +16,6 @@
 #define DM_TEXC_H
 
 #include <stdint.h>
-
-#include <dlib/shared_library.h>
 
 /**
  * Texture processing
@@ -41,12 +39,27 @@ namespace dmTexc
         PF_R4G4B4A4,
         PF_L8A8,
         PF_RGBA_ETC2,
-        PF_RGBA_ASTC_4x4,
         PF_RGB_BC1,
         PF_RGBA_BC3,
         PF_R_BC4,
         PF_RG_BC5,
         PF_RGBA_BC7,
+
+        // ASTC formats
+        PF_RGBA_ASTC_4x4,
+        PF_RGBA_ASTC_5x4,
+        PF_RGBA_ASTC_5x5,
+        PF_RGBA_ASTC_6x5,
+        PF_RGBA_ASTC_6x6,
+        PF_RGBA_ASTC_8x5,
+        PF_RGBA_ASTC_8x6,
+        PF_RGBA_ASTC_8x8,
+        PF_RGBA_ASTC_10x5,
+        PF_RGBA_ASTC_10x6,
+        PF_RGBA_ASTC_10x8,
+        PF_RGBA_ASTC_10x10,
+        PF_RGBA_ASTC_12x10,
+        PF_RGBA_ASTC_12x12,
     };
 
     enum ColorSpace
@@ -71,6 +84,7 @@ namespace dmTexc
         CT_WEBP_LOSSY,  // Deprecated
         CT_BASIS_UASTC,
         CT_BASIS_ETC1S,
+        CT_ASTC,
     };
 
     enum CompressionFlags
@@ -85,125 +99,126 @@ namespace dmTexc
         FLIP_AXIS_Z = 2
     };
 
-    enum DitherType
+    struct Image
     {
-        DT_NONE = 0,
-        DT_DEFAULT = 1
+        const char* m_Path;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+        uint32_t    m_Width;
+        uint32_t    m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
     };
 
-    struct Header
+    Image* CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
+    void DestroyImage(Image* image);
+
+    uint32_t GetWidth(Image* image);
+    uint32_t GetHeight(Image* image);
+
+    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
+    Image* Resize(Image* image, uint32_t width, uint32_t height);
+
+    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
+    bool PreMultiplyAlpha(Image* image);
+
+    // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
+    bool GenMipMaps(Image* image); // This doesn't exist??
+
+    // Flips a texture vertically
+    bool Flip(Image* image, FlipAxis flip_axis);
+
+    // Dithers a texture given the intended target pixel format
+    bool Dither(Image* image, PixelFormat pixel_format);
+
+    // **********************************************************************
+    // Font API
+
+    struct Buffer
     {
-        uint32_t m_Version;
-        uint32_t m_Flags;
-        uint64_t m_PixelFormat;
-        uint32_t m_ColourSpace;
-        uint32_t m_ChannelType;
-        uint32_t m_Height;
+        uint8_t* m_Data;
+        uint32_t m_DataCount; // Encoded size
         uint32_t m_Width;
-        uint32_t m_Depth;
-        uint32_t m_NumSurfaces;
-        uint32_t m_NumFaces;
-        uint32_t m_MipMapCount;
-        uint32_t m_MetaDataSize;
+        uint32_t m_Height;
+        bool     m_IsCompressed;
     };
 
-
-
-    /**
-     * Texture handle
-     */
-    typedef void* HTexture;
-
-    /**
-     * Texture handle
-     */
-    typedef void* HBuffer;
-
-    /**
-     * Invalid texture handle
-     */
-    const HTexture INVALID_TEXTURE = 0;
-
-#define DM_TEXC_PROTO(ret, name,  ...) \
-    \
-    ret name(__VA_ARGS__);\
-    extern "C" DM_DLLEXPORT ret TEXC_##name(__VA_ARGS__);
-
-    /**
-     * Create a texture
-     */
-    DM_TEXC_PROTO(HTexture, Create, const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
-    /**
-     * Destroy a texture
-     */
-    DM_TEXC_PROTO(void, Destroy, HTexture texture);
-
-    /**
-     * Get header (info) of a texture
-     */
-    DM_TEXC_PROTO(bool, GetHeader, HTexture texture, Header* out_header);
-
-    /**
-     * Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
-     */
-    DM_TEXC_PROTO(uint32_t, GetDataSizeCompressed, HTexture texture, uint32_t mip_map);
-
-    /**
-     * Get the uncompressed data size in bytes of a mip map in a texture
-     */
-    DM_TEXC_PROTO(uint32_t, GetDataSizeUncompressed, HTexture texture, uint32_t mip_map);
-
-    /**
-     * Get the total data size in bytes including all mip maps in a texture (compressed or not)
-     */
-    DM_TEXC_PROTO(uint32_t, GetTotalDataSize, HTexture texture);
-
-    /**
-     * Get the data pointer to texture (mip maps linear layout in memory)
-     */
-    DM_TEXC_PROTO(uint32_t, GetData, HTexture texture, void* out_data, uint32_t out_data_size);
-    /**
-     * Get compression flags
-     */
-    DM_TEXC_PROTO(uint64_t, GetCompressionFlags, HTexture texture);
-
-    /**
-     * Resize a texture.
-     * The texture must have format PF_R8G8B8A8 to be resized.
-     */
-    DM_TEXC_PROTO(bool, Resize, HTexture texture, uint32_t width, uint32_t height);
-    /**
-     * Pre-multiply the color with alpha in a texture.
-     * The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
-     */
-    DM_TEXC_PROTO(bool, PreMultiplyAlpha, HTexture texture);
-    /**
-     * Generate mip maps.
-     * The texture must have format PF_R8G8B8A8 for mip maps to be generated.
-     */
-    DM_TEXC_PROTO(bool, GenMipMaps, HTexture texture);
-    /**
-     * Flips a texture vertically
-     */
-    DM_TEXC_PROTO(bool, Flip, HTexture texture, FlipAxis flip_axis);
-    /**
-     * Encode a texture into basis format.
-     */
-    DM_TEXC_PROTO(bool, Encode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
-
-    // Now only used for font glyphs
     // Compresses an image buffer
-    DM_TEXC_PROTO(HBuffer, CompressBuffer, void* data, uint32_t size);
-
-    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
-    DM_TEXC_PROTO(uint32_t, GetTotalBufferDataSize, HBuffer buffer);
-
-    // Gets the data from a buffer
-    DM_TEXC_PROTO(uint32_t, GetBufferData, HBuffer buffer, void* out_data, uint32_t out_data_size);
+    Buffer* CompressBuffer(uint8_t* byte, uint32_t byte_count);
 
     // Destroys a buffer created by CompressBuffer
-    DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
-#undef DM_TEXC_PROTO
+    void DestroyBuffer(Buffer* buffer);
+
+
+    // **********************************************************************
+    // Texture compression api
+
+    struct BasisUEncodeSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        bool        m_Debug;
+
+        // Output
+        PixelFormat m_OutPixelFormat;
+
+        // Naming matching variables in basis_compressor_params (basis_comp.h)
+        bool        m_rdo_uastc;
+        uint32_t    m_pack_uastc_flags;
+        int         m_rdo_uastc_dict_size;
+        float       m_rdo_uastc_quality_scalar;
+    };
+
+    // Encode a texture into basis format. Caller must call free() on the returned data.
+    bool BasisUEncode(BasisUEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
+
+    struct DefaultEncodeSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        bool        m_Debug;
+
+        // Output
+        PixelFormat m_OutPixelFormat;
+    };
+
+    // Encode a texture into correct pixel format. Caller must call free() on the returned data.
+    bool DefaultEncode(DefaultEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
+
+    struct ASTCEncodeSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        float       m_QualityLevel;
+        PixelFormat m_OutPixelFormat;
+    };
+
+    // Encode a texture into basis format. Caller must call free() on the returned data.
+    bool ASTCEncode(ASTCEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
 }
 
 #endif // DM_TEXC_H

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os
-from TaskGen import feature, before
+from waflib.TaskGen import feature, before
 
 VERSION='0.1'
 APPNAME='sdk'
@@ -9,23 +9,27 @@ srcdir = '.'
 blddir = 'build'
 
 import waf_dynamo
+import waflib.Options
+import TestContext
 
-def init():
+test_context = None
+
+def init(ctx):
     pass
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SDK"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SDK"')
-
+    conf.load('waf_dynamo')
+    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SDK"')
 
 def build(bld):
-    bld.add_subdirs('src')
+    global test_context
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
 
-def shutdown():
-    waf_dynamo.run_tests(valgrind = True)
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

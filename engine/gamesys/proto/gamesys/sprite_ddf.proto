@@ -1,10 +1,18 @@
+syntax = "proto2";
 package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "Sprite";
+
+message SpriteTexture
+{
+    required string sampler     = 1;
+    required string texture     = 2 [(resource)=true];
+}
 
 message SpriteDesc
 {
@@ -17,10 +25,25 @@ message SpriteDesc
         BLEND_MODE_SCREEN    = 4 [(displayName) = "Screen"];
     }
 
-    required string tile_set            = 1 [(resource)=true];
+    enum SizeMode
+    {
+        SIZE_MODE_MANUAL    = 0 [(displayName) = "Manual"];
+        SIZE_MODE_AUTO      = 1 [(displayName) = "Auto"];
+    }
+
+    optional string tile_set            = 1 [(resource)=true];  // Deprecated
     required string default_animation   = 2;
     optional string material            = 3 [(resource)=true, default="/builtins/materials/sprite.material"];
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
+    optional dmMath.Vector4 slice9      = 5;
+    optional dmMath.Vector4 size        = 6;
+    optional SizeMode size_mode         = 7 [default = SIZE_MODE_AUTO];
+    optional float offset               = 8 [default = 0.0];
+    optional float playback_rate        = 9 [default = 1.0];
+
+    repeated dmGraphics.VertexAttribute attributes = 10;
+
+    repeated SpriteTexture textures     = 11;
 }
 
 /*# Sprite API documentation
@@ -28,6 +51,7 @@ message SpriteDesc
  * @document
  * @name Sprite
  * @namespace sprite
+ * @language Lua
  */
 
 /*# play a sprite animation
@@ -37,6 +61,8 @@ message SpriteDesc
  * @message
  * @name play_animation
  * @param id [type:hash] the id of the animation to play
+ * @param offset [type:number] the normalized initial value of the animation cursor when the animation starts playing
+ * @param playback_rate [type:number] the rate with which the animation will be played. Must be positive
  * @examples
  *
  * In the example, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".

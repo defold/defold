@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -62,8 +62,10 @@ def get_issue_timeline(issue, reverse = True):
 
 
 def get_closing_pull_request(issue):
+    # is this in fact already a pr and not an issue?
     if "pull_request" in issue:
         return issue
+    # find pr in issue timeline
     timeline = get_issue_timeline(issue)
     for t in timeline:
         if t["event"] in [ "connected", "cross-referenced"]:
@@ -76,6 +78,26 @@ def get_closing_pull_request(issue):
                 return issue
 
 
+def get_linked_issue(pr):
+    KEYWORDS = [ "close","closes","closed","fix","fixes","fixed","resolve","resolves","resolved" ]
+    # is this in fact already an issue and not a pr?
+    if "issue" in pr["html_url"]:
+        return pr
+    # is it possible to find this in the timeline somehow?
+    body = pr["body"] if pr["body"] != None else ""
+    for kw in KEYWORDS:
+        pattern = kw + " #(\d\d\d\d)"
+        match = re.search(pattern, body, re.IGNORECASE)
+        if match:
+            return github.get("https://api.github.com/repos/defold/defold/issues/" + match.group(1), token)
+    return pr
+
+
+def was_issue_pr_merged(issue):
+    pr = issue["pull_request"]
+    return pr["merged_at"] is not None
+
+
 def get_issue_type(issue):
     labels = get_issue_labels(issue)
     if "bug" in labels:
@@ -85,14 +107,18 @@ def get_issue_type(issue):
     return TYPE_FIX
 
 
-def issue_to_markdown(issue, hide_details = True):
-    md = ("__%s__: __%s__ ([#%s](%s))\n" % (issue["type"], issue["title"], issue["number"], issue["url"]))
-    if hide_details: md += ("[details=\"Details\"]\n")
-    md += ("%s\n" % issue["body"])
-    if hide_details: md += ("\n---\n[/details]\n")
-    md += ("\n")
-    return md
+def issue_to_markdown(issue, hide_details = True, title_only = False):
+    if title_only:
+        md = ("* __%s__: ([#%s](%s)) %s \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
 
+    else:    
+        md = ("__%s__: ([#%s](%s)) __%s__ \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        if hide_details: md += ("[details=\"Details\"]\n")
+        md += ("%s\n" % issue["body"])
+        if hide_details: md += ("\n---\n[/details]\n")
+        md += ("\n")
+
+    return md
 
 
 def generate(version, hide_details = False):
@@ -106,7 +132,7 @@ def generate(version, hide_details = False):
     for card in get_cards_in_column(project, "Done"):
         content_url = card.get("content_url")
         # do not process cards that doesn't reference an issue
-        if not content_url and "issue" not in content_url:
+        if not content_url:
             output.append({
                 "title": "Note",
                 "body": card["note"],
@@ -115,24 +141,34 @@ def generate(version, hide_details = False):
             })
             continue
 
-        # get the issue associated with the card
-        issue = github.get(content_url, token)
-        print("Processing issue %s" % issue["html_url"])
+        # get the issue or pr associated with the card
+        issue_or_pr = github.get(content_url, token)
+        print("Processing %s" % issue_or_pr["html_url"])
 
         # only include issues that are closed
         # since we're getting issues from the "Done" column there really should be only closed issues..
-        if issue["state"] != "closed":
-            print("  Error: Issue is in the Done column but is not closed.")
+        if issue_or_pr["state"] != "closed":
+            print("  Error: Issue or PR is in the Done column but is not closed.")
             continue
 
-        # get the pr that closed the issue
-        entry = None
-        pr = get_closing_pull_request(issue)
+        issue = None
+        pr = None
+        if "issue" in issue_or_pr["html_url"]:
+            issue = issue_or_pr
+            pr = get_closing_pull_request(issue_or_pr)
+        else:
+            pr = issue_or_pr
+            issue = get_linked_issue(issue_or_pr)
 
+        # do not process if the PR wasn't merged (it could be closed as invalid/duplicate/etc)
+        if pr and not was_issue_pr_merged(pr):
+            continue
+
+        entry = None
         if pr:
             entry = {
                 "title": pr["title"],
-                "body": pr["body"],
+                "body": pr["body"] if pr["body"] != None else "",
                 "number": issue["number"],
                 "url": issue["html_url"],
                 "labels": get_issue_labels(issue),
@@ -141,14 +177,18 @@ def generate(version, hide_details = False):
         else:
             print("  Issue is not associated with a pull request.")
             entry = {
-                "title": issue["title"],
-                "body": issue["body"],
+                "title": str(issue["title"]),
+                "body": issue["body"] if issue["body"] != None else "",
                 "number": issue["number"],
                 "url": issue["html_url"],
                 "labels": get_issue_labels(issue),
                 "type": get_issue_type(issue)
             }
-        entry["body"] = re.sub("Fixes #....", "", entry["body"])
+
+        entry["body"] = re.sub("Fixes #....", "", entry["body"]).strip()
+        entry["body"] = re.sub("Fixes https.*", "", entry["body"]).strip()
+        entry["body"] = re.sub("Fix #....", "", entry["body"]).strip()
+        entry["body"] = re.sub("Fix https.*", "", entry["body"]).strip()
         output.append(entry)
 
     cards = []
@@ -167,13 +207,25 @@ def generate(version, hide_details = False):
     for card in cards:
         content += ("%s\n" % card["body"])
 
-    content += ("## Engine\n")
+
+    # list of issue titles
+    content += ("\n## Summary\n")
+    for issue_type in [TYPE_NEW, TYPE_FIX]:
+        for issue in engine:
+            if issue["type"] == issue_type:
+                content += issue_to_markdown(issue, title_only = True)
+        for issue in editor:
+            if issue["type"] == issue_type:
+                content += issue_to_markdown(issue, title_only = True)
+
+    # the details
+    content += ("\n## Engine\n")
     for issue_type in [TYPE_NEW, TYPE_FIX]:
         for issue in engine:
             if issue["type"] == issue_type:
                 content += issue_to_markdown(issue, hide_details = hide_details)
 
-    content += ("## Editor\n")
+    content += ("\n## Editor\n")
     for issue_type in [TYPE_NEW, TYPE_FIX]:
         for issue in editor:
             if issue["type"] == issue_type:
@@ -201,6 +253,7 @@ generate - Generate release notes
 
     parser.add_option('--hide-details', dest='hide_details',
                       default = False,
+                      action = "store_true",
                       help = 'Hide details for each entry')
 
 

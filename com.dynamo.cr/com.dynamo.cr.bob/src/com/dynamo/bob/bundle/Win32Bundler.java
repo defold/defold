@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,9 +16,6 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Map;
 import java.util.List;
 
@@ -33,14 +30,33 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
+@BundlerParams(platforms = {"x86_64-win32", "x86-win32"})
 public class Win32Bundler implements IBundler {
+
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
-            throws IOException, CompileExceptionError {
-        bundleApplicationForPlatform(Platform.X86Win32, project, bundleDir, canceled);
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return null;
     }
 
-    public void bundleApplicationForPlatform(Platform platform, Project project, File bundleDir, ICanceled canceled)
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return null;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        return null;
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+    }
+
+    @Override
+    public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
         BundleHelper.throwIfCanceled(canceled);
@@ -54,8 +70,7 @@ public class Win32Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        List<File> bundleExes = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
@@ -67,7 +82,7 @@ public class Win32Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String title = projectProperties.getStringValue("project", "title", "htmlUnnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title);
@@ -77,26 +92,22 @@ public class Win32Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy archive and game.projectc
-        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+        if (BundleHelper.isArchiveIncluded(project)) {
+            // Copy archive and game.projectc
+            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);
-
-        // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
-        String openal_dll = Bob.getLib(platform, "OpenAL32");
-        String wrap_oal_dll = Bob.getLib(platform, "wrap_oal");
 
         // Copy Executable and DLL:s
         String exeName = String.format("%s.exe", BundleHelper.projectNameToBinaryName(title));
         File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
-        FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
-        FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
         // Copy debug symbols if they were generated
-        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
         File bundlePdb = new File(zipDir, "dmengine.pdb");
         if (bundlePdb.exists()) {
             File pdbOut = new File(appDir, "dmengine.pdb");
@@ -124,5 +135,7 @@ public class Win32Bundler implements IBundler {
                 throw new IOException("The icon does not exist: " + iconFile.getAbsolutePath());
             }
         }
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

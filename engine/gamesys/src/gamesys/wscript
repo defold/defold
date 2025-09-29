@@ -1,27 +1,93 @@
 #! /usr/bin/env python
-import os
-import re
-import sys
+import os, sys, re
 from waf_dynamo import apidoc_extract_task
+from BuildUtility import create_build_utility
+import waflib.Options
+
+sys.path.insert(0, "src")
+import waf_gamesys
 
 def configure(conf):
-    conf.sub_config('test')
+    if not waflib.Options.options.skip_build_tests:
+        conf.recurse('test')
+
+def has_ext(itm, ext):
+    if type("") == type(itm):
+        return itm.endswith(ext)
+    else:
+        return itm.abspath().endswith(ext)
+
+def remove_from_node_list(lst, name):
+    return [x for x in lst if not has_ext(x, name)]
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    build_util = create_build_utility(bld.env)
+
+    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
+    sources = remove_from_node_list(sources, 'comp_model.cpp')
+    sources = remove_from_node_list(sources, 'comp_model_null.cpp')
+    sources = remove_from_node_list(sources, 'model_ddf.proto')
+    sources = remove_from_node_list(sources, 'res_model.cpp')
+    sources = remove_from_node_list(sources, 'res_model_null.cpp')
+    sources = remove_from_node_list(sources, 'script_model.cpp')
+    sources = remove_from_node_list(sources, 'res_rig_scene.cpp')
+    sources = remove_from_node_list(sources, 'res_rig_scene_null.cpp')
+    resource = bld.stlib(features = 'cxx ddf embed',
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
+        source = sources,
         target = 'gamesys')
 
-    resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto/gamesys'])
-
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         resource.source += ['scripts/window/script_window_ios.mm']
     elif re.match('.*?android', bld.env.PLATFORM):
         resource.source += ['scripts/window/script_window_android.cpp']
     else:
         resource.source += ['scripts/window/script_window_null.cpp']
+
+    if 'web' in bld.env.PLATFORM:
+        resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
+    else:
+        resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
+
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../proto',
+        protoc_includes = '../../proto',
+        proto_gen_py = True,
+        source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp ../../proto/gamesys/model_ddf.proto',
+        target = 'gamesys_model')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        protoc_includes = '../../proto',
+        source = 'resources/res_model_null.cpp components/comp_model_null.cpp',
+        target = 'gamesys_model_null')
+
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../proto',
+        protoc_includes = '../../proto',
+        source = 'resources/res_rig_scene.cpp',
+        target = 'gamesys_rig')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        protoc_includes = '../../proto',
+        source = 'resources/res_rig_scene_null.cpp',
+        target = 'gamesys_rig_null')
+
+
+    bld.add_group() # depends on the proto files (_ddf.h) generated in the previous step
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        target = 'script_box2d')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto ' + build_util.get_dynamo_ext('include', 'box2d_defold'),
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body_defold.cpp',
+        target = 'script_box2d_defold')
 
     bld.add_group()
 
@@ -29,10 +95,12 @@ def build(bld):
     proto_files = [os.path.join('../../proto/gamesys', os.path.basename(x)) for x in proto_files]
 
     apidoc_extract_task(bld, ['scripts/script_buffer.cpp',
+        'scripts/script_camera.cpp',
         'scripts/script_collection_factory.cpp',
-        'scripts/script_collectionproxy.h',
+        'scripts/script_collectionproxy.cpp',
         'scripts/script_physics.cpp',
         'scripts/script_factory.cpp',
+        'scripts/script_font.cpp',
         'scripts/script_label.cpp',
         'scripts/script_model.cpp',
         'scripts/script_particlefx.cpp',
@@ -42,12 +110,15 @@ def build(bld):
         'scripts/script_sprite.cpp',
         'scripts/script_tilemap.cpp',
         'scripts/script_window.cpp',
-        'scripts/script_resource_liveupdate.h',
-        'components/comp_sound.cpp',
-        'components/comp_collection_proxy.cpp'] + proto_files)
+        'scripts/script_image.cpp',
+        'scripts/script_sys_gamesys.cpp',
+        'scripts/script_http.cpp',
+        'scripts/box2d/script_box2d.cpp',
+        'scripts/box2d/script_box2d_body.cpp'] + proto_files)
 
-    bld.add_group()
-    bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.add_group()
+        bld.recurse('test')
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/include/gamesys/components', 'components/comp_gui.h')

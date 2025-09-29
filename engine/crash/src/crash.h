@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -157,6 +157,14 @@ namespace dmCrash
     void* GetBacktraceAddr(HDump dump, uint32_t index);
 
     /**
+     * Get the module index from the pointer index
+     * @param dump crash dump handle
+     * @param index index of the address to get
+     * @return module index
+     */
+    uint32_t GetBacktraceModuleIndex(HDump, uint32_t index);
+
+    /**
      * Get the text format version of the dump. It is written by platform-specific
      * backtrace functions (backtrace_symbols_fd) and there are no guarantees on the format
      * @param dump crash dump handle
@@ -184,6 +192,14 @@ namespace dmCrash
      * @return address of the module, null if there are no more
      */
     void* GetModuleAddr(HDump dump, uint32_t index);
+
+    /**
+     * Read out module size from the table stored in a crash dump.
+     * @param dump crash dump handle
+     * @param index index of the module to read
+     * @return size of the module, 0 if there are no size available
+     */
+    uint32_t GetModuleSize(HDump dump, uint32_t index);
 }
 
 #endif

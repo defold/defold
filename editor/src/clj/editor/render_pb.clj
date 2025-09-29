@@ -1,66 +1,64 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.render-pb
-  (:require
-   [dynamo.graph :as g]
-   [editor.build-target :as bt]
-   [editor.core :as core]
-   [editor.graph-util :as gu]
-   [editor.resource :as resource]
-   [editor.resource-node :as resource-node]
-   [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [editor.protobuf :as protobuf]
-   [editor.defold-project :as project])
-  (:import
-   [com.dynamo.render.proto Render$RenderPrototypeDesc]))
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$RenderResourceDesc]))
 
-(g/defnode NamedMaterial
-  (property name g/Str
+(g/defnode NamedRenderResource
+  (property name g/Str ; Required protobuf field.
             (dynamic visible (g/constantly false)))
-  (property material resource/Resource
-            (value (gu/passthrough material-resource))
+  (property render-resource resource/Resource ; Required protobuf field.
+            (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
-                         connections [[:resource :material-resource]
+                         connections [[:resource :resource]
                                       [:build-targets :dep-build-targets]]]
                      (concat
                        (if old-value
                          (project/disconnect-resource-node evaluation-context project old-value self connections)
-                         (g/disconnect project :nil-resource self :material-resource))
+                         (g/disconnect project :nil-resource self :resource))
                        (if new-value
                          (:tx-data (project/connect-resource-node evaluation-context project new-value self connections))
-                         (g/connect project :nil-resource self :material-resource))))))
-           (dynamic visible (g/constantly false)))
+                         (g/connect project :nil-resource self :resource))))))
+            (dynamic visible (g/constantly false)))
 
-  (input material-resource resource/Resource)
+  (input resource resource/Resource)
   (input dep-build-targets g/Any)
 
-  (output named-material g/Any (g/fnk [_node-id name material]
-                                 {:name name
-                                  :material material}))
-  (output dep-build-targets g/Any (gu/passthrough dep-build-targets)))
+  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
+  (output named-render-resource g/Any (g/fnk [_node-id name render-resource]
+                                        {:name name
+                                         :path render-resource})))
 
-(defn- make-named-material-node
-  [graph-id render-node name material-resource]
+(defn- make-named-render-resource-node
+  [graph-id render-node name render-resource-resource]
   (g/make-nodes
     graph-id
-    [named-material [NamedMaterial :name name :material material-resource]]
-    (g/connect named-material :_node-id render-node :nodes)
-    (g/connect named-material :named-material render-node :named-materials)
-    (g/connect named-material :dep-build-targets render-node :dep-build-targets)))
+    [named-render-resource [NamedRenderResource :name name :render-resource render-resource-resource]]
+    (g/connect named-render-resource :_node-id render-node :nodes)
+    (g/connect named-render-resource :named-render-resource render-node :named-render-resources)
+    (g/connect named-render-resource :dep-build-targets render-node :dep-build-targets)))
 
 
 (def ^:private form-sections
@@ -70,43 +68,44 @@
                          :type :resource
                          :filter "render_script"
                          :label "Script"}
-                        {:path [:named-materials]
+                        {:path [:named-render-resources]
                          :type :table
-                         :label "Materials"
+                         :label "Render Resources"
                          :columns [{:path [:name]
                                     :label "Name"
                                     :type :string
-                                    :default "New Material"}
-                                   {:path [:material]
-                                    :label "Material"
+                                    :default "New Render Resource"}
+                                   {:path [:path]
+                                    :label "Render Resource"
                                     :type :resource
-                                    :filter "material"
+                                    :filter ["material" "render_target" "compute"]
                                     :default nil}]}]}]})
 
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
-    [:script]          (g/set-property! node-id :script value)
-    [:named-materials] (let [graph-id (g/node-id->graph-id node-id)]
-                         (g/transact
-                           (concat
-                             (for [[named-material-id _] (g/sources-of node-id :named-materials)]
-                               (g/delete-node named-material-id))
-                             (for [{:keys [name material]} value]
-                               (make-named-material-node graph-id node-id name material)))))))
+    [:script] (g/set-property node-id :script value)
+    [:named-render-resources] (let [graph-id (g/node-id->graph-id node-id)]
+                                (concat
+                                  (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
+                                    (g/delete-node named-render-resource-id))
+                                  (for [{:keys [name path]} value]
+                                    (make-named-render-resource-node graph-id node-id name path))))))
 
-(g/defnk produce-form-data [_node-id script-resource named-materials]
+(g/defnk produce-form-data [_node-id script-resource named-render-resources]
   (-> form-sections
       (assoc :form-ops {:user-data {:node-id _node-id}
                         :set set-form-op})
       (assoc :values {[:script] script-resource
-                      [:named-materials] named-materials})))
+                      [:named-render-resources] named-render-resources})))
 
-(g/defnk produce-pb-msg [script-resource named-materials]
-  {:script (resource/resource->proj-path script-resource)
-   :materials (mapv (fn [{:keys [name material]}]
-                      {:name name
-                       :material (resource/resource->proj-path material)})
-                    named-materials)})
+(g/defnk produce-save-value [script-resource named-render-resources]
+  (protobuf/make-map-without-defaults Render$RenderPrototypeDesc
+    :script (resource/resource->proj-path script-resource)
+    :render-resources (mapv (fn [{:keys [name path]}]
+                              (protobuf/make-map-without-defaults Render$RenderPrototypeDesc$RenderResourceDesc
+                                :name name
+                                :path (resource/resource->proj-path path)))
+                            named-render-resources)))
 
 (defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
@@ -117,31 +116,32 @@
     {:resource resource :content (protobuf/map->bytes Render$RenderPrototypeDesc built-pb)}))
 
 (defn- build-errors
-  [_node-id script named-materials]
-  (when-let [errors (->> (into [(validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")]
-                               (for [{:keys [name material]} named-materials]
-                                 (validation/prop-error :fatal _node-id :material validation/prop-resource-missing? material name)))
+  [_node-id script named-render-resources]
+  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")
+                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" "Script"))]
+                               (for [{:keys [name path]} named-render-resources]
+                                 (validation/prop-error :fatal _node-id :path validation/prop-resource-missing? path name)))
                          (remove nil?)
                          (seq))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets script named-materials]
-  (or (build-errors _node-id script named-materials) 
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets script named-render-resources]
+  (or (build-errors _node-id script named-render-resources)
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [build-resource (:resource %)
                                                 source-resource (:resource build-resource)]
                                             [source-resource build-resource])
                                          dep-build-targets))
             built-resources (into [[[:script] (when script (deps-by-source script))]]
-                                  (map-indexed (fn [i {:keys [material] :as named-material}]
-                                                 [[:materials i :material]
-                                                  (when material (deps-by-source material))])
-                                               named-materials))]
+                                  (map-indexed (fn [i {:keys [path] :as named-render-resource}]
+                                                 [[:render-resources i :path]
+                                                  (when path (deps-by-source path))])
+                                               named-render-resources))]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-render
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :built-resources built-resources}
             :deps dep-build-targets})])))
 
@@ -149,7 +149,7 @@
   (inherits core/Scope)
   (inherits resource-node/ResourceNode)
 
-  (property script resource/Resource
+  (property script resource/Resource ; Required protobuf field.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough script-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -158,22 +158,30 @@
                                             [:build-targets :dep-build-targets]))))
   (input script-resource resource/Resource)
 
-  (input named-materials g/Any :array)
+  (input named-render-resources g/Any :array)
   (input dep-build-targets g/Any :array)
 
   (output form-data g/Any :cached produce-form-data)
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-render [project self resource render-ddf]
   (let [graph-id (g/node-id->graph-id self)
-        {script-path :script materials :materials} render-ddf]
+        {script-path :script render-resources :render-resources} render-ddf]
     (concat
       (g/set-property self :script (workspace/resolve-resource resource script-path))
-      (for [{:keys [name material]} materials]
-        (let [material-resource (workspace/resolve-resource resource material)]
-          (make-named-material-node graph-id self name material-resource))))))
+      (for [{:keys [name path]} render-resources]
+        (let [render-resource (workspace/resolve-resource resource path)]
+          (make-named-render-resource-node graph-id self name render-resource))))))
+
+(defn- sanitize-render [render-ddf]
+  (let [migrated-materials (mapv (fn [material-desc]
+                                   {:name (:name material-desc)
+                                    :path (:material material-desc)})
+                                 (:materials render-ddf))]
+    (-> render-ddf
+        (dissoc :materials)
+        (protobuf/assign-repeated :render-resources (into migrated-materials (:render-resources render-ddf))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -181,6 +189,8 @@
     :node-type RenderNode
     :ddf-type Render$RenderPrototypeDesc
     :load-fn load-render
+    :sanitize-fn sanitize-render
     :icon "icons/32/Icons_30-Render.png"
+    :icon-class :property
     :view-types [:cljfx-form-view :text]
     :label "Render"))

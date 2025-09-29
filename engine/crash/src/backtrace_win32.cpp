@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,15 +29,13 @@ namespace dmCrash
 {
     static char g_MiniDumpPath[AppState::FILEPATH_MAX];
     static bool g_CrashDumpEnabled = true;
+    // Often we get both a signal, and a call to the exception handler.
+    static bool g_DumpWritten      = false;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
-        fflush(stdout);
-        bool is_debug_mode = dLib::IsDebugMode();
-        dLib::SetDebugMode(true);
-
         HANDLE hFile = CreateFileA( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 
         if( ( hFile != NULL ) && ( hFile != INVALID_HANDLE_VALUE ) )
@@ -67,7 +65,6 @@ namespace dmCrash
         {
             dmLogError("CreateFile for MiniDump failed: %s. Error: %u \n", path, GetLastError() );
         }
-        dLib::SetDebugMode(is_debug_mode);
     }
 
     void EnableHandler(bool enable)
@@ -141,7 +138,9 @@ namespace dmCrash
         ::SymSetOptions(SYMOPT_DEBUG);
         ::SymInitialize(process, 0, TRUE);
 
-        g_AppState.m_PtrCount = GetCallstackPointers(pep, &g_AppState.m_Ptr[0], AppState::PTRS_MAX);
+        AppState* state = GetAppState();
+
+        state->m_PtrCount = GetCallstackPointers(pep, &state->m_Ptr[0], AppState::PTRS_MAX);
 
         // Get a nicer printout as well
         const int name_length = 1024;
@@ -156,9 +155,9 @@ namespace dmCrash
         line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
 
         uint32_t offset = 0;
-        for (uint32_t i = 0; i < g_AppState.m_PtrCount; ++i)
+        for (uint32_t i = 0; i < state->m_PtrCount; ++i)
         {
-            DWORD64 address = (DWORD64)(g_AppState.m_Ptr[i]);
+            DWORD64 address = (DWORD64)(state->m_Ptr[i]);
 
             const char* symbolname = "<unknown symbol>";
             DWORD64 symboladdress = address;
@@ -171,6 +170,25 @@ namespace dmCrash
                 symboladdress = symbol->Address;
             }
 
+            uint32_t module_index = 0xFFFFFFFF;
+            HMODULE module;
+            if (::GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCSTR)address, &module))
+            {
+                char module_name[dmCrash::AppState::MODULE_NAME_SIZE];
+                if (::GetModuleFileNameA(module, module_name, sizeof(module_name)))
+                {
+                    for (uint32_t m = 0; m < state->m_ModuleCount; ++m)
+                    {
+                        if (strncmp(state->m_ModuleName[m], module_name, dmCrash::AppState::MODULE_NAME_SIZE) == 0)
+                        {
+                            module_index = m;
+                            break;
+                        }
+                    }
+                }
+            }
+            state->m_PtrModuleIndex[i] = module_index;
+
             const char* filename = "<unknown>";
             int line_number = 0;
             if (::SymGetLineFromAddr64(process, address, &displacement, &line))
@@ -182,36 +200,73 @@ namespace dmCrash
             if (offset < (dmCrash::AppState::EXTRA_MAX - 1))
             {
                 uint32_t size_left = dmCrash::AppState::EXTRA_MAX - offset;
-                offset += dmSnPrintf(&g_AppState.m_Extra[offset], size_left, "%2d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
+                offset += dmSnPrintf(&state->m_Extra[offset], size_left, "%2d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
             }
         }
-        g_AppState.m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
+        state->m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
 
         ::SymCleanup(process);
 
         if (g_CrashExtraInfoCallback)
         {
-            int extra_len = strlen(g_AppState.m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            int extra_len = strlen(state->m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), state);
 
-        LogCallstack(g_AppState.m_Extra);
+        LogCallstack(state->m_Extra);
     }
 
     void WriteDump()
     {
         // The test write signum
-        g_AppState.m_Signum = 0xDEAD;
+        AppState* state = GetAppState();
+        state->m_Signum = 0xDEAD;
         GenerateCallstack(0);
+    }
+
+    static void CheckConsoleNeeded(bool is_debug_mode)
+    {
+        if (IsDebuggerPresent())
+            return;
+
+        static bool console_allocated = false;
+        if (!is_debug_mode && !console_allocated)
+        {
+            bool allocated = AttachConsole(ATTACH_PARENT_PROCESS);
+            if (!allocated)
+            {
+                allocated = AllocConsole();
+            }
+
+            if (allocated)
+            {
+                freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
+                freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
+            }
+            console_allocated = true; // We only want to try this once
+        }
     }
 
     LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS *ptr)
     {
-        g_AppState.m_Signum = 0xDEAD;
-        GenerateCallstack(ptr);
+        AppState* state = GetAppState();
+        state->m_Signum = 0xDEAD;
+
+        fflush(stdout);
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+
         WriteMiniDump(g_MiniDumpPath, ptr);
+
+        if (!g_DumpWritten)
+        {
+            GenerateCallstack(ptr);
+        }
+        g_DumpWritten = true;
+
+        dLib::SetDebugMode(is_debug_mode);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -227,7 +282,16 @@ namespace dmCrash
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         signal(signum, 0);
+
+        fflush(stdout);
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+
+        CheckConsoleNeeded(is_debug_mode);
+        g_DumpWritten = true;
         GenerateCallstack(0);
+
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     static void InstallOnSignal(int signum)

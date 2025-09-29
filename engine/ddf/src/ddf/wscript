@@ -5,47 +5,55 @@ from waf_dynamo import copy_file_task
 
 def build(bld):
     proto_include_path = bld.env['DYNAMO_HOME'] + '/ext/include'
+    proto_python_path = bld.env['DYNAMO_HOME'] + '/ext/lib/python'
 
-    src = "%s/%s" % (proto_include_path, 'google/protobuf/compiler/plugin.proto')
-    copy_file_task(bld, src, 'copy_plugin.proto')
+    proto_plugin_src = "%s/%s" % (proto_include_path, 'google/protobuf/compiler/plugin.proto')
+    proto_plugin_pb2_src = "%s/%s" % (proto_python_path, 'google/protobuf/compiler/plugin_pb2.py')
+    copy_file_task(bld, proto_plugin_src, 'copy_plugin.proto')
+    copy_file_task(bld, proto_plugin_pb2_src)
 
-    bld.new_task_gen(
-         rule   = 'protoc --python_out=. -I . -I %s ${SRC}' % (proto_include_path),
-         source ='plugin.proto',
-         after = 'copy_plugin.proto',
-         shell = True)
+    bld(rule   = 'protoc --python_out=. -I . -I %s ${SRC}' % (proto_include_path),
+        source = 'plugin.proto',
+        after  = 'copy_plugin.proto',
+        shell  = True)
 
-    ddf_ext = bld.new_task_gen(
-         rule   = 'protoc --python_out=${TGT[0].parent.dir(env)} --cpp_out=${TGT[0].parent.dir(env)} -I ${SRC[0].parent.src_dir(env)} -I %s ${SRC}' % (proto_include_path),
+    ddf_ext = bld(
+         rule   = 'protoc --python_out=${TGT[0].parent.bld_dir()} --cpp_out=${TGT[0].parent.bld_dir()} -I ${SRC[0].parent.bld_dir()} -I ${SRC[0].bld_dir()} -I %s ${SRC}' % (proto_include_path),
          source = 'ddf_extensions.proto',
          target = 'ddf_extensions_pb2.py',
          shell = True)
 
-    ddf_ext = bld.new_task_gen(
+    ddf_ext = bld(
          rule   = 'echo "" > ${TGT}',
          source = 'ddf_extensions.proto',
          target = '__init__.py',
          shell = True)
 
     bld.install_files('${PREFIX}/lib/python/ddf',
-                      ddf_ext.path.find_or_declare('ddf_extensions_pb2.py').abspath(ddf_ext.env),
-                      ddf_ext.env)
+                      ddf_ext.path.find_or_declare('ddf_extensions_pb2.py'))
 
     bld.install_files('${PREFIX}/lib/python',
-                      ddf_ext.path.find_or_declare('plugin_pb2.py').abspath(ddf_ext.env),
-                      ddf_ext.env)
+                      ddf_ext.path.find_or_declare('plugin_pb2.py'))
 
     bld.add_group()
+  
+    bld.stlib(features = 'cxx ddf',
+        includes = '../.. ..',
+        source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
+        proto_gen_cc = True,
+        proto_compile_cc = True,
+        proto_gen_py = True,
+        protoc_includes = '..',
+        target = 'ddf')
 
-    bld.new_task_gen(
-            features = 'cxx cstaticlib ddf',
-            includes = '../.. ..',
-            source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
-            proto_gen_cc = True,
-            proto_compile_cc = True,
-            proto_gen_py = True,
-            protoc_includes = '..',
-            target = 'ddf')
+    bld.add_group() # depend on the pro
+
+    bld.stlib(features = 'cxx ddf skip_asan',
+        includes = '../.. ..',
+        source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
+        proto_compile_cc = True,
+        protoc_includes = '..',
+        target = 'ddf_noasan')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
 

@@ -1,24 +1,34 @@
 #! /usr/bin/env python
-import os, re
+import re
 from waf_dynamo import dmsdk_add_files
-
+from waflib import Options
 
 def configure(conf):
     pass
 
 def build(bld):
-    bld.add_subdirs('test')
-    bld.install_files('${PREFIX}/include/extension', 'extension.h')
-    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     source = ['extension.cpp']
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         source += ['extension_ios.cpp']
     if re.match('arm.*?android', bld.env.PLATFORM):
         source += ['extension_android.cpp']
 
-    extension = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                 includes = '.',
-                                 source = source,
-                                 target = 'extension')
+    extension = bld.stlib(features     = 'cxx',
+                          includes     = '.',
+                          source       = source,
+                          target       = 'extension')
 
+    bld.add_group() # not sure why needed, but it won't build with '--skip-build-tests' otherwise. Use '-v -v' for more info
+
+    bld.install_files('${PREFIX}/include/extension', 'extension.hpp')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
+
+    if not Options.options.skip_build_tests:
+        bld.stlib(features= 'cs_stlib',
+                  project = 'cs/extension_cs.csproj')
+
+        bld.add_group()
+
+        bld.recurse('test')

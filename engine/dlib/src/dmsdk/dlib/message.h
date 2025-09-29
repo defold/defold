@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,13 +22,13 @@
 
 
 /*# Message API documentation
- * [file:<dmsdk/dlib/message.h>]
  *
  * Api for sending messages
  *
  * @document
  * @name Message
  * @namespace dmMessage
+ * @language C++
  */
 
 namespace dmMessage
@@ -87,7 +87,7 @@ namespace dmMessage
     /*#
      * Helper struct for parsing a string of the form "socket:path#fragment"
      * @note The sizes do not include the null character. There is no null character since the dmMessage::ParseURL is non destructive.
-     * @typedef
+     * @struct
      * @name dmMessage::StringURL
      * @member m_Socket [type: const char*] The socket
      * @member m_SocketSize [type: uint32_t] The socket length
@@ -149,6 +149,14 @@ namespace dmMessage
      * @return name [type: const char*] socket name. 0 if it was not found
      */
     const char* GetSocketName(HSocket socket);
+
+    /*#
+     * Get socket name hash
+     * @name GetSocketNameHash
+     * @param socket [type: dmMessage::HSocket] Socket
+     * @return name_hash [type: dmhash_t] socket name hash. 0 if it was not found
+     */
+    dmhash_t GetSocketNameHash(HSocket socket);
 
     /*#
      * Get the message path
@@ -249,8 +257,8 @@ namespace dmMessage
      * Post a DDF message to a socket. A helper wrapper for Post()'ing a DDF message
      * @note Message data is copied by value
      * @name PostDDF
-     * @tparam TDDFType [type: TDDFType] Must be a DDF type
-     * @param message [type: TDDFType*] Message data reference
+     * @tparam T Must be a DDF type
+     * @param message [type: T*] Message data reference
      * @param sender [type: dmMessage::URL*] The sender URL if the receiver wants to respond. 0x0 is accepted
      * @param receiver [type: dmMessage::URL*] The receiver URL, must not be 0x0
      * @param user_data1 [type: uintptr_t] User data that can be used when both the sender and receiver are known
@@ -271,11 +279,11 @@ namespace dmMessage
      * dmMessage::Result result = dmMessage::Post(&msg, &sender, &receiver, (uintptr_t)go, 0, 0));
      * ```
      */
-    template <typename TDDFType>
-    Result PostDDF(const TDDFType* message, const URL* sender, const URL* receiver, uintptr_t user_data1, uintptr_t user_data2, MessageDestroyCallback destroy_callback)
+    template <typename T>
+    Result PostDDF(const T* message, const URL* sender, const URL* receiver, uintptr_t user_data1, uintptr_t user_data2, MessageDestroyCallback destroy_callback)
     {
         return Post(sender, receiver, message->m_DDFDescriptor->m_NameHash, user_data1, user_data2,
-                    (uintptr_t)message->m_DDFDescriptor, message, sizeof(TDDFType), destroy_callback);
+                    (uintptr_t)message->m_DDFDescriptor, message, sizeof(T), destroy_callback);
     }
 
     /*#

@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +17,7 @@
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
 #include <render/render.h>
-#include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -55,6 +55,13 @@ dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, 
     else if (get_property == property.m_Z)
     {
         out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getZ());
+    }
+    else if (get_property == property.m_XY)
+    {
+        out_value.m_ElementIds[0] = property.m_X;
+        out_value.m_ElementIds[1] = property.m_Y;
+        out_value.m_ElementIds[2] = 1.0f;
+        out_value.m_Variant = dmGameObject::PropertyVar(ref_value);
     }
     else
     {
@@ -114,6 +121,23 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
         if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
         {
             set_value.setZ(in_value.m_Number);
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+    }
+    else if (set_property == property.m_XY)
+    {
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
+            set_value.setX(in_value.m_Number);
+            set_value.setY(in_value.m_Number);
+        }
+        else if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+        {
+            set_value.setX(in_value.m_V4[0]);
+            set_value.setY(in_value.m_V4[1]);
         }
         else
         {
@@ -264,16 +288,17 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
     if (value.m_Type != dmGameObject::PROPERTY_TYPE_HASH) {
         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
     }
-    dmResource::SResourceDescriptor rd;
+    HResourceDescriptor rd;
     dmResource::Result res = dmResource::GetDescriptorWithExt(factory, value.m_Hash, exts, ext_count, &rd);
     if (res == dmResource::RESULT_OK)
     {
-        if (*out_resource != rd.m_Resource) {
-            dmResource::IncRef(factory, rd.m_Resource);
+        void* resource = dmResource::GetResource(rd);
+        if (*out_resource != resource) {
+            dmResource::IncRef(factory, rd);
             if (*out_resource) {
                 dmResource::Release(factory, *out_resource);
             }
-            *out_resource = rd.m_Resource;
+            *out_resource = resource;
         }
         return dmGameObject::PROPERTY_RESULT_OK;
     }
@@ -318,6 +343,15 @@ HComponentRenderConstants CreateRenderConstants()
 
 void DestroyRenderConstants(HComponentRenderConstants constants)
 {
+    uint32_t num_constants = constants->m_RenderConstants.Size();
+    for (uint32_t i = 0; i < num_constants; ++i)
+    {
+        if (constants->m_RenderConstants[i])
+        {
+            dmRender::DeleteConstant(constants->m_RenderConstants[i]);
+        }
+    }
+
     dmRender::DeleteNamedConstantBuffer(constants->m_ConstantBuffer);
     delete constants;
 }
@@ -409,13 +443,23 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
 
     uint32_t num_values;
     dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
+    dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRender::GetConstantType(material_constant);
 
     if (values)
     {
         dmRender::SetConstantValues(constant, values, num_values);
+        dmRender::SetConstantType(constant, constant_type);
     } else {
-        dmVMath::Vector4 zero(0,0,0,0);
-        dmRender::SetConstantValues(constant, &zero, 1);
+        if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            dmVMath::Matrix4 zero(0.0f);
+            dmRender::SetConstantValues(constant, (dmVMath::Vector4*) &zero, 4);
+        }
+        else
+        {
+            dmVMath::Vector4 zero(0,0,0,0);
+            dmRender::SetConstantValues(constant, &zero, 1);
+        }
     }
 
     return constant;
@@ -444,6 +488,12 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
 
     uint32_t num_values = 0;
     dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    bool is_matrix4_type = dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+
+    if (is_matrix4_type)
+    {
+        value_index *= 4;
+    }
 
     if (value_index >= num_values)
     {
@@ -451,10 +501,23 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         return; // We should really handle
     }
     dmVMath::Vector4* v = &values[value_index];
-    if (element_index == 0x0)
-        *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+
+    if (is_matrix4_type)
+    {
+        if (element_index != 0x0)
+        {
+            dmLogError("Setting a specific element in a matrix constant for the property %s[%u] is not supported.", dmHashReverseSafe64(name_hash), value_index);
+            return;
+        }
+        memcpy(v, var.m_M4, sizeof(var.m_M4));
+    }
     else
-        v->setElem(*element_index, (float)var.m_Number);
+    {
+        if (element_index == 0x0)
+            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+        else
+            v->setElem(*element_index, (float)var.m_Number);
+    }
 
     UpdateChecksums(constants, name_hash, values, num_values);
 }
@@ -504,6 +567,25 @@ void HashRenderConstants(HComponentRenderConstants constants, HashState32* state
 int AreRenderConstantsUpdated(HComponentRenderConstants constants)
 {
     return constants->m_Updated ? 1 : 0;
+}
+
+// TODO: Can this be improved? The "SetRenderConstant" call feels extremely expensive.
+void CopyRenderConstants(HComponentRenderConstants dst, HComponentRenderConstants src)
+{
+    if (!src || !dst)
+        return;
+
+    uint32_t size_src = src->m_RenderConstants.Size();
+    for (int i = 0; i < size_src; ++i)
+    {
+        dmRender::HConstant src_constant = src->m_RenderConstants[i];
+        uint32_t src_num_values;
+        dmVMath::Vector4* src_values = dmRender::GetConstantValues(src_constant, &src_num_values);
+        dmhash_t src_name_hash = dmRender::GetConstantName(src_constant);
+        SetRenderConstant(dst, src_name_hash, src_values, src_num_values);
+    }
+
+    dst->m_Updated = true;
 }
 
 void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderConstants constants)

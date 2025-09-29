@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,7 @@
 #include <dlib/profile.h>
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
+
 #include <graphics/graphics_util.h>
 
 #include "display_profiles.h"
@@ -42,6 +43,7 @@ namespace dmRender
     {
         DisplayProfiles* profiles = new DisplayProfiles();
         profiles->m_NameHash = 0x0;
+        profiles->m_AutoLayoutSelection = true;
         return profiles;
     }
 
@@ -83,6 +85,7 @@ namespace dmRender
         }
 
         dmRenderDDF::DisplayProfiles& ddf = *params.m_DisplayProfilesDDF;
+        profiles->m_AutoLayoutSelection = ddf.m_AutoLayoutSelection;
         uint32_t profile_count = 0;
         uint32_t qualifier_count = 0;
         for(uint32_t i = 0; i < ddf.m_Profiles.m_Count; ++i)
@@ -230,6 +233,11 @@ namespace dmRender
     dmhash_t GetDisplayProfilesName(HDisplayProfiles profiles)
     {
         return profiles->m_NameHash;
+    }
+
+    bool GetAutoLayoutSelection(HDisplayProfiles profiles)
+    {
+        return profiles->m_AutoLayoutSelection;
     }
 
 }

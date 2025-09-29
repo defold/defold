@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,14 +15,14 @@
 (ns editor.git-credentials
   (:require [editor.prefs :as prefs]
             [util.crypto :as crypto])
-  (:import [org.apache.commons.codec.digest DigestUtils]
-           [java.util Arrays]
+  (:import [java.util Arrays]
+           [org.apache.commons.codec.digest DigestUtils]
            [org.eclipse.jgit.api Git]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private project-git-credentials-prefs-key "project-git-credentials")
+(def ^:private project-git-credentials-prefs-key [:git :credentials])
 
 (def ^:private get-git-credentials-secret-key
   (memoize
@@ -85,16 +85,16 @@
 
 (defn read-encrypted-credentials [prefs ^Git git]
   {:post [(or (nil? %) (encrypted-credentials? %))]}
-  (let [encrypted-credentials-by-project-path (prefs/get-prefs prefs project-git-credentials-prefs-key nil)
+  (let [encrypted-credentials-by-project-path (prefs/get prefs project-git-credentials-prefs-key)
         project-path (.. git getRepository getWorkTree getCanonicalPath)]
     (get encrypted-credentials-by-project-path project-path)))
 
 (defn write-encrypted-credentials! [prefs ^Git git encrypted-credentials]
   {:pre [(or (nil? encrypted-credentials) (encrypted-credentials? encrypted-credentials))]}
-  (let [encrypted-credentials-by-project-path (prefs/get-prefs prefs project-git-credentials-prefs-key {})
+  (let [encrypted-credentials-by-project-path (prefs/get prefs project-git-credentials-prefs-key)
         project-path (.. git getRepository getWorkTree getCanonicalPath)]
-    (prefs/set-prefs prefs project-git-credentials-prefs-key
-                     (if (nil? encrypted-credentials)
-                       (dissoc encrypted-credentials-by-project-path project-path)
-                       (assoc encrypted-credentials-by-project-path
-                         project-path encrypted-credentials)))))
+    (prefs/set! prefs project-git-credentials-prefs-key
+                (if (nil? encrypted-credentials)
+                  (dissoc encrypted-credentials-by-project-path project-path)
+                  (assoc encrypted-credentials-by-project-path
+                    project-path encrypted-credentials)))))

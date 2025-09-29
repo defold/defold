@@ -4,12 +4,6 @@ size {
   z: 0.0
   w: 0.0
 }
-scale {
-  x: 2.0
-  y: 3.0
-  z: 4.0
-  w: 0.0
-}
 color {
   x: 1.0
   y: 0.0
@@ -23,9 +17,9 @@ outline {
   w: 1.0
 }
 shadow {
-  x: 0.0
-  y: 0.0
-  z: 0.0
+  x: 0.5
+  y: 0.5
+  z: 0.5
   w: 1.0
 }
 leading: 2.0
@@ -34,5 +28,5 @@ pivot: PIVOT_N
 blend_mode: BLEND_MODE_ADD
 line_break: true
 text: "Modified"
-font: "/builtins/fonts/system_font.font"
+font: "/builtins/fonts/default.font"
 material: "/builtins/fonts/label.material"

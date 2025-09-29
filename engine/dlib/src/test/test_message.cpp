@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,7 @@
 #include "../../src/dlib/dstrings.h"
 #include "../../src/dlib/thread.h"
 #include "../../src/dlib/time.h"
-#include "../../src/dlib/profile.h"
+#include "../../src/dlib/profile/profile.h"
 
 const dmhash_t m_HashMessage1 = 0x35d47694;
 const dmhash_t m_HashMessage2 = 0x35d47695;
@@ -150,13 +150,13 @@ TEST(dmMessage, Bench)
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
 
     // Benchmark
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     for (uint32_t iter = 0; iter < iter_count; ++iter)
     {
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
     }
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
-    uint64_t end = dmTime::GetTime();
+    uint64_t end = dmTime::GetMonotonicTime();
     printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
 
     ASSERT_EQ(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
@@ -280,14 +280,23 @@ TEST(dmMessage, PostDuringDispatch)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
-void PostThread(void* arg)
+#if !defined(DM_NO_THREAD_SUPPORT)
+#define T_ASSERT_EQ(_A, _B) \
+    if ( (_A) != (_B) ) { \
+        printf("%s:%d: ASSERT: %s != %s: %d != %d", __FILE__, __LINE__, #_A, #_B, (_A), (_B)); \
+    } \
+    assert( (_A) == (_B) );
+
+static void PostThread(void* arg)
 {
     dmMessage::URL* receiver = (dmMessage::URL*) arg;
 
     for (int i = 0; i < 1024; ++i)
     {
         uint32_t m = i;
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &m, sizeof(m), 0));
+        dmMessage::Result result = dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &m, sizeof(m), 0);
+        T_ASSERT_EQ(dmMessage::RESULT_OK, result);
+
         if (i % 100 == 0) {
             dmTime::Sleep(1000);
         }
@@ -356,6 +365,7 @@ TEST(dmMessage, ThreadTest2)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
+#endif // DM_NO_THREAD_SUPPORT
 
 void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 {
@@ -467,9 +477,9 @@ TEST(dmMessage, MessagePostDispatch)
 
 int main(int argc, char **argv)
 {
-    dmProfile::Initialize(1024, 1024 * 1024, 64);
+    ProfileInitialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
-    dmProfile::Finalize();
+    ProfileFinalize();
     return ret;
 }

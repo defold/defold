@@ -1,0 +1,81 @@
+#! /usr/bin/env python
+import os
+import waflib.Options
+from waf_dynamo import platform_glfw_version, is_platform_private
+
+from BuildUtility import create_build_utility
+
+def configure(conf):
+    pass
+
+def build(bld):
+    if is_platform_private(bld.env.PLATFORM):
+        build_util = create_build_utility(bld.env)
+
+        platform_source = ['%s/platform_window_native.cpp' % build_util.get_target_os()]
+        sources = bld.path.ant_glob(platform_source)
+
+        if not sources:
+            print("Source doesn't exist for private platform:", platform_source)
+            print("Fallback to null implementation")
+            sources = bld.path.ant_glob(['platform_window_null.cpp'])
+
+        lib = bld.stlib(features = 'cxx c ddf',
+                includes = '.',
+                target   = 'platform',
+                source   = sources)
+
+    else:
+        glfw_source = ['platform_window_glfw.cpp']
+        glfw3_source_vulkan = None
+
+        if platform_glfw_version(bld.env.PLATFORM) == 3:
+            glfw_source = ['platform_window_glfw3.cpp']
+            glfw3_source_vulkan = ['platform_window_glfw3_vulkan.cpp']
+
+            if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
+                glfw_source += ['platform_window_glfw3_osx.cpp']
+            elif bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+                glfw_source += ['platform_window_glfw3_win32.cpp']
+            elif bld.env.PLATFORM in ['x86_64-linux', 'arm64-linux']:
+                glfw_source += ['platform_window_glfw3_linux.cpp']
+        else:
+            if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+                glfw_source += ['platform_window_glfw_android.cpp']
+            elif bld.env.PLATFORM in ('x86_64-ios', 'arm64-ios'):
+                glfw_source += ['platform_window_glfw_ios.cpp']
+
+        lib = bld.stlib(features = 'cxx c ddf',
+                        includes = '.',
+                        target   = 'platform',
+                        source   = bld.path.ant_glob(glfw_source))
+
+        if glfw3_source_vulkan != None:
+            lib = bld.stlib(features = 'cxx c ddf',
+                            includes = '.',
+                            target   = 'platform_vulkan',
+                            source   = lib.source + glfw3_source_vulkan)
+
+    lib = bld.stlib(features = 'cxx c ddf',
+                    includes = '.',
+                    target   = 'platform_null',
+                    source   = bld.path.ant_glob(['platform_window_null.cpp']))
+
+    bld.add_group()
+
+    bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_constants.h')
+
+    # Graphics API includes
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_vulkan.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_opengl.h')
+
+    # Platform includes
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_android.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_ios.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_osx.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_win32.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_linux.h')
+
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

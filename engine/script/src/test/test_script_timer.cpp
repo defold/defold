@@ -1,27 +1,22 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../script.h"
 #include "../script_timer_private.h"
+#include "test_script.h"
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
+#include <testmain/testmain.h>
 
 struct TimerTestCallback
 {
@@ -59,29 +54,14 @@ uint32_t TimerTestCallback::callback_count = 0;
 uint32_t TimerTestCallback::cancel_count = 0;
 float TimerTestCallback::elapsed_time = 0.f;
 
-class ScriptTimerTest : public jc_test_base_class
+class ScriptTimerTest : public dmScriptTest::ScriptTest
 {
-protected:
-    virtual void SetUp()
+public:
+    void SetUp()
     {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-        m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
+        dmScriptTest::ScriptTest::SetUp();
         ResetTestCallback();
     }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-        dmConfigFile::Delete(m_ConfigFile);
-    }
-
-    dmConfigFile::HConfig m_ConfigFile;
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
 
 TEST_F(ScriptTimerTest, TestCreateDeleteWorld)
@@ -228,8 +208,8 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
     };
 
     dmArray<dmScript::HTimer> handles;
-    handles.SetCapacity(65535u);
-    handles.SetSize(65535u);
+    handles.SetCapacity(dmScript::MAX_TIMER_CAPACITY);
+    handles.SetSize(dmScript::MAX_TIMER_CAPACITY);
 
     uint32_t timer_count = 0;
 
@@ -726,17 +706,6 @@ TEST_F(ScriptTimerTest, TestKillTimers)
     dmScript::DeleteTimerWorld(timer_world);
 }
 
-static bool RunString(lua_State* L, const char* script)
-{
-    luaL_loadstring(L, script);
-    if (lua_pcall(L, 0, LUA_MULTRET, 0) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
 static dmScript::HTimer cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
 static uint32_t cb_callback_counter = 0u;
 static float cb_elapsed_time = 0.0f;
@@ -771,6 +740,7 @@ struct ScriptInstance
 {
     int m_InstanceReference;
     int m_ContextTableReference;
+    int m_UniqueScriptId;
 };
 
 static int ScriptGetInstanceContextTableRef(lua_State* L)
@@ -798,6 +768,13 @@ static int ScriptInstanceIsValid(lua_State* L)
     return 1;
 }
 
+static int ScriptScriptGetUniqueScriptId(lua_State* L)
+{
+    ScriptInstance* inst = (ScriptInstance*)lua_touserdata(L, 1);
+    lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+    return 1;
+}
+
 static const luaL_reg ScriptInstance_methods[] =
 {
     {0,0}
@@ -807,6 +784,7 @@ static const luaL_reg ScriptInstance_meta[] =
 {
     {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
     {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
+    {dmScript::META_GET_UNIQUE_SCRIPT_ID,           ScriptScriptGetUniqueScriptId},
     {0, 0}
 };
 
@@ -817,6 +795,7 @@ static void CreateScriptInstance(lua_State* L, const char* type)
 
     lua_newtable(L);
     i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+    i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
     luaL_getmetatable(L, type);
@@ -952,9 +931,186 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     dmScript::DeleteScriptWorld(script_world);
 }
 
+TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char pre_script[] =
+        "handle_1 = timer.delay(1, true, function() end)\n"
+        "handle_2 = timer.delay(2, false, function() end)\n";
+    //0
+    const char check_1[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 1)\n"
+        "assert(data1.repeating == true)\n"
+
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2.delay == 2)\n"
+        "assert(data2.time_remaining == 2)\n"
+        "assert(data2.repeating == false)\n";
+    //0.5
+    const char check_2[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 0.5)\n"
+        "assert(data1.repeating == true)\n"
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2.delay == 2)\n"
+        "assert(data2.time_remaining == 1.5)\n"
+        "assert(data2.repeating == false)\n";
+    //1
+     const char check_3[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 1)\n"
+        "assert(data1.repeating == true)\n"
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2.delay == 2)\n"
+        "assert(data2.time_remaining == 1)\n"
+        "assert(data2.repeating == false)\n";
+    //2
+    const char check_4[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 1)\n"
+        "assert(data1.repeating == true)\n"
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2 == nil)\n";
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_TRUE(RunString(L, check_1));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 0.5f);
+    ASSERT_TRUE(RunString(L, check_2));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 0.5f);
+    ASSERT_TRUE(RunString(L, check_3));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_TRUE(RunString(L, check_4));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Test getting info on a cancelled timer
+    const char check_get_info_cancelled[] =
+        "handle_1 = timer.delay(1, true, function() end)\n"
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1 ~= nil)\n"
+        "timer.cancel(handle_1)\n"
+        "handle_2 = timer.delay(1, true, function() end)\n"
+        "local data2 = timer.get_info(handle_1)\n"
+        "assert(data2 == nil)\n";
+
+    ASSERT_TRUE(RunString(L, check_get_info_cancelled));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+}
+
+
+TEST_F(ScriptTimerTest, TestLuaStress)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    // from https://github.com/defold/defold/issues/9491#issuecomment-2385551265
+    const char pre_script[] =
+    "local function boo()\n"
+    "    local t = timer.delay(0, false,\n"
+    "                         function(self, handle, elapsed_time)\n"
+    "                             test.callback_counter(handle, elapsed_time)\n"
+    "                             local i = 0\n"
+    "                             while i < 8 do\n"
+    "                                 boo()\n"
+    "                                 i = i + 1\n"
+    "                             end\n"
+    "                         end)\n"
+    "    if t == timer.INVALID_TIMER_HANDLE then\n"
+    "        return\n"
+    "    end\n"
+    "end\n"
+    "boo()\n";
+
+    const char post_script[] = "";
+
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(1.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(9u, cb_callback_counter);
+    ASSERT_EQ(9.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(73u, cb_callback_counter);
+    ASSERT_EQ(73.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_EQ(585u, cb_callback_counter);
+    ASSERT_EQ(585.0f, cb_elapsed_time);
+
+    ASSERT_TRUE(RunString(L, post_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+}
+
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

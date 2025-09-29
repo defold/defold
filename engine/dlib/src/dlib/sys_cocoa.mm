@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,7 @@
 #include "sys_private.h"
 #include "dstrings.h"
 
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <SystemConfiguration/SystemConfiguration.h>
@@ -35,19 +35,22 @@ namespace dmSys
 {
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-    	assert(path_len > 0);
-    	NSBundle* mainBundle = [NSBundle mainBundle];
-    	if (mainBundle == NULL)
-    	{
-    		return RESULT_FAULT;
-    	}
-    	const char *bundle_path = [[mainBundle bundlePath] UTF8String];
-    	if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
-    	{
-    		path_out[0] = 0;
-    		return RESULT_INVAL;
-    	}
-    	return RESULT_OK;
+        @autoreleasepool
+        {
+            assert(path_len > 0);
+            NSBundle* mainBundle = [NSBundle mainBundle];
+            if (mainBundle == NULL)
+            {
+                return RESULT_FAULT;
+            }
+            const char *bundle_path = [[mainBundle bundlePath] UTF8String];
+            if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
+            {
+                path_out[0] = 0;
+                return RESULT_INVAL;
+            }
+            return RESULT_OK;
+        }
     }
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
@@ -57,43 +60,46 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        assert(path_len > 0);
-        NSFileManager* shared_fm = [NSFileManager defaultManager];
-        NSArray* urls = [shared_fm URLsForDirectory:NSApplicationSupportDirectory
-                                          inDomains:NSUserDomainMask];
-
-        if ([urls count] > 0)
+        @autoreleasepool
         {
-            NSURL* app_support_dir = [urls objectAtIndex:0];
-            dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
+            assert(path_len > 0);
+            NSFileManager* shared_fm = [NSFileManager defaultManager];
+            NSArray* urls = [shared_fm URLsForDirectory:NSApplicationSupportDirectory
+                                              inDomains:NSUserDomainMask];
 
-            path[path_len-1] = '\0';
-
-            if (dmStrlCat(path, "/", path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, application_name, path_len) >= path_len)
-                return RESULT_INVAL;
-
-            NSString* ns_path = [NSString stringWithUTF8String: path];
-            Result r;
-            if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+            if ([urls count] > 0)
             {
-                r = RESULT_OK;
+                NSURL* app_support_dir = [urls objectAtIndex:0];
+                dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
+
+                path[path_len-1] = '\0';
+
+                if (dmStrlCat(path, "/", path_len) >= path_len)
+                    return RESULT_INVAL;
+                if (dmStrlCat(path, application_name, path_len) >= path_len)
+                    return RESULT_INVAL;
+
+                NSString* ns_path = [NSString stringWithUTF8String: path];
+                Result r;
+                if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+                {
+                    r = RESULT_OK;
+                }
+                else
+                {
+                    r = RESULT_UNKNOWN;
+                }
+                return r;
             }
             else
             {
-                r = RESULT_UNKNOWN;
+                dmLogError("Unable to locate NSApplicationSupportDirectory");
+                return RESULT_UNKNOWN;
             }
-            return r;
-        }
-        else
-        {
-            dmLogError("Unable to locate NSApplicationSupportDirectory");
-            return RESULT_UNKNOWN;
         }
     }
 
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
     static SCNetworkReachabilityRef reachability_ref = 0;
@@ -163,16 +169,11 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        NSString* ns_url = [NSString stringWithUTF8String: url];
-        BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
-        if (ret == YES)
-        {
-            return RESULT_OK;
-        }
-        else
-        {
-            return RESULT_UNKNOWN;
-        }
+        NSString* ns_str = [NSString stringWithUTF8String:url];
+        NSURL* ns_url = [NSURL URLWithString:ns_str];
+        UIApplication *app = [UIApplication sharedApplication];
+        [app openURL:ns_url options:@{} completionHandler:nil];
+        return [app canOpenURL:ns_url] ? RESULT_OK : RESULT_UNKNOWN;
     }
 
     void GetSystemInfo(struct SystemInfo* info)
@@ -197,10 +198,15 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
-        dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
 
         NSString *device_language = [[NSLocale preferredLanguages]objectAtIndex:0];
         dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
+        UIDevice* d = [UIDevice currentDevice];
+        dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
     }
 
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)
@@ -227,7 +233,7 @@ namespace dmSys
         return g_NetworkConnectivity;
     }
 
-#else // osx
+#else // macos
 
     void GetSystemInfo(SystemInfo* info)
     {
@@ -258,6 +264,10 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
     }
 
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)

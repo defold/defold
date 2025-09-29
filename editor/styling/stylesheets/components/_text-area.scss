@@ -1,3 +1,4 @@
+@use "sass:string";
 /*
  * Basic reset
  */
@@ -5,6 +6,8 @@
     -fx-background-color: none;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
+    -fx-text-fill: -df-text-light;
+    -fx-prompt-text-fill: -df-text-dark;
 
     .content {
         -fx-background-color: none;
@@ -21,7 +24,7 @@
 }
 
 .text-area > .scroll-pane {
-    -fx-background-color: null;
+    -fx-background-color: string.unquote("null");
 }
 .text-area > .scroll-pane > .scroll-bar:horizontal {
     -fx-background-radius: 0 0 0 0;
@@ -48,7 +51,7 @@
         -fx-padding: 4px 8px;
         -fx-cursor: text;
         -fx-background-radius: 0;
-        -fx-background-color: -df-background-light;
+        -fx-background-color: -df-background-input;
     }
 
     &:hover {
@@ -92,7 +95,7 @@
     -fx-background-color: -df-background;
 }
 .copyable-text-area > .scroll-pane {
-    -fx-background-color: null;
+    -fx-background-color: string.unquote("null");
 }
 .copyable-text-area > .scroll-pane > .scroll-bar:horizontal {
     -fx-background-radius: 0 0 0 0;

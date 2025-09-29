@@ -3,31 +3,35 @@ import os
 from waf_dynamo import dmsdk_add_files
 from BuildUtility import create_build_utility
 
-def set_options(opt):
+def options(opt):
     pass
 
 def build(bld):
     build_util = create_build_utility(bld.env)
 
-    platform_folder = 'glfw'
-    if build_util.get_target_os() in ('nx64',):
+    platform_folder  = 'native'
+    platform_defines = []
+    platform_drivers = []
+
+    if build_util.get_target_os() in ('nx64','ps4','ps5'):
         platform_folder = build_util.get_target_os()
+    else:
+        platform_drivers = ['%s/hid_gamepad_driver_glfw.cpp' % platform_folder]
 
-    hid = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = '.'.split(),
-                           target = 'hid',
-                           source = ['hid.cpp'])
-    hid.includes.insert(0, platform_folder)
-    hid.source.append('%s/hid_native.cpp' % platform_folder)
+    hid = bld.stlib(features = 'cxx',
+                    includes = [platform_folder,'.'],
+                    target   = 'hid',
+                    defines  = platform_defines,
+                    source   = bld.path.ant_glob(['hid.cpp', '%s/hid_native.cpp' % platform_folder] + platform_drivers))
 
-    hid_null = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = ['.', 'null'],
-                                proto_gen_py = True,
-                                target = 'hid_null',
-                                source = ['hid.cpp', 'hid_null.cpp'])
-    hid_null.includes.insert(0, platform_folder)
+    hid_null = bld.stlib(features = 'cxx',
+                         includes = [platform_folder, '.', 'null'],
+                         proto_gen_py = True,
+                         target = 'hid_null',
+                         source = bld.path.ant_glob(['hid.cpp', 'hid_null.cpp']))
 
-    bld.add_subdirs('test')
+    bld.add_group()
+    bld.recurse('test')
 
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
 

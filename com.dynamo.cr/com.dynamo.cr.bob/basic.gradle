@@ -1,0 +1,120 @@
+def buildToolsDir = file('../../build_tools')
+
+ext {
+    bobDir = file('../com.dynamo.cr.bob')
+    commonDir = file('../com.dynamo.cr.common')
+    testDir = file('../com.dynamo.cr.bob.test')
+    classesDir = file('../com.dynamo.cr.bob/build')
+    dynamoHome = System.getenv("DYNAMO_HOME") ?: "../../tmp/dynamo_home"
+    protoFiles = [
+            [dir: "../../engine/ddf/src", file: "ddf/ddf_extensions.proto"],
+            [dir: "../../engine/ddf/src", file: "ddf/ddf_math.proto"],
+            [dir: "../../engine/engine/proto", file: "engine/engine_ddf.proto"],
+            [dir: "../../engine/graphics/proto", file: "graphics/graphics_ddf.proto"],
+            [dir: "../../engine/gameobject/proto", file: "gameobject/properties_ddf.proto"],
+            [dir: "../../engine/gameobject/proto", file: "gameobject/gameobject_ddf.proto"],
+            [dir: "../../engine/gameobject/proto", file: "gameobject/lua_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/atlas_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/camera_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/gamesys_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/gui_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/label_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/model_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/physics_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/sound_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/sprite_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/texture_set_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/tile_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/mesh_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/buffer_ddf.proto"],
+            [dir: "../../engine/rig/proto", file: "rig/rig_ddf.proto"],
+            [dir: "../../engine/input/proto", file: "input/input_ddf.proto"],
+            [dir: "../../engine/particle/proto", file: "particle/particle_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/font_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/material_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/render_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/render_target_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/compute_ddf.proto"],
+            [dir: "../../engine/resource/proto", file: "resource/liveupdate_ddf.proto"],
+            [dir: "../../engine/resource/proto", file: "resource/resource_ddf.proto"],
+            [dir: "../../engine/script/src", file: "script/script_doc_ddf.proto"],
+            [dir: "../../engine/script/src", file: "script/lua_source_ddf.proto"],
+            [dir: "../../engine/script/src", file: "script/ddf_script.proto"],
+            [dir: "../../engine/script/src", file: "script/sys_ddf.proto"]
+    ]
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    // Determine Python executable
+    def pythonExec = null
+    try {
+        // Check if python3 exists
+        def process = new ProcessBuilder("python3", "--version")
+                .redirectErrorStream(true)
+                .start()
+        process.waitFor()
+        if (process.exitValue() == 0) {
+            pythonExec = "python3"
+        } else {
+            throw new Exception("python3 not available")
+        }
+    } catch (Exception ignored) {
+        try {
+            // Fall back to python
+            def process = new ProcessBuilder("python", "--version")
+                    .redirectErrorStream(true)
+                    .start()
+            process.waitFor()
+            if (process.exitValue() == 0) {
+                pythonExec = "python"
+            } else {
+                throw new Exception("python not available")
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Neither python3 nor python is available on the system")
+        }
+    }
+
+    // Save Python executable to environment variable
+    ext.python = pythonExec
+    println "Using Python executable: ${ext.python}"
+
+    def command = [
+            ext.python,
+            "-c",
+            "import sys; sys.path.append(r'${buildToolsDir}'); import sdk; print(sdk.get_host_platform())"
+    ] as String[]
+
+    try {
+        def process = new ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .start()
+        def output = new StringBuffer()
+        process.inputStream.eachLine { line -> output.append(line).append('\n') }
+        process.waitFor()
+        def outputString = output.toString().trim()
+
+        if (process.exitValue() == 0) {
+            def sanitizedOutput = outputString.replaceAll(/[^\w-]/, '')
+            ext.hostPlatform = sanitizedOutput
+            if (ext.hostPlatform) {
+                println "Host Platform: ${ext.hostPlatform}"
+            } else {
+                throw new RuntimeException("Failed to determine host platform: output is empty")
+            }
+        } else {
+            throw new RuntimeException("Failed to determine host platform: ${outputString}")
+        }
+    } catch (Exception e) {
+        println "Exception occurred: ${e.message}"
+        throw e
+    }
+}
+
+task getGitRevision {
+    ext.gitRevision = ""
+    doLast {
+        gitRevision = "git log --pretty=%H -n1".execute().text.trim()
+        println "Git Revision: ${ext.gitRevision}"
+    }
+}

@@ -8,30 +8,43 @@ blddir = 'build'
 
 import sys
 import waf_dynamo
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.sub_config('src')
+    conf.load('waf_dynamo')
+    conf.load('java')
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_DLIB_NOASAN'] = 'dlib_noasan'
-    conf.env['STATICLIB_BASIS_ENCODER'] = 'basis_encoder'
-    conf.env['STATICLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
+    conf.recurse('src')
 
-    platform = conf.env['PLATFORM']
+    conf.env.append_value('INCLUDES', "default/src")
+    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
+    conf.env['STLIB_BASIS_ENCODER'] = 'basis_encoder'
+    conf.env['STLIB_BASIS_ENCODER_NOASAN'] = 'basis_encoder_noasan'
+    conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
+    conf.env['STLIB_ASTCENC'] = 'astcenc'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
 
 def build(bld):
-    bld.add_subdirs('src')
+    global test_context
 
-def shutdown():
-    waf_dynamo.run_tests(valgrind = True)
+    if not bld.env.IS_TARGET_DESKTOP:
+        return
+
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

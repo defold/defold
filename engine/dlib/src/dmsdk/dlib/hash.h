@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,16 +15,29 @@
 #ifndef DMSDK_HASH_H
 #define DMSDK_HASH_H
 
+#include <assert.h>
 #include <stdint.h>
 #include "shared_library.h"
+#include "dalloca.h" // dmFixedMemAllocator
+
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dmsdk/dlib/hash_vendor.h>
+#elif defined(__linux__) && !defined(__ANDROID__)
+    #define DM_HASH_FMT "%016lx"
+#else
+    #define DM_HASH_FMT "%016llx"
+#endif
+
+#ifndef DM_HASH_FMT
+        #error "DM_HASH_FMT was not defined!"
+#endif
 
 /*# SDK Hash API documentation
  * Hash functions.
  *
  * @document
  * @name Hash
- * @namespace dmHash
- * @path engine/dlib/src/dmsdk/dlib/hash.h
+ * @language C++
  */
 
 /*# dmhash_t type definition
@@ -39,8 +52,9 @@
  */
 typedef uint64_t dmhash_t;
 
-extern "C"
-{
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*#
  * Calculate 32-bit hash value from buffer
@@ -86,7 +100,7 @@ DM_DLLEXPORT uint64_t dmHashString64(const char* string);
  * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
  * @name dmHashReverseSafe64
  * @param hash [type:uint64_t] hash value
- * @return [type:const char*] Original string value
+ * @return [type:const char*] Original string value or "<unknown>" if it wasn't found.
  * @note Do not store this pointer
  */
 DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
@@ -105,7 +119,37 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
  */
 DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
 
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
+ * @name dmHashReverseSafe32
+ * @param hash [type:uint32_t] hash value
+ * @return [type:const char*] Original string value or "<unknown>" if it wasn't found.
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
 
+/*# get string value from hash
+ *
+ * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
+ * buffer is null-terminated. If the buffer contains a valid c-string
+ * it can safely be used in printf and friends.
+ *
+ * @name dmHashReverseSafe32
+ * @param hash [type:uint32_t] hash to lookup
+ * @param length [type:uint32_t*] original data length. Optional argument and NULL-pointer is accepted.
+ * @return [type:const char*] pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+
+#ifdef __cplusplus
 
 /*#
  * Hash state used for 32-bit incremental hashing
@@ -198,7 +242,7 @@ DM_DLLEXPORT void dmHashRelease32(HashState32* hash_state);
  * Initialize hash-state for 64-bit incremental hashing
  * @name dmHashInit64
  * @param hash_state [type: HashState64*] Hash state
- * @param reverse_hash true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
+ * @param reverse_hash [type: bool] true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
  */
 DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
 
@@ -207,7 +251,7 @@ DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
  * @name dmHashClone64
  * @param hash_state [type: HashState64*] Hash state
  * @param source_hash_state [type: HashState64*] Source hash state
- * @param reverse_hash true [type: bool] to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH. Ignored if source state reverse hashing is disabled.
+ * @param reverse_hash [type: bool] true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH. Ignored if source state reverse hashing is disabled.
  */
 DM_DLLEXPORT void dmHashClone64(HashState64* hash_state, const HashState64* source_hash_state, bool reverse_hash);
 
@@ -236,6 +280,69 @@ DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
  */
 DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
 
-}
+
+/*#
+ * Allocate stack memory context for safely reversing hash values into strings
+ * @define
+ * @name DM_HASH_REVERSE_MEM
+ * @param name [type: symbol] The name of the dmAllocator struct
+ * @param size [type: size_t] The max size of the stack allocated context
+ */
+#define DM_HASH_REVERSE_MEM(_NAME, _CAPACITY) \
+    uint8_t _NAME ## _mem_ ## __LINE__ [_CAPACITY]; \
+    dmFixedMemAllocator _NAME ## __LINE__; \
+    dmFixedMemAllocatorInit(& _NAME ## __LINE__, _CAPACITY, _NAME ## _mem_ ## __LINE__); \
+    dmAllocator& _NAME = (_NAME ## __LINE__).m_Allocator;
+
+
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * @name dmHashReverseSafe64Alloc
+ * @param allocator [type:dmAllocator*] The reverse hash allocator
+ * @param hash [type:uint64_t] hash value
+ * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found,
+ *                            or "<unknown>" if the allocator failed to allocate more memory.
+ *                            Always returns a null terminated string.
+ * @note This function is thread safe
+ * @note The pointer is valid during the scope of the allocator
+ *
+ * @examples
+ *
+ * Get the string representaiton of a hash value
+ *
+ * ```cpp
+ * DM_HASH_REVERSE_MEM(hash_ctx, 128);
+ * const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
+ * ```
+ */
+DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash);
+
+
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ *
+ * @name dmHashReverseSafe32Alloc
+ * @param allocator [type:dmAllocator*] The reverse hash allocator
+ * @param hash [type:uint32_t] hash value
+ * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found,
+ *                            or "<unknown>" if the allocator failed to allocate more memory.
+ *                            Always returns a null terminated string.
+ * @note This function is thread safe
+ * @note The pointer is valid during the scope of the allocator
+ *
+ * @examples
+ *
+ * Get the string representaiton of a hash value
+ *
+ * ```cpp
+ * DM_HASH_REVERSE_MEM(hash_ctx, 128);
+ * const char* reverse = (const char*) dmHashReverseSafe32Alloc(&hash_ctx, hash);
+ * ```
+ */
+DM_DLLEXPORT const char* dmHashReverseSafe32Alloc(dmAllocator* allocator, uint32_t hash);
+
+#endif // __cplusplus
 
 #endif // DMSDK_HASH_H

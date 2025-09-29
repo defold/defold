@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,20 +26,19 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
-            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene-tools :as scene-tools]
+            [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
-           [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Point3d Vector3d]))
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -102,7 +101,8 @@
     (when (pos? vcount)
       (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                            (let [line-data (:line-data user-data)
-                                 [r g b a] (get user-data :line-color (if (:selected renderable) colors/selected-outline-color colors/outline-color))]
+                                 line-color (:line-color user-data)
+                                 [r g b a] (or line-color (colors/renderable-outline-color renderable))]
                              (reduce (fn [vb [x y z]]
                                        (color-vtx-put! vb x y z r g b a))
                                      vb
@@ -132,7 +132,7 @@
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
-        gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
+        gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
@@ -179,32 +179,25 @@
              :bottom 0.0)]
     (mapv * size [xs ys 1])))
 
-(defn- v3->v4 [v]
-  (conj v 0.0))
-
-(defn- v4->v3 [v4]
-  (subvec v4 0 3))
-
-(g/defnk produce-pb-msg [text size scale color outline shadow leading tracking pivot blend-mode line-break font material]
-  {:text text
-   :size (v3->v4 size)
-   :scale (v3->v4 scale)
-   :color color
-   :outline outline
-   :shadow shadow
-   :leading leading
-   :tracking tracking
-   :pivot pivot
-   :blend-mode blend-mode
-   :line-break line-break
-   :font (resource/resource->proj-path font)
-   :material (resource/resource->proj-path material)})
+(g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material]
+  (protobuf/make-map-without-defaults Label$LabelDesc
+    :text text
+    :size (protobuf/vector3->vector4-zero size)
+    :color color
+    :outline outline
+    :shadow shadow
+    :leading leading
+    :tracking tracking
+    :pivot pivot
+    :blend-mode blend-mode
+    :line-break line-break
+    :font (resource/resource->proj-path font)
+    :material (resource/resource->proj-path material)))
 
 (g/defnk produce-scene
-  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data scale]
+  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]
   (let [scene {:node-id _node-id
-               :aabb aabb
-               :transform (math/->mat4-scale scale)}
+               :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
         texture-recip-uniform (font/get-texture-recip-uniform font-map)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
@@ -236,7 +229,7 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource font material pb-msg dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets]
   (or (when-let [errors (->> [[font :font "Font"]
                               [material :material "Material"]]
                           (keep (fn [[v prop-kw name]]
@@ -250,30 +243,33 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-label
-            :user-data {:proto-msg pb-msg
+            :user-data {:proto-msg save-value
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)
 
-  (property text g/Str
+  ;; Ignored, except data during migration. See details below.
+  (property legacy-scale types/Vec3 ; Nil is valid default.
+            (dynamic visible (g/constantly false)))
+
+  (property text g/Str (default (protobuf/default Label$LabelDesc :text))
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
-  (property size types/Vec3)
-  (property scale types/Vec3)
-  (property color types/Color)
-  (property outline types/Color)
-  (property shadow types/Color)
-  (property leading g/Num)
-  (property tracking g/Num)
-  (property pivot g/Keyword (default :pivot-center)
+  (property size types/Vec3) ; Required protobuf field.
+  (property color types/Color (default (protobuf/default Label$LabelDesc :color)))
+  (property outline types/Color (default (protobuf/default Label$LabelDesc :outline)))
+  (property shadow types/Color (default (protobuf/default Label$LabelDesc :shadow)))
+  (property leading g/Num (default (protobuf/default Label$LabelDesc :leading)))
+  (property tracking g/Num (default (protobuf/default Label$LabelDesc :tracking)))
+  (property pivot g/Keyword (default (protobuf/default Label$LabelDesc :pivot))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$Pivot))))
-  (property blend-mode g/Any (default :blend-mode-alpha)
+  (property blend-mode g/Any (default (protobuf/default Label$LabelDesc :blend-mode))
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
-  (property line-break g/Bool)
+  (property line-break g/Bool (default (protobuf/default Label$LabelDesc :line-break)))
 
-  (property font resource/Resource
+  (property font resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough font-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -288,7 +284,7 @@
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["font"]})))
-  (property material resource/Resource
+  (property material resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -312,7 +308,7 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
 
-  (output pb-msg g/Any :cached produce-pb-msg)
+  (output save-value g/Any :cached produce-save-value)
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
                                            (font/layout-text font-map text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot]
@@ -332,7 +328,6 @@
                                      [max-x max-y _] (offset-fn size)]
                                  (geom/coords->aabb [min-x min-y 0]
                                                     [max-x max-y 0]))))
-  (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output tex-params g/Any :cached (g/fnk [material-samplers]
@@ -340,41 +335,98 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
+(defn load-label [_project self resource label]
+  {:pre [(map? label)]} ; Label$LabelDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (gu/set-properties-from-pb-map self Label$LabelDesc label
+      text :text
+      size (protobuf/vector4->vector3 :size)
+      legacy-scale (protobuf/vector4->vector3 :scale) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
+      color :color
+      outline :outline
+      shadow :shadow
+      leading :leading
+      tracking :tracking
+      pivot :pivot
+      blend-mode :blend-mode
+      line-break :line-break
+      font (resolve-resource :font)
+      material (resolve-resource :material))))
 
-(defmethod scene-tools/manip-scale ::LabelNode [evaluation-context node-id ^Vector3d delta]
-  (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
-        new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
-    (g/set-property node-id :scale (properties/round-vec new-scale))))
+(defn- sanitize-label [label-desc]
+  (let [legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)
+        sanitized-label (protobuf/sanitize label-desc :size protobuf/sanitize-required-vector4-zero-as-vector3)
+        sanitized-label (if (scene/significant-scale? legacy-scale-v3)
+                          (assoc sanitized-label :scale (protobuf/vector3->vector4-one legacy-scale-v3))
+                          (dissoc sanitized-label :scale))]
+    sanitized-label))
 
-(defn load-label [project self resource label]
-  (let [label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
-        font (workspace/resolve-resource resource (:font label))
-        material (workspace/resolve-resource resource (:material label))]
-    (concat
-      (g/set-property self
-                      :text (:text label)
-                      :size (:size label)
-                      :scale (:scale label)
-                      :color (:color label)
-                      :outline (:outline label)
-                      :shadow (:shadow label)
-                      :leading (:leading label)
-                      :tracking (:tracking label)
-                      :pivot (:pivot label)
-                      :blend-mode (:blend-mode label)
-                      :line-break (:line-break label)
-                      :font font
-                      :material material))))
+(defn- sanitize-embedded-label-component [embedded-component-desc label-desc]
+  (let [sanitized-embedded-component-desc
+        (if (scene/significant-scale? (:scale embedded-component-desc))
+          embedded-component-desc
+          (let [label-legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)]
+            (if (scene/significant-scale? label-legacy-scale-v3)
+              (assoc embedded-component-desc :scale label-legacy-scale-v3)
+              (dissoc embedded-component-desc :scale))))
+        sanitized-label-desc (dissoc label-desc :scale)]
+    (pair sanitized-embedded-component-desc
+          sanitized-label-desc)))
+
+(def ^:private add-to-set (fnil conj #{}))
+
+(defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale referenced-component-node-id label-node-id]
+  ;; The scale used to be stored in the LabelDesc before we had scale on the
+  ;; ComponentDesc. Here we transfer the scale value from the LabelDesc to the
+  ;; ComponentDesc if the ComponentDesc does not already have a significant
+  ;; scale value, and the LabelDesc does.
+  (if (= scene/default-scale referenced-component-scale)
+    (let [label-legacy-scale (g/node-value label-node-id :legacy-scale evaluation-context)]
+      (if (scene/significant-scale? label-legacy-scale)
+        (do
+          (g/flag-nodes-as-migrated! evaluation-context [referenced-component-node-id label-node-id])
+          label-legacy-scale)
+        referenced-component-scale))
+    referenced-component-scale))
+
+(defn- alter-referenced-label-component [referenced-component-node-id label-node-id]
+  ;; The Label scale value has been moved to the GameObject$ComponentDesc or
+  ;; GameObject$EmbeddedComponentDesc to reside alongside the existing position
+  ;; and rotation values.
+  ;;
+  ;; We still retain the legacy scale value in the legacy-scale property of the
+  ;; LabelNode so that it can be transferred to the ReferencedComponent node as
+  ;; it references a `.label` resource at load time, but we don't include the
+  ;; legacy scale value in the LabelNode save-data. This means that both the
+  ;; `.label` file that contained a legacy scale value and any `.go` or
+  ;; `.collection` files that refers to the `.label` will have unsaved changes
+  ;; immediately after the project has been loaded. This ensures both files will
+  ;; be saved.
+  ;;
+  ;; You might think we should use the established sanitation-mechanism to
+  ;; perform the migration - and we do for embedded components where all the
+  ;; migrated data is confined to a single file - but we can't do that for
+  ;; migrations that span multiple files.
+  ;;
+  ;; If we do not force all the files involved to be saved, we could end up in a
+  ;; "partial migration" scenario where we strip the legacy scale value from the
+  ;; `.label` resource but do not save it to the `.go` or `.collection` file
+  ;; that hosts the ComponentDesc. This can happen if the user edits the
+  ;; `.label` but not the `.go` or `.collection` file and saves the project.
+  (g/update-property-ec referenced-component-node-id :scale replace-default-scale-with-label-legacy-scale referenced-component-node-id label-node-id))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
+    :label "Label"
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
     :load-fn load-label
+    :sanitize-fn sanitize-label
     :icon label-icon
+    :icon-class :design
     :view-types [:scene :text]
     :tags #{:component}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :label "Label"))
+    :tag-opts {:component {:transform-properties #{:position :rotation :scale}
+                           :alter-referenced-component-fn alter-referenced-label-component
+                           :sanitize-embedded-component-fn sanitize-embedded-label-component}}))

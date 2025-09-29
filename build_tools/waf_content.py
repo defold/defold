@@ -1,34 +1,55 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import Task
-import Utils
-from TaskGen import extension, before, feature
-import hashlib, sys, os
+import waflib.Task
+import waflib.Utils
+import waflib.Errors
+from waflib.TaskGen import extension, before, feature
+import hashlib, sys, os, importlib
 
 # NOTE: This must be included explicitly prior to any modules with fields that set [(resource) = true].
 # Otherwise field_desc.GetOptions().ListFields() will return [] for the first loaded module
 # Strange error and probably a bug in google protocol buffers
 import ddf.ddf_extensions_pb2
 
+from importlib.machinery import PathFinder
+
+class DefoldImporter(PathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if not "ddf_pb2" in fullname:
+            return None
+
+        tokens = fullname.split(".")
+        subpath = os.path.sep.join(tokens) + ".py"
+        spec = None
+        for x in sys.path:
+            p = os.path.join(x, subpath)
+            if not os.path.exists(p):
+                continue
+            spec = importlib.util.spec_from_file_location(fullname, p)
+            if spec is not None:
+                break
+        return spec
+
+sys.meta_path.insert(0, DefoldImporter())
+
+
 @feature('*')
 @before('apply_core')
 def apply_content_root(self):
-    Utils.def_attrs(self, content_root = '.')
-    if not self.path.find_dir(self.content_root):
-        raise Utils.WafError('content_root "%s" not found (relative to %s)', self.content_root, self.path)
-    self.content_root = self.path.find_dir(self.content_root).srcpath(self.env)
+    waflib.Utils.def_attrs(self, content_root = '.')
+    self.content_root = self.path.find_dir(self.content_root).abspath()
 
 proto_module_sigs = {}
 def proto_compile_task(name, module, msg_type, input_ext, output_ext, transformer = None, append_to_all = False):
@@ -69,11 +90,11 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                         continue
 
                     if not x.startswith('/'):
-                        print >>sys.stderr, '%s:0: error: resource path is not absolute "%s"' % (task.inputs[0].srcpath(task.env), x)
+                        print ('%s:0: error: resource path is not absolute "%s"' % (task.inputs[0].srcpath(), x), file=sys.stderr)
                         return False
                     path = os.path.join(task.generator.content_root, x[1:])
                     if not os.path.exists(path):
-                        print >>sys.stderr, '%s:0: error: is missing dependent resource file "%s"' % (task.inputs[0].srcpath(task.env), x)
+                        print ('%s:0: error: is missing dependent resource file "%s"' % (task.inputs[0].srcpath(), x), file=sys.stderr)
                         return False
         return True
 
@@ -83,7 +104,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             mod = __import__(module)
             # NOTE: We can't use getattr. msg_type could of form "foo.bar"
             msg = eval('mod.' + msg_type)() # Call constructor on message type
-            with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            with open(task.inputs[0].srcpath(), 'rb') as in_f:
                 google.protobuf.text_format.Merge(in_f.read(), msg)
 
             if not validate_resource_files(task, msg):
@@ -92,32 +113,32 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             if transformer:
                 msg = transformer(task, msg)
 
-            with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            with open(task.outputs[0].abspath(), 'wb') as out_f:
                 out_f.write(msg.SerializeToString())
 
             return 0
-        except google.protobuf.text_format.ParseError,e:
-            print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        except (google.protobuf.text_format.ParseError,e):
+            print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
             return 1
 
-        except google.protobuf.message.EncodeError,e:
-            print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        except (google.protobuf.message.EncodeError,e):
+            print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
             return 1
 
 
-    task = Task.task_type_from_func(name,
+    task = waflib.Task.task_factory(name,
                                     func    = compile,
                                     color   = 'RED',
                                     after='proto_gen_py',
-                                    before='cc cxx')
+                                    before='c cxx')
 
     m = hashlib.md5()
-    m.update(name)
-    m.update(module)
-    m.update(msg_type)
+    m.update(name.encode('ascii'))
+    m.update(module.encode('ascii'))
+    m.update(msg_type.encode('ascii'))
     if transformer:
-        m.update(transformer.func_code.co_code)
-        m.update(str(transformer.func_code.co_consts))
+        m.update(transformer.__code__.co_code)
+        m.update(str(transformer.__code__.co_consts).encode('ascii'))
     sig_deps = m.digest()
 
     old_sig_explicit_deps = task.sig_explicit_deps
@@ -138,9 +159,11 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             proto_module_sigs[module] = mod_m.digest()
 
         deps = old_sig_explicit_deps(self)
+
         m = hashlib.md5()
         m.update(proto_module_sigs[module])
-        m.update(deps)
+        if deps != None:
+            m.update(deps)
         m.update(sig_deps)
         return m.digest()
 
@@ -185,12 +208,12 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                 mod = __import__(module)
                 # NOTE: We can't use getattr. msg_type could of form "foo.bar"
                 msg = eval('mod.' + msg_type)() # Call constructor on message type
-                with open(n.srcpath(task.env), 'rb') as in_f:
+                with open(n.srcpath(), 'rb') as in_f:
                     google.protobuf.text_format.Merge(in_f.read(), msg)
 
                 depnodes += scan_msg(task, msg)
 
-            except google.protobuf.text_format.ParseError,e:
+            except google.protobuf.text_format.ParseError as e:
                 # We ignore parse error as the file will hopefully be changed and recompiled anyway
                 pass
 

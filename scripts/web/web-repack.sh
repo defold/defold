@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -48,6 +48,12 @@ function terminate_trap() {
 SOURCE="${1:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 
+if [ "$#" -gt 1 ]; then
+    VARIANT="${2}"
+else
+    VARIANT="debug"
+fi
+
 [ -d "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
 
 # ----------------------------------------------------------------------------
@@ -55,26 +61,47 @@ SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 # ----------------------------------------------------------------------------
 trap 'terminate_trap' SIGHUP SIGINT SIGTERM EXIT
 
-PROJECTNAME=$(cd ${SOURCE} && ls *wasm)
-PROJECTNAME=${PROJECTNAME%.wasm}
-
+PROJECTNAME=$(cd "${SOURCE}" && ls *_*.js | head -1 | sed 's,_.*.js$,,')
 echo $PROJECTNAME
 
 TARGET="${SOURCE}.repack"
+echo "$TARGET [${VARIANT}]"
 
-echo $TARGET
-
-if [ -d $TARGET ]; then
-    rm -rf $TARGET
+if [ -d "$TARGET" ]; then
+    rm -rf "$TARGET"
 fi
 
-cp -r ${SOURCE}/ ${TARGET}/
+SUFFIX=""
+[ "$VARIANT" != "debug" ] && SUFFIX="_${VARIANT}"
 
-cp -v ${DYNAMO_HOME}/bin/js-web/dmengine.js ${TARGET}/${PROJECTNAME}_asmjs.js
-cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.js ${TARGET}/${PROJECTNAME}_wasm.js
-cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm ${TARGET}/${PROJECTNAME}.wasm
-if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map" ]; then
-    cp -v ${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map ${TARGET}/dmengine.wasm.map
+cp -r "${SOURCE}/" "${TARGET}/"
+
+if [ -d "${DYNAMO_HOME}/bin/js-web" ]; then
+    cp -v "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_asmjs.js"
+    if [ -e "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.wasm.map" ]; then
+        cp -v "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.js.symbols" "${TARGET}/${PROJECTNAME}_asmjs.symbols"
+    fi
+fi
+if [ -d "${DYNAMO_HOME}/bin/wasm-web" ]; then
+    cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_wasm.js"
+    cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm" "${TARGET}/${PROJECTNAME}.wasm"
+    if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.debug.wasm" ]; then
+        cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.debug.wasm" "${TARGET}/${PROJECTNAME}.wasm.debug.wasm"
+    fi
+    if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.map" ]; then
+        cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.map" "${TARGET}/${PROJECTNAME}.wasm.map"
+    fi
+fi
+
+if [ -d "${DYNAMO_HOME}/bin/wasm_pthread-web" ]; then
+    cp -v "${DYNAMO_HOME}/bin/wasm_pthread-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_wasm.js"
+    cp -v "${DYNAMO_HOME}/bin/wasm_pthread-web/dmengine${SUFFIX}.wasm" "${TARGET}/${PROJECTNAME}.wasm"
+    if [ -e "${DYNAMO_HOME}/bin/wasm_pthread-web/dmengine${SUFFIX}.wasm.debug.wasm" ]; then
+        cp -v "${DYNAMO_HOME}/bin/wasm_pthread-web/dmengine${SUFFIX}.wasm.debug.wasm" "${TARGET}/${PROJECTNAME}.wasm.debug.wasm"
+    fi
+    if [ -e "${DYNAMO_HOME}/bin/wasm_pthread-web/dmengine${SUFFIX}.wasm.map" ]; then
+        cp -v "${DYNAMO_HOME}/bin/wasm_pthread-web/dmengine${SUFFIX}.wasm.map" "${TARGET}/${PROJECTNAME}.wasm.map"
+    fi
 fi
 
 # ----------------------------------------------------------------------------
