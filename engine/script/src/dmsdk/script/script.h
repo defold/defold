@@ -751,44 +751,47 @@ namespace dmScript
      */
     void PushTable(lua_State* L, const char* data, uint32_t data_size);
 
-    /**
+    /*#
      * Register a user type along with methods and meta methods.
      * It registers the type in the global context
      * @name RegisterUserType
      * @param L [type: lua_State*] Lua state
      * @param name [type: const char*] user type name
-     * @param methods [type: luaL_reg*] array of methods
-     * @param meta [type: luaL_reg*] array of meta methods
-     * @return type_key [type: uint32_t] the hash key registered for this user type
+     * @param methods [type: luaL_reg*] array of methods. Always end with a sentinel with a zeroed lua_reg struct.
+     * @param meta [type: luaL_reg*] array of meta methods. Always end with a sentinel with a zeroed lua_reg struct.
+     * @return type_hash [type: uint32_t] the type hash registered for this user type
      */
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
 
-    /**
-     * Gets the type key of a user datas meta table.
+    /*#
+     * Gets the type hash of a user datas meta table.
+     * @name GetUserType
      * @param L [type: lua_State*] Lua state
-     * @param user_data_index [type: int] the stack index of the user data
-     * @return type_key [type: uint32_t] the hash key for the user data meta table, 0 if type is not set
+     * @param index [type: int] the stack index of the user data
+     * @return type_hash [type: uint32_t] the type hash for the user data meta table, 0 if type is not set
      */
-    uint32_t GetUserType(lua_State* L, int user_data_index);
+    uint32_t GetUserType(lua_State* L, int index);
 
-    /**
+    /*#
      * Validates type of user data and returns pointer to it.
+     * @name ToUserType
      * @param L [type: lua_State*] Lua state
-     * @param user_data_index [type: int] the stack index of the user data
+     * @param index [type: int] the stack index of the user data
      * @param type_hash [type: uint32_t] the type of the user data we require
-     * @return pointer [type: void*] to the user data, 0 if the value at user_data_index is not the correct type
+     * @return pointer [type: void*] returnes the user data or 0 if the value at index is not the correct type
      */
-    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash);
+    void* ToUserType(lua_State* L, int index, uint32_t type_hash);
 
-    /**
+    /*#
      * Validates type of user data and returns pointer to it. Throws
+     * @name CheckUserType
      * @param L [type: lua_State*] Lua state
-     * @param user_data_index [type: int] the stack index of the user data
+     * @param index [type: int] the stack index of the user data
      * @param type_hash [type: uint32_t] the type of the user data we require
-     * @param error_message [type: const char*] luaL_error error message to output if data is not correct type, if 0 a lua typeerror is issued
-     * @return pointer [type: void*] to the user data, a lua error is issued if the value at user_data_index is not the correct type
+     * @param error_message [type: const char*] luaL_error error message to output if data is not correct type. If error_message is 0, a default lua typeerror is thrown.
+     * @return pointer [type: void*] returns the user data. A lua error is thrown if the value at index is not the correct type
      */
-    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
+    void* CheckUserType(lua_State* L, int index, uint32_t type_hash, const char* error_message);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H
