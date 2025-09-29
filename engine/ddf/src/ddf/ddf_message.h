@@ -47,6 +47,8 @@ namespace dmDDF
 
         uint32_t GetSize() { return m_End - m_Start; }
 
+        char* GetBuffer(uint32_t offset)     { return (char*)(m_Start + offset); }
+
     private:
         Result ReadScalarField(LoadContext* load_context,
                                  WireType wire_type,
@@ -67,8 +69,6 @@ namespace dmDDF
                                 WireType wire_type,
                                 const FieldDescriptor* field,
                                 InputBuffer* input_buffer);
-
-        char* GetBuffer(uint32_t offset)     { return (char*)(m_Start + offset); }
 
         const Descriptor*     m_MessageDescriptor;
         uintptr_t             m_Start;

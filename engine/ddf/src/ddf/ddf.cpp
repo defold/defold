@@ -334,6 +334,21 @@ namespace dmDDF
         return LoadMessage(buffer, buffer_size, desc, out_message, 0, 0);
     }
 
+    static void DumpHex(const void* data, size_t size, const char* label)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
+        fprintf(stderr, "%s (%zu bytes):\n", label, size);
+
+        for (size_t i = 0; i < size; i++)
+        {
+            if (i % 16 == 0)
+                fprintf(stderr, "%04zx: ", i);
+            fprintf(stderr, "%02X ", bytes[i]);
+            if ((i+1) % 16 == 0 || i == size-1)
+                fprintf(stderr, "\n");
+        }
+    }
+
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message, uint32_t options, uint32_t* size)
     {
         DM_PROFILE("DdfLoadMessage");
@@ -346,6 +361,8 @@ namespace dmDDF
 
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
+
+        DumpHex(buffer, buffer_size, "Serialized msg");
 
         LoadContext load_context(0, 0, true, options);
         InputBuffer input_buffer((const char*) buffer, buffer_size);
@@ -385,6 +402,11 @@ namespace dmDDF
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
+
+        char* buffer_start = message.GetBuffer(0);
+
+        DumpHex(buffer_start, dry_message.GetSize(), "DDF message buffer");
+
         if ( e == RESULT_OK )
         {
             if (size)
