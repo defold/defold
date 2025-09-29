@@ -964,7 +964,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
             "    local scale = gui.get_scale(n1)\n"
             "    elapsed = elapsed + dt\n"
             "    if 0.5 <= elapsed and animating then\n"
-            "        gui.cancel_animation(n1, gui.PROP_SCALE)\n"
+            "        gui.cancel_animations(n1, gui.PROP_SCALE)\n"
             "        animating = false\n"
             "    end\n"
             "end\n";
@@ -1032,7 +1032,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
             "    local scale = gui.get_scale(n1)\n"
             "    elapsed = elapsed + dt\n"
             "    if 0.5 <= elapsed and animating then\n"
-            "        gui.cancel_animation(n1, \"scale.y\")\n"
+            "        gui.cancel_animations(n1, \"scale.y\")\n"
             "        animating = false\n"
             "    end\n"
             "end\n";
@@ -1110,7 +1110,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationAll)
             "    self.frame = self.frame + 1\n"
             "    if self.frame == trigger_frame and animating then\n"
             "        print('cancel animations on frame', self.frame)\n"
-            "        gui.cancel_animation(n1)\n"
+            "        gui.cancel_animations(n1)\n"
             "        animating = false\n"
             "    end\n"
             "end\n", num_steps, num_steps_half);

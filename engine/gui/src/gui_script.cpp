@@ -1580,9 +1580,9 @@ namespace dmGui
         return 0;
     }
 
-    /*# cancels an ongoing animation(s)
+    /*# cancels a single animation or all animations
      *
-     * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
+     * If one or more animations of the specified node is currently running (started by <code>gui.animate</code>), they will immediately be canceled.
      *
      * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
@@ -1614,7 +1614,7 @@ namespace dmGui
      * gui.animate(node, "position", pos, go.EASING_LINEAR, 2)
      * ...
      * -- cancel animation of the x component.
-     * gui.cancel_animation(node, "position.x")
+     * gui.cancel_animations(node, "position.x")
      * ```
      * 
      * Cancels all property animations on a node in a single call:
@@ -1626,7 +1626,7 @@ namespace dmGui
      * gui.animate(node, "scale", vmath.vector3(0.5), go.EASING_LINEAR, 5)
      * ...
      * -- cancel positioning and scaling at once
-     * gui.cancel_animation(node)
+     * gui.cancel_animations(node)
      * ```
      */
     static int LuaCancelAnimations(lua_State* L)
