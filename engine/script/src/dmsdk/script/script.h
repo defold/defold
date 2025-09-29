@@ -757,9 +757,26 @@ namespace dmScript
      * @name RegisterUserType
      * @param L [type: lua_State*] Lua state
      * @param name [type: const char*] user type name
-     * @param methods [type: luaL_reg*] array of methods. Always end with a sentinel with a zeroed lua_reg struct.
-     * @param meta [type: luaL_reg*] array of meta methods. Always end with a sentinel with a zeroed lua_reg struct.
+     * @param methods [type: luaL_reg*] array of methods. Always end with a sentinel with a zeroed luaL_reg struct.
+     * @param meta [type: luaL_reg*] array of meta methods. Always end with a sentinel with a zeroed luaL_reg struct.
      * @return type_hash [type: uint32_t] the type hash registered for this user type
+     * @examples
+     *
+     * ```cpp
+     * static const luaL_reg MyType_methods[] =
+     * {
+     *     {"get_path",    MyType_GetPath},
+     *     {0,0}
+     * };
+     * static const luaL_reg MyType_meta[] =
+     * {
+     *     {"__tostring",  MyType_tostring},
+     *     {"__eq",        MyType_eq},
+     *     {"__gc",        MyType_gc},
+     *     {0,0}
+     * };
+     * uint32_t TYPE_HASH_MYTYPE = dmScript::RegisterUserType(L, "MyType", MyType_methods, MyType_meta);
+     * ```
      */
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
 
@@ -773,23 +790,39 @@ namespace dmScript
     uint32_t GetUserType(lua_State* L, int index);
 
     /*#
-     * Validates type of user data and returns pointer to it.
+     * Validates type of user data and returns pointer to it. Returns 0 if type is not the one requested.
      * @name ToUserType
      * @param L [type: lua_State*] Lua state
      * @param index [type: int] the stack index of the user data
-     * @param type_hash [type: uint32_t] the type of the user data we require
-     * @return pointer [type: void*] returnes the user data or 0 if the value at index is not the correct type
+     * @param type_hash [type: uint32_t] the type of the user data we require (returned by RegisterUserType)
+     * @return pointer [type: void*] returns the user data or 0 if the value at index is not the correct type
+     * @examples
+     *
+     * ```cpp
+     * MyType* instance = (MyType*)dmScript::ToUserType(L, index, TYPE_HASH_MYTYPE);
+     * if (!instance)
+     * {
+     * }
+     * else
+     * {
+     * }
+     * ```
      */
     void* ToUserType(lua_State* L, int index, uint32_t type_hash);
 
     /*#
-     * Validates type of user data and returns pointer to it. Throws
+     * Checks type of user data and returns pointer to it. Throws if the type is not the one requested.
      * @name CheckUserType
      * @param L [type: lua_State*] Lua state
      * @param index [type: int] the stack index of the user data
-     * @param type_hash [type: uint32_t] the type of the user data we require
+     * @param type_hash [type: uint32_t] the type of the user data we require (returned by RegisterUserType)
      * @param error_message [type: const char*] luaL_error error message to output if data is not correct type. If error_message is 0, a default lua typeerror is thrown.
      * @return pointer [type: void*] returns the user data. A lua error is thrown if the value at index is not the correct type
+     * @examples
+     *
+     * ```cpp
+     * MyType* instance = (MyType*)dmScript::CheckUserType(L, index, TYPE_HASH_MYTYPE, "Expected MyType!");
+     * ```
      */
     void* CheckUserType(lua_State* L, int index, uint32_t type_hash, const char* error_message);
 }

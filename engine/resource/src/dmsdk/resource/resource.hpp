@@ -192,7 +192,7 @@ namespace dmResource
     * Increase resource reference count by 1.
     * @name IncRef
     * @param factory [type: HFactory] Factory handle
-    * @param resource [type: void*] The resource handle
+    * @param resource [type: void*] The resource
     */
    void IncRef(HFactory factory, void* resource);
 

@@ -202,7 +202,7 @@ ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void**
  * Increase resource reference count by 1.
  * @name ResourceIncRef
  * @param factory [type: HResourceFactory] Factory handle
- * @param resource [type: void*] The resource handle
+ * @param resource [type: void*] The resource
  */
 void ResourceIncRef(HResourceFactory factory, void* resource);
 
