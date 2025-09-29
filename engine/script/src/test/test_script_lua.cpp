@@ -214,6 +214,8 @@ TEST_F(ScriptTestLua, TestCoroutineCallback)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static const uint32_t TEST_TYPE_HASH = dmHashString32("TestType");
+
 struct TestDummy {
     uint32_t        m_Dummy;
     dmMessage::URL  m_URL;
@@ -273,8 +275,25 @@ static int TestToString(lua_State* L)
     return 1;
 }
 
+static int TestDummyMultiply(lua_State* L)
+{
+    uint32_t type_hash = dmScript::GetUserType(L, 1);
+    assert(TEST_TYPE_HASH == type_hash);
+
+    TestDummy* inst = (TestDummy*)dmScript::ToUserType(L, 1, TEST_TYPE_HASH);
+    assert(inst != 0);
+
+    inst = (TestDummy*)dmScript::CheckUserType(L, 1, TEST_TYPE_HASH, 0);
+    assert(inst != 0);
+
+    float n = luaL_checknumber(L, 2);
+    lua_pushnumber(L, inst->m_Dummy * n);
+    return 1;
+}
+
 static const luaL_reg Test_methods[] =
 {
+    {"mul", TestDummyMultiply},
     {0,0}
 };
 
@@ -303,6 +322,7 @@ static const luaL_reg Test_meta[] =
 TEST_F(ScriptTestLua, TestUserType) {
     const char* type_name = "TestType";
     uint32_t type_hash = dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
+    ASSERT_EQ(TEST_TYPE_HASH, type_hash);
 
     // Create an instance
     TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
@@ -1309,6 +1329,29 @@ TEST_F(ScriptTestLua, TestCallbackCollisionByInstanceReuse)
     // this assert should pass
     ASSERT_TRUE(RunString(L, "assert(_G.cb2_call_count == 1)"));
 }
+
+TEST_F(ScriptTestLua, TestMethods)
+{
+    int instanceref1 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
+    TestDummy* dummy = (TestDummy*)dmScript::ToUserType(L, -1, TEST_TYPE_HASH);
+    dummy->m_Dummy = 3;
+
+    lua_setglobal(L, "obj");
+
+    ASSERT_TRUE(RunString(L,
+        "local result = obj:mul(7)\n"
+        "print('result:', result)\n"
+        "assert(result == 21)\n"
+        ""));
+
+    //deref
+    lua_pushnil(L);
+    lua_setglobal(L, "obj");
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+}
+
 
 #undef USE_PANIC_FN
 
