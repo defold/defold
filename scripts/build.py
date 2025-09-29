@@ -1605,9 +1605,10 @@ class Configuration(object):
         host = self.host
 
         cmake_tests = []
-        #cmake_tests = ['hid', 'input']
+        #cmake_tests = ['platform', 'hid', 'input']
         #cmake_tests = ['input']
         #cmake_tests = ['hid']
+        #cmake_tests = ['platform']
         for lib in cmake_tests:
             self._build_engine_lib(args, lib, target_platform)
         if cmake_tests:
