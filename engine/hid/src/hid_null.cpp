@@ -75,7 +75,7 @@ namespace dmHID
     }
 
     // platform implementations
-    bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint16_t* out)
+    bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
     {
         return false;
     }

@@ -278,9 +278,9 @@ namespace dmInput
             ddf->m_TextTrigger.m_Count + 2;
 
         uint32_t current_capacity = binding->m_Actions.Capacity();
-        uint32_t new_capacity = total_actions > current_capacity ? total_actions : current_capacity;
-        uint32_t bucket_count = dmMath::Max(4u, new_capacity / 4);
-        binding->m_Actions.SetCapacity(bucket_count, new_capacity);
+        if (total_actions > current_capacity) {
+            binding->m_Actions.OffsetCapacity(total_actions - current_capacity);
+        }
         binding->m_Actions.Clear();
 
         Action action;
@@ -824,8 +824,9 @@ namespace dmInput
                                         GetGamepadConfig(binding, gamepad, device_name_out);
 
                                         action->m_Count = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
-                                        action->m_UserID = 0;
-                                        dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
+                                        uint32_t user_id32 = 0;
+                                        dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &user_id32);
+                                        action->m_UserID = (uint16_t)user_id32;
                                     }
                                 }
                             }
