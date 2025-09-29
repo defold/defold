@@ -1086,25 +1086,36 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationAll)
     dmGui::SetSceneScript(scene, script);
 
     // Animate position and scale
-    const char* src =
+
+    // Update for .5 seconds
+    const int num_steps = 8;
+    const int num_steps_half = num_steps/2;
+    const float step_dt = 1.0f / num_steps;
+
+    char script_buffer[1024];
+    dmSnPrintf(script_buffer, sizeof(script_buffer),
             "local n1\n"
             "local elapsed = 0\n"
             "local animating = true\n"
+            "local max_frame_count = %d\n"
+            "local trigger_frame = %d\n"
             "function init(self)\n"
             "    n1 = gui.new_box_node(vmath.vector3(0), vmath.vector3(1))\n"
             "    gui.set_pivot(n1, gui.PIVOT_SW)\n"
             "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(100, 100, 0), gui.EASING_LINEAR, 1)\n"
             "    gui.animate(n1, gui.PROP_SCALE, vmath.vector3(2), gui.EASING_LINEAR, 1)\n"
+            "    self.frame = 0\n"
             "end\n"
             "function update(self, dt)\n"
-            "    elapsed = elapsed + dt\n"
-            "    if 0.5 <= elapsed and animating then\n"
+            "    self.frame = self.frame + 1\n"
+            "    if self.frame == trigger_frame and animating then\n"
+            "        print('cancel animations on frame', self.frame)\n"
             "        gui.cancel_animation(n1)\n"
             "        animating = false\n"
             "    end\n"
-            "end\n";
+            "end\n", num_steps, num_steps_half);
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(script_buffer));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -1112,24 +1123,28 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationAll)
 
     int ticks = 0;
     dmVMath::Matrix4 t1;
-    while (ticks < 4) {
-        dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
-        dmGui::UpdateScene(scene, 0.125f);
+    while (ticks < num_steps_half) {
+        dmGui::RenderScene(scene, m_RenderParams, &t1);
+        dmGui::UpdateScene(scene, step_dt);
         ++ticks;
     }
+
+    // after half the steps, we should have cancelled the animations
+    // so store the current positions, to compare with later...
     dmVMath::Vector3 translation = t1.getTranslation();
     dmVMath::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
 
-    const float tinyDifference = 10e-10f;
-    while (ticks < 8) {
-        dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
-        dmGui::UpdateScene(scene, 0.125f);
+    const float epsilon = 10e-10f;
+    while (ticks < num_steps) {
+        dmGui::RenderScene(scene, m_RenderParams, &t1);
+        dmGui::UpdateScene(scene, step_dt);
 
         dmVMath::Vector3 currentTranslation = t1.getTranslation();
         dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
 
-        ASSERT_LE(Vectormath::Aos::lengthSqr(currentTranslation - translation), tinyDifference);
-        ASSERT_LE(Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal), tinyDifference);
+        // Make sure that the values don't change after the animations were cancelled
+        ASSERT_LE(Vectormath::Aos::lengthSqr(currentTranslation - translation), epsilon);
+        ASSERT_LE(Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal), epsilon);
 
         ++ticks;
     }
