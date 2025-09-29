@@ -1,4 +1,21 @@
+if(DEFINED DEFOLD_SDK_DETECTED)
+    # Avoid re-running detection when sdk.cmake is included multiple times
+    return()
+endif()
+
 defold_log("sdk.cmake:")
+
+# Bootstrap DEFOLD_HOME/DEFOLD_SDK_ROOT when running before defold.cmake
+if(NOT DEFINED DEFOLD_HOME)
+    get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+endif()
+if(NOT DEFINED DEFOLD_SDK_ROOT)
+    if(DEFINED ENV{DYNAMO_HOME} AND EXISTS "$ENV{DYNAMO_HOME}")
+        set(DEFOLD_SDK_ROOT "$ENV{DYNAMO_HOME}" CACHE PATH "Path to Defold SDK (tmp/dynamo_home)" FORCE)
+    elseif(EXISTS "${DEFOLD_HOME}/tmp/dynamo_home")
+        set(DEFOLD_SDK_ROOT "${DEFOLD_HOME}/tmp/dynamo_home" CACHE PATH "Path to Defold SDK (tmp/dynamo_home)" FORCE)
+    endif()
+endif()
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
@@ -21,3 +38,5 @@ else()
     set(CMAKE_C_COMPILER "clang")
     set(CMAKE_CXX_COMPILER "clang++")
 endif()
+
+set(DEFOLD_SDK_DETECTED ON CACHE INTERNAL "Defold SDK/toolchain detection has run")

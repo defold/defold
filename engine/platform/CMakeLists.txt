@@ -1,6 +1,15 @@
 # Minimum CMake version and project
 cmake_minimum_required(VERSION 4.0)
 
+# Early toolchain/SDK detection (for standalone configure)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+include(functions)
+include(platform_host)
+if(NOT TARGET_PLATFORM)
+  set(TARGET_PLATFORM "${HOST_PLATFORM}")
+endif()
+include(sdk)
+
 project(defold_platform LANGUAGES C CXX)
 
 include(../../scripts/cmake/defold.cmake)
@@ -9,7 +18,7 @@ include(../../scripts/cmake/defold.cmake)
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 
 # Common GLFW3 sources
-set(_platform_glfw_sources "")
+set(_platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
 
 defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
 if (_GLFW_VERSION EQUAL 3)
