@@ -210,4 +210,4 @@ def configure(conf):
                 f'{aot_base}/licucore.a']
 
         if build_util.get_target_os() in ('macos'):
-            conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
+            conf.env['FRAMEWORK_CSHARP'] = ["OpenAL","OpenGL","QuartzCore"]

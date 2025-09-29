@@ -2035,7 +2035,7 @@ def detect(conf):
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     if TargetOS.MACOS == target_os:
-        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
+        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif TargetOS.WINDOWS == target_os:
