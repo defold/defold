@@ -51,7 +51,7 @@ def configure(conf):
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
     if target_os == TargetOS.MACOS:
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
     elif platform == "x86_64-ios":
         pass
     elif platform == "x86_64-linux":
