@@ -23,16 +23,6 @@ if(_sdk_pos EQUAL -1)
   message(FATAL_ERROR "tools_protoc: Using system protoc at '${_DEFOLD_PROTOC_REAL}'. Please use the SDK's protoc under '${DEFOLD_SDK_ROOT}/ext/bin/<host-platform>/protoc'.")
 endif()
 
-# Check the DDF C++ plugin exists (use .bat on Windows)
-if(WIN32)
-  set(_DEFOLD_DDFC_CXX "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx.bat")
-else()
-  set(_DEFOLD_DDFC_CXX "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx")
-endif()
-if(NOT EXISTS "${_DEFOLD_DDFC_CXX}")
-  message(FATAL_ERROR "tools_protoc: Defold DDF plugin not found at ${_DEFOLD_DDFC_CXX}")
-endif()
-
 # Optional: Print protoc version
 execute_process(
   COMMAND "${_DEFOLD_PROTOC_EXECUTABLE}" --version
