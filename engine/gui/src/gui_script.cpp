@@ -1493,13 +1493,7 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
-        }
-
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             char buffer[128];
             luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
@@ -1590,9 +1584,9 @@ namespace dmGui
      *
      * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
      *
-     * @name gui.cancel_animation
+     * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
-     * @param [property] [type:string|constant] optional property for which the animation should be canceled
+     * @param [property] [type:nil|string|constant] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -1635,7 +1629,7 @@ namespace dmGui
      * gui.cancel_animation(node)
      * ```
      */
-    static int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimations(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -1649,11 +1643,7 @@ namespace dmGui
         dmhash_t property_hash = 0;
         if (top >= 2 && !lua_isnil(L, 2))
         {
-            if (dmScript::IsHash(L, 2)) {
-                property_hash = dmScript::CheckHash(L, 2);
-            } else {
-                property_hash = dmHashString64(luaL_checkstring(L, 2));
-            }
+            property_hash = dmScript::CheckHashOrString(L, 2);
         }
 
         if (property_hash != 0 && !dmGui::HasPropertyHash(scene, hnode, property_hash)) {
@@ -5013,7 +5003,8 @@ namespace dmGui
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
-        {"cancel_animation",LuaCancelAnimation},
+        {"cancel_animation",    LuaCancelAnimations}, // deprecated Lua function name
+        {"cancel_animations",   LuaCancelAnimations},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},
