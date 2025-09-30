@@ -1911,13 +1911,13 @@ namespace dmGameSystem
             SpriteComponent* component = &components[i];
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
+            Animate(component, params.m_UpdateContext->m_DT);
             UpdateTransform(component, sub_pixels);
             // we need to consider the full scale here
             // I.e. we want the length of the diagonal C, where C = X + Y
             float radius_sq = dmVMath::LengthSqr((component->m_World.getCol(0).getXYZ() + component->m_World.getCol(1).getXYZ()) * 0.5f);
             world->m_BoundingVolumes[i] = radius_sq;
 
-            Animate(component, params.m_UpdateContext->m_DT);
             HComponentRenderConstants constants = GetRenderConstants(component);
             if (component->m_ReHash || (constants && dmGameSystem::AreRenderConstantsUpdated(constants)))
             {
