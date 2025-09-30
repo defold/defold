@@ -32,6 +32,7 @@ if (NOT TARGET_PLATFORM MATCHES "x86_64-ps4|x86_64-ps5|arm64-nx64")
 endif()
 
 add_library(hid STATIC ${hid_SOURCES})
+target_compile_definitions(hid PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
 
 target_include_directories(hid PUBLIC "${HID_SRC_DIR}") # for dmsdk/hid and local headers
 
@@ -40,6 +41,7 @@ add_library(hid_null STATIC
     "${HID_SRC_DIR}/hid_null.cpp"
 )
 target_include_directories(hid_null PUBLIC "${HID_SRC_DIR}")
+target_compile_definitions(hid_null PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
 
 
 # ===================== Tests =====================

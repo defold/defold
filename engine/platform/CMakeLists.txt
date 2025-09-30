@@ -41,15 +41,16 @@ endif()
 # platform
 add_library(platform STATIC ${_platform_glfw_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}")
+target_compile_definitions(platform PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
 if (_GLFW_VERSION EQUAL 3)
     target_compile_definitions(platform PUBLIC DM_INPUT_USE_GLFW3)
 endif()
 
 # platform_null
-add_library(platform_null STATIC
-    "${PLAT_SRC_DIR}/platform_window_null.cpp")
+add_library(platform_null STATIC "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}")
+target_compile_definitions(platform_null PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
 # platform_vulkan (adds Vulkan-capable window integration on top of GLFW3)
 if (_GLFW_VERSION EQUAL 3)
@@ -57,6 +58,7 @@ if (_GLFW_VERSION EQUAL 3)
     list(REMOVE_DUPLICATES _platform_vulkan_sources)
     add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
     target_include_directories(platform_vulkan PUBLIC "${PLAT_SRC_DIR}")
+    target_compile_definitions(platform_vulkan PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 endif()
 
 # ===================== Tests =====================

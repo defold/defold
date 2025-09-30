@@ -35,6 +35,7 @@ add_library(input STATIC
     "${INPUT_SRC_DIR}/input.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
 )
+target_compile_definitions(input PUBLIC "DLIB_LOG_DOMAIN=\"INPUT\"")
 
 target_include_directories(input PUBLIC ${INPUT_SRC_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 # just to make sure the extra dependency is actually built
