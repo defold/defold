@@ -21,6 +21,7 @@
             [editor.editor-extensions :as extensions]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
@@ -85,7 +86,7 @@
                 (complete! false))]
     (future
       (try
-        (render-progress! (progress/make-indeterminate "Loading external changes..."))
+        (render-progress! (progress/make-indeterminate (localization/message "progress.loading-external-changes")))
         (let [snapshot-info (workspace/make-snapshot-info workspace project-directory dependencies snapshot-cache)]
           (render-progress! progress/done)
           (ui/run-later
@@ -175,7 +176,7 @@
 
 (defn- write-message-fn [save-data]
   (when-let [resource (:resource save-data)]
-    (str "Writing " (resource/resource->proj-path resource))))
+    (localization/message "progress.writing" {"resource" (resource/resource->proj-path resource)})))
 
 (defn write-save-data-to-disk!
   [save-datas snapshot-invalidate-counters {:keys [render-progress!]
@@ -184,7 +185,7 @@
   "Write the supplied sequence of save-datas to disk. Returns post-save-actions
   that must later be supplied to the process-post-save-actions! function, called
   from the main thread."
-  (render-progress! (progress/make "Writing files..."))
+  (render-progress! (progress/make (localization/message "progress.writing-files")))
   (if (g/error? save-datas)
     (throw (Exception. (g/error-message save-datas)))
     (let [written-save-datas
@@ -249,14 +250,14 @@
               post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})
               written-resources (into #{} (map :resource) save-data)
               reload-required (some #(= "/.defignore" (resource/proj-path %)) written-resources)]
-          (render-save-progress! (progress/make-indeterminate "Caching save results..."))
+          (render-save-progress! (progress/make-indeterminate (localization/message "progress.caching-save-results")))
           (ui/run-later
             (try
               (project/update-system-cache-save-data! evaluation-context)
               (process-post-save-actions! workspace post-save-actions)
               (future
                 (try
-                  (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                  (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
                   (project/reload-plugins! project written-resources)
                   (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
                   (cond
@@ -314,7 +315,7 @@
                                              "build/default")
                        :platform (get bob-options "platform")
                        :variant (get bob-options "variant" "release")}]
-        (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
+        (render-reload-progress! (progress/make-indeterminate (localization/message "progress.executing-bundle-hook")))
         (if-let [extension-error (when invoke-bundle-hooks
                                    @(extensions/execute-hook! project
                                                               :on_bundle_started
@@ -351,7 +352,7 @@
                     (finally
                       (disk-availability/pop-busy!)))
                   (try
-                    (render-build-progress! (progress/make-cancellable-indeterminate "Building..."))
+                    (render-build-progress! (progress/make-cancellable-indeterminate (localization/message "progress.building")))
                     ;; evaluation-context below is used to map
                     ;; project paths to resource node id:s. To be
                     ;; strictly correct, we should probably re-use

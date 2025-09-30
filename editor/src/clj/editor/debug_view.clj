@@ -25,6 +25,7 @@
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
@@ -475,16 +476,16 @@
 
 (def ^:private mobdebug-port 8172)
 
-(defn- show-connect-failed-info! [target-address port ^Exception exception workspace]
+(defn- show-connect-failed-info! [^Exception exception workspace]
   (ui/run-later
-    (let [msg (str (.getMessage exception) "\n\n"
-                   "Check that the game is running and is reachable over the network.")]
-      (log/error :msg msg :exception exception)
+    (let [error-text (or (.getMessage exception) (.getSimpleName (class exception)))
+          log-text (str error-text "\n\nCheck that the game is running and is reachable over the network.")]
+      (log/error :msg log-text :exception exception)
       (notifications/show!
         (workspace/notifications workspace)
         {:type :error
          :id ::debugger-connection-error
-         :text msg}))))
+         :message (localization/message "notification.debug-view.connect-failed.error" {"error" error-text})}))))
 
 (defn start-debugger!
   [debug-view project target-address instance-index]
@@ -507,7 +508,7 @@
                              :suspension-state nil)
                            (state-changed! debug-view false)))
                        (fn [exception]
-                         (show-connect-failed-info! target-address debugger-port exception (project/workspace project))))))
+                         (show-connect-failed-info! exception (project/workspace project))))))
 
 (defn current-session
   ([debug-view]
@@ -562,7 +563,7 @@
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (show-connect-failed-info! target-address target-port exception (project/workspace project))
+                                 (show-connect-failed-info! exception (project/workspace project))
                                  false))]
       (when attach-successful?
         (start-debugger! debug-view project target-address (:instance-index target 0))))))

@@ -275,7 +275,7 @@
                                     [{:fx/type fxui/ext-localize
                                       :v-box/margin 4
                                       :localization localization
-                                      :pattern (localization/message "console.filter.enable-filtering")
+                                      :message (localization/message "console.filter.enable-filtering")
                                       :desc {:fx/type fx.check-box/lifecycle
                                              :focus-traversable false
                                              :max-width ##Inf
@@ -295,7 +295,7 @@
                                       :v-box/margin 4
                                       :desc {:fx/type fxui/ext-localize
                                              :localization localization
-                                             :pattern (localization/message "console.filter.add-filter")
+                                             :message (localization/message "console.filter.add-filter")
                                              :object-fn TextField/.promptTextProperty
                                              :desc {:fx/type fx.text-field/lifecycle
                                                     :text text

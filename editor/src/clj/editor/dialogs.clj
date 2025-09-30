@@ -423,7 +423,7 @@
                    {})]
       (ui/open-url (github/new-issue-link fields)))))
 
-(defn- load-project-dialog [{:keys [progress] :as props}]
+(defn- load-project-dialog [{:keys [progress localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request (fn [_] (Platform/exit))
@@ -437,12 +437,12 @@
                                     :image "logo.png"}]}
                        {:fx/type fxui/legacy-label
                         :variant :header
-                        :text "Loading project"}]}
+                        :text (localization (localization/message "dialog.loading-project.header"))}]}
    :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
              :children [{:fx/type fxui/legacy-label
                          :wrap-text false
-                         :text (:message progress)}
+                         :text (localization (progress/message progress))}
                         {:fx/type fx.progress-bar/lifecycle
                          :max-width Double/MAX_VALUE
                          :progress (or (progress/fraction progress)
@@ -450,14 +450,14 @@
    :footer {:fx/type dialog-buttons
             :children [{:fx/type fxui/button
                         :disable true
-                        :text "Cancel"}]}})
+                        :text (localization (localization/message "dialog.button.cancel"))}]}})
 
-(defn make-load-project-dialog [worker-fn]
+(defn make-load-project-dialog [localization worker-fn]
   (ui/run-now
-    (let [state-atom (atom {:progress (progress/make "Loading" 1 0)})
+    (let [state-atom (atom {:progress (progress/make (localization/message "progress.loading") 1 0)})
           renderer (fx/create-renderer
                      :error-handler error-reporting/report-exception!
-                     :middleware (fx/wrap-map-desc assoc :fx/type load-project-dialog))
+                     :middleware (fx/wrap-map-desc assoc :fx/type load-project-dialog :localization localization))
           render-progress! #(swap! state-atom assoc :progress %)
           _ (future
               (try

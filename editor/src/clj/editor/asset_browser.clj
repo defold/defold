@@ -361,7 +361,10 @@
                (workspace/notifications workspace)
                {:type :error
                 :id ::asset-circular-paste
-                :text (str "Cannot paste folder '" dest-proj-path "' into its subfolder '" res-proj-path "'")}))
+                :message (localization/message
+                           "notification.asset-browser.circular-paste.error"
+                           {"source" dest-proj-path
+                            "target" res-proj-path})}))
            (paste! workspace resource src-files (partial select-files! workspace tree-view) localization)))))
 
 (defn- moved-files
