@@ -2046,7 +2046,7 @@
       (localization/message "progress.aborting")
       (if-some [percentage (progress/percentage progress)]
         (localization/message "progress.percentage" {"percentage" percentage})
-        (localization/message "progress.empty")))))
+        localization/empty-message))))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings

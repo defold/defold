@@ -506,6 +506,14 @@
     [^String locale]
     (.localeDisplayName display-names locale)))
 
+(def empty-message
+  "Message pattern that always returns an empty string"
+  ;; We typically use records for patterns to define equality (for cljfx), but
+  ;; in this case it's okay to use a reified interface since it's a single value
+  ;; that we reuse as-is
+  (reify MessagePattern
+    (format [_ _] "")))
+
 ;; TODO:
 ;;  - editor scripts localization
 ;;  - menus

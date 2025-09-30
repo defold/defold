@@ -871,7 +871,7 @@ ordinary paths."
            (let [listeners @(g/node-value workspace :resource-listeners)
                  total-progress-size (transduce (map first) + 0 listeners)]
              (loop [listeners listeners
-                    parent-progress (progress/make (localization/message "progress.empty") total-progress-size)]
+                    parent-progress (progress/make localization/empty-message total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
                  (resource/handle-changes listener changes-with-moved
                                           (progress/nest-render-progress render-progress! parent-progress progress-span))

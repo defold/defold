@@ -60,21 +60,20 @@
        (->progress render-progress! task-cancelled? msg-stack-atom))
      (beginTask [_this task _steps]
        (error-reporting/catch-all!
-         (let [message (localization/message
-                         (condp identical? task
-                           IProgress$Task/BUNDLING "progress.bundling"
-                           IProgress$Task/BUILDING_ENGINE "progress.building-engine"
-                           IProgress$Task/CLEANING_ENGINE "progress.cleaning-engine"
-                           IProgress$Task/DOWNLOADING_SYMBOLS "progress.downloading-symbols"
-                           IProgress$Task/TRANSPILING_TO_LUA "progress.transpiling-to-lua"
-                           IProgress$Task/READING_TASKS "progress.reading-tasks"
-                           IProgress$Task/BUILDING "progress.building"
-                           IProgress$Task/CLEANING "progress.cleaning"
-                           IProgress$Task/GENERATING_REPORT "progress.generating-report"
-                           IProgress$Task/WORKING "progress.working"
-                           IProgress$Task/READING_CLASSES "progress.reading-classes"
-                           IProgress$Task/DOWNLOADING_ARCHIVES "progress.downloading-archives"
-                           "progress.empty"))]
+         (let [message (condp identical? task
+                         IProgress$Task/BUNDLING (localization/message "progress.bundling")
+                         IProgress$Task/BUILDING_ENGINE (localization/message "progress.building-engine")
+                         IProgress$Task/CLEANING_ENGINE (localization/message "progress.cleaning-engine")
+                         IProgress$Task/DOWNLOADING_SYMBOLS (localization/message "progress.downloading-symbols")
+                         IProgress$Task/TRANSPILING_TO_LUA (localization/message "progress.transpiling-to-lua")
+                         IProgress$Task/READING_TASKS (localization/message "progress.reading-tasks")
+                         IProgress$Task/BUILDING (localization/message "progress.building")
+                         IProgress$Task/CLEANING (localization/message "progress.cleaning")
+                         IProgress$Task/GENERATING_REPORT (localization/message "progress.generating-report")
+                         IProgress$Task/WORKING (localization/message "progress.working")
+                         IProgress$Task/READING_CLASSES (localization/message "progress.reading-classes")
+                         IProgress$Task/DOWNLOADING_ARCHIVES (localization/message "progress.downloading-archives")
+                         localization/empty-message)]
            (swap! msg-stack-atom conj message)
            (render-progress! (progress/make-cancellable-indeterminate message)))))
      (worked [_this _amount]

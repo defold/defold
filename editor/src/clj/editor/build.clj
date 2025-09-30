@@ -198,7 +198,7 @@
         node-id->resource-path (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
         progress-message-fn (partial compiling-progress-message node-id->resource-path)
         step-count (count @steps)
-        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.empty") 10 0 true) 5))
+        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 0 true) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
         _ (doseq [node-id (rseq @steps)]
             (try
@@ -219,4 +219,4 @@
     (if (g/error? build-targets)
       {:error build-targets}
       (let [build-dir (workspace/build-path (project/workspace project evaluation-context))]
-        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.empty") 10 5 true) 5))))))
+        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 5 true) 5))))))

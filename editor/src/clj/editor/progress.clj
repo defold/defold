@@ -192,15 +192,15 @@
 
 (defn progress-mapv
   ([f coll render-progress!]
-   (progress-mapv f coll render-progress! (constantly (localization/message "progress.empty"))))
+   (progress-mapv f coll render-progress! (constantly localization/empty-message)))
   ([f coll render-progress! message-fn]
    (persistent!
      (first
        (reduce (fn [[result progress] item]
-                 (let [progress (with-message progress (or (message-fn item) (localization/message "progress.empty")))]
+                 (let [progress (with-message progress (or (message-fn item) localization/empty-message))]
                    (render-progress! progress)
                    (pair (conj! result (f item progress))
                          (advance progress))))
                (pair (transient [])
-                     (->progress (localization/message "progress.empty") (count coll) 0 :not-cancellable))
+                     (->progress localization/empty-message (count coll) 0 :not-cancellable))
                coll)))))

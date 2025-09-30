@@ -77,7 +77,7 @@
                                :children [{:fx/type fxui/ext-localize
                                            :h-box/hgrow :always
                                            :localization localization
-                                           :pattern message
+                                           :message message
                                            :desc {:fx/type fxui/legacy-label
                                                   :max-width Double/MAX_VALUE}}
                                           {:fx/type fx.region/lifecycle
@@ -97,7 +97,7 @@
                                                 (fn [{:keys [message on-action]}]
                                                   {:fx/type fxui/ext-localize
                                                    :localization localization
-                                                   :pattern message
+                                                   :message message
                                                    :desc
                                                    {:fx/type fx.button/lifecycle
                                                     :style-class ["button" "notification-card-button"]

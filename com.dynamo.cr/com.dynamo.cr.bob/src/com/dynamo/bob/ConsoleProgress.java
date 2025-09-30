@@ -83,7 +83,7 @@ public class ConsoleProgress implements IProgress {
             case BUNDLING -> "Bundling...";
             case BUILDING_ENGINE -> "Building engine...";
             case CLEANING_ENGINE -> "Cleaning engine";
-            case DOWNLOADING_SYMBOLS -> "Downloading symbols...";
+            case DOWNLOADING_SYMBOLS -> String.format("Downloading %s symbols...", work);
             case TRANSPILING_TO_LUA -> "Transpiling to Lua...";
             case READING_TASKS -> "Reading tasks...";
             case BUILDING -> "Building...";

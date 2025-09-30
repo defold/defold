@@ -963,7 +963,7 @@
          read-progress-span 1
          load-progress-span 3
          total-progress-span (+ read-progress-span load-progress-span)
-         total-progress (progress/make (localization/message "progress.empty") total-progress-span 0)
+         total-progress (progress/make localization/empty-message total-progress-span 0)
 
          node-load-infos
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
@@ -1099,7 +1099,7 @@
             (render-progress! (swap! progress
                                      #(progress/with-message % (or progress-message
                                                                    (progress/message %)
-                                                                   (localization/message "progress.empty"))))))
+                                                                   localization/empty-message)))))
 
           :end
           (let [already-done (loop []
@@ -1283,7 +1283,7 @@
     (let [read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
-          total-progress (progress/make (localization/message "progress.empty") total-progress-span 0)
+          total-progress (progress/make localization/empty-message total-progress-span 0)
           deleted-node-id? (set (:delete plan))
 
           old-node-id->old-node-state

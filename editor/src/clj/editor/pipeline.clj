@@ -219,7 +219,7 @@
   [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
   (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
-        progress (atom (progress/make (localization/message "progress.empty") (count build-targets-by-content-hash)))]
+        progress (atom (progress/make localization/empty-message (count build-targets-by-content-hash)))]
     (prune-build-dir! build-dir build-targets-by-content-hash)
     (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-content-hash))
           build-target-batches (into (partition-all cheap-batch-size cheap-build-targets)

@@ -200,12 +200,12 @@
         cancelled-atom (atom false)
         track-progress! (fn [progress]
                           (swap! state-atom assoc-in [:current-download :progress] progress))
-        track-download-progress! (progress/nest-render-progress track-progress! (progress/make (localization/message "progress.empty") 2 0))
-        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make (localization/message "progress.empty") 2 1))]
+        track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
+        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
     (when (some? current-download)
       (reset! (:cancelled-derefable current-download) true))
     (swap! state-atom assoc :current-download {:sha1 server-sha1
-                                               :progress (progress/make (localization/message "progress.empty") 2 0)
+                                               :progress (progress/make localization/empty-message 2 0)
                                                :cancelled-derefable cancelled-atom})
     (future
       (try
