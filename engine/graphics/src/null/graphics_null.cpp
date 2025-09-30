@@ -1338,7 +1338,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(void* _context, void* _h_texture)
+    static int DoDeleteTexture(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
         HTexture texture = (HTexture) _h_texture;
@@ -1358,7 +1358,7 @@ namespace dmGraphics
         return 0;
     }
 
-    static void DoDeleteTextureComplete(void* _context, void* _h_texture, int result)
+    static void DoDeleteTextureComplete(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
         HTexture texture = (HTexture) _h_texture;
@@ -1368,7 +1368,14 @@ namespace dmGraphics
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, context, (void*) texture);
+        dmJobThread::Job job = {0};
+        job.m_Process = DoDeleteTexture;
+        job.m_Callback = DoDeleteTextureComplete;
+        job.m_Context = context;
+        job.m_Data = (void*)(uintptr_t)texture;
+
+        dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
+        dmJobThread::PushJob(context->m_JobThread, hjob);
     }
 
     static void PostDeleteTextures(NullContext* context, bool force_delete)
@@ -1379,8 +1386,8 @@ namespace dmGraphics
             for (uint32_t i = 0; i < size; ++i)
             {
                 void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-                DoDeleteTexture(context, texture);
-                DoDeleteTextureComplete(context, texture, 0);
+                DoDeleteTexture(0, 0, context, texture);
+                DoDeleteTextureComplete(0, 0, context, texture, 0);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1419,8 +1426,8 @@ namespace dmGraphics
         else
         {
             void* htexture = (void*) texture;
-            DoDeleteTexture(g_NullContext, htexture);
-            DoDeleteTextureComplete(g_NullContext, htexture, 0);
+            DoDeleteTexture(0, 0,g_NullContext, htexture);
+            DoDeleteTextureComplete(0, 0,g_NullContext, htexture, 0);
         }
     }
 
@@ -1695,7 +1702,7 @@ namespace dmGraphics
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* data)
     {
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -1713,7 +1720,7 @@ namespace dmGraphics
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* data, int result)
     {
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -1738,12 +1745,14 @@ namespace dmGraphics
             }
             uint16_t param_array_index = PushSetTextureAsyncState(g_NullContext->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::PushJob(g_NullContext->m_JobThread,
-                AsyncProcessCallback,
-                AsyncCompleteCallback,
-                (void*) g_NullContext,
-                (void*) (uintptr_t) param_array_index);
+            dmJobThread::Job job = {0};
+            job.m_Process = AsyncProcessCallback;
+            job.m_Callback = AsyncCompleteCallback;
+            job.m_Context = (void*) g_NullContext;
+            job.m_Data = (void*) (uintptr_t) param_array_index;
 
+            dmJobThread::HJob hjob = dmJobThread::CreateJob(g_NullContext->m_JobThread, &job);
+            dmJobThread::PushJob(g_NullContext->m_JobThread, hjob);
         }
         else
         {

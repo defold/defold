@@ -18,6 +18,8 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/extension/extension.h>
 
+#include <dlib/job_thread.h>
+
 namespace dmGameSystem
 {
     struct FontResource;
@@ -30,7 +32,7 @@ namespace dmGameSystem
     float FontGenGetEdgeValue(); // [0 .. 255]
 
     // Scripting
-    typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
+    typedef void (*FGlyphCallback)(dmJobThread::HJob hjob, uint64_t tag, void* cbk_ctx, int result, const char* errmsg);
     bool FontGenAddGlyphs(FontResource* resource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx);
     bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
 

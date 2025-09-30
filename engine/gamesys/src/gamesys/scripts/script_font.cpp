@@ -108,7 +108,7 @@ struct CallbackContext
 //     return 0;
 // }
 
-static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
+static void AddGlyphsCallback(dmJobThread::HJob job, uint64_t tag, void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;

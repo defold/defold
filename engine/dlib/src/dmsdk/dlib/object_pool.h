@@ -83,6 +83,17 @@ public:
     }
 
     /*#
+     * Grow by an amount.
+     * @name OffsetCapacity
+     * @param grow [type: uint32_t] number of items to grow
+     */
+    void OffsetCapacity(uint32_t grow)
+    {
+        assert(grow > 0);
+        SetCapacity(Capacity() + grow);
+    }
+
+    /*#
      * Allocate a new object
      * @name Alloc
      * @return index [type:uint32_t] logical index
