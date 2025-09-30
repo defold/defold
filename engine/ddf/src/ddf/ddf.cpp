@@ -186,6 +186,8 @@ namespace dmDDF
 
                 if (!field->m_FullyDefinedType)
                 {
+                    *size_out = DM_ALIGN(*size_out, 16);
+
                     uint32_t ptr_offset = *size_out;
                     dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
                     load_context->AddDynamicTypeOffset(ptr_offset);
@@ -216,7 +218,7 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* field = &desc->m_Fields[i];
-            if (field->m_Type == TYPE_MESSAGE)
+            if (field->m_Label != LABEL_REPEATED && field->m_Type == TYPE_MESSAGE)
             {
                 if (!field->m_FullyDefinedType)
                 {
@@ -304,6 +306,7 @@ namespace dmDDF
                         }
 
                         uint32_t dynamic_offset = 0;
+
                         if (field->m_Label != LABEL_REPEATED && *array_info_hash != 0)
                         {
                             dynamic_offset = load_context->IncreaseArrayDataSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
@@ -311,8 +314,15 @@ namespace dmDDF
 
                         if (!field->m_FullyDefinedType)
                         {
-                            dmLogInfo("  !! Array member %s.%s is not fully defined! adding offset %d", desc->m_Name, field->m_Name, dynamic_offset);
+                            uint32_t aligned_dynamic_offset = DM_ALIGN(dynamic_offset, 16);
+
+                            if (aligned_dynamic_offset != dynamic_offset)
+                            {
+                                dynamic_offset = load_context->IncreaseArrayDataSize(*array_info_hash, aligned_dynamic_offset - dynamic_offset);
+                            }
+
                             load_context->AddDynamicTypeOffset(dynamic_offset);
+                            dmLogInfo("  !! Array member %s.%s is not fully defined! adding offset %d", desc->m_Name, field->m_Name, dynamic_offset);
                         }
 
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash);
@@ -393,8 +403,8 @@ namespace dmDDF
 
         dmLogInfo("\nAllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
 
-        //Message message = load_context.AllocMessageRaw(desc, message_buffer_size);
         Message message = load_context.AllocMessage(desc);
+        //Message message = load_context.AllocMessageRaw(desc, message_buffer_size);
 
         dmLogInfo("\nLoadMessage ACTUAL:");
 
@@ -405,7 +415,7 @@ namespace dmDDF
 
         char* buffer_start = message.GetBuffer(0);
 
-        DumpHex(buffer_start, dry_message.GetSize(), "DDF message buffer");
+        DumpHex(buffer_start, message_buffer_size, "DDF message buffer");
 
         if ( e == RESULT_OK )
         {

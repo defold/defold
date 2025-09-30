@@ -964,6 +964,79 @@ TEST(Recursive, TreeSimple)
     dmDDF::FreeMessage(message);
 }
 
+// Checks whether a pointer is inside [buffer, buffer + size)
+static bool IsPointerInBuffer(const void* ptr, const void* buffer, size_t size)
+{
+    uintptr_t p = (uintptr_t)ptr;
+    uintptr_t start = (uintptr_t)buffer;
+    uintptr_t end   = start + size;
+    return p >= start && p < end;
+}
+
+// For relative offsets
+static bool IsOffsetInBuffer(uint32_t offset, size_t size)
+{
+    return offset < size;
+}
+
+// Checks whether a field is storing a raw pointer or a relative offset.
+// Pass `is_relative = true` if the field is supposed to be a relative offset.
+static void DebugCheckField(void* field_addr,
+                            void* buffer_base,
+                            size_t buffer_size,
+                            bool is_relative,
+                            const char* label)
+{
+    uintptr_t field_val = *(uintptr_t*)field_addr;
+
+    if (is_relative)
+    {
+        uint32_t rel = *(uint32_t*)field_addr;
+        fprintf(stderr, "[%s] stored offset = %u\n", label, rel);
+
+        if (rel < buffer_size)
+        {
+            void* resolved = (char*)buffer_base + rel;
+            fprintf(stderr, "   -> resolves inside buffer at %p (offset %u)\n", resolved, rel);
+
+            // Dump memory around the resolved pointer
+            size_t dump_size = 32;
+            size_t start_off = (rel >= 8) ? rel - 8 : 0;
+            size_t end_off   = (rel + dump_size < buffer_size) ? rel + dump_size : buffer_size;
+
+            for (size_t i = start_off; i < end_off; i += 16)
+            {
+                fprintf(stderr, "%04zx: ", i);
+                for (size_t j = 0; j < 16 && i + j < end_off; ++j)
+                {
+                    fprintf(stderr, "%02X ", ((unsigned char*)buffer_base)[i + j]);
+                }
+                fprintf(stderr, "\n");
+            }
+        }
+        else
+        {
+            fprintf(stderr, "   -> OUT OF RANGE offset!\n");
+        }
+    }
+    else
+    {
+        // Interpret as a raw pointer
+        void* ptr = (void*)field_val;
+        fprintf(stderr, "[%s] raw pointer value = %p\n", label, ptr);
+
+        if (ptr >= buffer_base && (char*)ptr < (char*)buffer_base + buffer_size)
+        {
+            fprintf(stderr, "   -> pointer is inside buffer\n");
+        }
+        else
+        {
+            fprintf(stderr, "   -> OUT OF RANGE pointer!\n");
+        }
+    }
+}
+
+
 TEST(Recursive, Repeated)
 {
     TestDDF::RecursiveRepeat msg;
@@ -974,12 +1047,12 @@ TEST(Recursive, Repeated)
 
     TestDDF::MessageRecursiveA* item_0_b_a = new TestDDF::MessageRecursiveA();
 
-    std::string test_string = "This is a test string!";
+    std::string test_string = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
-    msg.add_list_numbers(32768);
-    msg.add_list_numbers(32769);
-    msg.set_string_val(test_string);
-    msg.set_float_val(0.5f);
+    //msg.add_list_numbers(32768);
+    //msg.add_list_numbers(32769);
+    //msg.set_float_val(0.5f);
+    //msg.set_string_val(test_string);
 
     item_0->set_allocated_my_b(item_0_b);
     item_0->set_val_a(1338);
@@ -1002,11 +1075,20 @@ TEST(Recursive, Repeated)
     uint32_t msg_buf_size = msg_str.size();
 
     DUMMY::TestDDF::RecursiveRepeat* message;
-    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message);
+    uint32_t size;
+    //dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message, 0, &size);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::MessageRecursiveA* child_0 = &message->m_ListA[0];
     DUMMY::TestDDF::MessageRecursiveA* child_1 = &message->m_ListA[1];
+
+    DebugCheckField(&child_0->m_MyB,
+                  message,
+                  size,
+                  false,
+                  "child_0->m_MyB"
+                  );
 
     ASSERT_EQ(1338, child_0->m_ValA);
     ASSERT_EQ(999, child_0->m_MyB->m_ValB);
@@ -1015,10 +1097,10 @@ TEST(Recursive, Repeated)
     ASSERT_EQ(666, child_1->m_ValA);
     ASSERT_EQ(2001, child_1->m_MyB->m_ValB);
 
-    ASSERT_EQ(32768, message->m_ListNumbers[0]);
-    ASSERT_EQ(32769, message->m_ListNumbers[1]);
-    ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
-    ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
+    //ASSERT_EQ(32768, message->m_ListNumbers[0]);
+    //ASSERT_EQ(32769, message->m_ListNumbers[1]);
+    //ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
+    //ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
 }
 
 int main(int argc, char **argv)

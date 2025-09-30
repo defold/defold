@@ -84,9 +84,10 @@ namespace dmDDF
     char* LoadContext::AllocString(int length)
     {
         uintptr_t b = m_Current;
-        m_Current += length;
 
-        dmLogInfo("AllocString: length=%d, m_Current=%p, m_End=%p\n", length, (void*)m_Current, (void*)m_End);
+        dmLogInfo("AllocString: length=%d, m_Current=%d, m_End=%d\n", length, m_Current, m_End);
+
+        m_Current += length;
 
         assert(m_DryRun || m_Current <= m_End);
 
@@ -176,6 +177,9 @@ namespace dmDDF
     {
         ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
         assert(info_ptr);
+
+        uint32_t current_size = info_ptr->m_DataSize;
+
         info_ptr->m_DataSize += data_size;
 
         dmLogInfo("IncreaseArrayDataSize: %d has size: %d", info_hash, info_ptr->m_DataSize);
@@ -190,6 +194,8 @@ namespace dmDDF
             m_DynamicOffsets.OffsetCapacity(32);
         }
         m_DynamicOffsets.Push(offset);
+
+        // assert(DM_ALIGN(offset, 16) == offset);
     }
 
     uint32_t LoadContext::NextDynamicTypeOffset()

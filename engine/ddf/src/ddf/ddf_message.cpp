@@ -179,11 +179,14 @@ namespace dmDDF
                 uint32_t dynamic_offset       = load_context->NextDynamicTypeOffset();
                 uintptr_t dynamic_offset_addr = (uintptr_t) msg_buf + dynamic_offset;
 
-                dmLogInfo("Not defined field at %lu has offset %d", (uintptr_t) msg_buf, dynamic_offset);
+                dmLogInfo("Not defined field at %lu has offset %d, writing pointer %p", (uintptr_t) msg_buf, dynamic_offset, (void*) dynamic_offset_addr);
 
                 if (!load_context->GetIsDryRun())
                 {
+                    //memset(msg_buf, 0xFF, sizeof(uintptr_t));
+
                     memcpy(msg_buf, &dynamic_offset_addr, sizeof(uintptr_t));
+                    //msg_buf += sizeof(uintptr_t);
                     msg_buf += dynamic_offset;
                 }
             }
