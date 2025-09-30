@@ -44,7 +44,7 @@ if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
 
     # Platform specific extras
     if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
-        # nothing specific
+        target_link_libraries(test_platform_app PRIVATE EGL GLESv1_CM GLESv2 OpenSLES)
     elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
         target_link_libraries(test_platform_app PRIVATE "-framework IOKit" "-framework OpenGLES"  "-framework QuartzCore")
     elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
