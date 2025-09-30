@@ -380,8 +380,8 @@ if(_FOUND_WINSDK_VERSION)
 
     if(_DEFOLD_INCLUDE_FLAGS)
         string(JOIN " " _DEFOLD_INCLUDE_FLAGS_STR ${_DEFOLD_INCLUDE_FLAGS})
-        # Apply include directories to targets (SYSTEM to reduce warnings)
-        if(_DEFOLD_INC_DIRS)
+        # Apply include directories to targets (SYSTEM to reduce warnings) when available
+        if(_DEFOLD_INC_DIRS AND NOT CMAKE_SCRIPT_MODE_FILE AND TARGET defold_sdk)
             target_include_directories(defold_sdk SYSTEM INTERFACE ${_DEFOLD_INC_DIRS})
         endif()
         # Propagate to try_compile checks
@@ -461,8 +461,10 @@ endif()
 if(DEFOLD_MSVC_INCLUDE_DIR)
     defold_log("sdk_windows: MSVC include: ${DEFOLD_MSVC_INCLUDE_DIR}")
     list(APPEND CMAKE_INCLUDE_PATH "${DEFOLD_MSVC_INCLUDE_DIR}")
-    # Target-scoped include
-    target_include_directories(defold_sdk SYSTEM INTERFACE "${DEFOLD_MSVC_INCLUDE_DIR}")
+    # Target-scoped include when available
+    if(NOT CMAKE_SCRIPT_MODE_FILE AND TARGET defold_sdk)
+        target_include_directories(defold_sdk SYSTEM INTERFACE "${DEFOLD_MSVC_INCLUDE_DIR}")
+    endif()
     set(DEFOLD_MSVC_INCLUDE_DIR "${DEFOLD_MSVC_INCLUDE_DIR}" CACHE PATH "MSVC include directory (contains vcruntime.h)" FORCE)
     # Propagate to try_compile
     set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} /I\"${DEFOLD_MSVC_INCLUDE_DIR}\"")
@@ -547,8 +549,10 @@ endif()
 # Apply collected /LIBPATH flags to all linker types so they take effect early (e.g. during compiler checks)
 if(_DEFOLD_LINK_LIBPATH_FLAGS)
     string(JOIN " " _DEFOLD_LINK_LIBPATH_FLAGS_STR ${_DEFOLD_LINK_LIBPATH_FLAGS})
-    # Apply to this build (target-scoped)
-    target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_LIBPATH_FLAGS})
+    # Apply to this build (target-scoped) when available
+    if(NOT CMAKE_SCRIPT_MODE_FILE AND TARGET defold_sdk)
+        target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_LIBPATH_FLAGS})
+    endif()
     # Propagate to try_compile
     set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} ${_DEFOLD_LINK_LIBPATH_FLAGS_STR}")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${_DEFOLD_LINK_LIBPATH_FLAGS_STR}")
