@@ -17,13 +17,10 @@ include(../../scripts/cmake/defold.cmake)
 # Sources
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 
-# Common GLFW3 sources
-set(_platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
-
+# Common GLFW sources
 defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
 if (_GLFW_VERSION EQUAL 3)
-    target_compile_definitions(input PUBLIC DM_INPUT_USE_GLFW3)
-    list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3.cpp")
+    set(_platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3.cpp")
 
     if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
         list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_osx.cpp")
@@ -33,6 +30,7 @@ if (_GLFW_VERSION EQUAL 3)
         list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_win32.cpp")
     endif()
 else()
+    set(_platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
     if (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
         list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_ios.cpp")
     elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
@@ -40,10 +38,13 @@ else()
     endif()
 endif()
 
-
-# platform (GLFW3-based)
+# platform
 add_library(platform STATIC ${_platform_glfw_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}")
+
+if (_GLFW_VERSION EQUAL 3)
+    target_compile_definitions(platform PUBLIC DM_INPUT_USE_GLFW3)
+endif()
 
 # platform_null
 add_library(platform_null STATIC
