@@ -60,7 +60,7 @@ public class SPIRVReflector {
         }
         return null;
     }
-    
+
     public static boolean AreResourceTypesEqual(SPIRVReflector reflectionA, SPIRVReflector reflectionB, String typeName) throws CompileExceptionError {
         Shaderc.ResourceTypeInfo typeA = getResourceTypeInfo(reflectionA.getTypes(), typeName);
         Shaderc.ResourceTypeInfo typeB = getResourceTypeInfo(reflectionB.getTypes(), typeName);
@@ -144,6 +144,17 @@ public class SPIRVReflector {
         ArrayList<Shaderc.ShaderResource> ubos = new ArrayList<>(Arrays.asList(reflection.uniformBuffers));
         ubos.sort(new SortBindingsComparator());
         return ubos;
+    }
+
+    public void addUBO(Shaderc.ShaderResource res) {
+
+        if (reflection.uniformBuffers == null) {
+            reflection.uniformBuffers = new Shaderc.ShaderResource[] { res };
+        } else {
+            ArrayList<Shaderc.ShaderResource> ubos = new ArrayList<>(Arrays.asList(reflection.uniformBuffers));
+            ubos.add(res);
+            reflection.uniformBuffers = ubos.toArray(new Shaderc.ShaderResource[0]);
+        }
     }
 
     public ArrayList<Shaderc.ShaderResource> getSsbos() {

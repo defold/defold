@@ -264,17 +264,17 @@ struct AsyncTextureUploadTest : ITest
 
     void CheckTexture(dmGraphics::HContext context, dmGraphics::HTexture texture)
     {
-        dmGraphics::SetTextureParams(texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
-        dmGraphics::GetTextureResourceSize(texture);
-        dmGraphics::GetTextureWidth(texture);
-        dmGraphics::GetTextureHeight(texture);
-        dmGraphics::GetTextureDepth(texture);
-        dmGraphics::GetOriginalTextureWidth(texture);
-        dmGraphics::GetOriginalTextureHeight(texture);
-        dmGraphics::GetTextureMipmapCount(texture);
-        dmGraphics::GetTextureType(texture);
-        dmGraphics::GetNumTextureHandles(texture);
-        dmGraphics::GetTextureUsageHintFlags(texture);
+        dmGraphics::SetTextureParams(context, texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
+        dmGraphics::GetTextureResourceSize(context, texture);
+        dmGraphics::GetTextureWidth(context, texture);
+        dmGraphics::GetTextureHeight(context, texture);
+        dmGraphics::GetTextureDepth(context, texture);
+        dmGraphics::GetOriginalTextureWidth(context, texture);
+        dmGraphics::GetOriginalTextureHeight(context, texture);
+        dmGraphics::GetTextureMipmapCount(context, texture);
+        dmGraphics::GetTextureType(context, texture);
+        dmGraphics::GetNumTextureHandles(context, texture);
+        dmGraphics::GetTextureUsageHintFlags(context, texture);
 
         dmGraphics::EnableTexture(context, 0, 0, texture);
         dmGraphics::DisableTexture(context, 0, texture);
@@ -294,12 +294,12 @@ struct AsyncTextureUploadTest : ITest
 
                 Texture& back = m_Textures.Back();
 
-                dmGraphics::SetTextureAsync(back.m_Texture, t.m_Params, 0, 0);
+                dmGraphics::SetTextureAsync(engine->m_GraphicsContext, back.m_Texture, t.m_Params, 0, 0);
 
                 CheckTexture(engine->m_GraphicsContext, back.m_Texture);
 
                 // Immediately delete, so we simulate putting them on a post-delete-queue
-                dmGraphics::DeleteTexture(back.m_Texture);
+                dmGraphics::DeleteTexture(engine->m_GraphicsContext, back.m_Texture);
             }
         }
     }

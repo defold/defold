@@ -19,6 +19,7 @@
 #include <gameobject/gameobject.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gamesys/property.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmGameSystem
 {
@@ -27,6 +28,9 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const dmVMath::Vector4& ref_value, const PropVector4& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, dmVMath::Vector4& set_value, const PropVector4& property);
+
+    // Render constants
+    void CopyRenderConstants(HComponentRenderConstants dst, HComponentRenderConstants src);
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H

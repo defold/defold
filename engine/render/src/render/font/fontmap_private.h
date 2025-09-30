@@ -38,7 +38,7 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
-            dmGraphics::DeleteTexture(m_Texture);
+            dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
         }
 
         dmMutex::HMutex         m_Mutex;

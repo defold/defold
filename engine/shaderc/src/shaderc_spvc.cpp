@@ -437,19 +437,73 @@ namespace dmShaderc
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, name_hash, 0, &set);
     }
 
+    void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& combined_samplers)
+    {
+        const spvc_combined_image_sampler* samplers;
+        size_t sampler_count;
+        spvc_compiler_get_combined_image_samplers(compiler->m_SPVCCompiler, &samplers, &sampler_count);
+
+        combined_samplers.SetCapacity(sampler_count);
+        combined_samplers.SetSize(sampler_count);
+
+        for (size_t i = 0; i < sampler_count; ++i)
+        {
+            const spvc_combined_image_sampler* s = &samplers[i];
+            combined_samplers[i].m_CombinedName = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->combined_id);
+            combined_samplers[i].m_CombinedId   = s->combined_id;
+            combined_samplers[i].m_ImageName    = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->image_id);
+            combined_samplers[i].m_ImageId      = s->image_id;
+            combined_samplers[i].m_SamplerName  = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->sampler_id);
+            combined_samplers[i].m_SamplerId    = s->sampler_id;
+        }
+    }
+
+    #define MAX_BINDINGS 128
+    bool GetFirstFreeBindingIndex(HShaderContext context, uint32_t* binding)
+    {
+        uint8_t used[MAX_BINDINGS] = {0};
+
+        for (int i = 0; i < context->m_Reflection.m_UniformBuffers.Size(); ++i)
+        {
+            if (context->m_Reflection.m_UniformBuffers[i].m_Binding < MAX_BINDINGS)
+                used[context->m_Reflection.m_UniformBuffers[i].m_Binding] = 1;
+        }
+
+        for (int i = 0; i < context->m_Reflection.m_StorageBuffers.Size(); ++i)
+        {
+            if (context->m_Reflection.m_StorageBuffers[i].m_Binding < MAX_BINDINGS)
+                used[context->m_Reflection.m_StorageBuffers[i].m_Binding] = 1;
+        }
+
+        for (int i = 0; i < context->m_Reflection.m_Textures.Size(); ++i)
+        {
+            if (context->m_Reflection.m_Textures[i].m_Binding < MAX_BINDINGS)
+                used[context->m_Reflection.m_Textures[i].m_Binding] = 1;
+        }
+
+        for (uint32_t i = 0; i < MAX_BINDINGS; ++i)
+        {
+            if (!used[i])
+            {
+                *binding = i;
+                return true;
+            }
+        }
+
+        return false; // No free binding index available
+    }
+    #undef MAX_BINDINGS
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
         spvc_compiler_create_compiler_options(compiler->m_SPVCCompiler, &spv_options);
 
-        if (options.m_RemoveUnusedVariables)
-        {
-            spvc_set active_variables;
-            spvc_resources active_resources;
-            spvc_compiler_get_active_interface_variables(compiler->m_SPVCCompiler, &active_variables);
-            spvc_compiler_create_shader_resources_for_active_variables(compiler->m_SPVCCompiler, &active_resources, active_variables);
-            spvc_compiler_set_enabled_interface_variables(compiler->m_SPVCCompiler, active_variables);
-        }
+        bool can_remove_unused_variables = true;
+        uint8_t hlsl_num_workgroups_id_binding = 0xff;
+
+        spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
+        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {
@@ -468,9 +522,27 @@ namespace dmShaderc
 
             if (context->m_Stage == SHADER_STAGE_COMPUTE)
             {
-                if (spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler))
+                spvc_variable_id num_workgroups_id = spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler);
+
+                if (num_workgroups_id)
                 {
-                    dmLogInfo("HLSL: gl_NumWorkGroups has been remapped, this should be handled by the engine (TODO).");
+                    // If we remove unused variables, the cbuffer that contains the gl_NumWorkGroups data will be removed..
+                    can_remove_unused_variables = false;
+
+                    // Find the lowest unused register
+                    uint32_t free_binding;
+
+                    if (GetFirstFreeBindingIndex(context, &free_binding))
+                    {
+                        spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationBinding, free_binding);
+                        spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationDescriptorSet, HLSL_NUM_WORKGROUPS_SET);
+
+                        hlsl_num_workgroups_id_binding = free_binding;
+                    }
+                    else
+                    {
+                        dmLogInfo("HLSL: No free cbuffer binding found for gl_NumWorkGroups");
+                    }
                 }
             }
         }
@@ -479,11 +551,16 @@ namespace dmShaderc
             assert(0 && "Shader langauge not yet supported");
         }
 
+        if (options.m_RemoveUnusedVariables && can_remove_unused_variables)
+        {
+            spvc_set active_variables;
+            spvc_resources active_resources;
+            spvc_compiler_get_active_interface_variables(compiler->m_SPVCCompiler, &active_variables);
+            spvc_compiler_create_shader_resources_for_active_variables(compiler->m_SPVCCompiler, &active_resources, active_variables);
+            spvc_compiler_set_enabled_interface_variables(compiler->m_SPVCCompiler, active_variables);
+        }
+
         spvc_compiler_install_compiler_options(compiler->m_SPVCCompiler, spv_options);
-
-        spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
-
-        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
         const char *compile_result = NULL;
         spvc_compiler_compile(compiler->m_SPVCCompiler, &compile_result);
@@ -499,6 +576,7 @@ namespace dmShaderc
         result->m_Data.SetCapacity(compile_result_size);
         result->m_Data.SetSize(compile_result_size);
         result->m_LastError = "";
+        result->m_HLSLNumWorkGroupsId = hlsl_num_workgroups_id_binding;
 
         if (compile_result)
         {

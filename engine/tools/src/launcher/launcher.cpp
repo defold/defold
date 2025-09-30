@@ -260,7 +260,7 @@ int Launch(int argc, char **argv) {
         p++;
       }
     }
-#else
+#endif
     // Assumption that any command line option that does not start with --config
     // is a command line argument that we should pass on.
     for(int j = 1; j < argc && i < max_args; ++j) {
@@ -268,7 +268,6 @@ int Launch(int argc, char **argv) {
         args[i++] = argv[j];
       }
     }
-#endif
     args[i++] = 0;
 
     for (int j = 0; j < i; j++) {

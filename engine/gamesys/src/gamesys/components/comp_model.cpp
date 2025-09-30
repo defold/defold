@@ -61,6 +61,30 @@ namespace dmGameSystem
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
 
+    const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
+    const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
+    const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES                                  = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessTextures");
+    const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR                           = dmHashString64("pbrSpecularGlossiness.diffuseFactor");
+    const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR  = dmHashString64("pbrSpecularGlossiness.specularAndSpecularGlossinessFactor");
+    const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES                                 = dmHashString64("pbrSpecularGlossiness.specularGlossinessTextures");
+    const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR        = dmHashString64("pbrClearCoat.clearCoatAndClearCoatRoughnessFactor");
+    const dmhash_t PBR_CLEAR_COAT_TEXTURES                                          = dmHashString64("pbrClearCoat.clearCoatTextures");
+    const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR                             = dmHashString64("pbrTransmission.transmissionFactor");
+    const dmhash_t PBR_TRANSMISSION_TEXTURES                                        = dmHashString64("pbrTransmission.transmissionTextures");
+    const dmhash_t PBR_IOR_IOR_FACTOR                                               = dmHashString64("pbrIor.ior");
+    const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR                  = dmHashString64("pbrSpecular.specularColorAndSpecularFactor");
+    const dmhash_t PBR_SPECULAR_TEXTURES                                            = dmHashString64("pbrSpecular.specularTextures");
+    const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR                = dmHashString64("pbrVolume.thicknessFactorAndAttenuationColor");
+    const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE                                  = dmHashString64("pbrVolume.attenuationDistance");
+    const dmhash_t PBR_VOLUME_TEXTURES                                              = dmHashString64("pbrVolume.volumeTextures");
+    const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR                 = dmHashString64("pbrSheen.sheenColorAndRoughnessFactor");
+    const dmhash_t PBR_SHEEN_TEXTURES                                               = dmHashString64("pbrSheen.sheenTextures");
+    const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH                          = dmHashString64("pbrEmissiveStrength.emissiveStrength");
+    const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX = dmHashString64("pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax");
+    const dmhash_t PBR_IRIDESCENCE_TEXTURES                                         = dmHashString64("pbrIridescence.iridescenceTextures");
+    const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT                   = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
+    const dmhash_t PBR_COMMON_TEXTURES                                              = dmHashString64("pbrCommonTextures");
+
     struct ModelInstanceData
     {
         dmVMath::Matrix4 m_WorldTransform;
@@ -90,6 +114,7 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
+        HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
@@ -243,7 +268,7 @@ namespace dmGameSystem
         default_texture_params.m_Depth  = 1;
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-        dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
+        dmGraphics::SetTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
 
         world->m_CurrentFrameTick           = 0;
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
@@ -270,6 +295,7 @@ namespace dmGameSystem
     {
         ModelContext* context = (ModelContext*)params.m_Context;
         ModelWorld* world = (ModelWorld*)params.m_World;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclarationSkinned);
         dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclaration);
@@ -297,7 +323,7 @@ namespace dmGameSystem
         if (world->m_SkinnedAnimationData.m_BindPoseCacheBuffer)
             free(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer);
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTexture)
-            dmGraphics::DeleteTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+            dmGraphics::DeleteTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
@@ -514,6 +540,7 @@ namespace dmGameSystem
         }
         return first_free_index;
     }
+
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
@@ -529,6 +556,9 @@ namespace dmGameSystem
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
+
+        dmRenderDDF::MaterialDesc::PbrParameters pbr_parameters;
+        dmRender::GetMaterialPBRParameters(material, &pbr_parameters);
 
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
@@ -839,7 +869,6 @@ namespace dmGameSystem
         #undef UNPACK_ATTRIBUTE_PTR
 
             vertex_write_ptr = dmGraphics::WriteAttributes(vertex_write_ptr, 0, vertex_count, params);
-
             rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
             free(attribute_data);
@@ -891,6 +920,7 @@ namespace dmGameSystem
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
+            item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
             item.m_AabbMax = item.m_Mesh->m_AabbMax;
@@ -1067,8 +1097,16 @@ namespace dmGameSystem
             dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
         }
 
-        if (component->m_RenderConstants) {
+        if (component->m_RenderConstants){
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
+        }
+
+        for (int i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            if (component->m_RenderItems[i].m_RenderConstants)
+            {
+                dmGameSystem::DestroyRenderConstants(component->m_RenderItems[i].m_RenderConstants);
+            }
         }
 
         delete component;
@@ -1115,6 +1153,258 @@ namespace dmGameSystem
         }
     }
     #endif
+
+    static bool FillPBRConstants(ModelComponent* component, MeshRenderItem* render_item, dmRender::HMaterial material, uint32_t material_index)
+    {
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        dmRender::GetMaterialPBRParameters(material, &parameters);
+
+        if (!parameters.m_HasParameters)
+        {
+            return false;
+        }
+
+        const dmRigDDF::Material& ddf_material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[material_index];
+
+        if (!render_item->m_RenderConstants)
+        {
+            render_item->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+        }
+
+        if (parameters.m_HasMetallicRoughness)
+        {
+            /*******************************************
+            * uniform sampler2D PbrMetallicRoughness_baseColorTexture;
+            * uniform sampler2D PbrMetallicRoughness_metallicRoughnessTexture;
+            * struct PbrMetallicRoughness
+            * {
+            *     vec4 baseColorFactor;
+            *     vec4 metallicAndRoughnessFactor; // R: metallic (Default=1.0), G: roughness (Default=1.0)
+            *     vec4 metallicRoughnessTextures;  // R: use baseColorTexture, G: use metallicRoughnessTexture
+            * };
+            *******************************************/
+            dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor, 1);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &metallic_roughness, 1);
+
+            if (ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 metallic_roughness_textures = dmVMath::Vector4(
+                    ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_METALLIC_ROUGHNESS_TEXTURES, &metallic_roughness_textures, 1);
+            }
+        }
+        if (parameters.m_HasSpecularGlossiness)
+        {
+            /*******************************************
+            * uniform sampler2D PbrSpecularGlossiness_diffuseTexture;
+            * uniform sampler2D PbrSpecularGlossiness_specularGlossinessTexture;
+            * struct PbrSpecularGlossiness
+            * {
+            *     vec4 diffuseFactor;
+            *     vec4 specularAndSpecularGlossinessFactor; // RGB: specular (Default=1.0), A: glossiness (Default=1.0)
+            *     vec4 specularGlossinessTextures;          // R: use diffuseTexture, G: use specularGlossinessTexture
+            * };
+            *******************************************/
+            dmVMath::Vector4 specular_glossiness = dmVMath::Vector4(ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getX(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getY(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getZ(), ddf_material.m_Pbrspecularglossiness.m_Glossinessfactor);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrspecularglossiness.m_Diffusefactor, 1);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, &specular_glossiness, 1);
+
+            if (ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 specular_glossiness_textures = dmVMath::Vector4(
+                    ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_TEXTURES, &specular_glossiness_textures, 1);
+            }
+
+        }
+        if (parameters.m_HasClearcoat)
+        {
+            /*******************************************
+            * uniform sampler2D PbrClearcoat_clearcoatTexture;
+            * uniform sampler2D PbrClearcoat_clearcoatRoughnessTexture;
+            * uniform sampler2D PbrClearcoat_clearcoatNormalTexture;
+            * struct PbrClearCoat
+            * {
+            *     vec4 clearCoatAndClearCoatRoughnessFactor; // R: clearCoat (Default=0.0), G: clearCoatRoughness (Default=0.0)
+            *     vec4 clearCoatTextures;                    // R: use clearCoatTexture, G: use clearCoatRoughnessTexture, B: use clearCoatNormalTexture
+            * };
+            *******************************************/
+            dmVMath::Vector4 clear_coat = dmVMath::Vector4(ddf_material.m_Clearcoat.m_Clearcoatfactor, ddf_material.m_Clearcoat.m_Clearcoatroughnessfactor, 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, &clear_coat, 1);
+
+            if (ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 clear_coat_textures = dmVMath::Vector4(
+                    ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_CLEAR_COAT_TEXTURES, &clear_coat_textures, 1);
+            }
+
+        }
+        if (parameters.m_HasTransmission)
+        {
+            /*******************************************
+            * uniform sampler2D PbrTransmission_transmissionTexture;
+            * struct PbrTransmission
+            * {
+            *     vec4 transmissionFactor;   // R: transmission (Default=0.0)
+            *     vec4 transmissionTextures; // R: use transmissionTexture
+            * };
+            *******************************************/
+            dmVMath::Vector4 transmission = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissionfactor, 0.0f, 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_TRANSMISSION_TRANSMISSION_FACTOR, &transmission, 1);
+
+            if (ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 transmission_textures = dmVMath::Vector4(
+                    ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_TRANSMISSION_TEXTURES, &transmission_textures, 1);
+            }
+        }
+        if (parameters.m_HasIor)
+        {
+            /*
+            struct Ior
+            {
+                vec4 ior; // R: ior (Default=0.0)
+            };
+            */
+            dmVMath::Vector4 ior = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_IOR_IOR_FACTOR, &ior, 1);
+        }
+        if (parameters.m_HasSpecular)
+        {
+            /***********************************
+            * uniform sampler2D PbrSpecular_specularTexture;
+            * uniform sampler2D PbrSpecular_specularColorTexture;
+            * struct PbrSpecular
+            * {
+            *     vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
+            *     vec4 specularTextures;               // R: use specularTexture, G: use specularColorTexture
+            * };
+            ***********************************/
+            dmVMath::Vector4 specular = dmVMath::Vector4(ddf_material.m_Specular.m_Specularcolorfactor.getX(), ddf_material.m_Specular.m_Specularcolorfactor.getY(), ddf_material.m_Specular.m_Specularcolorfactor.getZ(), ddf_material.m_Specular.m_Specularfactor);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &specular, 1);
+
+            if (ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 specular_textures = dmVMath::Vector4(
+                    ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_TEXTURES, &specular_textures, 1);
+            }
+        }
+        if (parameters.m_HasVolume)
+        {
+            /***********************************
+            * uniform sampler2D PbrVolume_thicknessTexture;
+            * struct PbrVolume
+            * {
+            *     vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
+            *     vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
+            *     vec4 volumeTextures;                     // R: use thicknessTexture
+            * };
+            ***********************************/
+            dmVMath::Vector4 thicknessFactorAndAttenuationColor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
+            dmVMath::Vector4 attenuationDistance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, &thicknessFactorAndAttenuationColor, 1);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_VOLUME_ATTENUATION_DISTANCE, &attenuationDistance, 1);
+
+            if (ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 volume_textures = dmVMath::Vector4(
+                    ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_VOLUME_TEXTURES, &volume_textures, 1);
+            }
+        }
+        if (parameters.m_HasSheen)
+        {
+            /***********************************
+            * uniform sampler2D PbrSheen_sheenColorTexture;
+            * uniform sampler2D PbrSheen_sheenRoughnessTexture;
+            * struct PbrSheen
+            * {
+            *     vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
+            *     vec4 sheenTextures;                // R: use sheenColorTexture, G: use sheenRoughnessTexture
+            * };
+            ***********************************/
+            dmVMath::Vector4 sheenColorAndRoughnessFactor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, &sheenColorAndRoughnessFactor, 1);
+
+            if (ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 sheen_textures = dmVMath::Vector4(
+                    ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SHEEN_TEXTURES, &sheen_textures, 1);
+            }
+        }
+        if (parameters.m_HasEmissiveStrength)
+        {
+            /***********************************
+            * struct PbrEmissiveStrength
+            * {
+            *     vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
+            * };
+            ***********************************/
+            dmVMath::Vector4 emissiveFactorAndStrength = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH, &emissiveFactorAndStrength, 1);
+        }
+        if (parameters.m_HasIridescence)
+        {
+            /***********************************
+            * uniform sampler2D PbrEmissive_iridescenceTexture;
+            * uniform sampler2D PbrEmissive_iridescenceThicknessTexture;
+            * struct PbrIridescence
+            * {
+            *     vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
+            *     vec4 iridescenceTextures;                       // R: use iridescenceTexture, G: use iridescenceThicknessTexture
+            * };
+            ***********************************/
+            dmVMath::Vector4 iridescenceFactorAndIorAndThicknessMinMax = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &iridescenceFactorAndIorAndThicknessMinMax, 1);
+
+            if (ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index != -1)
+            {
+                dmVMath::Vector4 iridescence_textures = dmVMath::Vector4(
+                    ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_IRIDESCENCE_TEXTURES, &iridescence_textures, 1);
+            }
+        }
+
+        /***********************************
+        * vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)
+        * vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture
+        ***********************************/
+        dmVMath::Vector4 alphaCutoffAndDoubleSidedAndIsUnlit = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, 0.0f);
+        dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &alphaCutoffAndDoubleSidedAndIsUnlit, 1);
+
+        if (ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ||
+            ddf_material.m_Occlusiontexture.m_Texture.m_Index != -1 ||
+            ddf_material.m_Emissivetexture.m_Texture.m_Index != -1)
+        {
+            dmVMath::Vector4 common_textures = dmVMath::Vector4(
+                ddf_material.m_Normaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                ddf_material.m_Occlusiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+                ddf_material.m_Emissivetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
+            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_COMMON_TEXTURES, &common_textures, 1);
+        }
+
+        return true;
+    }
 
     static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
     {
@@ -1175,6 +1465,7 @@ namespace dmGameSystem
         uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
         MeshAttributeRenderData* attribute_rd = 0;
         dmRender::HMaterial render_material   = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
         bool render_context_material_custom_attributes = false;
         if (render_context_material)
@@ -1326,8 +1617,8 @@ namespace dmGameSystem
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
                     instance_data->m_AnimationData.setX((float) cache_offset);
                     instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
-                    instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                    instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
                 }
                 else
                 {
@@ -1347,6 +1638,16 @@ namespace dmGameSystem
                 instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_WorldTransform);
                 instance_write_ptr              += sizeof(ModelInstanceData);
             }
+        }
+
+        // If the material supports PBR data, we need to use the render item's constants.
+        // Otherwise, each render item will overwrite the component render constants with new values
+        // before the render object is processed and the draw call is dispatched.
+        HComponentRenderConstants constants = component->m_RenderConstants;
+        if (FillPBRConstants(component, render_item, render_material, material_index))
+        {
+            CopyRenderConstants(render_item->m_RenderConstants, constants);
+            constants = render_item->m_RenderConstants;
         }
 
         if (component->m_RenderConstants)
@@ -1409,6 +1710,7 @@ namespace dmGameSystem
             ModelResourceBuffers* buffers          = render_item->m_Buffers;
             MeshAttributeRenderData* attribute_rd  = 0;
             bool has_skin_data                     = render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
             dmRender::HMaterial component_material      = GetComponentMaterial(component, component->m_Resource, material_index);
             dmGraphics::HVertexDeclaration vx_decl_base = GetBaseVertexDeclaration(world, component_material, has_skin_data);
@@ -1461,7 +1763,6 @@ namespace dmGameSystem
             }
 
             int32_t first_free_index = FillTextures(&ro, component, material_index);
-
             HComponentRenderConstants constants = component->m_RenderConstants;
 
             if (IsRenderItemSkinned(component, render_item))
@@ -1487,11 +1788,20 @@ namespace dmGameSystem
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
                     animation_data.setX((float) cache_offset);
                     animation_data.setY((float) GetBoneCount(component->m_RigInstance));
-                    animation_data.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                    animation_data.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    animation_data.setZ((float) dmGraphics::GetTextureWidth(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    animation_data.setW((float) dmGraphics::GetTextureHeight(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
                 }
 
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
+            }
+
+            // If the material supports PBR data, we need to use the render item's constants.
+            // Otherwise, each render item will overwrite the component render constants with new values
+            // before the render object is processed and the draw call is dispatched.
+            if (FillPBRConstants(component, render_item, render_material, material_index))
+            {
+                CopyRenderConstants(render_item->m_RenderConstants, constants);
+                constants = render_item->m_RenderConstants;
             }
 
             if (constants)
@@ -1800,7 +2110,7 @@ namespace dmGameSystem
         }
     }
 
-    static void WritePoseMatricesToTexture(ModelWorld* world)
+    static void WritePoseMatricesToTexture(dmGraphics::HContext graphics_context, ModelWorld* world)
     {
         ModelSkinnedAnimationData& anim_data = world->m_SkinnedAnimationData;
         const dmVMath::Matrix4* pose_matrix_read_ptr;
@@ -1847,7 +2157,7 @@ namespace dmGameSystem
         tp.m_Data      = animation_data_write_ptr;
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        dmGraphics::SetTexture(anim_data.m_BindPoseCacheTexture, tp);
+        dmGraphics::SetTexture(graphics_context, anim_data.m_BindPoseCacheTexture, tp);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1861,6 +2171,9 @@ namespace dmGameSystem
             if (!item.m_Enabled)
                 continue;
             dmRigDDF::Model* model = item.m_Model;
+            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set
+            // For skinned models: m_Local contains node.local, hierarchy applied via bone_pose.m_World
+            // For non-skinned models: m_Local contains node.world, hierarchy already flattened
             if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
@@ -1893,16 +2206,7 @@ namespace dmGameSystem
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
             const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
-
-            if (dmGameObject::ScaleAlongZ(c->m_Instance))
-            {
-                c->m_World = go_world * local;
-            }
-            else
-            {
-                c->m_World = dmTransform::MulNoScaleZ(go_world, local);
-            }
-
+            c->m_World = go_world * local;
             UpdateMeshTransforms(c);
 
             num_render_items += c->m_RenderItems.Size();
@@ -1925,6 +2229,7 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         ModelContext* context = (ModelContext*)params.m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
@@ -1958,7 +2263,7 @@ namespace dmGameSystem
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
-        WritePoseMatricesToTexture(world);
+        WritePoseMatricesToTexture(graphics_context, world);
 
         assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
         for (int i = 0; i <= world->m_MaxBatchIndex; ++i)
@@ -2577,5 +2882,18 @@ namespace dmGameSystem
         ModelWorld* world = (ModelWorld*) model_world;
         *vx_buffers       = world->m_VertexBuffers;
         *vx_buffers_count = VERTEX_BUFFER_MAX_BATCHES;
+    }
+
+    // For tests
+    void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants)
+    {
+        ModelComponent* component = (ModelComponent*) model_component;
+        if (render_item_ix < 0 || render_item_ix >= component->m_RenderItems.Size())
+        {
+            *render_constants = 0x0;
+            return;
+        }
+
+        *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
     }
 }

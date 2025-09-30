@@ -24,16 +24,17 @@
             [editor.resource :as resource]
             [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.fn :as fn])
   (:import [com.defold.control TreeCell]
            [java.awt Toolkit]
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
+           [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseEvent TransferMode]
+           [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
@@ -96,11 +97,16 @@
   new-root)
 
 (defn- auto-expand [items selected-ids]
-  (reduce #(or %1 %2) false (map (fn [^TreeItem item] (let [id (item->node-id item)
-                                                            selected (boolean (selected-ids id))
-                                                            expanded (auto-expand (.getChildren item) selected-ids)]
-                                                        (when expanded (.setExpanded item expanded))
-                                                        (or selected expanded))) items)))
+  (transduce
+    (map (fn [^TreeItem item]
+           (let [id (item->node-id item)
+                 selected (boolean (selected-ids id))
+                 expanded (auto-expand (.getChildren item) selected-ids)]
+             (when expanded (.setExpanded item expanded))
+             (or selected expanded))))
+    fn/or
+    false
+    items))
 
 (defn- sync-selection [^TreeView tree-view selection old-selected-ids]
   (let [root (.getRoot tree-view)
@@ -517,9 +523,15 @@
 (defn- get-selected-node-id
   [^TreeView tree-view]
   (let [selection-model (.getSelectionModel tree-view)
-        selected-items (.getSelectedItems selection-model)
-        ^TreeItem selected-item (first selected-items)]
-    (item->node-id selected-item)))
+        selected-items (.getSelectedItems selection-model)]
+    (when-let [^TreeItem selected-item (first selected-items)]
+      (item->node-id selected-item))))
+
+(defn- cancel-rename!
+  [^TreeView tree-view]
+  (when-let [future (ui/user-data tree-view ::future-rename)]
+    (ui/cancel future)
+    (ui/user-data! tree-view ::future-rename nil)))
 
 (defn- click-handler!
   [^TreeView tree-view ^Label text-label ^MouseEvent event]
@@ -529,24 +541,23 @@
         db-click-threshold (or (-> (Toolkit/getDefaultToolkit)
                                    (.getDesktopProperty "awt.multiClickInterval"))
                                500)]
-    (ui/user-data! text-label ::last-click-time current-click-time)
-    (cond
-      (< time-diff db-click-threshold)
-      (do
-        (when-let [future (ui/user-data text-label ::rename-future)]
-          (ui/cancel future)
-          (ui/user-data! text-label ::future-rename nil))
-        (ui/run-command (.getSource event) :file.open-selected))
+    (when (= MouseButton/PRIMARY (.getButton event))
+      (ui/user-data! text-label ::last-click-time current-click-time)
+      (cond
+        (< time-diff db-click-threshold)
+        (do
+          (cancel-rename! tree-view)
+          (ui/run-command (.getSource event) :file.open-selected {} false (fn [] (.consume event))))
 
-      (= (get-selected-node-id tree-view)
-         (ui/user-data text-label ::node-id))
-      (let [future-rename (ui/->future (/ db-click-threshold 1000)
-                                       (fn []
-                                         (ui/user-data! text-label ::future-rename nil)
-                                         (ui/run-command (.getSource event) :edit.rename)))]
-        (ui/user-data! text-label ::future-rename future-rename))
+        (= (get-selected-node-id tree-view)
+           (ui/user-data text-label ::node-id))
+        (let [future-rename (ui/->future (/ db-click-threshold 1000)
+                                         (fn []
+                                           (ui/user-data! tree-view ::future-rename nil)
+                                           (ui/run-command (.getSource event) :edit.rename)))]
+          (ui/user-data! tree-view ::future-rename future-rename))
 
-      :else nil)))
+        :else nil))))
 
 (defn- editable-id?
   [node-id]
@@ -707,12 +718,15 @@
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setOnDragDetected (ui/event-handler e (drag-detected project outline-view e)))
+      (.setOnDragDetected (ui/event-handler e 
+                            (drag-detected project outline-view e)
+                            (cancel-rename! tree-view)))
       (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
+      (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))

@@ -18,26 +18,34 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.core.async :as a]
+            [clojure.core.async.impl.channels]
             [clojure.main :as m]
             [clojure.string :as str]
-            [dev]
             [dynamo.graph :as g]
             [editor.code.data]
+            [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [editor.workspace]
+            [internal.graph.types :as gt]
             [internal.system :as is]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [vlaaad.reveal :as r])
   (:import [clojure.core.async.impl.channels ManyToManyChannel]
            [clojure.lang IRef]
            [editor.code.data Cursor CursorRange]
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
-           [internal.graph.types Endpoint]
-           [javafx.scene Parent]))
+           [internal.graph.types Arc Endpoint]
+           [javafx.scene Parent]
+           [javax.vecmath Color3f Color4f Matrix3d Matrix3f Matrix4d Matrix4f Point2d Point2f Point3d Point3f Point4d Point4f Quat4d Quat4f Tuple2d Tuple2f Tuple3d Tuple3f Tuple4d Tuple4f Vector2d Vector2f Vector3d Vector3f Vector4d Vector4f]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(defn workspace []
+  0)
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -187,6 +195,28 @@
   (when node-id+label
     #(apply watch-all node-id+label)))
 
+(defn- stream-arc-contents [arc]
+  (apply
+    r/horizontal
+    (r/stream (gt/source-id arc))
+    r/separator
+    (r/stream (gt/source-label arc))
+    r/separator
+    (r/stream (gt/target-id arc))
+    r/separator
+    (r/stream (gt/target-label arc))
+    (when-let [other (seq (dissoc arc :source-id :source-label :target-id :target-label))]
+      [r/separator
+       (->> other
+            (eduction (map r/horizontally))
+            (r/horizontally))])))
+
+(r/defstream Arc [arc]
+  (r/horizontal
+    (r/raw-string "#g/arc [" {:fill :object})
+    (stream-arc-contents arc)
+    (r/raw-string "]" {:fill :object})))
+
 (r/defstream Endpoint [endpoint]
   (r/horizontal
     (r/raw-string "#g/endpoint [" {:fill :object})
@@ -196,7 +226,7 @@
     (r/raw-string "]" {:fill :object})))
 
 (defn- read-file-resource [str-expr]
-  `(workspace/resolve-workspace-resource (dev/workspace) ~str-expr))
+  `(workspace/resolve-workspace-resource (workspace) ~str-expr))
 
 (r/defstream FileResource [resource]
   (r/horizontal
@@ -205,7 +235,7 @@
     (r/stream (resource/proj-path resource))))
 
 (defn- read-zip-resource [str-expr]
-  `(workspace/find-resource (dev/workspace) ~str-expr))
+  `(workspace/find-resource (workspace) ~str-expr))
 
 (r/defstream ZipResource [resource]
   (r/horizontal
@@ -308,3 +338,165 @@
                                       {:fx/type r/value-view
                                        :v-box/vgrow :always
                                        :value state}]})})})))
+
+(defn- vecmath-matrix-sf [matrix]
+  (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)]
+    (r/horizontal
+      (r/raw-string "#v/" {:fill :object})
+      (r/raw-string (.getSimpleName (class matrix)) {:fill :object})
+      (r/raw-string " [" {:fill :object})
+      (apply
+        r/vertical
+        (coll/transfer row-col-strs :eduction
+          (map (fn [col-strs]
+                 (apply
+                   r/horizontal
+                   (coll/transfer col-strs :eduction
+                     (map (fn [col-str]
+                            (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
+                                          {:fill :util}
+                                          {:fill :scalar})]
+                              (r/raw-string col-str style))))
+                     (interpose r/separator)))))))
+      (r/raw-string "]" {:fill :object}))))
+
+(r/defstream Matrix3d [^Matrix3d matrix]
+  (vecmath-matrix-sf matrix))
+
+(r/defstream Matrix3f [^Matrix3f matrix]
+  (vecmath-matrix-sf matrix))
+
+(r/defstream Matrix4d [^Matrix4d matrix]
+  (vecmath-matrix-sf matrix))
+
+(r/defstream Matrix4f [^Matrix4f matrix]
+  (vecmath-matrix-sf matrix))
+
+(defn- vecmath-tuple-sf [^Class tuple-class & component-values]
+  (apply
+    r/horizontal
+    (r/raw-string "#v/" {:fill :object})
+    (r/raw-string (.getSimpleName tuple-class) {:fill :object})
+    (r/raw-string " [" {:fill :object})
+    (-> component-values
+        (coll/transfer :eduction
+          (map r/stream)
+          (interpose r/separator))
+        (e/conj (r/raw-string "]" {:fill :object})))))
+
+(r/defstream Tuple2d [^Tuple2d tuple]
+  (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple)))
+
+(r/defstream Tuple2f [^Tuple2f tuple]
+  (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple)))
+
+(r/defstream Tuple3d [^Tuple3d tuple]
+  (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple) (.getZ tuple)))
+
+(r/defstream Tuple3f [^Tuple3f tuple]
+  (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple) (.getZ tuple)))
+
+(r/defstream Tuple4d [^Tuple4d tuple]
+  (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple) (.getZ tuple) (.getW tuple)))
+
+(r/defstream Tuple4f [^Tuple4f tuple]
+  (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple) (.getZ tuple) (.getW tuple)))
+
+(defn- read-color-3f [[x y z]]
+  `(Color3f. ~x ~y ~z))
+
+(defn- read-color-4f [[x y z w]]
+  `(Color4f. ~x ~y ~z ~w))
+
+(defn- read-matrix-3d [[m00 m01 m02 m10 m11 m12 m20 m21 m22]]
+  `(Matrix3d. ~m00 ~m01 ~m02 ~m10 ~m11 ~m12 ~m20 ~m21 ~m22))
+
+(defn- read-matrix-3f [[m00 m01 m02 m10 m11 m12 m20 m21 m22]]
+  `(Matrix3f. ~m00 ~m01 ~m02 ~m10 ~m11 ~m12 ~m20 ~m21 ~m22))
+
+(defn- read-matrix-4d [[m00 m01 m02 m03 m10 m11 m12 m13 m20 m21 m22 m23 m30 m31 m32 m33]]
+  `(Matrix4d. ~m00 ~m01 ~m02 ~m03 ~m10 ~m11 ~m12 ~m13 ~m20 ~m21 ~m22 ~m23 ~m30 ~m31 ~m32 ~m33))
+
+(defn- read-matrix-4f [[m00 m01 m02 m03 m10 m11 m12 m13 m20 m21 m22 m23 m30 m31 m32 m33]]
+  `(Matrix4f. ~m00 ~m01 ~m02 ~m03 ~m10 ~m11 ~m12 ~m13 ~m20 ~m21 ~m22 ~m23 ~m30 ~m31 ~m32 ~m33))
+
+(defn- read-point-2d [[x y]]
+  `(Point2d. ~x ~y))
+
+(defn- read-point-2f [[x y]]
+  `(Point2f. ~x ~y))
+
+(defn- read-point-3d [[x y z]]
+  `(Point3d. ~x ~y ~z))
+
+(defn- read-point-3f [[x y z]]
+  `(Point3f. ~x ~y ~z))
+
+(defn- read-point-4d [[x y z w]]
+  `(Point4d. ~x ~y ~z ~w))
+
+(defn- read-point-4f [[x y z w]]
+  `(Point4f. ~x ~y ~z ~w))
+
+(defn- read-quat-4d [[x y z w]]
+  `(Quat4d. ~x ~y ~z ~w))
+
+(defn- read-quat-4f [[x y z w]]
+  `(Quat4f. ~x ~y ~z ~w))
+
+(defn- read-vector-2d [[x y]]
+  `(Vector2d. ~x ~y))
+
+(defn- read-vector-2f [[x y]]
+  `(Vector2f. ~x ~y))
+
+(defn- read-vector-3d [[x y z]]
+  `(Vector3d. ~x ~y ~z))
+
+(defn- read-vector-3f [[x y z]]
+  `(Vector3f. ~x ~y ~z))
+
+(defn- read-vector-4d [[x y z w]]
+  `(Vector4d. ~x ~y ~z ~w))
+
+(defn- read-vector-4f [[x y z w]]
+  `(Vector4f. ~x ~y ~z ~w))
+
+(comment
+  ;; A map containing simple values for manual testing.
+  (sorted-map
+    :arc (assoc (gt/->Arc 12345 :source-label 54321 :target-label) :ex/arc "ex")
+    :color-3f (Color3f. 0.0 0.1 0.2)
+    :color-4f (Color4f. 0.0 0.1 0.2 0.3)
+    :cursor (assoc (Cursor. 5 80) :ex/cursor "ex")
+    :cursor-range (assoc (CursorRange. (assoc (Cursor. 4 0) :ex/from-cursor "ex")
+                                       (assoc (Cursor. 5 80) :ex/to-cursor "ex")) :ex/cursor-range "ex")
+    :endpoint (g/endpoint 12345 :label)
+    :matrix-3d (Matrix3d. 0.0 0.1 0.2
+                          1.0 1.1 1.2
+                          2.0 2.1 2.2)
+    :matrix-3f (Matrix3f. 0.0 0.1 0.2
+                          1.0 1.1 1.2
+                          2.0 2.1 2.2)
+    :matrix-4d (Matrix4d. 0.0 0.1 0.2 0.3
+                          1.0 1.1 1.2 1.3
+                          2.0 2.1 2.2 2.3
+                          3.0 3.1 3.2 3.3)
+    :matrix-4f (Matrix4f. 0.0 0.1 0.2 0.3
+                          1.0 1.1 1.2 1.3
+                          2.0 2.1 2.2 2.3
+                          3.0 3.1 3.2 3.3)
+    :point-2d (Point2d. 0.0 0.1)
+    :point-2f (Point2f. 0.0 0.1)
+    :point-3d (Point3d. 0.0 0.1 0.2)
+    :point-3f (Point3f. 0.0 0.1 0.2)
+    :point-4d (Point4d. 0.0 0.1 0.2 0.3)
+    :point-4f (Point4f. 0.0 0.1 0.2 0.3)
+    :quat-4d (Quat4d. 0.0 0.1 0.2 0.3)
+    :quat-4f (Quat4f. 0.0 0.1 0.2 0.3)
+    :vector-2d (Vector2d. 0.0 0.1)
+    :vector-2f (Vector2f. 0.0 0.1)
+    :vector-3d (Vector3d. 0.0 0.1 0.2)
+    :vector-3f (Vector3f. 0.0 0.1 0.2)
+    :vector-4d (Vector4d. 0.0 0.1 0.2 0.3)
+    :vector-4f (Vector4f. 0.0 0.1 0.2 0.3)))

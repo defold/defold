@@ -247,6 +247,52 @@ TEST_F(dmRenderTest, TestRenderCamera)
     dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
+TEST_F(dmRenderTest, TestRenderCameraEffectiveAspectRatio)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+    dmRender::RenderCameraData data = {};
+
+    // Test 1: Auto aspect ratio disabled - should return stored aspect ratio
+    data.m_AspectRatio        = 19.75f;  // Set specific aspect ratio
+    data.m_AutoAspectRatio    = false; // Disable auto mode
+    data.m_Fov                = M_PI / 4.0f;
+    data.m_NearZ              = 0.1f;
+    data.m_FarZ               = 1000.0f;
+    data.m_OrthographicZoom   = 1.0f;
+    data.m_OrthographicProjection = false;
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    float effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    ASSERT_NEAR(19.75f, effective_aspect_ratio, EPSILON);
+
+    // Test 2: Auto aspect ratio enabled - should calculate from window dimensions
+    data.m_AutoAspectRatio = true; // Enable auto mode
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+
+    // Window dimensions from SetUp(): width=20, height=10, so expected ratio = 20/10 = 2.0
+    float expected_auto_ratio = 20.0f / 10.0f;
+    ASSERT_NEAR(expected_auto_ratio, effective_aspect_ratio, EPSILON);
+
+    // Test 3: Change stored aspect ratio with auto mode - should still use calculated ratio
+    data.m_AspectRatio = 5.0f; // Different stored value
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    ASSERT_NEAR(expected_auto_ratio, effective_aspect_ratio, EPSILON); // Should still be 2.0, not 5.0
+
+    // Test 4: Switch back to manual mode - should use stored aspect ratio again
+    data.m_AutoAspectRatio = false;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    ASSERT_NEAR(5.0f, effective_aspect_ratio, EPSILON); // Should use stored value now
+
+    dmRender::DeleteRenderCamera(m_Context, camera);
+}
+
 TEST_F(dmRenderTest, TestSquare2d)
 {
     Square2d(m_Context, 10.0f, 20.0f, 30.0f, 40.0f, Vector4(0.1f, 0.2f, 0.3f, 0.4f));
@@ -386,7 +432,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_GT(ctx.m_BatchCalls, 1);
@@ -514,7 +560,7 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 
     dmRender::RenderListSubmit(m_Context, out, out + 1);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     dmGraphics::PipelineState ps_after = dmGraphics::GetPipelineState(m_GraphicsContext);
 
@@ -576,7 +622,7 @@ static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint3
     params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(context, texture, params);
     return texture;
 }
 
@@ -671,7 +717,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmRender::RenderListSubmit(m_Context, out, out + 1);
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     // we bind test_texture_0 to unit 0, but that binding will be overwritten by the name hash binding
     // since the "texture_sampler_1" sampler is bound to unit 0
@@ -686,7 +732,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     // we should allow binding the same texture to multiple logical units
     SetTextureBindingByHash(m_Context, texture_sampler_2_hash, test_texture_1);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(m_Context->m_TextureBindTable[1].m_Texture, test_texture_1);
     ASSERT_EQ(m_Context->m_TextureBindTable[2].m_Texture, test_texture_1);
@@ -700,7 +746,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     // Bind another texture after, to make sure we can bind something after an array and all the unit offsets should be valid
     SetTextureBindingByHash(m_Context, texture_sampler_4_hash, test_texture_0);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     dmGraphics::Texture* tex_array = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_AssetHandleContainer, test_texture_array);
     ASSERT_EQ(m_Context->m_TextureBindTable[3].m_Texture, test_texture_array);
@@ -721,7 +767,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     // Drawing should trim the texture bind table based on where the last valid texture was found
     // which will set the table to zero in this case
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
 
     // table is [t0, 0, 0, t0];
@@ -734,7 +780,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     SetTextureBindingByUnit(m_Context, 3, 0);
 
     // Draw should trim the array to [t0]
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(1, m_Context->m_TextureBindTable.Size());
     ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
 
@@ -756,16 +802,16 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     ASSERT_EQ(0, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
     ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
 
-    dmGraphics::DeleteTexture(test_texture_0);
-    dmGraphics::DeleteTexture(test_texture_1);
-    dmGraphics::DeleteTexture(test_texture_array);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_1);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_array);
 
     for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
     {
-        dmGraphics::DeleteTexture(textures[i]);
+        dmGraphics::DeleteTexture(m_GraphicsContext, textures[i]);
     }
 
-    dmGraphics::DeleteTexture(test_texture_0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_0);
 
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
@@ -923,7 +969,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params.m_MinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
     params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
 
     ASSERT_TRUE(dmRender::SetMaterialSampler(material,
         dmHashString64("texture_sampler_1"), 0,
@@ -981,7 +1027,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     {
         dmRender::RenderListSubmit(m_Context, out, out + 1);
         dmRender::RenderListEnd(m_Context);
-        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
         dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
         ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_min_filter_active);
@@ -1001,7 +1047,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     {
         dmRender::RenderListSubmit(m_Context, out, out + 1);
         dmRender::RenderListEnd(m_Context);
-        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
         dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
         ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
@@ -1020,7 +1066,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     dmRender::DeleteMaterial(m_Context, material_no_samplers);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
@@ -1167,11 +1213,11 @@ TEST_F(dmRenderTest, TestRenderListCulling)
             dmRender::FrustumOptions frustum_options;
             frustum_options.m_Matrix = *frustum_matrices[c];
             frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
-            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
+            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
         }
         else
         {
-            dmRender::DrawRenderList(m_Context, 0, 0, 0);
+            dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
         }
 
         ASSERT_EQ(ctx.m_BeginCalls, 2);
@@ -1266,7 +1312,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 1);
     ASSERT_EQ(ctx.m_EntriesRendered, 1);
@@ -1292,7 +1338,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 2);
     ASSERT_EQ(ctx.m_EntriesRendered, 2);
@@ -1319,11 +1365,258 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(0,0,0,0));
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     dmRender::DrawDebug2d(m_Context);
     dmRender::DrawDebug3d(m_Context, 0);
 }
 
+struct TestSortFrontToBackCtx
+{
+    int   m_BeginCalls;
+    int   m_BatchCalls;
+    int   m_EndCalls;
+    float m_LastZ;
+    int   m_Count;
+};
+
+static void TestSortFrontToBackDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestSortFrontToBackCtx* ctx = (TestSortFrontToBackCtx*) params.m_UserData;
+    switch (params.m_Operation)
+    {
+        case dmRender::RENDER_LIST_OPERATION_BEGIN:
+            ctx->m_BeginCalls++;
+            break;
+        case dmRender::RENDER_LIST_OPERATION_BATCH:
+        {
+            ctx->m_BatchCalls++;
+            for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+            {
+                const dmRender::RenderListEntry& e = params.m_Buf[*i];
+                if (e.m_MajorOrder == dmRender::RENDER_ORDER_WORLD)
+                {
+                    if (ctx->m_Count > 0)
+                    {
+                        // For FRONT_TO_BACK we expect decreasing world z (relative to the default back-to-front tests)
+                        ASSERT_LT(e.m_WorldPosition.getZ(), ctx->m_LastZ);
+                    }
+                    ctx->m_LastZ = e.m_WorldPosition.getZ();
+                    ctx->m_Count++;
+                }
+            }
+        } break;
+        default:
+            ctx->m_EndCalls++;
+            break;
+    }
+}
+
+TEST_F(dmRenderTest, TestRenderListSortFrontToBack)
+{
+    // Ensure FRONT_TO_BACK produces the inverse ordering compared to the existing back-to-front behavior
+    TestSortFrontToBackCtx ctx = {};
+    ctx.m_LastZ = 0.0f;
+
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestSortFrontToBackDispatch, 0, &ctx);
+
+    const uint32_t n = 5;
+    const uint32_t orders[n] = { 2, 5, 1, 4, 3 }; // unsorted insertion order
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, n);
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        dmRender::RenderListEntry& e = out[i];
+        e.m_WorldPosition = Point3(0, 0, (float)orders[i]);
+        e.m_MajorOrder    = dmRender::RENDER_ORDER_WORLD;
+        e.m_MinorOrder    = 0;
+        e.m_TagListKey    = 0;
+        e.m_Order         = orders[i];
+        e.m_BatchKey      = 0;
+        e.m_Dispatch      = dispatch;
+        e.m_UserData      = 0;
+    }
+    dmRender::RenderListSubmit(m_Context, out, out + n);
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK);
+
+    ASSERT_EQ(ctx.m_BeginCalls, 1);
+    ASSERT_EQ(ctx.m_BatchCalls, 1);
+    ASSERT_EQ(ctx.m_EndCalls, 1);
+    ASSERT_EQ(ctx.m_Count, (int)n);
+}
+
+struct TestSortNoneCtx
+{
+    const uint32_t* m_Expected;
+    uint32_t        m_Count;
+    uint32_t        m_Index;
+};
+
+static void TestSortNoneDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestSortNoneCtx* ctx = (TestSortNoneCtx*) params.m_UserData;
+    if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH)
+        return;
+
+    for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+    {
+        const dmRender::RenderListEntry& e = params.m_Buf[*i];
+        if (e.m_MajorOrder != dmRender::RENDER_ORDER_WORLD)
+            continue;
+        ASSERT_LT(ctx->m_Index, ctx->m_Count);
+        ASSERT_EQ((uint32_t)e.m_WorldPosition.getZ(), ctx->m_Expected[ctx->m_Index]);
+        ctx->m_Index++;
+    }
+}
+
+TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
+{
+    // With SORT_NONE we should iterate entries in insertion order
+    const uint32_t expected[] = { 7, 1, 5, 3, 9 };
+
+    TestSortNoneCtx ctx = {};
+    ctx.m_Expected = expected;
+    ctx.m_Count    = DM_ARRAY_SIZE(expected);
+    ctx.m_Index    = 0;
+
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestSortNoneDispatch, 0, &ctx);
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, ctx.m_Count);
+    for (uint32_t i = 0; i < ctx.m_Count; ++i)
+    {
+        dmRender::RenderListEntry& e = out[i];
+        e.m_WorldPosition = Point3(0, 0, (float)expected[i]);
+        e.m_MajorOrder    = dmRender::RENDER_ORDER_WORLD;
+        e.m_MinorOrder    = 0;
+        e.m_TagListKey    = 0;
+        e.m_Order         = expected[i];
+        e.m_BatchKey      = 0;
+        e.m_Dispatch      = dispatch;
+        e.m_UserData      = 0;
+    }
+
+    dmRender::RenderListSubmit(m_Context, out, out + ctx.m_Count);
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE);
+
+    ASSERT_EQ(ctx.m_Index, ctx.m_Count);
+}
+
+static float Metric(const char* text, int n, bool measure_trailing_space)
+{
+    return n * 4;
+}
+
+#define ASSERT_LINE(index, count, lines, i)\
+    ASSERT_EQ(char_width * count, lines[i].m_Width);\
+    ASSERT_EQ(index, lines[i].m_Index);\
+    ASSERT_EQ(count, lines[i].m_Count);
+
+TEST(dmFontRenderer, Layout)
+{
+    const uint32_t lines_count = 256;
+    dmRender::TextLine lines[lines_count];
+    int total_lines;
+    const float char_width = 4;
+    float w;
+    total_lines = dmRender::Layout("", 100, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(0, total_lines);
+    ASSERT_EQ(0, w);
+
+    total_lines = dmRender::Layout("x", 100, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 1, lines, 0);
+    ASSERT_EQ(char_width * 1, w);
+
+    total_lines = dmRender::Layout("x\x00 123", 100, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 1, lines, 0);
+    ASSERT_EQ(char_width * 1, w);
+
+    total_lines = dmRender::Layout("x", 0, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 1, lines, 0);
+    ASSERT_EQ(char_width * 1, w);
+
+    total_lines = dmRender::Layout("foo", 3 * char_width, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_EQ(char_width * 3, w);
+
+    total_lines = dmRender::Layout("foo", 3 * char_width - 1, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_EQ(char_width * 3, w);
+
+    total_lines = dmRender::Layout("foo bar", 3 * char_width, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(2, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(4, 3, lines, 1);
+    ASSERT_EQ(char_width * 3, w);
+
+    total_lines = dmRender::Layout("foo bar", 1000, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 7, lines, 0);
+    ASSERT_EQ(char_width * 7, w);
+
+    total_lines = dmRender::Layout("foo  bar", 1000, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 8, lines, 0);
+    ASSERT_EQ(char_width * 8, w);
+
+    total_lines = dmRender::Layout("foo\n\nbar", 3 * char_width, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(3, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(4, 0, lines, 1);
+    ASSERT_LINE(5, 3, lines, 2);
+    ASSERT_EQ(char_width * 3, w);
+
+    // 0x200B = Unicode "zero width space", UTF8 representation: E2 80 8B
+    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(2, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(6, 3, lines, 1);
+    ASSERT_EQ(char_width * 3, w);
+
+    // Note that second line would include a "zero width space" as first
+    // character since we don't trim whitespace currently.
+    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(2, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(6, 4, lines, 1);
+    ASSERT_EQ(char_width * 4, w);
+
+    // åäö
+    total_lines = dmRender::Layout("\xc3\xa5\xc3\xa4\xc3\xb6", 3 * char_width, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_EQ(char_width * 3, lines[0].m_Width);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_EQ(char_width * 3, w);
+
+    total_lines = dmRender::Layout("Welcome to the Kingdom of Games...", 0, lines, lines_count, &w, Metric, false);
+    ASSERT_EQ(6, total_lines);
+    ASSERT_LINE(0, 7, lines, 0);
+    ASSERT_LINE(8, 2, lines, 1);
+    ASSERT_LINE(11, 3, lines, 2);
+    ASSERT_LINE(15, 7, lines, 3);
+    ASSERT_LINE(23, 2, lines, 4);
+    ASSERT_LINE(26, 8, lines, 5);
+    ASSERT_EQ(char_width * 8, w);
+}
 
 static inline float ExpectedHeight(float line_height, float num_lines, float leading)
 {

@@ -30,6 +30,7 @@
             [editor.handler :as handler]
             [editor.image :as image]
             [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
@@ -47,7 +48,6 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
@@ -56,7 +56,7 @@
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
-           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -545,6 +545,8 @@
   (cond
     (neg? x) "'Max Page Width' cannot be negative"
     (neg? y) "'Max Page Height' cannot be negative"
+    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Width' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
+    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Height' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
     :else nil))
 
 (defn- validate-max-page-size [node-id page-size]
@@ -1024,7 +1026,7 @@
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
   (when-some [image-resources (seq (resource-dialog/make workspace project
                                                          {:ext image/exts
-                                                          :title "Select Images"
+                                                          :title (localization/message "dialog.add-atlas-images.title")
                                                           :selection :multiple
                                                           :accept-fn accept-fn}))]
     (let [op-seq (gensym)

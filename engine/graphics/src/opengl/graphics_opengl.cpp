@@ -891,9 +891,9 @@ static void LogFrameBufferError(GLenum status)
             params.m_Data = data;
             params.m_DataSize = sizeof(data);
             params.m_MipMap = 0;
-            SetTextureAsync(texture_handle, params, 0, 0);
+            SetTextureAsync(_context, texture_handle, params, 0, 0);
 
-            while(GetTextureStatusFlags(texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            while(GetTextureStatusFlags(g_Context, texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
                 dmTime::Sleep(100);
             }
@@ -931,7 +931,7 @@ static void LogFrameBufferError(GLenum status)
             glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
             CHECK_GL_ERROR;
             glDeleteFramebuffers(1, &osfb);
-            DeleteTexture(texture_handle);
+            DeleteTexture(_context, texture_handle);
 
             if(memcmp(data, gpu_data, sizeof(data))!=0)
             {
@@ -1328,10 +1328,37 @@ static void LogFrameBufferError(GLenum status)
         {
             GLint *pCompressedFormats = new GLint[iNumCompressedFormats];
             glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
+            bool isPagedASTCSupported = true;
+            #if defined (__EMSCRIPTEN__)
+            // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+            // see https://github.com/defold/defold/issues/8030
+            // and https://github.com/defold/defold/issues/11009
+            if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
+                unsigned char fakeZeroBuffer[] = {
+                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    
+                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+
+                };
+                GLuint texture;
+                glGenTextures(1, &texture);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+                DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
+                GLint err = glGetError();
+                if (err != 0)
+                {
+                    context->m_ASTCSupport = 0;
+                    isPagedASTCSupported = false;
+                }
+                glDeleteTextures(1, &texture);
+            }
+            #endif
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
                 // If 4x4 is supported, all ASTC formats should be supported.
-                if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
+                if (isPagedASTCSupported && pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
                     context->m_ASTCSupport = 1;
                 }
@@ -1353,27 +1380,6 @@ static void LogFrameBufferError(GLenum status)
 
 
 #if defined (__EMSCRIPTEN__)
-        // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
-        // see https://github.com/defold/defold/issues/8030
-        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
-            unsigned char fakeZeroBuffer[] = {
-                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
-                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
-                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
-                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01
-            };
-            GLuint texture;
-            glGenTextures(1, &texture);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
-            GLint err = glGetError();
-            if (err != 0)
-            {
-                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4X4);
-            }
-            glDeleteTextures(1, &texture);
-        }
-
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
         context->m_PackedDepthStencilSupport = 1;
         context->m_DepthBufferBits = 16;
@@ -1663,6 +1669,7 @@ static void LogFrameBufferError(GLenum status)
 #if defined(ANDROID)
         dmPlatform::AndroidBeginFrame(((OpenGLContext*) context)->m_Window);
 #endif
+        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
     }
 
     static void OpenGLFlip(HContext _context)
@@ -3248,16 +3255,17 @@ static void LogFrameBufferError(GLenum status)
         attachment.m_Attached = true;
     }
 
-    static void ApplyRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt, bool update_current)
+    static void ApplyRenderTargetAttachments(HContext context, OpenGLRenderTarget* rt, bool update_current)
     {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
+                SetTexture(context, rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
-                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_ColorAttachments[i], attachments, DM_ARRAY_SIZE(attachments));
             }
         }
 
@@ -3265,27 +3273,27 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthStencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(gl_context, rt->m_DepthStencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_DepthStencilAttachment.m_Params.m_Width, rt->m_DepthStencilAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
     #else
                 // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
     #endif
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
+                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(gl_context->m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
-                glBindTexture(GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
+                glBindTexture(GL_TEXTURE_2D, GetGLHandle(gl_context, attachment_tex->m_TextureIds[0]));
                 CHECK_GL_ERROR;
 
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
@@ -3299,10 +3307,10 @@ static void LogFrameBufferError(GLenum status)
                 glBindTexture(GL_TEXTURE_2D, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
             #else
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
             #endif
             }
             else
@@ -3314,40 +3322,40 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthAttachment.m_Buffer));
-                glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_DepthAttachment.m_Params.m_Width, rt->m_DepthAttachment.m_Params.m_Height);
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(gl_context, rt->m_DepthAttachment.m_Buffer));
+                glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(gl_context), rt->m_DepthAttachment.m_Params.m_Width, rt->m_DepthAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
+                SetTexture(context, rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
             }
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_StencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(gl_context, rt->m_StencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_StencilAttachment.m_Params.m_Width, rt->m_StencilAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
+                SetTexture(context, rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
             }
         }
     }
@@ -3441,7 +3449,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        ApplyRenderTargetAttachments(context, rt, false);
+        ApplyRenderTargetAttachments(_context, rt, false);
 
         // Disable color buffer
         if (!any_color_attachment_set)
@@ -3475,12 +3483,12 @@ static void LogFrameBufferError(GLenum status)
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE && attachment.m_Texture)
         {
-            DeleteTexture(attachment.m_Texture);
+            DeleteTexture((HContext)g_Context, attachment.m_Texture);
             attachment.m_Texture = 0;
         }
     }
 
-    static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
+    static void OpenGLDeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
@@ -3500,6 +3508,11 @@ static void LogFrameBufferError(GLenum status)
         g_Context->m_AssetHandleContainer.Release(render_target);
 
         delete rt;
+    }
+
+    uint32_t OpenGLGetDefaultFramebufferId(HContext context)
+    {
+        return dmPlatform::OpenGLGetDefaultFramebufferId();
     }
 
     static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
@@ -3590,7 +3603,7 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture OpenGLGetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
@@ -3613,7 +3626,7 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void OpenGLGetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
@@ -3645,7 +3658,7 @@ static void LogFrameBufferError(GLenum status)
         height = params->m_Height;
     }
 
-    static void OpenGLSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void OpenGLSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
@@ -3662,7 +3675,7 @@ static void LogFrameBufferError(GLenum status)
         rt->m_StencilAttachment.m_Params.m_Width       = width;
         rt->m_StencilAttachment.m_Params.m_Height      = height;
 
-        ApplyRenderTargetAttachments(g_Context, rt, true);
+        ApplyRenderTargetAttachments(context, rt, true);
     }
 
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
@@ -3801,7 +3814,7 @@ static void LogFrameBufferError(GLenum status)
         while(i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
         {
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-            if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            if(!(dmGraphics::GetTextureStatusFlags(g_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
                 OpenGLDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
@@ -3813,7 +3826,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDeleteTexture(HTexture texture)
+    static void OpenGLDeleteTexture(HContext context, HTexture texture)
     {
         assert(texture);
         // We can only delete valid textures
@@ -3822,7 +3835,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
         // If they're not uploaded yet, we cannot delete them
-        if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        if(dmGraphics::GetTextureStatusFlags(g_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
             PushSetTextureAsyncDeleteTexture(g_Context->m_SetTextureAsyncState, texture);
         }
@@ -3878,7 +3891,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
 
-    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void OpenGLSetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
@@ -3916,14 +3929,14 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
+    static uint8_t OpenGLGetNumTextureHandles(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_NumTextureIds : 0;
     }
 
-    static uint32_t OpenGLGetTextureUsageHintFlags(HTexture texture)
+    static uint32_t OpenGLGetTextureUsageHintFlags(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
@@ -3937,7 +3950,7 @@ static void LogFrameBufferError(GLenum status)
         return tex ? tex->m_PageCount : 0;
     }
 
-    static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
+    static uint32_t OpenGLGetTextureStatusFlags(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
@@ -3966,7 +3979,7 @@ static void LogFrameBufferError(GLenum status)
         //       The window handle (pointer) isn't protected by a mutex either,
         //       but it is currently not used with our GLFW version (yet) so
         //       we don't necessarily need to guard it right now.
-        SetTexture(ap.m_Texture, ap.m_Params);
+        SetTexture(_context, ap.m_Texture, ap.m_Params);
         glFlush();
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
@@ -3992,7 +4005,7 @@ static void LogFrameBufferError(GLenum status)
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
-    static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    static void OpenGLSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         if (g_Context->m_AsyncProcessingSupport)
         {
@@ -4012,7 +4025,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            SetTexture(texture, params);
+            SetTexture(context, texture, params);
         }
     }
 
@@ -4181,7 +4194,7 @@ static void LogFrameBufferError(GLenum status)
     #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
-    static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
+    static void OpenGLSetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -4251,7 +4264,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (!params.m_SubUpdate)
             {
-                SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+                SetTextureParams(context, texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
             }
 
             switch (params.m_Format)
@@ -4474,7 +4487,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // NOTE: This is an approximation
-    static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
+    static uint32_t OpenGLGetTextureResourceSize(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
@@ -4494,49 +4507,49 @@ static void LogFrameBufferError(GLenum status)
         return size_total + sizeof(OpenGLTexture);
     }
 
-    static uint16_t OpenGLGetTextureWidth(HTexture texture)
+    static uint16_t OpenGLGetTextureWidth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_Width : 0;
     }
 
-    static uint16_t OpenGLGetTextureHeight(HTexture texture)
+    static uint16_t OpenGLGetTextureHeight(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_Height : 0;
     }
 
-    static uint16_t OpenGLGetOriginalTextureWidth(HTexture texture)
+    static uint16_t OpenGLGetOriginalTextureWidth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_OriginalWidth : 0;
     }
 
-    static uint16_t OpenGLGetOriginalTextureHeight(HTexture texture)
+    static uint16_t OpenGLGetOriginalTextureHeight(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_OriginalHeight : 0;
     }
 
-    static TextureType OpenGLGetTextureType(HTexture texture)
+    static TextureType OpenGLGetTextureType(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
-    static uint16_t OpenGLGetTextureDepth(HTexture texture)
+    static uint16_t OpenGLGetTextureDepth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_Depth : 0;
     }
 
-    static uint8_t OpenGLGetTextureMipmapCount(HTexture texture)
+    static uint8_t OpenGLGetTextureMipmapCount(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
@@ -4634,7 +4647,7 @@ static void LogFrameBufferError(GLenum status)
         {
             glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
             CHECK_GL_ERROR;
-            OpenGLSetTextureParams(texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+            OpenGLSetTextureParams(_context, texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         }
     }
 
@@ -4779,13 +4792,13 @@ static void LogFrameBufferError(GLenum status)
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    static void OpenGLSetDepthMask(HContext context, bool mask)
+    static void OpenGLSetDepthMask(HContext context, bool enable_mask)
     {
         assert(context);
-        glDepthMask(mask);
+        glDepthMask(enable_mask);
         CHECK_GL_ERROR;
 
-        ((OpenGLContext*) context)->m_PipelineState.m_WriteDepth = mask;
+        ((OpenGLContext*) context)->m_PipelineState.m_WriteDepth = enable_mask;
     }
 
     static GLenum GetOpenGLCompareFunc(CompareFunc func)

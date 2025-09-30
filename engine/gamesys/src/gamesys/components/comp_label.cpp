@@ -327,17 +327,7 @@ namespace dmGameSystem
 
             Matrix4 local = CompLabelLocalTransform(c->m_Position, c->m_Rotation, c->m_Scale, c->m_Size, c->m_Pivot);
             Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            Matrix4 w;
-
-            if (dmGameObject::ScaleAlongZ(c->m_Instance))
-            {
-                w = world * local;
-            }
-            else
-            {
-                w = dmTransform::MulNoScaleZ(world, local);
-            }
-
+            Matrix4 w = world * local;
             w = dmVMath::AppendScale(w, c->m_Scale);
 
             Vector4 position = w.getCol3();

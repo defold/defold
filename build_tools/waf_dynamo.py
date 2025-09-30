@@ -37,8 +37,11 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
+script_dir = os.path.dirname(__file__)
+defold_root = os.path.abspath(os.path.join(script_dir, ".."))
+
 # import the vendor specific build setup
-path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_vendor.py')
+path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
 if os.path.exists(path):
     sys.dont_write_bytecode = True
     import_lib('waf_dynamo_vendor', path)
@@ -140,7 +143,7 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
-        graphics_libs += ['GRAPHICS_DX12']
+        graphics_libs += ['GRAPHICS_DX12', 'DX12']
         graphics_lib_symbols.append('GraphicsAdapterDX12')
 
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
@@ -248,6 +251,8 @@ def apidoc_extract_task(bld, src):
 
         elements = {}
         resource_path = resource.abspath()
+        resource_file = os.path.basename(resource_path)
+        relative_path = resource_path.replace(defold_root, "")[1:]
 
         with open(resource_path, encoding='utf8') as in_f:
             source = in_f.read()
@@ -260,20 +265,32 @@ def apidoc_extract_task(bld, src):
                 if comment["is_document"]:
                     comment_path = comment.get("path")
                     if not comment_path:
-                        print("Missing @path in %s, adding %s" % (resource_path, source_path))
-                        comment_str = comment_str + ("* @path %s\n" % source_path)
-                    elif comment_path != source_path:
-                        print("Path missmatch in %s, expected %s but was %s" % (resource_path, source_path, comment_path))
-                        comment_str = comment_str.replace(comment_path, source_path)
+                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
+                        comment_str = comment_str + ("* @path %s\n" % relative_path)
+                    else:
+                        # there really shouldn't be any files with hardcoded paths anymore
+                        # but let's keep this here for some time in case we introduce a hardcoded
+                        # path somewhere again
+                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
+                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
+
+                    comment_file = comment.get("file")
+                    if not comment_file:
+                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
+                        comment_str = comment_str + ("* @file %s\n" % resource_file)
+                    elif comment_file != resource_file:
+                        # there shouldn't be any of these, but let's keep it here anyway
+                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
+                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
 
                     comment_language = comment.get("language")
                     if not comment_language:
                         print("Missing @language in %s, assuming C++" % (resource_path))
                         comment_str = comment_str + "* @language C++\n"
-                    
+
                     if namespace:
                         default_namespace = namespace
-                
+
                 if not namespace:
                     namespace = default_namespace
                     comment["namespace"] = default_namespace
@@ -372,7 +389,7 @@ def getAndroidCompileFlags(target_arch):
     # NOTE:
     # -fno-exceptions added
     else:
-        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-fvisibility=hidden']
 
 def getAndroidLinkFlags(target_arch):
     common_flags = ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
@@ -621,15 +638,18 @@ def default_flags(self):
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             if 'wagyu' in Options.options.enable_features:
-                wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:stubs=true:extensions=true' % (os.environ['DYNAMO_HOME'])
-                flags += ['--use-port=%s' % wagyu_port]
+                # When building the executable locally, targeting wagyu, we need to link with the stubs
+                wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
                 linkflags += ['--use-port=%s' % wagyu_port]
-                self.env.append_value('DEFINES', ['DM_GRAPHICS_WEBGPU_WAGYU'])
             else:
                 emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            emflags_link += ['ASYNCIFY']
+            emflags_link += ['ASYNCIFY', 'WASM_BIGINT=1']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
+
+        if with_pthread:
+            # sound needs this to startup its thread with no deadlock
+            emflags_link += ['PTHREAD_POOL_SIZE=1']
 
         if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -1676,6 +1696,7 @@ def extract_symbols(self):
 
     archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
+    ziptask.always_run = True
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
 
@@ -1824,11 +1845,8 @@ def detect(conf):
             exe_suffix = '.exe'
         target_arch = build_util.get_target_architecture()
         api_version = sdkinfo['api']
-        clang_name  = getAndroidCompilerName(target_arch, api_version)
-        # NDK doesn't support arm64 yet
-        if bp_arch == 'arm64':
-            bp_arch = 'x86_64';
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (sdkinfo['ndk'], bp_os, bp_arch)
+        clang_name  = sdkinfo['clangname']
+        bintools    = sdkinfo['bintools']
         bintools    = os.path.normpath(bintools)
         sep         = os.path.sep
 
@@ -2017,7 +2035,7 @@ def detect(conf):
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     if TargetOS.MACOS == target_os:
-        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
+        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif TargetOS.WINDOWS == target_os:
@@ -2064,7 +2082,10 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
+    if 'wagyu' in Options.options.enable_features:
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+    else:
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STLIB_PLATFORM']        = ['platform']
@@ -2180,6 +2201,7 @@ def options(opt):
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-openal', action='store_true', default=False, dest='with_openal', help='Enables OpenAL as the sound backend')
     opt.add_option('--with-opengl', action='store_true', default=False, dest='with_opengl', help='Enables OpenGL as the graphics backend')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')

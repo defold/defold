@@ -17,4 +17,4 @@
 
 (defn -main [& args]
   (println "Launching")
-  (Application/launch (Class/forName "com.defold.editor.Start") args))
+  (Application/launch (Class/forName "com.defold.editor.Start") (into-array String args)))

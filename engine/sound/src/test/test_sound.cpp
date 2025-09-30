@@ -2351,3 +2351,164 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
+
+// New tests for start_time/start_frame offset support
+
+TEST(SoundStartOffset, FrameIndependentOfSpeed)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(MONO_TONE_440_44100_88200_WAV, MONO_TONE_440_44100_88200_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("startoffset_wav")));
+
+    dmSound::HSoundInstance a = 0, b = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &b));
+
+    // Different speeds should not affect starting offset
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(a, dmSound::PARAMETER_SPEED, dmVMath::Vector4(0.5f,0,0,0)));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(b, dmSound::PARAMETER_SPEED, dmVMath::Vector4(2.0f,0,0,0)));
+
+    const uint32_t start_frame = 22050; // 0.5 seconds @ 44100
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartFrame(a, start_frame));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartFrame(b, start_frame));
+
+    int64_t posa = dmSound::GetInternalPos(a);
+    int64_t posb = dmSound::GetInternalPos(b);
+
+    ASSERT_EQ((int64_t)start_frame, posa);
+    ASSERT_EQ((int64_t)start_frame, posb);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(b));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundStartOffset, TimeIndependentOfSpeed)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(MONO_TONE_440_44100_88200_WAV, MONO_TONE_440_44100_88200_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("startoffset_time_wav")));
+
+    dmSound::HSoundInstance a = 0, b = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &b));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(a, dmSound::PARAMETER_SPEED, dmVMath::Vector4(0.5f,0,0,0)));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(b, dmSound::PARAMETER_SPEED, dmVMath::Vector4(2.0f,0,0,0)));
+
+    const float start_time = 0.5f; // 0.5 seconds @ 44100 -> 22050 frames
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartTime(a, start_time));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartTime(b, start_time));
+
+    int64_t posa = dmSound::GetInternalPos(a);
+    int64_t posb = dmSound::GetInternalPos(b);
+
+    ASSERT_EQ(22050, posa);
+    ASSERT_EQ(22050, posb);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(b));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundStartOffset, BeyondLengthCompletes)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(MONO_TONE_440_44100_11025_WAV, MONO_TONE_440_44100_11025_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("startoffset_beyond_wav")));
+
+    dmSound::HSoundInstance inst = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &inst));
+
+    // Set start offset well beyond the clip length
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartFrame(inst, 20000));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(inst));
+
+    // Run a few updates; instance should quickly end
+    for (int i = 0; i < 8; ++i)
+    {
+        dmSound::Update();
+    }
+    ASSERT_FALSE(dmSound::IsPlaying(inst));
+
+    // Ensure no error log on delete
+    dmSound::Stop(inst);
+    // Ensure no error log on delete
+    dmSound::Stop(inst);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(inst));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
+class dmSoundTestStartTimePlayTest : public dmSoundTest
+{
+};
+
+TEST_P(dmSoundTestStartTimePlayTest, StartTime)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    // Start at 1.585 seconds
+    r = dmSound::SetStartTime(instance, 1.618f);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.8f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_starttime_play_test[] = {
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, 0, 0, 0, 2048, 1),
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV, MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, 0, 0, 0, 2048, 1),
+};
+INSTANTIATE_TEST_CASE_P(dmSoundTestStartTimePlayTest, dmSoundTestStartTimePlayTest, jc_test_values_in(params_starttime_play_test));
+#endif

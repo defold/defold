@@ -20,6 +20,7 @@
             [editor.build-target :as bt]
             [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
+            [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.node-types :as node-types]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -634,7 +635,8 @@
                                  (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)))))
 
   (property type g/Any ; Required protobuf field.
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType)))
+            (dynamic tooltip (g/constantly "Available as `collision_type` in editor scripts. Prefer this identifier over `type`, since `type` is used for component types when a component is embedded in game objects, which will shadow this property.")))
 
   (property mass g/Num ; Required protobuf field.
             (value (g/fnk [mass type]
@@ -769,3 +771,28 @@
                                [])
                     (sort-by :label)
                     (into []))))))
+
+(ext-graph/register-property-getter!
+  ::CollisionObjectNode
+  (fn CollisionObjectNode-getter [node-id property evaluation-context]
+    (case property
+      "collision_type"
+      (let [node (g/node-by-id (:basis evaluation-context) node-id)]
+        (when-let [edit-type-id (properties/edit-type-id (g/node-property-dynamic node :type :edit-type evaluation-context))]
+          (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
+            #(converter (g/node-value node-id :type evaluation-context)))))
+
+      nil)))
+
+(ext-graph/register-property-setter!
+  ::CollisionObjectNode
+  (fn CollisionObjectNode-setter [node-id property rt project evaluation-context]
+    (case property
+      "collision_type"
+      (let [node (g/node-by-id (:basis evaluation-context) node-id)]
+        (when-not (g/node-property-dynamic node :type :read-only? false evaluation-context)
+          (let [edit-type (g/node-property-dynamic node :type :edit-type evaluation-context)]
+            (when-let [converter (-> edit-type properties/edit-type-id ext-graph/edit-type-id->value-converter :from)]
+              #(g/set-property node-id :type (converter % rt edit-type project evaluation-context))))))
+
+      nil)))

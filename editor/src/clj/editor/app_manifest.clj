@@ -338,8 +338,7 @@
       (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
       (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
       (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"])
-      )))
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"]))))
 
 (def sound-setting
   (make-check-box-setting
@@ -487,7 +486,8 @@
     (libs-toggles web ["graphics_webgpu"])
     (generic-contains-toggles web :symbols ["GraphicsAdapterWebGPU"])
     (generic-contains-toggles web :emscriptenLinkFlags ["USE_WEBGPU=1" "GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0"])
-    (generic-contains-toggles [:wasm-web :wasm_pthread-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
+    (generic-contains-toggles [:wasm-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])
+    (generic-contains-toggles [:wasm_pthread-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]" "PTHREAD_POOL_SIZE=1"])))
 
 (def graphics-web-setting
   (make-choice-setting

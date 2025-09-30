@@ -32,6 +32,7 @@ import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.FlatteningPathIterator;
 import java.awt.geom.PathIterator;
+import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
@@ -805,7 +806,11 @@ public class Fontc {
         int height = glyph.ascent + glyph.descent + padding * 2;
 
         Shape sh = glyph.vector.getGlyphOutline(0);
-        PathIterator pi = sh.getPathIterator(new AffineTransform(1,0,0,1,0,0));
+        // Normalize the outline by boolean-unioning overlapping contours to avoid
+        // internal edges contributing to the distance field (fixes artifacts for
+        // glyphs composed of multiple vector shapes; see issue #6577)
+        Area area = new Area(sh);
+        PathIterator pi = area.getPathIterator(new AffineTransform(1,0,0,1,0,0));
         pi = new FlatteningPathIterator(pi,  0.1);
 
         double _x = 0, _y = 0;
@@ -864,7 +869,7 @@ public class Fontc {
                 double distanceToEdge   = distanceData[ofs + u];
                 double distanceToBorder = -(distanceToEdge - fontDesc.getOutlineWidth());
 
-                if (!sh.contains(gx, gy)) {
+                if (!area.contains(gx, gy)) {
                     distanceToEdge = -distanceToEdge;
                 }
 

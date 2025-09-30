@@ -97,9 +97,8 @@ namespace dmRender
         dmArray<uint8_t>                        m_MaterialAttributeValues;
         dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
+        dmRenderDDF::MaterialDesc::PbrParameters m_PbrParameters;
         uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
-        uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
-        uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
         uint8_t                                 m_InstancingSupported : 1;
         uint8_t                                 m_HasSkinnedAttributes : 1;
@@ -113,7 +112,6 @@ namespace dmRender
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
-        uint64_t                                    m_UserData;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -347,7 +345,7 @@ namespace dmRender
 
     void    SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture);
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
-    bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    bool    GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
 
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);

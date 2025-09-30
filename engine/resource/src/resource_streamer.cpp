@@ -90,7 +90,7 @@ Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t
     job->m_Size = size;
 
     char canonical_path[RESOURCE_PATH_MAX];
-    dmResource::GetCanonicalPath(path, canonical_path);
+    dmResource::GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
 
     job->m_CanonicalPath = strdup(canonical_path);
     job->m_Path = strdup(path);

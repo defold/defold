@@ -24,7 +24,6 @@ namespace dmMutex
      * @document
      * @name Mutex
      * @namespace dmMutex
-     * @path engine/dlib/src/dmsdk/dlib/mutex.h
      * @language C++
      */
 

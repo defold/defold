@@ -53,6 +53,7 @@ import gamesys.sprite_ddf_pb2
 import gamesys.physics_ddf_pb2
 import gamesys.gui_ddf_pb2
 import gamesys.label_ddf_pb2
+import gamesys.camera_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
@@ -80,6 +81,7 @@ BUILDERS['.spc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 BUILDERS['.texturec']       = graphics.graphics_ddf_pb2.TextureImage
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
+BUILDERS['.camerac']        = gamesys.camera_ddf_pb2.CameraDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'

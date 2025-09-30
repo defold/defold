@@ -102,7 +102,6 @@ def get_target_platforms():
 
 PACKAGES_ALL=[
     "protobuf-3.20.1",
-    "waf-2.0.3",
     "junit-4.6",
     "jsign-4.2",
     "protobuf-java-3.20.1",
@@ -115,9 +114,9 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
-    "jctest-0.10.2",
+    "jctest-0.12",
     "vulkan-v1.4.307",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
     "harfbuzz-11.3.2",
@@ -136,7 +135,7 @@ PACKAGES_IOS_X86_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -147,7 +146,7 @@ PACKAGES_IOS_64=[
     "bullet-2.77",
     "moltenvk-1474891",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -166,7 +165,7 @@ PACKAGES_MACOS_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -184,7 +183,7 @@ PACKAGES_MACOS_ARM64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
     "harfbuzz-11.3.2",
@@ -199,7 +198,7 @@ PACKAGES_WIN32=[
     "bullet-2.77",
     "vulkan-v1.4.307",
     "glfw-3.4",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -218,7 +217,7 @@ PACKAGES_WIN32_64=[
     "tint-22b958",
     "astcenc-8b0aa01",
     "directx-headers-1.611.0",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -229,6 +228,7 @@ PACKAGES_LINUX_X86_64=[
     "glslang-ba5c010c",
     "spirv-cross-9040e0d2",
     "spirv-tools-d24a39a7",
+    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -236,7 +236,7 @@ PACKAGES_LINUX_X86_64=[
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -247,13 +247,14 @@ PACKAGES_LINUX_ARM64=[
     "glslang-2fed4fc0",
     "spirv-cross-9040e0d2",
     "spirv-tools-4fab7435",
+    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -265,7 +266,7 @@ PACKAGES_ANDROID=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
@@ -278,7 +279,7 @@ PACKAGES_ANDROID_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
@@ -287,8 +288,8 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-24",
-    "box2d-3.0.0",
+    "wagyu-39",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
     "harfbuzz-11.3.2",
@@ -643,6 +644,13 @@ class Configuration(object):
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
 
+    def install_waf(self):
+        def make_package_path(root, platform, package):
+            return join(root, 'packages', package) + '-%s.tar.gz' % platform
+        print("Installing waf")
+        waf_package = "waf-2.0.3"
+        waf_path = make_package_path(self.defold_root, 'common', waf_package)
+        self._extract_tgz(waf_path, self.ext)
 
     def install_ext(self):
         def make_package_path(root, platform, package):
@@ -650,6 +658,8 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
+
+        self.install_waf()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -696,7 +706,7 @@ class Configuration(object):
         if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
             protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
             package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
-            print("Installing %s packages " % 'x86_64-linux')
+            print("Installing %s protobuf packages " % 'x86_64-linux')
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
@@ -775,6 +785,11 @@ class Configuration(object):
         if self.verbose:
             print("SDK info:")
             pprint.pprint(self.sdk_info)
+
+
+        result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
+        if not result:
+            self.fatal("Failed sdk check")
 
     def verify_sdk(self):
         was_verbose = self.verbose
@@ -1049,6 +1064,22 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # the port scripts contain the necessary files, only need to include them once
+            if platform in ['wasm-web']:
+                wagyu_port_files = []
+                for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/wagyu-port')):
+                    for f in files:
+                        _, ext = os.path.splitext(f)
+                        if ext in ('.pyc',):
+                            continue
+                        path = os.path.join(root, f)
+                        wagyu_port_files.append(path)
+
+                if not wagyu_port_files:
+                    raise Exception("Failed to find wagyu-port folder")
+
+                self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
+
             if platform in ['js-web']:
                 # JavaScript files
                 # js-web-pre-x files
@@ -1072,6 +1103,17 @@ class Configuration(object):
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.proto',))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # third-party headers
+            for d in ['ext/include/vulkan', 'ext/include/vk_video']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            self._add_files_to_zip(zip, [
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
+            ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:
@@ -1862,7 +1904,10 @@ class Configuration(object):
 
         args = [SHELL, '-l']
 
-        process = subprocess.Popen(args, env=self._form_env(), shell=True)
+        if os.path.exists("/nix"):
+            args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
+
+        process = subprocess.Popen(args, env=self._form_env())
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:
@@ -2461,7 +2506,7 @@ class Configuration(object):
                     _threads[i].join()
                     self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
-                
+
                 if len(list(mp.parts.all())) == chunkcount:
                     try:
                         parts = []
@@ -2570,6 +2615,7 @@ Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
 install_sdk      - Install sdk
+install_waf      - Install waf
 sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path

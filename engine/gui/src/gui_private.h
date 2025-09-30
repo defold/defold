@@ -291,14 +291,17 @@ namespace dmGui
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback                m_OnWindowResizeCallback;
+        ApplyLayoutCallback                   m_ApplyLayoutCallback;
         GetMaterialPropertyCallback           m_GetMaterialPropertyCallback;
         void*                                 m_GetMaterialPropertyCallbackContext;
         SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
         void*                                 m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback        m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback          m_CloneRenderConstantsCallback;
         NewTextureResourceCallback            m_NewTextureResourceCallback;
         DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
         SetTextureResourceCallback            m_SetTextureResourceCallback;
+        GetDisplayProfileDescCallback         m_GetDisplayProfileDescCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

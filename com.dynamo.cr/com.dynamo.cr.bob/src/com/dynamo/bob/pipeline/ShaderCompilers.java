@@ -113,7 +113,7 @@ public class ShaderCompilers {
             }
 
             if (hlslSupported && outputHLSL) {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
             }
 
             return shaderLanguages;
@@ -147,10 +147,13 @@ public class ShaderCompilers {
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
 
+
             for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
-                opts.splitTextureSamplers |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+                boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
+
+                opts.splitTextureSamplers |= isHLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
                 outputSpirv |= shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;
-                outputHLSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
+                outputHLSL |= isHLSL;
                 outputWGSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
                 outputGlsl |= shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
                         shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
@@ -179,16 +182,16 @@ public class ShaderCompilers {
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
                     boolean variantTextureArray = false;
-                    byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
 
                     if (!shaderTypeKeys.containsKey(shaderModule.type)) {
                         shaderTypeKeys.put(shaderModule.type, true);
                     }
 
                     if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult), compileOptions.maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
-                            crossCompileResult = variantCompileResult.source.getBytes();
+                            crossCompileResult.data = variantCompileResult.source.getBytes();
                             variantTextureArray = true;
                         }
                     }

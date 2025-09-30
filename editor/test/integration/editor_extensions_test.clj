@@ -28,6 +28,7 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.os :as os]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -40,7 +41,9 @@
             [support.test-support :as test-support]
             [util.diff :as diff]
             [util.http-server :as http-server])
-  (:import [java.util.zip ZipEntry]
+  (:import [java.nio.file Files]
+           [java.nio.file.attribute PosixFilePermission]
+           [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
 
@@ -883,8 +886,7 @@ nesting:
 (defn- expect-script-output [expected actual]
   (let [actual (normalize-pprint-output (str actual))]
     (let [output-matches-expectation (= expected actual)]
-      (when-not output-matches-expectation
-        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
+      (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
 
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
@@ -993,10 +995,93 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
       (run-edit-menu-test-command!)
       (expect-script-output resource-io-test-output out))))
 
+(defn- expected-zip-test-output [root]
+  (str "Testing zip.pack...
+A file:
+zip.pack('gitignore.zip', {'.gitignore'}) => ok
+A directory:
+zip.pack('foo.zip', {'foo'}) => ok
+Multiple:
+zip.pack('multiple.zip', {'foo', {'foo', 'bar'}, '.gitignore', {'game.project', 'settings.ini'}}) => ok
+Outside:
+zip.pack('outside.zip', {{'" (System/getenv "PWD") "/project.clj', 'project.clj'}}) => ok
+Stored method:
+zip.pack('stored.zip', {method = 'stored'}, {'foo'}) => ok
+Compression level 0:
+zip.pack('level_0.zip', {level = 0}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 1:
+zip.pack('level_1.zip', {level = 1}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 2:
+zip.pack('level_2.zip', {level = 2}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 3:
+zip.pack('level_3.zip', {level = 3}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 4:
+zip.pack('level_4.zip', {level = 4}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 5:
+zip.pack('level_5.zip', {level = 5}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 6:
+zip.pack('level_6.zip', {level = 6}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 7:
+zip.pack('level_7.zip', {level = 7}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 8:
+zip.pack('level_8.zip', {level = 8}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 9:
+zip.pack('level_9.zip', {level = 9}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Unix:
+zip.pack('script.zip', {'script.sh'}) => ok
+Mixed compression settings:
+zip.pack('mixed.zip', {{'foo', '9', level = 9}, {'foo', '1', level = 1}, {'foo', '0', level = 0}, {'foo', 'stored', method = 'stored'}}) => ok
+Archive path is a directory:
+zip.pack('foo', {'game.project'}) => error: Output path is a directory: foo
+Source path does not exist:
+zip.pack('error.zip', {'does-not-exist.txt'}) => error: Source path does not exist: " root "/does-not-exist.txt
+Target path is absolute:
+zip.pack('error.zip', {'" (System/getenv "HOME") "'}) => error: Target path must be relative: " (System/getenv "HOME") "
+Target path is a relative path above root:
+zip.pack('error.zip', {{'game.project', '../../game.project'}}) => error: Target path is above archive root: ../../game.project
+zip.pack('error.zip', {{'game.project', 'foo/bar/../../../../game.project'}}) => error: Target path is above archive root: ../../game.project
+Testing zip.unpack...
+zip.unpack('script.zip', 'build', {'script.sh'}) => ok
+Default conflict resolution is error:
+zip.unpack('script.zip', 'build', {'script.sh'}) => error: Path already exists: " root "/build/script.sh
+Overwrite option:
+zip.unpack('script.zip', 'build', {on_conflict = 'overwrite'}, {'script.sh'}) => ok
+Skip:
+zip.unpack('foo.zip', 'build/skip') => ok
+build/skip/foo exists: true
+build/skip/bar exists: false
+zip.unpack('multiple.zip', 'build/skip', {on_conflict = 'skip'}) => ok
+build/skip/foo exists: true
+build/skip/bar exists: true
+Overwrite can't replace directory with a file:
+zip.unpack('script.zip', 'build/dir_conflict', {on_conflict = 'overwrite'}) => error: Can't overwrite directory: " root "/build/dir_conflict/script.sh
+Partial unpack:
+zip.unpack('multiple.zip', 'build/subset', {'settings.ini'}) => ok
+build/subset/settings.ini exists: true
+build/subset/bar exists: false
+build/subset/foo exists: false
+Archive validation:
+zip.unpack('does-not-exist.zip') => error: Archive path does not exist: " root "/does-not-exist.zip
+zip.unpack('foo') => error: Archive path is a directory: " root "/foo
+Paths validation:
+zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'foo/../../../bar'}) => error: Invalid argument:
+- \"foo/../../../bar\" is above root
+- {\"foo/../../../bar\"} is unexpected
+zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'/tmp'}) => error: Invalid argument:
+- \"/tmp\" is absolute
+- {\"/tmp\"} is unexpected
+zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'tmp/..'}) => error: Invalid argument:
+- \"tmp/..\" is empty
+- {\"tmp/..\"} is unexpected
+Extract to parent:
+zip.pack('build/nested/archive.zip', {'game.project'}) => ok
+zip.unpack('build/nested/archive.zip') => ok
+build/nested/game.project exists: true
+"))
+
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
-    (let [output (atom [])
-          root (workspace/project-directory workspace)
+    (let [root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
                          (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
                            (loop [acc (transient #{})]
@@ -1012,61 +1097,13 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
                                (recur (assoc! acc (.getName e) (condp = (.getMethod e)
                                                                  ZipEntry/STORED :stored
                                                                  ZipEntry/DEFLATED :deflated)))
-                               (persistent! acc)))))]
-      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+                               (persistent! acc)))))
+          out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       ;; See test.editor_script: the script creates a bunch of archives and logs pack
       ;; arguments with the result of execution
-      (is (= [;; Pack a single file
-              [:out "A file:"]
-              [:out "zip.pack(\"gitignore.zip\", {\".gitignore\"}) => ok"]
-              ;; Pack a directory
-              [:out "A directory:"]
-              [:out "zip.pack(\"foo.zip\", {\"foo\"}) => ok"]
-              ;; Pack multiple files
-              [:out "Multiple:"]
-              [:out "zip.pack(\"multiple.zip\", {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", {\"game.project\", \"settings.ini\"}}) => ok"]
-              ;; Pack a file from outside the project
-              [:out "Outside:"]
-              [:out (str "zip.pack(\"outside.zip\", {{\"" (System/getenv "PWD") "/project.clj\", \"project.clj\"}}) => ok")]
-              ;; Pack using stored compression method
-              [:out "Stored method:"]
-              [:out "zip.pack(\"stored.zip\", {method = \"stored\"}, {\"foo\"}) => ok"]
-              ;; Pack using different compression levels
-              [:out "Compression level 0:"]
-              [:out "zip.pack(\"level_0.zip\", {level = 0}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 1:"]
-              [:out "zip.pack(\"level_1.zip\", {level = 1}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 2:"]
-              [:out "zip.pack(\"level_2.zip\", {level = 2}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 3:"]
-              [:out "zip.pack(\"level_3.zip\", {level = 3}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 4:"]
-              [:out "zip.pack(\"level_4.zip\", {level = 4}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 5:"]
-              [:out "zip.pack(\"level_5.zip\", {level = 5}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 6:"]
-              [:out "zip.pack(\"level_6.zip\", {level = 6}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 7:"]
-              [:out "zip.pack(\"level_7.zip\", {level = 7}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 8:"]
-              [:out "zip.pack(\"level_8.zip\", {level = 8}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 9:"]
-              [:out "zip.pack(\"level_9.zip\", {level = 9}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              ;; Different compression settings for different entries
-              [:out "Mixed compression settings:"]
-              [:out "zip.pack(\"mixed.zip\", {{\"foo\", \"9\", level = 9}, {\"foo\", \"1\", level = 1}, {\"foo\", \"0\", level = 0}, {\"foo\", \"stored\", method = \"stored\"}}) => ok"]
-              ;; Expected errors
-              [:out "Archive path is a directory:"]
-              [:out "zip.pack(\"foo\", {\"game.project\"}) => error: Output path is a directory: foo"]
-              [:out "Source path does not exist:"]
-              [:out (str "zip.pack(\"error.zip\", {\"does-not-exist.txt\"}) => error: Source path does not exist: " root "/does-not-exist.txt")]
-              [:out "Target path is absolute:"]
-              [:out (str "zip.pack(\"error.zip\", {\"" (System/getenv "HOME") "\"}) => error: Target path must be relative: " (System/getenv "HOME"))]
-              [:out "Target path is a relative path above root:"]
-              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]
-              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"foo/bar/../../../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]]
-             @output))
+      (expect-script-output (expected-zip-test-output root) out)
       (is (= #{".gitignore"} (list-entries "gitignore.zip")))
       (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"} (list-entries "foo.zip")))
       (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"
@@ -1100,7 +1137,11 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
               "stored/bar.txt" :stored
               "stored/long.txt" :stored
               "stored/subdir/baz.txt" :stored}
-             (list-methods "mixed.zip"))))))
+             (list-methods "mixed.zip")))
+      (when-not (os/is-win32?)
+        (is (contains?
+              (Files/getPosixFilePermissions (fs/path root "build" "script.sh") fs/empty-link-option-array)
+              PosixFilePermission/OWNER_EXECUTE))))))
 
 (def expected-http-server-test-output
   "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
@@ -1379,9 +1420,11 @@ After transaction (clear):
   emitters: 0
   modifiers: 0
 Collision object initial state:
+  collision_type: collision-object-type-dynamic
   shapes: 0
 Transaction: add 3 shapes
 After transaction (add 3 shapes):
+  collision_type: collision-object-type-static
   shapes: 3
   - id: box
     type: shape-type-box
@@ -1395,6 +1438,7 @@ After transaction (add 3 shapes):
     height: 40
 Transaction: clear
 After transaction (clear):
+  collision_type: collision-object-type-dynamic
   shapes: 0
 Expected errors:
   missing type => type is required
@@ -1594,6 +1638,7 @@ After transaction (add go components):
     id: collectionproxy1
   - type: collisionobject
     id: collisionobject-embedded
+    collision_type: collision-object-type-static
     shapes: 1
     - id: box
       type: shape-type-box
@@ -1694,6 +1739,7 @@ After transaction (add gos and collections):
           scale: {1, 1, 1}
         - type: collisionobject
           id: collisionobject
+          collision_type: collision-object-type-dynamic
           shapes: 1
           - id: box
             type: shape-type-box
@@ -1829,6 +1875,7 @@ After transaction (edit already existing collection elements):
           scale: {1, 1, 1}
         - type: collisionobject
           id: collisionobject
+          collision_type: collision-object-type-dynamic
           shapes: 1
           - id: box
             type: shape-type-box
@@ -2046,3 +2093,40 @@ emitters: 0
       ;; chain is modified
       (sound-chain :cat (constantly :meow))
       (is (= :meow ((sound-chain :cat) {}))))))
+
+(def ^:private expected-game-project-properties-test-output
+  "Initial state:
+  project.title: unnamed
+  sound.gain: 1
+  display.width: 960
+  display.fullscreen: false
+  input.game_binding: /input/game.input_binding
+  physics.type: 2D
+  project.dependencies: -
+Set settings...
+After transaction:
+  project.title: Set from Editor Script!
+  sound.gain: 0.5
+  display.width: 1000
+  display.fullscreen: true
+  input.game_binding: /builtins/input/all.input_binding
+  physics.type: 3D
+  project.dependencies: https://github.com/defold/extension-spine/archive/refs/tags/3.10.0.zip
+Expected errors:
+  set undefined property => Can't set property \"gooboo.gaabaa\" of GameProjectNode
+  not a string type => 1 is not a string
+  not a number type => \"max\" is not a number
+  not an integer type => 0.5 is not an integer
+  not a boolean type => 1 is not a boolean
+  not a valid resource type => resource extension should be input_binding
+  not a valid enum value => \"2D+3D\" is not \"2D\" or \"3D\"
+  not an array => \"https://defold.com/\" is not an array
+  not a valid url => \"latest spine\" is not a valid URL
+")
+
+(deftest game-project-properties-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/game_project_properties_test"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-game-project-properties-test-output out))))

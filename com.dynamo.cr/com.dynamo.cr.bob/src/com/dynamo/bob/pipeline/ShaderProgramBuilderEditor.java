@@ -39,8 +39,9 @@ public class ShaderProgramBuilderEditor {
         options.defines.add("EDITOR");
 
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
-        byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
-        String compiledSource = new String(result);
+        Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage);
+
+        String compiledSource = new String(result.data);
         ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
@@ -55,7 +56,7 @@ public class ShaderProgramBuilderEditor {
     static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {
         if (shaderType == Graphics.ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             return switch (shaderLanguage) {
-                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL, LANGUAGE_HLSL -> true;
+                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL, LANGUAGE_HLSL_51, LANGUAGE_HLSL_50 -> true;
                 default -> false;
             };
         } else {
@@ -96,9 +97,11 @@ public class ShaderProgramBuilderEditor {
                     shaderTypeKeys.put(shaderModule.type, true);
                 }
 
+                Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
                 byte[] source;
                 try {
-                    source = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    result = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    source = result.data;
                 } catch (CompileExceptionError e) {
                     shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(new String[]{e.getMessage()}));
                     continue;
@@ -114,7 +117,9 @@ public class ShaderProgramBuilderEditor {
                     }
                 }
 
-                Graphics.ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(source, shaderLanguage, shaderModule.type);
+                result.data = source;
+
+                Graphics.ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(result, shaderLanguage, shaderModule.type);
 
                 // Note: We are not doing builder.setVariantTextureArray(variantTextureArray); because calling that function
                 //       will mark the field as being set, regardless of the value. We only want to mark the field if we need to.

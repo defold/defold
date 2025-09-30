@@ -54,6 +54,7 @@
 #include "resource/booster_on_sfx.wav.embed.h" // BOOSTER_ON_SFX_WAV / BOOSTER_ON_SFX_WAV_SIZE
 
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/components/comp_gui.h>
 
 #include <sound/sound.h>
 
@@ -78,6 +79,7 @@ namespace dmGameSystem
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
     extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
     extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 }
@@ -233,8 +235,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_set_path_a, (void**) &resource));
     ASSERT_NE((void*)0, resource);
 
-    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture);
-    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture);
+    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(m_GraphicsContext, resource->m_Texture->m_Texture);
+    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(m_GraphicsContext, resource->m_Texture->m_Texture);
 
     // Swap compiled resources to simulate an atlas update
     ASSERT_TRUE(CopyResource(texture_set_path_a, texture_set_path_tmp));
@@ -244,8 +246,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, texture_set_path_a, 0));
 
     // If the load truly was successful, we should have a new width/height for the internal image
-    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture));
-    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture));
+    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(m_GraphicsContext, resource->m_Texture->m_Texture));
+    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(m_GraphicsContext, resource->m_Texture->m_Texture));
 
     dmResource::Release(m_Factory, (void**) resource);
 }
@@ -286,15 +288,15 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, rt->m_RenderTarget));
     ASSERT_EQ(dmGraphics::ASSET_TYPE_RENDER_TARGET, dmGraphics::GetAssetType(rt->m_RenderTarget));
 
-    dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
-    dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+    dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(m_GraphicsContext, rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(m_GraphicsContext, rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
 
-    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_0));
-    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_0));
-    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_1));
-    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_1));
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_0));
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_1));
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(m_GraphicsContext, attachment_1));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(m_GraphicsContext, attachment_1));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_1));
 
     dmResource::Release(m_Factory, (void**) render_prototype);
 }
@@ -410,8 +412,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     dmGameSystem::TextureResource* texture_res;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &texture_res));
-    ASSERT_EQ(32, dmGraphics::GetTextureWidth(texture_res->m_Texture));
-    ASSERT_EQ(32, dmGraphics::GetTextureHeight(texture_res->m_Texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureWidth(m_GraphicsContext,texture_res->m_Texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureHeight(m_GraphicsContext,texture_res->m_Texture));
 
     // Release the dmResource::Get call above
     dmResource::Release(m_Factory, texture_res);
@@ -423,8 +425,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     // res_texture will make an empty texture here if the test "worked", i.e coulnd't create a valid transcoded texture
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &texture_res));
-    ASSERT_EQ(1, dmGraphics::GetTextureWidth(texture_res->m_Texture));
-    ASSERT_EQ(1, dmGraphics::GetTextureHeight(texture_res->m_Texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_res->m_Texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_res->m_Texture));
 
     // Release the dmResource::Get call again
     dmResource::Release(m_Factory, texture_res);
@@ -594,8 +596,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
 
     dmGraphics::HTexture backing_texture = texture_set_res->m_Texture->m_Texture;
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 64);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 64);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 64);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 64);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 1: Update a sub-region of the texture
@@ -608,8 +610,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_success_resize
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 256);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 256);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 256);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 3: Try doing a region update, but outside the texture boundaries, which should fail
@@ -628,8 +630,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_success_compressed
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 32);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 6: Set texture with mipmaps
@@ -1543,7 +1545,7 @@ TEST_F(GuiTest, TextureResources)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
     dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
@@ -1626,12 +1628,13 @@ TEST_F(GuiTest, MaxDynamictextures)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(0, scene->m_DynamicTextures.Size());
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
 
 // Test setting gui font
 TEST_F(ResourceTest, ScriptSetFonts)
@@ -1655,7 +1658,7 @@ TEST_F(ResourceTest, ScriptSetFonts)
         dmGameObject::Render(m_Collection);
 
         dmRender::RenderListEnd(m_RenderContext);
-        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
 
     dmResource::Release(m_Factory, font1);
@@ -2488,7 +2491,7 @@ TEST_P(DrawCountTest, DrawCount)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2544,7 +2547,7 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (uint32_t)p.m_ExpectedVerticesCount);
 
@@ -2706,6 +2709,46 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(Trigger2DTest, EventTriggerFalseTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_trigger_go = "/collision_object/eventtrigger_false_trigger.goc";
+    dmhash_t hash_trigger_go = dmHashString64("/trigger-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance trigger_go = Spawn(m_Factory, m_Collection, path_trigger_go, hash_trigger_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, trigger_go);
+
+    const char* path_body1_go = "/collision_object/eventtrigger_false_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);
@@ -2893,132 +2936,6 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-/* Physics joints */
-TEST_F(ComponentTest, JointTest)
-{
-    /* Setup:
-    ** joint_test_a
-    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    ** - [script] collision_object/joint_test.script
-    ** joint_test_b
-    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    ** joint_test_c
-    ** - [collisionobject] collision_object/joint_test_static_floor.collisionobject
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
-    const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
-    const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
-
-    dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
-    dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
-    dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
-
-    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_c);
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-
-    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-}
-
-/* Physics listener */
-TEST_F(ComponentTest, PhysicsListenerTest)
-{
-    /* Setup:
-    ** callback_object
-    ** - [collisionobject] collision_object/callback_object.collisionobject
-    ** - [script] collision_object/callback_object.script
-    ** callback_trigger
-    ** - [collisionobject] collision_object/callback_trigger.collisionobject
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_test_object = "/collision_object/callback_object.goc";
-    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
-
-    dmhash_t hash_go_object = dmHashString64("/test_object");
-    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-}
-
-/* Update mass for physics collision object */
-TEST_F(ComponentTest, PhysicsUpdateMassTest)
-{
-    /* Setup:
-    ** mass_object
-    ** - [collisionobject] collision_object/mass_object.collisionobject
-    ** - [script] collision_object/mass_object.script
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_test_object = "/collision_object/mass_object.goc";
-
-    dmhash_t hash_go_object = dmHashString64("/test_object");
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
-
 TEST_F(ComponentTest, DispatchBuffersTest)
 {
     dmHashEnableReverseHash(true);
@@ -3083,7 +3000,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     const uint8_t num_draws = 4;
     for (int i = 0; i < num_draws; ++i)
     {
-        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
 
     // Vertex format for /misc/dispatch_buffers_test/vs_format_a.vp:
@@ -3347,7 +3264,7 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
     dmRender::RenderListBegin(m_RenderContext);
     dmGameObject::Render(m_Collection);
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     struct vs_format_a
     {
@@ -5234,14 +5151,14 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Attribute not found
     {
-        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("attribute_does_not_exist"), desc, Test_GetMaterialAttributeCallback, &ctx));
     }
 
     // Attribute(s) found
     {
-        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
@@ -5282,7 +5199,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set a dynamic attribute by vector
     {
-        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("position");
 
         dmGameObject::PropertyVar var = {};
@@ -5315,7 +5232,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set a dynamic attribute by value(s)
     {
-        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash_x    = dmHashString64("position.x");
         dmhash_t attr_name_hash_y    = dmHashString64("position.y");
         dmhash_t attr_name_hash_full = dmHashString64("position");
@@ -5360,7 +5277,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set multiple dynamic attributes (more than original capacity)
     {
-        dmArray<uint32_t> allocated_indices;
+        dmArray<uint16_t> allocated_indices;
         allocated_indices.SetCapacity( dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 2 + INITIAL_SIZE + 1); // Should equate to three resizes
 
         dmhash_t attr_name_hash = dmHashString64("position");
@@ -5371,7 +5288,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         {
             var.m_Number = (float) i;
 
-            uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+            uint16_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
             ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
             ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
 
@@ -5408,7 +5325,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         dmGameObject::PropertyVar var = {};
         dmGameObject::PropertyDesc desc = {};
 
-        uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint16_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
     }
 
@@ -5498,7 +5415,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Data conversion for dynamic attributes
     {
-        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("normal");
 
         dmGameObject::PropertyVar var = {};
@@ -5810,7 +5727,7 @@ TEST_F(ShaderTest, ComputeResource)
 
 #endif
 
-TEST_F(ModelScriptTest, GetAABB)
+TEST_F(ModelTest, GetAABB)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -5821,6 +5738,301 @@ TEST_F(ModelScriptTest, GetAABB)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ModelTest, PbrProperties)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    dmGameSystem::HComponentRenderConstants render_constants;
+
+    ///////////////////////////////
+    // Test 1: Test data properties
+    ///////////////////////////////
+    dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    GetModelComponentRenderConstants(component, 0, &render_constants);
+    ASSERT_NE((dmGameSystem::HComponentRenderConstants)0, render_constants);
+
+    dmRender::HConstant constant = 0;
+    dmVMath::Vector4* values     = 0;
+    uint32_t num_values          = 0;
+    dmVMath::Vector4 exp;
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.10f, 0.0f, 0.0f, 0.19f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.12f, 0.135f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    // NOTE! Blender uses a "metallic-roguhess" workflow, which means that the "specular" values here will be all 1.0
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.16f, 0.165f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TRANSMISSION_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.175f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IOR_IOR_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.17f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+
+    // JG: I don't know where these values are coming from in blender, so I'm ignoring them for now. It's something like this:
+    // exp = dmVMath::Vector4(0.25f, 0.166f, 0.166f, 1.0f);
+    // ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.2f, 0.205f, 0.210f, 0.215f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_ATTENUATION_DISTANCE, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.22f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.225f, 0.230f, 0.235f, 0.240f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.245f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.25f, 0.255f, 0.260f, 0.265f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.25f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    // No textures in this material
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+
+    ///////////////////////////////////
+    // Test 2: Test texture properties
+    ///////////////////////////////////
+    res = dmGameObject::GetComponent(go, dmHashString64("model_textured"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    GetModelComponentRenderConstants(component, 0, &render_constants);
+    ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Mock per-property handlers for testing
+static dmHashTable64<dmhash_t> g_MockPerPropertyValues;
+
+static dmGameObject::PropertyResult MockSpineSceneSetProperty(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    g_MockPerPropertyValues.Put(params.m_Options.m_Key, params.m_Value.m_Hash);
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+static dmGameObject::PropertyResult MockSpineSceneGetProperty(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    dmhash_t* value = g_MockPerPropertyValues.Get(params.m_Options.m_Key);
+    if (!value)
+    {
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+    out_value.m_Variant.m_Hash = *value;
+    out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+TEST_F(GuiTest, PerPropertyRegistration)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t spine_scene_hash = dmHashString64("spine_scene");
+    
+    // Test registering per-property setter and getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(spine_scene_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(spine_scene_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    // Test setting per-property with key
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    dmGameObject::PropertyVar value(dmHashString64("test_spine_scene"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    // Test getting per-property
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering setter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    
+    // Verify setter no longer works
+    dmGameObject::PropertyVar newValue(dmHashString64("new_spine_scene"));
+    result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, newValue);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // But getter should still work
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    // Verify getter no longer works
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // Test unregistering non-existent handler
+    ASSERT_EQ(dmGameObject::RESULT_ALREADY_REGISTERED, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, PerPropertyPrecedence)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t test_prop_hash = dmHashString64("test_prop");
+    
+    // Register per-property handlers first
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(test_prop_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(test_prop_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    // Test that per-property handler is called (not extension handlers)
+    dmGameObject::PropertyVar value(dmHashString64("per_property_value"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), test_prop_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), test_prop_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("per_property_value"), desc.m_Variant.m_Hash);
+    
+    // Clean up
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(test_prop_hash));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
+    
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
 
 extern "C" void dmExportedSymbols();
 

@@ -39,6 +39,7 @@
             [editor.gui-clipping :as clipping]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
@@ -2706,7 +2707,10 @@
 
 ;; SDK api
 (defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn]
-  (when-let [resources (browse (str "Select " resources-type-label) project resource-exts)]
+  (when-let [resources (browse
+                         (localization/message "dialog.select-gui-component.title" {"component" resources-type-label})
+                         project
+                         resource-exts)]
     (let [names (id/resolve-all (map resource->id resources) taken-ids)
           pairs (map vector resources names)
           op-seq (gensym)
@@ -3209,24 +3213,28 @@
     :else
     (dissoc node-desc :overridden-fields)))
 
-(defn- make-rt-layout-desc [layout-name decorated-node-msgs]
+(defn- make-rt-layout-desc [layout-name decorated-node-msgs id->node-desc-for-default-layout]
+  {:pre [(map? id->node-desc-for-default-layout)]}
   (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
     :name layout-name
     :nodes (coll/transfer decorated-node-msgs []
              (keep
                (fn [{:keys [layout->prop->value] :as decorated-node-msg}]
                  {:pre [(map? layout->prop->value)]}
-                 (let [default-prop->value (layout->prop->value "")
-                       prop->value (layout->prop->value layout-name)]
-                   (assert (map? default-prop->value))
+                 (let [prop->value (layout->prop->value layout-name)]
                    (assert (map? prop->value))
-                   (when (not= default-prop->value prop->value)
-                     (some->> (-> decorated-node-msg
-                                  (select-keys [:custom-type :id :parent :template-node-child :type])
-                                  (into (map prop-entry->pb-field-entry)
-                                        prop->value)
-                                  (node-desc->rt-node-desc layout-name))
-                              (protobuf/clear-defaults Gui$NodeDesc)))))))))
+                   (when-some [node-desc-for-layout
+                               (some->> (-> decorated-node-msg
+                                            (dissoc :layout->prop->override :layout->prop->value)
+                                            (into (map prop-entry->pb-field-entry)
+                                                  prop->value)
+                                            (node-desc->rt-node-desc layout-name))
+                                        (protobuf/clear-defaults Gui$NodeDesc))]
+                     (let [id (:id node-desc-for-layout)
+                           node-desc-for-default-layout (id->node-desc-for-default-layout id)]
+                       (assert (map? node-desc-for-default-layout))
+                       (when (not= node-desc-for-default-layout node-desc-for-layout)
+                         node-desc-for-layout)))))))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs]
   ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
@@ -3244,10 +3252,6 @@
     (g/precluding-errors build-errors
       (let [template-build-targets (flatten template-build-targets)
 
-            rt-layout-descs
-            (mapv #(make-rt-layout-desc % node-msgs)
-                  layout-names)
-
             rt-node-descs
             (coll/transfer node-msgs []
               (keep
@@ -3255,6 +3259,12 @@
                   (-> decorated-node-msg
                       (dissoc :layout->prop->override :layout->prop->value)
                       (node-desc->rt-node-desc "")))))
+
+            id->node-desc-for-default-layout (coll/pair-map-by :id rt-node-descs)
+
+            rt-layout-descs
+            (mapv #(make-rt-layout-desc % node-msgs id->node-desc-for-default-layout)
+                  layout-names)
 
             rt-pb-msg
             (protobuf/assign-repeated pb-msg
@@ -4091,7 +4101,7 @@
         (protobuf/sanitize-repeated :nodes sanitize-scene-node)
         (protobuf/sanitize-repeated :layouts sanitize-layout)
         (protobuf/assign-repeated :resources merged-resource-descs)
-        (update :material #(or % default-material-proj-path)))))
+        (update :material fn/or default-material-proj-path))))
 
 (defn- add-dropped-resource
   [scene workspace resource]

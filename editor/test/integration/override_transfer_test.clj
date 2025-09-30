@@ -139,7 +139,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_script' in '/book.go'" :ok]]
+        (is (= [["Pull Up 'text' Override to 'book_script' in '/book.go'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.go"
@@ -191,8 +191,8 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'referenced_book/book_script' in '/shelf.collection'" :ok]
-                ["Pull Up Text Override to 'book_script' in '/book.go'" :ok]]
+        (is (= [["Pull Up 'text' Override to 'referenced_book/book_script' in '/shelf.collection'" :ok]
+                ["Pull Up 'text' Override to 'book_script' in '/book.go'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.collection"
@@ -244,7 +244,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "embedded_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'embedded_book/book_script' in '/shelf.collection'" :ok]]
+        (is (= [["Pull Up 'text' Override to 'embedded_book/book_script' in '/shelf.collection'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.collection"
@@ -305,8 +305,8 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'referenced_book/book_script' in '/shelf.collection'" :ok]
-                ["Pull Up Text Override to 'book_script' in '/book.go'" :ok]]
+        (is (= [["Pull Up 'text' Override to 'referenced_book/book_script' in '/shelf.collection'" :ok]
+                ["Pull Up 'text' Override to 'book_script' in '/book.go'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (second transfer-overrides-plans))
         (is (= {"/book.go"
@@ -377,7 +377,7 @@
       (set-gui-layout! project "/shelf.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in '/book.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'book_text' in '/book.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.gui"
@@ -439,8 +439,8 @@
       (set-gui-layout! project "/room.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in '/shelf.gui'" :ok]
-                ["Pull Up Text Override to 'book_text' in '/book.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'referenced_book/book_text' in '/shelf.gui'" :ok]
+                ["Pull Up 'Text' Override to 'book_text' in '/book.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (second transfer-overrides-plans))
         (is (= {"/book.gui"
@@ -503,7 +503,7 @@
       (set-gui-layout! project "/book_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/book_l.gui" "Nodes" "book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in Default Layout of '/book_l.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'book_text' in Default Layout of '/book_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book_l.gui"
@@ -549,7 +549,7 @@
       (set-gui-layout! project "/shelf.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in '/book_l.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'book_text' in '/book_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book_l.gui"
@@ -612,7 +612,7 @@
       (set-gui-layout! project "/shelf_l.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in '/book.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'book_text' in '/book.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.gui"
@@ -647,7 +647,7 @@
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.gui"
@@ -715,7 +715,7 @@
       (set-gui-layout! project "/shelf_l.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in '/book_l.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'book_text' in '/book_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book_l.gui"
@@ -758,8 +758,8 @@
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]
-                ["Pull Up Text Override to 'book_text' in Landscape Layout of '/book_l.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]
+                ["Pull Up 'Text' Override to 'book_text' in Landscape Layout of '/book_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book_l.gui"
@@ -797,8 +797,8 @@
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]
-                ["Pull Up Text Override to 'book_text' in Landscape Layout of '/book_l.gui'" :ok]]
+        (is (= [["Pull Up 'Text' Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]
+                ["Pull Up 'Text' Override to 'book_text' in Landscape Layout of '/book_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (second transfer-overrides-plans))
         (is (= {"/book_l.gui"
@@ -970,7 +970,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/book.go" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Push Down Text Override to 3 Descendants Across 2 Resources" :ok]]
+        (is (= [["Push Down 'text' Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.go"
@@ -1078,7 +1078,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Push Down Text Override to 3 Descendants Across 2 Resources" :ok]]
+        (is (= [["Push Down 'text' Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.collection"
@@ -1220,7 +1220,7 @@
       (set-gui-layout! project "/room_two.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Push Down Text Override to 3 Descendants Across 2 Resources" :ok]]
+        (is (= [["Push Down 'Text' Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.gui"

@@ -24,6 +24,7 @@ ordinary paths."
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
+            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -39,6 +40,7 @@ ordinary paths."
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
@@ -78,6 +80,9 @@ ordinary paths."
      (notifications workspace evaluation-context)))
   ([workspace evaluation-context]
    (g/node-value workspace :notifications evaluation-context)))
+
+(defn localization [workspace evaluation-context]
+  (g/node-value workspace :localization evaluation-context))
 
 (defn- skip-first-char [path]
   (subs path 1))
@@ -549,9 +554,10 @@ ordinary paths."
         notifications
         {:id ::dependencies-missing
          :type :warning
-         :text (format "The following dependencies are missing:\n%s\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries."
-                       (string/join "\n" (map dialogs/indent-with-bullet missing)))
-         :actions [{:text "Fetch Libraries"
+         :message (localization/message
+                    "notification.fetch-libraries.dependencies-missing.warning"
+                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
                                   :project.fetch-libraries
@@ -562,9 +568,10 @@ ordinary paths."
         notifications
         {:id ::dependencies-error
          :type :error
-         :text (format "Couldn't install following dependencies:\n%s"
-                       (string/join "\n" (map dialogs/indent-with-bullet error)))
-         :actions [{:text "Open game.project"
+         :message (localization/message
+                    "notification.fetch-libraries.dependencies-error.error"
+                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet error))})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
                                   :file.open
@@ -576,8 +583,12 @@ ordinary paths."
   (update-dependency-notifications! workspace lib-states)
   lib-states)
 
-(defn dependencies [workspace]
-  (g/node-value workspace :dependency-uris))
+(defn dependencies
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (dependencies workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (g/node-value workspace :dependency-uris evaluation-context)))
 
 (defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
@@ -609,10 +620,12 @@ ordinary paths."
                  :exception e)
       (ui/run-later
         (dialogs/make-info-dialog
-          {:title "Unable to Load Plugin"
+          (g/with-auto-evaluation-context evaluation-context
+            (localization workspace evaluation-context))
+          {:title (localization/message "dialog.plugin-load-error.title")
            :icon :icon/triangle-error
            :always-on-top true
-           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+           :header (localization/message "dialog.plugin-load-error.header" {"plugin" (resource/proj-path resource)})}))
       false)))
 
 (defn load-clojure-editor-plugins! [workspace added]
@@ -777,12 +790,13 @@ ordinary paths."
             notifications-node
             {:type :warning
              :id (collision-notification-id resource-path)
-             :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
+             :message (localization/message
                         (case source
-                          :library (str " in a project dependency: " (:library status))
-                          :builtins " in builtins"
-                          :directory ""
-                          ""))}))))))
+                          :library "notification.resource-collision.library.warning"
+                          :builtins "notification.resource-collision.builtins.warning"
+                          "notification.resource-collision.directory.warning")
+                        {"resource" resource-path
+                         "library" (:library status)})}))))))
 
 (defn resource-sync!
   ([workspace]
@@ -857,7 +871,7 @@ ordinary paths."
            (let [listeners @(g/node-value workspace :resource-listeners)
                  total-progress-size (transduce (map first) + 0 listeners)]
              (loop [listeners listeners
-                    parent-progress (progress/make "" total-progress-size)]
+                    parent-progress (progress/make localization/empty-message total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
                  (resource/handle-changes listener changes-with-moved
                                           (progress/nest-render-progress render-progress! parent-progress progress-span))
@@ -909,6 +923,7 @@ ordinary paths."
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
   (property node-attachments g/Any (default {}))
+  (property localization g/Any)
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -1027,7 +1042,7 @@ ordinary paths."
    (not= fn/constantly-true
          (g/raw-property-value basis workspace :editable-proj-path?))))
 
-(defn make-workspace [graph project-path build-settings workspace-config]
+(defn make-workspace [graph project-path build-settings workspace-config localization]
   (let [project-directory (.getCanonicalFile (io/file project-path))
         unloaded-proj-path? (resource/defunload-pred project-directory)
         editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
@@ -1044,7 +1059,8 @@ ordinary paths."
                         :resource-listeners (atom [])
                         :build-settings build-settings
                         :editable-proj-path? editable-proj-path?
-                        :unloaded-proj-path? unloaded-proj-path?]
+                        :unloaded-proj-path? unloaded-proj-path?
+                        :localization localization]
              code-preprocessors code.preprocessors/CodePreprocessorsNode
              notifications notifications/NotificationsNode]
             (concat

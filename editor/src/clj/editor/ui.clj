@@ -23,6 +23,7 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
             [editor.progress :as progress]
@@ -49,7 +50,7 @@
            [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
-           [javafx.scene Group Node Parent Scene]
+           [javafx.scene Cursor Group Node Parent Scene]
            [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
@@ -1439,7 +1440,8 @@
         menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
-  (let [context-menu (ContextMenu.)]
+  (let [context-menu (doto (ContextMenu.)
+                       (.setConsumeAutoHidingEvents true))]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
 
@@ -2033,21 +2035,18 @@
       (double fraction)
       -1.0)))
 
-(defn render-progress-message! [progress ^Label label]
-  (text! label (progress/message progress)))
+(defn render-progress-message! [progress ^Label label localization]
+  (localization/localize! label localization (progress/message progress)))
 
-(defn render-progress-percentage! [progress ^Label label]
-  (text!
+(defn render-progress-percentage! [progress ^Label label localization]
+  (localization/localize!
     label
+    localization
     (if (progress/cancelled? progress)
-      "Aborting..."
+      (localization/message "progress.aborting")
       (if-some [percentage (progress/percentage progress)]
-        (str percentage "%")
-        ""))))
-
-(defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
-  (when bar (render-progress-bar! progress bar))
-  (when label (render-progress-message! progress label)))
+        (localization/message "progress.percentage" {"percentage" percentage})
+        localization/empty-message))))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings
@@ -2420,3 +2419,11 @@
     (on-cancel! cancel-fn)
     (auto-commit! update-fn)
     (select-all-on-click!)))
+
+(defn set-cursor
+  [^Node node ^Cursor cursor-type]
+  ;; The cursor refresh appears buggy at the moment.
+  ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
+  (when (not= cursor-type (.getCursor node))
+    (.setCursor node Cursor/DISAPPEAR)
+    (.setCursor node cursor-type)))

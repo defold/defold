@@ -132,7 +132,7 @@ public class ShaderProgramBuilder extends Builder {
 
         compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
         if (getOutputHlslFlag()) {
-            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
         }
         if (getOutputSpirvFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -505,11 +505,22 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDesc.Shader.Builder makeShaderBuilder(byte[] source, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(Shaderc.ShaderCompileResult result, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setShaderType(type);
-        builder.setSource(ByteString.copyFrom(source));
+        builder.setSource(ByteString.copyFrom(result.data));
+
+        if (result.hLSLResourceMappings != null) {
+            for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
+                ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
+                hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
+                hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
+                builder.addHlslResourceMapping(hlslResourceMappingBuilder);
+            }
+        }
+
         return builder;
     }
 
@@ -577,9 +588,14 @@ public class ShaderProgramBuilder extends Builder {
             IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+
+            if (platform.equals(Platform.X86_64PS4) || platform.equals(Platform.X86_64PS5))
+            {
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_PSSL);
+            }
 
             ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
             ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);

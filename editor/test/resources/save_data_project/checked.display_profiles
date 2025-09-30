@@ -1,3 +1,5 @@
+auto_layout_selection: false
+
 profiles {
   name: "Landscape"
   qualifiers {

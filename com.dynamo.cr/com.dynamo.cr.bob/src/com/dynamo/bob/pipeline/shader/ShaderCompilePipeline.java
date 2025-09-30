@@ -28,6 +28,7 @@ import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -85,14 +86,15 @@ public class ShaderCompilePipeline {
         };
     }
 
-    private static Integer ShaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
+    protected static Integer ShaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
         return switch (shaderLanguage) {
             case LANGUAGE_GLSL_SM120 -> 120;
             case LANGUAGE_GLES_SM100 -> 100;
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
             case LANGUAGE_GLSL_SM430 -> 430;
-            case LANGUAGE_HLSL       -> 50;
+            case LANGUAGE_HLSL_50    -> 50;
+            case LANGUAGE_HLSL_51    -> 51;
             default -> 0;
         };
     }
@@ -116,7 +118,8 @@ public class ShaderCompilePipeline {
     protected static boolean CanBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
         return ShaderLanguageIsGLSL(shaderLanguage) ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
     }
 
     private static byte[] RemapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
@@ -167,17 +170,6 @@ public class ShaderCompilePipeline {
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
-        checkResult(resourcePath, result);
-    }
-
-    protected static void generateHLSL(String resourcePath, String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
-        spirvCrossExe = Bob.getHostExeOnce("spirv-cross", spirvCrossExe);
-        Result result = Exec.execResult(
-            spirvCrossExe,
-            pathFileInSpv,
-            "--output", pathFileOutHLSL,
-            "--hlsl",
-            "--shader-model", ShaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
         checkResult(resourcePath, result);
     }
 
@@ -232,7 +224,8 @@ public class ShaderCompilePipeline {
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
 
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+            shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50) {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_HLSL.getValue());
         } else {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
@@ -418,10 +411,34 @@ public class ShaderCompilePipeline {
         return compiler;
     }
 
+    // This is only needed for compute shaders
+    private static void injectHLSLNumWorkGroupsIdIntoReflection(ShaderModule module, int workGroupId) {
+        Shaderc.ResourceType type = new Shaderc.ResourceType();
+        type.useTypeIndex = true;
+
+        // This is what the generated cbuffer looks like:
+        // cbuffer SPIRV_Cross_NumWorkgroups : register(b3)
+        // {
+        //     uint3 SPIRV_Cross_NumWorkgroups_1_count : packoffset(c0);
+        // };
+
+        Shaderc.ShaderResource hLSLNumWorkGroupsId = new Shaderc.ShaderResource();
+        hLSLNumWorkGroupsId.name             = "SPIRV_Cross_NumWorkgroups";
+        hLSLNumWorkGroupsId.nameHash         = MurmurHash.hash64(hLSLNumWorkGroupsId.name);
+        hLSLNumWorkGroupsId.instanceName     = null;
+        hLSLNumWorkGroupsId.blockSize        = 12; // uint3 == 3 x uint32
+        hLSLNumWorkGroupsId.binding          = (byte) workGroupId;
+        hLSLNumWorkGroupsId.set              = 0;
+        hLSLNumWorkGroupsId.stageFlags       = (byte) Shaderc.ShaderStage.SHADER_STAGE_COMPUTE.getValue();
+        hLSLNumWorkGroupsId.type             = type;
+
+        module.spirvReflector.addUBO(hLSLNumWorkGroupsId);
+    }
+
     //////////////////////////
     // PUBLIC API
     //////////////////////////
-    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
         int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);
@@ -429,7 +446,10 @@ public class ShaderCompilePipeline {
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             // We have already produced SPIR-v for the input module, no need to crosscompile
-            return FileUtils.readFileToByteArray(module.spirvFile);
+
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = FileUtils.readFileToByteArray(module.spirvFile);
+            return result;
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             // TODO: Move this into the crosscompile function, since we are actually crosscompiling.
             String shaderTypeStr = ShaderTypeToSpirvStage(shaderType);
@@ -439,7 +459,10 @@ public class ShaderCompilePipeline {
             FileUtil.deleteOnExit(fileCrossCompiled);
 
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
-            return FileUtils.readFileToByteArray(fileCrossCompiled);
+
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = FileUtils.readFileToByteArray(fileCrossCompiled);
+            return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
             Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version);
 
@@ -449,15 +472,19 @@ public class ShaderCompilePipeline {
                 throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError + exclusionMessage);
             }
 
-            byte[] bytes = result.data;
-
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
             if (ShaderLanguageIsGLSL(shaderLanguage)) {
-                bytes = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
+                result.data = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(result.data));
             }
 
-            return bytes;
+            // If we are cross-compiling a compute shader to HLSL, we need to inject an extra resource into the reflection,
+            // because there is no gl_NumWorkGroups equivalent in HLSL
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE && result.hLSLNumWorkGroupsId >= 0) {
+                injectHLSLNumWorkGroupsIdIntoReflection(module, result.hLSLNumWorkGroupsId);
+            }
+
+            return result;
         }
 
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);

@@ -241,6 +241,13 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
+(defn tx-result? [x]
+  (and (map? x)
+       (contains? x :status)
+       (contains? x :basis)
+       (contains? x :graphs-modified)
+       (contains? x :nodes-added)))
+
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
@@ -605,7 +612,12 @@
 (defn expand-ec
   "Call the specified function when reaching the transaction step with an
   in-transaction evaluation context as a first argument and apply the
-  returned transaction steps in the same transaction"
+  returned transaction steps in the same transaction
+
+  NOTE: When used by outline's :tx-attach-fn, avoid creating g/connect txs in
+  g/expand-ec to connect self to the child node. Outline inspects txs and
+  filters out duplicate connections, but it can't see connection txs if they are
+  created only when transaction is executed, as is the case with g/expand-ec"
   [f & args]
   (it/expand-ec f args))
 

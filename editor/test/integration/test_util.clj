@@ -30,6 +30,7 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -226,6 +227,9 @@
   (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
               :schemas [:default]))
 
+(def localization
+  (localization/make (make-test-prefs) ::test {}))
+
 (declare resolve-prop)
 
 (defn code-editor-lines [script-id]
@@ -314,11 +318,12 @@
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
          workspace (workspace/make-workspace graph
                                              project-path
                                              {}
-                                             workspace-config)]
+                                             workspace-config
+                                             localization)]
      (g/transact
        (concat
          (scene/register-view-types workspace)))
@@ -708,12 +713,14 @@
   ([view type x y modifiers]
    (fake-input! view type x y modifiers 0))
   ([view type x y modifiers click-count]
+   (fake-input! view type x y modifiers click-count :primary))
+  ([view type x y modifiers click-count button]
    (let [pos [x y 0.0]]
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
    (let [handlers (g/sources-of view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
          action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count}
+                        {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
      (scene/dispatch-input handlers action user-data))))

@@ -157,7 +157,6 @@ namespace dmParticle
         , m_EmitterStateChangedData()
         , m_PlayTime(0.0f)
         , m_VersionNumber(0)
-        , m_ScaleAlongZ(0)
         {
             m_WorldTransform.SetIdentity();
         }
@@ -176,8 +175,6 @@ namespace dmParticle
         float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.
         uint16_t                m_VersionNumber;
-        /// Whether the scale of the world transform should be used along Z.
-        uint16_t                m_ScaleAlongZ : 1;
     };
 
     /**

@@ -46,6 +46,7 @@
             [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
@@ -175,10 +176,10 @@
   - `:resource-string-converter` - a resource string converter"
   :type)
 
-(defmethod form-input-view :default [{:keys [value type] :as field}]
+(defmethod form-input-view :default [{:keys [value]}]
   {:fx/type fx.label/lifecycle
    :wrap-text true
-   :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
+   :text (str value)})
 
 (defmulti cell-input-view
   "Analogous to form input, but displayed in a cell (in list-view or table-view)
@@ -465,7 +466,7 @@
      :on-value-changed on-value-changed
      :converter (DefoldStringConverter.
                   #(get value->label % (to-string %))
-                  #(get label->value % (and from-string (from-string %))))
+                  #(or (label->value %) (and from-string (from-string %))))
      :editable (some? from-string)
      :button-cell (fn [x]
                     {:text (value->label x)})
@@ -512,11 +513,13 @@
     [[:dispatch (assoc on-added :fx/event added-list-elements)]
      [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) added-indices)]]))
 
-(defmethod handle-event :add-list-element [{:keys [element fx/event project workspace] :as map-event}]
+(defmethod handle-event :add-list-element [{:keys [element fx/event project workspace localization] :as map-event}]
   (case (:type element)
     :directory
     (when-some [selected-directory (dialogs/make-directory-dialog
-                                     (or (:title element) "Select Directory")
+                                     (localization
+                                       (or (:title element)
+                                           (localization/message "dialog.directory.title.select")))
                                      (workspace/project-directory workspace)
                                      (fxui/event->window event))]
       (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace (:in-project element))]
@@ -525,7 +528,7 @@
 
     :file
     (when-some [selected-file (dialogs/make-file-dialog
-                                (or (:title element) "Select File")
+                                (or (:title element) (localization/message "dialog.file.title.select"))
                                 (:filter element)
                                 nil
                                 (fxui/event->window event))]
@@ -773,8 +776,9 @@
                                                    ^Event fx/event
                                                    title
                                                    in-project
-                                                   workspace]}]
-  (when-some [selected-file (dialogs/make-file-dialog (or title "Select File")
+                                                   workspace
+                                                   localization]}]
+  (when-some [selected-file (dialogs/make-file-dialog (localization (or title (localization/message "dialog.file.title.select")))
                                                       filter
                                                       nil
                                                       (fxui/event->window event))]
@@ -804,8 +808,11 @@
 
 ;; region directory input
 
-(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title fx/event in-project workspace]}]
-  (when-some [selected-directory (dialogs/make-directory-dialog (or title "Select Directory") nil (fxui/event->window event))]
+(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title fx/event in-project workspace localization]}]
+  (when-some [selected-directory (dialogs/make-directory-dialog
+                                   (localization (or title (localization/message "dialog.directory.title.select")))
+                                   nil
+                                   (fxui/event->window event))]
     (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace in-project)]
       {:dispatch (assoc on-value-changed :fx/event valid-directory-path)}
       {:show-dialog :directory-not-in-project})))
@@ -1413,7 +1420,7 @@
                          (text-util/includes-ignore-case? help filter-term)))
         fields (into []
                      (comp
-                       (remove :hidden?)
+                       (remove :hidden)
                        (map #(set-field-visibility % values filter-term visible)))
                      fields)]
     (assoc section :visible (boolean (some :visible fields))
@@ -1619,7 +1626,7 @@
 
 
 
-(defn- create-renderer [view-id parent workspace project]
+(defn- create-renderer [view-id parent workspace project localization]
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
@@ -1631,16 +1638,17 @@
                       :form-data #(g/node-value view-id :form-data)
                       :workspace (constantly workspace)
                       :project (constantly project)
-                      :parent (constantly parent)})
+                      :parent (constantly parent)
+                      :localization (constantly localization)})
                    (fx/wrap-effects
                      {:dispatch fx/dispatch-effect
                       :set (fn [[path value] _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (form/set-value! ops path value)))
+                               (g/transact (form/set-value ops path value))))
                       :clear (fn [path _]
                                (let [ops (:form-ops (g/node-value view-id :form-data))]
                                  (when (form/can-clear? ops)
-                                   (form/clear-value! ops path))))
+                                   (g/transact (form/clear-value ops path)))))
                       :set-ui-state (fn [ui-state _]
                                       (g/set-property! view-id :ui-state ui-state))
                       :cancel-edit (fn [x _]
@@ -1656,15 +1664,17 @@
                                      (case dialog-type
                                        :directory-not-in-project
                                        (dialogs/make-info-dialog
-                                         {:title "Invalid Directory"
+                                         localization
+                                         {:title (localization/message "dialog.form-view.directory-not-in-project.title")
                                           :icon :icon/triangle-error
-                                          :header "The directory must reside within the project."})
+                                          :header (localization/message "dialog.form-view.directory-not-in-project.header")})
 
                                        :file-not-in-project
                                        (dialogs/make-info-dialog
-                                         {:title "Invalid File"
+                                         localization
+                                         {:title (localization/message "dialog.form-view.file-not-in-project.title")
                                           :icon :icon/triangle-error
-                                          :header "The file must reside within the project."})))})
+                                          :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
                    (wrap-force-refresh view-id))}
               (system/defold-dev?)
               (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))
@@ -1679,16 +1689,16 @@
                          :parent parent
                          :resource-string-converter resource-string-converter}))))))
 
-(defn- make-form-view-node [graph parent resource-node workspace project]
+(defn- make-form-view-node [graph parent resource-node workspace project localization]
   (g/make-nodes graph [view CljfxFormView]
-    (g/set-property view :renderer (create-renderer view parent workspace project))
+    (g/set-property view :renderer (create-renderer view parent workspace project localization))
     (g/connect resource-node :form-data view :form-data)))
 
 (def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
 
 (defn- make-form-view [graph parent resource-node opts]
-  (let [{:keys [workspace project tab]} opts
-        view-id (make-form-view-node! graph parent resource-node workspace project)
+  (let [{:keys [workspace project tab localization]} opts
+        view-id (make-form-view-node! graph parent resource-node workspace project localization)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]

@@ -1216,7 +1216,7 @@
         (or (when (= 1 property-transfer-count)
               (let [property-transfer (first property-transfers)
                     property-label (:source-prop-label property-transfer)]
-                (str property-label " Override")))
+                (str \' property-label "' Override")))
             (text-util/amount-text text-util/count->number property-transfer-count "Override"))
 
         property-transfer-targets

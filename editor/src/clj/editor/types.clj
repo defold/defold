@@ -97,7 +97,8 @@
                  (s/one s/Num "m20") (s/one s/Num "m21") (s/one s/Num "m22") (s/one s/Num "m23")
                  (s/one s/Num "m30") (s/one s/Num "m31") (s/one s/Num "m32") (s/one s/Num "m33")])
 
-(g/deftype Lines [s/Str])
+(def TLines [s/Str])
+(g/deftype Lines TLines)
 
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])

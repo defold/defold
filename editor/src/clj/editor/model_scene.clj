@@ -38,7 +38,7 @@
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteOrder]
-           [javax.vecmath Matrix4d]))
+           [javax.vecmath Matrix4d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -186,7 +186,7 @@
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
-        {:keys [material-attribute-infos mesh-renderable-data textures vertex-attribute-bytes]} user-data
+        {:keys [material-attribute-infos material-data mesh-renderable-data textures vertex-attribute-bytes]} user-data
         shader (or override-shader (:shader user-data))
         default-coordinate-space (case (:vertex-space user-data :vertex-space-local)
                                    :vertex-space-local :coordinate-space-local
@@ -233,6 +233,8 @@
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units t)))
+      (doseq [[name v] material-data]
+        (shader/set-uniform shader gl name v))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -300,23 +302,169 @@
       default-material-ids
       ret)))
 
-(defn- make-renderable-mesh [mesh mesh-material-index->material-name]
+(defn- make-renderable-material-data [mesh-material-data]
+  (when mesh-material-data
+    (let [pbr-metallic-roughness (:pbr-metallic-roughness mesh-material-data)
+          pbr-specular-glossiness (:pbr-specular-glossiness mesh-material-data)
+          pbr-clear-coat (:clearcoat mesh-material-data)
+          pbr-transmission (:transmission mesh-material-data)
+          pbr-ior (:ior mesh-material-data)
+          pbr-specular (:specular mesh-material-data)
+          pbr-volume (:volume mesh-material-data)
+          pbr-sheen (:sheen mesh-material-data)
+          pbr-emissive-strength (:emissive-strength mesh-material-data)
+          pbr-iridescence (:iridescence mesh-material-data)
+          pbr-texture-index->value (fn ^double [^long ix]
+                                     (if (>= ix 0) 1.0 0.0))]
+      [
+       ;; Common properties
+       ["pbrAlphaCutoffAndDoubleSidedAndIsUnlit"
+        (Vector4d. (:alpha-cutoff mesh-material-data)
+                   (if (:double-sided mesh-material-data) 1.0 0.0)
+                   (if (:unlit mesh-material-data) 1.0 0.0)
+                   0.0)]
+       ["pbrCommonTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in mesh-material-data [:normal-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in mesh-material-data [:occlusion-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in mesh-material-data [:emissive-texture :texture :index]))
+                   0)]
+
+       ;; Metallic roughness
+       ["pbrMetallicRoughness.baseColorFactor"
+        (doto (Vector4d.)
+          (math/clj->vecmath (:base-color-factor pbr-metallic-roughness)))]
+       ["pbrMetallicRoughness.metallicRoughnessFactor"
+        (Vector4d. (:metallic-factor pbr-metallic-roughness)
+                   (:roughness-factor pbr-metallic-roughness)
+                   0 0)]
+       ["pbrMetallicRoughness.metallicRoughnessTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-metallic-roughness [:base-color-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-metallic-roughness [:metallic-roughness-texture :texture :index]))
+                   0 0)]
+
+       ;; Specular glossiness
+       ["pbrSpecularGlossiness.diffuseFactor"
+        (doto (Vector4d.)
+          (math/clj->vecmath (:diffuse-factor pbr-specular-glossiness)))]
+       ["pbrSpecularGlossiness.specularAndSpecularGlossinessFactor"
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj
+                               (:specular-factor pbr-specular-glossiness)
+                               (:glossiness-factor pbr-specular-glossiness))))]
+       ["pbrSpecularGlossiness.specularGlossinessTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-specular-glossiness [:diffuse-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-specular-glossiness [:specular-glossiness-texture :texture :index]))
+                   0 0)]
+
+       ;; Clearcoat
+       ["pbrClearCoat.clearCoatAndClearCoatRoughnessFactor"
+        (Vector4d. (:clearcoat-factor pbr-clear-coat)
+                   (:clearcoat-roughness-factor pbr-clear-coat)
+                   0 0)]
+       ["pbrClearCoat.clearCoatTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-clear-coat [:clearcoat-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-clear-coat [:clearcoat-roughness-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-clear-coat [:clearcoat-normal-texture :texture :index]))
+                   0)]
+
+       ;; Transmission
+       ["pbrTransmission.transmissionFactor"
+        (Vector4d. (:transmission-factor pbr-transmission) 0 0 0)]
+       ["pbrTransmission.transmissionTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-transmission [:transmission-texture :texture :index]))
+                   0 0 0)]
+
+       ;; Ior
+       ["pbrIor.ior"
+        (Vector4d. (:ior pbr-ior) 0 0 0)]
+
+       ;; Specular
+       ["pbrSpecular.specularColorAndSpecularFactor"
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj
+                               (:specular-color-factor pbr-specular)
+                               (:specular-factor pbr-specular))))]
+       ["pbrSpecular.specularTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-specular [:specular-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-specular [:specular-color-texture :texture :index]))
+                   0 0)]
+
+       ;; Volume
+       ["pbrVolume.thicknessFactorAndAttenuationColor"
+        (doto (Vector4d.)
+          (math/clj->vecmath (into
+                               [(:thickness-factor pbr-volume)]
+                               (:attenuation-color pbr-volume))))]
+       ["pbrVolume.attenuationDistance"
+        (Vector4d. (:attenuation-distance pbr-volume) 0 0 0)]
+       ["pbrVolume.volumeTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-volume [:thickness-texture :texture :index]))
+                   0 0 0)]
+
+       ;; Sheen
+       ["sheenColorAndRoughnessFactor"
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj
+                               (:sheen-color-factor pbr-sheen)
+                               (:sheen-roughness-factor pbr-sheen))))]
+       ["sheenTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-sheen [:sheen-color-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-sheen [:sheen-roughness-texture :texture :index]))
+                   0 0)]
+
+       ;; Emissive strength
+       ["pbrEmissiveStrength.emissiveStrength"
+        (Vector4d. (:emissive-strength pbr-emissive-strength) 0 0 0)]
+
+       ;; Iridescence
+       ["iridescenceFactorAndIorAndThicknessMinMax"
+        (Vector4d. (:iridescence-factor pbr-iridescence)
+                   (:iridescence-ior pbr-iridescence)
+                   (:iridescence-thickness-min pbr-iridescence)
+                   (:iridescence-thickness-max pbr-iridescence))]
+       ["iridescenceTextures"
+        (Vector4d. (pbr-texture-index->value
+                     (get-in pbr-iridescence [:iridescence-texture :texture :index]))
+                   (pbr-texture-index->value
+                     (get-in pbr-iridescence [:iridescence-thickness-texture :texture :index]))
+                   0 0)]])))
+
+(defn- make-renderable-mesh [mesh mesh-set mesh-material-index->material-name]
   (let [mesh-renderable-data (mesh->renderable-data mesh)]
     (if (g/error-value? mesh-renderable-data)
       mesh-renderable-data
       (let [{:keys [aabb-min aabb-max ^int material-index]} mesh
             mesh-aabb (geom/coords->aabb aabb-min aabb-max)
-            material-name (mesh-material-index->material-name material-index)]
+            material-name (mesh-material-index->material-name material-index)
+            mesh-material-data (nth (:materials mesh-set) material-index)
+            material-data (make-renderable-material-data mesh-material-data)]
         {:aabb mesh-aabb
          :material-name material-name
+         :material-data material-data
          :renderable-data mesh-renderable-data}))))
 
-(defn- make-renderable-model [model mesh-material-index->material-name]
+(defn- make-renderable-model [model mesh-set mesh-material-index->material-name]
   (let [{:keys [translation rotation scale]} (:local model)
         model-transform (math/clj->mat4 translation rotation scale)
 
         renderable-meshes
-        (mapv #(make-renderable-mesh % mesh-material-index->material-name)
+        (mapv #(make-renderable-mesh % mesh-set mesh-material-index->material-name)
               (:meshes model))]
 
     (g/precluding-errors renderable-meshes
@@ -331,7 +479,7 @@
 
 (defn- make-renderable-mesh-set [mesh-set mesh-material-index->material-name]
   (let [renderable-models
-        (mapv #(make-renderable-model % mesh-material-index->material-name)
+        (mapv #(make-renderable-model % mesh-set mesh-material-index->material-name)
               (:models mesh-set))]
 
     (g/precluding-errors renderable-models
@@ -351,7 +499,7 @@
     (make-renderable-mesh-set (:mesh-set content) mesh-material-index->material-name)))
 
 (defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
-  (let [{:keys [aabb material-name renderable-data]} renderable-mesh]
+  (let [{:keys [aabb material-data material-name renderable-data]} renderable-mesh]
     {:aabb aabb
      :renderable {:render-fn render-mesh
                   :tags #{:model}
@@ -360,6 +508,7 @@
                   :passes [pass/opaque pass/opaque-selection]
                   :user-data {:mesh-renderable-data renderable-data
                               :vertex-space :vertex-space-local
+                              :material-data material-data
                               :material-name material-name
                               :shader preview-shader
                               :textures {"texture_sampler" @texture/white-pixel}}}}))
@@ -399,6 +548,7 @@
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-renderable (:renderable mesh-scene)
         material-name (:material-name (:user-data mesh-renderable))
+        material-data (:material-data (:user-data mesh-renderable))
         material-scene-info (material-name->material-scene-info material-name)
         claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
     (if (nil? material-scene-info)
@@ -422,6 +572,7 @@
               :user-data
               assoc
               :material-attribute-infos material-attribute-infos
+              :material-data material-data
               :shader shader
               :textures gpu-textures
               :vertex-attribute-bytes vertex-attribute-bytes

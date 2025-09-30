@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 /*# SDK Crypt API documentation
- * [file:<dmsdk/dlib/crypt.h>]
  *
  * Various hash and encode/decode functions.
  *

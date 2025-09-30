@@ -26,7 +26,7 @@ public class NullProgress implements IProgress {
     }
 
     @Override
-    public void beginTask(String name, int work) {
+    public void beginTask(Task name, int work) {
     }
 
     @Override
