@@ -441,16 +441,11 @@ var EngineLoader = {
                         }
                     }
                 }
-                const blob = new Blob([response], { type: 'text/javascript' });
-                const blobUrl = URL.createObjectURL(blob);
-
-                Module["mainScriptUrlOrBlob"] = blobUrl;
+                Module["mainScriptUrlOrBlob"] = src;
 
                 const script = document.createElement('script');
-                script.src = blobUrl;
+                script.src = src;
                 script.type = "text/javascript";
-                //TODO: Clean up the blob URL when no need anymore
-                // URL.revokeObjectURL(blobUrl);
                 document.body.appendChild(script);
             },
             function(loadedDelta, currentAttempt){
