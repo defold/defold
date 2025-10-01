@@ -6,22 +6,31 @@ defold_log("tools_protoc.cmake:")
 #   ${DEFOLD_SDK_ROOT}/bin/ddfc_cxx (protoc plugin)
 
 if(NOT DEFINED DEFOLD_SDK_ROOT OR NOT EXISTS "${DEFOLD_SDK_ROOT}")
-  message(FATAL_ERROR "tools_protoc: DEFOLD_SDK_ROOT is not set or does not exist. Cannot validate protoc.")
+  message(FATAL_ERROR "tools_protoc: DEFOLD_SDK_ROOT is not set or does not exist. Cannot locate protoc.")
 endif()
 
-find_program(_DEFOLD_PROTOC_EXECUTABLE NAMES protoc)
+# Prefer packaged protoc from DEFOLD_SDK_ROOT/ext/bin/*/protoc
+set(_DEFOLD_PROTOC_EXECUTABLE "")
+if(WIN32)
+  file(GLOB_RECURSE _protoc_pkgs "${DEFOLD_SDK_ROOT}/ext/bin/*/protoc.exe")
+else()
+  file(GLOB_RECURSE _protoc_pkgs "${DEFOLD_SDK_ROOT}/ext/bin/*/protoc")
+endif()
+
+if(_protoc_pkgs)
+  list(SORT _protoc_pkgs COMPARE NATURAL)
+  list(GET _protoc_pkgs -1 _DEFOLD_PROTOC_EXECUTABLE)
+else()
+  # Fallback to PATH
+  find_program(_DEFOLD_PROTOC_EXECUTABLE NAMES protoc)
+endif()
+
 if(NOT _DEFOLD_PROTOC_EXECUTABLE)
-  message(FATAL_ERROR "tools_protoc: 'protoc' not found on PATH. Please prepend ${DEFOLD_SDK_ROOT}/ext/bin/<host-platform> to PATH.")
+  message(FATAL_ERROR "tools_protoc: Could not find protoc. Expected in ${DEFOLD_SDK_ROOT}/ext/bin/<host-platform>/ or on PATH.")
 endif()
 
-# Expect protoc to reside under the SDK root
 file(REAL_PATH "${_DEFOLD_PROTOC_EXECUTABLE}" _DEFOLD_PROTOC_REAL)
-file(REAL_PATH "${DEFOLD_SDK_ROOT}" _DEFOLD_SDK_ROOT_REAL)
-
-string(FIND "${_DEFOLD_PROTOC_REAL}" "${_DEFOLD_SDK_ROOT_REAL}" _sdk_pos)
-if(_sdk_pos EQUAL -1)
-  message(FATAL_ERROR "tools_protoc: Using system protoc at '${_DEFOLD_PROTOC_REAL}'. Please use the SDK's protoc under '${DEFOLD_SDK_ROOT}/ext/bin/<host-platform>/protoc'.")
-endif()
+set(DEFOLD_PROTOC_EXECUTABLE "${_DEFOLD_PROTOC_REAL}" CACHE FILEPATH "Path to protoc executable used by Defold")
 
 # Optional: Print protoc version
 execute_process(

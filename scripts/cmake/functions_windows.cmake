@@ -137,7 +137,7 @@ function(_defold_locate_msvc_lib_dir_from_cl CL_PATH ARCH OUT_LIB_DIR)
         return()
     endif()
     # Normalize and walk up to VC/Tools/MSVC/<ver>
-    cmake_path(REAL_PATH "${CL_PATH}" _cl_real)
+    file(REAL_PATH "${CL_PATH}" _cl_real)
     cmake_path(GET _cl_real PARENT_PATH _cl_dir)       # .../bin/Host*/<arch>
     cmake_path(GET _cl_dir  PARENT_PATH _host_dir)     # .../bin/Host*
     cmake_path(GET _host_dir PARENT_PATH _bin_dir)     # .../bin
@@ -161,7 +161,7 @@ function(_defold_locate_msvc_include_dir_from_cl CL_PATH OUT_INC_DIR)
     if(NOT EXISTS "${CL_PATH}")
         return()
     endif()
-    cmake_path(REAL_PATH "${CL_PATH}" _cl_real)
+    file(REAL_PATH "${CL_PATH}" _cl_real)
     cmake_path(GET _cl_real PARENT_PATH _cl_dir)       # .../bin/Host*/<arch>
     cmake_path(GET _cl_dir  PARENT_PATH _host_dir)     # .../bin/Host*
     cmake_path(GET _host_dir PARENT_PATH _bin_dir)     # .../bin

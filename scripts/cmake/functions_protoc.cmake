@@ -76,9 +76,14 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
         set(_ddf_plugin_arg "--plugin=protoc-gen-ddf=${_ddf_plugin_path}")
     endif()
 
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
     add_custom_command(
         OUTPUT "${_out_cc}" "${_out_h}"
-        COMMAND protoc ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+        COMMAND ${_PROTOC_BIN} ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
         DEPENDS "${_src_abs}"
         VERBATIM
         COMMENT "Generating DDF C++ from ${SRC_PROTO}"
@@ -178,9 +183,14 @@ function(defold_protoc_encode OUT_FILE SRC_FILE SCHEMA_PROTO MESSAGE_NAME)
 
     endif()
 
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
     add_custom_command(
         OUTPUT "${_out_abs}"
-        COMMAND protoc --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_native} < ${_src_native} > ${_out_native}
+        COMMAND ${_PROTOC_BIN} --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_native} < ${_src_native} > ${_out_native}
         DEPENDS "${_src_abs}" "${_schema_abs}"
         VERBATIM
         COMMENT "Encoding ${_src_abs} as ${MESSAGE_NAME} -> ${_out_abs}"
@@ -241,9 +251,14 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     file(MAKE_DIRECTORY "${_out_dir}")
 
     # Generate both _pb2.py and ensure __init__.py in one rule so either output triggers it
+    set(_PROTOC_BIN protoc)
+    if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")
+        set(_PROTOC_BIN "${DEFOLD_PROTOC_EXECUTABLE}")
+    endif()
+
     add_custom_command(
         OUTPUT "${_gen_py}" "${_init_py}"
-        COMMAND protoc --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+        COMMAND ${_PROTOC_BIN} --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
         COMMAND ${CMAKE_COMMAND} -E touch "${_init_py}"
         DEPENDS "${_src_abs}"
         VERBATIM
