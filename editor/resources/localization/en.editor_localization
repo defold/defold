@@ -624,6 +624,13 @@ engine.name.local = Local {name}
 engine.name.with-url = {name} — {url}
 engine.name.with-instance = {name} — instance {instance}
 
+# Search results: overrides
+
+search.overrides.title.all = All Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = Specific Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = Resource
+
 # Commands
 
 command.file = File
@@ -699,8 +706,16 @@ command.edit.add-embedded-component = Add
 command.edit.add-embedded-component.variant.atlas = Add Animation Group
 command.edit.add-embedded-component.variant.collection = Add Game Object
 command.edit.add-embedded-component.variant.collision-object = Add Shape
+command.edit.add-embedded-component.variant.collision-object.option.box = Box
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
 command.edit.add-embedded-component.variant.game-object = Add Component
 command.edit.add-embedded-component.variant.particlefx = Add Emitter
+command.edit.add-embedded-component.variant.particlefx.option.circle = Circle
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Sphere
+command.edit.add-embedded-component.variant.particlefx.option.cone = Cone
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D Cone
+command.edit.add-embedded-component.variant.particlefx.option.box = Box
 command.edit.add-embedded-component.variant.tile-map = Add Layer
 command.edit.add-embedded-component.variant.tile-source = Add
 command.edit.add-embedded-component.variant.tile-source.option.animation = Animation
@@ -712,6 +727,10 @@ command.edit.add-referenced-component.variant.game-object = Add Component File
 command.edit.add-secondary-embedded-component = Add Secondary
 command.edit.add-secondary-embedded-component.variant.collection-game-object = Add Game Object
 command.edit.add-secondary-embedded-component.variant.particlefx = Add Modifier
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Acceleration
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Drag
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Radial
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Vortex
 command.edit.add-secondary-referenced-component = Add Secondary From File
 command.edit.add-secondary-referenced-component.variant.collection = Add Collection File
 command.edit.add-secondary-referenced-component.variant.collection-game-object = Add Game Object File

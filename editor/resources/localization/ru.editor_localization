@@ -611,6 +611,13 @@ engine.name.local = Локальный {name}
 engine.name.with-url = {name} — {url}
 engine.name.with-instance = {name} — экземпляр {instance}
 
+# Search results: overrides
+
+search.overrides.title.all = Все переопределения свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
+search.overrides.title.list = Переопределения {count, plural, one {свойства} other {свойств}} {list}{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
+search.overrides.title.specific = Переопределения отдельных свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
+search.column.resource = Ресурс
+
 # Commands
 
 command.file = Файл
@@ -686,8 +693,16 @@ command.edit.add-embedded-component = Добавить
 command.edit.add-embedded-component.variant.atlas = Добавить группу анимации
 command.edit.add-embedded-component.variant.collection = Добавить игровой объект
 command.edit.add-embedded-component.variant.collision-object = Добавить форму
+command.edit.add-embedded-component.variant.collision-object.option.box = Прямоугольник
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Капсула
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Сфера
 command.edit.add-embedded-component.variant.game-object = Добавить компонент
 command.edit.add-embedded-component.variant.particlefx = Добавить эмиттер
+command.edit.add-embedded-component.variant.particlefx.option.circle = Круг
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Сфера
+command.edit.add-embedded-component.variant.particlefx.option.cone = Конус
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D-конус
+command.edit.add-embedded-component.variant.particlefx.option.box = Прямоугольник
 command.edit.add-embedded-component.variant.tile-map = Добавить слой
 command.edit.add-embedded-component.variant.tile-source = Добавить
 command.edit.add-embedded-component.variant.tile-source.option.animation = Анимация
@@ -699,6 +714,10 @@ command.edit.add-referenced-component.variant.game-object = Добавить к�
 command.edit.add-secondary-embedded-component = Добавить вторичный компонент
 command.edit.add-secondary-embedded-component.variant.collection-game-object = Добавить игровой объект
 command.edit.add-secondary-embedded-component.variant.particlefx = Добавить модификатор
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Ускорение
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Сопротивление
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Радиальный
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Вихрь
 command.edit.add-secondary-referenced-component = Добавить вторичный компонент из файла
 command.edit.add-secondary-referenced-component.variant.collection = Добавить файл коллекции
 command.edit.add-secondary-referenced-component.variant.collection-game-object = Добавить игровой объект из файла

@@ -589,6 +589,7 @@
 ;;  - text-util/amount-text
 ;;  - editor scripts localization
 ;;  - resource type label
+;;  - view type labels
 ;;  - all properties
 ;;  - outline
 ;;  - missed things...

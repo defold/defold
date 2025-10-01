@@ -575,30 +575,22 @@
      :items push-down-overrides-menu-items}]})
 
 (defn- override-inspector-query-label [state]
-  (let [{:keys [proj-path qualifier prop-kws]} state
-
-        header-prefix-text
-        (case (count prop-kws)
-          0 "All Property Overrides of"
-          1 (str (properties/keyword->name (first prop-kws))
-                 " Overrides of")
-          (2 3 4) (str (util/join-words
-                         ", " " and "
-                         (map properties/keyword->name
-                              prop-kws))
-                       " Overrides of")
-          "Specific Property Overrides of")
-
-        header-text
-        (cond-> header-prefix-text
-                qualifier (str " '" qualifier \')
-                (and qualifier proj-path) (str " in")
-                proj-path (str " '" proj-path \'))]
-
-    {:fx/type fxui/legacy-label
-     :text header-text
-     :wrap-text false
-     :style {:-fx-min-height 26.0}}))
+  (let [{:keys [proj-path qualifier prop-kws localization]} state
+        qualifier (or qualifier "none")
+        proj-path (or proj-path "none")]
+    {:fx/type fxui/ext-localize
+     :localization localization
+     :message (case (count prop-kws)
+                0 (localization/message "search.overrides.title.all" {"qualifier" qualifier "resource" proj-path})
+                (1 2 3 4) (localization/message "search.overrides.title.list"
+                                                {"count" (count prop-kws)
+                                                 "list" (localization/and-list (mapv properties/keyword->name prop-kws))
+                                                 "qualifier" qualifier
+                                                 "resource" proj-path})
+                (localization/message "search.overrides.title.specific" {"qualifier" qualifier "resource" proj-path}))
+     :desc {:fx/type fxui/legacy-label
+            :wrap-text false
+            :style {:-fx-min-height 26.0}}}))
 
 (defn- override-inspector-tree-table-view
   [{:keys [display-order
@@ -607,12 +599,14 @@
            tree
            localization]}]
   (let [tree-table-columns
-        (into [{:fx/type fx.tree-table-column/lifecycle
-                :text "Resource"
-                :reorderable false
-                :cell-value-factory identity
-                :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
-                               :describe #'resource-cell}}]
+        (into [{:fx/type fxui/ext-localize
+                :localization localization
+                :message (localization/message "search.column.resource")
+                :desc {:fx/type fx.tree-table-column/lifecycle
+                       :reorderable false
+                       :cell-value-factory identity
+                       :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                      :describe #'resource-cell}}}]
               (map (fn [property-keyword]
                      {:fx/type fx.tree-table-column/lifecycle
                       :text (str (properties/keyword->name property-keyword)
@@ -717,7 +711,8 @@
                 :v-box/vgrow :never
                 :proj-path queried-proj-path
                 :qualifier queried-qualifier
-                :prop-kws queried-properties}
+                :prop-kws queried-properties
+                :localization localization}
                {:fx/type override-inspector-tree-table-view
                 :v-box/vgrow :always
                 :display-order display-order
