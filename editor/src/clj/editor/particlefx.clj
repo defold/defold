@@ -32,6 +32,7 @@
             [editor.graphics :as graphics]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -1124,7 +1125,7 @@
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
   (label [user-data] (if-not user-data
-                       "Add Modifier"
+                       (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx")
                        (->> user-data :modifier-type mod-types :label)))
   (run [selection user-data app-view]
     (let [parent-id (or (selection->particlefx selection)
@@ -1198,9 +1199,10 @@
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->particlefx selection))
-  (label [user-data] (if-not user-data
-                       "Add Emitter"
-                       (->> user-data :emitter-type (get emitter-types) :label)))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.particlefx")
+      (->> user-data :emitter-type (get emitter-types) :label)))
   (run [selection user-data app-view] (let [pfx (selection->particlefx selection)]
                                         (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]

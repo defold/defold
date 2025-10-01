@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.menu-items
-  (:require [util.fn :as fn]))
+  (:require [editor.localization :as localization]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -23,32 +24,26 @@
 ;; Keep sorted alphabetically!
 ;; -----------------------------------------------------------------------------
 
-(def open-as-text "Open As")
-(def open-as-icon "icons/32/Icons_S_14_linkarrow.png")
 (def open-as
-  {:label open-as-text
-   :icon open-as-icon
+  {:label (localization/message "command.file.open-as")
+   :icon "icons/32/Icons_S_14_linkarrow.png"
    :command :file.open-as})
 
-(def open-selected-text "Open")
-(def open-selected-icon "icons/32/Icons_S_14_linkarrow.png")
 (def open-selected
-  {:label open-selected-text
-   :icon open-selected-icon
+  {:label (localization/message "command.file.open-selected")
+   :icon "icons/32/Icons_S_14_linkarrow.png"
    :command :file.open-selected})
 
-(def pull-up-overrides-text "Pull Up Overrides")
-(def pull-up-overrides-icon "icons/32/Icons_62-Pull-Up-Override.png")
+(def pull-up-overrides-message (localization/message "command.edit.pull-up-overrides"))
 (def pull-up-overrides
-  {:label pull-up-overrides-text
-   :icon pull-up-overrides-icon
+  {:label pull-up-overrides-message
+   :icon "icons/32/Icons_62-Pull-Up-Override.png"
    :command :edit.pull-up-overrides})
 
-(def push-down-overrides-text "Push Down Overrides")
-(def push-down-overrides-icon "icons/32/Icons_63-Push-Down-Override.png")
+(def push-down-overrides-message (localization/message "command.edit.push-down-overrides"))
 (def push-down-overrides
-  {:label push-down-overrides-text
-   :icon push-down-overrides-icon
+  {:label push-down-overrides-message
+   :icon "icons/32/Icons_63-Push-Down-Override.png"
    :command :edit.push-down-overrides})
 
 (def separator {:label :separator})
@@ -58,7 +53,6 @@
       {:pre [(keyword? id)]}
       (assoc separator :id id))))
 
-(def show-overrides-text "Show Overrides...")
 (def show-overrides
-  {:label show-overrides-text
+  {:label (localization/message "command.edit.show-overrides")
    :command :edit.show-overrides})

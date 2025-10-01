@@ -844,4 +844,4 @@
      (analytics/track-event! "welcome" "show-welcome")
      (analytics/track-screen! (screen-name (.getSelectedToggle pane-buttons-toggle-group) (.getSelectedToggle template-category-buttons-toggle-group)))
      (.setScene stage scene)
-     (ui/show! stage))))
+     (ui/show! stage localization))))

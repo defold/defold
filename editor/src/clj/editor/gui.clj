@@ -4346,7 +4346,7 @@
        res-node))))
 
 (handler/defhandler :scene.set-gui-layout :workbench
-  :label "Set GUI Layout"
+  :label (localization/message "command.scene.set-gui-layout")
   (active? [project active-resource evaluation-context]
            (boolean (resource->gui-scene project active-resource evaluation-context)))
   (run [project active-resource user-data] (when user-data
@@ -4371,8 +4371,7 @@
 (handler/register-menu! ::toolbar :visibility-settings
   [menu-items/separator
    {:icon layout-icon
-    :command :scene.set-gui-layout
-    :label "Test"}])
+    :command :scene.set-gui-layout}])
 
 ;; SDK api
 (def gui-base-node-defaults

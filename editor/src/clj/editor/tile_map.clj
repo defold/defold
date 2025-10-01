@@ -28,6 +28,7 @@
             [editor.graph-util :as gu]
             [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
@@ -1449,7 +1450,7 @@
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [user-data] "Add layer")
+  (label [user-data] (localization/message "command.edit.add-embedded-component.variant.tile-map"))
   (active? [selection] (selection->tile-map selection))
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
@@ -1476,7 +1477,6 @@
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
 (handler/defhandler :scene.select-erase-tool :workbench
-  (label [user-data] "Select Eraser")
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1536,15 +1536,15 @@
   (run [app-view] (transform-brush! app-view rotate-brush-90-degrees)))
 
 (handler/register-menu! ::menubar :editor.app-view/edit-end
-  [{:label "Select Tile..."
+  [{:label (localization/message "command.scene.toggle-tile-palette")
     :command :scene.toggle-tile-palette}
-   {:label "Select Eraser"
+   {:label (localization/message "command.scene.select-erase-tool")
     :command :scene.select-erase-tool}
-   {:label "Flip Brush Horizontally"
+   {:label (localization/message "command.scene.flip-brush-horizontally")
     :command :scene.flip-brush-horizontally}
-   {:label "Flip Brush Vertically"
+   {:label (localization/message "command.scene.flip-brush-vertically")
     :command :scene.flip-brush-vertically}
-   {:label "Rotate Brush 90 Degrees"
+   {:label (localization/message "command.scene.rotate-brush-90-degrees")
     :command :scene.rotate-brush-90-degrees}])
 
 (g/defnode TileMapGrid

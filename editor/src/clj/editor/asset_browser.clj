@@ -90,48 +90,48 @@
   [menu-items/open-selected
    menu-items/open-as
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
    menu-items/separator
-   {:label "New"
+   {:label (localization/message "command.file.new")
     :command :file.new
     :expand true
     :icon "icons/64/Icons_29-AT-Unknown.png"}
-   {:label "New File"
+   {:label (localization/message "command.file.new.any-file")
     :command :file.new
     :user-data {:any-file true}
     :icon "icons/64/Icons_29-AT-Unknown.png"}
-   {:label "New Folder"
+   {:label (localization/message "command.file.new-folder")
     :command :file.new-folder
     :icon "icons/32/Icons_01-Folder-closed.png"}
    menu-items/separator
-   {:label "Cut"
+   {:label (localization/message "command.edit.cut")
     :command :edit.cut}
-   {:label "Copy"
+   {:label (localization/message "command.edit.copy")
     :command :edit.copy}
-   {:label "Paste"
+   {:label (localization/message "command.edit.paste")
     :command :edit.paste}
-   {:label "Delete"
+   {:label (localization/message "command.edit.delete")
     :command :edit.delete
     :icon "icons/32/Icons_M_06_trash.png"}
    menu-items/separator
-   {:label "Rename..."
+   {:label (localization/message "command.edit.rename")
     :command :edit.rename}
    (menu-items/separator-with-id ::context-menu-end)])
 
@@ -508,7 +508,7 @@
 
 (handler/defhandler :file.new :global
   (label [user-data] (if-not user-data
-                       "New..."
+                       (localization/message "command.file.new")
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
   (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
@@ -550,7 +550,7 @@
   (options [workspace selection user-data]
     (when (not user-data)
       (sort-by (comp string/lower-case :label)
-               (into [{:label "File"
+               (into [{:label (localization/message "command.file.new.option.any-file")
                        :icon "icons/64/Icons_29-AT-Unknown.png"
                        :command :file.new
                        :user-data {:any-file true}}]

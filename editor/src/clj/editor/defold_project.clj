@@ -1127,29 +1127,29 @@
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/register-menu! ::menubar :editor.app-view/view
-  [{:label "Project"
+  [{:label (localization/message "command.project")
     :id ::project
-    :children [{:label "Build"
+    :children [{:label (localization/message "command.project.build")
                 :command :project.build}
-               {:label "Clean Build"
+               {:label (localization/message "command.project.clean-build")
                 :command :project.clean-build}
-               {:label "Build HTML5"
+               {:label (localization/message "command.project.build-html5")
                 :command :project.build-html5}
-               {:label "Clean Build HTML5"
+               {:label (localization/message "command.project.clean-build-html5")
                 :command :project.clean-build-html5}
-               {:label "Bundle"
+               {:label (localization/message "command.project.bundle")
                 :id ::bundle
                 :command :project.bundle}
-               {:label "Rebundle"
+               {:label (localization/message "command.project.rebundle")
                 :command :project.rebundle}
-               {:label "Fetch Libraries"
+               {:label (localization/message "command.project.fetch-libraries")
                 :command :project.fetch-libraries}
-               {:label "Reload Editor Scripts"
+               {:label (localization/message "command.project.reload-editor-scripts")
                 :command :project.reload-editor-scripts}
                {:label :separator}
-               {:label "Shared Editor Settings"
+               {:label (localization/message "command.file.open-shared-editor-settings")
                 :command :file.open-shared-editor-settings}
-               {:label "Live Update Settings"
+               {:label (localization/message "command.file.open-liveupdate-settings")
                 :command :file.open-liveupdate-settings}
                {:label :separator
                 :id ::targets}

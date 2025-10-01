@@ -794,7 +794,7 @@
       (if (= count 1)
         (targets/select-target! prefs last-launched-target)
         (targets/select-target! prefs {:id :all-launched-targets}))
-      (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message-label last-launched-target)}))
+      (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message last-launched-target)}))
       launched-targets)
     (catch Exception e
       (targets/kill-launched-targets!)
@@ -833,10 +833,10 @@
 (defn- reboot-engine! [target web-server debug?]
   (try
     (report-build-launch-progress!
-      (localization/message "progress.rebooting-engine" {"engine" (targets/target-message-label target)}))
+      (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
     (engine/reboot! target (local-url target web-server) debug?)
     (report-build-launch-progress!
-      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message-label target)}))
+      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
     target
     (catch Exception e
       (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
@@ -916,8 +916,8 @@
                                   :text (localization
                                           (localization/message
                                             "dialog.launch-failed.header"
-                                            {"target" (if (some? selected-target)
-                                                        (targets/target-message-label selected-target)
+                                            {"engine" (if (some? selected-target)
+                                                        (targets/target-message selected-target)
                                                         (localization/message "dialog.launch-failed.target.new-local-engine"))}))}
                                  {:fx/type fxui/legacy-label
                                   :text (localization (localization/message "dialog.launch-failed.detail"))}]}
@@ -1318,9 +1318,7 @@
   (options [prefs user-data]
     (when-not user-data
       (mapv (fn [i]
-              {:label (str i (if (> i 1)
-                               " Instances"
-                               " Instance"))
+              {:label (localization/message "command.run.set-instance-count.option.count" {"count" i})
                :command :run.set-instance-count
                :check true
                :user-data {:instance-count i}})
@@ -1480,12 +1478,10 @@
          (not (debug-view/suspended? debug-view evaluation-context))
          (not (build-in-progress?)))))
 
-(defn- hot-reload! [project prefs build-errors-view main-stage tool-tab-pane]
+(defn- hot-reload! [project prefs localization build-errors-view main-stage tool-tab-pane]
   (let [main-scene (.getScene ^Stage main-stage)
         target (targets/selected-target prefs)
         workspace (project/workspace project)
-        localization (g/with-auto-evaluation-context evaluation-context
-                       (workspace/localization workspace evaluation-context))
         old-etags (workspace/etags workspace)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
@@ -1523,17 +1519,18 @@
                                      (catch Exception e
                                        (dialogs/make-info-dialog
                                          localization
-                                         {:title "Hot Reload Failed"
+                                         {:title (localization/message "dialog.hot-reload-failed.title")
                                           :icon :icon/triangle-error
-                                          :header (format "Failed to reload resources on '%s'"
-                                                          (targets/target-message-label (targets/selected-target prefs)))
+                                          :header (localization/message
+                                                    "dialog.hot-reload-failed.header"
+                                                    {"engine" (targets/target-message (targets/selected-target prefs))})
                                           :content (.getMessage e)})))))))))
 
 (handler/defhandler :run.hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
-            (can-hot-reload? debug-view prefs evaluation-context))
-  (run [project app-view prefs build-errors-view selection main-stage tool-tab-pane]
-       (hot-reload! project prefs build-errors-view main-stage tool-tab-pane)))
+    (can-hot-reload? debug-view prefs evaluation-context))
+  (run [project app-view prefs localization build-errors-view selection main-stage tool-tab-pane]
+    (hot-reload! project prefs localization build-errors-view main-stage tool-tab-pane)))
 
 (handler/defhandler :window.tab.close :global
   (enabled? [app-view evaluation-context]
@@ -1664,7 +1661,7 @@
          (.select (.getSelectionModel first-tab-pane) selected-tab)
          (.requestFocus first-tab-pane))))
 
-(defn make-about-dialog []
+(defn make-about-dialog [localization]
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
@@ -1677,7 +1674,7 @@
     (UIUtil/stringToTextFlowNodes (:sponsor-push controls) "[Defold Foundation Development Fund](https://www.defold.com/community-donations)")
     (ui/title! stage "About")
     (.setScene stage scene)
-    (ui/show! stage)))
+    (ui/show! stage localization)))
 
 (handler/defhandler :help.open-documentation :global
   (run [] (ui/open-url "https://www.defold.com/learn/")))
@@ -1704,7 +1701,7 @@
   (run [] (ui/open-url "https://www.defold.com/donate")))
 
 (handler/defhandler :app.about :global
-  (run [] (make-about-dialog)))
+  (run [localization] (make-about-dialog localization)))
 
 (handler/defhandler :dev.reload-css :global
   (run [] (ui/reload-root-styles!)))
@@ -1719,162 +1716,162 @@
             (process/start! {:dir install-dir} (system/defold-launcherpath)))))
 
 (handler/register-menu! ::menubar
-  [{:label "File"
+  [{:label (localization/message "command.file")
     :id ::file
-    :children [{:label "New..."
+    :children [{:label (localization/message "command.file.new")
                 :id ::new
                 :command :file.new}
-               {:label "Open..."
+               {:label (localization/message "command.file.open")
                 :id ::open
                 :command :file.open}
-               {:label "Load External Changes"
+               {:label (localization/message "command.file.load-external-changes")
                 :id ::async-reload
                 :command :file.load-external-changes}
-               {:label "Save All"
+               {:label (localization/message "command.file.save-all")
                 :id ::save-all
                 :command :file.save-all}
-               {:label "Upgrade File Formats..."
+               {:label (localization/message "command.file.save-and-upgrade-all")
                 :id ::save-and-upgrade-all
                 :command :file.save-and-upgrade-all}
                menu-items/separator
-               {:label "Search in Files..."
+               {:label (localization/message "command.file.search")
                 :command :file.search}
-               {:label "Recent Files"
+               {:label (localization/message "command.private.recent-files")
                 :command :private/recent-files}
                menu-items/separator
-               {:label "Close"
+               {:label (localization/message "command.window.tab.close")
                 :command :window.tab.close}
-               {:label "Close All"
+               {:label (localization/message "command.window.tab.close-all")
                 :command :window.tab.close-all}
-               {:label "Close Others"
+               {:label (localization/message "command.window.tab.close-others")
                 :command :window.tab.close-others}
                menu-items/separator
-               {:label "Referencing Files..."
+               {:label (localization/message "command.file.show-references")
                 :command :file.show-references}
-               {:label "Dependencies..."
+               {:label (localization/message "command.file.show-dependencies")
                 :command :file.show-dependencies}
                menu-items/separator
                menu-items/show-overrides
                menu-items/pull-up-overrides
                menu-items/push-down-overrides
                menu-items/separator
-               {:label "Hot Reload"
+               {:label (localization/message "command.run.hot-reload")
                 :command :run.hot-reload}
                menu-items/separator
-               {:label "Open Project..."
+               {:label (localization/message "command.file.open-project")
                 :command :file.open-project}
-               {:label "Preferences..."
+               {:label (localization/message "command.app.preferences")
                 :command :app.preferences}
-               {:label "Quit"
+               {:label (localization/message "command.app.quit")
                 :command :app.quit}]}
-   {:label "Edit"
+   {:label (localization/message "command.edit")
     :id ::edit
-    :children [{:label "Undo"
+    :children [{:label (localization/message "command.edit.undo")
                 :icon "icons/undo.png"
                 :command :edit.undo}
-               {:label "Redo"
+               {:label (localization/message "command.edit.redo")
                 :icon "icons/redo.png"
                 :command :edit.redo}
                menu-items/separator
-               {:label "Cut"
+               {:label (localization/message "command.edit.cut")
                 :command :edit.cut}
-               {:label "Copy"
+               {:label (localization/message "command.edit.copy")
                 :command :edit.copy}
-               {:label "Paste"
+               {:label (localization/message "command.edit.paste")
                 :command :edit.paste}
-               {:label "Select All"
+               {:label (localization/message "command.code.select-all")
                 :command :code.select-all}
-               {:label "Delete"
+               {:label (localization/message "command.edit.delete")
                 :icon "icons/32/Icons_M_06_trash.png"
                 :command :edit.delete}
                menu-items/separator
-               {:label "Move Up"
+               {:label (localization/message "command.edit.reorder-up")
                 :command :edit.reorder-up}
-               {:label "Move Down"
+               {:label (localization/message "command.edit.reorder-down")
                 :command :edit.reorder-down}
                (menu-items/separator-with-id ::edit-end)]}
-   {:label "View"
+   {:label (localization/message "command.view")
     :id ::view
-    :children [{:label "Toggle Assets Pane"
+    :children [{:label (localization/message "command.window.toggle-left-pane")
                 :command :window.toggle-left-pane}
-               {:label "Toggle Changed Files"
+               {:label (localization/message "command.window.toggle-changed-files-pane")
                 :command :window.toggle-changed-files-pane}
-               {:label "Toggle Tools Pane"
+               {:label (localization/message "command.window.toggle-bottom-pane")
                 :command :window.toggle-bottom-pane}
-               {:label "Toggle Properties Pane"
+               {:label (localization/message "command.window.toggle-right-pane")
                 :command :window.toggle-right-pane}
                menu-items/separator
-               {:label "Show Console"
+               {:label (localization/message "command.window.show-console")
                 :command :window.show-console}
-               {:label "Show Curve Editor"
+               {:label (localization/message "command.window.show-curve-editor")
                 :command :window.show-curve-editor}
-               {:label "Show Build Errors"
+               {:label (localization/message "command.window.show-build-errors")
                 :command :window.show-build-errors}
-               {:label "Show Search Results"
+               {:label (localization/message "command.window.show-search-results")
                 :command :window.show-search-results}
                (menu-items/separator-with-id ::view-end)]}
-   {:label "Help"
-    :children [{:label "Reload Stylesheet"
+   {:label (localization/message "command.help")
+    :children [{:label (localization/message "command.dev.reload-css")
                 :command :dev.reload-css}
-               {:label "Show Logs"
+               {:label (localization/message "command.help.open-logs")
                 :command :help.open-logs}
                menu-items/separator
-               {:label "Create Desktop Entry"
+               {:label (localization/message "command.file.create-desktop-entry")
                 :command :file.create-desktop-entry}
                menu-items/separator
-               {:label "Documentation"
+               {:label (localization/message "command.help.open-documentation")
                 :command :help.open-documentation}
-               {:label "Support Forum"
+               {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
-               {:label "Find Assets"
+               {:label (localization/message "command.help.open-asset-portal")
                 :command :help.open-asset-portal}
                menu-items/separator
-               {:label "Report Issue"
+               {:label (localization/message "command.help.report-issue")
                 :command :help.report-issue}
-               {:label "Report Suggestion"
+               {:label (localization/message "command.help.report-suggestion")
                 :command :help.report-suggestion}
-               {:label "Search Issues"
+               {:label (localization/message "command.help.open-issues")
                 :command :help.open-issues}
                menu-items/separator
-               {:label "Development Fund"
+               {:label (localization/message "command.help.open-donations")
                 :command :help.open-donations}
                menu-items/separator
-               {:label "About"
+               {:label (localization/message "command.app.about")
                 :command :app.about}]}])
 
 (handler/register-menu! ::tab-menu
   [menu-items/open-as
    menu-items/separator
-   {:label "Close"
+   {:label (localization/message "command.window.tab.close")
     :command :window.tab.close}
-   {:label "Close Others"
+   {:label (localization/message "command.window.tab.close-others")
     :command :window.tab.close-others}
-   {:label "Close All"
+   {:label (localization/message "command.window.tab.close-all")
     :command :window.tab.close-all}
    menu-items/separator
-   {:label "Move to Other Tab Pane"
+   {:label (localization/message "command.window.tab.move-to-other-group")
     :command :window.tab.move-to-other-group}
-   {:label "Swap With Other Tab Pane"
+   {:label (localization/message "command.window.tab.swap-with-other-group")
     :command :window.tab.swap-with-other-group}
-   {:label "Join Tab Panes"
+   {:label (localization/message "command.window.tab.join-groups")
     :command :window.tab.join-groups}
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Asset Browser"
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
@@ -2296,7 +2293,7 @@
 
                    view-type->option
                    (fn view-type->option [{:keys [label] :as view-type}]
-                     (make-option (or label "Associated Application")
+                     (make-option (or label (localization/message "command.file.open-as.option.associated-application"))
                                   {:selected-view-type view-type}))]
 
                (into []
@@ -2304,9 +2301,9 @@
                        (mapcat (fn [{:keys [id label] :as view-type}]
                                  (case id
                                    (:code :text)
-                                   [(make-option (str label " in Custom Editor")
+                                   [(make-option (localization/message "command.file.open-as.option.in-custom-editor" {"view" label})
                                                  {:selected-view-type view-type})
-                                    (make-option (str label " in Defold Editor")
+                                    (make-option (localization/message "command.file.open-as.option.in-defold-editor" {"view" label})
                                                  {:selected-view-type view-type
                                                   :use-custom-editor false})]
                                    [(view-type->option view-type)])))
@@ -2322,19 +2319,23 @@
   (active? [] true)
   (options [prefs workspace app-view]
     (g/with-auto-evaluation-context evaluation-context
-      (-> [{:label "Re-Open Closed File"
+      (-> [{:label (localization/message "command.file.reopen-recent")
             :command :file.reopen-recent}]
           (cond-> (recent-files/exist? prefs workspace evaluation-context)
                   (->
                     (conj menu-items/separator)
                     (into
                       (map (fn [[resource view-type :as resource+view-type]]
-                             {:label (string/replace (str (resource/proj-path resource) " • " (:label view-type) " view") #"_" "__")
+                             {:label (-> "command.private.recent-files.option.entry"
+                                         (localization/message
+                                           {"path" (resource/proj-path resource)
+                                            "view" (:label view-type)})
+                                         (localization/transform string/replace "_" "__"))
                               :command :private/open-selected-recent-file
                               :user-data resource+view-type}))
                       (recent-files/some-recent prefs workspace evaluation-context))
                     (conj menu-items/separator)))
-          (conj {:label "More..."
+          (conj {:label (localization/message "command.private.recent-files.option.more")
                  :command :file.open-recent})))))
 
 (handler/defhandler :private/open-selected-recent-file :global
@@ -2554,13 +2555,14 @@
     search-results-view    node id of a search result view
     node-id                root node id whose overrides are inspected
     properties             either :all or a coll of property keywords to include
-                           in the override inspector output"
-  [app-view search-results-view node-id properties]
+                           in the override inspector output
+    localization           the Localization instance"
+  [app-view search-results-view node-id properties localization]
   (g/with-auto-evaluation-context evaluation-context
     (let [scene (g/node-value app-view :scene evaluation-context)
           tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)]
       (show-search-results! scene tool-tab-pane)
-      (search-results-view/show-override-inspector! search-results-view node-id properties))))
+      (search-results-view/show-override-inspector! search-results-view node-id properties localization))))
 
 (defn- select-possibly-overridable-resource-node [selection project evaluation-context]
   ;; TODO: This will return the outline-selected resource-node when used from an
@@ -2575,13 +2577,14 @@
   (enabled? [selection project evaluation-context]
     (let [node-id (select-possibly-overridable-resource-node selection project evaluation-context)]
       (and node-id (pos? (count (g/overrides (:basis evaluation-context) node-id))))))
-  (run [selection search-results-view project app-view]
+  (run [selection search-results-view project app-view localization]
     (show-override-inspector!
       app-view
       search-results-view
       (g/with-auto-evaluation-context evaluation-context
         (select-possibly-overridable-resource-node selection project evaluation-context))
-      :all)))
+      :all
+      localization)))
 
 (handler/defhandler :edit.pull-up-overrides :global
   (enabled? [selection user-data evaluation-context]
@@ -2787,12 +2790,12 @@
         (query-and-open! workspace project app-view prefs localization term)))))
 
 (handler/defhandler :file.search :global
-  (run [project app-view prefs search-results-view main-stage tool-tab-pane]
+  (run [project app-view prefs localization search-results-view main-stage tool-tab-pane]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
       (search-results-view/set-search-term! prefs term))
     (let [main-scene (.getScene ^Stage main-stage)
           show-search-results-tab! (partial show-search-results! main-scene tool-tab-pane)]
-      (search-results-view/show-search-in-files-dialog! search-results-view project prefs show-search-results-tab!))))
+      (search-results-view/show-search-in-files-dialog! search-results-view project prefs localization show-search-results-tab!))))
 
 (handler/defhandler :project.bundle :global
   (options [user-data _context]

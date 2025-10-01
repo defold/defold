@@ -27,6 +27,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -754,7 +755,7 @@
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
          (if-not user-data
-           "Add Shape"
+           (localization/message "command.edit.add-embedded-component.variant.collision-object")
            (shape-type-label (:shape-type user-data))))
   (active? [selection] (selection->collision-object selection))
   (run [selection user-data app-view]

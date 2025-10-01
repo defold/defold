@@ -64,7 +64,7 @@
       (workspace/localization workspace evaluation-context)
       {:title (localization/message "dialog.recent-files.title")
        :ok-label (localization/message "dialog.recent-files.button.ok")
-       :cell-fn (fn [[resource view-type :as item]]
+       :cell-fn (fn [[resource view-type :as item] _localization]
                   {:style-class (into ["list-cell"] (resource/style-classes resource))
                    :graphic {:fx/type resource-dialog/matched-list-item-view
                              :icon (workspace/resource-icon resource)

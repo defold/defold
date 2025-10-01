@@ -33,6 +33,7 @@
             [editor.id :as id]
             [editor.image :as image]
             [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -46,7 +47,6 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable])
   (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
@@ -1015,18 +1015,20 @@
   (active? [selection] (selection->tile-source selection))
   (label [selection user-data]
          (if-not user-data
-           "Add"
+           (localization/message "command.edit.add-embedded-component.variant.tile-source")
            (:label user-data)))
   (options [selection user-data]
            (when-not user-data
-             [{:label "Animation"
+             [{:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")
                :icon animation-icon
                :command :edit.add-embedded-component
-               :user-data {:action add-animation-node!}}
-              {:label "Collision Group"
+               :user-data {:action add-animation-node!
+                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")}}
+              {:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")
                :icon collision-icon
                :command :edit.add-embedded-component
-               :user-data {:action add-collision-group-node!}}]))
+               :user-data {:action add-collision-group-node!
+                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
   (run [selection user-data app-view]
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
