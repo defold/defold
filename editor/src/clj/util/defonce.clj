@@ -37,3 +37,10 @@
   [name & args]
   (if (not (class? (resolve name)))
     (list* 'deftype name args)))
+
+(defmacro interface
+  "Like core.definterface, but will never be redefined."
+  {:arglists '([name [& fields] & opts+specs])}
+  [name & args]
+  (if (not (class? (resolve name)))
+    (list* 'definterface name args)))

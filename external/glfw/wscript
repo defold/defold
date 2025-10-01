@@ -51,7 +51,7 @@ def configure(conf):
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'IOKit', '-framework', 'CoreVideo'])
         if not waflib.Options.options.with_vulkan:
-            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGL', '-framework', 'AGL'])
+            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGL'])
     elif platform in ('arm64-ios', 'x86_64-ios'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
         if not waflib.Options.options.with_vulkan:

@@ -930,8 +930,13 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
 #endif
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
-        if (write_log) {
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0); // Deprecated
+        int write_log_file = dmConfigFile::GetInt(engine->m_Config, "project.write_log_file", 0);
+        // for backward compatibility if write_log_file is 0, but write_log is 1
+        write_log_file = write_log_file == 0 ? write_log : write_log_file;
+        // 0 - no logs, 1 - debug only, 2 - always
+        if ((write_log_file == 2) || (write_log_file == 1 && dLib::IsDebugMode()))
+        {
             uint32_t count = 0;
             char* log_paths[3];
 
@@ -1688,8 +1693,8 @@ bail:
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
 
-        input_action.m_TouchCount = action->m_TouchCount;
-        int tc = action->m_TouchCount;
+        input_action.m_TouchCount = action->m_Count;
+        int tc = action->m_Count;
         for (int i = 0; i < tc; ++i) {
             dmHID::Touch& a = action->m_Touch[i];
             dmHID::Touch& ia = input_action.m_Touch[i];
@@ -1705,9 +1710,9 @@ bail:
             ia.m_ScreenDY = -a.m_DY;
         }
 
-        input_action.m_TextCount = action->m_TextCount;
+        input_action.m_TextCount = action->m_Count;
         input_action.m_HasText = action->m_HasText;
-        tc = action->m_TextCount;
+        tc = action->m_Count;
         for (int i = 0; i < tc; ++i) {
             input_action.m_Text[i] = action->m_Text[i];
         }
@@ -1962,7 +1967,7 @@ bail:
                                             (float)((engine->m_ClearColor>>16)&0xFF),
                                             (float)((engine->m_ClearColor>>24)&0xFF),
                                             1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
                     }
                 }
 

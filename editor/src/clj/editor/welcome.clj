@@ -26,6 +26,7 @@
             [editor.fs :as fs]
             [editor.game-project-core :as game-project-core]
             [editor.jfx :as jfx]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.settings-core :as settings-core]
@@ -39,21 +40,24 @@
             [util.net :as net]
             [util.time :as time])
   (:import [clojure.lang ExceptionInfo]
+           [com.defold.control UpdatableListCell]
            [java.io File FileOutputStream PushbackReader]
            [java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException]
            [java.time Instant]
+           [java.util Collection]
            [java.util.zip ZipInputStream]
            [javafx.beans.property StringProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ButtonBase Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
-           [javafx.scene.image ImageView Image]
+           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.image Image ImageView]
            [javafx.scene.input KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Text TextFlow]
+           [javafx.util Callback]
            [javax.net.ssl SSLException]
            [org.apache.commons.io FilenameUtils]))
 
@@ -259,7 +263,7 @@
   (ui/with-controls location-field [^Label title-text]
     (.textProperty title-text)))
 
-(defn- on-location-field-browse-button-click! [dialog-title ^Event event]
+(defn- on-location-field-browse-button-click! [localization dialog-title ^Event event]
   (let [^Node button (.getSource event)
         location-field (.getParent button)]
     (ui/with-controls location-field [directory-text]
@@ -267,10 +271,10 @@
             window (.getWindow scene)
             initial-directory (some-> directory-text ui/text not-empty io/as-file)
             initial-directory (when (some-> initial-directory (.exists)) initial-directory)]
-        (when-some [directory (dialogs/make-directory-dialog dialog-title initial-directory window)]
+        (when-some [directory (dialogs/make-directory-dialog (localization (localization/message dialog-title)) initial-directory window)]
           (ui/text! directory-text (.getAbsolutePath directory)))))))
 
-(defn- setup-location-field! [^HBox location-field dialog-title ^File directory]
+(defn- setup-location-field! [^HBox location-field localization dialog-title ^File directory]
   (doto location-field
     (ui/add-style! "location-field")
     (ui/children! [(doto (HBox.)
@@ -290,7 +294,7 @@
                                       (.setId "title-text")
                                       (ui/add-styles! ["path-element" "implicit"]))]))
                    (doto (Button. "\u2022 \u2022 \u2022") ; "* * *" (BULLET)
-                     (ui/on-action! (partial on-location-field-browse-button-click! dialog-title)))])))
+                     (ui/on-action! (partial on-location-field-browse-button-click! localization dialog-title)))])))
 
 ;; -----------------------------------------------------------------------------
 ;; Defold logo
@@ -311,28 +315,28 @@
 ;; Home pane
 ;; -----------------------------------------------------------------------------
 
-(defn- show-open-from-disk-dialog! [^File last-opened-project-directory close-dialog-and-open-project! ^Event event]
+(defn- show-open-from-disk-dialog! [^File last-opened-project-directory close-dialog-and-open-project! localization ^Event event]
   (let [^Node button (.getSource event)
         scene (.getScene button)
         window (.getWindow scene)
-        filter-descs [["Defold Project Files" "*.project"]]
+        filter-descs [[(localization (localization/message "welcome.open-from-disk.dialog.filter.defold")) "*.project"]]
         initial-file (some-> last-opened-project-directory (io/file "game.project"))]
-    (when-some [project-file (dialogs/make-file-dialog "Open Project" filter-descs initial-file window)]
+    (when-some [project-file (dialogs/make-file-dialog (localization (localization/message "welcome.open-from-disk.dialog.title")) filter-descs initial-file window)]
       (close-dialog-and-open-project! project-file false))))
 
-(defn- timestamp-label [timestamp]
+(defn- timestamp-label [timestamp localization]
   (doto (Label.)
     (ui/add-style! "timestamp")
-    (ui/text! (if (some? timestamp)
-                (time/vague-description timestamp)
-                "Unknown"))))
+    (localization/localize! localization (if (some? timestamp)
+                                           (time/vague-description timestamp)
+                                           (localization/message "time.vague.unknown")))))
 
 (defn- title-label [title matching-indices]
   (doto (fuzzy-choices/make-matched-text-flow title matching-indices)
     (ui/add-style! "title")))
 
 (defn- make-project-entry
-  ^Node [^String title ^String description ^Instant timestamp matching-indices on-remove]
+  ^Node [^String title ^String description ^Instant timestamp matching-indices on-remove localization]
   (assert (string? (not-empty title)))
   (assert (or (nil? description) (string? (not-empty description))))
   (doto (HBox.)
@@ -355,31 +359,43 @@
                   (fn [_]
                     (on-remove)))
                 (.setGraphic (jfx/get-image-view "icons/32/Icons_S_01_SmallClose.png" 10)))
-              (timestamp-label timestamp)]))
-         (timestamp-label timestamp))])))
+              (timestamp-label timestamp localization)]))
+         (timestamp-label timestamp localization))])))
 
 (defn- make-recent-project-entry
   ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}
          recent-projects-list-view
-         prefs]
+         prefs
+         localization]
   (let [on-remove #(do
                      (remove-recent-project! prefs project-file)
                      (ui/items! recent-projects-list-view (recent-projects prefs)))]
-    (make-project-entry title (.getParent project-file) last-opened nil on-remove)))
+    (make-project-entry title (.getParent project-file) last-opened nil on-remove localization)))
 
 (defn- make-home-pane
-  ^Parent [last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! prefs]
+  ^Parent [last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! prefs localization]
   (let [home-pane (ui/load-fxml "welcome/home-pane.fxml")
         open-from-disk-buttons (.lookupAll home-pane "#open-from-disk-button")
-        show-open-from-disk-dialog! (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project!)]
-    (ui/with-controls home-pane [^ListView recent-projects-list ^Node state-empty-recent-projects-list ^Node state-non-empty-recent-projects-list ^ButtonBase open-selected-project-button ^ButtonBase show-new-project-pane-button]
+        show-open-from-disk-dialog! (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project! localization)]
+    (ui/with-controls home-pane [^ListView recent-projects-list
+                                 ^Node state-empty-recent-projects-list
+                                 ^Node state-non-empty-recent-projects-list
+                                 ^ButtonBase open-selected-project-button
+                                 ^ButtonBase show-new-project-pane-button
+                                 recent-projects-label
+                                 welcome-text]
+      (localization/localize! recent-projects-label localization (localization/message "welcome.recent-projects"))
+      (localization/localize! welcome-text localization (localization/message "welcome.greeting"))
       (let [open-selected-project! (fn []
                                      (when-some [recent-project (first (ui/selection recent-projects-list))]
                                        (close-dialog-and-open-project! (:project-file recent-project) false)))]
         (doseq [open-from-disk-button open-from-disk-buttons]
+          (localization/localize! open-from-disk-button localization (localization/message "welcome.button.open-from-disk"))
           (ui/on-action! open-from-disk-button show-open-from-disk-dialog!))
         (ui/on-action! show-new-project-pane-button (fn [_] (show-new-project-pane!)))
+        (localization/localize! show-new-project-pane-button localization (localization/message "welcome.button.create-new-project"))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
+        (localization/localize! open-selected-project-button localization (localization/message "welcome.button.open-selected"))
         (b/bind-presence! state-empty-recent-projects-list (b/empty? (.getItems recent-projects-list)))
         (b/bind-presence! state-non-empty-recent-projects-list (b/not (b/empty? (.getItems recent-projects-list))))
         (b/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
@@ -388,7 +404,7 @@
           (ui/items! (recent-projects prefs))
           (ui/cell-factory!
             (fn [recent-project]
-              {:graphic (make-recent-project-entry recent-project recent-projects-list prefs)}))
+              {:graphic (make-recent-project-entry recent-project recent-projects-list prefs localization)}))
           (.setOnMouseClicked (ui/event-handler event
                                 (when (= 2 (.getClickCount ^MouseEvent event))
                                   (open-selected-project!)))))))
@@ -417,32 +433,35 @@
         (ui/add-child! (ui/load-svg-path image-path))))))
 
 (defn- make-description-view
-  ^Node [^String name ^String description ^String zip-url]
+  ^Node [localization ^String name ^String description ^String zip-url]
   (doto (VBox.)
     (ui/add-style! "description")
-    (ui/children! [(doto (Text. name)
+    (ui/children! [(doto (Text.)
+                     (localization/localize! localization (localization/message name))
                      (ui/add-style! "header"))
                    (doto (TextFlow.)
-                     (ui/add-child! (Text. description))
+                     (ui/add-child!
+                       (localization/localize! (Text.) localization (localization/message description)))
                      (VBox/setVgrow Priority/ALWAYS))
                    (doto (Hyperlink. zip-url)
                      (ui/on-action! (fn [_] (ui/open-url zip-url))))])))
 
 (defn- make-template-entry
-  ^Node [project-template]
+  ^Node [project-template localization]
   (doto (HBox.)
     (ui/add-style! "template-entry")
     (ui/children! [(make-icon-view (:image project-template))
-                   (make-description-view (:name project-template)
+                   (make-description-view localization
+                                          (:name project-template)
                                           (:description project-template)
                                           (:zip-url project-template))])))
 
 (defn- make-category-button
-  ^RadioButton [{:keys [label templates] :as template-project-category}]
+  ^RadioButton [{:keys [label templates] :as template-project-category} localization]
   (s/validate TemplateProjectCategory template-project-category)
   (doto (RadioButton.)
-    (ui/user-data! :templates templates)
-    (ui/text! label)))
+    (localization/localize! localization (localization/message label))
+    (ui/user-data! :templates templates)))
 
 (defn- category-button->templates [category-button]
   (ui/user-data category-button :templates))
@@ -455,19 +474,29 @@
            (string/lower-case))))
 
 (defn- make-new-project-pane
-  ^Parent [new-project-location-directory download-template! welcome-settings ^ToggleGroup category-buttons-toggle-group]
+  ^Parent [new-project-location-directory download-template! welcome-settings ^ToggleGroup category-buttons-toggle-group localization]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
-      (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
+    (ui/with-controls [^ButtonBase create-new-project-button
+                       new-project-location-field
+                       ^TextField new-project-title-field
+                       template-categories
+                       ^ListVew template-list
+                       new-project-title-label
+                       new-project-location-label]
+      (.setText new-project-title-field (localization (localization/message "welcome.new-project.default-name")))
+      (localization/localize! new-project-title-label localization (localization/message "welcome.new-project.title"))
+      (localization/localize! new-project-location-label localization (localization/message "welcome.new-project.location"))
+      (localization/localize! create-new-project-button localization (localization/message "welcome.button.create-new-project"))
+      (setup-location-field! new-project-location-field localization "welcome.new-project.location.dialog.title" new-project-location-directory)
       (let [title-text-property (.textProperty new-project-title-field)
             sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
         (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
-                            {:graphic (make-template-entry project-template)})))
+                            {:graphic (make-template-entry project-template localization)})))
 
       ;; Configure template category toggle buttons.
-      (let [category-buttons (mapv make-category-button (get-in welcome-settings [:new-project :categories]))]
+      (let [category-buttons (mapv #(make-category-button % localization) (get-in welcome-settings [:new-project :categories]))]
 
         ;; Add the category buttons to top bar and configure them to toggle between the templates.
         (doseq [^RadioButton category-button category-buttons]
@@ -490,7 +519,7 @@
       (ui/observe-selection template-list
                             (fn [_ selection]
                               (when-some [selected-project-title (:name (first selection))]
-                                (ui/text! new-project-title-field selected-project-title))))
+                                (ui/text! new-project-title-field (localization (localization/message selected-project-title))))))
 
       ;; Configure create-new-project-button.
       (b/bind-enabled-to-selection! create-new-project-button template-list)
@@ -502,24 +531,27 @@
                          (cond
                            (string/blank? project-title)
                            (dialogs/make-info-dialog
-                             {:title "No Project Title"
+                             localization
+                             {:title (localization/message "welcome.new-project.error.no-project-title.title")
                               :icon :icon/triangle-error
-                              :header "You must specify a title for the project"})
+                              :header (localization/message "welcome.new-project.error.no-project-title.header")})
 
                            (not= project-title (string/trim project-title))
                            (dialogs/make-info-dialog
-                             {:title "Invalid project title"
+                             localization
+                             {:title (localization/message "welcome.new-project.error.invalid-project-title.title")
                               :icon :icon/triangle-error
                               :size :large
-                              :header "Whitespace is not allowed around the project title"})
+                              :header (localization/message "welcome.new-project.error.invalid-project-title.header")})
 
                            (and (.exists project-location)
                                 (not (fs/empty-directory? project-location)))
                            (dialogs/make-info-dialog
-                             {:title "Conflicting Project Location"
+                             localization
+                             {:title (localization/message "welcome.new-project.error.conflicting-project-location.title")
                               :icon :icon/triangle-error
                               :size :large
-                              :header "A non-empty folder already exists at the chosen location"})
+                              :header (localization/message "welcome.new-project.error.conflicting-project-location.header")})
 
                            :else
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
@@ -528,36 +560,36 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- init-pending-update-indicator! [stage update-link progress-bar progress-vbox updater]
+(defn- init-pending-update-indicator! [stage update-link progress-bar progress-vbox updater localization]
   (let [render-progress! (progress/throttle-render-progress
                            (fn [progress]
                              (ui/run-later
                                (ui/visible! progress-vbox (progress/done? progress))
                                (ui/visible! progress-bar (not (progress/done? progress)))
                                (ui/render-progress-bar! progress progress-bar))))
-        install-and-restart! #(ui.updater/install-and-restart! stage updater)]
-    (ui.updater/init! stage update-link updater install-and-restart! render-progress!)))
+        install-and-restart! #(ui.updater/install-and-restart! stage updater localization)]
+    (ui.updater/init! stage update-link updater install-and-restart! render-progress! localization)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
 ;; -----------------------------------------------------------------------------
 
-(defn- make-pane-button [label pane]
+(defn- make-pane-button [localization message-key pane]
   (doto (RadioButton.)
+    (localization/localize! localization (localization/message message-key))
     (.setFocusTraversable false)
     (ui/user-data! :pane pane)
-    (ui/add-style! "pane-button")
-    (ui/text! label)))
+    (ui/add-style! "pane-button")))
 
 (defn- pane-button->pane
   ^Parent [pane-button]
   (ui/user-data pane-button :pane))
 
 (defn- show-progress!
-  ^ProgressBar [^Parent root ^String header-text ^String cancel-button-text cancel!]
+  ^ProgressBar [^Parent root localization header-text-key template-name-key cancel-button-text-key cancel!]
   (ui/with-controls root [^ProgressBar progress-bar ^ButtonBase progress-cancel-button progress-header ^Parent progress-overlay]
-    (ui/text! progress-header header-text)
-    (ui/text! progress-cancel-button cancel-button-text)
+    (localization/localize! progress-header localization (localization/message header-text-key {"template" (localization/message template-name-key)}))
+    (localization/localize! progress-cancel-button localization (localization/message cancel-button-text-key))
     (ui/enable! progress-cancel-button true)
     (.setProgress progress-bar ProgressBar/INDETERMINATE_PROGRESS)
     (.setManaged progress-overlay true)
@@ -575,9 +607,9 @@
     (.setVisible progress-overlay false)))
 
 (defn show-welcome-dialog!
-  ([prefs updater open-project-fn]
-   (show-welcome-dialog! prefs updater open-project-fn nil))
-  ([prefs updater open-project-fn opts]
+  ([prefs localization updater open-project-fn]
+   (show-welcome-dialog! prefs localization updater open-project-fn nil))
+  ([prefs localization updater open-project-fn opts]
    (let [[default-welcome-settings
           default-welcome-settings-load-error] (load-welcome-settings-resource (io/resource "welcome/welcome.edn"))
          [custom-welcome-settings
@@ -626,7 +658,7 @@
                                             nil))
          download-template! (fn [template-title zip-url skip-root? dest-directory project-title]
                               (let [cancelled-atom (atom false)
-                                    progress-bar (show-progress! root (str "Downloading " template-title) "Cancel Download" #(reset! cancelled-atom true))
+                                    progress-bar (show-progress! root localization "welcome.downloading-project" template-title "welcome.button.cancel-download" #(reset! cancelled-atom true))
                                     progress-callback (fn [^long done ^long total]
                                                         (when (pos? total)
                                                           (let [progress (/ (double done) (double total))]
@@ -655,40 +687,39 @@
                                         (cond
                                           (instance? UnknownHostException error)
                                           (dialogs/make-info-dialog
-                                            {:title "No Internet Connection"
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.no-internet-connection.title")
                                              :icon :icon/triangle-error
-                                             :header "You must be connected to the internet to download project content"})
+                                             :header (localization/message "welcome.new-project.error.no-internet-connection.header")})
 
                                           (instance? SocketException error)
                                           (dialogs/make-info-dialog
-                                            {:title "Host Unreachable"
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.host-unreachable.title")
                                              :icon :icon/triangle-error
-                                             :header "A firewall might be blocking network connections"
+                                             :header (localization/message "welcome.new-project.error.host-unreachable.header")
                                              :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
                                           (dialogs/make-info-dialog
-                                            {:title "Host Not Responding"
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.host-not-responding.title")
                                              :icon :icon/triangle-error
-                                             :header "The connection timed out"
+                                             :header (localization/message "welcome.new-project.error.host-not-responding.header")
                                              :content (.getMessage error)})
 
                                           (instance? SSLException error)
                                           (dialogs/make-info-dialog
-                                            {:title "SSL Connection Error"
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.ssl-connection-error.title")
                                              :icon :icon/triangle-error
-                                             :header "Could not establish an SSL connection"
+                                             :header (localization/message "welcome.new-project.error.ssl-connection-error.header")
                                              :content {:fx/type fx.text-flow/lifecycle
                                                        :style-class "dialog-content-padding"
                                                        :children [{:fx/type fx.text/lifecycle
-                                                                   :text (str "Common causes are:\n"
-                                                                              "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
-                                                                              "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
-                                                                              "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
-                                                                              "\n"
-                                                                              "The following FAQ may apply: ")}
+                                                                   :text (localization (localization/message "welcome.new-project.error.ssl-connection-error.common-causes"))}
                                                                   {:fx/type fx.hyperlink/lifecycle
-                                                                   :text "PKIX path building failed"
+                                                                   :text (localization (localization/message "welcome.new-project.error.ssl-connection-error.pkix-faq-entry"))
                                                                    :on-action (fn [_]
                                                                                 (ui/open-url "https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md"))}
                                                                   {:fx/type fx.text/lifecycle
@@ -697,16 +728,18 @@
                                           :else
                                           (error-reporting/report-exception! error))))))))
          left-pane (.lookup root "#left-pane")
+         ^ComboBox language-selector (.lookup left-pane "#language-selector")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          pane-buttons-toggle-group (ToggleGroup.)
          template-category-buttons-toggle-group (ToggleGroup.)
-         new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
+         new-project-pane-button (make-pane-button localization "welcome.tab.new-project" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group localization))
          show-new-project-pane! (fn [] (.selectToggle pane-buttons-toggle-group new-project-pane-button))
-         home-pane-button (make-pane-button "HOME"
+         home-pane-button (make-pane-button localization "welcome.tab.home"
                                             (make-home-pane last-opened-project-directory
                                                             show-new-project-pane!
                                                             close-dialog-and-open-project!
-                                                            prefs))
+                                                            prefs
+                                                            localization))
          pane-buttons [home-pane-button new-project-pane-button]
          screen-name (fn [selected-pane-button selected-template-category-button]
                        (condp = selected-pane-button
@@ -720,6 +753,18 @@
      ;; Make ourselves the main stage.
      (ui/set-main-stage stage)
 
+     ;; Init language selector
+     (.setAll (.getItems language-selector) ^Collection (localization/available-locales @localization))
+     (let [locale (localization/current-locale @localization)
+           ^Callback cell-factory (fn [_]
+                                    (UpdatableListCell.
+                                      (fn [^UpdatableListCell cell locale]
+                                        (.setText cell (localization/locale-display-name locale)))))]
+       (.setValue language-selector locale)
+       (.setButtonCell language-selector (.call cell-factory nil))
+       (.setCellFactory language-selector cell-factory))
+     (.addListener (.valueProperty language-selector) ^ChangeListener #(localization/set-locale! localization %3))
+
      ;; Install pending update check.
      (when (some? updater)
        (ui/with-controls left-pane [update-link update-progress-bar update-progress-vbox]
@@ -727,7 +772,8 @@
                                          update-link
                                          update-progress-bar
                                          update-progress-vbox
-                                         updater)))
+                                         updater
+                                         localization)))
 
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]
@@ -759,7 +805,7 @@
                                   (when (and (.isShortcutDown key-event)
                                              (= "r" (.getText key-event)))
                                     (ui/close! stage)
-                                    (show-welcome-dialog! prefs updater open-project-fn
+                                    (show-welcome-dialog! prefs localization updater open-project-fn
                                                           {:x (.getX stage)
                                                            :y (.getY stage)
                                                            :pane-index (first (keep-indexed (fn [pane-index pane-button]

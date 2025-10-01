@@ -1,9 +1,9 @@
-grammar Snippet;
+grammar LSPSnippet;
 
 snippet:
     (text
     |text_esc
-    |rule
+    |syntax_rule
     |err
     |newline)*;
 
@@ -18,7 +18,7 @@ err:
     | COLON
     | PIPE
     | COMMA;
-rule: tab_stop|placeholder|choice|variable;
+syntax_rule: tab_stop|placeholder|choice|variable;
 newline: NL|CR;
 
 tab_stop: naked_tab_stop | curly_tab_stop;
@@ -33,7 +33,7 @@ placeholder:
     placeholder_content
     CLOSE;
 placeholder_content:
-    (rule
+    (syntax_rule
     |placeholder_text
     |placeholder_esc
     |newline)*;

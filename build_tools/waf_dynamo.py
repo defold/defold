@@ -143,7 +143,7 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
-        graphics_libs += ['GRAPHICS_DX12']
+        graphics_libs += ['GRAPHICS_DX12', 'DX12']
         graphics_lib_symbols.append('GraphicsAdapterDX12')
 
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
@@ -389,7 +389,7 @@ def getAndroidCompileFlags(target_arch):
     # NOTE:
     # -fno-exceptions added
     else:
-        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-fvisibility=hidden']
 
 def getAndroidLinkFlags(target_arch):
     common_flags = ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
@@ -646,6 +646,10 @@ def default_flags(self):
             emflags_link += ['ASYNCIFY', 'WASM_BIGINT=1']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
+
+        if with_pthread:
+            # sound needs this to startup its thread with no deadlock
+            emflags_link += ['PTHREAD_POOL_SIZE=1']
 
         if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -1692,6 +1696,7 @@ def extract_symbols(self):
 
     archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
+    ziptask.always_run = True
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
 
@@ -2030,7 +2035,7 @@ def detect(conf):
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     if TargetOS.MACOS == target_os:
-        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
+        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif TargetOS.WINDOWS == target_os:
@@ -2195,6 +2200,7 @@ def options(opt):
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-openal', action='store_true', default=False, dest='with_openal', help='Enables OpenAL as the sound backend')
     opt.add_option('--with-opengl', action='store_true', default=False, dest='with_opengl', help='Enables OpenGL as the graphics backend')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')

@@ -142,7 +142,7 @@ static bool MatchesUri(const dmURI::Parts* uri)
 static char* CreateEncodedUri(const dmURI::Parts* uri, const char* path, char* buffer, uint32_t buffer_len)
 {
     char combined_path[dmResource::RESOURCE_PATH_MAX];
-    dmResource::GetCanonicalPathFromBase(uri->m_Path, path, combined_path);
+    dmResource::GetCanonicalPathFromBase(uri->m_Path, path, combined_path, sizeof(combined_path));
     dmURI::Encode(combined_path, buffer, buffer_len, 0);
     return buffer;
 }

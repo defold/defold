@@ -11,34 +11,39 @@ jobs:
   build-linux:
     strategy:
       matrix:
-        platform: [x86_64-linux]
+        platform: [ x86_64-linux ]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ env.BUILD_BRANCH }}"
+
       - name: Install Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: 3.13
+
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
+
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
+
       - name: Archive results (common)
         uses: actions/upload-artifact@v4
         with:
@@ -46,6 +51,7 @@ jobs:
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-common.tar.gz
           if-no-files-found: error
           retention-days: 1
+
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
         with:
@@ -57,34 +63,39 @@ jobs:
   build-linux-arm:
     strategy:
       matrix:
-        platform: [arm64-linux]
+        platform: [ arm64-linux ]
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ env.BUILD_BRANCH }}"
+
       - name: Install Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: 3.13
+
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
+
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
+
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
         with:
@@ -96,34 +107,39 @@ jobs:
   build-macos:
     strategy:
       matrix:
-        platform: [arm64-macos, x86_64-macos]
+        platform: [ arm64-macos, x86_64-macos ]
     runs-on: macOS-14
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ env.BUILD_BRANCH }}"
+
       - name: Install Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: 3.13
+
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
+
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
+
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
         with:
@@ -135,40 +151,46 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        platform: [win32, x86_64-win32]
-    runs-on: windows-latest
+        platform: [ win32, x86_64-win32 ]
+    runs-on: windows-2025
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ env.BUILD_BRANCH }}"
+
       - name: Install Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: 3.13
+
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
         shell: bash
+
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
+
           python ./scripts/build.py --save-env-path=ci/env.sh save_env
+
           ORIG_PATH="$PATH"
-          # souring env.sh nukes path to python for some reason, so we save it and restore it later
+          # sourcing env.sh may shadow PATH to Python; restore and add ext/bin
           source ci/env.sh
           export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin"
+
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           python ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-        shell: bash
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
-        shell: bash
+
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.lib' || true
+
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
         with:
@@ -180,34 +202,39 @@ jobs:
   build-ios:
     strategy:
       matrix:
-        platform: [arm64-ios, x86_64-ios]
+        platform: [ arm64-ios, x86_64-ios ]
     runs-on: macOS-14
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ env.BUILD_BRANCH }}"
+
       - name: Install Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: 3.13
+
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
+
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
+
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
         with:
@@ -219,23 +246,25 @@ jobs:
   build-android:
     strategy:
       matrix:
-        platform: [arm64-android, armv7-android]
+        platform: [ arm64-android, armv7-android ]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: "${{ env.BUILD_BRANCH }}"
 
-      - name: Setup NDK
+      - name: Setup NDK (r25b)
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
           ndk-version: r25b
           add-to-path: false
 
-      - name: Install
+      - name: Install host deps
         run: |
-          sudo apt-get install -y --no-install-recommends libc6-dev-i386
-          sudo apt-get install -y --no-install-recommends gcc-multilib
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libc6-dev-i386 gcc-multilib
 
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
@@ -244,29 +273,41 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
+
+          export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
           ./scripts/build.py install_waf
           cd external/box2d
-          if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
+
+          # Toolchain only (flags handled by wscript)
+          if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
+            export CC="aarch64-linux-android21-clang"
+            export CXX="aarch64-linux-android21-clang++"
+          else
             export CC="armv7a-linux-androideabi21-clang"
             export CXX="armv7a-linux-androideabi21-clang++"
-            export CFLAGS="-march=armv7-a -mfloat-abi=softfp -DBOX2D_DISABLE_SIMD"
-            export CXXFLAGS="$CFLAGS"
           fi
-          CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CC="$CC" CXX="$CXX" PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
-          waf install
 
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
-      - name: Archive results (platform-specific)
+          echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
+          $CC --version
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+          waf -v install
+
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
+
+      - name: Archive results
         uses: actions/upload-artifact@v4
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -277,7 +318,7 @@ jobs:
   build-web:
     strategy:
       matrix:
-        platform: [js-web, wasm-web, wasm_pthread-web]
+        platform: [ js-web, wasm-web, wasm_pthread-web ]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
@@ -299,26 +340,25 @@ jobs:
         run: ci/ci.sh install --platform=${{ matrix.platform }}
 
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           source "$EMSDK/emsdk_env.sh"
           export CC=emcc
           export CXX=em++
-          export CFLAGS="-DBOX2D_DISABLE_SIMD"
-          export CXXFLAGS="$CFLAGS"
+
           ./scripts/build.py install_waf
           cd external/box2d
-          CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CC="$CC" CXX="$CXX" PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
 
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4

@@ -567,8 +567,6 @@ namespace dmSoundCodec
             return RESULT_OK;
         }
 
-        DecodeStreamInfoADPCM *streamInfo = (DecodeStreamInfoADPCM *) stream;
-
         Result res = RESULT_OK;
         *skipped = 0;
         while(bytes != 0)

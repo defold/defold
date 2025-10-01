@@ -73,7 +73,8 @@
       (let [workspace (workspace/make-workspace world
                                                 (.getAbsolutePath (io/file "test/resources/load_project"))
                                                 {}
-                                                {})]
+                                                {}
+                                                test-util/localization)]
         (g/transact
           (concat
             (placeholder-resource/register-resource-types workspace)

@@ -70,6 +70,7 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
   uint32_t m_MaxInstances;
+  uint32_t m_TriggerOverlapCapacity;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
@@ -219,6 +220,13 @@ public:
     }
 };
 
+class Trigger2DTest : public CollisionObject2DTest
+{
+public:
+	Trigger2DTest() {
+		m_projectOptions.m_TriggerOverlapCapacity = 1;
+	}
+};
 
 class VelocityThreshold2DTest : public CollisionObject2DTest
 {
@@ -615,6 +623,7 @@ void GamesysTest<T>::SetUp()
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
         context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+        context2DParams.m_TriggerOverlapCapacity = this->m_projectOptions.m_TriggerOverlapCapacity;
         m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(context2DParams);
 
         physics_context = &m_PhysicsContextBox2D.m_BaseContext;
@@ -753,7 +762,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
             dmGameObject::Render(m_Collection);
 
             dmRender::RenderListEnd(m_RenderContext);
-            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
         }
 
         // check if tests are done
@@ -935,4 +944,3 @@ protected:
 };
 
 #endif // DM_TEST_GAMESYS_H
-

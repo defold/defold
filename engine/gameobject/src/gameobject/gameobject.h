@@ -78,7 +78,7 @@ namespace dmGameObject
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-32766).
+     * @param capacity Default capacity of collections in this register (0-65534).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);

@@ -18,6 +18,8 @@ When working on a new feature or fixing a bug you start by first building the en
 
 *NOTE: Make sure you also have read our [Contribution Guide](https://github.com/defold/defold/blob/build-doc-update/CONTRIBUTING.md). Especially before undertaking larger tasks.*
 
+**NOTE for Linux users**: To avoid any problems with version of shared dependencies engine will link with - use Docker container to build the engine. More information [here](/scripts/docker/README.md).
+
 ## Build examples
 
 To give an quick overview of the steps required.

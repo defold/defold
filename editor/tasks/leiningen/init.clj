@@ -61,7 +61,7 @@
   [user_domain]
   (let [default_domain "d.defold.com"
         env_domain (System/getenv "DM_ARCHIVE_DOMAIN")]
-        (or user_domain env_domain default_domain)))
+    (or user_domain env_domain default_domain)))
 
 (def init-tasks
   [["clean"]

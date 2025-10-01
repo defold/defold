@@ -30,4 +30,8 @@ if [ ! -z "${DM_PACKAGES_URL}" ]; then
     USE_ENV="--env DM_PACKAGES_URL=${DM_PACKAGES_URL}"
 fi
 
-docker run --rm --name ubuntu --hostname=ubuntu -t -i -v ${DIR}:/home/builder ${USE_PATH_MAPPINGS} ${USE_ENV} -v ${SCRIPT_DIR}/bashrc:/home/builder/.bashrc builder/ubuntu
+if [ ! -z "${DM_DOCKER_BUILD_PLATFORM}" ]; then
+    DOCKER_PLATFORM="--platform ${DM_DOCKER_BUILD_PLATFORM}"
+fi
+
+docker run --rm --name ubuntu --hostname=ubuntu -t -i -v ${DIR}:/home/builder ${DOCKER_PLATFORM} ${USE_PATH_MAPPINGS} ${USE_ENV} -v ${SCRIPT_DIR}/bashrc:/home/builder/.bashrc builder/ubuntu

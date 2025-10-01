@@ -507,6 +507,12 @@ namespace dmGameSystem
         CollisionWorld* world = (CollisionWorld*)user_data;
         CollisionComponent* component_a = (CollisionComponent*)trigger_exit.m_UserDataA;
         CollisionComponent* component_b = (CollisionComponent*)trigger_exit.m_UserDataB;
+
+        bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_TRIGGER);
+        bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_TRIGGER);
+        if (!event_supported_a && !event_supported_b)
+            return; // We early out because neither supported this event
+
         dmGameObject::HInstance instance_a = component_a->m_Instance;
         dmGameObject::HInstance instance_b = component_b->m_Instance;
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
@@ -536,18 +542,24 @@ namespace dmGameSystem
         ddf.m_Enter = 0;
 
         // Broadcast to A components
-        ddf.m_OtherId = instance_b_id;
-        ddf.m_Group = group_hash_b;
-        ddf.m_OwnGroup = group_hash_a;
-        ddf.m_OtherGroup = group_hash_b;
-        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+        if (event_supported_a)
+        {
+            ddf.m_OtherId = instance_b_id;
+            ddf.m_Group = group_hash_b;
+            ddf.m_OwnGroup = group_hash_a;
+            ddf.m_OtherGroup = group_hash_b;
+            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+        }
 
         // Broadcast to B components
-        ddf.m_OtherId = instance_a_id;
-        ddf.m_Group = group_hash_a;
-        ddf.m_OwnGroup = group_hash_b;
-        ddf.m_OtherGroup = group_hash_a;
-        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+        if (event_supported_b)
+        {
+            ddf.m_OtherId = instance_a_id;
+            ddf.m_Group = group_hash_a;
+            ddf.m_OwnGroup = group_hash_b;
+            ddf.m_OtherGroup = group_hash_a;
+            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+        }
     }
 
     void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)

@@ -23,6 +23,7 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
             [editor.progress :as progress]
@@ -2034,21 +2035,18 @@
       (double fraction)
       -1.0)))
 
-(defn render-progress-message! [progress ^Label label]
-  (text! label (progress/message progress)))
+(defn render-progress-message! [progress ^Label label localization]
+  (localization/localize! label localization (progress/message progress)))
 
-(defn render-progress-percentage! [progress ^Label label]
-  (text!
+(defn render-progress-percentage! [progress ^Label label localization]
+  (localization/localize!
     label
+    localization
     (if (progress/cancelled? progress)
-      "Aborting..."
+      (localization/message "progress.aborting")
       (if-some [percentage (progress/percentage progress)]
-        (str percentage "%")
-        ""))))
-
-(defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
-  (when bar (render-progress-bar! progress bar))
-  (when label (render-progress-message! progress label)))
+        (localization/message "progress.percentage" {"percentage" percentage})
+        localization/empty-message))))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings
