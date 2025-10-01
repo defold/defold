@@ -25,6 +25,7 @@
             [editor.validation :as validation]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
@@ -451,6 +452,39 @@
 (defn make-vertex-description [attribute-infos]
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
     (vtx/make-vertex-description nil vtx-attributes)))
+
+(defn combined-attribute-infos [shader-attribute-reflection-infos material-attribute-infos default-coordinate-space]
+  ;; Note: The order of the supplied shader-attribute-reflection-infos and
+  ;; material-attribute-infos will dictate the order in which the
+  ;; attribute-buffers will be assigned to attributes that share the same
+  ;; semantic-type.
+  (let [attribute-key->shader-location
+        (coll/pair-map-by :name-key :location shader-attribute-reflection-infos)
+
+        decorated-material-attribute-infos
+        (e/keep (fn [{:keys [name-key] :as material-attribute-info}]
+                  (when-some [shader-location (attribute-key->shader-location name-key)]
+                    (assoc material-attribute-info :location shader-location)))
+                material-attribute-infos)]
+
+    (coll/transfer
+      [decorated-material-attribute-infos
+       shader-attribute-reflection-infos]
+      []
+      cat
+      (iutil/distinct-by :name-key)
+      (map (fn [{:keys [coordinate-space semantic-type] :as decorated-attribute-info}]
+             (let [coordinate-space
+                   (case coordinate-space
+                     (nil :coordinate-space-default) default-coordinate-space
+                     coordinate-space)
+
+                   attribute-transform
+                   (types/attribute-transform semantic-type coordinate-space)]
+
+               (assoc decorated-attribute-info
+                 :coordinate-space coordinate-space
+                 :attribute-transform attribute-transform)))))))
 
 (defn coordinate-space-info
   "Returns a map of coordinate-space to sets of semantic-type that expect that

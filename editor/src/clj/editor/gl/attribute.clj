@@ -13,24 +13,30 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gl.attribute
-  (:require [editor.gl :as gl]
-            [editor.gl.buffer :as gl.buffer]
-            [editor.gl.protocols :refer [GlBind]]
-            [editor.graphics.types :as types]
+  (:require [editor.buffers :as buffers]
+            [editor.gl :as gl]
+            [editor.gl.protocols :as p]
+            [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
+            [editor.math :as math]
+            [editor.scene-cache :as scene-cache]
             [util.array :as array]
+            [util.coll :refer [pair]]
             [util.defonce :as defonce]
             [util.ensure :as ensure]
             [util.fn :as fn])
   (:import [com.jogamp.opengl GL2]
-           [editor.graphics.types ElementType]
-           [javax.vecmath Matrix4d Tuple4d]))
+           [editor.buffers BufferData]
+           [editor.graphics.types ElementBuffer ElementType]
+           [java.nio FloatBuffer IntBuffer ShortBuffer]
+           [javax.vecmath Matrix4d Matrix4f Tuple4d Vector4f]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- clear-attribute!
   [vector-type ^GL2 gl ^long base-location]
-  (let [attribute-count (types/vector-type-attribute-count vector-type)]
+  (let [attribute-count (graphics.types/vector-type-attribute-count vector-type)]
     (gl/clear-attributes! gl base-location attribute-count)))
 
 (defmacro ^:private def-assign-attribute-fn
@@ -227,12 +233,16 @@
       Matrix4d (assign-attribute-from-matrix4d! value (.-vector-type element-type) gl base-location)
       (assign-attribute-from-array! value element-type gl base-location))))
 
+;; -----------------------------------------------------------------------------
+;; AttributeRenderArg
+;; -----------------------------------------------------------------------------
+
 (defonce/record AttributeRenderArgBinding
   [render-arg-key
    ^ElementType element-type
    ^int base-location]
 
-  GlBind
+  p/GlBind
   (bind [this gl render-args]
     (let [render-arg-value (get render-args render-arg-key ::not-found)]
       (if (= ::not-found render-arg-value)
@@ -245,21 +255,25 @@
   (unbind [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
-(defn make-render-arg-binding-raw
+(defn make-attribute-render-arg-binding-raw
   ^AttributeRenderArgBinding [render-arg-key ^ElementType element-type ^long base-location]
   (ensure/argument render-arg-key keyword? "%s must be a keyword")
   (ensure/argument-type element-type ElementType)
-  (ensure/argument base-location types/location? "%s must be a non-negative integer")
+  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeRenderArgBinding render-arg-key element-type base-location))
 
-(def ^{:arglists '([render-arg-key ^ElementType element-type base-location])} make-render-arg-binding (fn/memoize make-render-arg-binding-raw))
+(def ^{:arglists '([render-arg-key ^ElementType element-type base-location])} make-attribute-render-arg-binding (fn/memoize make-attribute-render-arg-binding-raw))
+
+;; -----------------------------------------------------------------------------
+;; AttributeValue
+;; -----------------------------------------------------------------------------
 
 (defonce/record AttributeValueBinding
   [value-array
    ^ElementType element-type
    ^int base-location]
 
-  GlBind
+  p/GlBind
   (bind [_this gl _render-args]
     (assign-attribute-from-array! value-array element-type gl base-location))
 
@@ -274,26 +288,318 @@
       false)
     false))
 
-(defn make-value-binding
+(defn make-attribute-value-binding
   ^AttributeValueBinding [value-array ^ElementType element-type ^long base-location]
   (ensure/argument value-array value-array?)
   (ensure/argument-type element-type ElementType)
-  (ensure/argument base-location types/location? "%s must be a non-negative integer")
+  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeValueBinding value-array element-type base-location))
 
-(defonce/record AttributeBufferBinding
-  [attribute-buffer-lifecycle
-   ^int base-location]
+;; -----------------------------------------------------------------------------
+;; AttributeBuffer
+;; -----------------------------------------------------------------------------
 
-  GlBind
+(defonce/record AttributeBufferData
+  [^BufferData buffer-data
+   usage])
+
+(defn- make-attribute-buffer-data
+  ^AttributeBufferData [^BufferData buffer-data usage]
+  (ensure/argument buffer-data gl.types/gl-compatible-buffer-data?)
+  (ensure/argument usage graphics.types/usage?)
+  (if (instance? FloatBuffer (.-data buffer-data))
+    (->AttributeBufferData buffer-data usage)
+    (throw (IllegalArgumentException. "buffer-data must use a FloatBuffer"))))
+
+(defonce/record AttributeBufferLifecycle
+  [request-id
+   ^AttributeBufferData attribute-buffer-data
+   ^ElementType element-type]
+
+  ElementBuffer
+  (buffer-data [_this] (.-buffer-data attribute-buffer-data))
+  (element-type [_this] element-type)
+
+  p/GlBind
   (bind [_this gl _render-args]
-    (gl.buffer/assign-attribute! attribute-buffer-lifecycle gl base-location))
+    (let [gl-buffer (scene-cache/request-object! ::attribute-buffer request-id gl attribute-buffer-data)]
+      (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
+      gl-buffer))
 
   (unbind [_this gl _render-args]
-    (gl.buffer/clear-attribute! attribute-buffer-lifecycle gl base-location)))
+    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
 
-(defn make-buffer-binding
-  ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
-  (ensure/argument attribute-buffer-lifecycle gl.buffer/attribute-buffer? "%s must be an attribute BufferLifecycle")
-  (ensure/argument base-location types/location? "%s must be a non-negative integer")
+(defn make-attribute-buffer
+  ^AttributeBufferLifecycle [request-id ^BufferData buffer-data vector-type usage]
+  (ensure/argument request-id graphics.types/request-id?)
+  (let [element-type (graphics.types/make-element-type vector-type :type-float false)
+        attribute-buffer-data (make-attribute-buffer-data buffer-data usage)]
+    (->AttributeBufferLifecycle request-id attribute-buffer-data element-type)))
+
+(defonce/record AttributeBufferBinding
+  [^AttributeBufferLifecycle attribute-buffer-lifecycle
+   ^int base-location]
+
+  p/GlBind
+  (bind [_this gl render-args]
+    (let [element-type ^ElementType (.-element-type attribute-buffer-lifecycle)
+          vector-type (.-vector-type element-type)
+          data-type (.-data-type element-type)
+          normalize (.-normalize element-type)
+          component-count (graphics.types/vector-type-component-count vector-type)
+          item-gl-type (gl.types/data-type-gl-type data-type)
+          item-byte-size (graphics.types/data-type-byte-size data-type)
+          vertex-byte-size (* component-count item-byte-size)
+          row-column-count (graphics.types/vector-type-row-column-count vector-type)]
+      (gl/with-gl-bindings gl render-args [attribute-buffer-lifecycle]
+        (if (neg? row-column-count)
+          (do
+            (gl/gl-enable-vertex-attrib-array gl base-location)
+            (gl/gl-vertex-attrib-pointer gl base-location component-count item-gl-type normalize vertex-byte-size 0))
+          (loop [column-index 0]
+            (when (< column-index row-column-count)
+              (let [location (+ base-location column-index)
+                    byte-offset (* column-index row-column-count item-byte-size)]
+                (gl/gl-enable-vertex-attrib-array gl location)
+                (gl/gl-vertex-attrib-pointer gl location row-column-count item-gl-type normalize vertex-byte-size byte-offset)
+                (recur (inc column-index)))))))))
+
+  (unbind [_this gl _render-args]
+    (let [element-type ^ElementType (.-element-type attribute-buffer-lifecycle)
+          vector-type (.-vector-type element-type)
+          attribute-count (graphics.types/vector-type-attribute-count vector-type)]
+      (gl/disable-vertex-attrib-arrays! gl base-location attribute-count))))
+
+(defn make-attribute-buffer-binding
+  ^AttributeBufferBinding [^AttributeBufferLifecycle attribute-buffer-lifecycle ^long base-location]
+  (ensure/argument-type attribute-buffer-lifecycle AttributeBufferLifecycle)
+  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeBufferBinding attribute-buffer-lifecycle base-location))
+
+(defn- update-attribute-buffer!
+  [^GL2 gl ^long gl-buffer ^AttributeBufferData attribute-buffer-data]
+  (let [gl-usage (gl.types/usage-gl-usage (.-usage attribute-buffer-data))
+        buffer-data ^BufferData (.-buffer-data attribute-buffer-data)
+        data (.-data buffer-data)
+        data-byte-size (buffers/total-byte-size data)]
+    (assert (buffers/flipped? data) "data Buffer must be flipped before use")
+    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
+    (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size data gl-usage)
+    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
+    gl-buffer))
+
+(defn- create-attribute-buffer!
+  [^GL2 gl ^AttributeBufferData attribute-buffer-data]
+  (let [gl-buffer (gl/gl-gen-buffer gl)
+        gl-buffer (update-attribute-buffer! gl gl-buffer attribute-buffer-data)]
+    gl-buffer))
+
+(defn- destroy-attribute-buffers!
+  [^GL2 gl gl-buffers _attribute-buffer-datas]
+  (gl/gl-delete-buffers gl gl-buffers))
+
+(scene-cache/register-object-cache!
+  ::attribute-buffer
+  create-attribute-buffer!
+  update-attribute-buffer!
+  destroy-attribute-buffers!)
+
+;; -----------------------------------------------------------------------------
+;; TransformedAttributeBuffer
+;; -----------------------------------------------------------------------------
+
+(def ^:private transformed-attribute-buffer-element-type
+  (graphics.types/make-element-type :vector-type-vec4 :type-float false))
+
+(defonce/record TransformedAttributeBufferData
+  [^BufferData untransformed-buffer-data
+   ^Matrix4f transform-matrix
+   ^float w-component])
+
+(defonce/record TransformedAttributeBufferLifecycle
+  [request-id
+   ^BufferData untransformed-buffer-data
+   transform-matrix-render-arg-key
+   ^float w-component]
+
+  ElementBuffer
+  (buffer-data [_this] untransformed-buffer-data)
+  (element-type [_this] transformed-attribute-buffer-element-type)
+
+  p/GlBind
+  (bind [_this gl render-args]
+    (let [^Matrix4d transform-matrix (get render-args transform-matrix-render-arg-key)]
+      (if (instance? Matrix4d transform-matrix)
+        (let [transformed-attribute-buffer-data (->TransformedAttributeBufferData untransformed-buffer-data (Matrix4f. transform-matrix) w-component)
+              [gl-buffer] (scene-cache/request-object! ::transformed-attribute-buffer request-id gl transformed-attribute-buffer-data)]
+          (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
+          gl-buffer)
+        (throw (ex-info (format "render-args value for %s is not a Matrix4d" transform-matrix-render-arg-key)
+                        {:transform-matrix-render-arg-key transform-matrix-render-arg-key
+                         :render-args render-args})))))
+
+  (unbind [_this gl _render-args]
+    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
+
+(defn make-transformed-attribute-buffer
+  ^TransformedAttributeBufferLifecycle [request-id ^BufferData untransformed-buffer-data transform-matrix-render-arg-key w-component]
+  (ensure/argument request-id graphics.types/request-id?)
+  (ensure/argument transform-matrix-render-arg-key math/render-transform-key?)
+  (ensure/argument untransformed-buffer-data gl.types/gl-compatible-buffer-data?)
+  (ensure/argument w-component float?)
+  (let [data (.-data untransformed-buffer-data)]
+    (if (and (instance? FloatBuffer data)
+             (zero? (rem (buffers/item-count data) 4)))
+      (->TransformedAttributeBufferLifecycle request-id untransformed-buffer-data transform-matrix-render-arg-key w-component)
+      (throw (IllegalArgumentException. "untransformed-buffer-data must use a FloatBuffer of tightly-packed four-element vectors")))))
+
+(defonce/record TransformedAttributeBufferBinding
+  [transformed-attribute-buffer-lifecycle
+   ^int base-location]
+
+  p/GlBind
+  (bind [_this gl render-args]
+    (gl/with-gl-bindings gl render-args [transformed-attribute-buffer-lifecycle]
+      (gl/gl-enable-vertex-attrib-array gl base-location)
+      (gl/gl-vertex-attrib-pointer gl base-location 4 GL2/GL_FLOAT false (* 4 Float/BYTES) 0)))
+
+  (unbind [_this gl _render-args]
+    (gl/gl-disable-vertex-attrib-array gl base-location)))
+
+(defn make-transformed-attribute-buffer-binding
+  ^TransformedAttributeBufferBinding [^TransformedAttributeBufferLifecycle transformed-attribute-buffer-lifecycle ^long base-location]
+  (ensure/argument-type transformed-attribute-buffer-lifecycle TransformedAttributeBufferLifecycle)
+  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
+  (->TransformedAttributeBufferBinding transformed-attribute-buffer-lifecycle base-location))
+
+(defn- transform-float-buffer!
+  ^FloatBuffer [^FloatBuffer target ^FloatBuffer source ^Matrix4f transform-matrix w-component]
+  (assert (buffers/flipped? target) "target Buffer must be flipped before use")
+  (assert (buffers/flipped? source) "source Buffer must be flipped before use")
+  (let [w-component (float w-component)
+        float-count (buffers/item-count source)
+        _ (assert (zero? (rem float-count 4)))
+        temp-floats (float-array 4)
+        temp-vector (Vector4f.)]
+    (loop [offset 0]
+      (when (< offset float-count)
+        (.get source offset temp-floats)
+        (.set temp-vector (aget temp-floats 0) (aget temp-floats 1) (aget temp-floats 2) w-component)
+        (.transform transform-matrix temp-vector)
+        (aset temp-floats 0 (.-x temp-vector))
+        (aset temp-floats 1 (.-y temp-vector))
+        (aset temp-floats 2 (.-z temp-vector))
+        (.put target offset temp-floats)
+        (recur (+ offset 4))))
+    (assert (buffers/flipped? target))
+    target))
+
+(defn- update-transformed-attribute-buffer!
+  [^GL2 gl [gl-buffer ^FloatBuffer transformed-data] ^TransformedAttributeBufferData transformed-attribute-buffer-data]
+  (let [untransformed-buffer-data ^BufferData (.-untransformed-buffer-data transformed-attribute-buffer-data)
+        untransformed-data (.data untransformed-buffer-data)
+        _ (assert (instance? FloatBuffer untransformed-data))
+        _ (assert (buffers/flipped? untransformed-data) "untransformed-data Buffer must be flipped before use")
+        float-count (buffers/item-count untransformed-data)
+        transform-matrix (.-transform-matrix transformed-attribute-buffer-data)
+        w-component (.-w-component transformed-attribute-buffer-data)
+
+        transformed-data
+        (-> (or (when (some? transformed-data)
+                  (assert (instance? FloatBuffer transformed-data))
+                  (when (= float-count (buffers/item-count transformed-data))
+                    transformed-data))
+                (buffers/new-float-buffer float-count :byte-order/native))
+            (transform-float-buffer! untransformed-data transform-matrix w-component))
+
+        _ (assert (buffers/flipped? transformed-data))
+        data-byte-size (buffers/total-byte-size transformed-data)]
+    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
+    (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size transformed-data GL2/GL_DYNAMIC_DRAW)
+    (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
+    (pair gl-buffer transformed-data)))
+
+(defn- create-transformed-attribute-buffer!
+  [^GL2 gl ^TransformedAttributeBufferData transformed-attribute-buffer-data]
+  (let [gl-buffer (gl/gl-gen-buffer gl)
+        gl-buffer+transformed-data (update-transformed-attribute-buffer! gl (pair gl-buffer nil) transformed-attribute-buffer-data)]
+    gl-buffer+transformed-data))
+
+(defn- destroy-transformed-attribute-buffers!
+  [^GL2 gl gl-buffer+transformed-data-pairs _transformed-attribute-buffer-datas]
+  (let [gl-buffers (mapv first gl-buffer+transformed-data-pairs)]
+    (gl/gl-delete-buffers gl gl-buffers)))
+
+(scene-cache/register-object-cache!
+  ::transformed-attribute-buffer
+  create-transformed-attribute-buffer!
+  update-transformed-attribute-buffer!
+  destroy-transformed-attribute-buffers!)
+
+;; -----------------------------------------------------------------------------
+;; IndexBuffer
+;; -----------------------------------------------------------------------------
+
+(defonce/record IndexBufferData
+  [^BufferData buffer-data
+   usage])
+
+(defonce/record IndexBufferLifecycle
+  [request-id
+   ^IndexBufferData index-buffer-data
+   ^ElementType element-type]
+
+  ElementBuffer
+  (buffer-data [_this] (.-buffer-data index-buffer-data))
+  (element-type [_this] element-type)
+
+  p/GlBind
+  (bind [_this gl _render-args]
+    (let [gl-buffer (scene-cache/request-object! ::index-buffer request-id gl index-buffer-data)]
+      (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
+      gl-buffer))
+
+  (unbind [_this gl _render-args]
+    (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)))
+
+(defn make-index-buffer
+  ^IndexBufferLifecycle [request-id ^BufferData buffer-data usage]
+  (ensure/argument request-id graphics.types/request-id?)
+  (ensure/argument buffer-data gl.types/gl-compatible-buffer-data?)
+  (ensure/argument usage graphics.types/usage?)
+  (let [data (.-data buffer-data)
+        data-type (condp instance? data
+                    ShortBuffer :type-unsigned-short
+                    IntBuffer :type-unsigned-int
+                    (throw (IllegalArgumentException. "buffer-data must use either a ShortBuffer or an IntBuffer")))
+        element-type (graphics.types/make-element-type :vector-type-scalar data-type false)
+        index-buffer-data (->IndexBufferData buffer-data usage)]
+    (->IndexBufferLifecycle request-id index-buffer-data element-type)))
+
+(defn- update-index-buffer!
+  [^GL2 gl ^long gl-buffer ^IndexBufferData index-buffer-data]
+  (let [gl-usage (gl.types/usage-gl-usage (.-usage index-buffer-data))
+        buffer-data ^BufferData (.-buffer-data index-buffer-data)
+        data (.-data buffer-data)
+        data-byte-size (buffers/total-byte-size data)]
+    (assert (buffers/flipped? data) "data Buffer must be flipped before use")
+    (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
+    (gl/gl-buffer-data gl GL2/GL_ELEMENT_ARRAY_BUFFER data-byte-size data gl-usage)
+    (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)
+    gl-buffer))
+
+(defn- create-index-buffer!
+  [^GL2 gl ^IndexBufferData index-buffer-data]
+  (let [gl-buffer (gl/gl-gen-buffer gl)
+        gl-buffer (update-index-buffer! gl gl-buffer index-buffer-data)]
+    gl-buffer))
+
+(defn- destroy-index-buffers!
+  [^GL2 gl gl-buffers _index-buffer-datas]
+  (gl/gl-delete-buffers gl gl-buffers))
+
+(scene-cache/register-object-cache!
+  ::index-buffer
+  create-index-buffer!
+  update-index-buffer!
+  destroy-index-buffers!)

@@ -602,6 +602,11 @@
       :world-view world-view
       :world-view-proj world-view-proj})))
 
+(def render-transform-key?
+  (into #{}
+        (map key)
+        (derive-render-transforms identity-mat4 identity-mat4 identity-mat4 identity-mat4)))
+
 (defn- vecmath-matrix-dim
   ^long [matrix]
   (condp instance? matrix

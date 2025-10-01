@@ -160,26 +160,27 @@
         nbufs (alength names)]
     (.glDeleteBuffers gl nbufs names 0)))
 
-(defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
+(defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~(with-meta gl {:tag `GL}) ~face ~mode))
 
-(defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~gl ~shader ~name))
-(defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))
-(defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~gl ~type ~size ~data ~usage))
-(defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~gl ~idx ~size ~type ~norm ~stride ~offset))
-(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~gl ~idx ~divisor))
-(defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~gl ~idx))
-(defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~gl ~idx))
-(defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~gl ~idx))
-(defmacro gl-enable [gl cap]                                             `(.glEnable ~gl ~cap))
-(defmacro gl-disable [gl cap]                                            `(.glDisable ~gl ~cap))
-(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
-(defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~gl ~sfactor ~dfactor))
-(defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~gl ~mode))
+(defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~(with-meta gl {:tag `GL2}) ~shader ~name))
+(defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~(with-meta gl {:tag `GL2}) ~type ~name))
+(defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~(with-meta gl {:tag `GL2}) ~type ~size ~data ~usage))
+(defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~(with-meta gl {:tag `GL2}) ~idx ~size ~type ~norm ~stride ~offset))
+(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~(with-meta gl {:tag `GL2}) ~idx ~divisor))
+(defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~(with-meta gl {:tag `GL2}) ~idx))
+(defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~(with-meta gl {:tag `GL2}) ~idx))
+(defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~(with-meta gl {:tag `GL2}) ~idx))
+(defmacro gl-enable [gl cap]                                             `(.glEnable ~(with-meta gl {:tag `GL2}) ~cap))
+(defmacro gl-disable [gl cap]                                            `(.glDisable ~(with-meta gl {:tag `GL2}) ~cap))
+(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~(with-meta gl {:tag `GL2}) ~mode))
+(defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~(with-meta gl {:tag `GL2}) ~sfactor ~dfactor))
+(defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~(with-meta gl {:tag `GL2}) ~mode))
 
 (defmacro ^:private gl-get-integer [gl param]
   `(int
      (let [out# (int-array 1)]
        (.glGetIntegerv ~(with-meta gl {:tag `GL2}) (int ~param) out# 0)
+
        (aget out# 0))))
 
 (defn gl-max-texture-units

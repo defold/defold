@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics.types
-  (:require [editor.protobuf :as protobuf]
+  (:require [editor.buffers]
+            [editor.protobuf :as protobuf]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.ensure :as ensure]
@@ -21,7 +22,8 @@
             [util.num :as num])
   (:import [clojure.lang IHashEq]
            [com.dynamo.bob.pipeline GraphicsUtil]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]))
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [editor.buffers BufferData]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -30,6 +32,10 @@
   [vector-type
    data-type
    ^boolean normalize])
+
+(defonce/protocol ElementBuffer
+  (buffer-data ^BufferData [this] "Returns the BufferData that contains the elements of this buffer.")
+  (element-type ^ElementType [this] "Returns the ElementType of elements in this buffer."))
 
 (defonce ^:private vec1-doubles-zero (vector-of :double 0.0))
 (defonce ^:private vec1-doubles-one (vector-of :double 1.0))
@@ -99,6 +105,28 @@
 
 (def ^{:arglists '([semantic-type ^ElementType element-type])} default-attribute-value-array (fn/memoize default-attribute-value-array-raw))
 
+(defonce attribute-transforms
+  #{:attribute-transform-none
+    :attribute-transform-normal
+    :attribute-transform-world})
+
+(fn/defamong attribute-transform? attribute-transforms)
+
+(defn attribute-transform [semantic-type coordinate-space]
+  (case semantic-type
+    (:semantic-type-position)
+    (case coordinate-space
+      :coordinate-space-local :attribute-transform-none
+      :coordinate-space-world :attribute-transform-world)
+
+    (:semantic-type-normal :semantic-type-tangent)
+    (case coordinate-space
+      :coordinate-space-local :attribute-transform-none
+      :coordinate-space-world :attribute-transform-normal)
+
+    ;; else
+    :attribute-transform-none))
+
 (defonce buffer-data-types
   #{:byte
     :ubyte
@@ -119,6 +147,8 @@
     :int :type-int
     :uint :type-unsigned-int
     :float :type-float))
+
+(def channel? nat-int?)
 
 (defonce coordinate-spaces (protobuf/valid-enum-values Graphics$CoordinateSpace))
 
@@ -199,9 +229,21 @@
        (pos? (count value))
        (coll/not-any? neg? value)))
 
+(def usage? #{:dynamic :static})
+
 (defonce vector-types (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
 
 (fn/defamong vector-type? vector-types)
+
+(defn component-count-vector-type
+  [^long component-count is-matrix]
+  (case component-count
+    1 :vector-type-scalar
+    2 :vector-type-vec2
+    3 :vector-type-vec3
+    4 (if is-matrix :vector-type-mat2 :vector-type-vec4)
+    9 :vector-type-mat3
+    16 :vector-type-mat4))
 
 (defn vector-type-component-count
   ^long [vector-type]
@@ -266,6 +308,22 @@
 
 (definline element-type? [value]
   `(instance? ElementType ~value))
+
+(definline element-buffer? [value]
+  `(satisfies? ElementBuffer ~value))
+
+(defn element-count
+  ^long [element-buffer]
+  (if (nil? element-buffer)
+    0
+    (let [buffer-data (buffer-data element-buffer)
+          item-count (count buffer-data)]
+      (if (zero? item-count)
+        0
+        (let [element-type (element-type element-buffer)
+              vector-type (.-vector-type element-type)
+              component-count (vector-type-component-count vector-type)]
+          (quot item-count component-count))))))
 
 (defn element-data-types-assignable? [^ElementType source ^ElementType target]
   (let [source-data-type (.-data-type source)

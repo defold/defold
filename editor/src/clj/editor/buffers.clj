@@ -18,7 +18,7 @@
             [util.array :as array]
             [util.defonce :as defonce]
             [util.num :as num])
-  (:import [clojure.lang IHashEq IReduceInit Murmur3 Util]
+  (:import [clojure.lang Counted IHashEq IReduceInit Murmur3 Util]
            [com.google.protobuf ByteString]
            [java.nio Buffer ByteBuffer ByteOrder CharBuffer DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
            [java.nio.charset StandardCharsets]))
@@ -114,7 +114,7 @@
 
 (extend-protocol ReducerImpl
   ByteBuffer
-  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (read-only [buffer] (.order (.asReadOnlyBuffer buffer) (.order buffer)))
   (next-element [buffer] (.get buffer))
 
   CharBuffer
@@ -349,9 +349,25 @@
         (Integer/compare data-version (.-data-version that))
         (Integer/compare topology-hash (.-topology-hash that)))))
 
+  Counted
+  (count [_this]
+    (item-count data))
+
   IHashEq
   (hasheq [_this]
     (java/combine-hashes topology-hash data-version))
+
+  IReduceInit
+  (reduce [_this rf init]
+    (let [^Buffer view (read-only data)]
+      (loop [result init]
+        (if (.hasRemaining view)
+          (let [element (next-element view)
+                result (rf result element)]
+            (if (reduced? result)
+              (unreduced result)
+              (recur result)))
+          result))))
 
   Object
   (hashCode [this]

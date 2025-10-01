@@ -17,11 +17,17 @@
             [editor.buffers :as b]
             [support.test-support :refer [array=]]
             [util.num :as num])
-  (:import [java.nio ByteBuffer]))
+  (:import [com.google.protobuf ByteString]
+           [java.nio ByteBuffer CharBuffer DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- buffer-with-byte-size
-  ^ByteBuffer [byte-size]
-  (b/new-byte-buffer byte-size :byte-order/native))
+  (^ByteBuffer [byte-size]
+   (buffer-with-byte-size byte-size :byte-order/native))
+  (^ByteBuffer [byte-size byte-order]
+   (b/new-byte-buffer byte-size byte-order)))
 
 (defn- buffer-with-contents
   ^ByteBuffer [byte-values]
@@ -164,7 +170,7 @@
 
 (deftest byte-pack
   (testing "returns a ByteString containing contents before current position"
-    (are [expected buffer] (array= (byte-array expected) (.toByteArray (b/byte-pack buffer)))
+    (are [expected buffer] (array= (byte-array expected) (.toByteArray ^ByteString (b/byte-pack buffer)))
       []        (buffer-with-contents [])
       [1 2 3 4] (buffer-with-contents [1 2 3 4])
       []        (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)))
@@ -178,9 +184,9 @@
       [2]       (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
       [2]       (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip .get)))
   (testing "multiple calls to byte-pack return the same value"
-    (are [buffer] (let [buffer-val   buffer
-                        byte-string1 (b/byte-pack buffer-val)
-                        byte-string2 (b/byte-pack buffer-val)]
+    (are [buffer] (let [buffer-val buffer
+                        ^ByteString byte-string1 (b/byte-pack buffer-val)
+                        ^ByteString byte-string2 (b/byte-pack buffer-val)]
                     (array= (.toByteArray byte-string1) (.toByteArray byte-string2)))
       (buffer-with-contents [])
       (buffer-with-contents [1 2 3 4])
@@ -194,6 +200,91 @@
       (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip)
       (doto (buffer-with-byte-size 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
       (doto (buffer-with-byte-size 4) (.put (byte 1)) (.put (byte 2)) .flip .get))))
+
+(def ^:private typed-buffer-round-trip-checks
+  [{:label 'ByteBuffer
+    :make #(.put (buffer-with-byte-size Byte/BYTES %) 0 Byte/MAX_VALUE)
+    :get #(.get ^ByteBuffer % 0)}
+   {:label 'CharBuffer
+    :make #(.put (.asCharBuffer (buffer-with-byte-size Character/BYTES %)) 0 Character/MAX_VALUE)
+    :get #(.get ^CharBuffer % 0)}
+   {:label 'DoubleBuffer
+    :make #(.put (.asDoubleBuffer (buffer-with-byte-size Double/BYTES %)) 0 Double/MAX_VALUE)
+    :get #(.get ^DoubleBuffer % 0)}
+   {:label 'FloatBuffer
+    :make #(.put (.asFloatBuffer (buffer-with-byte-size Float/BYTES %)) 0 Float/MAX_VALUE)
+    :get #(.get ^FloatBuffer % 0)}
+   {:label 'IntBuffer
+    :make #(.put (.asIntBuffer (buffer-with-byte-size Integer/BYTES %)) 0 Integer/MAX_VALUE)
+    :get #(.get ^IntBuffer % 0)}
+   {:label 'LongBuffer
+    :make #(.put (.asLongBuffer (buffer-with-byte-size Long/BYTES %)) 0 Long/MAX_VALUE)
+    :get #(.get ^LongBuffer % 0)}
+   {:label 'ShortBuffer
+    :make #(.put (.asShortBuffer (buffer-with-byte-size Short/BYTES %)) 0 Short/MAX_VALUE)
+    :get #(.get ^ShortBuffer % 0)}])
+
+(def ^:private byte-buffer-multi-byte-round-trip-checks
+  [{:label 'ByteBuffer/.putChar
+    :make #(.putChar (buffer-with-byte-size Character/BYTES %) 0 Character/MAX_VALUE)
+    :get #(.getChar ^ByteBuffer % 0)}
+   {:label 'ByteBuffer/.putDouble
+    :make #(.putDouble (buffer-with-byte-size Double/BYTES %) 0 Double/MAX_VALUE)
+    :get #(.getDouble ^ByteBuffer % 0)}
+   {:label 'ByteBuffer/.putFloat
+    :make #(.putFloat (buffer-with-byte-size Float/BYTES %) 0 Float/MAX_VALUE)
+    :get #(.getFloat ^ByteBuffer % 0)}
+   {:label 'ByteBuffer/.putInt
+    :make #(.putInt (buffer-with-byte-size Integer/BYTES %) 0 Integer/MAX_VALUE)
+    :get #(.getInt ^ByteBuffer % 0)}
+   {:label 'ByteBuffer/.putLong
+    :make #(.putLong (buffer-with-byte-size Long/BYTES %) 0 Long/MAX_VALUE)
+    :get #(.getLong ^ByteBuffer % 0)}
+   {:label 'ByteBuffer/.putShort
+    :make #(.putShort (buffer-with-byte-size Short/BYTES %) 0 Short/MAX_VALUE)
+    :get #(.getShort ^ByteBuffer % 0)}])
+
+(defn round-trip-check! [round-trip-checks check-fn!]
+  (doseq [byte-order [:byte-order/big-endian :byte-order/little-endian :byte-order/native]
+          {:keys [label make] :as round-trip-check} round-trip-checks]
+    (testing (str label " " byte-order)
+      (let [buffer (make byte-order)]
+        (check-fn! buffer round-trip-check)))))
+
+(defn- first-reduced [reducible]
+  (reduce #(reduced %2) nil reducible))
+
+(deftest read-only-byte-order-test
+  (round-trip-check!
+    (concat
+      typed-buffer-round-trip-checks
+      byte-buffer-multi-byte-round-trip-checks)
+    (fn [buffer {:keys [get]}]
+      (is (= (get buffer)
+             (get (b/read-only buffer)))))))
+
+(deftest reducible-byte-order-test
+  (round-trip-check!
+    typed-buffer-round-trip-checks
+    (fn [buffer {:keys [get]}]
+      (is (= (get buffer)
+             (first-reduced (b/reducible buffer)))))))
+
+(deftest buffer-data-reduce-byte-order-test
+  (round-trip-check!
+    typed-buffer-round-trip-checks
+    (fn [buffer {:keys [get]}]
+      (is (= (get buffer)
+             (first-reduced (b/make-buffer-data buffer))))))
+  (round-trip-check!
+    byte-buffer-multi-byte-round-trip-checks
+    (fn [^ByteBuffer buffer _]
+      (let [bytes (byte-array (b/item-count buffer))]
+        (.get buffer 0 bytes)
+        (is (= (into (vector-of :byte)
+                     bytes)
+               (into (vector-of :byte)
+                     (b/make-buffer-data buffer))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Buffer push! and put! tests

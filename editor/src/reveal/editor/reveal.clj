@@ -403,24 +403,24 @@
 
 (defn- vecmath-matrix-sf [matrix]
   (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)]
-    (r/horizontal
-      (r/raw-string "#v/" {:fill :object})
-      (r/raw-string (.getSimpleName (class matrix)) {:fill :object})
-      (r/raw-string " [" {:fill :object})
-      (apply
-        r/vertical
-        (coll/transfer row-col-strs :eduction
-          (map (fn [col-strs]
-                 (apply
-                   r/horizontal
-                   (coll/transfer col-strs :eduction
-                     (map (fn [col-str]
-                            (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
-                                          {:fill :util}
-                                          {:fill :scalar})]
-                              (r/raw-string col-str style))))
-                     (interpose r/separator)))))))
-      (r/raw-string "]" {:fill :object}))))
+    (r/type-tagged
+      (symbol "v" (.getSimpleName (class matrix))) {:fill :object}
+      (r/horizontal
+        (r/raw-string "[" {:fill :object})
+        (apply
+          r/vertical
+          (coll/transfer row-col-strs :eduction
+            (map (fn [col-strs]
+                   (apply
+                     r/horizontal
+                     (coll/transfer col-strs :eduction
+                       (map (fn [col-str]
+                              (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
+                                            {:fill :util}
+                                            {:fill :scalar})]
+                                (r/raw-string col-str style))))
+                       (interpose r/separator)))))))
+        (r/raw-string "]" {:fill :object})))))
 
 (r/defstream Matrix3d [^Matrix3d matrix]
   (vecmath-matrix-sf matrix))
@@ -435,16 +435,16 @@
   (vecmath-matrix-sf matrix))
 
 (defn- vecmath-tuple-sf [^Class tuple-class & component-values]
-  (apply
-    r/horizontal
-    (r/raw-string "#v/" {:fill :object})
-    (r/raw-string (.getSimpleName tuple-class) {:fill :object})
-    (r/raw-string " [" {:fill :object})
-    (-> component-values
-        (coll/transfer :eduction
-          (map r/stream)
-          (interpose r/separator))
-        (e/conj (r/raw-string "]" {:fill :object})))))
+  (r/type-tagged
+    (symbol "v" (.getSimpleName tuple-class)) {:fill :object}
+    (apply
+      r/horizontal
+      (r/raw-string "[" {:fill :object})
+      (-> component-values
+          (coll/transfer :eduction
+            (map r/stream)
+            (interpose r/separator))
+          (e/conj (r/raw-string "]" {:fill :object}))))))
 
 (r/defstream Tuple2d [^Tuple2d tuple]
   (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple)))
