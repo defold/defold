@@ -248,21 +248,21 @@
 
 (deftest parse-comma-separated-string-test
   (is (= []
-      (text-util/parse-comma-separated-string "")))
+         (text-util/parse-comma-separated-string "")))
   (is (= []
-      (text-util/parse-comma-separated-string nil)))
+         (text-util/parse-comma-separated-string nil)))
   (is (= []
-      (text-util/parse-comma-separated-string ",")))
+         (text-util/parse-comma-separated-string ",")))
   (is (= ["abc"]
-      (text-util/parse-comma-separated-string "abc")))
+         (text-util/parse-comma-separated-string "abc")))
   (is (= ["abc" "de"]
-      (text-util/parse-comma-separated-string "abc,de")))
+         (text-util/parse-comma-separated-string "abc,de")))
   (is (= ["abc" "de"]
-      (text-util/parse-comma-separated-string "abc,   de")))
+         (text-util/parse-comma-separated-string "abc,   de")))
   (is (= ["abc"]
-      (text-util/parse-comma-separated-string "\"abc\"")))
+         (text-util/parse-comma-separated-string "\"abc\"")))
   (is (= ["234" "aaa, bbbb" "galaxy" "iPhone10,6"]
-      (text-util/parse-comma-separated-string "234,\"aaa, bbbb\", galaxy, \"iPhone10,6\""))))
+         (text-util/parse-comma-separated-string "234,\"aaa, bbbb\", galaxy, \"iPhone10,6\""))))
 
 (deftest join-comma-separated-string-test
   (is (= ""
@@ -357,78 +357,3 @@
   (is (true? (text-util/includes-re-pattern? "exact" #"exact")))
   (is (true? (text-util/includes-re-pattern? "two words" #"word")))
   (is (false? (text-util/includes-re-pattern? "two words" #"missing"))))
-
-(deftest count->lower-case-string-test
-  (testing "Negative count."
-    (is (= ["-1" "-2" "-3" "-4" "-5" "-6" "-7" "-8" "-9"]
-           (mapv text-util/count->lower-case-string (range -1 -10 -1)))))
-
-  (testing "Low count."
-    (is (= ["no" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine"]
-           (mapv text-util/count->lower-case-string (range 0 10)))))
-
-  (testing "High count."
-    (is (= ["10" "11" "12" "13" "14" "15" "16" "17" "18" "19"]
-           (mapv text-util/count->lower-case-string (range 10 20)))))
-
-  (testing "Returns supplied zero-result."
-    (let [zero-result (str "supplied" \- "zero" \- "result")]
-      (is (identical? zero-result (text-util/count->lower-case-string 0 zero-result))))))
-
-(deftest count->upper-case-string-test
-  (testing "Negative count."
-    (is (= ["-1" "-2" "-3" "-4" "-5" "-6" "-7" "-8" "-9"]
-           (mapv text-util/count->upper-case-string (range -1 -10 -1)))))
-
-  (testing "Low count."
-    (is (= ["No" "One" "Two" "Three" "Four" "Five" "Six" "Seven" "Eight" "Nine"]
-           (mapv text-util/count->upper-case-string (range 0 10)))))
-
-  (testing "High count."
-    (is (= ["10" "11" "12" "13" "14" "15" "16" "17" "18" "19"]
-           (mapv text-util/count->upper-case-string (range 10 20)))))
-
-  (testing "Returns supplied zero-result."
-    (let [zero-result (str "SUPPLIED" \_ "ZERO" \_ "RESULT")]
-      (is (identical? zero-result (text-util/count->upper-case-string 0 zero-result))))))
-
-(deftest singular->count->string-test
-  (testing "Lower-case behavior."
-    (let [count->string (text-util/singular->count->string "item")]
-      (is (= "-1" (count->string -1)))
-      (is (= "no" (count->string 0)))
-      (is (= "one" (count->string 1)))
-      (is (= "two" (count->string 2)))))
-  (testing "Upper-case behavior."
-    (let [count->string (text-util/singular->count->string "Item")]
-      (is (= "-1" (count->string -1)))
-      (is (= "No" (count->string 0)))
-      (is (= "One" (count->string 1)))
-      (is (= "Two" (count->string 2))))))
-
-(deftest amount-text-test
-  (testing "No plural form specified."
-    (is (= "-1 items" (text-util/amount-text text-util/count->number -1 "item")))
-    (is (= "0 items" (text-util/amount-text text-util/count->number 0 "item")))
-    (is (= "1 item" (text-util/amount-text text-util/count->number 1 "item")))
-    (is (= "2 items" (text-util/amount-text text-util/count->number 2 "item"))))
-
-  (testing "Plural form specified."
-    (is (= "-1 foxes" (text-util/amount-text text-util/count->number -1 "fox" "foxes")))
-    (is (= "0 foxes" (text-util/amount-text text-util/count->number 0 "fox" "foxes")))
-    (is (= "1 fox" (text-util/amount-text text-util/count->number 1 "fox" "foxes")))
-    (is (= "2 foxes" (text-util/amount-text text-util/count->number 2 "fox" "foxes"))))
-
-  (testing "Uses supplied count->string function."
-    (letfn [(count->string [^long count]
-              (case count
-                0 "an absence of"
-                1 "a single"
-                2 "a few"
-                (when (pos? count)
-                  "several")))]
-      (is (= "-1 tears" (text-util/amount-text count->string -1 "tear" "tears")))
-      (is (= "an absence of tears" (text-util/amount-text count->string 0 "tear" "tears")))
-      (is (= "a single tear" (text-util/amount-text count->string 1 "tear" "tears")))
-      (is (= "a few tears" (text-util/amount-text count->string 2 "tear" "tears")))
-      (is (= "several tears" (text-util/amount-text count->string 3 "tear" "tears"))))))

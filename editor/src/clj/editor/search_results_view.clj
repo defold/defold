@@ -652,12 +652,14 @@
              context-menu
              (assoc :context-menu context-menu))}))
 
-(defn- transfer-overrides-plan-menu-item [transfer-overrides-plan evaluation-context]
-  {:fx/type fx.menu-item/lifecycle
-   :text (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-   :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
-   :on-action {:event-type :on-transfer-overrides
-               :transfer-overrides-plan transfer-overrides-plan}})
+(defn- transfer-overrides-plan-menu-item [transfer-overrides-plan localization evaluation-context]
+  {:fx/type fxui/ext-localize
+   :localization localization
+   :message (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+   :desc {:fx/type fx.menu-item/lifecycle
+          :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
+          :on-action {:event-type :on-transfer-overrides
+                      :transfer-overrides-plan transfer-overrides-plan}}})
 
 (defn- override-inspector-view [state parent localization]
   {:fx/type fxui/ext-with-anchor-pane-props
@@ -688,9 +690,9 @@
                (when (and source-node-id (coll/not-empty overridden-prop-kws))
                  (g/with-auto-evaluation-context evaluation-context
                    (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties source-node-id overridden-prop-kws evaluation-context)]
-                     (pair (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
+                     (pair (mapv #(transfer-overrides-plan-menu-item % localization evaluation-context)
                                  (properties/pull-up-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))
-                           (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
+                           (mapv #(transfer-overrides-plan-menu-item % localization evaluation-context)
                                  (properties/push-down-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))))))]
 
            {:fx/type fx.h-box/lifecycle

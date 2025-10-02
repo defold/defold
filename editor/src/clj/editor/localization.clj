@@ -436,6 +436,21 @@
      (->MessageWithNestedPatterns k m localizable-keys)
      (->SimpleMessage k m))))
 
+(defn vary-message-variables
+  "Transforms message variable map with a supplied function
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    original    localization message created using [[message]] fn
+    f           fn that transforms the variable map, will receive it as a first
+                argument, and then the remaining arguments
+    args        the remaining arguments"
+  [original f & args]
+  {:pre [(or (instance? SimpleMessage original)
+             (instance? MessageWithNestedPatterns original))]}
+  (message (:k original) (apply f (:m original) args)))
+
 (defn- impl-simple-list [list-k items state]
   (.format ^ListFormatter (list-k state) ^Collection items))
 

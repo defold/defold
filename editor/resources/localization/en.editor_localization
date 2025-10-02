@@ -748,8 +748,10 @@ command.edit.reorder-down = Move Down
 command.edit.rename = Rename
 command.edit.pull-up-overrides = Pull Up Overrides
 command.edit.pull-up-overrides.variant.property = Pull Up {property} Override
+command.edit.pull-up-overrides.option = Pull Up {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {"{target}"} other {{target_count} Ancestors}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
 command.edit.push-down-overrides = Push Down Overrides
 command.edit.push-down-overrides.variant.property = Push Down {property} Override
+command.edit.push-down-overrides.option = Push Down {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {"{target}"} other {{target_count} Descendants}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
 command.edit.show-overrides = Show Overrides...
 command.code.find-next = Find Next
 command.code.find-previous = Find Previous
@@ -834,6 +836,12 @@ command.help.open-donations = Development Fund
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
+
+# Overrides
+
+override.aspect.layout = {layout} Layout
+override.aspect.layout.kind = {count, plural, one {# Layout} other {# Layouts}}
+override.aspect.generic.kind = {count, plural, one {# Aspect} other {# Aspects}}
 
 # Resource views
 

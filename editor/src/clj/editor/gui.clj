@@ -1384,10 +1384,10 @@
                                    (or (not= "" source-layout-name)
                                        (not= "" target-layout-name))
                                    (assoc :target-aspect
-                                          (pair (if (= "" target-layout-name)
-                                                  "Default"
-                                                  target-layout-name)
-                                                "Layout"))))))))]
+                                          [(localization/message "override.aspect.layout" {"layout" (if (= "" target-layout-name)
+                                                                                                      "Default"
+                                                                                                      target-layout-name)})
+                                           (localization/message "override.aspect.layout.kind")])))))))]
     (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
 
 (defmethod properties/pull-up-overrides-plan-alternatives ::GuiNode
