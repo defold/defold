@@ -53,14 +53,7 @@ function(defold_target_link_platform target platform)
         endif()
     endif()
 
-    # On Win32, our prebuilt static libs are named with a "lib" prefix (lib*.lib)
-    string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
-    if(_PLAT_OS STREQUAL "win32")
-        if(NOT _plat_lib MATCHES "^lib")
-            set(_plat_lib "lib${_plat_lib}")
-        endif()
-    endif()
-
+    # Prefer linking to a CMake target if it exists
     target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
 endfunction()
 
