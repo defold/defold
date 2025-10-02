@@ -735,10 +735,10 @@ command.edit.reorder-down = Переместить вниз
 command.edit.rename = Переименовать
 command.edit.pull-up-overrides = Поднять переопределения
 command.edit.pull-up-overrides.variant.property = Поднять переопределение свойства {property}
-command.edit.pull-up-overrides.option = Поднять {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {«{target}»} other {{target_count} предков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
+command.edit.pull-up-overrides.option = Поднять {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {{target, select, undefined {предка} other {«{target}»}}} other {{target_count} предков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
 command.edit.push-down-overrides = Опустить переопределения
 command.edit.push-down-overrides.variant.property = Опустить переопределение свойства {property}
-command.edit.push-down-overrides.option = Опустить {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {«{target}»} other {{target_count} потомков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
+command.edit.push-down-overrides.option = Опустить {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {{target, select, undefined {потомка} other {«{target}»}}} other {{target_count} потомков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
 command.edit.show-overrides = Показать переопределения...
 command.code.find-next = Найти следующее
 command.code.find-previous = Найти предыдущее
@@ -829,6 +829,10 @@ command.vcs.revert = Откатить
 override.aspect.layout = компоновке «{layout}»
 override.aspect.layout.kind = {count, plural, one {# компоновке} other {# компоновках}}
 override.aspect.generic.kind = {count, plural, one {# аспекте} other {# аспектах}}
+
+# GUI
+
+gui.layout.default = Базовая
 
 # Resource views
 

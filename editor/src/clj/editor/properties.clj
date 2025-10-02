@@ -1223,7 +1223,7 @@
           {"property_count" (count property-transfers)
            "property" (:source-prop-label (first property-transfers))
            "target_count" (count target-node-ids)
-           "target" (gu/node-qualifier-label (first target-node-ids) evaluation-context)
+           "target" (or (gu/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
            "aspect_count" target-aspect-count
            "aspect" (if (= 1 target-aspect-count)
                       (first (first target-aspects))

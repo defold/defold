@@ -1850,7 +1850,7 @@
       (let [hbox (doto (HBox.)
                    (add-style! "cell"))
             cb (doto (ChoiceBox.)
-                 (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
+                 (.setConverter (DefoldStringConverter. (comp localization :label))))]
         (.setAll (.getItems cb) ^Collection opts)
         (observe (.valueProperty cb) (fn [_this _old new]
                                        (when (and new (not *programmatic-selection*))

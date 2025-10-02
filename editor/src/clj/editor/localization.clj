@@ -598,10 +598,6 @@
     (->Transform (cond-> message (not message-localizable) str) message-localizable f args)))
 
 ;; TODO:
-;;  - menus
-;;    - check bookmarks
-;;  - util/join-words
-;;  - text-util/amount-text
 ;;  - editor scripts localization
 ;;  - resource type label
 ;;  - view type labels

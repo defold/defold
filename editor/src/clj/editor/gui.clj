@@ -1385,7 +1385,7 @@
                                        (not= "" target-layout-name))
                                    (assoc :target-aspect
                                           [(localization/message "override.aspect.layout" {"layout" (if (= "" target-layout-name)
-                                                                                                      "Default"
+                                                                                                      (localization/message "gui.layout.default")
                                                                                                       target-layout-name)})
                                            (localization/message "override.aspect.layout.kind")])))))))]
     (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
@@ -4355,7 +4355,7 @@
   (state [project active-resource]
          (when-let [scene (resource->gui-scene project active-resource)]
            (let [visible (g/node-value scene :visible-layout)]
-             {:label (if (empty? visible) "Default" visible)
+             {:label (if (empty? visible) (localization/message "gui.layout.default") visible)
               :command :scene.set-gui-layout
               :user-data visible})))
   (options [project active-resource user-data]
@@ -4364,7 +4364,7 @@
                (let [layout-names (g/node-value scene :layout-names)
                      layouts (cons "" layout-names)]
                  (for [l layouts]
-                   {:label (if (empty? l) "Default" l)
+                   {:label (if (empty? l) (localization/message "gui.layout.default") l)
                     :command :scene.set-gui-layout
                     :user-data l}))))))
 
