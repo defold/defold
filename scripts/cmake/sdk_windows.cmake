@@ -35,38 +35,46 @@ set(_FOUND_PACKAGED_TOOLCHAIN FALSE)
 # Helper to pick latest directory path from a list of paths
 
 #############################################
-# Unified Visual Studio roots and detection
-set(_VS_CANDIDATE_ROOTS "")
+# Visual Studio roots and detection (packaged first)
+set(_VS_PACKAGED_ROOTS "")
+set(_VS_PACKAGED_SEARCH_DIRS "")
+
+# Always probe the repo-local tmp/dynamo_home first to prefer packaged toolchains
+get_filename_component(_DEFOLD_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+set(_DEFOLD_TMP_DYNAMO_HOME "${_DEFOLD_REPO_ROOT}/tmp/dynamo_home")
+if(EXISTS "${_DEFOLD_TMP_DYNAMO_HOME}/ext/SDKs")
+    list(APPEND _VS_PACKAGED_SEARCH_DIRS "${_DEFOLD_TMP_DYNAMO_HOME}/ext/SDKs")
+endif()
+
 if(DEFINED DEFOLD_SDK_ROOT)
     set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
     if(EXISTS "${_SDKS_DIR}")
-        defold_collect_packaged_roots("${_SDKS_DIR}" _packaged_vs_roots)
-        list(APPEND _VS_CANDIDATE_ROOTS ${_packaged_vs_roots})
+        list(APPEND _VS_PACKAGED_SEARCH_DIRS "${_SDKS_DIR}")
     endif()
 endif()
 
-# Prefer latest from vswhere if available (appended after packaged roots to keep packaged priority)
-find_program(_VSWHERE vswhere HINTS "C:/Program Files (x86)/Microsoft Visual Studio/Installer")
-if(_VSWHERE)
-    execute_process(COMMAND "${_VSWHERE}" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-                    OUTPUT_VARIABLE _VS_INSTALL
-                    OUTPUT_STRIP_TRAILING_WHITESPACE
-                    ERROR_QUIET)
-    if(_VS_INSTALL AND EXISTS "${_VS_INSTALL}")
-        list(APPEND _VS_CANDIDATE_ROOTS "${_VS_INSTALL}")
+list(REMOVE_DUPLICATES _VS_PACKAGED_SEARCH_DIRS)
+
+foreach(_sdks_dir IN LISTS _VS_PACKAGED_SEARCH_DIRS)
+    defold_collect_packaged_roots("${_sdks_dir}" _packaged_level1)
+    if(_packaged_level1)
+        list(APPEND _VS_PACKAGED_ROOTS ${_packaged_level1})
     endif()
+    file(GLOB _packaged_vs_roots LIST_DIRECTORIES TRUE "${_sdks_dir}/*/MicrosoftVisualStudio*")
+    if(_packaged_vs_roots)
+        list(APPEND _VS_PACKAGED_ROOTS ${_packaged_vs_roots})
+    endif()
+endforeach()
+
+list(REMOVE_DUPLICATES _VS_PACKAGED_ROOTS)
+
+set(_VS_CANDIDATE_ROOTS "")
+if(_VS_PACKAGED_ROOTS)
+    list(APPEND _VS_CANDIDATE_ROOTS ${_VS_PACKAGED_ROOTS})
 endif()
 
-# Common local fallback roots
-list(APPEND _VS_CANDIDATE_ROOTS
-    "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
-    "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
-    "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
-    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community")
-list(REMOVE_DUPLICATES _VS_CANDIDATE_ROOTS)
-
-# Scan for MSVC and clang-cl
-foreach(_vs IN LISTS _VS_CANDIDATE_ROOTS)
+# 1) Scan packaged Visual Studio roots first
+foreach(_vs IN LISTS _VS_PACKAGED_ROOTS)
     if(NOT _FOUND_MSVC_CL)
         _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl)
         if(_cl)
@@ -80,6 +88,48 @@ foreach(_vs IN LISTS _VS_CANDIDATE_ROOTS)
         endif()
     endif()
 endforeach()
+
+# 2) If not found yet, add local Visual Studio roots
+set(_VS_LOCAL_ROOTS "")
+find_program(_VSWHERE vswhere HINTS "C:/Program Files (x86)/Microsoft Visual Studio/Installer")
+if(_VSWHERE)
+    execute_process(COMMAND "${_VSWHERE}" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                    OUTPUT_VARIABLE _VS_INSTALL
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+    if(_VS_INSTALL AND EXISTS "${_VS_INSTALL}")
+        list(APPEND _VS_LOCAL_ROOTS "${_VS_INSTALL}")
+    endif()
+endif()
+
+list(APPEND _VS_LOCAL_ROOTS
+    "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community")
+list(REMOVE_DUPLICATES _VS_LOCAL_ROOTS)
+
+if(_VS_LOCAL_ROOTS)
+    list(APPEND _VS_CANDIDATE_ROOTS ${_VS_LOCAL_ROOTS})
+    list(REMOVE_DUPLICATES _VS_CANDIDATE_ROOTS)
+endif()
+
+if(NOT _FOUND_MSVC_CL OR NOT _FOUND_CLANG_CL)
+    foreach(_vs IN LISTS _VS_LOCAL_ROOTS)
+        if(NOT _FOUND_MSVC_CL)
+            _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl)
+            if(_cl)
+                set(_FOUND_MSVC_CL "${_cl}")
+            endif()
+        endif()
+        if(NOT _FOUND_CLANG_CL)
+            _defold_detect_clang_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _clangcl)
+            if(_clangcl)
+                set(_FOUND_CLANG_CL "${_clangcl}")
+            endif()
+        endif()
+    endforeach()
+endif()
 
 # Detect Windows SDK version from the same roots or system
 if(NOT _FOUND_WINSDK_VERSION)
@@ -564,4 +614,33 @@ if(_DEFOLD_LINK_LIBPATH_FLAGS)
     else()
         set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES "${_DEFOLD_TRY_VARS}")
     endif()
+endif()
+# Prefer explicit packaged MSVC roots for the current arch (Win32/x64)
+if(DEFINED DEFOLD_SDK_ROOT)
+    set(_EXPL_MSVC_ROOTS)
+    if(_DEFOLD_WIN_ARCH STREQUAL "x86")
+        list(APPEND _EXPL_MSVC_ROOTS
+            "${DEFOLD_SDK_ROOT}/ext/SDKs/Win32"
+            "${DEFOLD_SDK_ROOT}/ext/SDKs/x86")
+    else()
+        list(APPEND _EXPL_MSVC_ROOTS
+            "${DEFOLD_SDK_ROOT}/ext/SDKs/x64"
+            "${DEFOLD_SDK_ROOT}/ext/SDKs/Win64")
+    endif()
+    foreach(_vs IN LISTS _EXPL_MSVC_ROOTS)
+        if(EXISTS "${_vs}")
+            if(NOT _FOUND_MSVC_CL)
+                _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl_expl)
+                if(_cl_expl)
+                    set(_FOUND_MSVC_CL "${_cl_expl}")
+                endif()
+            endif()
+            if(NOT _FOUND_CLANG_CL)
+                _defold_detect_clang_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _clangcl_expl)
+                if(_clangcl_expl)
+                    set(_FOUND_CLANG_CL "${_clangcl_expl}")
+                endif()
+            endif()
+        endif()
+    endforeach()
 endif()
