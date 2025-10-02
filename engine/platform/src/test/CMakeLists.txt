@@ -18,6 +18,9 @@ add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp")
 set_target_properties(test_platform PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
+# Include the platform src directory for headers
+target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
+
 target_link_libraries(test_platform PRIVATE
     ${defold_libprefix}dlib
     ${defold_libprefix}profile_null
@@ -41,6 +44,9 @@ if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
     set_target_properties(test_platform_app PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+    # Include the platform src directory for headers
+    target_include_directories(test_platform_app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
 
     # Platform specific extras
     if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
