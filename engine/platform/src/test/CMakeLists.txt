@@ -29,6 +29,11 @@ target_link_libraries(test_platform PRIVATE
 
 defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
+# Ensure platform libs are built before tests when available
+if(TARGET platform_null)
+    add_dependencies(test_platform platform_null)
+endif()
+
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
@@ -69,6 +74,14 @@ if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
     defold_target_link_glfw(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_platform(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
+
+    # Ensure platform libs are built before app test when available
+    if(TARGET platform)
+        add_dependencies(test_platform_app platform)
+    endif()
+    if(TARGET platform_vulkan)
+        add_dependencies(test_platform_app platform_vulkan)
+    endif()
 
     defold_register_test_target(test_platform_app FALSE)
 endif()
