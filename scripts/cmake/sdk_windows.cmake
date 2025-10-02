@@ -45,7 +45,7 @@ if(DEFINED DEFOLD_SDK_ROOT)
     endif()
 endif()
 
-# Prefer latest from vswhere if available
+# Prefer latest from vswhere if available (appended after packaged roots to keep packaged priority)
 find_program(_VSWHERE vswhere HINTS "C:/Program Files (x86)/Microsoft Visual Studio/Installer")
 if(_VSWHERE)
     execute_process(COMMAND "${_VSWHERE}" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -53,7 +53,7 @@ if(_VSWHERE)
                     OUTPUT_STRIP_TRAILING_WHITESPACE
                     ERROR_QUIET)
     if(_VS_INSTALL AND EXISTS "${_VS_INSTALL}")
-        list(INSERT _VS_CANDIDATE_ROOTS 0 "${_VS_INSTALL}")
+        list(APPEND _VS_CANDIDATE_ROOTS "${_VS_INSTALL}")
     endif()
 endif()
 
