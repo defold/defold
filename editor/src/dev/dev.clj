@@ -284,13 +284,17 @@
   (letfn [(wrapped-value-fn [key value]
             (if-not (record? value)
               (value-fn key value)
-              (deep-keep-finalize-coll-value-fn
-                (into (with-meta (sorted-map)
-                                 (meta value))
-                      (keep (fn [[k v]]
-                              (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
-                                (pair k v'))))
-                      value))))]
+              (letfn [(finalize-into [target-map value]
+                        (into (with-meta target-map
+                                         (meta value))
+                              (keep (fn [[k v]]
+                                      (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
+                                        (pair k v'))))
+                              value))]
+                (try
+                  (finalize-into (sorted-map) value)
+                  (catch ClassCastException _
+                    (finalize-into {} value))))))]
     wrapped-value-fn))
 
 (defn deep-keep [value-fn value]
@@ -1589,3 +1593,40 @@
        (sort-by #(tree-depth (val %))
                 coll/descending-order)
        (take 30)))
+
+(defn scene-view-batches
+  ([scene-view pass]
+   (scene-view-batches scene-view pass :batch-key))
+  ([scene-view pass key-fn]
+   {:pre [(g/node-id? scene-view)
+          (instance? RenderPass pass)
+          (ifn? key-fn)]}
+   ;; Based on the scene/batch-render function.
+   (let [flat-renderables (g/node-value scene-view :all-renderables)]
+     (loop [renderables (get flat-renderables pass)
+            offset 0
+            batch-index 0
+            batches (transient [])]
+       (if-let [renderable (first renderables)]
+         (let [first-key (key-fn renderable)
+               first-render-fn (:render-fn renderable)
+               batch-count (long
+                             (loop [renderables (rest renderables)
+                                    batch-count 1]
+                               (let [renderable (first renderables)
+                                     key (key-fn renderable)
+                                     render-fn (:render-fn renderable)
+                                     break (or (not= first-render-fn render-fn)
+                                               (nil? first-key)
+                                               (nil? key)
+                                               (not= first-key key))]
+                                 (if break
+                                   batch-count
+                                   (recur (rest renderables) (inc batch-count))))))]
+           (when (> batch-count 0)
+             (let [batch (subvec renderables 0 batch-count)]
+               (recur (subvec renderables batch-count)
+                      (+ offset batch-count)
+                      (inc batch-index)
+                      (conj! batches batch)))))
+         (persistent! batches))))))
