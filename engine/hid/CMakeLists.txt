@@ -56,8 +56,8 @@ if(BUILD_TESTS)
     target_link_libraries(test_hid PRIVATE
         ${defold_libprefix}dlib
         ${defold_libprefix}profile_null
-        ${defold_libprefix}platform_null
         ${defold_libprefix}testmain
+        platform_null
         hid_null
     )
 
