@@ -20,13 +20,6 @@ if(NOT DEFOLD_SDK_ROOT)
   endif()
 endif()
 
-# if(NOT DEFOLD_SDK_ROOT)
-#   message(FATAL_ERROR "DEFOLD_SDK_ROOT not set. Run './scripts/build.py shell && ./scripts/build.py install_ext && ./scripts/build.py build_engine' first, or pass -DDEFOLD_SDK_ROOT=/path/to/tmp/dynamo_home")
-# endif()
-
-#include helper functions
-include(functions)
-
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
