@@ -6,11 +6,6 @@ cmake_minimum_required(VERSION 4.0)
 # can set CMAKE_TOOLCHAIN_FILE before compilers are enabled by project().
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/scripts/cmake")
 include(functions)
-include(platform_host)
-if(NOT TARGET_PLATFORM)
-  set(TARGET_PLATFORM "${HOST_PLATFORM}")
-endif()
-include(sdk)
 
 # we rename this project in build.py when we generate the solution
 project(defold_libraries LANGUAGES C CXX)

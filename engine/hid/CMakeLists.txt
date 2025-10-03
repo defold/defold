@@ -4,11 +4,6 @@ cmake_minimum_required(VERSION 4.0)
 # Early toolchain/SDK detection (for standalone configure)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
 include(functions)
-include(platform_host)
-if(NOT TARGET_PLATFORM)
-  set(TARGET_PLATFORM "${HOST_PLATFORM}")
-endif()
-include(sdk)
 
 project(defold_hid LANGUAGES C CXX)
 
@@ -50,9 +45,6 @@ if(BUILD_TESTS)
     # test_hid uses jc_test and links against Defold support libs
     add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
 
-    # Do not build test executables by default (optional via explicit target)
-    set_target_properties(test_hid PROPERTIES EXCLUDE_FROM_ALL TRUE)
-
     target_link_libraries(test_hid PRIVATE
         ${defold_libprefix}dlib
         ${defold_libprefix}profile_null
@@ -63,12 +55,10 @@ if(BUILD_TESTS)
 
     if (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         find_package(Threads REQUIRED)
-        target_link_libraries(test_hid PRIVATE glfw3 Threads::Threads dl)
-
-    elseif (TARGET_PLATFORM MATCHES "x86-win32|x86_64-win32")
-        target_link_libraries(test_hid PRIVATE)
+        target_link_libraries(test_hid PRIVATE Threads::Threads dl)
     endif()
 
+    defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
     # Register into global build_tests and run_tests

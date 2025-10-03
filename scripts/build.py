@@ -577,10 +577,18 @@ class Configuration(object):
         target_name = f"Defold-{tp}"
         final_path = solution_build_dir
 
+        old_path = None
+        new_path = None
+
         if generator == 'Xcode':
             # Default name from CMake project()
             old_path = os.path.join(solution_build_dir, f"{old_project_name}.xcodeproj")
             new_path = os.path.join(solution_build_dir, f"{target_name}.xcodeproj")
+        elif generator and generator.startswith('Visual Studio'):
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.sln")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.sln")
+
+        if new_path != old_path and old_path is not None:
             if os.path.exists(old_path):
                 try:
                     if os.path.exists(new_path):
@@ -588,21 +596,7 @@ class Configuration(object):
                     shutil.move(old_path, new_path)
                     final_path = new_path
                 except Exception as e:
-                    self._log(f"Warning: Failed to rename Xcode project: {e}. Keeping default name: {old_path}")
-                    final_path = old_path
-            else:
-                final_path = new_path
-        elif generator and generator.startswith('Visual Studio'):
-            old_path = os.path.join(solution_build_dir, f"{old_project_name}.sln")
-            new_path = os.path.join(solution_build_dir, f"{target_name}.sln")
-            if os.path.exists(old_path):
-                try:
-                    if os.path.exists(new_path):
-                        os.remove(new_path)
-                    shutil.move(old_path, new_path)
-                    final_path = new_path
-                except Exception as e:
-                    self._log(f"Warning: Failed to rename solution: {e}. Keeping default name: {old_path}")
+                    self._log(f"Warning: Failed to rename project: {e}. Keeping default name: {old_path}")
                     final_path = old_path
             else:
                 final_path = new_path
@@ -1603,17 +1597,6 @@ class Configuration(object):
         cmd = self._build_engine_cmd_waf(**self._get_build_flags())
         args = cmd.split()
         host = self.host
-
-        cmake_tests = []
-        #cmake_tests = ['platform', 'hid', 'input']
-        #cmake_tests = ['input']
-        #cmake_tests = ['hid']
-        #cmake_tests = ['platform']
-        for lib in cmake_tests:
-            self._build_engine_lib(args, lib, target_platform)
-        if cmake_tests:
-            print("EARLY OUT!")
-            return
 
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:

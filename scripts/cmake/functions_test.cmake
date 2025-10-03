@@ -13,6 +13,10 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
   endif()
 
+  # Keep tests out of the default 'all' build. They are built via build_tests
+  # or when directly requested. This mirrors typical Waf behavior.
+  set_target_properties(${target_name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
   # Ensure global aggregator exists
   if(NOT TARGET build_tests)
     add_custom_target(build_tests)
@@ -66,4 +70,3 @@ function(defold_register_test_target target_name)
     add_dependencies(run_tests ${_run_target})
   endif()
 endfunction()
-

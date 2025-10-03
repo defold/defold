@@ -4,11 +4,6 @@ cmake_minimum_required(VERSION 4.0)
 # Early toolchain/SDK detection (for standalone configure)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
 include(functions)
-include(platform_host)
-if(NOT TARGET_PLATFORM)
-  set(TARGET_PLATFORM "${HOST_PLATFORM}")
-endif()
-include(sdk)
 
 project(defold_input LANGUAGES C CXX)
 

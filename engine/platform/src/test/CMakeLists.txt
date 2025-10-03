@@ -3,11 +3,6 @@ cmake_minimum_required(VERSION 4.0)
 # Early toolchain/SDK detection (for standalone configure)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
 include(functions)
-include(platform_host)
-if(NOT TARGET_PLATFORM)
-  set(TARGET_PLATFORM "${HOST_PLATFORM}")
-endif()
-include(sdk)
 
 project(defold_platform_tests LANGUAGES C CXX)
 
@@ -16,7 +11,6 @@ include(../../../../scripts/cmake/defold.cmake)
 # test_platform (unit tests using null backend)
 add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp")
-set_target_properties(test_platform PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
 # Include the platform src directory for headers
 target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
@@ -44,7 +38,6 @@ if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
 
     add_executable(test_platform_app
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp")
-    set_target_properties(test_platform_app PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
     # Include the platform src directory for headers
     target_include_directories(test_platform_app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
