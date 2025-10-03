@@ -3,13 +3,9 @@ cmake_minimum_required(VERSION 4.0)
 
 # Early toolchain/SDK detection (for standalone configure)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
-include(functions)
+include(defold)
 
 project(defold_input LANGUAGES C CXX)
-
-include(../../scripts/cmake/defold.cmake)
-include(functions_glfw)
-include(functions_protoc)
 
 # Define log domain for this module
 add_compile_definitions(DLIB_LOG_DOMAIN="INPUT")

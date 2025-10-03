@@ -20,6 +20,9 @@ if(NOT DEFOLD_SDK_ROOT)
   endif()
 endif()
 
+#include helper functions (e.g. defold_log)
+include(functions)
+
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
@@ -54,9 +57,6 @@ include(features)
 
 # platform specific includes, lib paths, defines etc...
 include(platform)
-
-#include helper functions
-include(functions)
 
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)

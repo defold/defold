@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 4.0)
 
-include(functions_protoc)
+# Early toolchain/SDK detection (for standalone configure)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
+include(defold)
 
 #================================ Test Data ================================
 

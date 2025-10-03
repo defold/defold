@@ -20,8 +20,6 @@ if(NOT TARGET build_tests)
   add_custom_target(build_tests)
 endif()
 
-# Test utilities (register tests, run targets)
-include(functions_test)
 
 #**************************************************************************
 # Common compile settings

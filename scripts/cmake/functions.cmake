@@ -94,7 +94,10 @@ function(defold_create_exported_symbols_file OUT_PATH SYMBOL_LIST)
     unset(DM_EXPORTED_SYMBOL_CALLS)
 endfunction()
 
-include(functions_graphics)
-include(functions_platform)
 include(functions_glfw)
+include(functions_graphics)
 include(functions_opengl)
+include(functions_platform)
+include(functions_protoc)
+include(functions_test)
+

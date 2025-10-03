@@ -117,10 +117,11 @@ if(TARGET_PLATFORM MATCHES "arm64-android")
     set(ANDROID_TOOLCHAIN "aarch64-linux-android${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
 
 else(TARGET_PLATFORM MATCHES "armv7-android")
-    # For armv7-android, ensure Clang uses aarch64-linux-android21 target triple
+    # For armv7-android, ensure Clang uses armv7-linux-android21 target triple
     set(ANDROID_ABI "armeabi-v7a" CACHE STRING "Android ABI" FORCE)
     set(ANDROID_NATIVE_API_LEVEL 19 CACHE STRING "Android API Level" FORCE)
-    set(ANDROID_TOOLCHAIN "armv7-linux-androidi${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
+    # Use the canonical Clang triplet for 32-bit ARM
+    set(ANDROID_TOOLCHAIN "armv7a-linux-androideabi${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
 
 endif()
 

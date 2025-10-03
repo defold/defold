@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 4.0)
 
 # Early toolchain/SDK detection (for standalone configure)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
-include(functions)
+include(defold)
 
 project(defold_platform_tests LANGUAGES C CXX)
-
-include(../../../../scripts/cmake/defold.cmake)
 
 # test_platform (unit tests using null backend)
 add_executable(test_platform
