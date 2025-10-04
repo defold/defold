@@ -87,62 +87,6 @@ namespace dmDDF
         return GetDescriptorFromHash(dmHashString64(name));
     }
 
-    /*
-    static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
-    {
-        *size_out += desc->m_Size;
-
-        while (!ib->Eof())
-        {
-            uint32_t tag;
-            if (ib->ReadVarInt32(&tag))
-            {
-                uint32_t key = tag >> 3;
-                uint32_t type = tag & 0x7;
-
-                if (key == 0)
-                {
-                    return RESULT_WIRE_FORMAT_ERROR;
-                }
-
-                const FieldDescriptor* field = FindField(desc, key, 0);
-
-                if (field != 0)
-                {
-                    dmLogInfo("Desc: %s.%s, cur_size: %d, offset: %d", desc->m_Name, field->m_Name, *size_out, field->m_Offset);
-
-                    if (field->m_Type == TYPE_MESSAGE)
-                    {
-                        // Skip over length
-                        uint32_t length;
-                        ib->ReadVarInt32(&length);
-
-                        if (!field->m_FullyDefinedType)
-                        {
-                            uint32_t ptr_offset = *size_out;
-                            dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
-                            load_context->AddDynamicTypeOffset(ptr_offset);
-                        }
-
-                        Result e = GetDataSizeFromDesc(load_context, ib, field->m_MessageDescriptor, size_out);
-                        DDF_CHECK_RESULT(e);
-                    }
-                    else
-                    {
-                        Result e = SkipField(ib, type);
-                        DDF_CHECK_RESULT(e);
-                    }
-                }
-            }
-            else
-            {
-                return RESULT_WIRE_FORMAT_ERROR;
-            }
-        }
-        return RESULT_OK;
-    }
-    */
-
     static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
     {
         // Always account for this message's fixed size
@@ -186,8 +130,6 @@ namespace dmDDF
 
                 if (!field->m_FullyDefinedType)
                 {
-                    *size_out = DM_ALIGN(*size_out, 16);
-
                     uint32_t ptr_offset = *size_out;
                     dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
                     load_context->AddDynamicTypeOffset(ptr_offset);
@@ -251,7 +193,7 @@ namespace dmDDF
         return RESULT_OK;
     }
 
-    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* array_info_hash)
+    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* array_info_hash, bool is_dynamic_type)
     {
         assert(desc);
 
@@ -273,8 +215,8 @@ namespace dmDDF
                 if (field == 0)
                 {
                     Result e = SkipField(ib, type);
-                    DDF_CHECK_RESULT(e);
-                    *array_info_hash = 0;
+                    if (e != RESULT_OK)
+                        return e;
                 }
                 else
                 {
@@ -283,21 +225,21 @@ namespace dmDDF
                     if (field->m_Label == LABEL_REPEATED)
                     {
                         *array_info_hash = load_context->IncreaseArrayCount(start, field->m_Number);
+                        is_dynamic_type = false;
                     }
 
                     if (field->m_Type != TYPE_MESSAGE)
                     {
                         Result e = SkipField(ib, type);
-                        DDF_CHECK_RESULT(e);
+                        if (e != RESULT_OK)
+                            return e;
                     }
                     else
                     {
                         assert(field->m_MessageDescriptor);
                         uint32_t length;
                         if (!ib->ReadVarInt32(&length))
-                        {
                             return RESULT_WIRE_FORMAT_ERROR;
-                        }
 
                         InputBuffer sub_ib;
                         if (!ib->SubBuffer(length, &sub_ib))
@@ -305,29 +247,24 @@ namespace dmDDF
                             return RESULT_WIRE_FORMAT_ERROR;
                         }
 
-                        uint32_t dynamic_offset = 0;
-
-                        if (field->m_Label != LABEL_REPEATED && *array_info_hash != 0)
+                        is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
+                        if (is_dynamic_type)
                         {
-                            dynamic_offset = load_context->IncreaseArrayDataSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
+                            dmLogInfo("  !! Array member %s.%s is not fully defined!", desc->m_Name, field->m_Name);
                         }
 
-                        if (!field->m_FullyDefinedType)
+                        if (is_dynamic_type)
                         {
-                            uint32_t aligned_dynamic_offset = DM_ALIGN(dynamic_offset, 16);
-
-                            if (aligned_dynamic_offset != dynamic_offset)
-                            {
-                                dynamic_offset = load_context->IncreaseArrayDataSize(*array_info_hash, aligned_dynamic_offset - dynamic_offset);
-                            }
-
-                            load_context->AddDynamicTypeOffset(dynamic_offset);
-                            dmLogInfo("  !! Array member %s.%s is not fully defined! adding offset %d", desc->m_Name, field->m_Name, dynamic_offset);
+                            uint32_t current_size = load_context->AddDynamicElementSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
+                            dmLogInfo("  !! Dynamic type %s.%s: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
                         }
 
-                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash);
+                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash, is_dynamic_type);
 
-                        DDF_CHECK_RESULT(e);
+                        if (e != RESULT_OK)
+                        {
+                            return e;
+                        }
                     }
                 }
             }
@@ -372,7 +309,7 @@ namespace dmDDF
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
 
-        DumpHex(buffer, buffer_size, "Serialized msg");
+        //DumpHex(buffer, buffer_size, "Serialized msg");
 
         LoadContext load_context(0, 0, true, options);
         InputBuffer input_buffer((const char*) buffer, buffer_size);
@@ -382,31 +319,24 @@ namespace dmDDF
 
         uint32_t array_info_hash = 0;
         input_buffer.Seek(0);
-        e = CalculateRepeated(&load_context, &input_buffer, desc, &array_info_hash);
+        e = CalculateRepeated(&load_context, &input_buffer, desc, &array_info_hash, false);
         DDF_CHECK_RESULT(e);
-
-        dmLogInfo("\nLoadMessage DRY:");
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
-        int message_buffer_size = load_context.GetMemoryUsage();
+        int aligned_base_memory = DM_ALIGN(load_context.GetMemoryUsage(), 16);
+        int message_buffer_size = aligned_base_memory + load_context.CalculateDynamicTypeMemorySize();
         char* message_buffer = 0;
-
-        fprintf(stderr, "DRY: dry_message.GetSize()=%u, calculated message_buffer_size=%d\n",
-                dry_message.GetSize(), message_buffer_size);
-        assert(message_buffer_size >= (int)dry_message.GetSize());
 
         dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size);
         assert(message_buffer);
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
+        load_context.SetDynamicTypeBase(aligned_base_memory);
 
         dmLogInfo("\nAllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
 
         Message message = load_context.AllocMessage(desc);
-        //Message message = load_context.AllocMessageRaw(desc, message_buffer_size);
-
-        dmLogInfo("\nLoadMessage ACTUAL:");
 
         load_context.ResetDynamicOffsetCursor();
 

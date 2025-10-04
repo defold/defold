@@ -73,6 +73,7 @@ namespace dmDDF
     {
         uintptr_t m_Array;
         uint32_t  m_ArrayCount;
+        uint32_t  m_Hash;
     };
 
     enum Label

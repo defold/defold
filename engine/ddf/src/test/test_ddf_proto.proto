@@ -366,8 +366,8 @@ message RecursiveRepeat
 {
     repeated MessageRecursiveA list_a = 1;
     optional string string_val = 2;
-    //optional float float_val = 3;
-    //repeated int32 list_numbers = 4;
+    required float float_val = 3;
+    repeated int32 list_numbers = 4;
 }
 
 message TestMessageRecursive

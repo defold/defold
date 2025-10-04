@@ -153,6 +153,8 @@ namespace dmDDF
     {
         assert(field->m_MessageDescriptor);
 
+        dmLogInfo("ReadMessageField: field %s\n", field->m_Name);
+
         if (wire_type != WIRETYPE_LENGTH_DELIMITED)
         {
             return RESULT_WIRE_FORMAT_ERROR;
@@ -167,32 +169,33 @@ namespace dmDDF
         char* msg_buf = 0;
         if (field->m_Label == LABEL_REPEATED)
         {
-            msg_buf = (char*) AddMessage(field);
+            msg_buf = (char*) AddMessage(load_context, field);
         }
         else
         {
             msg_buf = GetBuffer(field->m_Offset);
-            // assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
 
             if (!field->m_FullyDefinedType)
             {
-                uint32_t dynamic_offset       = load_context->NextDynamicTypeOffset();
-                uintptr_t dynamic_offset_addr = (uintptr_t) msg_buf + dynamic_offset;
+                uint32_t dynamic_offset = load_context->NextDynamicTypeOffset();
+                void* dynamic_ptr = load_context->GetDynamicTypePointer(dynamic_offset);
 
-                dmLogInfo("Not defined field at %lu has offset %d, writing pointer %p", (uintptr_t) msg_buf, dynamic_offset, (void*) dynamic_offset_addr);
+                dmLogInfo("  Field is not fully defined! Dyamic offset = %d", dynamic_offset);
 
-                if (!load_context->GetIsDryRun())
+                if (!m_DryRun)
                 {
-                    //memset(msg_buf, 0xFF, sizeof(uintptr_t));
-
-                    memcpy(msg_buf, &dynamic_offset_addr, sizeof(uintptr_t));
-                    //msg_buf += sizeof(uintptr_t);
-                    msg_buf += dynamic_offset;
+                    // Resolve the pointer in the dynamic area
+                    memcpy(msg_buf, &dynamic_ptr, sizeof(uintptr_t));
                 }
+
+                msg_buf = (char*) dynamic_ptr;
             }
         }
 
         Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
+
+        dmLogInfo("  Message offset = %lu", (uintptr_t) (msg_buf - load_context->m_Start));
+
         InputBuffer sub_buffer;
         if (!input_buffer->SubBuffer(length, &sub_buffer))
         {
@@ -204,56 +207,65 @@ namespace dmDDF
 
     /*
     Result Message::ReadMessageField(LoadContext* load_context,
-                                   WireType wire_type,
-                                   const FieldDescriptor* field,
-                                   InputBuffer* ib)
+                                           WireType wire_type,
+                                           const FieldDescriptor* field,
+                                           InputBuffer* input_buffer)
     {
-        assert(field->m_Type == TYPE_MESSAGE);
+        assert(field->m_MessageDescriptor);
 
-        uint32_t length;
-        if (!ib->ReadVarInt32(&length))
-            return RESULT_WIRE_FORMAT_ERROR;
+        dmLogInfo("ReadMessageField: field %s\n", field->m_Name);
 
-        InputBuffer sub_ib;
-        if (!ib->SubBuffer(length, &sub_ib))
-            return RESULT_WIRE_FORMAT_ERROR;
-
-        char* msg_buf = GetBuffer(field->m_Offset);
-
-        if (!field->m_FullyDefinedType)
+        if (wire_type != WIRETYPE_LENGTH_DELIMITED)
         {
-            uint32_t dynamic_abs_offset = load_context->NextDynamicTypeOffset();
-            void* dynamic_ptr           = load_context->GetPointer(dynamic_abs_offset);
-
-            dmLogInfo("Not defined field %s: slot @ %p -> dynamic offset %u (%p)",
-                      field->m_Name, (void*)msg_buf, dynamic_abs_offset, dynamic_ptr);
-
-            if (!load_context->GetIsDryRun())
-            {
-                if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
-                {
-                    // Store offset in slot
-                    uint32_t off = dynamic_abs_offset;
-                    memcpy(msg_buf, &off, sizeof(uint32_t));
-                }
-                else
-                {
-                    // Store direct pointer in slot
-                    memcpy(msg_buf, &dynamic_ptr, sizeof(void*));
-                }
-            }
-
-            // Redirect parsing into dynamic memory
-            msg_buf = (char*)dynamic_ptr;
+            return RESULT_WIRE_FORMAT_ERROR;
         }
 
-        // Recursively parse the nested message
-        Message sub_msg(field->m_MessageDescriptor,
-                        msg_buf,
-                        field->m_MessageDescriptor->m_Size,
-                        load_context->GetIsDryRun());
+        uint32_t length;
+        if (!input_buffer->ReadVarInt32(&length))
+        {
+            return RESULT_WIRE_FORMAT_ERROR;
+        }
 
-        return DoLoadMessage(load_context, &sub_ib, field->m_MessageDescriptor, &sub_msg);
+        char* msg_buf = 0;
+        if (field->m_Label == LABEL_REPEATED)
+        {
+            msg_buf = (char*) AddMessage(load_context, field);
+        }
+        else
+        {
+            msg_buf = GetBuffer(field->m_Offset);
+            // assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
+
+            if (!field->m_FullyDefinedType)
+            {
+
+                dmLogInfo("  Field is not fully defined!");
+                uint32_t dynamic_offset       = load_context->NextDynamicTypeOffset();
+                //uintptr_t dynamic_offset_addr = (uintptr_t) msg_buf + dynamic_offset;
+                uintptr_t dynamic_offset_addr = (uintptr_t) GetBuffer(dynamic_offset);
+
+                dmLogInfo("  Not defined field at %lu has offset %d, writing pointer %p", (uintptr_t) msg_buf, dynamic_offset, (void*) dynamic_offset_addr);
+
+                if (!load_context->GetIsDryRun())
+                {
+                    //memset(msg_buf, 0xFF, sizeof(uintptr_t));
+                    memcpy(msg_buf, &dynamic_offset_addr, sizeof(uintptr_t));
+                    msg_buf += sizeof(uintptr_t);
+                }
+            }
+        }
+
+        Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
+
+        dmLogInfo("  Message offset = %lu", (uintptr_t) (msg_buf - load_context->m_Start));
+
+        InputBuffer sub_buffer;
+        if (!input_buffer->SubBuffer(length, &sub_buffer))
+        {
+            return RESULT_WIRE_FORMAT_ERROR;
+        }
+
+        return DoLoadMessage(load_context, &sub_buffer, field->m_MessageDescriptor, &message);
     }
     */
 
@@ -331,7 +343,7 @@ namespace dmDDF
         return 0;
     }
 
-    void* Message::AddMessage(const FieldDescriptor* field)
+    void* Message::AddMessage(LoadContext* load_context, const FieldDescriptor* field)
     {
         assert((Label) field->m_Label == LABEL_REPEATED);
         assert(field->m_MessageDescriptor);
@@ -345,11 +357,32 @@ namespace dmDDF
             repeated_field->m_ArrayCount++;
 
             return (void*) dest;
+
+            /*
+            // TODO: Refactor
+            uint32_t data_size = load_context->GetArrayElementSize(repeated_field->m_Hash, repeated_field->m_ArrayCount);
+            uint32_t data_offset = 0;
+            for (int i = 0; i < repeated_field->m_ArrayCount; ++i)
+            {
+                data_offset += load_context->GetArrayElementSize(repeated_field->m_Hash, i);
+            }
+
+            uintptr_t dest = repeated_field->m_Array + data_offset;
+
+            dmLogInfo("AddMessage: data_offset=%d, data_size=%d", data_offset, data_size);
+
+            //memset((void*) dest, 0, field->m_MessageDescriptor->m_Size);
+            memset((void*) dest, 0, data_size);
+
+            repeated_field->m_ArrayCount++;
+
+            return (void*) dest;
+            */
         }
         return 0;
     }
 
-    void Message::SetRepeatedBuffer(const FieldDescriptor* field, void* buffer)
+    void Message::SetRepeatedBuffer(const FieldDescriptor* field, void* buffer, uint32_t hash)
     {
         assert((Label) field->m_Label == LABEL_REPEATED);
 
@@ -358,6 +391,7 @@ namespace dmDDF
             RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             repeated_field->m_Array = (uintptr_t) buffer;
             repeated_field->m_ArrayCount = 0;
+            repeated_field->m_Hash = hash;
         }
     }
 
@@ -448,12 +482,12 @@ namespace dmDDF
         }
     }
 
-    void Message::AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size)
+    void Message::AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size, uint32_t hash)
     {
         assert((Label) field->m_Label == LABEL_REPEATED);
 
         void* buf = load_context->AllocRepeated(field, element_count, data_size);
-        SetRepeatedBuffer(field, buf);
+        SetRepeatedBuffer(field, buf, hash);
     }
 
     Result DoResolvePointers(const Descriptor* desc, void* message)

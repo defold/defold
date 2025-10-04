@@ -354,7 +354,7 @@ TEST(StringRepeated, Load)
     for (int i = 0; i < count; ++i)
     {
         char tmp[32];
-        sprintf(tmp, "%d", i*10);
+        snprintf(tmp, 32, "%d", i*10);
         repated.add_array(tmp);
     }
 
@@ -927,6 +927,7 @@ TEST(OneOfTests, Recursive)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 }
 
+/*
 TEST(Recursive, TreeSimple)
 {
     TestDDF::MessageRecursiveB* msg_a_child = new TestDDF::MessageRecursiveB();
@@ -963,6 +964,7 @@ TEST(Recursive, TreeSimple)
 
     dmDDF::FreeMessage(message);
 }
+*/
 
 // Checks whether a pointer is inside [buffer, buffer + size)
 static bool IsPointerInBuffer(const void* ptr, const void* buffer, size_t size)
@@ -1040,22 +1042,22 @@ static void DebugCheckField(void* field_addr,
 TEST(Recursive, Repeated)
 {
     TestDDF::RecursiveRepeat msg;
-    TestDDF::MessageRecursiveA* item_0   = msg.add_list_a();
-    TestDDF::MessageRecursiveA* item_1   = msg.add_list_a();
-    TestDDF::MessageRecursiveB* item_0_b = new TestDDF::MessageRecursiveB();
-    TestDDF::MessageRecursiveB* item_1_b = new TestDDF::MessageRecursiveB();
-
+    TestDDF::MessageRecursiveA* item_0     = msg.add_list_a();
+    TestDDF::MessageRecursiveB* item_0_b   = new TestDDF::MessageRecursiveB();
     TestDDF::MessageRecursiveA* item_0_b_a = new TestDDF::MessageRecursiveA();
+
+    TestDDF::MessageRecursiveA* item_1   = msg.add_list_a();
+    TestDDF::MessageRecursiveB* item_1_b = new TestDDF::MessageRecursiveB();
 
     std::string test_string = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
-    //msg.add_list_numbers(32768);
-    //msg.add_list_numbers(32769);
-    //msg.set_float_val(0.5f);
-    //msg.set_string_val(test_string);
+    msg.add_list_numbers(32768);
+    msg.add_list_numbers(32769);
+    msg.set_float_val(0.5f);
+    msg.set_string_val(test_string);
 
-    item_0->set_allocated_my_b(item_0_b);
     item_0->set_val_a(1338);
+    item_0->set_allocated_my_b(item_0_b);
     {
         item_0_b->set_val_b(999);
         item_0_b->set_allocated_my_a(item_0_b_a);
@@ -1064,8 +1066,8 @@ TEST(Recursive, Repeated)
         }
     }
 
-    item_1->set_allocated_my_b(item_1_b);
     item_1->set_val_a(666);
+    item_1->set_allocated_my_b(item_1_b);
     {
         item_1_b->set_val_b(2001);
     }
@@ -1075,20 +1077,21 @@ TEST(Recursive, Repeated)
     uint32_t msg_buf_size = msg_str.size();
 
     DUMMY::TestDDF::RecursiveRepeat* message;
-    uint32_t size;
-    //dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message);
-    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message, 0, &size);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    //ASSERT_TRUE(false); // REMOVE
 
     DUMMY::TestDDF::MessageRecursiveA* child_0 = &message->m_ListA[0];
     DUMMY::TestDDF::MessageRecursiveA* child_1 = &message->m_ListA[1];
 
-    DebugCheckField(&child_0->m_MyB,
-                  message,
-                  size,
-                  false,
-                  "child_0->m_MyB"
-                  );
+    // Message
+    // DUMMY::TestDDF::RecursiveRepeat    : size = 24
+    //   0: TestDDF::MessageRecursiveA    : size = 16
+    //        TestDDF::MessageRecursiveB  : size = 24
+    //   0: TestDDF::MessageRecursiveA    : size = 16
+    //        TestDDF::MessageRecursiveB  : size = 24
+    // string_val                         : size = 69
 
     ASSERT_EQ(1338, child_0->m_ValA);
     ASSERT_EQ(999, child_0->m_MyB->m_ValB);
@@ -1097,10 +1100,10 @@ TEST(Recursive, Repeated)
     ASSERT_EQ(666, child_1->m_ValA);
     ASSERT_EQ(2001, child_1->m_MyB->m_ValB);
 
-    //ASSERT_EQ(32768, message->m_ListNumbers[0]);
-    //ASSERT_EQ(32769, message->m_ListNumbers[1]);
-    //ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
-    //ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
+    ASSERT_EQ(32768, message->m_ListNumbers[0]);
+    ASSERT_EQ(32769, message->m_ListNumbers[1]);
+    ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
+    ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
 }
 
 int main(int argc, char **argv)

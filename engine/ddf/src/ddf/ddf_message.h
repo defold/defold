@@ -36,9 +36,9 @@ namespace dmDDF
 
         void     SetScalar(const FieldDescriptor* field, const void* buffer, int buffer_size);
         void*    AddScalar(const FieldDescriptor* field, const void* buffer, int buffer_size);
-        void*    AddMessage(const FieldDescriptor* field);
-        void     AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size);
-        void     SetRepeatedBuffer(const FieldDescriptor* field, void* buffer);
+        void*    AddMessage(LoadContext* load_context, const FieldDescriptor* field);
+        void     AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size, uint32_t hash);
+        void     SetRepeatedBuffer(const FieldDescriptor* field, void* buffer, uint32_t hash);
         void     SetString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     AddString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     SetBytes(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);

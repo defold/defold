@@ -61,22 +61,31 @@ namespace dmDDF
         Type type = (Type) field_desc->m_Type;
 
         m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
-        int element_size = 0;
+        int data_size_to_set = 0;
+
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
-            element_size = field_desc->m_MessageDescriptor->m_Size;
+            if (data_size)
+            {
+                data_size_to_set = data_size;
+            }
+            else
+            {
+                data_size_to_set = field_desc->m_MessageDescriptor->m_Size * count;
+            }
         }
         else if ( field_desc->m_Type == TYPE_STRING )
         {
-            element_size = sizeof(const char*);
+            data_size_to_set = sizeof(const char*) * count;
         }
         else
         {
-            element_size = ScalarTypeSize(type);
+            data_size_to_set = ScalarTypeSize(type) * count;
         }
 
         uintptr_t b = m_Current;
-        m_Current += count * element_size;
+        // m_Current += count * element_size;
+        m_Current += data_size_to_set;
         assert(m_DryRun || m_Current <= m_End);
         return (void*) b;
     }
@@ -85,7 +94,7 @@ namespace dmDDF
     {
         uintptr_t b = m_Current;
 
-        dmLogInfo("AllocString: length=%d, m_Current=%d, m_End=%d\n", length, m_Current, m_End);
+        dmLogInfo("AllocString: length=%d, m_Current=%d, m_End=%d\n", length, (uint32_t) m_Current, (uint32_t) m_End);
 
         m_Current += length;
 
@@ -125,6 +134,18 @@ namespace dmDDF
         }
     }
 
+    static void IterateCallback(uint32_t* total_size, const uint32_t* key, LoadContext::ArrayInfo* value)
+    {
+        *total_size += value->m_ElementSizesTotal;
+    }
+
+    uint32_t LoadContext::CalculateDynamicTypeMemorySize()
+    {
+        uint32_t total = 0;
+        m_ArrayInfo.Iterate(IterateCallback, &total);
+        return total;
+    }
+
     int LoadContext::GetMemoryUsage()
     {
         return (int) (m_Current - m_Start);
@@ -149,13 +170,50 @@ namespace dmDDF
             ArrayInfo new_info;
             new_info.m_Count    = 1;
             new_info.m_DataSize = 0;
+            new_info.m_ElementSizes = 0;
+            new_info.m_ElementSizesTotal = 0;
             m_ArrayInfo.Put(hash, new_info);
         }
 
         return hash;
     }
 
-    void LoadContext::GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size)
+    uint32_t LoadContext::AddDynamicElementSize(uint32_t info_hash, uint32_t size)
+    {
+        ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
+        assert(info_ptr);
+
+        if (info_ptr->m_ElementSizes == 0)
+        {
+            info_ptr->m_ElementSizes = new dmArray<uint32_t>();
+            info_ptr->m_ElementSizes->SetCapacity(1);
+        }
+
+        if (info_ptr->m_ElementSizes->Full())
+        {
+            info_ptr->m_ElementSizes->OffsetCapacity(4);
+        }
+
+        // Automatically add into the running list of data offsets into the dynamic area
+        AddDynamicTypeOffset(info_ptr->m_ElementSizesTotal);
+
+        info_ptr->m_ElementSizes->Push(size);
+        info_ptr->m_ElementSizesTotal += size;
+
+        return info_ptr->m_ElementSizesTotal;
+    }
+
+    void* LoadContext::GetDynamicTypePointer(uint32_t offset)
+    {
+        return (void*)(m_Start + m_DynamicTypeOffset + offset);
+    }
+
+    void LoadContext::SetDynamicTypeBase(uint32_t offset)
+    {
+        m_DynamicTypeOffset = offset;
+    }
+
+    void LoadContext::GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size, uint32_t* hash_out)
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
@@ -165,11 +223,13 @@ namespace dmDDF
         {
             *count = 0;
             *data_size = 0;
+            *hash_out = 0;
         }
         else
         {
             *count = info_ptr->m_Count;
             *data_size = info_ptr->m_DataSize;
+            *hash_out = hash;
         }
     }
 
@@ -179,12 +239,21 @@ namespace dmDDF
         assert(info_ptr);
 
         uint32_t current_size = info_ptr->m_DataSize;
-
         info_ptr->m_DataSize += data_size;
+
+        info_ptr->m_ElementSizes->Push(data_size);
 
         dmLogInfo("IncreaseArrayDataSize: %d has size: %d", info_hash, info_ptr->m_DataSize);
 
-        return info_ptr->m_DataSize;
+        return current_size; // info_ptr->m_DataSize;
+    }
+
+    uint32_t LoadContext::GetArrayElementSize(uint32_t info_hash, uint32_t index)
+    {
+        ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
+        assert(info_ptr);
+
+        return (*info_ptr->m_ElementSizes)[index];
     }
 
     void LoadContext::AddDynamicTypeOffset(uint32_t offset)

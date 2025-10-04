@@ -40,12 +40,18 @@ namespace dmDDF
         int         GetMemoryUsage();
 
         uint32_t    IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
-        void        GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size);
+        void        GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size, uint32_t* hash_out);
         uint32_t    IncreaseArrayDataSize(uint32_t info_hash, uint32_t data_size);
+        uint32_t    GetArrayElementSize(uint32_t info_hash, uint32_t index);
 
         void        AddDynamicTypeOffset(uint32_t offset);
         uint32_t    NextDynamicTypeOffset();
         void        ResetDynamicOffsetCursor();
+
+        uint32_t    AddDynamicElementSize(uint32_t info_hash, uint32_t element_size);
+        uint32_t    CalculateDynamicTypeMemorySize();
+        void*       GetDynamicTypePointer(uint32_t offset);
+        void        SetDynamicTypeBase(uint32_t offset);
 
         inline uint32_t GetOptions()
         {
@@ -57,11 +63,13 @@ namespace dmDDF
             return m_DryRun;
         }
 
-    private:
+    //private:
         struct ArrayInfo
         {
-            uint32_t m_Count;
-            uint32_t m_DataSize;
+            uint32_t           m_Count;
+            uint32_t           m_DataSize;
+            dmArray<uint32_t>* m_ElementSizes;
+            uint32_t           m_ElementSizesTotal;
         };
 
         dmHashTable32<ArrayInfo> m_ArrayInfo;
@@ -74,6 +82,7 @@ namespace dmDDF
         bool        m_DryRun;
         uint32_t    m_Options;
         uint32_t    m_OffsetCursor;
+        uint32_t    m_DynamicTypeOffset;
     };
 }
 
