@@ -1,3 +1,8 @@
+if(DEFINED DEFOLD_FUNCTIONS_CMAKE_INCLUDED)
+    return()
+endif()
+set(DEFOLD_FUNCTIONS_CMAKE_INCLUDED ON CACHE INTERNAL "functions.cmake include guard")
+
 message(DEBUG "functions.cmake:")
 
 # Remember where the Defold CMake modules live (scripts/cmake)
@@ -100,4 +105,3 @@ include(functions_opengl)
 include(functions_platform)
 include(functions_protoc)
 include(functions_test)
-

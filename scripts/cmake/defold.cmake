@@ -1,3 +1,8 @@
+if(DEFINED DEFOLD_CMAKE_INCLUDED)
+  return()
+endif()
+set(DEFOLD_CMAKE_INCLUDED ON CACHE INTERNAL "defold.cmake include guard")
+
 message(DEBUG "defold.cmake:")
 
 # Require CMake 4.x in projects that include these modules
@@ -22,6 +27,38 @@ endif()
 
 #include helper functions (e.g. defold_log)
 include(functions)
+
+# Prime Release-like flag variables before CMake enables the toolchains so
+# /DNDEBUG or -DNDEBUG never sneak into optimised builds. We update both the
+# cached values and their *_INIT counterparts; the post-project hook keeps a
+# second layer of defence after project() runs.
+set(_DEFOLD_OPT_CONFIGS Release RelWithDebInfo MinSizeRel)
+foreach(_cfg IN LISTS _DEFOLD_OPT_CONFIGS)
+  string(TOUPPER "${_cfg}" _CFG_UP)
+  foreach(_lang C CXX)
+    set(_cache_var "CMAKE_${_lang}_FLAGS_${_CFG_UP}")
+    set(_init_var  "CMAKE_${_lang}_FLAGS_${_CFG_UP}_INIT")
+
+    set(_flags "")
+    if(DEFINED ${_cache_var})
+      set(_flags "${${_cache_var}}")
+    elseif(DEFINED ${_init_var})
+      set(_flags "${${_init_var}}")
+    endif()
+
+    set(${_cache_var} "${_flags}" CACHE STRING "${_cache_var}" FORCE)
+    set(${_init_var} "${_flags}")
+  endforeach()
+endforeach()
+
+# Arrange for a post-project hook that scrubs /DNDEBUG/-DNDEBUG from the
+# optimised configuration flags after CMake has enabled the language
+# toolchains. This keeps asserts enabled in Release/RelWithDebInfo/MinSizeRel
+# builds.
+if(NOT DEFINED CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
+  set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES "")
+endif()
+list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
 
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
@@ -97,22 +134,6 @@ target_include_directories(defold_sdk SYSTEM INTERFACE
   ${_DEFOLD_PLATFORM_INCLUDE_DIRS})
 # Library search directories
 target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
-
-# Remove -DNDEBUG or /DNDEBUG from Release-like configs to keep asserts if desired
-set(_DEFOLD_CFGS Release RelWithDebInfo MinSizeRel)
-foreach(_cfg IN LISTS _DEFOLD_CFGS)
-  string(TOUPPER "${_cfg}" _CFG_UP)
-  foreach(_lang C CXX)
-    set(_var "CMAKE_${_lang}_FLAGS_${_CFG_UP}")
-    if(DEFINED ${_var})
-      set(_flags "${${_var}}")
-      string(REPLACE "-DNDEBUG" "" _flags "${_flags}")
-      string(REPLACE "/DNDEBUG" "" _flags "${_flags}")
-      string(REGEX REPLACE "  +" " " _flags "${_flags}")
-      set(${_var} "${_flags}" CACHE STRING "${_var}" FORCE)
-    endif()
-  endforeach()
-endforeach()
 
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)

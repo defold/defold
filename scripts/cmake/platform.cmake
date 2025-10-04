@@ -1,3 +1,8 @@
+if(DEFINED DEFOLD_PLATFORM_CMAKE_INCLUDED)
+    return()
+endif()
+set(DEFOLD_PLATFORM_CMAKE_INCLUDED ON CACHE INTERNAL "platform.cmake include guard")
+
 defold_log("platform.cmake:")
 
 # Detect host OS/arch and compute HOST_PLATFORM
@@ -15,6 +20,9 @@ endif()
 
 defold_log("TARGET_PLATFORM: ${TARGET_PLATFORM}")
 
+# Include the sdk
+include(sdk)
+
 # Global empty target to aggregate test build dependencies across subprojects
 if(NOT TARGET build_tests)
   add_custom_target(build_tests)
@@ -29,9 +37,6 @@ target_compile_features(defold_sdk INTERFACE cxx_std_11)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
-
-# Platform specific options
-include(sdk)
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
         include(platform_macos)
@@ -66,20 +71,9 @@ endif()
 #**************************************************************************
 # Common flags
 
-set(_MSVC_SYNTAX OFF)
-# Treat MSVC or clang-cl (Clang with MSVC frontend) as MSVC syntax
-if(MSVC OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"))
-    set(_MSVC_SYNTAX ON)
-endif()
-
-# Treat clang-cl as MSVC-like on Windows
-if(_MSVC_SYNTAX)
+if(MSVC_CL)
     # Disable RTTI; don't force /EH to avoid changing exception model globally
     target_compile_options(defold_sdk INTERFACE /GR- /W3)
-    # If clang-cl, enable color diagnostics for nicer output
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(defold_sdk INTERFACE -fdiagnostics-color)
-    endif()
 else()
     # Apply per-language flags via target options
     target_compile_options(defold_sdk INTERFACE
@@ -97,27 +91,18 @@ endif()
 #**************************************************************************
 # Optimization flags (after platform detection)
 
-if(_MSVC_SYNTAX)
+set(_DEFOLD_OPT_CONFIG_EXPR "$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>")
+
+if(MSVC_CL)
     # Optimization flags scoped to targets using defold_sdk
     target_compile_options(defold_sdk INTERFACE
-        $<$<CONFIG:Release>:/O2>
-        $<$<NOT:$<CONFIG:Release>>:/Od>)
+        "$<${_DEFOLD_OPT_CONFIG_EXPR}:/O2>"
+        "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:/Od>")
 else()
     target_compile_options(defold_sdk INTERFACE
-        $<$<CONFIG:Release>:-O3>
-        $<$<NOT:$<CONFIG:Release>>:-O0>)
+        "$<${_DEFOLD_OPT_CONFIG_EXPR}:-O3>"
+        "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
 endif()
-
-#**************************************************************************
-# WIP: Workaround since we've been using a non-standard way of naming windows libraries with "lib" prefix
-# Goal is to not use that prefix at all.
-set(defold_libprefix "")
-if (TARGET_PLATFORM MATCHES "x86_64-win32|x86-win32")
-    set(defold_libprefix "lib")
-endif()
-
-# message(STATUS "CFLAGS: ${CMAKE_C_FLAGS}")
-# message(STATUS "CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
 defold_log("CC: ${CMAKE_C_COMPILER}")
 defold_log("CXX: ${CMAKE_CXX_COMPILER}")

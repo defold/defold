@@ -1,3 +1,8 @@
+if(DEFINED DEFOLD_PLATFORM_HOST_CMAKE_INCLUDED)
+  return()
+endif()
+set(DEFOLD_PLATFORM_HOST_CMAKE_INCLUDED ON CACHE INTERNAL "platform_host.cmake include guard")
+
 defold_log("platform_host.cmake:")
 
 # Robust host OS and architecture detection

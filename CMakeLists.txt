@@ -5,11 +5,7 @@ cmake_minimum_required(VERSION 4.0)
 # Set module path and run SDK detection early so toolchains (e.g., Emscripten)
 # can set CMAKE_TOOLCHAIN_FILE before compilers are enabled by project().
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/scripts/cmake")
-include(functions)
-
-# Detect toolchains early so the correct compilers are selected before project()
-# This is crucial for Android where the NDK toolchain must be active up-front.
-include(sdk)
+include(defold)
 
 # we rename this project in build.py when we generate the solution
 project(defold_libraries LANGUAGES C CXX)
