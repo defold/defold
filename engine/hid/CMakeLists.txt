@@ -24,12 +24,12 @@ if (NOT TARGET_PLATFORM MATCHES "x86_64-ps4|x86_64-ps5|arm64-nx64")
     list(APPEND hid_SOURCES "${HID_SRC_DIR}/native/hid_gamepad_driver_glfw.cpp")
 endif()
 
-add_library(hid STATIC ${hid_SOURCES})
+defold_add_library(hid STATIC ${hid_SOURCES})
 target_compile_definitions(hid PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
 
 target_include_directories(hid PUBLIC "${HID_SRC_DIR}") # for dmsdk/hid and local headers
 
-add_library(hid_null STATIC
+defold_add_library(hid_null STATIC
     "${HID_SRC_DIR}/hid.cpp"
     "${HID_SRC_DIR}/hid_null.cpp"
 )
@@ -41,12 +41,12 @@ target_compile_definitions(hid_null PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
 
 if(BUILD_TESTS)
     # test_hid uses jc_test and links against Defold support libs
-    add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
+    defold_add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
 
-    target_link_libraries(test_hid PRIVATE
-        ${defold_libprefix}dlib
-        ${defold_libprefix}profile_null
-        ${defold_libprefix}testmain
+    defold_target_link_libraries(test_hid "${TARGET_PLATFORM}" PRIVATE
+        dlib
+        profile_null
+        testmain
         platform_null
         hid_null
     )
@@ -70,7 +70,7 @@ if(BUILD_TESTS)
 
     defold_create_exported_symbols_file("${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp" "${EXPORTED_SYMBOLS}")
 
-    add_executable(test_app_hid
+    defold_add_executable(test_app_hid
         "${HID_SRC_DIR}/test/test_app_hid.cpp"
         "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp"
     )
@@ -92,9 +92,9 @@ if(BUILD_TESTS)
         target_link_libraries(test_app_hid PRIVATE Threads::Threads dl)
     endif()
 
-    target_link_libraries(test_app_hid PRIVATE
-        ${defold_libprefix}dlib
-        ${defold_libprefix}profile_null
+    defold_target_link_libraries(test_app_hid "${TARGET_PLATFORM}" PRIVATE
+        dlib
+        profile_null
         hid
     )
 

@@ -1,5 +1,8 @@
 defold_log("sdk_xcode.cmake:")
 
+# Disable requirement of having code signed executables when generating solutions
+set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+
 # Detect packaged or local Xcode toolchain and set compilers (clang/clang++)
 
 set(_XCODE_TOOLCHAIN "")

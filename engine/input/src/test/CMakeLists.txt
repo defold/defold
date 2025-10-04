@@ -49,7 +49,7 @@ defold_protoc_encode(
 #===========================================================================
 
 # Build the input test executable
-add_executable(test_input "${CMAKE_CURRENT_LIST_DIR}/test_input.cpp")
+defold_add_executable(test_input "${CMAKE_CURRENT_LIST_DIR}/test_input.cpp")
 
 # make sure the test data is built
 add_custom_target(input_test_data DEPENDS
@@ -66,12 +66,12 @@ target_include_directories(test_input PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}/../../"
 )
 
-target_link_libraries(test_input PRIVATE
-    ${defold_libprefix}dlib
-    ${defold_libprefix}mbedtls
-    ${defold_libprefix}ddf
-    ${defold_libprefix}profile_null
-    ${defold_libprefix}testmain
+defold_target_link_libraries(test_input "${TARGET_PLATFORM}" PRIVATE
+    dlib
+    mbedtls
+    ddf
+    profile_null
+    testmain
     hid_null
     input
 )

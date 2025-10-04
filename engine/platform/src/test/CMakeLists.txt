@@ -7,17 +7,18 @@ include(defold)
 project(defold_platform_tests LANGUAGES C CXX)
 
 # test_platform (unit tests using null backend)
-add_executable(test_platform
+defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp")
 
 # Include the platform src directory for headers
 target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
 
-target_link_libraries(test_platform PRIVATE
-    ${defold_libprefix}dlib
-    ${defold_libprefix}profile_null
-    ${defold_libprefix}testmain
-    platform_null)
+defold_target_link_libraries(test_platform "${TARGET_PLATFORM}" PRIVATE
+    dlib
+    profile_null
+    testmain
+    platform_null
+)
 
 defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
@@ -34,7 +35,7 @@ defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
 
-    add_executable(test_platform_app
+    defold_add_executable(test_platform_app
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp")
 
     # Include the platform src directory for headers
@@ -53,9 +54,10 @@ if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
         target_link_libraries(test_platform_app PRIVATE Threads::Threads dl)
     endif()
 
-    target_link_libraries(test_platform_app PRIVATE
-        ${defold_libprefix}dlib
-        ${defold_libprefix}profile_null)
+    defold_target_link_libraries(test_platform_app "${TARGET_PLATFORM}" PRIVATE
+        dlib
+        profile_null
+    )
 
     defold_target_link_opengl(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_glfw(test_platform_app "${TARGET_PLATFORM}" PRIVATE)

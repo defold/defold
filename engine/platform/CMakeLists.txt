@@ -32,7 +32,7 @@ else()
 endif()
 
 # platform
-add_library(platform STATIC ${_platform_glfw_sources})
+defold_add_library(platform STATIC ${_platform_glfw_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}")
 target_compile_definitions(platform PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
@@ -41,7 +41,7 @@ if (_GLFW_VERSION EQUAL 3)
 endif()
 
 # platform_null
-add_library(platform_null STATIC "${PLAT_SRC_DIR}/platform_window_null.cpp")
+defold_add_library(platform_null STATIC "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}")
 target_compile_definitions(platform_null PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
@@ -49,7 +49,7 @@ target_compile_definitions(platform_null PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 if (_GLFW_VERSION EQUAL 3)
     set(_platform_vulkan_sources ${_platform_glfw_sources} "${PLAT_SRC_DIR}/platform_window_glfw3_vulkan.cpp")
     list(REMOVE_DUPLICATES _platform_vulkan_sources)
-    add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
+    defold_add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
     target_include_directories(platform_vulkan PUBLIC "${PLAT_SRC_DIR}")
     target_compile_definitions(platform_vulkan PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 endif()
