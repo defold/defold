@@ -43,7 +43,7 @@ if(BUILD_TESTS)
     # test_hid uses jc_test and links against Defold support libs
     defold_add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
 
-    defold_target_link_libraries(test_hid "${TARGET_PLATFORM}" PRIVATE
+    defold_target_link_libraries(test_hid "${TARGET_PLATFORM}"
         dlib
         profile_null
         testmain
@@ -92,7 +92,7 @@ if(BUILD_TESTS)
         target_link_libraries(test_app_hid PRIVATE Threads::Threads dl)
     endif()
 
-    defold_target_link_libraries(test_app_hid "${TARGET_PLATFORM}" PRIVATE
+    defold_target_link_libraries(test_app_hid "${TARGET_PLATFORM}"
         dlib
         profile_null
         hid

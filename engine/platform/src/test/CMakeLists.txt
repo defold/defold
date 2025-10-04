@@ -13,7 +13,7 @@ defold_add_executable(test_platform
 # Include the platform src directory for headers
 target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
 
-defold_target_link_libraries(test_platform "${TARGET_PLATFORM}" PRIVATE
+defold_target_link_libraries(test_platform "${TARGET_PLATFORM}"
     dlib
     profile_null
     testmain
@@ -54,7 +54,7 @@ if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
         target_link_libraries(test_platform_app PRIVATE Threads::Threads dl)
     endif()
 
-    defold_target_link_libraries(test_platform_app "${TARGET_PLATFORM}" PRIVATE
+    defold_target_link_libraries(test_platform_app "${TARGET_PLATFORM}"
         dlib
         profile_null
     )

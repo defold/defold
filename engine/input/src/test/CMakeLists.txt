@@ -66,7 +66,7 @@ target_include_directories(test_input PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}/../../"
 )
 
-defold_target_link_libraries(test_input "${TARGET_PLATFORM}" PRIVATE
+defold_target_link_libraries(test_input "${TARGET_PLATFORM}"
     dlib
     mbedtls
     ddf
