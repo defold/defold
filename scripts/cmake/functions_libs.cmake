@@ -122,18 +122,6 @@ function(defold_add_executable target)
   if(COMMAND defold_attach_local_include)
     defold_attach_local_include(${target})
   endif()
-
-  # Ensure the grouping helper is available, then group sources by folder
-  if(NOT COMMAND GroupSourcesByFolder)
-    if(DEFINED DEFOLD_CMAKE_DIR AND EXISTS "${DEFOLD_CMAKE_DIR}/external/GroupSourcesByFolder.cmake")
-      include("${DEFOLD_CMAKE_DIR}/external/GroupSourcesByFolder")
-    else()
-      include(external/GroupSourcesByFolder)
-    endif()
-  endif()
-  if(COMMAND GroupSourcesByFolder AND TARGET ${target})
-    GroupSourcesByFolder(${target})
-  endif()
 endfunction()
 
 # Link Emscripten JS libraries for web platforms only.
@@ -189,17 +177,5 @@ function(defold_add_library target)
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)
     defold_attach_local_include(${target})
-  endif()
-
-  # Ensure the grouping helper is available, then group sources by folder
-  if(NOT COMMAND GroupSourcesByFolder)
-    if(DEFINED DEFOLD_CMAKE_DIR AND EXISTS "${DEFOLD_CMAKE_DIR}/external/GroupSourcesByFolder.cmake")
-      include("${DEFOLD_CMAKE_DIR}/external/GroupSourcesByFolder")
-    else()
-      include(external/GroupSourcesByFolder)
-    endif()
-  endif()
-  if(COMMAND GroupSourcesByFolder AND TARGET ${target})
-    GroupSourcesByFolder(${target})
   endif()
 endfunction()
