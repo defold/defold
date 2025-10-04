@@ -1752,8 +1752,8 @@ def detect(conf):
     if host_platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
-        bindirs = [build_util.get_dynamo_ext('bin', build_util.get_target_platform())]
-        conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
+    bindirs = [build_util.get_dynamo_ext('bin', host_platform)]
+    conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
 
     target_os = build_util.get_target_os()
     conf.env['TARGET_OS'] = target_os
