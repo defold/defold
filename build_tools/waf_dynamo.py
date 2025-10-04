@@ -1741,16 +1741,19 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
 
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
+
     if platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
 
     if host_platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
-    try:
-        build_util = create_build_utility(conf.env)
-    except BuildUtilityException as ex:
-        conf.fatal(ex.msg)
+        bindirs = [build_util.get_dynamo_ext('bin', build_util.get_target_platform())]
+        conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
 
     target_os = build_util.get_target_os()
     conf.env['TARGET_OS'] = target_os
