@@ -1528,13 +1528,36 @@ class Configuration(object):
         build_test = 'build_tests' if build_tests else ''
         install = 'install'
 
+        # ***************************************************************************************
         # generate the build script
+        log_cmd_config = f'CMake configure {lib}'
+        self.build_tracker.start_command(log_cmd_config)
+
         cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
+        self.build_tracker.end_command(log_cmd_config)
+
+        # ***************************************************************************************
         # execute the build
+        log_cmd_build = f'Ninja build {lib} {build_test} {test}'
+        self.build_tracker.start_command(log_cmd_build)
+
         ninja_build_args = f"ninja all {build_test} {test} {install} {verbose}".split()
         run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+        self.build_tracker.end_command(log_cmd_build)
+
+        # ***************************************************************************************
+        # run the build
+        if test:
+            log_cmd_tests = f'Ninja run_tests {lib} {build_test}'
+            self.build_tracker.start_command(log_cmd_tests)
+
+            ninja_build_args = f"ninja run_tests {install} {verbose}".split()
+            run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+            self.build_tracker.end_command(log_cmd_tests)
 
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
@@ -1597,6 +1620,17 @@ class Configuration(object):
         cmd = self._build_engine_cmd_waf(**self._get_build_flags())
         args = cmd.split()
         host = self.host
+
+        cmake_tests = []
+        cmake_tests = ['platform', 'hid', 'input']
+        #cmake_tests = ['input']
+        #cmake_tests = ['hid']
+        #cmake_tests = ['platform']
+        for lib in cmake_tests:
+            self._build_engine_lib(args, lib, target_platform)
+        if cmake_tests:
+            print("EARLY OUT!")
+            return
 
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
