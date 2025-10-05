@@ -1540,10 +1540,10 @@ class Configuration(object):
 
         # ***************************************************************************************
         # execute the build
-        log_cmd_build = f'Ninja build {lib} {build_test} {test}'
+        log_cmd_build = f'Ninja build {lib} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
-        ninja_build_args = f"ninja all {build_test} {test} {install} {verbose}".split()
+        ninja_build_args = f"ninja all {build_test} {install} {verbose}".split()
         run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
         self.build_tracker.end_command(log_cmd_build)
