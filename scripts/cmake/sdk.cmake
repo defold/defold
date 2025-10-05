@@ -22,15 +22,15 @@ if(NOT DEFINED DEFOLD_SDK_ROOT)
     endif()
 endif()
 
-# NOTE: Minimum iOS-version is also specified in Info.plist-files
-# (MinimumOSVersion and perhaps DTPlatformVersion)
-set(SDK_VERSION_IPHONEOS_MIN "11.0")
-set(SDK_VERSION_MACOSX_MIN "10.15")
-
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos|arm64-ios|x86_64-ios")
-    # Try to detect packaged toolchains (e.g. Xcode) inside DEFOLD_SDK_ROOT
+    # NOTE: Minimum iOS-version is also specified in Info.plist-files
+    # (MinimumOSVersion and perhaps DTPlatformVersion)
+    defold_set_from_sdk_py(SOURCE VERSION_IPHONEOS_MIN TARGET SDK_VERSION_IPHONEOS_MIN)
+    defold_set_from_sdk_py(SOURCE VERSION_MACOSX_MIN  TARGET SDK_VERSION_MACOSX_MIN)
     include(sdk_xcode)
 elseif (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    defold_set_from_sdk_py(SOURCE ANDROID_64_NDK_API_VERSION TARGET SDK_VERSION_ANDROID_ARM64_API_LEVEL)
+    defold_set_from_sdk_py(SOURCE ANDROID_NDK_API_VERSION  TARGET SDK_VERSION_ANDROID_ARMV7_API_LEVEL)
     include(sdk_android)
 elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
     include(sdk_linux)
