@@ -27,7 +27,7 @@ target_compile_options(defold_sdk INTERFACE
   -mmacosx-version-min=${SDK_VERSION_MACOSX_MIN}
   -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19)
 
-if(CMAKE_CXX_COMPILER)
+if(_XCODE_TOOLCHAIN)
   # Add libc++ include dir and disable default stdlib includes for C++
   target_compile_options(defold_sdk INTERFACE
     $<$<COMPILE_LANGUAGE:CXX>:-isystem>
