@@ -1551,10 +1551,10 @@ class Configuration(object):
         # ***************************************************************************************
         # run the build
         if test:
-            log_cmd_tests = f'Ninja run_tests {lib} {build_test}'
+            log_cmd_tests = f'Ninja run_tests {lib}'
             self.build_tracker.start_command(log_cmd_tests)
 
-            ninja_build_args = f"ninja run_tests {install} {verbose}".split()
+            ninja_build_args = f"ninja run_tests {verbose}".split()
             run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
             self.build_tracker.end_command(log_cmd_tests)
