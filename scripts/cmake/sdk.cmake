@@ -40,8 +40,6 @@ elseif (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web")
     include(sdk_emscripten)
 else()
     message(FATAL "Unsupported platform: ${TARGET_PLATFORM}")
-    set(CMAKE_C_COMPILER "clang")
-    set(CMAKE_CXX_COMPILER "clang++")
 endif()
 
 set(DEFOLD_SDK_DETECTED ON CACHE INTERNAL "Defold SDK/toolchain detection has run")

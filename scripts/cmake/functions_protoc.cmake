@@ -170,18 +170,10 @@ function(defold_protoc_encode OUT_FILE SRC_FILE SCHEMA_PROTO MESSAGE_NAME)
 
     # Build shell command to pipe input into protoc --encode and write output
     # Cross-platform handling for input/output redirection
-    if(WIN32)
-        # Convert paths to native form and quote them for cmd.exe
-        file(TO_NATIVE_PATH "${_src_abs}" _src_native)
-        file(TO_NATIVE_PATH "${_schema_abs}" _schema_native)
-        file(TO_NATIVE_PATH "${_out_abs}" _out_native)
 
-    else()
-        file(TO_NATIVE_PATH "${_src_abs}" _src_native)
-        file(TO_NATIVE_PATH "${_schema_abs}" _schema_native)
-        file(TO_NATIVE_PATH "${_out_abs}" _out_native)
-
-    endif()
+    file(TO_NATIVE_PATH "${_src_abs}" _src_native)
+    file(TO_NATIVE_PATH "${_schema_abs}" _schema_native)
+    file(TO_NATIVE_PATH "${_out_abs}" _out_native)
 
     set(_PROTOC_BIN protoc)
     if(DEFINED DEFOLD_PROTOC_EXECUTABLE AND EXISTS "${DEFOLD_PROTOC_EXECUTABLE}")

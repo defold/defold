@@ -35,7 +35,7 @@ endif()
 target_compile_features(defold_sdk INTERFACE cxx_std_11)
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
