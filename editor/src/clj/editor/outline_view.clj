@@ -639,7 +639,7 @@
                          (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
                        (proxy-super setGraphic pane)
                        (when-let [[r g b a] color]
-                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
+                         (.setStyle text-label (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))
