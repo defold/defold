@@ -437,6 +437,8 @@ static void JobThread(void* _ctx)
 
 static void ProcessFinishedJobs(HContext context, jc::RingBuffer<HJob>& items)
 {
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
+
     // Lock should already be acquired
     JobThreadContext* ctx = &context->m_ThreadContext;
 
