@@ -47,9 +47,9 @@ struct JobItem
     uint64_t    m_TimeCreated;  // to help sorting, and avoid starvation
     int32_t     m_Result;       // The result after processing
     uint32_t    m_Generation;   // Used to detect old handles
-    HJob        m_Parent;       // We can only have one parent task (no parent == INVALID_INDEX)
-    HJob        m_Sibling;      // Index to the next sibling (or INVALID_INDEX)
-    HJob        m_FirstChild;   // Index to the first child (or INVALID_INDEX)
+    HJob        m_Parent;       // We can only have one parent task (no parent == INVALID_JOB)
+    HJob        m_Sibling;      // Index to the next sibling (or INVALID_JOB)
+    HJob        m_FirstChild;   // Index to the first child (or INVALID_JOB)
 
     // Run this task only after the children have all completed
     int32_atomic_t  m_NumChildren;
@@ -320,7 +320,7 @@ static void PutWork(JobThreadContext* ctx, HJob job)
 
     item.m_Status = JOB_STATUS_QUEUED;
 
-    if (item.m_Parent)
+    if (item.m_Parent != INVALID_JOB)
     {
         JobItem* parent = GetJobItem(ctx, item.m_Parent);
         // Current limitation, the caller must push the parent jobs last
@@ -348,7 +348,7 @@ static void PutDone(JobThreadContext* ctx, HJob job, JobStatus status, int resul
     item.m_Status = status;
     item.m_Result = result;
 
-    if (item.m_Parent != INVALID_INDEX)
+    if (item.m_Parent != INVALID_JOB)
     {
         JobItem& parent = ctx->m_Items.Get(item.m_Parent);
         dmAtomicIncrement32(&parent.m_NumChildrenCompleted);
@@ -375,14 +375,20 @@ static void ProcessOneJob(JobThreadContext* ctx, HJob hjob)
     uint32_t generation = ToGeneration(hjob);
     uint32_t index      = ToIndex(hjob);
 
-    DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
+    Job job;
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
 
-    JobItem& item = ctx->m_Items.Get(index);
-    assert(item.m_Generation == generation);
-    assert(item.m_Status == JOB_STATUS_QUEUED);
-    item.m_Status = JOB_STATUS_PROCESSING;
+        JobItem& item = ctx->m_Items.Get(index);
+        assert(item.m_Generation == generation);
+        assert(item.m_Status == JOB_STATUS_QUEUED);
+        item.m_Status = JOB_STATUS_PROCESSING;
 
-    Job& job = item.m_Job;
+        job = item.m_Job;
+
+    }
+
+    // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
     int result = job.m_Process(hjob, job.m_Tag, job.m_Context, job.m_Data);
 
     PutDone(ctx, hjob, JOB_STATUS_FINISHED, result);
@@ -437,8 +443,6 @@ static void JobThread(void* _ctx)
 
 static void ProcessFinishedJobs(HContext context, jc::RingBuffer<HJob>& items)
 {
-    DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
-
     // Lock should already be acquired
     JobThreadContext* ctx = &context->m_ThreadContext;
 
@@ -455,8 +459,13 @@ static void ProcessFinishedJobs(HContext context, jc::RingBuffer<HJob>& items)
 
         Job& job = item->m_Job;
         if (job.m_Callback)
+        {
+            // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
+            // (this is generally on the main thread which is less problematic, but still)
             job.m_Callback(hjob, job.m_Tag, job.m_Context, job.m_Data, item->m_Result);
+        }
 
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
         FreeJob(ctx, hjob);
     }
 }
