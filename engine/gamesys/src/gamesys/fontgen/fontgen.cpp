@@ -309,7 +309,7 @@ static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* conte
         char msg[256];
         dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c' 0x%04X", codepoint, codepoint);
         SetFailedStatus(item, msg);
-        InvokeCallback(item);
+        InvokeCallback(job, tag, item);
         DeleteItem(ctx, item);
         return;
     }
@@ -324,7 +324,7 @@ static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* conte
         SetFailedStatus(item, msg);
     }
 
-    InvokeCallback(item); // reports either first error, or success
+    InvokeCallback(job, tag, item); // reports either first error, or success
     DeleteItem(ctx, item);
 }
 
