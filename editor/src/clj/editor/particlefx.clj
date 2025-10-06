@@ -1213,10 +1213,11 @@
                                         (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
            (when (not user-data)
-             (mapv (fn [[type data]] {:label (:label data)
-                                      :icon emitter-icon
-                                      :command :edit.add-embedded-component
-                                      :user-data {:emitter-type type}})
+             (mapv (fn [[type data]]
+                     {:label (:label data)
+                      :icon emitter-icon
+                      :command :edit.add-embedded-component
+                      :user-data {:emitter-type type}})
                    emitter-types))))
 
 

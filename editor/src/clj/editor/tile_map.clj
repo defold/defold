@@ -28,8 +28,8 @@
             [editor.graph-util :as gu]
             [editor.grid :as grid]
             [editor.handler :as handler]
-            [editor.localization :as localization]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -42,8 +42,7 @@
             [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [internal.graph.types :as gt])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
