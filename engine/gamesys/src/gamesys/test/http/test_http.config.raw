@@ -1,4 +1,5 @@
 [foo]
 value=123
+boolean=1
 [network]
 http_timeout = 0
