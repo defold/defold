@@ -1892,12 +1892,25 @@ class Configuration(object):
         self.check_python()
         print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
-        args = [SHELL, '-l']
+        # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
+        # or user startup files (Homebrew shellenv), which can shadow our tools.
+        # To ensure our PATH takes precedence, start a login shell, then
+        # immediately re-export our PATH and exec an interactive shell.
+        env = self._form_env()
+
+        # Preserve our computed PATH in a temp var that survives login init
+        env['DM_ENV_PATH'] = env['PATH']
+
+        # Build a command that restores our PATH after login files ran
+        # and then chains into an interactive shell
+        reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec %s -i' % SHELL
+
+        args = [SHELL, '-l', '-c', reexport_cmd]
 
         if os.path.exists("/nix"):
             args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
 
-        process = subprocess.Popen(args, env=self._form_env())
+        process = subprocess.Popen(args, env=env)
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:
