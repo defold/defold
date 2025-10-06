@@ -618,9 +618,17 @@ search.overrides.title.list = Переопределения {count, plural, one
 search.overrides.title.specific = Переопределения отдельных свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
 search.column.resource = Ресурс
 
+# Menus
+
+menu.file = Файл
+menu.project = Проект
+menu.edit = Правка
+menu.debug = Отладка
+menu.view = Вид
+menu.help = Справка
+
 # Commands
 
-command.file = Файл
 command.file.new = Создать…
 command.file.new.option.any-file = Файл
 command.file.new.any-file = Новый файл
@@ -676,7 +684,6 @@ command.file.open-project = Открыть проект…
 command.file.open-shared-editor-settings = Общие настройки редактора
 command.app.preferences = Настройки…
 command.app.quit = Выйти
-command.project = Проект
 command.project.build = Собрать
 command.project.clean-build = Очистить и собрать
 command.project.build-html5 = Собрать HTML5
@@ -686,7 +693,6 @@ command.project.rebundle = Пересобрать бандл
 command.project.fetch-libraries = Загрузить библиотеки
 command.project.reload-editor-scripts = Перезагрузить скрипты редактора
 command.private.clear-override = Сбросить переопределение свойства {property}
-command.edit = Правка
 command.edit.undo = Отменить
 command.edit.redo = Повторить
 command.edit.add-embedded-component = Добавить
@@ -765,7 +771,6 @@ command.code.toggle-visible-whitespace = Пробельные символы
 command.code.zoom.increase = Увеличить размер шрифта
 command.code.zoom.decrease = Уменьшить размер шрифта
 command.code.zoom.reset = Сбросить размер шрифта
-command.debug = Отладка
 command.debugger.start = Запустить/Подключиться
 command.debugger.continue = Продолжить
 command.debugger.break = Пауза
@@ -800,7 +805,6 @@ command.scene.select-erase-tool = Выбрать ластик
 command.scene.flip-brush-horizontally = Отразить кисть по горизонтали
 command.scene.flip-brush-vertically = Отразить кисть по вертикали
 command.scene.rotate-brush-90-degrees = Повернуть кисть на 90 градусов
-command.view = Вид
 command.window.toggle-left-pane = Переключить панель ресурсов
 command.window.toggle-changed-files-pane = Переключить изменённые файлы
 command.window.toggle-bottom-pane = Переключить панель инструментов
@@ -809,7 +813,6 @@ command.window.show-console = Показать консоль
 command.window.show-curve-editor = Показать редактор кривых
 command.window.show-build-errors = Показать ошибки сборки
 command.window.show-search-results = Показать результаты поиска
-command.help = Справка
 command.dev.reload-css = Перезагрузить стили
 command.help.open-logs = Показать логи
 command.file.create-desktop-entry = Создать ярлык на рабочем столе

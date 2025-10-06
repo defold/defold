@@ -1127,7 +1127,7 @@
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/register-menu! ::menubar :editor.app-view/view
-  [{:label (localization/message "command.project")
+  [{:label (localization/message "menu.project")
     :id ::project
     :children [{:label (localization/message "command.project.build")
                 :command :project.build}

@@ -631,9 +631,17 @@ search.overrides.title.list = {list} Property Overrides of{qualifier, select, no
 search.overrides.title.specific = Specific Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
 search.column.resource = Resource
 
+# Menus
+
+menu.file = File
+menu.project = Project
+menu.edit = Edit
+menu.debug = Debug
+menu.view = View
+menu.help = Help
+
 # Commands
 
-command.file = File
 command.file.new = New…
 command.file.new.option.any-file = File
 command.file.new.any-file = New File
@@ -689,7 +697,6 @@ command.file.open-project = Open Project…
 command.file.open-shared-editor-settings = Shared Editor Settings
 command.app.preferences = Preferences…
 command.app.quit = Quit
-command.project = Project
 command.project.build = Build
 command.project.clean-build = Clean Build
 command.project.build-html5 = Build HTML5
@@ -699,7 +706,6 @@ command.project.rebundle = Rebundle
 command.project.fetch-libraries = Fetch Libraries
 command.project.reload-editor-scripts = Reload Editor Scripts
 command.private.clear-override = Clear {property} Override
-command.edit = Edit
 command.edit.undo = Undo
 command.edit.redo = Redo
 command.edit.add-embedded-component = Add
@@ -778,7 +784,6 @@ command.code.toggle-visible-whitespace = Visible Whitespace
 command.code.zoom.increase = Increase Font Size
 command.code.zoom.decrease = Decrease Font Size
 command.code.zoom.reset = Reset Font Size
-command.debug = Debug
 command.debugger.start = Start/Attach
 command.debugger.continue = Continue
 command.debugger.break = Break
@@ -813,7 +818,6 @@ command.scene.select-erase-tool = Select Eraser
 command.scene.flip-brush-horizontally = Flip Brush Horizontally
 command.scene.flip-brush-vertically = Flip Brush Vertically
 command.scene.rotate-brush-90-degrees = Rotate Brush 90 Degrees
-command.view = View
 command.window.toggle-left-pane = Toggle Assets Pane
 command.window.toggle-changed-files-pane = Toggle Changed Files
 command.window.toggle-bottom-pane = Toggle Tools Pane
@@ -822,7 +826,6 @@ command.window.show-console = Show Console
 command.window.show-curve-editor = Show Curve Editor
 command.window.show-build-errors = Show Build Errors
 command.window.show-search-results = Show Search Results
-command.help = Help
 command.dev.reload-css = Reload Stylesheet
 command.help.open-logs = Show Logs
 command.file.create-desktop-entry = Create Desktop Entry

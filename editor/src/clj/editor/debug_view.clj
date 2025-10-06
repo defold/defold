@@ -874,7 +874,7 @@
   (enabled? [] false))
 
 (handler/register-menu! ::menubar :editor.defold-project/project
-  [{:label (localization/message "command.debug")
+  [{:label (localization/message "menu.debug")
     :id ::debug
     :children [{:label (localization/message "command.debugger.start")
                 :command :debugger.start}

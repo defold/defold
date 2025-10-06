@@ -1716,7 +1716,7 @@
             (process/start! {:dir install-dir} (system/defold-launcherpath)))))
 
 (handler/register-menu! ::menubar
-  [{:label (localization/message "command.file")
+  [{:label (localization/message "menu.file")
     :id ::file
     :children [{:label (localization/message "command.file.new")
                 :id ::new
@@ -1764,7 +1764,7 @@
                 :command :app.preferences}
                {:label (localization/message "command.app.quit")
                 :command :app.quit}]}
-   {:label (localization/message "command.edit")
+   {:label (localization/message "menu.edit")
     :id ::edit
     :children [{:label (localization/message "command.edit.undo")
                 :icon "icons/undo.png"
@@ -1790,7 +1790,7 @@
                {:label (localization/message "command.edit.reorder-down")
                 :command :edit.reorder-down}
                (menu-items/separator-with-id ::edit-end)]}
-   {:label (localization/message "command.view")
+   {:label (localization/message "menu.view")
     :id ::view
     :children [{:label (localization/message "command.window.toggle-left-pane")
                 :command :window.toggle-left-pane}
@@ -1810,7 +1810,7 @@
                {:label (localization/message "command.window.show-search-results")
                 :command :window.show-search-results}
                (menu-items/separator-with-id ::view-end)]}
-   {:label (localization/message "command.help")
+   {:label (localization/message "menu.help")
     :children [{:label (localization/message "command.dev.reload-css")
                 :command :dev.reload-css}
                {:label (localization/message "command.help.open-logs")
