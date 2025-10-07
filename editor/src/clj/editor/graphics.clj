@@ -742,9 +742,6 @@
                       (assoc attribute-info :bytes attribute-bytes))))))
         material-attribute-infos))
 
-(defn contains-semantic-type? [attributes semantic-type]
-  (true? (some #(= semantic-type (:semantic-type %)) attributes)))
-
 (defn- attribute-property-type [attribute]
   (case (:semantic-type attribute)
     :semantic-type-color t/Color

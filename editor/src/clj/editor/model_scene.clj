@@ -22,7 +22,6 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.types :as gl.types]
-            [editor.gl.vertex2 :as vtx]
             [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
@@ -32,10 +31,8 @@
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene :as scene]
-            [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
-            [internal.graph.error-values :as error-values]
             [internal.util :as util]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
@@ -43,9 +40,8 @@
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
-           [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteOrder FloatBuffer]
-           [javax.vecmath Matrix4d Vector4d]))
+           [javax.vecmath Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -78,117 +74,9 @@
   (graphics/combined-attribute-infos (:attribute-reflection-infos selection-shader) nil :coordinate-space-local))
 
 (def ^:private selection-shader-id-color-attribute-location
-  (->> selection-shader ; TODO(instancing): Add helper function to shader module.
-       (:attribute-reflection-infos)
-       (some (fn [{:keys [name-key location]}]
-               (when (= :id-color name-key)
-                 location)))))
-
-(assert (graphics.types/location? selection-shader-id-color-attribute-location))
-
-;; TODO(instancing): Remove all of these.
-(vtx/defvertex id-vertex
-  (vec3 position)
-  (vec2 texcoord0))
-
-(shader/defshader id-vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader (shader/make-shader ::id-shader id-vertex-shader id-fragment-shader {"id" :id}))
-
-(defn- doubles->floats
-  ^floats [ds]
-  (float-array (map float ds)))
-
-(defn- bytes-to-indices
-  ^ints [^ByteString indices index-format]
-  (let [byte-buffer (.order (.asReadOnlyByteBuffer indices) ByteOrder/LITTLE_ENDIAN)
-
-        num-indices
-        (int (case index-format
-               :indexbuffer-format-16 (/ (.size indices) 2)
-               :indexbuffer-format-32 (/ (.size indices) 4)))
-
-        out-indices (int-array num-indices)]
-
-    (case index-format
-      :indexbuffer-format-16
-      (let [short-buffer (.asShortBuffer byte-buffer)]
-        (dotimes [i num-indices]
-          (aset out-indices i (int (num/ushort->long (.get short-buffer i))))))
-
-      :indexbuffer-format-32
-      (let [int-buffer (.asIntBuffer byte-buffer)]
-        (.get int-buffer out-indices)))
-
-    out-indices))
-
-(defn- flat->vectors [^long component-count interleaved-component-values]
-  (let [vectors (into []
-                      (coll/partition-all-primitives :double component-count)
-                      interleaved-component-values)]
-    ;; Return nil if the interleaved component values cannot be evenly
-    ;; partitioned into the desired component count.
-    (when (or (coll/empty? vectors)
-              (= component-count (count (peek vectors))))
-      vectors)))
-
-(defn- mesh->renderable-data [mesh]
-  (let [positions (flat->vectors 3 (:positions mesh))
-        normals (flat->vectors 3 (:normals mesh))
-        tangents (flat->vectors 4 (:tangents mesh))
-        colors (flat->vectors 4 (:colors mesh))
-        texcoord0s (flat->vectors (:num-texcoord0-components mesh 0) (:texcoord0 mesh))
-        texcoord1s (flat->vectors (:num-texcoord1-components mesh 0) (:texcoord1 mesh))
-        indices (bytes-to-indices (:indices mesh) (:indices-format mesh))
-        max-index (int (reduce max 0 indices))
-        positions-count (count positions)]
-    (if (and (some? positions)
-             (some? normals)
-             (some? tangents)
-             (some? colors)
-             (some? texcoord0s)
-             (some? texcoord1s)
-             (< max-index positions-count)
-             (or (coll/empty? normals)
-                 (= positions-count (count normals)))
-             (or (coll/empty? tangents)
-                 (= positions-count (count tangents)))
-             (or (coll/empty? colors)
-                 (= positions-count (count colors)))
-             (or (coll/empty? texcoord0s)
-                 (= positions-count (count texcoord0s)))
-             (or (coll/empty? texcoord1s)
-                 (= positions-count (count texcoord1s))))
-      (let [position-data (some-> positions not-empty (mapv indices))
-            normal-data (some-> normals not-empty (mapv indices))
-            tangent-data (some-> tangents not-empty (mapv indices))
-            color-data (some-> colors not-empty (mapv indices))
-            texcoord0-data (some-> texcoord0s not-empty (mapv indices))
-            texcoord1-data (some-> texcoord1s not-empty (mapv indices))
-            texcoord-datas (cond-> [(when texcoord0-data {:uv-data texcoord0-data})]
-                                   texcoord1-data (conj {:uv-data texcoord1-data}))]
-        (cond-> {:position-data position-data}
-                normal-data (assoc :normal-data normal-data)
-                tangent-data (assoc :tangent-data tangent-data)
-                color-data (assoc :color-data color-data)
-                (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
-      (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
+  (let [id-color-attribute-location (-> selection-shader :attribute-locations :id-color)]
+    (assert (graphics.types/location? id-color-attribute-location))
+    id-color-attribute-location))
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -268,8 +156,7 @@
         request-id (conj untransformed-buffer-request-id scene-node-id attribute-transform)]
     (attribute/make-transformed-attribute-buffer request-id untransformed-buffer-data transform-matrix-render-arg-key w-component)))
 
-(defn- make-index-buffer
-  [mesh-request-id mesh indices-pb-field]
+(defn- make-index-buffer [mesh-request-id mesh indices-pb-field]
   (when-let [^ByteString indices-byte-string (get mesh indices-pb-field)]
     (let [source-byte-buffer (.order (.asReadOnlyByteBuffer indices-byte-string) ByteOrder/LITTLE_ENDIAN)
           indices-byte-size (buffers/item-count source-byte-buffer)
@@ -379,76 +266,6 @@
                       (not (neg? max-index))
                       (assoc :index-buffer indices)))))))))
 
-(defn populate-vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
-  (let [mesh-renderable-data
-        (cond-> mesh-renderable-data
-                world-transform (assoc :world-transform world-transform)
-                normal-transform (assoc :normal-transform normal-transform)
-                has-semantic-type-world-matrix (assoc :has-semantic-type-world-matrix true)
-                has-semantic-type-normal-matrix (assoc :has-semantic-type-normal-matrix true)
-                vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
-    (graphics/put-attributes! vbuf [mesh-renderable-data])))
-
-(defn- old-render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
-  (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
-        {:keys [material-attribute-infos material-data mesh-renderable-data textures vertex-attribute-bytes]} user-data
-        shader (or override-shader (:shader user-data))
-        default-coordinate-space (case (:vertex-space user-data :vertex-space-local)
-                                   :vertex-space-local :coordinate-space-local
-                                   :vertex-space-world :coordinate-space-world)
-        ;; TODO(instancing): We might not need the override-vertex-description? Seems like the override-shader should be enough.
-        ;; TODO(instancing): Also, we could maybe get this from the SPIRVReflector returned by ShaderProgramBuilderEditor/buildGLSLVariantTextureArray in shader-gen/transpile-shader-source?
-        vertex-description (or override-vertex-description
-                               (let [shader-attribute-infos-by-name (shader/attribute-infos shader gl)
-                                     manufactured-attribute-keys [:position :texcoord0 :normal :tangent :color :mtx-world :mtx-normal]
-                                     shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
-                                 (graphics/make-vertex-description shader-bound-attributes)))
-        vertex-attributes (:attributes vertex-description)
-        coordinate-space-info (graphics/coordinate-space-info vertex-attributes)
-        render-transforms (math/derive-render-transforms world-transform
-                                                         (:view render-args)
-                                                         (:projection render-args)
-                                                         (:texture render-args)
-                                                         coordinate-space-info)
-        render-args (merge render-args render-transforms extra-render-args)
-        world-space-semantic-types (:coordinate-space-world coordinate-space-info)
-
-        has-semantic-type-world-matrix (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix)
-        has-semantic-type-normal-matrix (graphics/contains-semantic-type? vertex-attributes :semantic-type-normal-matrix)
-        attribute-world-transform (when (or (contains? world-space-semantic-types :semantic-type-position)
-                                            has-semantic-type-world-matrix)
-                                    world-transform)
-        attribute-normal-transform (when (or (contains? world-space-semantic-types :semantic-type-normal)
-                                             has-semantic-type-normal-matrix)
-                                     (:normal render-transforms))
-        request-id (if (or attribute-world-transform attribute-normal-transform)
-                     [request-prefix node-id mesh-renderable-data vertex-attribute-bytes vertex-description] ; World-space attributes present. The request needs to be unique for this node-id.
-                     [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
-        vertex-buffer (scene-cache/request-object!
-                        ::vertex-buffer request-id gl
-                        {:mesh-renderable-data mesh-renderable-data
-                         :world-transform attribute-world-transform
-                         :normal-transform attribute-normal-transform
-                         :has-semantic-type-world-matrix has-semantic-type-world-matrix
-                         :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
-                         :vertex-description vertex-description
-                         :vertex-attribute-bytes vertex-attribute-bytes})
-        vertex-buffer-binding (vtx/use-with request-id vertex-buffer shader)]
-    (gl/with-gl-bindings gl render-args [shader vertex-buffer-binding]
-      (doseq [[name t] textures]
-        (gl/bind gl t render-args)
-        (shader/set-samplers-by-name shader gl name (:texture-units t)))
-      (doseq [[name v] material-data]
-        (shader/set-uniform shader gl name v))
-      (gl/gl-disable gl GL/GL_BLEND)
-      (gl/gl-enable gl GL/GL_CULL_FACE)
-      (gl/gl-cull-face gl GL/GL_BACK)
-      (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vertex-buffer))
-      (gl/gl-disable gl GL/GL_CULL_FACE)
-      (gl/gl-enable gl GL/GL_BLEND)
-      (doseq [[_name t] textures]
-        (gl/unbind gl t render-args)))))
-
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
@@ -472,8 +289,7 @@
         (gl/unbind gl t render-args)))))
 
 (defn- render-mesh-opaque-selection [^GL2 gl render-args renderables]
-  ;; TODO(instancing): We should use instanced rendering and put the picking-id
-  ;; as a per-instance attribute.
+  ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
   (let [{:keys [picking-id user-data]} (first renderables)
         {:keys [id-color-selection-attribute-binding-index index-buffer textures]} user-data
         index-type (gl.types/element-buffer-gl-type index-buffer)
@@ -496,15 +312,6 @@
       (gl/gl-enable gl GL/GL_BLEND)
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
-
-(defn- old-render-mesh-opaque [^GL2 gl render-args renderables]
-  (let [renderable (first renderables)]
-    (old-render-mesh-opaque-impl gl render-args renderable ::mesh nil nil nil)))
-
-(defn- old-render-mesh-opaque-selection [^GL2 gl render-args renderables]
-  (let [renderable (first renderables)
-        extra-render-args {:id (scene-picking/renderable-picking-id-uniform renderable)}]
-    (old-render-mesh-opaque-impl gl render-args renderable ::mesh-selection id-shader id-vertex extra-render-args)))
 
 (defn- render-mesh [^GL2 gl render-args renderables rcount]
   ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
@@ -697,26 +504,20 @@
                    0 0)]])))
 
 (defn- make-renderable-mesh [mesh mesh-request-id mesh-set mesh-material-index->material-name]
-  (let [mesh-renderable-data (mesh->renderable-data mesh)
-        mesh-renderable-buffers (mesh->renderable-buffers mesh mesh-request-id)]
-    (cond
-      (g/error-value? mesh-renderable-data)
-      mesh-renderable-data
-
-      (g/error-value? mesh-renderable-buffers)
-      mesh-renderable-buffers
-
-      :else
+  (let [renderable-buffers (mesh->renderable-buffers mesh mesh-request-id)]
+    (if (g/error-value? renderable-buffers)
+      renderable-buffers
       (let [{:keys [aabb-min aabb-max ^int material-index]} mesh
-            mesh-aabb (geom/coords->aabb aabb-min aabb-max)
+            aabb (geom/coords->aabb aabb-min aabb-max)
             material-name (mesh-material-index->material-name material-index)
+            ;; TODO(instancing): These doesn't appear to actually be per-mesh? Replace model-loader :material-ids with list of Rig$Material in map format.
+            ;; TODO(instancing): Do we even have Rig$Materials in the :mesh-set for Collada scenes?
             mesh-material-data (nth (:materials mesh-set) material-index)
             material-data (make-renderable-material-data mesh-material-data)]
-        {:aabb mesh-aabb
+        {:aabb aabb
          :material-name material-name
          :material-data material-data
-         :renderable-data mesh-renderable-data
-         :renderable-buffers mesh-renderable-buffers}))))
+         :renderable-buffers renderable-buffers}))))
 
 (defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name]
   (let [{:keys [translation rotation scale]} (:local model)
@@ -770,39 +571,22 @@
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
       renderable-mesh-set-or-error-value)))
 
-(defn- decorate-attribute-binding [attribute-binding ^long channel attribute-info]
-  (let [{:keys [attribute-transform coordinate-space name-key semantic-type]} attribute-info]
-    (assert (graphics.types/attribute-transform? attribute-transform))
-    (assert (graphics.types/concrete-coordinate-space? coordinate-space))
-    (assert (graphics.types/attribute-key? name-key))
-    (assert (graphics.types/semantic-type? semantic-type))
-    (assert (graphics.types/channel? channel))
-    ;; TODO(instancing): Remove some of this stuff?
-    (assoc attribute-binding
-      :attribute-transform attribute-transform
-      :coordinate-space coordinate-space
-      :attribute-key name-key
-      :semantic-type semantic-type
-      :channel channel)))
-
-(defn- make-attribute-render-arg-binding [render-arg-key ^long channel attribute-info]
+(defn- make-attribute-render-arg-binding [render-arg-key attribute-info]
   (let [{:keys [data-type location normalize vector-type]} attribute-info
         element-type (graphics.types/make-element-type vector-type data-type normalize)]
-    (-> (attribute/make-attribute-render-arg-binding render-arg-key element-type location)
-        (decorate-attribute-binding channel attribute-info))))
+    (attribute/make-attribute-render-arg-binding render-arg-key element-type location)))
 
-(defn- make-attribute-buffer-binding [attribute-buffer-lifecycle ^long channel attribute-info scene-node-id]
+(defn- make-attribute-buffer-binding [attribute-buffer-lifecycle attribute-info scene-node-id]
   (let [{:keys [attribute-transform ^long location]} attribute-info]
-    (-> (case attribute-transform
-          (:attribute-transform-none)
-          (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location)
+    (case attribute-transform
+      (:attribute-transform-none)
+      (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location)
 
-          (:attribute-transform-normal :attribute-transform-world)
-          (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
-              (attribute/make-transformed-attribute-buffer-binding location)))
-        (decorate-attribute-binding channel attribute-info))))
+      (:attribute-transform-normal :attribute-transform-world)
+      (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
+          (attribute/make-transformed-attribute-buffer-binding location)))))
 
-(defn- make-attribute-value-binding [attribute-bytes ^long channel attribute-info]
+(defn- make-attribute-value-binding [attribute-bytes attribute-info]
   (let [{:keys [data-type location normalize semantic-type vector-type]} attribute-info
         element-type (graphics.types/make-element-type vector-type data-type normalize)
         value-array (or (when attribute-bytes
@@ -819,8 +603,7 @@
                                           :ex-data (ex-data exception)))
                               nil)))
                         (graphics.types/default-attribute-value-array semantic-type element-type))]
-    (-> (attribute/make-attribute-value-binding value-array element-type location)
-        (decorate-attribute-binding channel attribute-info))))
+    (attribute/make-attribute-value-binding value-array element-type location)))
 
 (defn- make-attribute-bindings
   ([semantic-type->attribute-buffers combined-attribute-infos]
@@ -833,16 +616,12 @@
             {:pre [(graphics.types/semantic-type? semantic-type)]}
             (case semantic-type
               :semantic-type-world-matrix
-              (e/map-indexed
-                (fn [^long channel attribute-info]
-                  (make-attribute-render-arg-binding :world channel attribute-info))
-                attribute-infos)
+              (e/map #(make-attribute-render-arg-binding :world %)
+                     attribute-infos)
 
               :semantic-type-normal-matrix
-              (e/map-indexed
-                (fn [^long channel attribute-info]
-                  (make-attribute-render-arg-binding :normal channel attribute-info))
-                attribute-infos)
+              (e/map #(make-attribute-render-arg-binding :normal %)
+                     attribute-infos)
 
               ;; else
               (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)
@@ -857,17 +636,17 @@
                     ;; suitable default value inferred from the semantic-type.
                     (if (< channel attribute-buffer-count)
                       (let [attribute-buffer (attribute-buffers channel)]
-                        (make-attribute-buffer-binding attribute-buffer channel attribute-info scene-node-id))
+                        (make-attribute-buffer-binding attribute-buffer attribute-info scene-node-id))
                       (let [attribute-key (:name-key attribute-info)
                             attribute-bytes (or (get vertex-attribute-bytes attribute-key) ; From the referencing Model component.
                                                 (:bytes attribute-info))] ; From the Material.
-                        (make-attribute-value-binding attribute-bytes channel attribute-info))))
+                        (make-attribute-value-binding attribute-bytes attribute-info))))
                   attribute-infos)))))
         (sort-by :base-location)
         (vec))))
 
-(defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
-  (let [{:keys [aabb material-data material-name renderable-data renderable-buffers]} renderable-mesh
+(defn- make-mesh-scene [renderable-mesh]
+  (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
         attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers preview-shader-combined-attribute-infos)
@@ -875,16 +654,14 @@
         id-color-selection-attribute-binding-index (util/first-index-where #(= selection-shader-id-color-attribute-location (:base-location %)) selection-attribute-bindings)
 
         user-data
-        {:mesh-renderable-data renderable-data
-         :mesh-renderable-buffers renderable-buffers
+        {:attribute-bindings attribute-bindings
          :coordinate-space-info preview-shader-coordinate-space-info
-         :attribute-bindings attribute-bindings
-         :selection-attribute-bindings selection-attribute-bindings
          :id-color-selection-attribute-binding-index id-color-selection-attribute-binding-index
          :index-buffer index-buffer
-         :vertex-space :vertex-space-local
          :material-data material-data
          :material-name material-name
+         :mesh-renderable-buffers renderable-buffers
+         :selection-attribute-bindings selection-attribute-bindings
          :shader preview-shader
          :textures {"tex0" @texture/white-pixel}}
 
@@ -899,10 +676,9 @@
     {:aabb aabb
      :renderable renderable}))
 
-(defn- make-model-scene [renderable-model model-scene-resource-node-id]
+(defn- make-model-scene [renderable-model]
   (let [{:keys [transform aabb renderable-meshes]} renderable-model
-        mesh-scenes (mapv #(make-mesh-scene % model-scene-resource-node-id)
-                          renderable-meshes)]
+        mesh-scenes (mapv make-mesh-scene renderable-meshes)]
     {:transform transform
      :aabb aabb
      :children mesh-scenes}))
@@ -918,7 +694,7 @@
                              :batch-key nil
                              :select-batch-key :not-rendered
                              :passes [pass/outline]}}]
-              (map #(make-model-scene % model-scene-resource-node-id))
+              (map make-model-scene)
               renderable-models)]
 
     {:node-id model-scene-resource-node-id
@@ -932,9 +708,8 @@
   (make-scene renderable-mesh-set _node-id))
 
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
-  (let [mesh-renderable (:renderable mesh-scene)
-        material-name (:material-name (:user-data mesh-renderable))
-        material-data (:material-data (:user-data mesh-renderable))
+  (let [{:keys [user-data]} (:renderable mesh-scene)
+        {:keys [material-data material-name]} user-data
         material-scene-info (material-name->material-scene-info material-name)
         claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
     (if (nil? material-scene-info)
@@ -969,9 +744,7 @@
                 :material-attribute-infos material-attribute-infos
                 :material-data material-data
                 :shader shader
-                :textures gpu-textures
-                :vertex-attribute-bytes vertex-attribute-bytes
-                :vertex-space vertex-space))))))))
+                :textures gpu-textures))))))))
 
 (defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-scenes (:children model-scene)]
@@ -1039,18 +812,3 @@
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))
-
-(defn- update-vertex-buffer [^GL2 _gl ^VertexBuffer vb data]
-  ;; TODO(instancing): We should be able to store the populated VertexBuffers in the graph now that we have shader attribute reflection.
-  (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes]} data]
-    (populate-vb! vb world-transform normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data)))
-
-(defn- make-vertex-buffer [^GL2 _gl data]
-  (let [{:keys [mesh-renderable-data vertex-description]} data
-        position-data (:position-data mesh-renderable-data)
-        vbuf (vtx/make-vertex-buffer vertex-description :dynamic (count position-data))]
-    (update-vertex-buffer nil vbuf data)))
-
-(defn- destroy-vertex-buffers [^GL2 gl vbs _])
-
-(scene-cache/register-object-cache! ::vertex-buffer make-vertex-buffer update-vertex-buffer destroy-vertex-buffers)

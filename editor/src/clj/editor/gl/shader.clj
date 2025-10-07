@@ -477,6 +477,7 @@ This must be submitted to the driver for compilation before you can use it. See
   [request-id
    ^ShaderRequestData request-data
    attribute-reflection-infos
+   attribute-locations
    uniforms]
 
   GlBind
@@ -585,7 +586,8 @@ This must be submitted to the driver for compilation before you can use it. See
   ;; them to #version 140 first, since the transpiler does not support versions
   ;; earlier than that. Such shaders are also created from editor plugins, so we
   ;; need to update those.
-  (->ShaderLifecycle request-id request-data attribute-reflection-infos uniform-values-by-name))
+  (let [attribute-locations (coll/pair-map-by :name-key :location attribute-reflection-infos)]
+    (->ShaderLifecycle request-id request-data attribute-reflection-infos attribute-locations uniform-values-by-name)))
 
 (defn shader-lifecycle? [value]
   (instance? ShaderLifecycle value))
