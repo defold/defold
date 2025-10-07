@@ -28,8 +28,10 @@
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
-    #include <dmsdk/dlib/mutex.h>
 #endif
+
+// On non threaded system, this is a place holder struct in order to make the client code cleaner
+#include <dmsdk/dlib/mutex.h>
 
 #include "jc/ringbuffer.h"
 #include "job_thread.h"
@@ -86,7 +88,7 @@ struct JobContext
 };
 
 // ***********************************************************************************
-static void PutWork(JobThreadContext* ctx, HJob job);
+static JobStatus PutWork(JobThreadContext* ctx, HJob job);
 static void PutDone(JobThreadContext* ctx, HJob job, JobStatus status, int result);
 
 // ***********************************************************************************
@@ -207,7 +209,9 @@ JobResult PushJob(HContext context, HJob job)
 
     JobThreadContext* ctx = &context->m_ThreadContext;
 
-    PutWork(ctx, job);
+    JobStatus status = PutWork(ctx, job);
+    if (status == JOB_STATUS_CANCELED)
+        return JOB_RESULT_CANCELED;
 
 #if defined(DM_HAS_THREADS)
     if (ctx->m_WakeupCond)
@@ -308,7 +312,7 @@ JobResult CancelJob(HContext context, HJob hjob)
 // Job Thread
 
 
-static void PutWork(JobThreadContext* ctx, HJob job)
+static JobStatus PutWork(JobThreadContext* ctx, HJob job)
 {
     DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
 
@@ -316,7 +320,9 @@ static void PutWork(JobThreadContext* ctx, HJob job)
     uint32_t index      = ToIndex(job);
     JobItem& item = ctx->m_Items.Get(index);
     assert(item.m_Generation == generation);
-    assert(item.m_Status == JOB_STATUS_CREATED);
+
+    if (item.m_Status != JOB_STATUS_CREATED)
+        return item.m_Status;
 
     item.m_Status = JOB_STATUS_QUEUED;
 
@@ -330,6 +336,8 @@ static void PutWork(JobThreadContext* ctx, HJob job)
     if (ctx->m_Work.Full())
         ctx->m_Work.OffsetCapacity(16);
     ctx->m_Work.Push(job);
+
+    return item.m_Status;
 }
 
 static void PutDone(JobThreadContext* ctx, HJob job, JobStatus status, int result)

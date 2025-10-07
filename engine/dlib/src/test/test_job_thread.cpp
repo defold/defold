@@ -137,10 +137,15 @@ TEST(dmJobThread, CancelJobs)
     job.m_Data = 0;
     dmJobThread::HJob job2 = dmJobThread::CreateJob(ctx, &job);
     dmJobThread::HJob job3 = dmJobThread::CreateJob(ctx, &job);
+    dmJobThread::HJob job4 = dmJobThread::CreateJob(ctx, &job);
 
     cancelctx.m_JobsToCancel.SetCapacity(2);
     cancelctx.m_JobsToCancel.Push(job2);
     cancelctx.m_JobsToCancel.Push(job3);
+
+    // specifically test trying to push a cancelled job
+    dmJobThread::CancelJob(ctx, job4);
+    ASSERT_EQ(dmJobThread::JOB_RESULT_CANCELED, dmJobThread::PushJob(ctx, job4));
 
     dmJobThread::PushJob(ctx, job1);
     dmJobThread::PushJob(ctx, job2);
@@ -152,7 +157,7 @@ TEST(dmJobThread, CancelJobs)
     {
         dmJobThread::Update(ctx, 500);
 
-        tests_done = cancelctx.m_NumFinished == 3;
+        tests_done = cancelctx.m_NumFinished == 4;
 
         dmTime::Sleep(20*1000);
     }
@@ -160,7 +165,7 @@ TEST(dmJobThread, CancelJobs)
     dmJobThread::Destroy(ctx);
 
     ASSERT_EQ(1, cancelctx.m_NumProcessed);
-    ASSERT_EQ(3, cancelctx.m_NumFinished);
+    ASSERT_EQ(4, cancelctx.m_NumFinished);
     ASSERT_EQ(1, cancelctx.m_NumFinishedOk);
 }
 

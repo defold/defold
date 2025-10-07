@@ -42,7 +42,8 @@ namespace dmJobThread
         JOB_RESULT_OK               = 0,
         JOB_RESULT_ERROR            = 1,
         JOB_RESULT_INVALID_HANDLE   = 2,
-        JOB_RESULT_PENDING          = 3, // the job is still processing
+        JOB_RESULT_CANCELED         = 3,
+        JOB_RESULT_PENDING          = 4, // the job is still processing
     };
 
     struct JobThreadCreationParams
