@@ -142,9 +142,9 @@ Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_d
 }
 
 // TODO: Test this...
-uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
+uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf, uint32_t buf_len)
 {
-    dmSnPrintf(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
+    dmSnPrintf(buf, buf_len, "%s/%s", base_dir, relative_dir);
 
     char* source = buf;
     char* dest = buf;
@@ -162,9 +162,9 @@ uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir
     return (uint32_t)(dest - buf);
 }
 
-uint32_t GetCanonicalPath(const char* relative_dir, char* buf)
+uint32_t GetCanonicalPath(const char* relative_dir, char* buf, uint32_t buf_len)
 {
-    return GetCanonicalPathFromBase("", relative_dir, buf);
+    return GetCanonicalPathFromBase("", relative_dir, buf, buf_len);
 }
 
 

@@ -41,6 +41,7 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
+            [editor.localization :as localization]
             [editor.os :as os]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -1169,6 +1170,44 @@
       resolve-alignment
       resolve-label-color
       resolve-tooltip))
+
+(def ext-localize
+  "Localization extension lifecycle
+
+  Expected props:
+    :localization    required, localization instance
+    :pattern         required, localization message pattern
+    :desc            required, wrapped node lifecycle
+    :object-fn       optional, fn from wrapped component instance to localizable
+                     object, defaults to identity"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [localization pattern desc object-fn]} opts]
+      (let [component (fx.lifecycle/create fx.lifecycle/dynamic desc opts)
+            object (cond-> (fx.component/instance component) object-fn object-fn)]
+        (localization/localize! object localization pattern)
+        (with-meta {:localization localization
+                    :pattern pattern
+                    :child component
+                    :object object}
+                   child-instance-meta)))
+    (advance [_ component {:keys [localization pattern desc object-fn]} opts]
+      (let [component (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
+            object (cond-> (fx.component/instance component) object-fn object-fn)
+            old-localization (:localization component)]
+        (if (or (not (identical? localization old-localization))
+                (not (identical? object (:object component)))
+                (not= pattern (:pattern component)))
+          (do
+            (localization/unlocalize! (:object component) old-localization)
+            (localization/localize! object localization pattern)
+            (-> component
+                (assoc :object object)
+                (assoc :localization localization)
+                (assoc :pattern pattern)))
+          component)))
+    (delete [_ component opts]
+      (localization/unlocalize! (fx/instance component) (:localization component))
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 
 (defn advance-user-data-component! [view-node key desc]
   (let [component (g/user-data view-node key)]

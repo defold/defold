@@ -14,7 +14,6 @@
 
 (ns integration.asset-browser-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -134,9 +133,11 @@
         (are [target-resource src-files expected]
             (let [alerted (atom false)
                   message (atom "")]
-              (with-redefs [dialogs/make-info-dialog (fn [text] (reset! alerted true) (reset! message text))]
-                (asset-browser/paste! workspace target-resource src-files (constantly nil))
-                (= expected (not (or @alerted (string/includes? message "reserved"))))))
+              (with-redefs [dialogs/make-info-dialog (fn [_localization props]
+                                                       (reset! alerted true)
+                                                       (reset! message (:content props)))]
+                (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
+                (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
 
           root-resource [(make-file "car/car.script")] true
 

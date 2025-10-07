@@ -536,7 +536,7 @@
              ["/graphics/pow.png" "/graphics/ball.png"]))
 
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
-        (asset-browser/rename [graphics-dir-resource] "images"))
+        (asset-browser/rename [graphics-dir-resource] "images" test-util/localization))
 
       (let [images>pow (project/get-resource-node project "/images/pow.png")
             images>pow-resource (resource images>pow)]
@@ -548,7 +548,7 @@
         ;; actual test
         (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
-          (asset-browser/rename [images-dir-resource] "graphics"))
+          (asset-browser/rename [images-dir-resource] "graphics" test-util/localization))
 
         ;; The move of /images back to /graphics enabled the load of imagelib1, creating the following move cases:
         ;; /images/ball.png -> /graphics/ball.png: removed, added
@@ -590,7 +590,7 @@
 
         (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-          (asset-browser/rename [scripts-dir-resource] "project_scripts"))
+          (asset-browser/rename [scripts-dir-resource] "project_scripts" test-util/localization))
 
         ;; the move of /scripts enabled the load of scriptlib, creating the move case:
         ;; /scripts/main.script -> /project_scripts/main.script: changed, added
@@ -624,9 +624,9 @@
             image>ball (project/get-resource-node project "/images/ball.png")
             initial-graph-nodes (graph-nodes project)]
         (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
-        (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
+        (binding [dialogs/make-resolve-file-conflicts-dialog (fn [_src-dest-pairs _localization] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
-            (asset-browser/rename [images-dir-resource] "graphics")))
+            (asset-browser/rename [images-dir-resource] "graphics" test-util/localization)))
 
         ;; The move of /images overwriting /graphics enabled the load of imagelib1, creating the following move cases:
         ;; /images/ball.png -> /graphics/ball.png: removed, changed
@@ -663,9 +663,9 @@
         (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
 
         (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}]) ; /scripts/main.script
-        (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
+        (binding [dialogs/make-resolve-file-conflicts-dialog (fn [_src-dest-pairs _localization] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-            (asset-browser/rename [scripts-dir-resource] "main")))
+            (asset-browser/rename [scripts-dir-resource] "main" test-util/localization)))
 
         ;; the move of /scripts overwriting /main enabled the load of scriptlib, creating move case:
         ;; /scripts/main.script -> /main/main.script: changed, changed
@@ -693,7 +693,7 @@
     (let [[workspace project] (setup-scratch world)
           graphics>ball (project/get-resource-node project "/graphics/ball.png")
           nodes-by-path (g/node-value project :nodes-by-resource-path)]
-      (asset-browser/rename [(resource graphics>ball)] "Ball")
+      (asset-browser/rename [(resource graphics>ball)] "Ball" test-util/localization)
       (testing "Resource node :resource updated"
         (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
       (testing "Resource node map updated"
@@ -707,7 +707,7 @@
       (touch-file workspace "/graphics/.dotfile")
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
-        (asset-browser/rename [graphics-dir-resource] "whatever")))))
+        (asset-browser/rename [graphics-dir-resource] "whatever" test-util/localization)))))
 
 (deftest move-external-removed-added-replacing-deleted
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
