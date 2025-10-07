@@ -285,6 +285,8 @@
             (dynamic read-only? (g/constantly true)))
 
   (property pivot types/Vec2
+            (dynamic label (g/constantly (localization/message "property.atlas.image.pivot")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.image.pivot")))
             (value (g/fnk [pivot-x pivot-y] [pivot-x pivot-y]))
             (set (fn [_evaluation-context self old-value new-value]
                    (concat
@@ -301,9 +303,13 @@
             (dynamic visible (g/constantly false)))
 
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
+            (dynamic label (g/constantly (localization/message "property.atlas.image.sprite-trim-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.image.sprite-trim-mode")))
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
 
   (property image resource/Resource ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.atlas.image.image")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.image.image")))
             (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -466,10 +472,18 @@
   (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts] (validate-animation-id _node-id id id-counts))))
   (property fps g/Int (default (protobuf/default AtlasProto$AtlasAnimation :fps))
+            (dynamic label (g/constantly (localization/message "property.atlas.animation.fps")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.animation.fps")))
             (dynamic error (g/fnk [_node-id fps] (validate-animation-fps _node-id fps))))
-  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-horizontal))))
-  (property flip-vertical   g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-vertical))))
+  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-horizontal)))
+            (dynamic label (g/constantly (localization/message "property.atlas.animation.flip-horizontal")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.animation.flip-horizontal"))))
+  (property flip-vertical   g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-vertical)))
+            (dynamic label (g/constantly (localization/message "property.atlas.animation.flip-vertical")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.animation.flip-vertical"))))
   (property playback        types/AnimationPlayback (default (protobuf/default AtlasProto$AtlasAnimation :playback))
+            (dynamic label (g/constantly (localization/message "property.atlas.animation.playback")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.animation.playback")))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
@@ -822,15 +836,25 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
   (property margin g/Int (default (protobuf/default AtlasProto$Atlas :margin))
+            (dynamic label (g/constantly (localization/message "property.atlas.margin")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.margin")))
             (dynamic error (g/fnk [_node-id margin] (validate-margin _node-id margin))))
   (property inner-padding g/Int (default (protobuf/default AtlasProto$Atlas :inner-padding))
+            (dynamic label (g/constantly (localization/message "property.atlas.inner-padding")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.inner-padding")))
             (dynamic error (g/fnk [_node-id inner-padding] (validate-inner-padding _node-id inner-padding))))
   (property extrude-borders g/Int (default (protobuf/default AtlasProto$Atlas :extrude-borders))
+            (dynamic label (g/constantly (localization/message "property.atlas.extrude-borders")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.extrude-borders")))
             (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
   (property max-page-size types/Vec2 (default default-max-page-size)
+            (dynamic label (g/constantly (localization/message "property.atlas.max-page-size")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.max-page-size")))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
   (property rename-patterns g/Str (default (protobuf/default AtlasProto$Atlas :rename-patterns))
+            (dynamic label (g/constantly (localization/message "property.atlas.rename-patterns")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.rename-patterns")))
             (dynamic error (g/fnk [_node-id rename-patterns] (validate-rename-patterns _node-id rename-patterns))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
@@ -1014,7 +1038,7 @@
                            (g/transact
                              (concat
                                (g/operation-sequence op-seq)
-                               (g/operation-label "Add Animation")
+                               (g/operation-label (localization/message "operation.atlas.add-animation"))
                                (make-atlas-animation atlas-node default-animation))))]
     (select! app-view [animation-node] op-seq)))
 
@@ -1035,7 +1059,7 @@
                         (g/transact
                           (concat
                             (g/operation-sequence op-seq)
-                            (g/operation-label "Add Images")
+                            (g/operation-label (localization/message "operation.atlas.add-images"))
                             (cond
                               (g/node-instance? AtlasNode parent)
                               (make-image-nodes-in-atlas parent image-msgs)
@@ -1245,7 +1269,7 @@
                             pivot (updated-pivot rect manip-delta snap-enabled snap-threshold)]
                         (g/transact
                           (concat
-                            (g/operation-label "Move pivot point")
+                            (g/operation-label (localization/message "operation.atlas.move-pivot-point"))
                             (g/operation-sequence op-seq)
                             (g/set-property (:node-id reference-renderable) :pivot pivot)))
                         (g/transact

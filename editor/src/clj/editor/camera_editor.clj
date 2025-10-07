@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.camera :as camera]
-            [editor.properties :as properties]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -26,8 +25,10 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -290,16 +291,32 @@
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
 
-  (property aspect-ratio g/Num) ; Required protobuf field.
-  (property fov g/Num) ; Required protobuf field.
-  (property near-z g/Num) ; Required protobuf field.
-  (property far-z g/Num) ; Required protobuf field.
-  (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio))))
-  (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection))))
+  (property aspect-ratio g/Num ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.camera.aspect-ratio")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.aspect-ratio"))))
+  (property fov g/Num ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.camera.fov")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.fov"))))
+  (property near-z g/Num ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.camera.near-z")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.near-z"))))
+  (property far-z g/Num ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.camera.far-z")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.far-z"))))
+  (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio)))
+            (dynamic label (g/constantly (localization/message "property.camera.auto-aspect-ratio")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.auto-aspect-ratio"))))
+  (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection)))
+            (dynamic label (g/constantly (localization/message "property.camera.orthographic-projection")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.orthographic-projection"))))
   (property orthographic-mode g/Keyword (default (protobuf/default Camera$CameraDesc :orthographic-mode))
+            (dynamic label (g/constantly (localization/message "property.camera.orthographic-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.orthographic-mode")))
             (dynamic read-only? (g/fnk [orthographic-projection] (not orthographic-projection)))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Camera$OrthoZoomMode))))
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
+            (dynamic label (g/constantly (localization/message "property.camera.orthographic-zoom")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.camera.orthographic-zoom")))
             (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed))))))
 
   (output form-data g/Any produce-form-data)

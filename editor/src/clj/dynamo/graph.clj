@@ -507,7 +507,7 @@
         ~@body-exprs))))
 
 (defn operation-label
-  "Set a human-readable label to describe the current transaction."
+  "Set a human-readable label (MessagePattern or string) to describe the current transaction."
   [label]
   (it/label label))
 

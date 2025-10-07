@@ -392,8 +392,12 @@
   (property type g/Keyword (dynamic visible (g/constantly false))) ; Required protobuf field.
   (property use-direction g/Bool (default (protobuf/int->boolean (protobuf/default Particle$Modifier :use-direction)))
             (dynamic visible (g/constantly false)))
-  (property magnitude CurveSpread (default props/default-curve-spread))
+  (property magnitude CurveSpread (default props/default-curve-spread)
+            (dynamic label (g/constantly (localization/message "property.particlefx.magnitude")))
+            (dynamic tooltip (g/constantly (props/tooltip-message "property.particlefx.magnitude"))))
   (property max-distance Curve (default props/default-curve)
+            (dynamic label (g/constantly (localization/message "property.particlefx.max-distance")))
+            (dynamic tooltip (g/constantly (props/tooltip-message "property.particlefx.max-distance")))
             (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
   (property node-outline-key g/Str (dynamic visible (g/constantly false))) ; Either assigned in load-fn or generated when attached
 
@@ -1111,7 +1115,7 @@
           mod-node (first (g/tx-nodes-added
                             (g/transact
                               (concat
-                                (g/operation-label "Add Modifier")
+                                (g/operation-label (localization/message "operation.particlefx.add-modifier"))
                                 (g/operation-sequence op-seq)
                                 (make-modifier parent-id modifier node-outline-key)))))]
       (when (some? select-fn)
@@ -1200,7 +1204,7 @@
     (let [emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
       (g/transact
         (concat
-          (g/operation-label "Add Emitter")
+          (g/operation-label (localization/message "operation.particlefx.add-emitter"))
           (make-emitter self (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench

@@ -1077,7 +1077,7 @@
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts "Id")))
             (dynamic visible not-override-node?))
   (property generated-id g/Str ; Just for presentation.
-            (dynamic label (g/constantly "Id"))
+            (dynamic label (g/constantly (localization/message "property.id")))
             (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
@@ -1085,6 +1085,8 @@
             (dynamic visible (g/fnk [type] (not= type :type-template)))
             (dynamic edit-type (layout-property-edit-type color {:type types/Color
                                                                  :ignore-alpha? true}))
+            (dynamic label (g/constantly (localization/message "property.gui.color")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.color")))
             (value (layout-property-getter color))
             (set (layout-property-setter color)))
   (property alpha g/Num (default (protobuf/default Gui$NodeDesc :alpha))
@@ -1092,14 +1094,20 @@
                                                                  :min 0.0
                                                                  :max 1.0
                                                                  :precision 0.01}))
+            (dynamic label (g/constantly (localization/message "property.gui.alpha")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.alpha")))
             (value (layout-property-getter alpha))
             (set (layout-property-setter alpha)))
   (property inherit-alpha g/Bool (default (protobuf/default Gui$NodeDesc :inherit-alpha))
             (dynamic edit-type (layout-property-edit-type inherit-alpha {:type g/Bool}))
+            (dynamic label (g/constantly (localization/message "property.gui.inherit-alpha")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.inherit-alpha")))
             (value (layout-property-getter inherit-alpha))
             (set (layout-property-setter inherit-alpha)))
   (property enabled g/Bool (default (protobuf/default Gui$NodeDesc :enabled))
             (dynamic edit-type (layout-property-edit-type enabled {:type g/Bool}))
+            (dynamic label (g/constantly (localization/message "property.gui.enabled")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.enabled")))
             (value (layout-property-getter enabled))
             (set (layout-property-setter enabled)))
   (property layer g/Str (default (protobuf/default Gui$NodeDesc :layer))
@@ -1110,6 +1118,8 @@
             (dynamic error (g/fnk [_node-id layer basic-gui-scene-info]
                              (let [layer-names (:layer-names basic-gui-scene-info)]
                                (validate-layer true _node-id layer-names layer))))
+            (dynamic label (g/constantly (localization/message "property.gui.layer")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.layer")))
             (value (layout-property-getter layer))
             (set (layout-property-setter layer)))
   (output layer-index g/Any
@@ -1463,10 +1473,14 @@
 
   (property visible g/Bool (default (protobuf/default Gui$NodeDesc :visible))
             (dynamic edit-type (layout-property-edit-type visible {:type g/Bool}))
+            (dynamic label (g/constantly (localization/message "property.gui.visible")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.visible")))
             (value (layout-property-getter visible))
             (set (layout-property-setter visible)))
   (property blend-mode g/Keyword (default (protobuf/default Gui$NodeDesc :blend-mode))
             (dynamic edit-type (layout-property-edit-type blend-mode (properties/->pb-choicebox Gui$NodeDesc$BlendMode)))
+            (dynamic label (g/constantly (localization/message "property.gui.blend-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.blend-mode")))
             (value (layout-property-getter blend-mode))
             (set (layout-property-setter blend-mode)))
   (property adjust-mode g/Keyword (default (protobuf/default Gui$NodeDesc :adjust-mode))
@@ -1474,18 +1488,26 @@
                                   (when (= type :type-particlefx)
                                     (validate-particlefx-adjust-mode _node-id adjust-mode))))
             (dynamic edit-type (layout-property-edit-type adjust-mode (properties/->pb-choicebox Gui$NodeDesc$AdjustMode)))
+            (dynamic label (g/constantly (localization/message "property.gui.adjust-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.adjust-mode")))
             (value (layout-property-getter adjust-mode))
             (set (layout-property-setter adjust-mode)))
   (property pivot g/Keyword (default (protobuf/default Gui$NodeDesc :pivot))
             (dynamic edit-type (layout-property-edit-type pivot (properties/->pb-choicebox Gui$NodeDesc$Pivot)))
+            (dynamic label (g/constantly (localization/message "property.gui.pivot")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.pivot")))
             (value (layout-property-getter pivot))
             (set (layout-property-setter pivot)))
   (property x-anchor g/Keyword (default (protobuf/default Gui$NodeDesc :xanchor))
             (dynamic edit-type (layout-property-edit-type x-anchor (properties/->pb-choicebox Gui$NodeDesc$XAnchor)))
+            (dynamic label (g/constantly (localization/message "property.gui.x-anchor")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.x-anchor")))
             (value (layout-property-getter x-anchor))
             (set (layout-property-setter x-anchor)))
   (property y-anchor g/Keyword (default (protobuf/default Gui$NodeDesc :yanchor))
             (dynamic edit-type (layout-property-edit-type y-anchor (properties/->pb-choicebox Gui$NodeDesc$YAnchor)))
+            (dynamic label (g/constantly (localization/message "property.gui.y-anchor")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.y-anchor")))
             (value (layout-property-getter y-anchor))
             (set (layout-property-setter y-anchor)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
@@ -1685,7 +1707,8 @@
   (inherits VisualNode)
 
   (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
-            (dynamic label (g/constantly "Size"))
+            (dynamic label (g/constantly (localization/message "property.size")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.size")))
             (dynamic visible (g/fnk [size-mode texture]
                                (= :manual-size (visible-size-property-label size-mode texture))))
             (dynamic edit-type (layout-property-edit-type manual-size {:type types/Vec3}))
@@ -1696,12 +1719,15 @@
                      (if (some? anim-data)
                        [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]
                        protobuf/vector3-zero)))
-            (dynamic label (g/constantly "Size"))
+            (dynamic label (g/constantly (localization/message "property.size")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.size")))
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/fnk [size-mode texture]
                                (= :texture-size (visible-size-property-label size-mode texture)))))
   (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
             (dynamic edit-type (layout-property-edit-type size-mode (properties/->pb-choicebox Gui$NodeDesc$SizeMode) size-mode-property-changes-fn))
+            (dynamic label (g/constantly (localization/message "property.gui.size-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.size-mode")))
             (value (layout-property-getter size-mode))
             (set (layout-property-setter size-mode)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
@@ -1725,18 +1751,26 @@
                                    (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox texture-names) texture-property-changes-fn))))
             (dynamic error (g/fnk [_node-id basic-gui-scene-info texture]
                              (let [texture-page-counts (:texture-page-counts basic-gui-scene-info)]
-                               (validate-texture-resource _node-id texture-page-counts texture)))))
+                               (validate-texture-resource _node-id texture-page-counts texture))))
+            (dynamic label (g/constantly (localization/message "property.gui.texture")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.texture"))))
 
   (property clipping-mode g/Keyword (default (protobuf/default Gui$NodeDesc :clipping-mode))
             (dynamic edit-type (layout-property-edit-type clipping-mode (properties/->pb-choicebox Gui$NodeDesc$ClippingMode)))
+            (dynamic label (g/constantly (localization/message "property.gui.clipping-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.clipping-mode")))
             (value (layout-property-getter clipping-mode))
             (set (layout-property-setter clipping-mode)))
   (property clipping-visible g/Bool (default (protobuf/default Gui$NodeDesc :clipping-visible))
             (dynamic edit-type (layout-property-edit-type clipping-visible {:type g/Bool}))
+            (dynamic label (g/constantly (localization/message "property.gui.clipping-visible")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.clipping-visible")))
             (value (layout-property-getter clipping-visible))
             (set (layout-property-setter clipping-visible)))
   (property clipping-inverted g/Bool (default (protobuf/default Gui$NodeDesc :clipping-inverted))
             (dynamic edit-type (layout-property-edit-type clipping-inverted {:type g/Bool}))
+            (dynamic label (g/constantly (localization/message "property.gui.clipping-inverted")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.clipping-inverted")))
             (value (layout-property-getter clipping-inverted))
             (set (layout-property-setter clipping-inverted)))
 
@@ -1788,6 +1822,8 @@
   (property slice9 types/Vec4 (default (protobuf/default Gui$NodeDesc :slice9))
             (dynamic read-only? (g/fnk [size-mode] (not= :size-mode-manual size-mode)))
             (dynamic edit-type (layout-property-edit-type slice9 {:type types/Vec4 :labels ["L" "T" "R" "B"]}))
+            (dynamic label (g/constantly (localization/message "property.gui.slice9")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.slice9")))
             (value (layout-property-getter slice9))
             (set (layout-property-setter slice9)))
 
@@ -1832,10 +1868,14 @@
 
   (property outer-bounds g/Keyword (default (protobuf/default Gui$NodeDesc :outer-bounds))
             (dynamic edit-type (layout-property-edit-type outer-bounds (properties/->pb-choicebox Gui$NodeDesc$PieBounds)))
+            (dynamic label (g/constantly (localization/message "property.gui.outer-bounds")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.outer-bounds")))
             (value (layout-property-getter outer-bounds))
             (set (layout-property-setter outer-bounds)))
   (property inner-radius g/Num (default (protobuf/default Gui$NodeDesc :inner-radius))
             (dynamic edit-type (layout-property-edit-type inner-radius {:type g/Num}))
+            (dynamic label (g/constantly (localization/message "property.gui.inner-radius")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.inner-radius")))
             (value (layout-property-getter inner-radius))
             (set (layout-property-setter inner-radius)))
   (property perimeter-vertices g/Int (default (protobuf/default Gui$NodeDesc :perimeter-vertices))
@@ -1843,10 +1883,14 @@
             (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int
                                                                               :min perimeter-vertices-min
                                                                               :max perimeter-vertices-max}))
+            (dynamic label (g/constantly (localization/message "property.gui.perimeter-vertices")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.perimeter-vertices")))
             (value (layout-property-getter perimeter-vertices))
             (set (layout-property-setter perimeter-vertices)))
   (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle))
             (dynamic edit-type (layout-property-edit-type pie-fill-angle {:type g/Num}))
+            (dynamic label (g/constantly (localization/message "property.gui.pie-fill-angle")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.pie-fill-angle")))
             (value (layout-property-getter pie-fill-angle))
             (set (layout-property-setter pie-fill-angle)))
 
@@ -1942,16 +1986,21 @@
 
   ; Text
   (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
-            (dynamic label (g/constantly "Size"))
+            (dynamic label (g/constantly (localization/message "property.size")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.size")))
             (dynamic edit-type (layout-property-edit-type manual-size {:type types/Vec3}))
             (value (layout-property-getter manual-size))
             (set (layout-property-setter manual-size)))
   (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (layout-property-edit-type text {:type :multi-line-text}))
+            (dynamic label (g/constantly (localization/message "property.gui.text")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.text")))
             (value (layout-property-getter text))
             (set (layout-property-setter text)))
   (property line-break g/Bool (default (protobuf/default Gui$NodeDesc :line-break))
             (dynamic edit-type (layout-property-edit-type line-break {:type g/Bool}))
+            (dynamic label (g/constantly (localization/message "property.gui.line-break")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.line-break")))
             (value (layout-property-getter line-break))
             (set (layout-property-setter line-break)))
   (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
@@ -1961,19 +2010,27 @@
             (dynamic error (g/fnk [_node-id basic-gui-scene-info font]
                              (let [font-names (:font-names basic-gui-scene-info)]
                                (validate-font _node-id font-names font))))
+            (dynamic label (g/constantly (localization/message "property.gui.font")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.font")))
             (value (layout-property-getter font))
             (set (layout-property-setter font)))
   (property text-leading g/Num (default (protobuf/default Gui$NodeDesc :text-leading))
             (dynamic edit-type (layout-property-edit-type text-leading {:type g/Num}))
+            (dynamic label (g/constantly (localization/message "property.gui.text-leading")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.text-leading")))
             (value (layout-property-getter text-leading))
             (set (layout-property-setter text-leading)))
   (property text-tracking g/Num (default (protobuf/default Gui$NodeDesc :text-tracking))
             (dynamic edit-type (layout-property-edit-type text-tracking {:type g/Num}))
+            (dynamic label (g/constantly (localization/message "property.gui.text-tracking")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.text-tracking")))
             (value (layout-property-getter text-tracking))
             (set (layout-property-setter text-tracking)))
   (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
             (dynamic edit-type (layout-property-edit-type outline {:type types/Color
                                                                    :ignore-alpha? true}))
+            (dynamic label (g/constantly (localization/message "property.gui.outline")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.outline")))
             (value (layout-property-getter outline))
             (set (layout-property-setter outline)))
   (property outline-alpha g/Num (default (protobuf/default Gui$NodeDesc :outline-alpha))
@@ -1981,11 +2038,15 @@
                                                                          :min 0.0
                                                                          :max 1.0
                                                                          :precision 0.01}))
+            (dynamic label (g/constantly (localization/message "property.gui.outline-alpha")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.outline-alpha")))
             (value (layout-property-getter outline-alpha))
             (set (layout-property-setter outline-alpha)))
   (property shadow types/Color (default (protobuf/default Gui$NodeDesc :shadow))
             (dynamic edit-type (layout-property-edit-type shadow {:type types/Color
                                                                   :ignore-alpha? true}))
+            (dynamic label (g/constantly (localization/message "property.gui.shadow")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.shadow")))
             (value (layout-property-getter shadow))
             (set (layout-property-setter shadow)))
   (property shadow-alpha g/Num (default (protobuf/default Gui$NodeDesc :shadow-alpha))
@@ -1993,6 +2054,8 @@
                                                                         :min 0.0
                                                                         :max 1.0
                                                                         :precision 0.01}))
+            (dynamic label (g/constantly (localization/message "property.gui.shadow-alpha")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.shadow-alpha")))
             (value (layout-property-getter shadow-alpha))
             (set (layout-property-setter shadow-alpha)))
 
@@ -2117,6 +2180,8 @@
                                                   :from-type (fn [r] {:resource r :overrides {}})}))
             (dynamic error (g/fnk [_node-id template-resource]
                              (prop-resource-error _node-id :template template-resource "Template")))
+            (dynamic label (g/constantly (localization/message "property.gui.template")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.template")))
             (value (g/fnk [_node-id id template-resource template-overrides]
                      {:resource template-resource
                       :overrides (into {}
@@ -2270,16 +2335,22 @@
             (dynamic error (g/fnk [_node-id particlefx basic-gui-scene-info]
                              (let [particlefx-resource-names (:particlefx-resource-names basic-gui-scene-info)]
                                (validate-particlefx-resource _node-id particlefx-resource-names particlefx))))
+            (dynamic label (g/constantly (localization/message "property.gui.particlefx")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.particlefx")))
             (value (layout-property-getter particlefx))
             (set (layout-property-setter particlefx)))
   (property blend-mode g/Keyword (default (protobuf/default Gui$NodeDesc :blend-mode))
             (dynamic visible (g/constantly false))
             (dynamic edit-type (layout-property-edit-type blend-mode (properties/->pb-choicebox Gui$NodeDesc$BlendMode)))
+            (dynamic label (g/constantly (localization/message "property.gui.blend-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.blend-mode")))
             (value (layout-property-getter blend-mode))
             (set (layout-property-setter blend-mode)))
   (property pivot g/Keyword (default (protobuf/default Gui$NodeDesc :pivot))
             (dynamic visible (g/constantly false))
             (dynamic edit-type (layout-property-edit-type pivot (properties/->pb-choicebox Gui$NodeDesc$Pivot)))
+            (dynamic label (g/constantly (localization/message "property.gui.pivot")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.pivot")))
             (value (layout-property-getter pivot))
             (set (layout-property-setter pivot)))
 
@@ -2407,6 +2478,8 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                              (prop-resource-error _node-id :texture texture "Texture")))
+            (dynamic label (g/constantly (localization/message "property.gui.texture")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.texture")))
             (dynamic edit-type (g/fnk [_node-id]
                                  {:type resource/Resource
                                   :ext (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)})))
@@ -2714,7 +2787,7 @@
     (let [names (id/resolve-all (map resource->id resources) taken-ids)
           pairs (map vector resources names)
           op-seq (gensym)
-          op-label (str "Add " resources-type-label)
+          op-label (localization/message "operation.gui.add-resources" {"type" resources-type-label})
           new-nodes (g/tx-nodes-added
                      (g/transact
                       (concat
@@ -2878,7 +2951,7 @@
       (let [name (id/gen "layer" (g/node-value parent :name-counts evaluation-context))
             next-index (gui-attachment/next-child-index parent evaluation-context)]
         (concat
-          (g/operation-label "Add Layer")
+          (g/operation-label (localization/message "operation.gui.add-layer"))
           (add-layer scene parent name next-index select-fn))))))
 
 (g/defnode LayersNode
@@ -2922,7 +2995,7 @@
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
   (g/transact
    (concat
-    (g/operation-label "Add Layout")
+    (g/operation-label (localization/message "operation.gui.add-layout"))
     (g/make-nodes (g/node-id->graph-id scene) [node [LayoutNode :name display-profile]]
                   (attach-layout scene parent node)
                   (when select-fn
@@ -3403,7 +3476,9 @@
                              (when script
                                (prop-resource-error _node-id :script script "Script" "gui_script"))))
             (dynamic edit-type (g/fnk [] {:type resource/Resource
-                                          :ext "gui_script"})))
+                                          :ext "gui_script"}))
+            (dynamic label (g/constantly (localization/message "property.gui.script")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.script"))))
 
   (property material resource/Resource ; Default assigned in load-fn.
     (value (gu/passthrough material-resource))
@@ -3422,19 +3497,27 @@
                                   :ext ["material"]})))
 
   (property adjust-reference g/Keyword (default (protobuf/default Gui$SceneDesc :adjust-reference))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference)))
+            (dynamic label (g/constantly (localization/message "property.gui.adjust-reference")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.adjust-reference"))))
   (property visible-layout g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property current-nodes g/Int
             (value (g/fnk [node-ids] (count node-ids)))
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (g/constantly (localization/message "property.gui.current-nodes")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.current-nodes"))))
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
             (dynamic error (g/fnk [_node-id max-nodes ^:try node-ids]
                              (when-not (g/error-value? node-ids)
-                               (validate-max-nodes _node-id max-nodes node-ids)))))
+                               (validate-max-nodes _node-id max-nodes node-ids))))
+            (dynamic label (g/constantly (localization/message "property.gui.max-nodes")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.max-nodes"))))
   (property max-dynamic-textures g/Int (default (protobuf/default Gui$SceneDesc :max-dynamic-textures))
             (dynamic error (g/fnk [_node-id max-dynamic-textures]
-                             (validate-max-dynamic-textures _node-id max-dynamic-textures))))
+                              (validate-max-dynamic-textures _node-id max-dynamic-textures)))
+            (dynamic label (g/constantly (localization/message "property.gui.max-dynamic-textures")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.gui.max-dynamic-textures"))))
 
   (input script-resource resource/Resource)
 
@@ -3651,7 +3734,7 @@
                                 :custom-type custom-type
                                 :type node-type)]
           (concat
-            (g/operation-label "Add Gui Node")
+            (g/operation-label (localization/message "operation.gui.add-gui-node"))
             (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
               (attach-gui-node node-tree parent gui-node)
               (when select-fn

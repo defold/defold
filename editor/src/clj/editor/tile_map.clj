@@ -1445,7 +1445,7 @@
   (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
     (g/transact
      (concat
-      (g/operation-label "Add layer")
+      (g/operation-label (localization/message "operation.tile-map.add-layer"))
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench

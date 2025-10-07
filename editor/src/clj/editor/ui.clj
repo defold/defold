@@ -34,7 +34,6 @@
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
            [com.defold.control DefoldStringConverter TreeCell]
-           [com.sun.javafx.application PlatformImpl]
            [com.sun.javafx.event DirectEvent]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
@@ -63,14 +62,6 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
-
-;; Next line of code makes sure JavaFX is initialized, which is required during
-;; compilation even when we are not actually running the editor. To properly
-;; generate reflection-less code, clojure compiler loads classes and searches
-;; for fitting methods while compiling it. Loading javafx.scene.control.Control
-;; class requires application to be running, because it sets default platform
-;; stylesheet, and this requires Application to be running.
-(PlatformImpl/startup (fn []))
 
 (defonce ^:dynamic *main-stage* (atom nil))
 

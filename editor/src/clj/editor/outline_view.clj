@@ -316,10 +316,9 @@
                     handler/selection->node-ids)]
          (g/transact
            (concat
-             (g/operation-label "Delete")
+             (g/operation-label (localization/message "operation.delete"))
              (for [node-id (handler/selection->node-ids selection)]
-               (do
-                 (g/delete-node (g/override-root node-id))))
+               (g/delete-node (g/override-root node-id)))
              (when (seq next)
                (app-view/select app-view next)))))))
 

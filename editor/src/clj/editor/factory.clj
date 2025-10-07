@@ -16,8 +16,10 @@
   (:require [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -114,9 +116,15 @@
                                   (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource "Prototype")
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
-                                 {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
-  (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically)))
-  (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype)))
+                                 {:type resource/Resource :ext (get-in factory-types [factory-type :ext])}))
+            (dynamic label (g/constantly (localization/message "property.factory.prototype")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.factory.prototype"))))
+  (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically))
+            (dynamic label (g/constantly (localization/message "property.factory.load-dynamically")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.factory.load-dynamically"))))
+  (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype))
+            (dynamic label (g/constantly (localization/message "property.factory.dynamic-prototype")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.factory.dynamic-prototype"))))
 
   (output form-data g/Any produce-form-data)
 

@@ -702,7 +702,7 @@
         id (gen-instance-id coll-node base)]
     (g/transact
       (concat
-        (g/operation-label "Add Game Object")
+        (g/operation-label (localization/message "operation.collection.add-game-object"))
         (make-ref-go coll-node resource id nil parent nil select-fn)))))
 
 (defn- select-go-file [workspace project]
@@ -756,7 +756,7 @@
         id (gen-instance-id coll-node ext)]
     (g/transact
       (concat
-        (g/operation-label "Add Game Object")
+        (g/operation-label (localization/message "operation.collection.add-game-object"))
         (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
@@ -784,7 +784,7 @@
 (defn add-referenced-collection! [self source-resource id transform-properties overrides select-fn]
   (g/transact
     (concat
-      (g/operation-label "Add Collection")
+      (g/operation-label (localization/message "operation.collection.add-collection"))
       (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench

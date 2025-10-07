@@ -709,7 +709,7 @@ command.private.clear-override = Clear {property} Override
 command.edit.undo = Undo
 command.edit.redo = Redo
 command.edit.add-embedded-component = Add
-command.edit.add-embedded-component.variant.atlas = Add Animation Group
+command.edit.add-embedded-component.variant.atlas = Add Animation
 command.edit.add-embedded-component.variant.collection = Add Game Object
 command.edit.add-embedded-component.variant.collision-object = Add Shape
 command.edit.add-embedded-component.variant.collision-object.option.box = Box
@@ -850,7 +850,261 @@ override.aspect.generic.kind = {count, plural, one {# Aspect} other {# Aspects}}
 
 gui.layout.default = Default
 
-# Resource views
+# Editing operations
+
+operation.atlas.add-animation = Add Animation
+operation.atlas.add-images = Add Images
+operation.atlas.move-pivot-point = Move Pivot Point
+operation.collision-object.add-shape = Add Shape
+operation.collection.add-collection = Add Collection
+operation.collection.add-game-object = Add Game Object
+operation.game-object.add-component = Add Component
+operation.gui.add-gui-node = Add GUI Node
+operation.gui.add-layer = Add Layer
+operation.gui.add-layout = Add Layout
+operation.gui.add-resources = Add {type}
+operation.particlefx.add-emitter = Add Emitter
+operation.particlefx.add-modifier = Add Modifier
+operation.property.clear = Clear {property}
+operation.property.set = Set {property}
+operation.scene.move = Move
+operation.scene.rotate = Rotate
+operation.scene.scale = Scale
+operation.cut = Cut
+operation.delete = Delete
+operation.drop = Drop
+operation.paste = Paste
+operation.select = Select
+operation.tile-map.add-layer = Add Layer
+
+# Properties
+
+property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}" in editor scripts
+
+# Properties: universal
+
+property.id = Id
+property.material = Material
+property.name = Name
+property.path = Path
+property.position = Position
+property.rotation = Rotation
+property.scale = Scale
+property.size = Size
+property.url = URL
+
+# Properties: appmanifest
+
+property.appmanifest.physics-2d = Physics 2D
+property.appmanifest.physics-2d.tooltip = Box2D version 3 or legacy Defold version
+property.appmanifest.physics-3d = Physics 3D
+property.appmanifest.physics-3d.tooltip = Bullet or none
+property.appmanifest.rig+model = Rig + Model
+property.appmanifest.rig+model.tooltip = Rig, Model or none
+property.appmanifest.exclude-record = Exclude Record
+property.appmanifest.exclude-record.tooltip = Remove the video recording capabilities (desktop platforms)
+property.appmanifest.exclude-profiler = Exclude Profiler
+property.appmanifest.exclude-profiler.tooltip = Remove the on-screen and web profiler
+property.appmanifest.exclude-sound = Exclude Sound
+property.appmanifest.exclude-sound-decoder-wav = Exclude Sound Decoder: WAV
+property.appmanifest.exclude-sound-decoder-ogg = Exclude Sound Decoder: OGG
+property.appmanifest.include-sound-decoder-opus = Include Sound Decoder: Opus
+property.appmanifest.exclude-input = Exclude Input
+property.appmanifest.exclude-liveupdate = Exclude Live Update
+property.appmanifest.exclude-image = Exclude Image
+property.appmanifest.exclude-types = Exclude Types
+property.appmanifest.exclude-basis-transcoder = Exclude Basis Transcoder
+property.appmanifest.use-android-support-lib = Use Android Support Library
+property.appmanifest.use-android-support-lib.tooltip = Use the old Android support libraries instead of AndroidX. Available from Defold 1.2.177.
+property.appmanifest.graphics = Graphics
+property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
+property.appmanifest.graphics-osx = Graphics (macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-web = Graphics (HTML5)
+property.appmanifest.graphics-web.tooltip = WebGPU support is in BETA (web platforms)
+
+# Properties: atlas
+
+property.atlas.animation.fps = FPS
+property.atlas.animation.flip-horizontal = Flip Horizontal
+property.atlas.animation.flip-vertical = Flip Vertical
+property.atlas.animation.playback = Playback
+property.atlas.image.pivot = Pivot
+property.atlas.image.sprite-trim-mode = Sprite Trim Mode
+property.atlas.image.image = Image
+property.atlas.margin = Margin
+property.atlas.margin.tooltip = Pixels inserted between each image on the atlas
+property.atlas.inner-padding = Inner Padding
+property.atlas.inner-padding.tooltip = Empty pixels padded around each image
+property.atlas.extrude-borders = Extrude Borders
+property.atlas.extrude-borders.tooltip = Copies edge pixels outward to avoid bleeding between images
+property.atlas.max-page-size = Max Page Size
+property.atlas.max-page-size.tooltip = Largest width and height for each page in a multi-page atlas
+property.atlas.rename-patterns = Rename Patterns
+property.atlas.rename-patterns.tooltip = Comma-separated search=replace patterns applied to each image base name; for example "hat=cat,_normal=" renames "hat_normal" to "cat", which helps match animations across atlases
+
+# Properties: camera
+
+property.camera.aspect-ratio = Aspect Ratio
+property.camera.aspect-ratio.tooltip = Perspective cameras only. Ratio between the frustum width and height. 1.0 assumes a square view; 1.33 fits 4:3 (1024x768); 1.78 fits 16:9. Ignored when Auto Aspect Ratio is enabled.
+property.camera.fov = FOV
+property.camera.fov.tooltip = Perspective cameras only. Vertical field of view in radians. Higher values show more of the scene.
+property.camera.near-z = Near Z
+property.camera.near-z.tooltip = Z value of the near clipping plane.
+property.camera.far-z = Far Z
+property.camera.far-z.tooltip = Z value of the far clipping plane.
+property.camera.auto-aspect-ratio = Auto Aspect Ratio
+property.camera.auto-aspect-ratio.tooltip = Perspective cameras only. Automatically computes the aspect ratio.
+property.camera.orthographic-projection = Orthographic Projection
+property.camera.orthographic-projection.tooltip = Switches the camera to orthographic projection.
+property.camera.orthographic-zoom = Orthographic Zoom
+property.camera.orthographic-zoom.tooltip = Orthographic cameras only. Zoom factor (> 1 zooms in; < 1 zooms out).
+property.camera.orthographic-mode = Orthographic Zoom Mode
+
+# Properties: collection proxy
+
+property.collection-proxy.collection = Collection
+property.collection-proxy.exclude = Exclude
+
+# Properties: collision object
+
+property.collision-object.collision-shape = Collision Shape
+property.collision-object.type = Type
+property.collision-object.type.tooltip = Available as "collision_type" in editor scripts. Prefer this identifier over "type", since "type" is used for component types when a component is embedded in game objects, which will shadow this property.
+property.collision-object.mass = Mass
+property.collision-object.friction = Friction
+property.collision-object.restitution = Restitution
+property.collision-object.linear-damping = Linear Damping
+property.collision-object.angular-damping = Angular Damping
+property.collision-object.locked-rotation = Locked Rotation
+property.collision-object.bullet = Bullet
+property.collision-object.event-collision = Generate Collision Events
+property.collision-object.event-collision.tooltip = If disabled, filters out any collision events involving this collision object
+property.collision-object.event-contact = Generate Contact Events
+property.collision-object.event-contact.tooltip = If disabled, filters out any contact events involving this collision object
+property.collision-object.event-trigger = Generate Trigger Events
+property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
+property.collision-object.group = Group
+property.collision-object.mask = Mask
+property.collision-object.shape.diameter = Diameter
+property.collision-object.shape.dimensions = Dimensions
+property.collision-object.shape.height = Height
+
+# Properties: cubemap
+
+property.cubemap.back = Back
+property.cubemap.bottom = Bottom
+property.cubemap.front = Front
+property.cubemap.left = Left
+property.cubemap.right = Right
+property.cubemap.top = Top
+
+# Properties: factory
+
+property.factory.prototype = Prototype
+property.factory.load-dynamically = Load Dynamically
+property.factory.dynamic-prototype = Dynamic Prototype
+
+# Properties: font
+
+property.font.font = Font
+property.font.output-format = Output Format
+property.font.render-mode = Render Mode
+property.font.size = Size
+property.font.antialias = Antialias
+property.font.alpha = Alpha
+property.font.outline-alpha = Outline Alpha
+property.font.outline-width = Outline Width
+property.font.shadow-alpha = Shadow Alpha
+property.font.shadow-blur = Shadow Blur
+property.font.shadow-x = Shadow X
+property.font.shadow-y = Shadow Y
+property.font.cache-width = Cache Width
+property.font.cache-height = Cache Height
+property.font.characters = Characters
+property.font.all-chars = All Chars
+
+# Properties: gui
+
+property.gui.adjust-mode = Adjust Mode
+property.gui.adjust-reference = Adjust Reference
+property.gui.alpha = Alpha
+property.gui.blend-mode = Blend Mode
+property.gui.clipping-inverted = Clipping Inverted
+property.gui.clipping-mode = Clipping Mode
+property.gui.clipping-visible = Clipping Visible
+property.gui.color = Color
+property.gui.current-nodes = Current Nodes
+property.gui.enabled = Enabled
+property.gui.font = Font
+property.gui.inherit-alpha = Inherit Alpha
+property.gui.inner-radius = Inner Radius
+property.gui.layer = Layer
+property.gui.line-break = Line Break
+property.gui.max-dynamic-textures = Max Dynamic Textures
+property.gui.max-nodes = Max Nodes
+property.gui.outline = Outline
+property.gui.outline-alpha = Outline Alpha
+property.gui.outer-bounds = Outer Bounds
+property.gui.perimeter-vertices = Perimeter Vertices
+property.gui.particlefx = Particle FX
+property.gui.pie-fill-angle = Pie Fill Angle
+property.gui.pivot = Pivot
+property.gui.script = Script
+property.gui.shadow = Shadow
+property.gui.shadow-alpha = Shadow Alpha
+property.gui.size-mode = Size Mode
+property.gui.slice9 = Slice 9
+property.gui.texture = Texture
+property.gui.template = Template
+property.gui.text = Text
+property.gui.text-leading = Text Leading
+property.gui.text-tracking = Text Tracking
+property.gui.visible = Visible
+property.gui.x-anchor = X Anchor
+property.gui.y-anchor = Y Anchor
+
+# Properties: label
+
+property.label.blend-mode = Blend Mode
+property.label.color = Color
+property.label.font = Font
+property.label.leading = Leading
+property.label.line-break = Line Break
+property.label.outline = Outline
+property.label.pivot = Pivot
+property.label.shadow = Shadow
+property.label.size = Size
+property.label.text = Text
+property.label.tracking = Tracking
+
+# Properties: mesh
+
+property.mesh.normal-stream = Normal Stream
+property.mesh.position-stream = Position Stream
+property.mesh.primitive-type = Primitive Type
+property.mesh.vertices = Vertices
+
+# Properties: model
+
+property.model.animations = Animations
+property.model.create-go-bones = Create GO Bones
+property.model.default-animation = Default Animation
+property.model.mesh = Mesh
+property.model.skeleton = Skeleton
+
+# Properties: particlefx
+
+property.particlefx.magnitude = Magnitude
+property.particlefx.max-distance = Max Distance
+
+# Resources
+
+resource.view.scene = Scene
+resource.view.html = HTML
+resource.view.form = Form
+resource.view.code = Code
+resource.view.text = Text
 
 resource.readonly.detail = This file is part of a library and cannot be saved.
 resource.readonly.button.read-more = Read more…

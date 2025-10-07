@@ -267,6 +267,8 @@
 
   (property diameter g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (g/constantly (localization/message "property.collision-object.shape.diameter")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.shape.diameter")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
 
   (display-order [Shape :diameter])
@@ -294,6 +296,8 @@
 
   (property dimensions types/Vec3 ; Always assigned in load-fn.
             (default [0.0 0.0 0.0]) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (g/constantly (localization/message "property.collision-object.shape.dimensions")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.shape.dimensions")))
             (dynamic error (validation/prop-error-fnk :fatal
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
@@ -321,9 +325,13 @@
 
   (property diameter g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (g/constantly (localization/message "property.collision-object.shape.diameter")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.shape.diameter")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (g/constantly (localization/message "property.collision-object.shape.height")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.shape.height")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
 
   (display-order [Shape :diameter :height])
@@ -640,11 +648,14 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
                              (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
-                                 (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)))))
+                                 (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape))))
+            (dynamic label (g/constantly (localization/message "property.collision-object.collision-shape")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.collision-shape"))))
 
   (property type g/Any ; Required protobuf field.
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType)))
-            (dynamic tooltip (g/constantly "Available as `collision_type` in editor scripts. Prefer this identifier over `type`, since `type` is used for component types when a component is embedded in game objects, which will shadow this property.")))
+            (dynamic label (g/constantly (localization/message "property.collision-object.type")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.type"))))
 
   (property mass g/Num ; Required protobuf field.
             (value (g/fnk [mass type]
@@ -653,33 +664,51 @@
                                   (not= :collision-object-type-dynamic type)))
             (dynamic error (g/fnk [_node-id mass type]
                              (when (= :collision-object-type-dynamic type)
-                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass")))))
+                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass"))))
+            (dynamic label (g/constantly (localization/message "property.collision-object.mass")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.mass"))))
 
-  (property friction g/Num) ; Required protobuf field.
-  (property restitution g/Num) ; Required protobuf field.
+  (property friction g/Num ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.collision-object.friction")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.friction"))))
+  (property restitution g/Num ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.collision-object.restitution")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.restitution"))))
   (property linear-damping g/Num
-            (default (protobuf/default Physics$CollisionObjectDesc :linear-damping)))
+            (default (protobuf/default Physics$CollisionObjectDesc :linear-damping))
+            (dynamic label (g/constantly (localization/message "property.collision-object.linear-damping")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.linear-damping"))))
   (property angular-damping g/Num
-            (default (protobuf/default Physics$CollisionObjectDesc :angular-damping)))
+            (default (protobuf/default Physics$CollisionObjectDesc :angular-damping))
+            (dynamic label (g/constantly (localization/message "property.collision-object.angular-damping")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.angular-damping"))))
   (property locked-rotation g/Bool
-            (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation)))
+            (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation))
+            (dynamic label (g/constantly (localization/message "property.collision-object.locked-rotation")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.locked-rotation"))))
   (property bullet g/Bool
-            (default (protobuf/default Physics$CollisionObjectDesc :bullet)))
+            (default (protobuf/default Physics$CollisionObjectDesc :bullet))
+            (dynamic label (g/constantly (localization/message "property.collision-object.bullet")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.bullet"))))
   (property event-collision g/Bool
-            (dynamic label (g/constantly "Generate Collision Events"))
-            (dynamic tooltip (g/constantly "If disabled, filters out any collision events involving this collision object"))
-            (default (protobuf/default Physics$CollisionObjectDesc :event-collision)))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-collision))
+            (dynamic label (g/constantly (localization/message "property.collision-object.event-collision")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.event-collision"))))
   (property event-contact g/Bool
-            (dynamic label (g/constantly "Generate Contact Events"))
-            (dynamic tooltip (g/constantly "If disabled, filters out any contact events involving this collision object"))
-            (default (protobuf/default Physics$CollisionObjectDesc :event-contact)))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-contact))
+            (dynamic label (g/constantly (localization/message "property.collision-object.event-contact")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.event-contact"))))
   (property event-trigger g/Bool
-            (dynamic label (g/constantly "Generate Trigger Events"))
-            (dynamic tooltip (g/constantly "If disabled, filters out any trigger events involving this collision object"))
-            (default (protobuf/default Physics$CollisionObjectDesc :event-trigger)))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-trigger))
+            (dynamic label (g/constantly (localization/message "property.collision-object.event-trigger")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.event-trigger"))))
 
-  (property group g/Str) ; Required protobuf field.
-  (property mask g/Str) ; Nil is valid default.
+  (property group g/Str ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.collision-object.group")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.group"))))
+  (property mask g/Str ; Nil is valid default.
+            (dynamic label (g/constantly (localization/message "property.collision-object.mask")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collision-object.mask"))))
 
   (output scene g/Any :cached produce-scene)
   (output project-physics-type PhysicsType (g/fnk [project-settings] (project-physics-type project-settings)))
@@ -747,7 +776,7 @@
         shape-node (first (g/tx-nodes-added
                             (g/transact
                               (concat
-                                (g/operation-label "Add Shape")
+                                (g/operation-label (localization/message "operation.collision-object.add-shape"))
                                 (g/operation-sequence op-seq)
                                 (make-shape-node collision-object-node shape)))))]
     (when (some? select-fn)

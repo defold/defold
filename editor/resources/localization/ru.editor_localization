@@ -696,7 +696,7 @@ command.private.clear-override = Сбросить переопределение
 command.edit.undo = Отменить
 command.edit.redo = Повторить
 command.edit.add-embedded-component = Добавить
-command.edit.add-embedded-component.variant.atlas = Добавить группу анимации
+command.edit.add-embedded-component.variant.atlas = Добавить анимацию
 command.edit.add-embedded-component.variant.collection = Добавить игровой объект
 command.edit.add-embedded-component.variant.collision-object = Добавить форму
 command.edit.add-embedded-component.variant.collision-object.option.box = Прямоугольник
@@ -837,7 +837,262 @@ override.aspect.generic.kind = {count, plural, one {# аспекте} other {# �
 
 gui.layout.default = Базовая
 
-# Resource views
+# Editing operations
+
+operation.atlas.add-animation = Добавить анимацию
+operation.atlas.add-images = Добавить изображения
+operation.atlas.move-pivot-point = Переместить опорную точку
+operation.collision-object.add-shape = Добавить форму
+operation.collection.add-collection = Добавить коллекцию
+operation.collection.add-game-object = Добавить игровой объект
+operation.game-object.add-component = Добавить компонент
+operation.gui.add-gui-node = Добавить GUI-элемент
+operation.gui.add-layer = Добавить слой
+operation.gui.add-layout = Добавить компоновку
+operation.gui.add-resources = Добавить ресурсы типа {type}
+operation.particlefx.add-emitter = Добавить эмиттер
+operation.particlefx.add-modifier = Добавить модификатор
+operation.property.clear = Сбросить свойство {property}
+operation.property.set = Задать свойство {property}
+operation.scene.move = Переместить
+operation.scene.rotate = Повернуть
+operation.scene.scale = Масштабировать
+operation.cut = Вырезать
+operation.delete = Удалить
+operation.drop = Переместить
+operation.paste = Вставить
+operation.select = Выделить
+operation.tile-map.add-layer = Добавить слой
+
+# Properties
+
+property.tooltip = {help, select, none {} other {{help}\n\n}}Свойство доступно как «{id}» в скриптах редактора
+
+# Properties: universal
+
+property.id = Id
+property.material = Материал
+property.name = Название
+property.path = Путь
+property.position = Позиция
+property.rotation = Вращение
+property.scale = Масштаб
+property.size = Размер
+property.url = URL
+
+# Properties: appmanifest
+
+property.appmanifest.physics-2d = Физика 2D
+property.appmanifest.physics-2d.tooltip = Box2D версия 3 или устаревшая версия для Defold
+property.appmanifest.physics-3d = Физика 3D
+property.appmanifest.physics-3d.tooltip = Bullet или отключено
+property.appmanifest.rig+model = Rig + Model
+property.appmanifest.rig+model.tooltip = Rig, Model или отключено
+property.appmanifest.exclude-record = Отключить запись
+property.appmanifest.exclude-record.tooltip = Удаляет возможности записи видео (настольные платформы)
+property.appmanifest.exclude-profiler = Отключить профайлер
+property.appmanifest.exclude-profiler.tooltip = Удаляет экранный и веб-профайлер
+property.appmanifest.exclude-sound = Отключить звук
+property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука: WAV
+property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука: OGG
+property.appmanifest.include-sound-decoder-opus = Включить декодер звука: Opus
+property.appmanifest.exclude-input = Отключить ввод
+property.appmanifest.exclude-liveupdate = Отключить Live Update
+property.appmanifest.exclude-image = Отключить Image
+property.appmanifest.exclude-types = Отключить Types
+property.appmanifest.exclude-basis-transcoder = Отключить Basis Transcoder
+property.appmanifest.use-android-support-lib = Использовать Android Support Library
+property.appmanifest.use-android-support-lib.tooltip = Использовать устаревшие библиотеки Android Support вместо AndroidX. Доступно начиная с Defold 1.2.177.
+property.appmanifest.graphics = Графика
+property.appmanifest.graphics.tooltip = Vulkan поддерживается только на настольных и мобильных платформах
+property.appmanifest.graphics-osx = Графика (macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
+property.appmanifest.graphics-web = Графика (HTML5)
+property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
+
+# Properties: atlas
+
+property.atlas.animation.fps = FPS
+property.atlas.animation.flip-horizontal = Горизонтальное отражение
+property.atlas.animation.flip-vertical = Вертикальное отражение
+property.atlas.animation.playback = Воспроизведение
+property.atlas.image.pivot = Опорная точка
+property.atlas.image.sprite-trim-mode = Обрезка спрайта
+property.atlas.image.image = Изображение
+property.atlas.margin = Отступ
+property.atlas.margin.tooltip = Количество пикселей между изображениями атласа
+property.atlas.inner-padding = Внутренний отступ
+property.atlas.inner-padding.tooltip = Количество пустых пикселей вокруг каждого изображения
+property.atlas.extrude-borders = Расширение границ
+property.atlas.extrude-borders.tooltip = Копирует крайние пиксели наружу, чтобы избежать смешивания между изображениями
+property.atlas.max-page-size = Макс. размер страницы
+property.atlas.max-page-size.tooltip = Наибольшая ширина и высота каждой страницы в многостраничном атласе
+property.atlas.rename-patterns = Шаблоны переименований
+property.atlas.rename-patterns.tooltip = Шаблоны search=replace, разделенные запятыми; каждый применяется к базовому имени изображения. Например, «hat=cat,_normal=» переименует «hat_normal» в «cat», что помогает сопоставлять анимации между атласами
+
+
+# Properties: camera
+
+property.camera.aspect-ratio = Соотношение сторон
+property.camera.aspect-ratio.tooltip = Только для перспективной камеры. Отношение ширины и высоты пирамиды видимости. 1.0 — квадратное окно; 1.33 подходит для 4:3 (1024x768); 1.78 — для 16:9. Игнорируется, если включено авто-соотношение.
+property.camera.fov = Угол обзора
+property.camera.fov.tooltip = Только для перспективной камеры. Вертикальный угол обзора в радианах. Чем больше значение, тем больше видимая область.
+property.camera.near-z = Ближняя Z
+property.camera.near-z.tooltip = Значение Z ближней плоскости отсечения.
+property.camera.far-z = Дальняя Z
+property.camera.far-z.tooltip = Значение Z дальней плоскости отсечения.
+property.camera.auto-aspect-ratio = Авто соотношение сторон
+property.camera.auto-aspect-ratio.tooltip = Только для перспективной камеры. Автоматически рассчитывает соотношение сторон.
+property.camera.orthographic-projection = Ортографическая проекция
+property.camera.orthographic-projection.tooltip = Переключает камеру в ортографическую проекцию.
+property.camera.orthographic-zoom = Ортографический зум
+property.camera.orthographic-zoom.tooltip = Только для ортографической камеры. Коэффициент масштабирования (> 1 — приближение; < 1 — отдаление).
+property.camera.orthographic-mode = Режим ортографического зума
+
+# Properties: collection proxy
+
+property.collection-proxy.collection = Коллекция
+property.collection-proxy.exclude = Исключить
+
+# Properties: collision object
+
+property.collision-object.collision-shape = Форма столкновения
+property.collision-object.type = Тип
+property.collision-object.type.tooltip = Свойство доступно как «collision_type» в скриптах редактора. Используйте этот идентификатор вместо «type», так как «type» применяется для типов компонентов при встраивании компонентов в игровые объекты и перекрывает это свойство.
+property.collision-object.mass = Масса
+property.collision-object.friction = Трение
+property.collision-object.restitution = Упругость
+property.collision-object.linear-damping = Линейное демпфирование
+property.collision-object.angular-damping = Угловое демпфирование
+property.collision-object.locked-rotation = Фиксировать вращение
+property.collision-object.bullet = Пуля
+property.collision-object.event-collision = Создавать события столкновения
+property.collision-object.event-collision.tooltip = Если выключено, фильтрует все события столкновения с этим объектом
+property.collision-object.event-contact = Создавать события контакта
+property.collision-object.event-contact.tooltip = Если выключено, фильтрует все события контакта с этим объектом
+property.collision-object.event-trigger = Создавать события триггера
+property.collision-object.event-trigger.tooltip = Если выключено, фильтрует все события триггера с этим объектом
+property.collision-object.group = Группа
+property.collision-object.mask = Маска
+property.collision-object.shape.diameter = Диаметр
+property.collision-object.shape.dimensions = Размер
+property.collision-object.shape.height = Высота
+
+# Properties: cubemap
+
+property.cubemap.back = Зад
+property.cubemap.bottom = Низ
+property.cubemap.front = Перед
+property.cubemap.left = Лево
+property.cubemap.right = Право
+property.cubemap.top = Верх
+
+# Properties: factory
+
+property.factory.prototype = Прототип
+property.factory.load-dynamically = Динамическая загрузка
+property.factory.dynamic-prototype = Динамический прототип
+
+# Properties: font
+
+property.font.font = Шрифт
+property.font.output-format = Формат вывода
+property.font.render-mode = Режим рендеринга
+property.font.size = Размер
+property.font.antialias = Сглаживание
+property.font.alpha = Альфа
+property.font.outline-alpha = Альфа контура
+property.font.outline-width = Толщина контура
+property.font.shadow-alpha = Альфа тени
+property.font.shadow-blur = Размытие тени
+property.font.shadow-x = Смещение тени X
+property.font.shadow-y = Смещение тени Y
+property.font.cache-width = Ширина кэша
+property.font.cache-height = Высота кэша
+property.font.characters = Символы
+property.font.all-chars = Все символы
+
+# Properties: gui
+
+property.gui.adjust-mode = Режим подстройки
+property.gui.adjust-reference = Опорный режим подстройки
+property.gui.alpha = Альфа
+property.gui.blend-mode = Режим смешивания
+property.gui.clipping-inverted = Инверсия отсечения
+property.gui.clipping-mode = Режим отсечения
+property.gui.clipping-visible = Видимость отсечения
+property.gui.color = Цвет
+property.gui.current-nodes = Текущие элементы
+property.gui.enabled = Включено
+property.gui.font = Шрифт
+property.gui.inherit-alpha = Наследовать альфу
+property.gui.inner-radius = Внутренний радиус
+property.gui.layer = Слой
+property.gui.line-break = Перенос строки
+property.gui.max-dynamic-textures = Максимум динамических текстур
+property.gui.max-nodes = Максимум элементов
+property.gui.outline = Контур
+property.gui.outline-alpha = Альфа контура
+property.gui.outer-bounds = Внешние границы
+property.gui.perimeter-vertices = Количество вершин
+property.gui.particlefx = ParticleFX
+property.gui.pie-fill-angle = Угол заполнения
+property.gui.pivot = Опорная точка
+property.gui.script = Скрипт
+property.gui.shadow = Тень
+property.gui.shadow-alpha = Альфа тени
+property.gui.size-mode = Режим размера
+property.gui.slice9 = 9-слайс
+property.gui.texture = Текстура
+property.gui.template = Шаблон
+property.gui.text = Текст
+property.gui.text-leading = Интерлиньяж
+property.gui.text-tracking = Трекинг
+property.gui.visible = Видимость
+property.gui.x-anchor = Привязка по X
+property.gui.y-anchor = Привязка по Y
+
+# Properties: label
+
+property.label.blend-mode = Режим смешивания
+property.label.color = Цвет
+property.label.font = Шрифт
+property.label.leading = Интерлиньяж
+property.label.line-break = Перенос строки
+property.label.outline = Контур
+property.label.pivot = Опорная точка
+property.label.shadow = Тень
+property.label.size = Размер
+property.label.text = Текст
+property.label.tracking = Трекинг
+
+# Properties: mesh
+
+property.mesh.normal-stream = Поток нормалей
+property.mesh.position-stream = Поток позиций
+property.mesh.primitive-type = Тип примитива
+property.mesh.vertices = Вершины
+
+# Properties: model
+
+property.model.animations = Анимации
+property.model.create-go-bones = Создавать GO кости
+property.model.default-animation = Анимация по умолчанию
+property.model.mesh = Меш
+property.model.skeleton = Скелет
+
+# Properties: particlefx
+
+property.particlefx.magnitude = Величина
+property.particlefx.max-distance = Макс. расстояние
+
+# Resources
+
+resource.view.scene = Сцена
+resource.view.html = HTML
+resource.view.form = Форма
+resource.view.code = Код
+resource.view.text = Текст
 
 resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
 resource.readonly.button.read-more = Подробнее…

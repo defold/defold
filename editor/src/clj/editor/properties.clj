@@ -594,10 +594,16 @@
   (or (:label property)
       (let [k (:key property)
             k (if (vector? k) (last k) k)]
-        (keyword->name k))))
+        (localization/message (str "property." (name k)) {} (keyword->name k)))))
+
+(defn tooltip-message [property-message-key]
+  (localization/message (str property-message-key ".tooltip") {} "none"))
 
 (defn tooltip [property]
-  (:tooltip property))
+  (or (:tooltip property)
+      (let [k (:key property)
+            k (if (vector? k) (last k) k)]
+        (tooltip-message (str "property." (name k))))))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -628,7 +634,7 @@
        (g/transact
          {:tx-data-context-map {:edited-endpoints edited-endpoints}}
          (concat
-           (g/operation-label (str "Set " (label property)))
+           (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
            (g/operation-sequence op-seq)
            (set-values evaluation-context property set-operations)))))))
 
@@ -666,7 +672,7 @@
   (when (overridden? property)
     (g/transact
       (concat
-        (g/operation-label (str "Clear " (label property)))
+        (g/operation-label (localization/message "operation.property.clear" {"property" (label property)}))
         (let [clear-fn (get-in property [:edit-type :clear-fn])]
           (map (fn [node-id prop-kw]
                  (if clear-fn
