@@ -41,7 +41,6 @@ namespace dmJobThread
 
 static const uint32_t   INVALID_INDEX   = 0xFFFFFFFF;
 static const HJob       INVALID_JOB     = 0;    // we always start at generation=1, so we can never have a 0 handle
-static const uint32_t   MAX_JOB_DEPTH   = 32;   // Only really used when traversing the structure recursively
 
 struct JobItem
 {
@@ -70,7 +69,7 @@ struct JobThreadContext
     jc::RingBuffer<HJob>    m_Done;         // Processed tasks, ready for callbacks
     uint32_t                m_Generation;
 
-    dmMutex::HMutex         m_Mutex;        // Dummy implementation and null on unsupported platforms
+    dmMutex::HMutex         m_Mutex;        // On unsupported platforms, this is a null pointer
 #if defined(DM_HAS_THREADS)
     dmConditionVariable::HConditionVariable m_WakeupCond;
     bool                                    m_Run;
@@ -175,6 +174,7 @@ HJob CreateJob(HContext context, Job* job)
 
     uint32_t index;
     uint64_t generation;
+    JobItem* item;
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
 
@@ -183,18 +183,18 @@ HJob CreateJob(HContext context, Job* job)
 
         index = ctx->m_Items.Alloc();
         generation = ctx->m_Generation++;
+        item = &ctx->m_Items.Get(index);
     }
 
-    JobItem& item = ctx->m_Items.Get(index);
-    memset(&item, 0, sizeof(item));
+    memset(item, 0, sizeof(JobItem));
 
-    item.m_TimeCreated  = dmTime::GetMonotonicTime();
-    item.m_Job          = *job;
-    item.m_Generation   = generation;
-    item.m_Status       = JOB_STATUS_CREATED;
-    item.m_Parent       = INVALID_JOB;
-    item.m_Sibling      = INVALID_JOB;
-    item.m_FirstChild   = INVALID_JOB;
+    item->m_TimeCreated  = dmTime::GetMonotonicTime();
+    item->m_Job          = *job;
+    item->m_Generation   = generation;
+    item->m_Status       = JOB_STATUS_CREATED;
+    item->m_Parent       = INVALID_JOB;
+    item->m_Sibling      = INVALID_JOB;
+    item->m_FirstChild   = INVALID_JOB;
 
     return MakeHandle(generation, index);
 }
@@ -203,7 +203,6 @@ JobResult PushJob(HContext context, HJob job)
 {
     if (dmAtomicGet32(&context->m_Initialized) == 0)
     {
-        printf("Not m_Initialized!\n");
         return JOB_RESULT_ERROR;
     }
 
@@ -289,20 +288,32 @@ JobResult CancelJob(HContext context, HJob hjob)
     {
         uint32_t size = ctx->m_Work.Size();
 
-        // find it in the work list and remove it
-        jc::RingBuffer<HJob> items;
-        items.SetCapacity(size);
-
+        bool     start_sequence = true;
+        uint32_t num_prune_from_start = 0;
+        uint32_t num_pruned = 0;
         for (uint32_t i = 0; i < size; ++i)
         {
             JobItem* item = GetJobItem(ctx, ctx->m_Work[i]);
-            if (item->m_Status != JOB_STATUS_CANCELED)
+            if (item->m_Status == JOB_STATUS_CANCELED)
             {
-                items.Push(ctx->m_Work[i]);
+                ctx->m_Work[i] = INVALID_JOB;
+
+                num_pruned++;
+                if (start_sequence)
+                    num_prune_from_start++;
+            }
+            else
+            {
+                start_sequence = false;
             }
         }
-        // restore the work queue
-        ctx->m_Work.Swap(items);
+
+        printf("Pruning %u jobs from start of sequence. %u in total\n", num_prune_from_start, num_pruned);
+
+        while((num_prune_from_start--) > 0)
+        {
+            ctx->m_Work.Pop();
+        }
     }
 
     return JOB_RESULT_OK;
@@ -409,6 +420,9 @@ static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
     while (!ctx->m_Work.Empty())
     {
         HJob hjob = ctx->m_Work.Pop();
+        if (hjob == INVALID_JOB)
+            continue;
+
         ProcessOneJob(ctx, hjob);
 
         uint64_t tend = dmTime::GetMonotonicTime();
@@ -439,6 +453,8 @@ static void JobThread(void* _ctx)
                     return;
             }
             hjob = ctx->m_Work.Pop();
+            if (hjob == INVALID_JOB)
+                continue;
         }
 
         {
