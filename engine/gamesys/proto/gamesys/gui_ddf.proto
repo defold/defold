@@ -158,6 +158,12 @@ message NodeDesc
 
     optional string material                = 47;
 
+    // Spine GUI options
+    // Controls whether GUI bone nodes are created for Spine nodes.
+    // Default true maintains backwards compatibility for existing projects
+    // that do not set this field explicitly.
+    optional bool   spine_create_bones      = 48 [default = true];
+
 }
 
 message SceneDesc

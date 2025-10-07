@@ -245,6 +245,7 @@
      "pieFillAngle" :unused
      "shadow" :unused
      "shadow_alpha" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -272,6 +273,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
      "template" :unused
      "template_node_child" :unused
@@ -301,6 +303,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -322,6 +325,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -356,6 +360,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
