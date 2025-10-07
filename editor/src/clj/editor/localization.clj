@@ -615,7 +615,6 @@
 
 ;; TODO:
 ;;  - editor scripts localization
-;;  - all properties
 ;;  - outline
 ;;  - resource type label (requires outline!)
 ;;  - form views
