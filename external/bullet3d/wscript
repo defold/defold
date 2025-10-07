@@ -67,8 +67,8 @@ def build(bld):
                            includes = '. .. ./package/%s/src' % name,
                            target = 'LinearMath')
     linear_math.install_path = None
-
-    linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
+    if bld.env.PLATFORM not in ('win32', 'x86_64-win32'):
+        linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
 
     if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
         bld.env.STLIB_ST         = 'lib%s.lib'
