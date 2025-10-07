@@ -397,7 +397,7 @@
              (mapv
                (fn [[sampler-name order :as name+order]]
                  (let [property-key (keyword (str "__sampler__" sampler-name "__" order))
-                       label (if (= 1 (count combined-name+indices)) (localization/message "property.sprite.image") sampler-name)]
+                       label (if (= 1 (count combined-name+indices)) (localization/message "property.image") sampler-name)]
                    (if-let [i (texture-binding-index name+order)]
                      ;; texture binding exists
                      (let [{:keys [anim-data sampler texture texture-page-count]
@@ -525,8 +525,6 @@
                              (validate-material _node-id material))))
 
   (property blend-mode g/Any (default (protobuf/default Sprite$SpriteDesc :blend-mode))
-            (dynamic label (g/constantly (localization/message "property.sprite.blend-mode")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sprite.blend-mode")))
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))

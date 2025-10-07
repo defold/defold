@@ -870,7 +870,9 @@ property.tooltip = {help, select, none {} other {{help}\n\n}}Свойство д
 
 # Properties: universal
 
+property.blend-mode = Режим смешивания
 property.id = Id
+property.image = Изображение
 property.material = Материал
 property.name = Название
 property.path = Путь
@@ -918,7 +920,6 @@ property.atlas.animation.flip-vertical = Вертикальное отражен
 property.atlas.animation.playback = Воспроизведение
 property.atlas.image.pivot = Опорная точка
 property.atlas.image.sprite-trim-mode = Обрезка спрайта
-property.atlas.image.image = Изображение
 property.atlas.margin = Отступ
 property.atlas.margin.tooltip = Количество пикселей между изображениями атласа
 property.atlas.inner-padding = Внутренний отступ
@@ -1017,7 +1018,6 @@ property.font.all-chars = Все символы
 property.gui.adjust-mode = Режим подстройки
 property.gui.adjust-reference = Опорный режим подстройки
 property.gui.alpha = Альфа
-property.gui.blend-mode = Режим смешивания
 property.gui.clipping-inverted = Инверсия отсечения
 property.gui.clipping-mode = Режим отсечения
 property.gui.clipping-visible = Видимость отсечения
@@ -1054,7 +1054,6 @@ property.gui.y-anchor = Привязка по Y
 
 # Properties: label
 
-property.label.blend-mode = Режим смешивания
 property.label.color = Цвет
 property.label.font = Шрифт
 property.label.leading = Интерлиньяж
@@ -1086,7 +1085,6 @@ property.model.skeleton = Скелет
 property.particlefx.category.particle-life = Частица в течении жизни
 
 property.particlefx.animation = Анимация
-property.particlefx.blend-mode = Режим смешивания
 property.particlefx.duration = Длительность
 property.particlefx.inherit-velocity = Наследовать скорость
 property.particlefx.material = Материал
@@ -1141,9 +1139,7 @@ property.sound.speed = Скорость
 
 # Properties: sprite
 
-property.sprite.blend-mode = Режим смешивания
 property.sprite.default-animation = Анимация по умолчанию
-property.sprite.image = Изображение
 property.sprite.offset = Смещение
 property.sprite.playback-rate = Скорость воспроизведения
 property.sprite.size-mode = Режим размера
@@ -1151,7 +1147,6 @@ property.sprite.slice9 = 9-слайс
 
 # Properties: tile map
 
-property.tile-map.blend-mode = Режим смешивания
 property.tile-map.layer.visible = Видимость
 property.tile-map.layer.z = Z
 property.tile-map.tile-source = Набор тайлов
@@ -1165,7 +1160,6 @@ property.tile-source.extrude-borders.tooltip = Копирует крайние �
 property.tile-source.flip-horizontal = Горизонтальное отражение
 property.tile-source.flip-vertical = Вертикальное отражение
 property.tile-source.fps = FPS
-property.tile-source.image = Изображение
 property.tile-source.inner-padding = Внутренний отступ
 property.tile-source.playback = Воспроизведение
 property.tile-source.sprite-trim-mode = Обрезка спрайта

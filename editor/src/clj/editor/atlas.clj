@@ -308,8 +308,6 @@
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
 
   (property image resource/Resource ; Required protobuf field.
-            (dynamic label (g/constantly (localization/message "property.atlas.image.image")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.atlas.image.image")))
             (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value

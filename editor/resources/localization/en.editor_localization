@@ -883,7 +883,9 @@ property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}"
 
 # Properties: universal
 
+property.blend-mode = Blend Mode
 property.id = Id
+property.image = Image
 property.material = Material
 property.name = Name
 property.path = Path
@@ -931,7 +933,6 @@ property.atlas.animation.flip-vertical = Flip Vertical
 property.atlas.animation.playback = Playback
 property.atlas.image.pivot = Pivot
 property.atlas.image.sprite-trim-mode = Sprite Trim Mode
-property.atlas.image.image = Image
 property.atlas.margin = Margin
 property.atlas.margin.tooltip = Pixels inserted between each image on the atlas
 property.atlas.inner-padding = Inner Padding
@@ -1029,7 +1030,6 @@ property.font.all-chars = All Chars
 property.gui.adjust-mode = Adjust Mode
 property.gui.adjust-reference = Adjust Reference
 property.gui.alpha = Alpha
-property.gui.blend-mode = Blend Mode
 property.gui.clipping-inverted = Clipping Inverted
 property.gui.clipping-mode = Clipping Mode
 property.gui.clipping-visible = Clipping Visible
@@ -1066,7 +1066,6 @@ property.gui.y-anchor = Y Anchor
 
 # Properties: label
 
-property.label.blend-mode = Blend Mode
 property.label.color = Color
 property.label.font = Font
 property.label.leading = Leading
@@ -1098,7 +1097,6 @@ property.model.skeleton = Skeleton
 property.particlefx.category.particle-life = Particle Life
 
 property.particlefx.animation = Animation
-property.particlefx.blend-mode = Blend Mode
 property.particlefx.duration = Duration
 property.particlefx.inherit-velocity = Inherit Velocity
 property.particlefx.material = Material
@@ -1153,9 +1151,7 @@ property.sound.speed = Speed
 
 # Properties: sprite
 
-property.sprite.blend-mode = Blend Mode
 property.sprite.default-animation = Default Animation
-property.sprite.image = Image
 property.sprite.offset = Offset
 property.sprite.playback-rate = Playback Rate
 property.sprite.size-mode = Size Mode
@@ -1163,7 +1159,6 @@ property.sprite.slice9 = Slice 9
 
 # Properties: tile map
 
-property.tile-map.blend-mode = Blend Mode
 property.tile-map.layer.visible = Visible
 property.tile-map.layer.z = Z
 property.tile-map.tile-source = Tile Source
@@ -1176,7 +1171,6 @@ property.tile-source.extrude-borders = Extrude Borders
 property.tile-source.flip-horizontal = Flip Horizontal
 property.tile-source.flip-vertical = Flip Vertical
 property.tile-source.fps = FPS
-property.tile-source.image = Image
 property.tile-source.inner-padding = Inner Padding
 property.tile-source.playback = Playback
 property.tile-source.sprite-trim-mode = Sprite Trim Mode

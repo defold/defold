@@ -922,8 +922,6 @@
                              (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
-            (dynamic label (g/constantly (localization/message "property.particlefx.blend-mode")))
-            (dynamic tooltip (g/constantly (props/tooltip-message "property.particlefx.blend-mode")))
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
             (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$BlendMode))))
 

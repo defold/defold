@@ -591,8 +591,6 @@
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
-            (dynamic label (g/constantly (localization/message "property.tile-source.image")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.image")))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
                              (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                  (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))

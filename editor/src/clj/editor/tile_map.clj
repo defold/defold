@@ -696,9 +696,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode)))
-            (dynamic label (g/constantly (localization/message "property.tile-map.blend-mode")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-map.blend-mode"))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
 
   (output max-tile-index g/Any :cached (g/fnk [layer-msgs]
                                          (transduce (comp (mapcat :cell)
