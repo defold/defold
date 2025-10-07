@@ -70,8 +70,8 @@ struct JobThreadContext
     jc::RingBuffer<HJob>    m_Done;         // Processed tasks, ready for callbacks
     uint32_t                m_Generation;
 
+    dmMutex::HMutex         m_Mutex;        // Dummy implementation and null on unsupported platforms
 #if defined(DM_HAS_THREADS)
-    dmMutex::HMutex                         m_Mutex;
     dmConditionVariable::HConditionVariable m_WakeupCond;
     bool                                    m_Run;
 #endif
