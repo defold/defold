@@ -1002,5 +1002,23 @@ public class BundleHelper {
         }
     }
 
-
+    public static void copySharedLibraries(Platform platform, File buildDir, File targetDir) throws IOException {
+        if (buildDir.exists()) {
+            String libPrefix = platform.getLibPrefix();
+            String libSuffix = platform.getLibSuffix();
+            Files.walk(buildDir.toPath())
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String filename = path.getFileName().toString();
+                        return filename.startsWith(libPrefix) && filename.endsWith(libSuffix);
+                    })
+                    .forEach(path -> {
+                        try {
+                            FileUtils.copyFileToDirectory(path.toFile(), targetDir);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+    }
 }

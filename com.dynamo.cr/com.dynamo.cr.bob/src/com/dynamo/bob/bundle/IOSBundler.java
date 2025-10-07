@@ -490,6 +490,10 @@ public class IOSBundler implements IBundler {
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
 
+        // copy dynamic libraries
+        File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
+        BundleHelper.copySharedLibraries(platform, binaryDir, appDir);
+
         // Copy extension frameworks
         for (Platform architecture : architectures) {
             File extensionArchitectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
