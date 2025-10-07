@@ -268,6 +268,8 @@
   (property id g/Str ; Required protobuf field.
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
   (property start-tile g/Int ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.tile-source.start-tile")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.start-tile")))
             (dynamic error (g/fnk [_node-id start-tile tile-count]
                              ;; Editor scripts evaluate _properties output
                              ;; during node initialization while it's not
@@ -275,6 +277,8 @@
                              (when tile-count
                                (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile")))))
   (property end-tile g/Int ; Required protobuf field.
+            (dynamic label (g/constantly (localization/message "property.tile-source.end-tile")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.end-tile")))
             (dynamic error (g/fnk [_node-id end-tile tile-count]
                              ;; Editor scripts evaluate _properties output
                              ;; during node initialization while it's not
@@ -282,11 +286,19 @@
                              (when tile-count
                                (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile")))))
   (property playback types/AnimationPlayback (default (protobuf/default Tile$Animation :playback))
+            (dynamic label (g/constantly (localization/message "property.tile-source.playback")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.playback")))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
   (property fps g/Int (default (protobuf/default Tile$Animation :fps))
+            (dynamic label (g/constantly (localization/message "property.tile-source.fps")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.fps")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
-  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal))))
-  (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-vertical))))
+  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal)))
+            (dynamic label (g/constantly (localization/message "property.tile-source.flip-horizontal")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.flip-horizontal"))))
+  (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-vertical)))
+            (dynamic label (g/constantly (localization/message "property.tile-source.flip-vertical")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.flip-vertical"))))
   (property cues g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
 
@@ -579,6 +591,8 @@
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic label (g/constantly (localization/message "property.tile-source.image")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.image")))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
                              (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                  (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
@@ -588,19 +602,31 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
   (property tile-width g/Int (default (protobuf/required-default Tile$TileSet :tile-width))
+            (dynamic label (g/constantly (localization/message "property.tile-source.tile-width")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.tile-width")))
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
                              (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
   (property tile-height g/Int (default (protobuf/required-default Tile$TileSet :tile-height))
+            (dynamic label (g/constantly (localization/message "property.tile-source.tile-height")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.tile-height")))
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
                              (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
   (property tile-margin g/Int (default (protobuf/default Tile$TileSet :tile-margin))
+            (dynamic label (g/constantly (localization/message "property.tile-source.tile-margin")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.tile-margin")))
             (dynamic error (g/fnk [_node-id tile-margin tile-width-error tile-height-error]
                              (validation/prop-error :fatal _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
   (property tile-spacing g/Int (default (protobuf/default Tile$TileSet :tile-spacing))
+            (dynamic label (g/constantly (localization/message "property.tile-source.tile-spacing")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.tile-spacing")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? tile-spacing)))
   (property extrude-borders g/Int (default (protobuf/default Tile$TileSet :extrude-borders))
+            (dynamic label (g/constantly (localization/message "property.tile-source.extrude-borders")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.extrude-borders")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
   (property inner-padding g/Int (default (protobuf/default Tile$TileSet :inner-padding))
+            (dynamic label (g/constantly (localization/message "property.tile-source.inner-padding")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.inner-padding")))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-resource))
@@ -609,6 +635,8 @@
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic label (g/constantly (localization/message "property.tile-source.collision")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.collision")))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
                              (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
   (property material-tag g/Str (default (protobuf/default Tile$TileSet :material-tag))
@@ -616,6 +644,8 @@
   (property original-convex-hulls g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property sprite-trim-mode g/Keyword (default (protobuf/default Tile$TileSet :sprite-trim-mode))
+            (dynamic label (g/constantly (localization/message "property.tile-source.sprite-trim-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-source.sprite-trim-mode")))
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
   (property tile->collision-group-node g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))

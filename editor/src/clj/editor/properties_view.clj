@@ -1049,7 +1049,8 @@
               (mapcat (fn [[category-title properties]]
                         (when (coll/not-empty properties)
                           (when category-title
-                            (ui/add-child! vbox (doto (Label. category-title)
+                            (ui/add-child! vbox (doto (Label.)
+                                                  (localization/localize! (:localization context) category-title)
                                                   (ui/add-style! "property-category"))))
                           (let [[grid property-keyword+update-ui-fns] (make-property-grid context properties property-keyword->property)]
                             (ui/add-child! vbox grid)

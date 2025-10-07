@@ -385,7 +385,10 @@
 (def ^:private links #{:link :override})
 
 (defn category? [v]
-  (and (sequential? v) (string? (first v))))
+  (and (sequential? v)
+       (let [v (first v)]
+         (or (string? v)
+             (localization/message-pattern? v)))))
 
 (defn- inject-display-order [display-order key injected-display-order]
   (let [injected-display-order (loop [keys injected-display-order
@@ -1041,7 +1044,8 @@
   [{:keys [source-node-id source-prop-kw source-prop-label source-clear-fn targets] :as value}]
   (and (g/node-id? source-node-id)
        (keyword? source-prop-kw)
-       (string? source-prop-label)
+       (or (string? source-prop-label)
+           (localization/message-pattern? source-prop-label))
        (ifn? source-clear-fn)
        (contains? value :source-value)
        (vector? targets)

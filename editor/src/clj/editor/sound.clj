@@ -20,9 +20,11 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -184,22 +186,36 @@
             (dynamic error (g/fnk [_node-id sound]
                              (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
                                  (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats})))
-  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping))))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats}))
+            (dynamic label (g/constantly (localization/message "property.sound.sound")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.sound"))))
+  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping)))
+            (dynamic label (g/constantly (localization/message "property.sound.looping")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.looping"))))
   (property loopcount g/Int (default (protobuf/default Sound$SoundDesc :loopcount))
             (value (g/fnk [looping loopcount]
                      (if (not looping) 0 loopcount)))
             (dynamic error (g/fnk [_node-id loopcount]
                              (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount "Loopcount")))
             (dynamic read-only? (g/fnk [looping]
-                                  (not looping))))
-  (property group g/Str (default (protobuf/default Sound$SoundDesc :group)))
+                                   (not looping)))
+            (dynamic label (g/constantly (localization/message "property.sound.loopcount")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.loopcount"))))
+  (property group g/Str (default (protobuf/default Sound$SoundDesc :group))
+            (dynamic label (g/constantly (localization/message "property.sound.group")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.group"))))
   (property gain g/Num (default (protobuf/default Sound$SoundDesc :gain))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain))
+            (dynamic label (g/constantly (localization/message "property.sound.gain")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.gain"))))
   (property pan g/Num (default (protobuf/default Sound$SoundDesc :pan))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan))
+            (dynamic label (g/constantly (localization/message "property.sound.pan")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.pan"))))
   (property speed g/Num (default (protobuf/default Sound$SoundDesc :speed))
-            (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed)))
+            (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed))
+            (dynamic label (g/constantly (localization/message "property.sound.speed")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sound.speed"))))
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)

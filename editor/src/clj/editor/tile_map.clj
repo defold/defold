@@ -521,9 +521,13 @@
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
-            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
+            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z))
+            (dynamic label (g/constantly (localization/message "property.tile-map.layer.z")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-map.layer.z"))))
 
-  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
+  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible)))
+            (dynamic label (g/constantly (localization/message "property.tile-map.layer.visible")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-map.layer.visible"))))
 
   (output scene g/Any :cached produce-layer-scene)
   (output node-outline outline/OutlineData :cached produce-layer-outline)
@@ -674,7 +678,9 @@
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
                              (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"}))
+            (dynamic label (g/constantly (localization/message "property.tile-map.tile-source")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-map.tile-source"))))
 
   ;; material
   (property material resource/Resource ; Default assigned in load-fn.
@@ -690,7 +696,9 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode)))
+            (dynamic label (g/constantly (localization/message "property.tile-map.blend-mode")))
+            (dynamic tooltip (g/constantly (properties/tooltip-message "property.tile-map.blend-mode"))))
 
   (output max-tile-index g/Any :cached (g/fnk [layer-msgs]
                                          (transduce (comp (mapcat :cell)

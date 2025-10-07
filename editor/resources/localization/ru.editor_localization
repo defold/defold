@@ -1083,8 +1083,97 @@ property.model.skeleton = Скелет
 
 # Properties: particlefx
 
+property.particlefx.category.particle-life = Частица в течении жизни
+
+property.particlefx.animation = Анимация
+property.particlefx.blend-mode = Режим смешивания
+property.particlefx.duration = Длительность
+property.particlefx.inherit-velocity = Наследовать скорость
+property.particlefx.material = Материал
+property.particlefx.max-particle-count = Макс. число частиц
+property.particlefx.mode = Режим проигрывания
+property.particlefx.particle-orientation = Ориентация частиц
+property.particlefx.pivot = Опорная точка
+property.particlefx.size-mode = Режим размера
+property.particlefx.space = Пространство эмиссии
+property.particlefx.start-delay = Задержка запуска
+property.particlefx.start-offset = Начальное смещение
+property.particlefx.stretch-with-velocity = Растягивать по скорости
+property.particlefx.tile-source = Изображение
+property.particlefx.type = Тип эмиттера
+
+property.particlefx.emitter-key-particle-alpha = Начальная альфа
+property.particlefx.emitter-key-particle-angular-velocity = Начальная угловая скорость
+property.particlefx.emitter-key-particle-blue = Начальный синий
+property.particlefx.emitter-key-particle-green = Начальный зелёный
+property.particlefx.emitter-key-particle-life-time = Время жизни частицы
+property.particlefx.emitter-key-particle-red = Начальный красный
+property.particlefx.emitter-key-particle-rotation = Начальный поворот
+property.particlefx.emitter-key-particle-size = Начальный размер
+property.particlefx.emitter-key-particle-speed = Начальная скорость
+property.particlefx.emitter-key-particle-stretch-factor-x = Начальное растяжение X
+property.particlefx.emitter-key-particle-stretch-factor-y = Начальное растяжение Y
+property.particlefx.emitter-key-size-x = Размер эмиттера X
+property.particlefx.emitter-key-size-y = Размер эмиттера Y
+property.particlefx.emitter-key-size-z = Размер эмиттера Z
+property.particlefx.emitter-key-spawn-rate = Скорость появления
 property.particlefx.magnitude = Величина
 property.particlefx.max-distance = Макс. расстояние
+property.particlefx.particle-key-alpha = Альфа
+property.particlefx.particle-key-angular-velocity = Угловая скорость
+property.particlefx.particle-key-blue = Синий
+property.particlefx.particle-key-green = Зелёный
+property.particlefx.particle-key-red = Красный
+property.particlefx.particle-key-rotation = Поворот
+property.particlefx.particle-key-scale = Масштаб
+property.particlefx.particle-key-stretch-factor-x = Растяжение X
+property.particlefx.particle-key-stretch-factor-y = Растяжение Y
+
+# Properties: sound
+
+property.sound.sound = Звук
+property.sound.looping = Зациклить
+property.sound.loopcount = Повторы
+property.sound.group = Группа
+property.sound.gain = Усиление
+property.sound.pan = Панорама
+property.sound.speed = Скорость
+
+# Properties: sprite
+
+property.sprite.blend-mode = Режим смешивания
+property.sprite.default-animation = Анимация по умолчанию
+property.sprite.image = Изображение
+property.sprite.offset = Смещение
+property.sprite.playback-rate = Скорость воспроизведения
+property.sprite.size-mode = Режим размера
+property.sprite.slice9 = 9-слайс
+
+# Properties: tile map
+
+property.tile-map.blend-mode = Режим смешивания
+property.tile-map.layer.visible = Видимость
+property.tile-map.layer.z = Z
+property.tile-map.tile-source = Набор тайлов
+
+# Properties: tile source
+
+property.tile-source.collision = Коллизия
+property.tile-source.end-tile = Конечный тайл
+property.tile-source.extrude-borders = Расширение границ
+property.tile-source.extrude-borders.tooltip = Копирует крайние пиксели наружу, чтобы избежать смешивания между изображениями
+property.tile-source.flip-horizontal = Горизонтальное отражение
+property.tile-source.flip-vertical = Вертикальное отражение
+property.tile-source.fps = FPS
+property.tile-source.image = Изображение
+property.tile-source.inner-padding = Внутренний отступ
+property.tile-source.playback = Воспроизведение
+property.tile-source.sprite-trim-mode = Обрезка спрайта
+property.tile-source.start-tile = Начальный тайл
+property.tile-source.tile-height = Высота тайла
+property.tile-source.tile-margin = Отступ тайла
+property.tile-source.tile-spacing = Расстояние между тайлами
+property.tile-source.tile-width = Ширина тайла
 
 # Resources
 

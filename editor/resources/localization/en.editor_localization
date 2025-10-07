@@ -1095,8 +1095,96 @@ property.model.skeleton = Skeleton
 
 # Properties: particlefx
 
+property.particlefx.category.particle-life = Particle Life
+
+property.particlefx.animation = Animation
+property.particlefx.blend-mode = Blend Mode
+property.particlefx.duration = Duration
+property.particlefx.inherit-velocity = Inherit Velocity
+property.particlefx.material = Material
+property.particlefx.max-particle-count = Max Particle Count
+property.particlefx.mode = Play Mode
+property.particlefx.particle-orientation = Particle Orientation
+property.particlefx.pivot = Pivot
+property.particlefx.size-mode = Size Mode
+property.particlefx.space = Emission Space
+property.particlefx.start-delay = Start Delay
+property.particlefx.start-offset = Start Offset
+property.particlefx.stretch-with-velocity = Stretch With Velocity
+property.particlefx.tile-source = Image
+property.particlefx.type = Emitter Type
+
+property.particlefx.emitter-key-particle-alpha = Initial Alpha
+property.particlefx.emitter-key-particle-angular-velocity = Initial Angular Velocity
+property.particlefx.emitter-key-particle-blue = Initial Blue
+property.particlefx.emitter-key-particle-green = Initial Green
+property.particlefx.emitter-key-particle-life-time = Particle Life Time
+property.particlefx.emitter-key-particle-red = Initial Red
+property.particlefx.emitter-key-particle-rotation = Initial Rotation
+property.particlefx.emitter-key-particle-size = Initial Size
+property.particlefx.emitter-key-particle-speed = Initial Speed
+property.particlefx.emitter-key-particle-stretch-factor-x = Initial Stretch X
+property.particlefx.emitter-key-particle-stretch-factor-y = Initial Stretch Y
+property.particlefx.emitter-key-size-x = Emitter Size X
+property.particlefx.emitter-key-size-y = Emitter Size Y
+property.particlefx.emitter-key-size-z = Emitter Size Z
+property.particlefx.emitter-key-spawn-rate = Spawn Rate
 property.particlefx.magnitude = Magnitude
 property.particlefx.max-distance = Max Distance
+property.particlefx.particle-key-alpha = Alpha
+property.particlefx.particle-key-angular-velocity = Angular Velocity
+property.particlefx.particle-key-blue = Blue
+property.particlefx.particle-key-green = Green
+property.particlefx.particle-key-red = Red
+property.particlefx.particle-key-rotation = Rotation
+property.particlefx.particle-key-scale = Scale
+property.particlefx.particle-key-stretch-factor-x = Stretch X
+property.particlefx.particle-key-stretch-factor-y = Stretch Y
+
+# Properties: sound
+
+property.sound.sound = Sound
+property.sound.looping = Loop
+property.sound.loopcount = Loop Count
+property.sound.group = Group
+property.sound.gain = Gain
+property.sound.pan = Pan
+property.sound.speed = Speed
+
+# Properties: sprite
+
+property.sprite.blend-mode = Blend Mode
+property.sprite.default-animation = Default Animation
+property.sprite.image = Image
+property.sprite.offset = Offset
+property.sprite.playback-rate = Playback Rate
+property.sprite.size-mode = Size Mode
+property.sprite.slice9 = Slice 9
+
+# Properties: tile map
+
+property.tile-map.blend-mode = Blend Mode
+property.tile-map.layer.visible = Visible
+property.tile-map.layer.z = Z
+property.tile-map.tile-source = Tile Source
+
+# Properties: tile source
+
+property.tile-source.collision = Collision
+property.tile-source.end-tile = End Tile
+property.tile-source.extrude-borders = Extrude Borders
+property.tile-source.flip-horizontal = Flip Horizontal
+property.tile-source.flip-vertical = Flip Vertical
+property.tile-source.fps = FPS
+property.tile-source.image = Image
+property.tile-source.inner-padding = Inner Padding
+property.tile-source.playback = Playback
+property.tile-source.sprite-trim-mode = Sprite Trim Mode
+property.tile-source.start-tile = Start Tile
+property.tile-source.tile-height = Tile Height
+property.tile-source.tile-margin = Tile Margin
+property.tile-source.tile-spacing = Tile Spacing
+property.tile-source.tile-width = Tile Width
 
 # Resources
 
