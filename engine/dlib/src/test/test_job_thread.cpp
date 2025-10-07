@@ -14,6 +14,7 @@
 
 #include "dlib/job_thread.h"
 #include "dlib/array.h"
+#include "dlib/atomic.h"
 #include "dlib/time.h"
 
 #define JC_TEST_IMPLEMENTATION
@@ -255,18 +256,22 @@ TEST(dmJobThread, CancelJobs)
 
 struct JobWithDependency
 {
-    uint64_t m_TimeStampProcess;
-    uint64_t m_TimeStampFinished;
     uint64_t m_Sleep;
     int      m_Index;
+
+    // Track which order the items are processed/finished (instead of time)
+    int      m_ProcessingOrder;
+    int      m_FinishingOrder;
+
+    int32_atomic_t* m_Order;
 };
 
 static int ProcessSortedDependencyJobs(dmJobThread::HJob hjob, uint64_t tag, void* context, void* _data)
 {
     JobWithDependency* data = (JobWithDependency*)_data;
     dmTime::Sleep(data->m_Sleep);
-    data->m_TimeStampProcess = dmTime::GetMonotonicTime();
-    printf("job%d: process time: %" PRIx64 "\n", data->m_Index, data->m_TimeStampProcess);
+    data->m_ProcessingOrder = dmAtomicIncrement32(data->m_Order);
+    printf("job%d: process: order %d\n", data->m_Index, data->m_ProcessingOrder);
     return 1;
 }
 
@@ -274,8 +279,8 @@ static void CallbackSortedDependencyJobs(dmJobThread::HJob job, uint64_t tag, vo
 {
     uint32_t* count_finished = (uint32_t*)context;
     JobWithDependency* data = (JobWithDependency*)_data;
-    data->m_TimeStampFinished = dmTime::GetMonotonicTime();
-    printf("job%d: finish time: %" PRIx64 "\n", data->m_Index, data->m_TimeStampFinished);
+    data->m_FinishingOrder = dmAtomicIncrement32(data->m_Order);
+    printf("job%d: finish: order %d\n", data->m_Index, data->m_FinishingOrder);
     (*count_finished)++;
 }
 
@@ -293,12 +298,14 @@ TEST(dmJobThread, SortedDependencyJobs)
     dmJobThread::HJob   hjobs[job_count];
     memset(items, 0, sizeof(items));
 
+    int32_atomic_t order = 0;
     uint32_t count_finished = 0;
 
     for (uint32_t i = 0; i < job_count; ++i)
     {
         items[i].m_Index = (int)i;
         items[i].m_Sleep = rand() % 1000;
+        items[i].m_Order = &order;
         printf("job%d: init: sleep: %d\n", (int)i, (int)items[i].m_Sleep);
 
         dmJobThread::Job job = {0};
@@ -362,14 +369,25 @@ TEST(dmJobThread, SortedDependencyJobs)
     dmJobThread::Destroy(ctx);
 
     // Make sure all children are processed before their parents
-    ASSERT_LT(items[0].m_TimeStampProcess, items[1].m_TimeStampProcess);
-    ASSERT_LT(items[2].m_TimeStampProcess, items[1].m_TimeStampProcess);
 
-    ASSERT_LT(items[4].m_TimeStampProcess, items[5].m_TimeStampProcess);
-    ASSERT_LT(items[6].m_TimeStampProcess, items[5].m_TimeStampProcess);
+    ASSERT_LT(items[0].m_ProcessingOrder, items[1].m_ProcessingOrder);
+    ASSERT_LT(items[2].m_ProcessingOrder, items[1].m_ProcessingOrder);
 
-    ASSERT_LT(items[1].m_TimeStampProcess, items[3].m_TimeStampProcess);
-    ASSERT_LT(items[5].m_TimeStampProcess, items[3].m_TimeStampProcess);
+    ASSERT_LT(items[4].m_ProcessingOrder, items[5].m_ProcessingOrder);
+    ASSERT_LT(items[6].m_ProcessingOrder, items[5].m_ProcessingOrder);
+
+    ASSERT_LT(items[1].m_ProcessingOrder, items[3].m_ProcessingOrder);
+    ASSERT_LT(items[5].m_ProcessingOrder, items[3].m_ProcessingOrder);
+
+    ASSERT_LT(items[0].m_FinishingOrder, items[1].m_FinishingOrder);
+    ASSERT_LT(items[2].m_FinishingOrder, items[1].m_FinishingOrder);
+
+    ASSERT_LT(items[4].m_FinishingOrder, items[5].m_FinishingOrder);
+    ASSERT_LT(items[6].m_FinishingOrder, items[5].m_FinishingOrder);
+
+    ASSERT_LT(items[1].m_FinishingOrder, items[3].m_FinishingOrder);
+    ASSERT_LT(items[5].m_FinishingOrder, items[3].m_FinishingOrder);
+
 
     ASSERT_EQ(job_count, count_finished);
 }
