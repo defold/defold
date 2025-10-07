@@ -200,6 +200,7 @@ static void IterateComponentChildren(SceneNodeIterator* it, SceneNode* node)
 
 bool TraverseGetRoot(HRegister regist, SceneNode* node)
 {
+    DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
     if (regist->m_Collections.Empty())
         return false;
 
