@@ -47,9 +47,11 @@
     (fn [prefix lib & options]
       (when-let [progress-reporter @namespace-progress-reporter]
         (let [pos (swap! namespace-counter inc)
-              msg (str "Initializing editor " (if prefix
-                                                (str prefix "." lib)
-                                                (str lib)))]
+              msg (localization/message
+                    "progress.initializing-editor"
+                    {"lib" (if prefix
+                             (str prefix "." lib)
+                             (str lib))})]
           (progress-reporter
             #(progress/jump % pos msg))))
       (apply core-load-lib-fn prefix lib options))))
@@ -57,10 +59,11 @@
 (defn- open-project-with-progress-dialog
   [namespace-loader user-prefs localization cli-options project updater newly-created?]
   (dialogs/make-load-project-dialog
+    localization
     (fn [render-progress!]
-      (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
-            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
-            render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
+      (let [namespace-progress (progress/make (localization/message "progress.loading-editor") 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 0) 1)
+            render-project-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 1) 4)
             project-file (io/file project)
             project-dir (.getParentFile project-file)
             project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
@@ -77,7 +80,7 @@
         (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
 
         ;; Initialize the system and load the project.
-        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir)]
+        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir localization)]
           ((resolve `editor.boot-open-project/initialize-systems!) project-prefs)
           ((resolve `editor.boot-open-project/initialize-project!) system-config)
           ((resolve `editor.boot-open-project/open-project!) project-file project-prefs localization cli-options render-project-progress! updater newly-created?))))))

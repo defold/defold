@@ -3733,6 +3733,20 @@ namespace dmGui
         dmArray<Animation>* animations = &scene->m_Animations;
         uint32_t n_animations = animations->Size();
 
+        if (property_hash == 0)
+        { 
+            // if property hash is 0 then cancels all ongoing animation of properties for node
+            for (uint32_t i = 0; i < n_animations; ++i)
+            {
+                Animation* anim = &(*animations)[i];
+                if (anim->m_Node == node)
+                {
+                    anim->m_Cancelled = 1;
+                }
+            }
+            return;
+        }
+
         PropDesc* pd = GetPropertyDesc(property_hash);
         if (pd) {
             for (uint32_t i = 0; i < n_animations; ++i)

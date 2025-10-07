@@ -1,12 +1,12 @@
 # Localizations of the Welcome dialog
-welcome.button.open-from-disk = Открыть с Диска...
+welcome.button.open-from-disk = Открыть с Диска…
 welcome.button.open-selected = Открыть Проект
 welcome.recent-projects = Недавние Проекты
 welcome.tab.new-project = НОВЫЙ ПРОЕКТ
 welcome.tab.home = ГЛАВНАЯ
 welcome.greeting = Добро пожаловать! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
 welcome.button.create-new-project = Создать Проект
-welcome.downloading-project = Загружается {template}...
+welcome.downloading-project = Загружается {template}…
 welcome.button.cancel-download = Отменить Загрузку
 welcome.category.from-template = Из Шаблона
 welcome.category.from-tutorial = Из Туториала
@@ -31,7 +31,7 @@ welcome.new-project.error.host-not-responding.title = Хост Не Отвеча
 welcome.new-project.error.host-not-responding.header = Время ожидания соединения истекло
 welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
 welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
-welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен:
+welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен: 
 welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
 
 # Welcome -> New Project -> From Template
@@ -132,11 +132,56 @@ dialog.button.dismiss = Закрыть
 dialog.button.report = Сообщить об ошибке
 dialog.button.disable-scene-editor = Отключить редактор сцен
 dialog.button.cancel = Отмена
+dialog.button.delete = Удалить
 
 # Error Dialog
 dialog.error.title = Ошибка
 dialog.error.header = Произошла ошибка
 dialog.error.footer = Вы можете помочь нам исправить эту проблему, отправив отчёт и указав, что вы делали в момент её возникновения.
+
+# Build Error Dialog
+
+dialog.build-error.title = Ошибка сборки
+dialog.build-error.cycle.header = Обнаружена циклическая зависимость ресурсов
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = Это вызвано двумя или более коллекциями, которые ссылаются друг на друга через прокси или фабрики коллекций. Один из ресурсов: {resource}.
+dialog.build-error.cycle.detail.game-object = Это вызвано двумя или более игровыми объектами, которые ссылаются друг на друга через фабрики игровых объектов. Один из ресурсов: {resource}.
+dialog.build-error.cycle.detail.script = Это вызвано двумя или более модулями Lua, которые требуют друг друга в цикле. Один из ресурсов: {resource}.
+dialog.build-error.cycle.detail.generic = Это вызвано двумя или более ресурсами, которые ссылаются друг на друга. Один из ресурсов: {resource}.
+
+# Clean Build Dialog
+
+dialog.clean-build.title = Выполнить чистую сборку проекта?
+dialog.clean-build.header = Вы уверены, что хотите выполнить чистую сборку проекта?
+dialog.clean-build.button.clean = Чистая сборка
+
+# Debugging Not Supported Dialog
+
+dialog.debugging-not-supported.title = Отладка не поддерживается
+dialog.debugging-not-supported.header = Этот проект нельзя использовать с отладчиком
+dialog.debugging-not-supported.content = В проекте отключено объединённое состояние скриптов.\n\nЕсли вам не требуется раздельное состояние скриптов, измените параметр script.shared_state в файле game.project.
+
+# Defunload Issues Dialog
+
+dialog.defunload-issues.title = Пересмотрите шаблоны .defunload
+dialog.defunload-issues.header = Найдены небезопасные ссылки на выгруженные ресурсы.
+dialog.defunload-issues.summary = Один или несколько ресурсов содержат небезопасные ссылки на ресурсы, выгруженные по шаблонам `.defunload`.
+dialog.defunload-issues.advice = Исправьте шаблоны в файле `.defunload`, чтобы избежать загрузки нежелательных ресурсов.
+dialog.defunload-issues.report-path = Полный отчёт сохранён в файле:
+dialog.defunload-issues.button.ignore = Игнорировать
+dialog.defunload-issues.button.open-report = Открыть отчёт
+dialog.defunload-issues.report-line = {resource} - ссылается на выгруженные ресурсы:
+dialog.defunload-issues.report.section-loading-resources = ### Загрузка ресурсов ###
+dialog.defunload-issues.report.loaded-undesired = Следующие ресурсы, соответствующие шаблонам `.defunload`, были загружены по необходимости:
+
+notification.defunload-issues.action.show-details = Показать подробности…
+
+# Launch Failed Dialog
+
+dialog.launch-failed.title = Ошибка запуска
+dialog.launch-failed.header = Не удалось запустить {target}
+dialog.launch-failed.detail = Если движок уже запущен, завершите процесс вручную и попробуйте снова
+dialog.launch-failed.target.new-local-engine = Новый локальный движок
 
 # GL support error dialog
 dialog.gl-support.title = Недостаточная поддержка OpenGL
@@ -159,6 +204,245 @@ dialog.target-ip.title = Введите IP целевого устройства
 dialog.target-ip.header = Введите IP-адрес целевого устройства
 dialog.target-ip.label.ip = IP-адрес
 dialog.target-ip.button.add = Добавить IP-адрес
+
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = Журнал обнаружения целевых устройств
+dialog.target-discovery-log.header = Журнал обнаружения целевых устройств
+dialog.target-discovery-log.button.clear-log = Очистить журнал
+dialog.target-discovery-log.button.restart-discovery = Перезапустить обнаружение
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = Указать путь
+dialog.directory.title.select = Выбор папки
+dialog.file.title.select = Выбор файла
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = Задать пользовательское разрешение
+dialog.custom-resolution.header = Укажите пользовательское разрешение
+dialog.custom-resolution.detail = Окно игры будет изменено до указанного размера
+dialog.custom-resolution.label.width = Ширина
+dialog.custom-resolution.label.height = Высота
+dialog.custom-resolution.button.set-resolution = Установить разрешение
+
+# Tracked internal files dialog
+
+dialog.tracked-internal-files.title = Внутренние файлы под контролем версий
+dialog.tracked-internal-files.header = Внутренние файлы оказались под контролем версий
+dialog.tracked-internal-files.content = Похоже, что внутренние файлы, например загруженные зависимости или результаты сборки, попали в систему контроля версий.\nЭто могло случиться, если коммит был сделан до того, как файл .gitignore был настроен должным образом.\n\nЧтобы исправить это, сделайте коммит, в котором вы удалите папки .internal и build, а затем снова откройте проект.
+
+# Quit Defold dialog
+
+dialog.quit-defold.title = Выйти из Defold?
+dialog.quit-defold.header = Есть несохранённые изменения. Вы уверены, что хотите выйти?
+dialog.quit-defold.button.cancel = Отменить и продолжить работу
+dialog.quit-defold.button.quit = Выйти без сохранения
+
+# Save and upgrade file formats dialogs
+
+dialog.save-and-upgrade.title.not-safe = Небезопасно обновлять форматы файлов
+dialog.save-and-upgrade.version-control.header = Рекомендуется контроль версий
+dialog.save-and-upgrade.version-control.preamble = Из-за риска потери данных обновлять форматы файлов следует только в проектах под контролем версий.
+dialog.save-and-upgrade.version-control.info.before-manual = Проект под контролем версий хранит историю изменений и позволяет сотрудничать с другими, синхронизируя изменения с сервером.\n\nО том, как настроить контроль версий, можно прочитать в 
+dialog.save-and-upgrade.version-control.info.manual-link = Руководстве Defold
+dialog.save-and-upgrade.version-control.info.after-manual = .
+dialog.save-and-upgrade.uncommitted.header = Обнаружены незафиксированные изменения
+dialog.save-and-upgrade.uncommitted.content = Из-за риска потери данных обновление форматов файлов следует выполнять только в чистой рабочей копии.\n\nРекомендуем зафиксировать локальные изменения перед повторной попыткой.
+dialog.save-and-upgrade.confirm.title = Сохранить и обновить форматы файлов?
+dialog.save-and-upgrade.confirm.header = Пересохранить все файлы в новом формате?
+dialog.save-and-upgrade.confirm.content = Файлы проекта будут пересохранены в новейшем файловом формате. Отменить эту операцию нельзя.\n\nПоскольку может затронуться множество файлов, согласуйте действия с руководителем проекта перед продолжением.
+dialog.save-and-upgrade.button.abort = Прервать
+dialog.save-and-upgrade.button.proceed-anyway = Всё равно продолжить
+dialog.save-and-upgrade.button.upgrade-editable-files = Обновить редактируемые файлы
+dialog.save-and-upgrade.button.upgrade-project-files = Обновить файлы проекта
+dialog.save-and-upgrade.button.upgrade-all-files = Обновить все файлы
+
+# Plugin load error dialog
+
+dialog.plugin-load-error.title = Не удалось загрузить плагин
+dialog.plugin-load-error.header = Плагин редактора «{plugin}» не совместим с этой версией редактора. Измените зависимости проекта, чтобы использовать подходящую версию.
+
+# Desktop entry dialogs
+
+dialog.desktop-entry.created.title = Ярлык рабочего стола создан
+dialog.desktop-entry.created.header = Ярлык рабочего стола создан!
+dialog.desktop-entry.created.content = Теперь вы можете запускать редактор Defold из системного меню.
+dialog.desktop-entry.creation-failed.title = Не удалось создать ярлык рабочего стола
+dialog.desktop-entry.creation-failed.header = Не удалось создать ярлык рабочего стола!
+dialog.desktop-entry.creation-failed.content = Произошла ошибка при создании ярлыка рабочего стола:\n{error}
+
+# Texture compressor error dialog
+
+dialog.texture-compressor-error.title = Не удалось загрузить плагин
+dialog.texture-compressor-error.header = Не удалось инициализировать компрессоры текстур
+dialog.texture-compressor-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+
+# Lua preprocessors error dialog
+
+dialog.lua-preprocessors-error.title = Не удалось загрузить плагин
+dialog.lua-preprocessors-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+dialog.lua-preprocessors-error.construct.header = Не удалось создать препроцессоры Lua
+dialog.lua-preprocessors-error.initialize.header = Не удалось инициализировать препроцессоры Lua
+
+# Lua transpilers error dialog
+
+dialog.lua-transpilers-error.title = Не удалось загрузить плагин
+dialog.lua-transpilers-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+dialog.lua-transpilers-error.construct.header = Не удалось создать транспиляторы Lua
+dialog.lua-transpilers-error.initialize.header = Не удалось инициализировать транспиляторы Lua
+dialog.lua-transpilers-error.generic.header = Не удалось загрузить транспиляторы Lua
+
+# Diff view dialogs
+
+dialog.diff-view.unchanged.title = Файл не изменён
+dialog.diff-view.unchanged.header = Файл не изменён
+dialog.diff-view.binary.title = Невозможно сравнить двоичные файлы
+dialog.diff-view.binary.header = Невозможно сравнить двоичные файлы
+
+# Fetch libraries dialog
+
+dialog.fetch-libraries.host-unreachable.title = Ошибка обновления библиотек
+dialog.fetch-libraries.host-unreachable.header = Загрузка остановлена: хост недоступен
+dialog.fetch-libraries.host-unreachable.content = Недоступный хост: {host}\n\nПроверьте подключение к интернету и попробуйте ещё раз.
+
+# Fetch libraries notification
+
+notification.fetch-libraries.dependencies-changed.prompt = Зависимости проекта изменились. Обновить библиотеки сейчас?
+notification.fetch-libraries.dependencies-changed.action.fetch = Обновить библиотеки
+notification.fetch-libraries.dependencies-missing.warning = Отсутствуют следующие зависимости:\n{dependencies}\nПроект может не работать без них.\nЧтобы их загрузить, подключитесь к интернету и обновите библиотеки.
+notification.fetch-libraries.dependencies-error.error = Не удалось установить следующие зависимости:\n{dependencies}
+notification.fetch-libraries.dependencies-error.action.open-game-project = Открыть game.project
+
+# Language server notification
+
+notification.lsp.language-server-missing.prompt = Невозможно выполнить это действие, потому что для языка {language} не запущен сервер LSP.
+notification.lsp.language-server-missing.action.about = Подробнее об LSP в Defold
+
+# Asset browser notifications
+
+notification.asset-browser.circular-paste.error = Невозможно вставить папку {source} в её подпапку {target}.
+
+# Workspace notifications
+
+notification.resource-collision.directory.warning = Папка «{resource}» скрывает папку с таким же именем
+notification.resource-collision.builtins.warning = Папка «{resource}» скрывает папку с таким же именем во встроенных ресурсах
+notification.resource-collision.library.warning = Папка «{resource}» скрывает папку с таким же именем в зависимости проекта: {library}
+
+# Web server notifications
+
+notification.web-server.port-fallback.warning = Не удалось запустить сервер на запрошенном порту {requested} ({reason}). Используется порт {fallback}.
+
+# Changes view notifications
+
+notification.changes-view.git-error = Из-за ошибки Git функции Git недоступны для этого проекта.
+
+# Debug view notifications
+
+notification.debug-view.connect-failed.error = {error}\n\nУбедитесь, что игра запущена и доступна по сети.
+
+# Target notifications
+
+notification.targets.selected-target-unavailable.error = {error}\n\nВыбранная цель недоступна.
+
+# Form view dialogs
+
+dialog.form-view.directory-not-in-project.title = Недопустимая Папка
+dialog.form-view.directory-not-in-project.header = Папка должна находиться внутри проекта.
+dialog.form-view.file-not-in-project.title = Недопустимый Файл
+dialog.form-view.file-not-in-project.header = Файл должен находиться внутри проекта.
+
+# Shared editor settings load error dialog
+
+dialog.shared-editor-settings.load-error.title = Не удалось загрузить общие настройки редактора
+dialog.shared-editor-settings.load-error.header = Не удалось загрузить файл общих настроек редактора.
+dialog.shared-editor-settings.load-error.detail = Используются настройки по умолчанию. Работа редактора может ухудшиться.
+dialog.shared-editor-settings.load-error.content = Файл: {file}\n\n{error}
+
+# Updated gitignore dialog
+
+dialog.gitignore-updated.title = Файл .gitignore обновлён
+dialog.gitignore-updated.header = Файл .gitignore был обновлён
+dialog.gitignore-updated.content = Файл .gitignore был автоматически обновлён, чтобы игнорировать результаты сборки и файлы метаданных.\nДобавьте его к своим изменениям при следующей синхронизации.
+
+# Asset browser reserved targets dialog
+
+dialog.asset-paste-reserved.title = Невозможно вставить
+dialog.asset-paste-reserved.header = Некоторые папки назначения зарезервированы
+dialog.asset-paste-reserved.content = Следующие папки назначения зарезервированы:\n{directories}
+
+# Asset deletion dialogs
+
+dialog.asset-delete-single.title = Удалить файл?
+dialog.asset-delete-single.header = Вы уверены, что хотите удалить {name}?
+dialog.asset-delete-multiple.title = Удалить файлы?
+dialog.asset-delete-multiple.header = Вы уверены, что хотите удалить эти файлы?
+dialog.asset-delete-multiple.content = Вы собираетесь удалить:{items}
+dialog.asset-delete-multiple.content.item = \n\u00A0\u00A0\u2022\u00A0{name}
+
+# Rename dialog
+
+dialog.rename.title = Переименовать {name}
+dialog.rename.preview = Просмотр
+dialog.rename.button.rename = Переименовать
+dialog.rename.label.folder = Новое имя папки
+dialog.rename.label.file = Новое имя файла
+dialog.rename.header.folder = Переименовать папку
+dialog.rename.header.files = Переименовать {n, plural, one {файл} few {# файла} other {# файлов}}
+dialog.rename.error.reserved-name = Имя {name} зарезервировано
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = Конфликт имён
+dialog.name-conflict.header = В папке назначения {count, plural, one {уже есть объект с таким именем} few {# объекта с конфликтующими именами} other {# объектов с конфликтующими именами}}.
+dialog.name-conflict.button.name-differently = Переименовать
+dialog.name-conflict.button.overwrite-files = Перезаписать файлы
+
+# New file dialog
+
+dialog.new-file.title.file = Новый файл
+dialog.new-file.title.resource = Новый файл ({type})
+dialog.new-file.header.file = Введите имя файла
+dialog.new-file.header.resource = Введите имя файла ({type})
+dialog.new-file.label.name = Имя
+dialog.new-file.label.location = Расположение
+dialog.new-file.label.preview = Просмотр
+dialog.new-file.button.create.file = Создать
+dialog.new-file.button.create.resource = Создать
+
+# List dialogs
+dialog.select-item.title = Выбрать вариант
+dialog.select-item.prompt = Отфильтровать…
+dialog.select-item.button.ok = ОК
+dialog.open-assets.title = Открыть ресурс
+dialog.open-assets.button.ok = Открыть
+dialog.referencing-files.title = Ссылающиеся файлы
+dialog.referencing-files.button.ok = Открыть
+dialog.dependencies.title = Зависимости
+dialog.dependencies.button.ok = Открыть
+dialog.add-atlas-images.title = Выбрать изображения
+dialog.select-game-object-file.title = Выбрать файл игрового объекта
+dialog.select-collection-file.title = Выбрать файл коллекции
+dialog.select-component-file.title = Выбрать файл компонента
+dialog.select-gui-component.title = Выбрать компонент ({component})
+dialog.select-resource.title = Выбрать ресурс
+dialog.recent-files.title = Недавние файлы
+dialog.recent-files.button.ok = Открыть
+
+# Open resource dialogs
+
+dialog.open-resource.excluded.title = Ресурс исключён из загрузки
+dialog.open-resource.excluded.header = Не удалось открыть «{resource}», так как он был исключён из загрузки файлом «.defunload».
+dialog.open-resource.unrecognized.title = Не удалось открыть ресурс
+dialog.open-resource.unrecognized.header = Не удалось открыть «{resource}», так как он содержит нераспознаваемые данные. Возможно, проекту не хватает требуемого расширения?
+dialog.open-resource.open-file-failed.title = Не удалось открыть файл
+dialog.open-resource.open-file-failed.header = Не удалось открыть «{resource}»
+dialog.open-resource.open-file-failed.detail = Это может произойти, если тип файла не связан с приложением в вашей ОС.\n\nСообщение об ошибке от ОС:\n{error}
+
+# Loading project dialog
+
+dialog.loading-project.header = Загрузка проекта
 
 # Editor panes
 
@@ -183,6 +467,9 @@ console.search = Поиск
 
 changes-view.button.diff = Сравнить
 changes-view.button.revert = Откатить
+dialog.changes-revert.title = Откатить изменения?
+dialog.changes-revert.header = Вы уверены, что хотите откатить изменения выбранных файлов?
+dialog.changes-revert.button.revert-changes = Откатить изменения
 
 # Prefs
 
@@ -234,10 +521,10 @@ prefs.help.tools.ios-deploy-path = Путь к команде ios-deploy, кот
 prefs.label.dev.custom-engine = Свой движок
 
 # Keymap tab
-prefs.keymap.filter.prompt = Фильтр комбинаций клавиш...
+prefs.keymap.filter.prompt = Фильтр комбинаций клавиш…
 prefs.keymap.command = Команда
 prefs.keymap.shortcuts = Комбинации клавиш
-prefs.keymap.context-menu.new-shortcut = Новая комбинация клавиш...
+prefs.keymap.context-menu.new-shortcut = Новая комбинация клавиш…
 prefs.keymap.context-menu.reset-to-default = Восстановить по умолчанию
 prefs.keymap.context-menu.remove = Удалить {shortcut}
 prefs.keymap.context-menu.add = Добавить {shortcut}
@@ -248,3 +535,62 @@ prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужну�
 prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
 prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}
 prefs.keymap.warnings = Предупреждения:{warnings}
+
+# Progress
+
+progress.ready = Готово
+progress.writing = Записывается {resource}
+progress.linting = Проверка кода…
+progress.fetching-engine = Загрузка движка…
+progress.executing-pre-build-hooks = Выполнение pre-build хуков…
+progress.executing-post-build-hooks = Выполнение post-build хуков…
+progress.executing-bundle-hook = Выполнение bundle-хука…
+progress.building-project = Сборка проекта…
+progress.installing-updated-libraries = Установка обновлённых библиотек…
+progress.initializing-editor = Инициализация редактора {lib}
+progress.loading-editor = Загрузка редактора
+progress.loading = Загрузка
+progress.loading-resource = Загрузка {resource}
+progress.resolving-resource = Разрешение {resource}
+progress.reading-resource = Чтение {resource}
+progress.finalizing = Завершение…
+progress.saving = Сохранение…
+progress.compiling = Компиляция…
+progress.compiling-resource = Компиляция {resource}…
+progress.updating-dependencies = Обновление зависимостей…
+progress.syncing-resources = Синхронизация ресурсов…
+progress.loading-project = Загрузка проекта…
+progress.loading-external-changes = Загрузка внешних изменений…
+progress.writing-files = Запись файлов…
+progress.caching-save-results = Кэширование результатов сохранения…
+progress.reading-timestamps = Чтение меток времени…
+progress.building = Сборка…
+progress.building-resource = Сборка {resource}
+progress.fetching = Загрузка {uri}
+progress.downloading-update = Загрузка обновления
+progress.extracting-update = Распаковка обновления
+progress.waiting = Ожидание
+progress.bundling = Подготовка бандла…
+progress.building-engine = Сборка движка…
+progress.cleaning-engine = Очистка движка…
+progress.downloading-symbols = Загрузка символов…
+progress.transpiling-to-lua = Транспиляция в Lua…
+progress.reading-tasks = Чтение задач…
+progress.cleaning = Очистка…
+progress.generating-report = Генерация отчёта…
+progress.working = Выполнение…
+progress.reading-classes = Чтение классов…
+progress.downloading-archives = Загрузка архивов…
+progress.launching-engine = Запуск движка…
+progress.launched-engine = Запущен {engine}
+progress.engine-launch-failed = Ошибка запуска
+progress.rebooting-engine = Перезапуск {engine}…
+progress.rebooted-engine = Перезапущен {engine}
+progress.engine-reboot-failed = Ошибка перезапуска
+progress.aborting = Прерывание…
+progress.percentage = {percentage}%
+
+# Resource views
+
+resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
+resource.readonly.button.read-more = Подробнее…

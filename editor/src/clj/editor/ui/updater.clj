@@ -73,13 +73,14 @@
 
             can-install?
             (when (dialogs/make-confirmation-dialog
-                    {:title (localization (localization/message "updater.dialog.title"))
+                    localization
+                    {:title (localization/message "updater.dialog.title")
                      :icon :icon/circle-question
-                     :header (localization (localization/message "updater.dialog.header"))
-                     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
+                     :header (localization/message "updater.dialog.header")
+                     :buttons [{:text (localization/message "updater.dialog.button.not-now")
                                 :cancel-button true
                                 :result false}
-                               {:text (localization (localization/message "updater.dialog.button.install-and-restart"))
+                               {:text (localization/message "updater.dialog.button.install-and-restart")
                                 :default-button true
                                 :result true}]
                      :owner stage})

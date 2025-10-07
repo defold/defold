@@ -108,17 +108,18 @@
   (enabled? [selection]
             (and (disk-availability/available?)
                  (pos? (count selection))))
-  (run [async-reload! selection git changes-view workspace]
+  (run [async-reload! selection git changes-view workspace localization]
     (when (dialogs/make-confirmation-dialog
-            {:title "Revert Changes?"
+            localization
+            {:title (localization/message "dialog.changes-revert.title")
              :size :large
              :icon :icon/circle-question
-             :header "Are you sure you want to revert changes on selected files?"
-             :buttons [{:text "Cancel"
+             :header (localization/message "dialog.changes-revert.header")
+             :buttons [{:text (localization/message "dialog.button.cancel")
                         :cancel-button true
                         :default-button true
                         :result false}
-                       {:text "Revert Changes"
+                       {:text (localization/message "dialog.changes-revert.button.revert-changes")
                         :variant :danger
                         :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
@@ -127,9 +128,9 @@
 
 (handler/defhandler :vcs.diff :changes-view
   (enabled? [selection]
-            (git/selection-diffable? selection))
-  (run [selection ^Git git]
-       (diff-view/present-diff-data (git/selection-diff-data git selection))))
+    (git/selection-diffable? selection))
+  (run [selection ^Git git localization]
+    (diff-view/present-diff-data (git/selection-diff-data git selection) localization)))
 
 (g/defnode ChangesView
   (inherits core/Scope)
@@ -158,7 +159,7 @@
         (notifications/show!
           (workspace/notifications workspace)
           {:type :warning
-           :text "Due to a Git error, Git features are not available for this project."})
+           :message (localization/message "notification.changes-view.git-error")})
         nil))))
 
 (defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]
@@ -176,7 +177,12 @@
     (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-    (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+    (ui/context! parent :changes-view
+                 {:async-reload! async-reload!
+                  :changes-view view-id
+                  :workspace workspace
+                  :localization localization}
+                 (ui/->selection-provider list-view)
                  {:git [:changes-view :git]}
                  {resource/Resource (fn [status] (status->resource workspace status))})
     (ui/register-context-menu list-view ::changes-menu)

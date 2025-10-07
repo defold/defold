@@ -33,6 +33,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
             [editor.placeholder-resource :as placeholder-resource]
@@ -309,7 +310,7 @@
           (fn [^long node-index node-load-info]
             (let [resource (:resource node-load-info)
                   proj-path (resource/proj-path resource)
-                  progress-message (str "Loading " proj-path)
+                  progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
                   progress (progress/make progress-message node-count (inc node-index))]
               (e/concat
                 (g/callback render-progress! progress)
@@ -319,7 +320,7 @@
                   (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
                 (du/when-metrics
                   (g/callback stop-resource-metrics-load-timer! proj-path)))))))
-      (g/callback render-progress! (progress/make-indeterminate "Finalizing...")))))
+      (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing"))))))
 
 (defn read-node-load-infos [node-id+resource-pairs ^long progress-size render-progress! resource-metrics]
   {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
@@ -333,7 +334,7 @@
           (map-indexed
             (fn [^long node-index [node-id resource]]
               (let [proj-path (resource/proj-path resource)
-                    progress-message (str "Reading " proj-path)
+                    progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
                     progress (progress-fn progress-message node-index)]
                 (render-progress! progress)
                 (read-node-load-info node-id resource resource-metrics))))
@@ -416,12 +417,16 @@
   (let [[^File report-file we-created-report-file] (resource/defunload-issues-file)
         report-file-path (.getPath report-file)
         is-appending (not we-created-report-file)
+        localization (g/with-auto-evaluation-context evaluation-context
+                       (workspace/localization workspace evaluation-context))
 
         unsafe-references-report-lines
         (coll/transfer (sort-by key unsafe-dependency-proj-paths-by-referencing-proj-path) []
           (map (fn [[referencing-proj-path unsafe-dependency-proj-paths]]
                  (e/cons
-                   (format "%s - refers to unloaded resources:" referencing-proj-path)
+                   (localization
+                     (localization/message "dialog.defunload-issues.report-line"
+                                           {"resource" referencing-proj-path}))
                    (e/map dialogs/indent-with-bullet
                           (sort unsafe-dependency-proj-paths)))))
           (interpose [""])
@@ -433,35 +438,34 @@
                 *flush-on-newline* false]
         (when is-appending
           (newline))
-        (println "### Loading Resources ###")
+        (println (localization (localization/message "dialog.defunload-issues.report.section-loading-resources")))
         (when-not (coll/empty? unsafe-dependency-proj-paths-by-referencing-proj-path)
           (newline)
           (doseq [line unsafe-references-report-lines]
             (println (string/replace line dialogs/indented-bullet "  * "))))
         (when-not (coll/empty? loaded-undesired-proj-paths)
           (newline)
-          (println "The following resources matching `.defunload` patterns were loaded out of necessity:")
+          (println (localization (localization/message "dialog.defunload-issues.report.loaded-undesired")))
           (doseq [proj-path (sort loaded-undesired-proj-paths)]
             (println (str "  * " proj-path))))))
 
     ;; Also log and show a warning notification if any of the loaded resources
     ;; contain unsafe references to defunloaded resources.
     (when-not (coll/empty? unsafe-references-report-lines)
-      (let [preamble-lines
-            ["One or more resources have unsafe references to resources unloaded by `.defunload` patterns."
-             "Please fix the patterns in the `.defunload` file to avoid loading unwanted resources."
-             ""
-             "The full report has been written to:"
-             report-file-path]
+      (let [summary-line (localization (localization/message "dialog.defunload-issues.summary"))
+            advice-line (localization (localization/message "dialog.defunload-issues.advice"))
+            header-message (localization/message "dialog.defunload-issues.header")
+            preamble-lines [summary-line
+                            advice-line
+                            ""
+                            (localization (localization/message "dialog.defunload-issues.report-path"))
+                            report-file-path]]
 
-            log-message
-            (string/join " " (e/take-while coll/not-empty preamble-lines))]
-
-        (log/warn :message log-message :report-file-path report-file-path)
+        (log/warn :message summary-line
+                  :detail advice-line
+                  :report-file-path report-file-path)
         (ui/run-later
-          (let [short-message "Found unsafe references to unloaded resources."
-
-                show-details-dialog!
+          (let [show-details-dialog!
                 (fn show-details-dialog! []
                   (let [dialog-lines
                         (e/concat
@@ -474,14 +478,15 @@
 
                         dialog-result
                         (dialogs/make-confirmation-dialog
-                          {:title "Revise .defunload Patterns"
+                          localization
+                          {:title (localization/message "dialog.defunload-issues.title")
                            :size :large
                            :icon :icon/triangle-warning
-                           :header short-message
+                           :header header-message
                            :content dialog-message
-                           :buttons [{:text "Ignore"
+                           :buttons [{:text (localization/message "dialog.defunload-issues.button.ignore")
                                       :result false}
-                                     {:text (str "Open Report")
+                                     {:text (localization/message "dialog.defunload-issues.button.open-report")
                                       :result true}]})]
 
                     (when dialog-result
@@ -491,8 +496,8 @@
               (workspace/notifications workspace)
               {:id ::defunload-issues
                :type :warning
-               :text short-message
-               :actions [{:text "Show Details..."
+               :message header-message
+               :actions [{:message (localization/message "notification.defunload-issues.action.show-details")
                           :on-action show-details-dialog!}]})))))))
 
 (defn- node-id+resource-pair->proj-path
@@ -958,7 +963,7 @@
          read-progress-span 1
          load-progress-span 3
          total-progress-span (+ read-progress-span load-progress-span)
-         total-progress (progress/make "" total-progress-span 0)
+         total-progress (progress/make localization/empty-message total-progress-span 0)
 
          node-load-infos
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
@@ -1071,8 +1076,8 @@
   (ui/with-progress [render-progress! render-progress!]
     (let [step-count (AtomicLong.)
           step-count-tracer (make-count-progress-steps-tracer :save-data step-count)
-          progress-message-fn (constantly "Saving...")]
-      (render-progress! (progress/make "Saving..."))
+          progress-message-fn (constantly (localization/message "progress.saving"))]
+      (render-progress! (progress/make (localization/message "progress.saving")))
       (save-data-fn project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
       (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
         (save-data-fn project (assoc evaluation-context :tracer progress-tracer))))))
@@ -1094,7 +1099,7 @@
             (render-progress! (swap! progress
                                      #(progress/with-message % (or progress-message
                                                                    (progress/message %)
-                                                                   "")))))
+                                                                   localization/empty-message)))))
 
           :end
           (let [already-done (loop []
@@ -1278,7 +1283,7 @@
     (let [read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
-          total-progress (progress/make "" total-progress-span 0)
+          total-progress (progress/make localization/empty-message total-progress-span 0)
           deleted-node-id? (set (:delete plan))
 
           old-node-id->old-node-state
@@ -1424,12 +1429,13 @@
 (defn reload-plugins! [project touched-resources]
   (g/with-auto-evaluation-context evaluation-context
     (let [workspace (workspace project evaluation-context)
+          localization (workspace/localization workspace evaluation-context)
           code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
           code-transpilers (code-transpilers project)]
       (workspace/unpack-editor-plugins! workspace touched-resources)
-      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
-      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
-      (texture.engine/reload-texture-compressors! java/class-loader)
+      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
+      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
+      (texture.engine/reload-texture-compressors! java/class-loader localization)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn settings
@@ -1463,8 +1469,8 @@
           notifications
           {:id notification-id
            :type :info
-           :text "Project dependencies have changed. Do you want to fetch the libraries now?"
-           :actions [{:text "Fetch Libraries"
+           :message (localization/message "notification.fetch-libraries.dependencies-changed.prompt")
+           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                       :on-action #(ui/execute-command
                                     (ui/contexts (ui/main-scene))
                                     :project.fetch-libraries
@@ -1854,7 +1860,7 @@
 
 (defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
-        progress (atom (progress/make "Updating dependencies..." 13 0))]
+        progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
@@ -1863,10 +1869,10 @@
            (workspace/install-validated-libraries! workspace-id))
       (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-directory workspace-id) dependencies)))
 
-    (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
+    (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))
     (du/log-time "Initial resource sync"
       (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
-    (render-progress! (swap! progress progress/advance 1 "Loading project..."))
+    (render-progress! (swap! progress progress/advance 1 (localization/message "progress.loading-project")))
     (let [project (make-project graph workspace-id extensions)
           populated-project (du/log-time "Project loading"
                               (load-project! project (progress/nest-render-progress render-progress! @progress 8)))]

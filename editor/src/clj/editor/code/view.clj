@@ -43,6 +43,7 @@
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
+            [editor.localization :as localization]
             [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
@@ -2889,9 +2890,8 @@
       (workspace/notifications (resource/workspace resource))
       {:type :warning
        :id [::no-lsp language]
-       :text (format "Cannot perform this action because there is no LSP Language Server running for the '%s' language"
-                     language)
-       :actions [{:text "About LSP in Defold"
+       :message (localization/message "notification.lsp.language-server-missing.prompt" {"language" language})
+       :actions [{:message (localization/message "notification.lsp.language-server-missing.action.about")
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
 (handler/defhandler :code.goto-definition :code-view

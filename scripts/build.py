@@ -114,7 +114,7 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
-    "jctest-0.10.2",
+    "jctest-0.12",
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -220,6 +220,7 @@ PACKAGES_LINUX_X86_64=[
     "glslang-ba5c010c",
     "spirv-cross-9040e0d2",
     "spirv-tools-d24a39a7",
+    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -238,6 +239,7 @@ PACKAGES_LINUX_ARM64=[
     "glslang-2fed4fc0",
     "spirv-cross-9040e0d2",
     "spirv-tools-4fab7435",
+    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -694,7 +696,7 @@ class Configuration(object):
         if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
             protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
             package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
-            print("Installing %s packages " % 'x86_64-linux')
+            print("Installing %s protobuf packages " % 'x86_64-linux')
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
@@ -1890,12 +1892,25 @@ class Configuration(object):
         self.check_python()
         print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
-        args = [SHELL, '-l']
+        # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
+        # or user startup files (Homebrew shellenv), which can shadow our tools.
+        # To ensure our PATH takes precedence, start a login shell, then
+        # immediately re-export our PATH and exec an interactive shell.
+        env = self._form_env()
+
+        # Preserve our computed PATH in a temp var that survives login init
+        env['DM_ENV_PATH'] = env['PATH']
+
+        # Build a command that restores our PATH after login files ran
+        # and then chains into an interactive shell
+        reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec %s -i' % SHELL
+
+        args = [SHELL, '-l', '-c', reexport_cmd]
 
         if os.path.exists("/nix"):
             args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
 
-        process = subprocess.Popen(args, env=self._form_env())
+        process = subprocess.Popen(args, env=env)
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:

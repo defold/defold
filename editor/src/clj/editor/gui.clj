@@ -39,6 +39,7 @@
             [editor.gui-clipping :as clipping]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
@@ -2706,7 +2707,10 @@
 
 ;; SDK api
 (defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn]
-  (when-let [resources (browse (str "Select " resources-type-label) project resource-exts)]
+  (when-let [resources (browse
+                         (localization/message "dialog.select-gui-component.title" {"component" resources-type-label})
+                         project
+                         resource-exts)]
     (let [names (id/resolve-all (map resource->id resources) taken-ids)
           pairs (map vector resources names)
           op-seq (gensym)

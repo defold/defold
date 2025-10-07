@@ -21,7 +21,6 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui]
             [internal.java :as java]
             [internal.util :as util]
             [util.coll :as coll]
@@ -32,6 +31,7 @@
            [com.ibm.icu.util ULocale]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
+           [java.util.concurrent Executor]
            [javafx.application Platform]
            [javafx.beans.value WritableValue]
            [javafx.scene.control Labeled Tab]
@@ -74,6 +74,11 @@
 ;;        ;; - locale-specific date formatter (e.g. 2025-09-17 or 9/17/25)
 ;;        :date com.ibm.icu.text.DateFormat}))))
 
+(def javafx-executor
+  (reify Executor
+    (execute [_ command]
+      (Platform/runLater command))))
+
 (defonce/protocol Localizable
   (apply-localization [obj str] "Apply a localization string to object"))
 
@@ -100,7 +105,7 @@
 (defonce/interface MessagePattern
   (format [state]))
 
-(defn- message-pattern? [x]
+(defn message-pattern? [x]
   (instance? MessagePattern x))
 
 (defn- impl-format [state v]
@@ -260,7 +265,7 @@
   [^Localization localization bundle-key bundle]
   {:pre [(localization? localization)]}
   (send-off (.-agent localization) impl-set-bundle! bundle-key bundle)
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn set-locale!
   "Asynchronously set the active locale and notify listeners
@@ -274,7 +279,7 @@
   [^Localization localization locale]
   {:pre [(localization? localization) (string? locale)]}
   (send-off (.-agent localization) impl-set-locale! (.-prefs localization) locale)
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn localize!
   "Localize an object that implements Localizable protocol
@@ -296,7 +301,7 @@
    {:pre [(localization? localization)]}
    (apply-localization object (impl-format @localization pattern))
    (when (message-pattern? pattern)
-     (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-localize! object pattern))
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern))
    object))
 
 (defn unlocalize!
@@ -314,7 +319,7 @@
     localization    the localization instance created with [[make]]"
   [object ^Localization localization]
   {:pre [(some? object) (localization? localization)]}
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-unlocalize! object)
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-unlocalize! object)
   object)
 
 (defn make
@@ -501,11 +506,16 @@
     [^String locale]
     (.localeDisplayName display-names locale)))
 
+(def empty-message
+  "Message pattern that always returns an empty string"
+  ;; We typically use records for patterns to define equality (for cljfx), but
+  ;; in this case it's okay to use a reified interface since it's a single value
+  ;; that we reuse as-is
+  (reify MessagePattern
+    (format [_ _] "")))
+
 ;; TODO:
-;;  - editor.progress
-;;  - loading project dialog
 ;;  - editor scripts localization
 ;;  - menus
-;;  - all dialogs
 ;;  - all properties
 ;;  - missed things...
