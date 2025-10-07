@@ -253,6 +253,7 @@ struct JobWithDependency
     uint64_t m_TimeStampProcess;
     uint64_t m_TimeStampFinished;
     uint64_t m_Sleep;
+    int      m_Index;
 };
 
 static int ProcessSortedDependencyJobs(dmJobThread::HJob hjob, uint64_t tag, void* context, void* _data)
@@ -260,6 +261,7 @@ static int ProcessSortedDependencyJobs(dmJobThread::HJob hjob, uint64_t tag, voi
     JobWithDependency* data = (JobWithDependency*)_data;
     dmTime::Sleep(data->m_Sleep);
     data->m_TimeStampProcess = dmTime::GetMonotonicTime();
+    printf("job%d: finish time: %" PRIx64 "\n", data->m_Index, (int)data->m_TimeStampProcess);
     return 1;
 }
 
@@ -289,7 +291,9 @@ TEST(dmJobThread, SortedDependencyJobs)
 
     for (uint32_t i = 0; i < job_count; ++i)
     {
+        items[i].m_Index = (int)i;
         items[i].m_Sleep = rand() % 1000;
+        printf("job%d: init: sleep: %d\n", (int)i, (int)items[i].m_Sleep);
 
         dmJobThread::Job job = {0};
         job.m_Process = ProcessSortedDependencyJobs;
