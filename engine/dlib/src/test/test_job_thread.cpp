@@ -261,7 +261,7 @@ static int ProcessSortedDependencyJobs(dmJobThread::HJob hjob, uint64_t tag, voi
     JobWithDependency* data = (JobWithDependency*)_data;
     dmTime::Sleep(data->m_Sleep);
     data->m_TimeStampProcess = dmTime::GetMonotonicTime();
-    printf("job%d: finish time: %" PRIx64 "\n", data->m_Index, (int)data->m_TimeStampProcess);
+    printf("job%d: process time: %" PRIx64 "\n", data->m_Index, data->m_TimeStampProcess);
     return 1;
 }
 
@@ -270,6 +270,7 @@ static void CallbackSortedDependencyJobs(dmJobThread::HJob job, uint64_t tag, vo
     uint32_t* count_finished = (uint32_t*)context;
     JobWithDependency* data = (JobWithDependency*)_data;
     data->m_TimeStampFinished = dmTime::GetMonotonicTime();
+    printf("job%d: finish time: %" PRIx64 "\n", data->m_Index, data->m_TimeStampFinished);
     (*count_finished)++;
 }
 
