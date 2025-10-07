@@ -215,10 +215,10 @@
     (pass/prepare-gl pass gl glu)))
 
 (defn- render-nodes
-  [^GL2 gl render-args renderables count]
-  (when-let [render-fn (:render-fn (first renderables))]
+  [^GL2 gl render-args [first-renderable :as renderables] count]
+  (when-let [render-fn (:render-fn first-renderable)]
     (try
-      (let [shared-world-transform (or (:world-transform (first renderables)) geom/Identity4d) ; rulers apparently don't have world-transform
+      (let [shared-world-transform (:world-transform first-renderable geom/Identity4d) ; rulers apparently don't have world-transform
             shared-render-args (merge render-args
                                       (math/derive-render-transforms shared-world-transform
                                                                      (:view render-args)

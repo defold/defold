@@ -259,8 +259,8 @@
   {:pre [(g/node-id? scene-node-id)]}
   (let [[transform-matrix-render-arg-key w-component]
         (case attribute-transform
-          :attribute-transform-normal (pair :normal 0.0)
-          :attribute-transform-world (pair :world 1.0))
+          :attribute-transform-normal (pair :actual/normal 0.0)
+          :attribute-transform-world (pair :actual/world 1.0))
 
         untransformed-buffer-data (graphics.types/buffer-data untransformed-attribute-buffer-lifecycle)
         untransformed-buffer-request-id (:request-id untransformed-attribute-buffer-lifecycle)
@@ -452,26 +452,24 @@
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
-        render-args (coll/merge render-args (math/derive-render-transforms (:world-transform renderable) (:view render-args) (:projection render-args) (:texture render-args) nil))
-        shader-render-args (coll/merge render-args (math/derive-render-transforms (:world-transform renderable) (:view render-args) (:projection render-args) (:texture render-args) coordinate-space-info))
+        render-transforms (math/rederive-render-transforms render-args coordinate-space-info)
+        render-args (coll/merge render-args render-transforms)
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)]
-    ;; TODO(instancing): It would be real nice to not have to derive the render transforms twice.
-    (gl/with-gl-bindings gl shader-render-args [shader]
-      (gl/with-gl-bindings gl render-args [attribute-bindings index-buffer]
-        (doseq [[name t] textures]
-          (gl/bind gl t render-args)
-          (shader/set-samplers-by-name shader gl name (:texture-units t)))
-        (doseq [[name v] material-data]
-          (shader/set-uniform shader gl name v))
-        (gl/gl-disable gl GL/GL_BLEND)
-        (gl/gl-enable gl GL/GL_CULL_FACE)
-        (gl/gl-cull-face gl GL/GL_BACK)
-        (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
-        (gl/gl-disable gl GL/GL_CULL_FACE)
-        (gl/gl-enable gl GL/GL_BLEND)
-        (doseq [[_name t] textures]
-          (gl/unbind gl t render-args))))))
+    (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
+      (doseq [[name t] textures]
+        (gl/bind gl t render-args)
+        (shader/set-samplers-by-name shader gl name (:texture-units t)))
+      (doseq [[name v] material-data]
+        (shader/set-uniform shader gl name v))
+      (gl/gl-disable gl GL/GL_BLEND)
+      (gl/gl-enable gl GL/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL/GL_BACK)
+      (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
+      (gl/gl-disable gl GL/GL_CULL_FACE)
+      (gl/gl-enable gl GL/GL_BLEND)
+      (doseq [[_name t] textures]
+        (gl/unbind gl t render-args)))))
 
 (defn- render-mesh-opaque-selection [^GL2 gl render-args renderables]
   ;; TODO(instancing): We should use instanced rendering and put the picking-id
@@ -775,7 +773,7 @@
 (defn- decorate-attribute-binding [attribute-binding ^long channel attribute-info]
   (let [{:keys [attribute-transform coordinate-space name-key semantic-type]} attribute-info]
     (assert (graphics.types/attribute-transform? attribute-transform))
-    (assert (graphics.types/coordinate-space? coordinate-space))
+    (assert (graphics.types/concrete-coordinate-space? coordinate-space))
     (assert (graphics.types/attribute-key? name-key))
     (assert (graphics.types/semantic-type? semantic-type))
     (assert (graphics.types/channel? channel))

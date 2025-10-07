@@ -154,6 +154,10 @@
 
 (fn/defamong coordinate-space? coordinate-spaces)
 
+(defonce concrete-coordinate-spaces (disj coordinate-spaces :coordinate-space-default))
+
+(fn/defamong concrete-coordinate-space? concrete-coordinate-spaces)
+
 (defn coordinate-space-pb-int
   ^long [coordinate-space]
   (case coordinate-space

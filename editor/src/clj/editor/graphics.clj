@@ -433,7 +433,7 @@
 
 (defn- attribute-info->vtx-attribute [{:keys [coordinate-space data-type name name-key normalize semantic-type vector-type] :as attribute-info}]
   {:pre [(map? attribute-info)
-         (types/coordinate-space? coordinate-space)
+         (types/concrete-coordinate-space? coordinate-space)
          (types/data-type? data-type)
          (types/vector-type? vector-type)
          (string? name)
@@ -476,8 +476,8 @@
       (map (fn [{:keys [coordinate-space semantic-type] :as decorated-attribute-info}]
              (let [coordinate-space
                    (case coordinate-space
-                     (nil :coordinate-space-default) default-coordinate-space
-                     coordinate-space)
+                     (:coordinate-space-default nil) default-coordinate-space
+                     (:coordinate-space-local :coordinate-space-world) coordinate-space)
 
                    attribute-transform
                    (types/attribute-transform semantic-type coordinate-space)]
@@ -574,7 +574,9 @@
 (def attribute-key->default-attribute-info
   (fn/make-case-fn
     (into {}
-          (map (fn [{:keys [data-type name normalize semantic-type vector-type] :as attribute}]
+          (map (fn [{:keys [coordinate-space data-type name normalize semantic-type step-function vector-type] :as attribute}]
+                 {:pre [(types/coordinate-space? coordinate-space)
+                        (types/vertex-step-function? step-function)]}
                  (let [attribute-key (types/attribute-name-key name)
                        values (types/default-attribute-doubles semantic-type vector-type)
                        bytes (default-attribute-bytes semantic-type data-type vector-type normalize)
@@ -585,7 +587,7 @@
                    [attribute-key attribute-info])))
           [{:name "position"
             :semantic-type :semantic-type-position
-            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :coordinate-space :coordinate-space-default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
             :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec4}
@@ -609,13 +611,13 @@
             :vector-type :vector-type-scalar}
            {:name "normal"
             :semantic-type :semantic-type-normal
-            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :coordinate-space :coordinate-space-default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
             :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec3}
            {:name "tangent"
             :semantic-type :semantic-type-tangent
-            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :coordinate-space :coordinate-space-default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
             :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec4}
@@ -642,7 +644,7 @@
 (defn shader-bound-attributes [shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys default-coordinate-space]
   {:pre [(or (nil? shader-attribute-infos-by-name) (map? shader-attribute-infos-by-name))
          (seqable? material-attribute-infos)
-         (types/coordinate-space? default-coordinate-space)]}
+         (types/concrete-coordinate-space? default-coordinate-space)]}
   (let [shader-bound-attribute-info?
         (comp boolean shader-attribute-infos-by-name :name)
 
@@ -654,9 +656,10 @@
         (coll/transfer manufactured-attribute-keys :eduction
           (remove declared-material-attribute-key?)
           (map attribute-key->default-attribute-info)
-          (map (fn [attribute-info]
+          (map (fn [{:keys [coordinate-space] :as attribute-info}]
+                 {:pre [(types/coordinate-space? coordinate-space)]}
                  (cond-> attribute-info
-                         (= :default (:coordinate-space attribute-info))
+                         (= :coordinate-space-default coordinate-space)
                          (assoc :coordinate-space default-coordinate-space)))))
 
         ensure-compatible-vector-type

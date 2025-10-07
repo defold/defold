@@ -540,67 +540,61 @@
 (defn derive-render-transforms
   "Given the world, view, projection, and texture transforms, derive the normal,
   view-proj, world-view, and world-view-proj transforms and return a map with
-  all the resulting transforms. Optionally, a value obtained from the
-  graphics/coordinate-space-info function can be supplied to selectively cancel
-  out the world transform contributions from the resulting transforms, enabling
-  one vertex shader to be used for both local-space and world-space meshes.
+  all the resulting transforms."
+  [^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
+  ;; Matrix multiplication A * B = C is c.mul(a, b) in vecmath.
+  ;; In-place A := A * B is a.mul(b).
+  ;; The matrix naming is in the order the transforms will be applied to the
+  ;; vertices. For instance, view-proj is "Proj * View", and
+  ;; view-proj.transform(v) is (Proj * (View * V))
+  (let [view-proj (doto (Matrix4d. projection) (.mul view))
+        world-view (doto (Matrix4d. view) (.mul world))
+        world-view-proj (doto (Matrix4d. view-proj) (.mul world))
+        normal (derive-normal-transform world-view)]
+    ;; Some of these may be overwritten by the rederive-render-transforms
+    ;; function, so we include the actually derived transforms for all world
+    ;; space transforms here as well.
+    {:actual/world world
+     :actual/world-view world-view
+     :actual/world-view-proj world-view-proj
+     :actual/normal normal
+     :world world
+     :view view
+     :projection projection
+     :texture texture
+     :normal normal
+     :view-proj view-proj
+     :world-view world-view
+     :world-view-proj world-view-proj}))
+
+(defn rederive-render-transforms
+  "Given a result from the derive-render-transforms function, returns a new
+  map of transforms where the world transform contributions have been canceled
+  out if all attributes of the affected semantic-type are in world-space. This
+  is a compatibility hack which enables a vertex shader that applies these
+  transforms to be shared among materials that require either world-space or
+  local-space attributes.
 
   TODO:
-  We should probably just deprecate this behavior, since it will confuse users
-  that mix local-space and world-space attributes of the same type."
-  ([^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
-   (derive-render-transforms world view projection texture nil))
-  ([^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture coordinate-space-info]
-   ;; Matrix multiplication A * B = C is c.mul(a, b) in vecmath. In-place A := A * B is a.mul(b).
-   ;; The matrix naming is in the order the transforms will be applied to the vertices. For instance
-   ;; view-proj is "Proj * View", and view-proj.transform(v) is (Proj * (View * V))
-   (let [world-space-semantic-types (:coordinate-space-world coordinate-space-info)
+  We should probably just deprecate this behavior, since it is likely to confuse
+  users that mix local-space and world-space attributes of the same type."
+  [derived-render-transforms coordinate-space-info]
+  (let [world-space-semantic-types (:coordinate-space-world coordinate-space-info)
+        local-space-semantic-types (:coordinate-space-local coordinate-space-info)
+        has-world-space-position (contains? world-space-semantic-types :semantic-type-position)
+        has-world-space-normal (contains? world-space-semantic-types :semantic-type-normal)
+        has-local-space-position (contains? local-space-semantic-types :semantic-type-position)
+        has-local-space-normal (contains? local-space-semantic-types :semantic-type-normal)
+        {:keys [view view-proj]} derived-render-transforms]
+    (cond-> derived-render-transforms
 
-         semantic-type->coordinate-space
-         (fn semantic-type->coordinate-space [semantic-type]
-           (if (contains? world-space-semantic-types semantic-type)
-             :coordinate-space-world
-             :coordinate-space-local))
+            (and has-world-space-position (not has-local-space-position))
+            (assoc :world identity-mat4
+                   :world-view view
+                   :world-view-proj view-proj)
 
-         position-coordinate-space (semantic-type->coordinate-space :semantic-type-position)
-         normal-coordinate-space (semantic-type->coordinate-space :semantic-type-normal)
-         view-proj (doto (Matrix4d. projection) (.mul view))
-
-         world-view
-         (case position-coordinate-space
-           :coordinate-space-local (doto (Matrix4d. view) (.mul world))
-           :coordinate-space-world view)
-
-         world-view-proj
-         (case position-coordinate-space
-           :coordinate-space-local (doto (Matrix4d. view-proj) (.mul world))
-           :coordinate-space-world view-proj)
-
-         normal
-         (derive-normal-transform
-           (case normal-coordinate-space
-             :coordinate-space-local
-             ;; We want to derive the normal transform from the world-view
-             ;; transform. However, if position-coordinate-space used
-             ;; :coordinate-space-world, world-view will simply be the view
-             ;; transform at this point. In this situation, we need to calculate
-             ;; the world-view transform ourselves before deriving the normal
-             ;; transform from it.
-             (if (identical? view world-view)
-               (doto (Matrix4d. view) (.mul world))
-               world-view)
-
-             :coordinate-space-world
-             view))]
-
-     {:world world
-      :view view
-      :projection projection
-      :texture texture
-      :normal normal
-      :view-proj view-proj
-      :world-view world-view
-      :world-view-proj world-view-proj})))
+            (and has-world-space-normal (not has-local-space-normal))
+            (assoc :normal (derive-normal-transform view)))))
 
 (def render-transform-key?
   (into #{}

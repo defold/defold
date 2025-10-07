@@ -45,7 +45,13 @@
 
 (deftest coordinate-space?-test
   (is (every? false? (map types/coordinate-space? random-values)))
-  (is (every? true? (map types/coordinate-space? types/coordinate-spaces))))
+  (is (every? true? (map types/coordinate-space? types/coordinate-spaces)))
+  (is (true? (types/coordinate-space? :coordinate-space-default))))
+
+(deftest concrete-coordinate-space?-test
+  (is (every? false? (map types/concrete-coordinate-space? random-values)))
+  (is (every? true? (map types/concrete-coordinate-space? types/concrete-coordinate-spaces)))
+  (is (false? (types/concrete-coordinate-space? :coordinate-space-default))))
 
 (deftest coordinate-space-pb-int-test
   (is (= (pb-ints-by-val Graphics$CoordinateSpace)

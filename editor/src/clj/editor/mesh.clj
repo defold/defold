@@ -189,7 +189,7 @@
                                  (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
                                  (:world-transform renderable))
         render-args (merge render-args
-                           (math/derive-render-transforms shader-world-transform
+                           (math/derive-render-transforms shader-world-transform ; TODO(instancing): Can we use the render-args as-is?
                                                           (:view render-args)
                                                           (:projection render-args)
                                                           (:texture render-args)))]
@@ -221,7 +221,7 @@
         textures (:textures user-data)
         world-transform (:world-transform renderable)
         render-args (merge render-args
-                           (math/derive-render-transforms world-transform
+                           (math/derive-render-transforms world-transform ; TODO(instancing): Can we use the render-args as-is?
                                                           (:view render-args)
                                                           (:projection render-args)
                                                           (:texture render-args)))
