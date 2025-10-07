@@ -98,7 +98,6 @@ static int ProcessCancel(dmJobThread::HJob job, uint64_t tag, void* context, voi
     ContextCancel* ctx = (ContextCancel*)context;
     ctx->m_NumProcessed++;
     uint64_t t = (uint64_t)(uintptr_t)data;
-    printf("  process: %d  t: %llu\n", ctx->m_NumProcessed, t);
 
     for (uint32_t i = 0; i < ctx->m_JobsToCancel.Size(); ++i)
     {
