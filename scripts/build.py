@@ -522,7 +522,7 @@ class Configuration(object):
         self._create_common_dirs()
 
     def __del__(self):
-        if len(self.futures) > 0:
+        if len(getattr(self, "futures", [])) > 0:
             print('ERROR: Pending futures (%d)' % len(self.futures))
             os._exit(5)
 
