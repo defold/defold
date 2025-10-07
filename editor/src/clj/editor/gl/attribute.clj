@@ -27,7 +27,7 @@
             [util.fn :as fn])
   (:import [com.jogamp.opengl GL2]
            [editor.buffers BufferData]
-           [editor.graphics.types ElementBuffer ElementType]
+           [editor.graphics.types ElementType]
            [java.nio FloatBuffer IntBuffer ShortBuffer]
            [javax.vecmath Matrix4d Matrix4f Tuple4d Vector4f]))
 
@@ -316,7 +316,7 @@
    ^AttributeBufferData attribute-buffer-data
    ^ElementType element-type]
 
-  ElementBuffer
+  graphics.types/ElementBuffer
   (buffer-data [_this] (.-buffer-data attribute-buffer-data))
   (element-type [_this] element-type)
 
@@ -337,12 +337,12 @@
     (->AttributeBufferLifecycle request-id attribute-buffer-data element-type)))
 
 (defonce/record AttributeBufferBinding
-  [^AttributeBufferLifecycle attribute-buffer-lifecycle
+  [attribute-buffer-lifecycle
    ^int base-location]
 
   p/GlBind
   (bind [_this gl render-args]
-    (let [element-type ^ElementType (.-element-type attribute-buffer-lifecycle)
+    (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
           vector-type (.-vector-type element-type)
           data-type (.-data-type element-type)
           normalize (.-normalize element-type)
@@ -365,14 +365,15 @@
                 (recur (inc column-index)))))))))
 
   (unbind [_this gl _render-args]
-    (let [element-type ^ElementType (.-element-type attribute-buffer-lifecycle)
+    (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
           vector-type (.-vector-type element-type)
           attribute-count (graphics.types/vector-type-attribute-count vector-type)]
       (gl/disable-vertex-attrib-arrays! gl base-location attribute-count))))
 
 (defn make-attribute-buffer-binding
-  ^AttributeBufferBinding [^AttributeBufferLifecycle attribute-buffer-lifecycle ^long base-location]
-  (ensure/argument-type attribute-buffer-lifecycle AttributeBufferLifecycle)
+  ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
+  (ensure/argument-satisfies attribute-buffer-lifecycle graphics.types/ElementBuffer)
+  (ensure/argument-satisfies attribute-buffer-lifecycle p/GlBind)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeBufferBinding attribute-buffer-lifecycle base-location))
 
@@ -422,7 +423,7 @@
    transform-matrix-render-arg-key
    ^float w-component]
 
-  ElementBuffer
+  graphics.types/ElementBuffer
   (buffer-data [_this] untransformed-buffer-data)
   (element-type [_this] transformed-attribute-buffer-element-type)
 
@@ -452,25 +453,6 @@
              (zero? (rem (buffers/item-count data) 4)))
       (->TransformedAttributeBufferLifecycle request-id untransformed-buffer-data transform-matrix-render-arg-key w-component)
       (throw (IllegalArgumentException. "untransformed-buffer-data must use a FloatBuffer of tightly-packed four-element vectors")))))
-
-(defonce/record TransformedAttributeBufferBinding
-  [transformed-attribute-buffer-lifecycle
-   ^int base-location]
-
-  p/GlBind
-  (bind [_this gl render-args]
-    (gl/with-gl-bindings gl render-args [transformed-attribute-buffer-lifecycle]
-      (gl/gl-enable-vertex-attrib-array gl base-location)
-      (gl/gl-vertex-attrib-pointer gl base-location 4 GL2/GL_FLOAT false (* 4 Float/BYTES) 0)))
-
-  (unbind [_this gl _render-args]
-    (gl/gl-disable-vertex-attrib-array gl base-location)))
-
-(defn make-transformed-attribute-buffer-binding
-  ^TransformedAttributeBufferBinding [^TransformedAttributeBufferLifecycle transformed-attribute-buffer-lifecycle ^long base-location]
-  (ensure/argument-type transformed-attribute-buffer-lifecycle TransformedAttributeBufferLifecycle)
-  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
-  (->TransformedAttributeBufferBinding transformed-attribute-buffer-lifecycle base-location))
 
 (defn- transform-float-buffer!
   ^FloatBuffer [^FloatBuffer target ^FloatBuffer source ^Matrix4f transform-matrix w-component]
@@ -549,7 +531,7 @@
    ^IndexBufferData index-buffer-data
    ^ElementType element-type]
 
-  ElementBuffer
+  graphics.types/ElementBuffer
   (buffer-data [_this] (.-buffer-data index-buffer-data))
   (element-type [_this] element-type)
 

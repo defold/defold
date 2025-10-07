@@ -32,11 +32,23 @@
                     extra-message-fmt-args)]
         (throw (IllegalArgumentException. message#))))))
 
+(defmacro argument-satisfies
+  [argument-sym expected-protocol-sym]
+  {:pre [(symbol? argument-sym)
+         (symbol? expected-protocol-sym)
+         (some-> expected-protocol-sym resolve var-get :on-interface)]}
+  `(argument
+     ~argument-sym
+     #(satisfies? ~expected-protocol-sym %)
+     "%s argument must satisfy the protocol %s - got %s"
+     (.getName ^Class (:on-interface ~expected-protocol-sym))
+     (some-> ~argument-sym class .getName)))
+
 (defmacro argument-type
   [argument-sym expected-class-sym]
   {:pre [(symbol? argument-sym)
-         (symbol? expected-class-sym)]}
-  (assert (class? (resolve expected-class-sym)))
+         (symbol? expected-class-sym)
+         (class? (resolve expected-class-sym))]}
   `(argument
      ~argument-sym
      #(instance? ~expected-class-sym %)

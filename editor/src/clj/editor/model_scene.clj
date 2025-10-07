@@ -584,7 +584,7 @@
 
       (:attribute-transform-normal :attribute-transform-world)
       (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
-          (attribute/make-transformed-attribute-buffer-binding location)))))
+          (attribute/make-attribute-buffer-binding location)))))
 
 (defn- make-attribute-value-binding [attribute-bytes attribute-info]
   (let [{:keys [data-type location normalize semantic-type vector-type]} attribute-info
