@@ -17,10 +17,10 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.color-dropper :as color-dropper]
-            [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.prefs :as prefs]
@@ -840,13 +840,20 @@
   (active? [evaluation-context selection]
     (when-let [node-id (handler/selection->node-id selection)]
       (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
-  (run [property selection search-results-view app-view]
-    (app-view/show-override-inspector! app-view search-results-view (handler/selection->node-id selection) [(:key property)])))
+  (run [property selection search-results-view app-view workspace]
+    (let [localization (g/with-auto-evaluation-context evaluation-context
+                         (workspace/localization workspace evaluation-context))]
+      (app-view/show-override-inspector!
+        app-view
+        search-results-view
+        (handler/selection->node-id selection)
+        [(:key property)]
+        localization))))
 
 (handler/defhandler :edit.pull-up-overrides :property
   (label [property user-data]
     (when (nil? user-data)
-      (str "Pull Up " (properties/label property) " Override")))
+      (localization/message "command.edit.pull-up-overrides.variant.property" {"property" (properties/label property)})))
   (active? [property user-data]
     (or (some? user-data)
         (= 1 (count (:original-values property)))))
@@ -872,7 +879,7 @@
 (handler/defhandler :edit.push-down-overrides :property
   (label [property user-data]
     (when (nil? user-data)
-      (str "Push Down " (properties/label property) " Override")))
+      (localization/message "command.edit.push-down-overrides.variant.property" {"property" (properties/label property)})))
   (active? [property selection user-data evaluation-context]
     (or (some? user-data)
         (and (= 1 (count (:original-values property)))
@@ -899,10 +906,9 @@
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :private/clear-override :property
-  (label [property user-data]
-    (when (nil? user-data)
-      (str "Clear " (properties/label property) " Override")))
-  (active? [property user-data]
+  (label [property]
+    (localization/message "command.private.clear-override" {"property" (properties/label property)}))
+  (active? [property]
     (not (coll/empty? (:original-values property))))
   (run [property property-control]
     (properties/clear-override! property)
@@ -912,8 +918,7 @@
   [menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
-   {:label "Clear Override"
-    :icon "icons/32/Icons_S_02_Reset.png"
+   {:icon "icons/32/Icons_S_02_Reset.png"
     :command :private/clear-override}])
 
 (defrecord SelectionProvider [original-node-ids]

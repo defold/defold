@@ -47,16 +47,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private break-label "Break")
-(def ^:private continue-label "Continue")
-(def ^:private detach-debugger-label "Detach Debugger")
-(def ^:private start-debugger-label "Start/Attach")
-(def ^:private step-into-label "Step Into")
-(def ^:private step-out-label "Step Out")
-(def ^:private step-over-label "Step Over")
-(def ^:private stop-debugger-label "Stop Debugger")
-(def ^:private open-engine-profiler-label "Open Web Profiler")
-(def ^:private open-engine-resource-profiler-label "Open Resource Profiler")
+(def ^:private break-label (localization/message "command.debugger.break"))
+(def ^:private continue-label (localization/message "command.debugger.continue"))
+(def ^:private step-into-label (localization/message "command.debugger.step-into"))
+(def ^:private step-out-label (localization/message "command.debugger.step-out"))
+(def ^:private step-over-label (localization/message "command.debugger.step-over"))
+(def ^:private stop-debugger-label (localization/message "command.debugger.stop"))
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
@@ -189,17 +185,17 @@
             (console/append-console-entry! :eval-error (str ret))))))))
 
 (defn- setup-tool-bar!
-  [^Parent console-tool-bar]
+  [^Parent console-tool-bar localization]
   (ui/with-controls console-tool-bar [^Parent debugger-tool-bar ^Button pause-debugger-button ^Button play-debugger-button step-in-debugger-button step-out-debugger-button step-over-debugger-button stop-debugger-button]
     (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
     (.bind (.managedProperty pause-debugger-button) (.visibleProperty pause-debugger-button))
     (.bind (.managedProperty play-debugger-button) (.visibleProperty play-debugger-button))
-    (ui/tooltip! pause-debugger-button break-label)
-    (ui/tooltip! play-debugger-button continue-label)
-    (ui/tooltip! step-in-debugger-button step-into-label)
-    (ui/tooltip! step-out-debugger-button step-out-label)
-    (ui/tooltip! step-over-debugger-button step-over-label)
-    (ui/tooltip! stop-debugger-button stop-debugger-label)
+    (ui/tooltip! pause-debugger-button break-label localization)
+    (ui/tooltip! play-debugger-button continue-label localization)
+    (ui/tooltip! step-in-debugger-button step-into-label localization)
+    (ui/tooltip! step-out-debugger-button step-out-label localization)
+    (ui/tooltip! step-over-debugger-button step-over-label localization)
+    (ui/tooltip! stop-debugger-button stop-debugger-label localization)
     (ui/bind-action! pause-debugger-button :debugger.break)
     (ui/bind-action! play-debugger-button :debugger.continue)
     (ui/bind-action! step-in-debugger-button :debugger.step-into)
@@ -346,12 +342,12 @@
                        nil))))
 
 (defn- setup-controls!
-  [debug-view ^Parent console-grid-pane ^Parent right-pane]
+  [debug-view ^Parent console-grid-pane ^Parent right-pane localization]
   (ui/with-controls console-grid-pane [console-tool-bar
                                        ^Parent debugger-prompt
                                        debugger-prompt-field]
     ;; tool bar
-    (setup-tool-bar! console-tool-bar)
+    (setup-tool-bar! console-tool-bar localization)
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
@@ -441,7 +437,7 @@
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project ^Parent root open-resource-fn state-changed-fn]
+  [app-view view-graph project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         right-pane (.lookup root "#right-pane")
         view-id (setup-view! (g/make-node! view-graph DebugView
@@ -449,7 +445,7 @@
                                            :state-changed-fn state-changed-fn)
                              app-view)
         timer (make-update-timer project view-id)]
-    (setup-controls! view-id console-grid-pane right-pane)
+    (setup-controls! view-id console-grid-pane right-pane localization)
     (ui/timer-start! timer)
     view-id))
 
@@ -638,13 +634,13 @@
 (handler/defhandler :run.set-resolution :global
   (options [user-data]
     (when-not user-data
-      [{:label "Custom Resolution..."
+      [{:label (localization/message "command.run.set-resolution.option.custom-resolution")
         :command :run.set-resolution
         :user-data :custom
         :check true}
-       {:label "Apple"
-        :children [{:label "iPhone"
-                    :children [{:label "Viewport Resolutions"
+       {:label (localization/message "command.run.set-resolution.option.apple")
+        :children [{:label (localization/message "command.run.set-resolution.option.iphone")
+                    :children [{:label (localization/message "command.run.set-resolution.option.viewport-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPhone 4 (320x480)"
                                 :command :run.set-resolution
@@ -687,7 +683,7 @@
                                 :user-data {:width 430
                                             :height 932}}
                                {:label :separator}
-                               {:label "Native Resolutions"
+                               {:label (localization/message "command.run.set-resolution.option.native-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPhone 4 (640x960)"
                                 :command :run.set-resolution
@@ -734,8 +730,8 @@
                                 :check true
                                 :user-data {:width 1290
                                             :height 2796}}]}
-                   {:label "iPad"
-                    :children [{:label "Viewport Resolutions"
+                   {:label (localization/message "command.run.set-resolution.option.ipad")
+                    :children [{:label (localization/message "command.run.set-resolution.option.viewport-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPad Pro (1024x1366)"
                                 :command :run.set-resolution
@@ -748,7 +744,7 @@
                                 :user-data {:width 768
                                             :height 1024}}
                                {:label :separator}
-                               {:label "Native Resolutions"
+                               {:label (localization/message "command.run.set-resolution.option.native-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPad Pro (2048x2732)"
                                 :command :run.set-resolution
@@ -765,8 +761,8 @@
                                 :check true
                                 :user-data {:width 768
                                             :height 1024}}]}]}
-       {:label "Android Devices"
-        :children [{:label "Viewport Resolutions"
+       {:label (localization/message "command.run.set-resolution.option.android-devices")
+        :children [{:label (localization/message "command.run.set-resolution.option.viewport-resolutions")
                     :command :private/disabled-menu-label}
                    {:label "Samsung Galaxy S7 (360x640)"
                     :command :run.set-resolution
@@ -794,7 +790,7 @@
                     :user-data {:width 412
                                 :height 847}}
                    {:label :separator}
-                   {:label "Native Resolutions"
+                   {:label (localization/message "command.run.set-resolution.option.native-resolutions")
                     :command :private/disabled-menu-label}
                    {:label "Samsung Galaxy S7 (1440x2560)"
                     :command :run.set-resolution
@@ -826,8 +822,8 @@
                     :check true
                     :user-data {:width 1440
                                 :height 2960}}]}
-       {:label "Handheld"
-        :children [{:label "Native Resolutions"
+       {:label (localization/message "command.run.set-resolution.option.handheld")
+        :children [{:label (localization/message "command.run.set-resolution.option.native-resolutions")
                     :command :private/disabled-menu-label}
                    {:label "1080p (1920x1080)"
                     :command :run.set-resolution
@@ -878,9 +874,9 @@
   (enabled? [] false))
 
 (handler/register-menu! ::menubar :editor.defold-project/project
-  [{:label "Debug"
+  [{:label (localization/message "menu.debug")
     :id ::debug
-    :children [{:label start-debugger-label
+    :children [{:label (localization/message "command.debugger.start")
                 :command :debugger.start}
                {:label continue-label
                 :command :debugger.continue}
@@ -893,22 +889,22 @@
                {:label step-out-label
                 :command :debugger.step-out}
                {:label :separator}
-               {:label detach-debugger-label
+               {:label (localization/message "command.debugger.detach")
                 :command :debugger.detach}
                {:label stop-debugger-label
                 :command :debugger.stop}
                {:label :separator}
-               {:label open-engine-profiler-label
+               {:label (localization/message "command.run.open-profiler")
                 :command :run.open-profiler}
-               {:label open-engine-resource-profiler-label
+               {:label (localization/message "command.run.open-resource-profiler")
                 :command :run.open-resource-profiler}
                {:label :separator}
-               {:label "Reset Simulated Resolution"
+               {:label (localization/message "command.run.reset-resolution")
                 :command :run.reset-resolution}
-               {:label "Set Resolution"
+               {:label (localization/message "command.run.set-resolution")
                 :command :run.set-resolution
                 :expand true}
-               {:label "Rotated Device"
+               {:label (localization/message "command.run.toggle-device-rotated")
                 :command :run.toggle-device-rotated
                 :check true}
                {:label :separator

@@ -525,13 +525,13 @@
         (.setTitle title))
       (.showDialog owner-window)))
 
-(defn- default-filter-fn [filter-on text items]
+(defn- default-filter-fn [filter-on text items localization]
   (if (coll/empty? text)
     items
     (let [text (string/lower-case text)]
       (filterv (fn [item]
                  (thread-util/throw-if-interrupted!)
-                 (string/starts-with? (string/lower-case (filter-on item)) text))
+                 (string/starts-with? (string/lower-case (filter-on item localization)) text))
                items))))
 
 (def ext-with-identity-items-props
@@ -595,10 +595,10 @@
                                     :on-action {:event-type :confirm}
                                     :default-button true}]}]}})
 
-(defn- wrap-cell-fn [f]
+(defn- wrap-cell-fn [f localization]
   (fn [item]
     (when (some? item)
-      (assoc (f item) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
+      (assoc (f item localization) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
 
 (defn- select-list-dialog-event-handler [set-filter-term-fn]
   (fn [state event]
@@ -655,6 +655,12 @@
       :set-filter-term (let [filter-term (:fx/event event)]
                          (set-filter-term-fn state filter-term)))))
 
+(defn- default-cell-fn [item _localization]
+  item)
+
+(defn- default-filter-on [item _localization]
+  (str item))
+
 (defn make-select-list-dialog
   "Show dialog that allows the user to select one or many of the suggested items
 
@@ -670,24 +676,26 @@
                       :filter-atom, or, if absent, to empty string
       :filter-atom    atom with initial filter term string; if supplied, its
                       value will be reset to final filter term on confirm
-      :cell-fn        cell factory fn, defaults to identity; should return a
-                      cljfx prop map for a list cell
+      :cell-fn        cell factory fn, will receive 2 args: an item and
+                      localization; should return a cljfx prop map for a list
+                      cell; returns the item by default
       :selection      a selection mode, either :single (default) or :multiple
       :filter-fn      filtering fn of 2 args (filter term and items), should
                       return a filtered coll of items
-      :filter-on      if no custom :filter-fn is supplied, use this fn of item
-                      to string for default filtering, defaults to str
+      :filter-on      if no custom :filter-fn is supplied, will receive 2 args:
+                      item and localization; use this fn of item to string for
+                      default filtering; stringifies item by default
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage"
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
-   (let [cell-fn (wrap-cell-fn (:cell-fn options identity))
+   (let [cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
                        (fn [text items]
-                         (default-filter-fn (:filter-on options str) text items)))
+                         (default-filter-fn (:filter-on options default-filter-on) text items localization)))
          filter-term (or (:filter options)
                          (some-> filter-atom deref)
                          "")

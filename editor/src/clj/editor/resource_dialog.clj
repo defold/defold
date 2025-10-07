@@ -163,7 +163,7 @@
         special-filter-fns {"refs" (partial refs-filter-fn project)
                             "deps" (partial deps-filter-fn project)}
         options (-> {:title (localization/message "dialog.select-resource.title")
-                     :cell-fn (fn cell-fn [r]
+                     :cell-fn (fn cell-fn [r _localization]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
                                       tooltip (when tooltip-gen (tooltip-gen r))

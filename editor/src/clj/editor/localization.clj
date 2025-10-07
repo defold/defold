@@ -34,7 +34,7 @@
            [java.util.concurrent Executor]
            [javafx.application Platform]
            [javafx.beans.value WritableValue]
-           [javafx.scene.control Labeled Tab]
+           [javafx.scene.control Labeled MenuItem Tab TableColumnBase Tooltip]
            [javafx.scene.text Text]
            [org.apache.commons.io FilenameUtils]))
 
@@ -95,6 +95,15 @@
   WritableValue
   (apply-localization [tab str]
     (.setValue tab str))
+  MenuItem
+  (apply-localization [menu-item str]
+    (.setText menu-item str))
+  Tooltip
+  (apply-localization [tooltip str]
+    (.setText tooltip str))
+  TableColumnBase
+  (apply-localization [column str]
+    (.setText column str))
   Object
   (apply-localization [unknown _]
     (throw (IllegalArgumentException. (format "%s does not implement Localizable protocol" unknown))))
@@ -427,6 +436,21 @@
      (->MessageWithNestedPatterns k m localizable-keys)
      (->SimpleMessage k m))))
 
+(defn vary-message-variables
+  "Transforms message variable map with a supplied function
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    original    localization message created using [[message]] fn
+    f           fn that transforms the variable map, will receive it as a first
+                argument, and then the remaining arguments
+    args        the remaining arguments"
+  [original f & args]
+  {:pre [(or (instance? SimpleMessage original)
+             (instance? MessageWithNestedPatterns original))]}
+  (message (:k original) (apply f (:m original) args)))
+
 (defn- impl-simple-list [list-k items state]
   (.format ^ListFormatter (list-k state) ^Collection items))
 
@@ -514,8 +538,69 @@
   (reify MessagePattern
     (format [_ _] "")))
 
+(defonce/record Join [separator separator-localizable items localizable-indices]
+  MessagePattern
+  (format [_ state]
+    (coll/join-to-string
+      (if separator-localizable (.format ^MessagePattern separator state) separator)
+      (if localizable-indices
+        (persistent!
+          (reduce
+            #(assoc! %1 %2 (.format ^MessagePattern (items %2) state))
+            (transient items)
+            localizable-indices))
+        items))))
+
+(defn join
+  "Like clojure.string/join, but creates a message pattern
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    separator    optional, either string, number, or other localizable message
+    items        vector of items, either strings, numbers, or other localizable
+                 messages"
+  ([items]
+   (join "" items))
+  ([separator items]
+   {:pre [(vector? items)]}
+   (->Join separator
+           (message-pattern? separator)
+           items
+           (when (pos? (count items))
+             (coll/not-empty
+               (into []
+                     (keep-indexed #(when (message-pattern? %2) %1))
+                     items))))))
+
+(defonce/record Transform [message message-localizable f args]
+  MessagePattern
+  (format [_ state]
+    (str
+      (apply
+        f
+        (if message-localizable (.format ^MessagePattern message state) message)
+        args))))
+
+(defn transform
+  "Create a message pattern that transforms another message pattern
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    :message    any value, but preferably a MessagePattern instance, created
+                with, e.g., [[message]]
+    :f          transformer function, will receive localized string with the
+                rest of the args
+    :args       the rest of the args"
+  [message f & args]
+  (let [message-localizable (message-pattern? message)]
+    (->Transform (cond-> message (not message-localizable) str) message-localizable f args)))
+
 ;; TODO:
 ;;  - editor scripts localization
-;;  - menus
+;;  - resource type label
+;;  - view type labels
 ;;  - all properties
+;;  - outline
 ;;  - missed things...

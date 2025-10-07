@@ -518,8 +518,8 @@
   (g/override-root (handler/adapt-single selection GameObjectNode)))
 
 (handler/defhandler :edit.add-referenced-component :workbench
+  :label (localization/message "command.edit.add-referenced-component.variant.game-object")
   (active? [selection] (selection->game-object selection))
-  (label [] "Add Component File")
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
@@ -565,12 +565,6 @@
         resource-type (:resource-type user-data)]
     (add-embedded-component! go-id resource-type select-fn)))
 
-(defn add-embedded-component-label [user-data]
-  (if-not user-data
-    "Add Component"
-    (let [rt (:resource-type user-data)]
-      (or (:label rt) (:ext rt)))))
-
 (defn- embeddable-component-resource-type? [resource-type workspace evaluation-context]
   (let [{:keys [tags] :as resource-type} resource-type]
     (and (contains? tags :component)
@@ -598,7 +592,11 @@
          vec)))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [user-data] (add-embedded-component-label user-data))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.game-object")
+      (let [rt (:resource-type user-data)]
+        (or (:label rt) (:ext rt)))))
   (active? [selection] (selection->game-object selection))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]

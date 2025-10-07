@@ -146,7 +146,6 @@
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
-    (ui/user-data! scene :localization localization)
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -154,7 +153,7 @@
     (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
-    (ui/show! stage)
+    (ui/show! stage localization)
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
@@ -196,7 +195,8 @@
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs)
+                                                      localization)
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat

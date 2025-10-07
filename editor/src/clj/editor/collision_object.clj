@@ -27,6 +27,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -53,18 +54,25 @@
 
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
+                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")
                   :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
                   :physics-types #{"2D" "3D"}}
    :type-box     {:label "Box"
+                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")
                   :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
                   :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
+                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
                   :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
                   :physics-types #{"3D"}}})
 
 (defn- shape-type-label
   [shape-type]
   (get-in shape-type-ui [shape-type :label]))
+
+(defn- shape-type-message
+  [shape-type]
+  (get-in shape-type-ui [shape-type :message]))
 
 (defn- shape-type-icon
   [shape-type]
@@ -754,8 +762,8 @@
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
          (if-not user-data
-           "Add Shape"
-           (shape-type-label (:shape-type user-data))))
+           (localization/message "command.edit.add-embedded-component.variant.collision-object")
+           (shape-type-message (:shape-type user-data))))
   (active? [selection] (selection->collision-object selection))
   (run [selection user-data app-view]
     (add-shape-handler (selection->collision-object selection) (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids))))
