@@ -53,8 +53,8 @@ const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t ipl
         return 0;
     }
 
-    uint32_t nwritten = dmSnPrintf(ip, iplen, "%s", _ip);
-    if (nwritten >= iplen)
+    int nwritten = dmSnPrintf(ip, iplen, "%s", _ip);
+    if (nwritten == -1)
         return 0;
     return ip;
 }

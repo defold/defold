@@ -665,7 +665,8 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
     if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+        dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+        ++n; // Since dmSnPrintf returns -1 on truncation, don't add the return value to n, and instead increment n separately
     }
 
     if (n >= dmLog::MAX_STRING_SIZE)
