@@ -379,24 +379,24 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
    {:default
-   {"clipping_inverted" :unused
-    "clipping_mode" :unused
-    "clipping_visible" :unused
-    "custom_type" :unused
-    "innerRadius" :unused
-    "outerBounds" :unused
-    "particlefx" :unused
-    "perimeterVertices" :unused
-    "pieFillAngle" :unused
-    "size_mode" :unused
-    "slice9" :unused
-    "spine_create_bones" :unused
-    "spine_default_animation" :unused
-    "spine_node_child" :unused
-    "spine_scene" :unused
-    "spine_skin" :unused
-    "template" :unused
-    "texture" :unused}}
+	   {"clipping_inverted" :unused
+	    "clipping_mode" :unused
+	    "clipping_visible" :unused
+	    "custom_type" :unused
+	    "innerRadius" :unused
+	    "outerBounds" :unused
+	    "particlefx" :unused
+	    "perimeterVertices" :unused
+	    "pieFillAngle" :unused
+	    "size_mode" :unused
+	    "slice9" :unused
+	    "spine_create_bones" :unused
+	    "spine_default_animation" :unused
+	    "spine_node_child" :unused
+	    "spine_scene" :unused
+	    "spine_skin" :unused
+	    "template" :unused
+	    "texture" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
