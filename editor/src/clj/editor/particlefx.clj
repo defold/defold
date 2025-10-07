@@ -32,6 +32,7 @@
             [editor.graphics :as graphics]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -311,45 +312,50 @@
                             (geom/circling 8)
                             (geom/scale [40 40 1])))
 
-(def ^:private mod-types {:modifier-type-acceleration {:label "Acceleration"
-                                                       :template {:type :modifier-type-acceleration
-                                                                  :properties [{:key :modifier-key-magnitude
-                                                                                :points [{:y (float -100.0)}]}]}
-                                                       :geom-data-screen (fn [magnitude _]
-                                                                           (if (< magnitude 0)
-                                                                             acceleration-neg-geom-data
-                                                                             acceleration-geom-data))
-                                                       :geom-data-world (constantly [])}
-                          :modifier-type-drag {:label "Drag"
-                                               :template {:type :modifier-type-drag
-                                                          :properties [{:key :modifier-key-magnitude
-                                                                        :points [{:y (float 1.0)}]}]}
-                                               :geom-data-screen (constantly drag-geom-data)
-                                               :geom-data-world (constantly [])}
-                          :modifier-type-radial {:label "Radial"
-                                                 :template {:type :modifier-type-radial
-                                                            :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:y (float 100.0)}]}
-                                                                         {:key :modifier-key-max-distance
-                                                                          :points [{:y (float 1000.0)}]}]}
-                                                 :geom-data-screen (fn [magnitude _]
-                                                                     (if (< magnitude 0)
-                                                                       radial-neg-geom-data
-                                                                       radial-geom-data))
-                                                 :geom-data-world (fn [_ max-distance]
-                                                                    (geom/scale [max-distance max-distance 1] dash-circle))}
-                          :modifier-type-vortex {:label "Vortex"
-                                                 :template {:type :modifier-type-vortex
-                                                            :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:y (float 100.0)}]}
-                                                                         {:key :modifier-key-max-distance
-                                                                          :points [{:y (float 1000.0)}]}]}
-                                                 :geom-data-screen (fn [magnitude _]
-                                                                     (if (< magnitude 0)
-                                                                       vortex-neg-geom-data
-                                                                       vortex-geom-data))
-                                                 :geom-data-world (fn [_ max-distance]
-                                                                    (geom/scale [max-distance max-distance 1] dash-circle))}})
+(def ^:private mod-types
+  {:modifier-type-acceleration {:label "Acceleration"
+                                :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration")
+                                :template {:type :modifier-type-acceleration
+                                           :properties [{:key :modifier-key-magnitude
+                                                         :points [{:y (float -100.0)}]}]}
+                                :geom-data-screen (fn [magnitude _]
+                                                    (if (< magnitude 0)
+                                                      acceleration-neg-geom-data
+                                                      acceleration-geom-data))
+                                :geom-data-world (constantly [])}
+   :modifier-type-drag {:label "Drag"
+                        :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.drag")
+                        :template {:type :modifier-type-drag
+                                   :properties [{:key :modifier-key-magnitude
+                                                 :points [{:y (float 1.0)}]}]}
+                        :geom-data-screen (constantly drag-geom-data)
+                        :geom-data-world (constantly [])}
+   :modifier-type-radial {:label "Radial"
+                          :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.radial")
+                          :template {:type :modifier-type-radial
+                                     :properties [{:key :modifier-key-magnitude
+                                                   :points [{:y (float 100.0)}]}
+                                                  {:key :modifier-key-max-distance
+                                                   :points [{:y (float 1000.0)}]}]}
+                          :geom-data-screen (fn [magnitude _]
+                                              (if (< magnitude 0)
+                                                radial-neg-geom-data
+                                                radial-geom-data))
+                          :geom-data-world (fn [_ max-distance]
+                                             (geom/scale [max-distance max-distance 1] dash-circle))}
+   :modifier-type-vortex {:label "Vortex"
+                          :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex")
+                          :template {:type :modifier-type-vortex
+                                     :properties [{:key :modifier-key-magnitude
+                                                   :points [{:y (float 100.0)}]}
+                                                  {:key :modifier-key-max-distance
+                                                   :points [{:y (float 1000.0)}]}]}
+                          :geom-data-screen (fn [magnitude _]
+                                              (if (< magnitude 0)
+                                                vortex-neg-geom-data
+                                                vortex-geom-data))
+                          :geom-data-world (fn [_ max-distance]
+                                             (geom/scale [max-distance max-distance 1] dash-circle))}})
 
 (defn- modifier-type-label [modifier-type]
   (:label (mod-types modifier-type)))
@@ -417,19 +423,19 @@
                               (geom/circling 4))]
                      (interleave ps (drop 1 (cycle ps)))))
 
-(def emitter-types {:emitter-type-circle {:label "Circle"
+(def emitter-types {:emitter-type-circle {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.circle")
                                           :geom-data-world (fn [size-x _ _]
                                                              (geom/scale [size-x size-x 1] circle-geom-data))}
-                    :emitter-type-sphere {:label "Sphere"
+                    :emitter-type-sphere {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.sphere")
                                           :geom-data-world (fn [size-x _ _]
                                                              (geom/scale [size-x size-x 1] circle-geom-data))}
-                    :emitter-type-cone {:label "Cone"
+                    :emitter-type-cone {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.cone")
                                         :geom-data-world (fn [size-x size-y _]
                                                            (geom/scale [size-x size-y 1] cone-geom-data))}
-                    :emitter-type-2dcone {:label "2D Cone"
+                    :emitter-type-2dcone {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.2d-cone")
                                           :geom-data-world (fn [size-x size-y _]
                                                              (geom/scale [size-x size-y 1] cone-geom-data))}
-                    :emitter-type-box {:label "Box"
+                    :emitter-type-box {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.box")
                                        :geom-data-world (fn [size-x size-y _]
                                                           (geom/scale [size-x size-y 1] box-geom-data))}})
 
@@ -1124,18 +1130,19 @@
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
   (label [user-data] (if-not user-data
-                       "Add Modifier"
-                       (->> user-data :modifier-type mod-types :label)))
+                       (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx")
+                       (->> user-data :modifier-type mod-types :message)))
   (run [selection user-data app-view]
     (let [parent-id (or (selection->particlefx selection)
                         (selection->emitter selection))]
       (add-modifier-handler parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (when (not user-data)
-      (mapv (fn [[type data]] {:label (:label data)
+      (mapv (fn [[type data]] {:label (:message data)
                                :icon modifier-icon
                                :command :edit.add-secondary-embedded-component
-                               :user-data {:modifier-type type}}) mod-types))))
+                               :user-data {:modifier-type type}})
+            mod-types))))
 
 (defn- make-emitter
   ([self emitter]
@@ -1198,18 +1205,20 @@
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->particlefx selection))
-  (label [user-data] (if-not user-data
-                       "Add Emitter"
-                       (->> user-data :emitter-type (get emitter-types) :label)))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.particlefx")
+      (->> user-data :emitter-type (get emitter-types) :label)))
   (run [selection user-data app-view] (let [pfx (selection->particlefx selection)]
                                         (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (selection->particlefx selection)]
-               (mapv (fn [[type data]] {:label (:label data)
-                                        :icon emitter-icon
-                                        :command :edit.add-embedded-component
-                                        :user-data {:emitter-type type}}) emitter-types)))))
+             (mapv (fn [[type data]]
+                     {:label (:label data)
+                      :icon emitter-icon
+                      :command :edit.add-embedded-component
+                      :user-data {:emitter-type type}})
+                   emitter-types))))
 
 
 ;;--------------------------------------------------------------------

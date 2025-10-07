@@ -1019,7 +1019,7 @@
     (select! app-view [animation-node] op-seq)))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [] "Add Animation Group")
+  :label (localization/message "command.edit.add-embedded-component.variant.atlas")
   (active? [selection] (selection->atlas selection))
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
@@ -1050,7 +1050,7 @@
       (select! app-view image-nodes op-seq))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
-  (label [] "Add Images...")
+  :label (localization/message "command.edit.add-referenced-component.variant.atlas")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [app-view project selection]
     (let [atlas (selection->atlas selection)]

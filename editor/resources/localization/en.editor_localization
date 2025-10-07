@@ -189,9 +189,14 @@ notification.defunload-issues.action.show-details = Show Details…
 # Launch Failed Dialog
 
 dialog.launch-failed.title = Launch Failed
-dialog.launch-failed.header = Launching {target} failed
+dialog.launch-failed.header = Launching {engine} failed
 dialog.launch-failed.detail = If the engine is already running, shut down the process manually and retry
 dialog.launch-failed.target.new-local-engine = New Local Engine
+
+# Hot Reload Failed Dialog
+
+dialog.hot-reload-failed.title = Hot Reload Failed
+dialog.hot-reload-failed.header = Failed to reload resources on engine "{engine}"
 
 # GL support error dialog
 
@@ -215,6 +220,14 @@ dialog.target-ip.title = Enter Target IP
 dialog.target-ip.header = Enter Target IP Address
 dialog.target-ip.label.ip = Target IP Address
 dialog.target-ip.button.add = Add Target IP
+
+# Search in Files Dialogs
+
+dialog.search-in-files.title = Search in Files
+dialog.search-in-files.label.search = Search pattern (* to match any string)
+dialog.search-in-files.label.types = File types to search in (comma separated)
+dialog.search-in-files.label.include-libraries = Search Inside Libraries
+dialog.search-in-files.button.keep-results = Keep Results
 
 # Target Discovery Log Dialog
 
@@ -602,6 +615,240 @@ progress.rebooted-engine = Rebooted {engine}
 progress.engine-reboot-failed = Reboot failed
 progress.aborting = Aborting…
 progress.percentage = {percentage}%
+
+# Engine targets
+
+engine.url.unavailable = engine service not available
+engine.url.invalid-host = invalid host
+engine.name.local = Local {name}
+engine.name.with-url = {name} — {url}
+engine.name.with-instance = {name} — instance {instance}
+
+# Search results: overrides
+
+search.overrides.title.all = All Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = Specific Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = Resource
+
+# Menus
+
+menu.file = File
+menu.project = Project
+menu.edit = Edit
+menu.debug = Debug
+menu.view = View
+menu.help = Help
+
+# Commands
+
+command.file.new = New…
+command.file.new.option.any-file = File
+command.file.new.any-file = New File
+command.file.new-folder = New Folder
+command.file.open = Open…
+command.file.open-as = Open As
+command.file.open-as.option.associated-application = Associated Application
+command.file.open-as.option.in-custom-editor = {view} in Custom Editor
+command.file.open-as.option.in-defold-editor = {view} in Defold Editor
+command.file.open-selected = Open
+command.file.load-external-changes = Load External Changes
+command.file.save-all = Save All
+command.file.save-and-upgrade-all = Upgrade File Formats…
+command.file.search = Search in Files…
+command.file.reopen-recent = Re-Open Closed File
+command.private.recent-files.option.entry = {path} • {view}
+command.private.recent-files = Recent Files
+command.private.recent-files.option.more = More…
+command.window.tab.close = Close
+command.window.tab.close-all = Close All
+command.window.tab.close-others = Close Others
+command.window.tab.join-groups = Join Tab Panes
+command.window.tab.move-to-other-group = Move to Other Tab Pane
+command.window.tab.swap-with-other-group = Swap With Other Tab Pane
+command.file.show-in-assets = Show in Asset Browser
+command.file.show-in-desktop = Show in Desktop
+command.file.show-references = Referencing Files…
+command.file.show-dependencies = Dependencies…
+command.run.hot-reload = Hot Reload
+command.run.select-target = Target
+command.run.select-target.option.all-launched-instances = All Launched Instances
+command.run.select-target.option.new-local-engine = New Local Engine
+command.run.stop = Close Engine
+command.run.set-instance-count = Launched Instance Count
+command.run.set-instance-count.option.count = {count, plural, one {# Instance} other {# Instances}}
+command.run.set-target-ip = Enter Target IP
+command.run.show-target-log = Target Discovery Log
+command.run.open-profiler = Open Web Profiler
+command.run.open-resource-profiler = Open Resource Profiler
+command.run.reset-resolution = Reset Simulated Resolution
+command.run.set-resolution = Set Resolution
+command.run.set-resolution.option.android-devices = Android Devices
+command.run.set-resolution.option.apple = Apple
+command.run.set-resolution.option.custom-resolution = Custom Resolution…
+command.run.set-resolution.option.handheld = Handheld
+command.run.set-resolution.option.ipad = iPad
+command.run.set-resolution.option.iphone = iPhone
+command.run.set-resolution.option.native-resolutions = Native Resolutions
+command.run.set-resolution.option.viewport-resolutions = Viewport Resolutions
+command.run.toggle-device-rotated = Rotated Device
+command.file.open-liveupdate-settings = Live Update Settings
+command.file.open-project = Open Project…
+command.file.open-shared-editor-settings = Shared Editor Settings
+command.app.preferences = Preferences…
+command.app.quit = Quit
+command.project.build = Build
+command.project.clean-build = Clean Build
+command.project.build-html5 = Build HTML5
+command.project.clean-build-html5 = Clean Build HTML5
+command.project.bundle = Bundle
+command.project.rebundle = Rebundle
+command.project.fetch-libraries = Fetch Libraries
+command.project.reload-editor-scripts = Reload Editor Scripts
+command.private.clear-override = Clear {property} Override
+command.edit.undo = Undo
+command.edit.redo = Redo
+command.edit.add-embedded-component = Add
+command.edit.add-embedded-component.variant.atlas = Add Animation Group
+command.edit.add-embedded-component.variant.collection = Add Game Object
+command.edit.add-embedded-component.variant.collision-object = Add Shape
+command.edit.add-embedded-component.variant.collision-object.option.box = Box
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
+command.edit.add-embedded-component.variant.game-object = Add Component
+command.edit.add-embedded-component.variant.particlefx = Add Emitter
+command.edit.add-embedded-component.variant.particlefx.option.circle = Circle
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Sphere
+command.edit.add-embedded-component.variant.particlefx.option.cone = Cone
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D Cone
+command.edit.add-embedded-component.variant.particlefx.option.box = Box
+command.edit.add-embedded-component.variant.tile-map = Add Layer
+command.edit.add-embedded-component.variant.tile-source = Add
+command.edit.add-embedded-component.variant.tile-source.option.animation = Animation
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = Collision Group
+command.edit.add-referenced-component = Add From File
+command.edit.add-referenced-component.variant.atlas = Add Images…
+command.edit.add-referenced-component.variant.collection = Add Game Object File
+command.edit.add-referenced-component.variant.game-object = Add Component File
+command.edit.add-secondary-embedded-component = Add Secondary
+command.edit.add-secondary-embedded-component.variant.collection-game-object = Add Game Object
+command.edit.add-secondary-embedded-component.variant.particlefx = Add Modifier
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Acceleration
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Drag
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Radial
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Vortex
+command.edit.add-secondary-referenced-component = Add Secondary From File
+command.edit.add-secondary-referenced-component.variant.collection = Add Collection File
+command.edit.add-secondary-referenced-component.variant.collection-game-object = Add Game Object File
+command.edit.cut = Cut
+command.edit.copy = Copy
+command.edit.copy-absolute-path = Copy Full Path
+command.edit.copy-require-path = Copy Require Path
+command.edit.copy-resource-path = Copy Resource Path
+command.edit.find = Find…
+command.edit.paste = Paste
+command.code.select-all = Select All
+command.edit.delete = Delete
+command.edit.reorder-up = Move Up
+command.edit.reorder-down = Move Down
+command.edit.rename = Rename
+command.edit.pull-up-overrides = Pull Up Overrides
+command.edit.pull-up-overrides.variant.property = Pull Up {property} Override
+command.edit.pull-up-overrides.option = Pull Up {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Ancestor} other {"{target}"}}} other {{target_count} Ancestors}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.push-down-overrides = Push Down Overrides
+command.edit.push-down-overrides.variant.property = Push Down {property} Override
+command.edit.push-down-overrides.option = Push Down {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Descendant} other {"{target}"}}} other {{target_count} Descendants}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.show-overrides = Show Overrides…
+command.code.find-next = Find Next
+command.code.find-previous = Find Previous
+command.code.replace = Replace…
+command.code.replace-next = Replace Next
+command.code.toggle-comment = Toggle Comment
+command.code.reindent-lines = Reindent Lines
+command.code.convert-indentation = Convert Indentation
+command.code.convert-indentation.to-tabs = To Tabs
+command.code.convert-indentation.to-two-spaces = To Two Spaces
+command.code.convert-indentation.to-four-spaces = To Four Spaces
+command.code.sort-lines = Sort Lines
+command.code.sort-lines.case-sensitive = Sort Lines (Case Sensitive)
+command.code.sort-lines.option.case-insensitive = Case Insensitive
+command.code.sort-lines.option.case-sensitive = Case Sensitive
+command.code.select-next-occurrence = Select Next Occurrence
+command.code.split-selection-into-lines = Split Selection Into Lines
+command.code.goto-definition = Go to Definition
+command.code.goto-line = Go to Line…
+command.code.show-references = Find References
+command.code.toggle-minimap = Minimap
+command.code.toggle-indentation-guides = Indentation Guides
+command.code.toggle-visible-whitespace = Visible Whitespace
+command.code.zoom.increase = Increase Font Size
+command.code.zoom.decrease = Decrease Font Size
+command.code.zoom.reset = Reset Font Size
+command.debugger.start = Start/Attach
+command.debugger.continue = Continue
+command.debugger.break = Break
+command.debugger.step-over = Step Over
+command.debugger.step-into = Step Into
+command.debugger.step-out = Step Out
+command.debugger.detach = Detach Debugger
+command.debugger.stop = Stop Debugger
+command.debugger.toggle-breakpoint = Toggle Breakpoint
+command.debugger.edit-breakpoint = Edit Breakpoint
+command.scene.set-manipulator-space = Set Manipulator Space
+command.scene.set-manipulator-space.option.world = World Space
+command.scene.set-manipulator-space.option.local = Local Space
+command.scene.set-camera-type = Set Camera Type
+command.scene.set-camera-type.option.orthographic = Orthographic Camera
+command.scene.set-camera-type.option.perspective = Perspective Camera
+command.scene.set-gui-layout = Set GUI Layout
+command.scene.toggle-move-whole-pixels = Move Whole Pixels
+command.scene.visibility.toggle-filters = Toggle Visibility Filters
+command.scene.visibility.toggle-component-guides = Toggle Component Guides
+command.scene.visibility.toggle-grid = Toggle Grid
+command.scene.visibility.toggle-selection = Show/Hide Selected Objects
+command.scene.visibility.hide-unselected = Hide Unselected Objects
+command.scene.visibility.show-last-hidden = Show Last Hidden Objects
+command.scene.visibility.show-all = Show All Hidden Objects
+command.scene.play = Play
+command.scene.stop = Stop
+command.scene.frame-selection = Frame Selection
+command.scene.realign-camera = Realign Camera
+command.scene.toggle-tile-palette = Select Tile…
+command.scene.select-erase-tool = Select Eraser
+command.scene.flip-brush-horizontally = Flip Brush Horizontally
+command.scene.flip-brush-vertically = Flip Brush Vertically
+command.scene.rotate-brush-90-degrees = Rotate Brush 90 Degrees
+command.window.toggle-left-pane = Toggle Assets Pane
+command.window.toggle-changed-files-pane = Toggle Changed Files
+command.window.toggle-bottom-pane = Toggle Tools Pane
+command.window.toggle-right-pane = Toggle Properties Pane
+command.window.show-console = Show Console
+command.window.show-curve-editor = Show Curve Editor
+command.window.show-build-errors = Show Build Errors
+command.window.show-search-results = Show Search Results
+command.dev.reload-css = Reload Stylesheet
+command.help.open-logs = Show Logs
+command.file.create-desktop-entry = Create Desktop Entry
+command.help.open-documentation = Documentation
+command.help.open-forum = Support Forum
+command.help.open-asset-portal = Find Assets
+command.help.report-issue = Report Issue
+command.help.report-suggestion = Report Suggestion
+command.help.open-issues = Search Issues
+command.help.open-donations = Development Fund
+command.app.about = About
+command.vcs.diff = View Diff
+command.vcs.revert = Revert
+
+# Overrides
+
+override.aspect.layout = {layout} Layout
+override.aspect.layout.kind = {count, plural, one {# Layout} other {# Layouts}}
+override.aspect.generic.kind = {count, plural, one {# Aspect} other {# Aspects}}
+
+# GUI
+
+gui.layout.default = Default
 
 # Resource views
 

@@ -709,8 +709,8 @@
   (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")})))
 
 (handler/defhandler :edit.add-referenced-component :workbench
+  :label (localization/message "command.edit.add-referenced-component.variant.collection")
   (active? [selection] (selection->collection selection))
-  (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
        (let [collection (selection->collection selection)]
          (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")}))]
@@ -760,8 +760,8 @@
         (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
+  :label (localization/message "command.edit.add-embedded-component.variant.collection")
   (active? [selection] (selection->collection selection))
-  (label [selection user-data] "Add Game Object")
   (run [selection workspace project user-data app-view]
        (let [collection (selection->collection selection)]
          (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
@@ -788,8 +788,8 @@
       (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench
+  :label (localization/message "command.edit.add-secondary-embedded-component.variant.collection-game-object")
   (active? [selection] (selection->game-object-instance selection))
-  (label [] "Add Game Object")
   (run [selection project workspace app-view]
        (let [go-node (selection->game-object-instance selection)
              collection (core/scope-of-type go-node CollectionNode)]
@@ -804,8 +804,8 @@
   (active? [selection] (or (selection->collection selection)
                          (selection->game-object-instance selection)))
   (label [selection] (if (selection->collection selection)
-                       "Add Collection File"
-                       "Add Game Object File"))
+                       (localization/message "command.edit.add-secondary-referenced-component.variant.collection")
+                       (localization/message "command.edit.add-secondary-referenced-component.variant.collection-game-object")))
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext "collection"]
