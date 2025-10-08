@@ -375,16 +375,29 @@
     :orthographic (dolly-orthographic camera delta)
     :perspective (dolly-perspective camera delta)))
 
+(defn mode-2d? [camera]
+  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
+       (= :orthographic (:type camera))))
+
 (defn track
   [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
-  (let [focus ^Vector4d (:focus-point camera)
-        point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        screen-z (.z point)
-        world (camera-unproject camera viewport evt-x evt-y screen-z)
-        delta (camera-unproject camera viewport last-x last-y screen-z)]
-    (.sub delta world)
-    (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
-      :focus-point (doto focus (.add delta)))))
+  (if (mode-2d? camera)
+    (let [focus ^Vector4d (:focus-point camera)
+          point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+          screen-z (.z point)
+          world (camera-unproject camera viewport evt-x evt-y screen-z)
+          delta (camera-unproject camera viewport last-x last-y screen-z)]
+      (.sub delta world)
+      (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
+        :focus-point (doto focus (.add delta))))
+    (let [dx (- last-x evt-x)
+          dy (- last-y evt-y)
+          rate 0.001
+          current-rotation (Quat4d. (:rotation camera))
+          q1 (doto (Quat4d.) (.set (AxisAngle4d. 1.0 0.0 0.0 (* dy rate))))
+          q2 (doto (Quat4d.) (.set (AxisAngle4d. 0.0 1.0 0.0 (* dx rate))))
+          new-rotation (doto (Quat4d. q2) (.mul current-rotation) (.mul q1))]
+      (assoc camera :rotation new-rotation))))
 
 (defn pan-at-pointer-position
   "Pans the camera so that the focus point is at the same position as it was before `dolly`."
@@ -625,10 +638,6 @@
         (set-extents fov-x fov-y z-near z-far)
         filter-fn)))
 
-(defn mode-2d? [camera]
-  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
-       (= :orthographic (:type camera))))
-
 (defn significant-drag?
   [current-position previous-position]
   (let [threshold 3]
@@ -688,7 +697,9 @@
                                           :movement movement)
                        (if (or (= movement :idle) is-secondary)
                          action
-                         (do (when is-significant-drag (g/set-property! self :cursor-type :pan))
+                         (do (when is-significant-drag 
+                               (g/set-property! self :cursor-type 
+                                                (if is-mode-2d :pan :none)))
                              nil)))
       :mouse-released (do
                         (g/user-data-swap! self ::ui-state assoc
@@ -703,10 +714,11 @@
                           action
                           nil))
       :mouse-moved (if (not (= :idle movement))
-                     (do
-                       (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
-                       (when is-significant-drag (g/set-property! self :cursor-type :pan))
-                       (if is-secondary action nil))
+                     (do (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
+                         (when is-significant-drag
+                           (g/set-property! self :cursor-type 
+                                            (if is-mode-2d :pan :none)))
+                         (if is-secondary action nil))
                      action)
       action)))
 

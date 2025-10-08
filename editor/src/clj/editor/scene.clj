@@ -950,6 +950,7 @@
     ;; `CLOSED_HAND ``OPEN_HAND_HAND ``HAND `all render a pointer cursor on Linux and Windows.
     ;; `MOVE `renders the default cursor on macOS.
     :pan (if (os/is-mac-os?) Cursor/CLOSED_HAND Cursor/MOVE)
+    :none Cursor/NONE
     Cursor/DEFAULT))
 
 (defn refresh-scene-view! [node-id dt]
