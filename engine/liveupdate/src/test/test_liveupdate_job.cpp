@@ -58,7 +58,7 @@ struct JobData
     int  m_Result;
 };
 
-static int ProcessData(dmJobThread::HJob, uint64_t tag, void* context, void* _data)
+static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, uint64_t tag, void* context, void* _data)
 {
     HashState64* hash_state = (HashState64*)context;
     JobData* data = (JobData*)_data;
@@ -68,7 +68,7 @@ static int ProcessData(dmJobThread::HJob, uint64_t tag, void* context, void* _da
     return data->m_Char;
 }
 
-static void FinishData(dmJobThread::HJob, uint64_t tag, void* context, void* _data, int result)
+static void FinishData(dmJobThread::HContext, dmJobThread::HJob, uint64_t tag, void* context, void* _data, int result)
 {
     JobData* data = (JobData*)_data;
     data->m_Result = result;

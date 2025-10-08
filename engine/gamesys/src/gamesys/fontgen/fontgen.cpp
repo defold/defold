@@ -114,7 +114,7 @@ static float Remap(float value, float outline_edge)
 }
 
 // Called on the worker thread
-static int JobGenerateGlyph(dmJobThread::HJob job, uint64_t tag, void* context, void* data)
+static int JobGenerateGlyph(dmJobThread::HContext, dmJobThread::HJob job, uint64_t tag, void* context, void* data)
 {
     (void)context;
     JobItem* item = (JobItem*)data;
@@ -247,7 +247,7 @@ static void SetFailedStatus(JobItem* item, const char* msg)
     dmLogError("%s", msg); // log for each error in a batch
 }
 
-static void InvokeCallback(dmJobThread::HJob hjob, uint64_t tag, JobItem* item)
+static void InvokeCallback(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, JobItem* item)
 {
     JobStatus* status = item->m_Status;
     if (item->m_Callback) // only the last item has this callback
@@ -272,7 +272,7 @@ static void DeleteItem(Context* ctx, JobItem* item)
     delete item;
 }
 
-static int JobProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* context, void* data)
+static int JobProcessSentinelGlyph(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* context, void* data)
 {
     (void)hjob;
     (void)tag;
@@ -281,16 +281,16 @@ static int JobProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* c
     return 1;
 }
 
-static void JobPostProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* context, void* data, int result)
+static void JobPostProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, uint64_t tag, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
-    InvokeCallback(hjob, tag, item);
+    InvokeCallback(job_thread, hjob, tag, item);
     DeleteItem(ctx, item);
 }
 
 // Called on the main thread
-static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
+static void JobPostProcessGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
@@ -309,7 +309,7 @@ static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* conte
         char msg[256];
         dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c' 0x%04X", codepoint, codepoint);
         SetFailedStatus(item, msg);
-        InvokeCallback(job, tag, item);
+        InvokeCallback(job_thread, job, tag, item);
         DeleteItem(ctx, item);
         return;
     }
@@ -324,7 +324,7 @@ static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* conte
         SetFailedStatus(item, msg);
     }
 
-    InvokeCallback(job, tag, item); // reports either first error, or success
+    InvokeCallback(job_thread, job, tag, item); // reports either first error, or success
     DeleteItem(ctx, item);
 }
 

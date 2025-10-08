@@ -22,8 +22,8 @@ namespace dmJobThread
     typedef uint64_t HJob;
 
     typedef struct JobContext* HContext;
-    typedef int (*FProcess)(HJob job, uint64_t tag, void* context, void* data);
-    typedef void (*FCallback)(HJob job, uint64_t tag, void* context, void* data, int result);
+    typedef int (*FProcess)(HContext context, HJob job, uint64_t tag, void* job_context, void* job_data);
+    typedef void (*FCallback)(HContext context, HJob job, uint64_t tag, void* job_context, void* job_data, int result);
 
     static const uint8_t DM_MAX_JOB_THREAD_COUNT = 8;
 
@@ -72,7 +72,7 @@ namespace dmJobThread
      * @note Parent job will only run after all children has finished
      * @name CreateJob
      * @param context [type: HContext] the job thread context
-     * @param job [type: Job*] the job creation parameters
+     * @param job [type: Job*] the job creation parameters. This pointer is not stored, the data is copied as-is.
      * @return hjob [type: HJob] returns the job if successful. 0 otherwise.
      */
     HJob CreateJob(HContext context, Job* job);

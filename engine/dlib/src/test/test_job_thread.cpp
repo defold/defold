@@ -20,12 +20,12 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-static int ProcessSimple(dmJobThread::HJob job, uint64_t tag, void* context, void* data)
+static int ProcessSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data)
 {
     return 1;
 }
 
-static void CallbackSimple(dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
+static void CallbackSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
 {
     uint8_t* d = (uint8_t*) data;
     if (d)
@@ -94,26 +94,26 @@ struct ContextCancel
 };
 
 // When the first finished job arrives, we'll cancel the rest of the tasks
-static int ProcessCancel(dmJobThread::HJob job, uint64_t tag, void* context, void* data)
+static int ProcessCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* _context, void* data)
 {
-    ContextCancel* ctx = (ContextCancel*)context;
-    ctx->m_NumProcessed++;
+    ContextCancel* context = (ContextCancel*)_context;
+    context->m_NumProcessed++;
     uint64_t t = (uint64_t)(uintptr_t)data;
 
-    for (uint32_t i = 0; i < ctx->m_JobsToCancel.Size(); ++i)
+    for (uint32_t i = 0; i < context->m_JobsToCancel.Size(); ++i)
     {
-        dmJobThread::CancelJob(ctx->m_Context, ctx->m_JobsToCancel[i]);
+        dmJobThread::CancelJob(ctx, context->m_JobsToCancel[i]);
     }
 
     dmTime::Sleep(t);
     return 1;
 }
 
-static void CallbackCancel(dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
+static void CallbackCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* _context, void* data, int result)
 {
-    ContextCancel* ctx = (ContextCancel*)context;
-    ctx->m_NumFinished++;
-    ctx->m_NumFinishedOk += result?1:0;
+    ContextCancel* context = (ContextCancel*)_context;
+    context->m_NumFinished++;
+    context->m_NumFinishedOk += result?1:0;
 }
 
 TEST(dmJobThread, CancelJobs)
@@ -180,7 +180,7 @@ TEST(dmJobThread, CancelJobs)
 //     int m_NumFinishedOk;
 // };
 
-// static int ProcessCancelWithTag(dmJobThread::HJob job, uint64_t tag, void* context, void* data)
+// static int ProcessCancelWithTag(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data)
 // {
 //     ContextCancelWithTag* ctx = (ContextCancelWithTag*)context;
 //     ctx->m_NumProcessed++;
@@ -192,7 +192,7 @@ TEST(dmJobThread, CancelJobs)
 //     return 1;
 // }
 
-// static void CallbackCancelWithTag(dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
+// static void CallbackCancelWithTag(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
 // {
 //     ContextCancelWithTag* ctx = (ContextCancelWithTag*)context;
 //     ctx->m_NumFinished++;
@@ -266,7 +266,7 @@ struct JobWithDependency
     int32_atomic_t* m_Order;
 };
 
-static int ProcessSortedDependencyJobs(dmJobThread::HJob hjob, uint64_t tag, void* context, void* _data)
+static int ProcessSortedDependencyJobs(dmJobThread::HContext ctx, dmJobThread::HJob hjob, uint64_t tag, void* context, void* _data)
 {
     JobWithDependency* data = (JobWithDependency*)_data;
     dmTime::Sleep(data->m_Sleep);
@@ -275,7 +275,7 @@ static int ProcessSortedDependencyJobs(dmJobThread::HJob hjob, uint64_t tag, voi
     return 1;
 }
 
-static void CallbackSortedDependencyJobs(dmJobThread::HJob job, uint64_t tag, void* context, void* _data, int result)
+static void CallbackSortedDependencyJobs(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* _data, int result)
 {
     uint32_t* count_finished = (uint32_t*)context;
     JobWithDependency* data = (JobWithDependency*)_data;

@@ -64,6 +64,7 @@ struct JobItem
 
 struct JobThreadContext
 {
+    struct JobContext*      m_Context;
     dmObjectPool<JobItem>   m_Items;
     jc::RingBuffer<HJob>    m_Work;         // Workload queue (currently fifo)
     jc::RingBuffer<HJob>    m_Done;         // Processed tasks, ready for callbacks
@@ -408,7 +409,8 @@ static void ProcessOneJob(JobThreadContext* ctx, HJob hjob)
     }
 
     // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
-    int result = job.m_Process(hjob, job.m_Tag, job.m_Context, job.m_Data);
+    HContext context = ctx->m_Context;
+    int result = job.m_Process(context, hjob, job.m_Tag, job.m_Context, job.m_Data);
 
     PutDone(ctx, hjob, JOB_STATUS_FINISHED, result);
 }
@@ -486,7 +488,7 @@ static void ProcessFinishedJobs(HContext context, jc::RingBuffer<HJob>& items)
         {
             // Don't keep the lock here, as the jobs may use their own locks, and it may easily lead to a dead lock
             // (this is generally on the main thread which is less problematic, but still)
-            job.m_Callback(hjob, job.m_Tag, job.m_Context, job.m_Data, item->m_Result);
+            job.m_Callback(context, hjob, job.m_Tag, job.m_Context, job.m_Data, item->m_Result);
         }
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
@@ -499,6 +501,7 @@ HContext Create(const JobThreadCreationParams& create_params)
     JobContext* context = new JobContext;
     context->m_Initialized = 1;
 
+    context->m_ThreadContext.m_Context = context;
     context->m_ThreadContext.m_Generation = 1;
 
 #if defined(DM_HAS_THREADS)

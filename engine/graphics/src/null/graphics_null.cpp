@@ -1338,7 +1338,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* _h_texture)
+    static int DoDeleteTexture(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
         HTexture texture = (HTexture) _h_texture;
@@ -1358,7 +1358,7 @@ namespace dmGraphics
         return 0;
     }
 
-    static void DoDeleteTextureComplete(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* _h_texture, int result)
+    static void DoDeleteTextureComplete(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
         HTexture texture = (HTexture) _h_texture;
@@ -1386,8 +1386,8 @@ namespace dmGraphics
             for (uint32_t i = 0; i < size; ++i)
             {
                 void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-                DoDeleteTexture(0, 0, context, texture);
-                DoDeleteTextureComplete(0, 0, context, texture, 0);
+                DoDeleteTexture(context->m_JobThread, 0, 0, context, texture);
+                DoDeleteTextureComplete(context->m_JobThread, 0, 0, context, texture, 0);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1409,8 +1409,9 @@ namespace dmGraphics
         }
     }
 
-    static void NullDeleteTexture(HContext context, HTexture texture)
+    static void NullDeleteTexture(HContext _context, HTexture texture)
     {
+        NullContext* context = (NullContext*)_context;
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
             // If they're not uploaded yet, we cannot delete them
@@ -1426,8 +1427,8 @@ namespace dmGraphics
         else
         {
             void* htexture = (void*) texture;
-            DoDeleteTexture(0, 0,g_NullContext, htexture);
-            DoDeleteTextureComplete(0, 0,g_NullContext, htexture, 0);
+            DoDeleteTexture(context->m_JobThread, 0, 0,g_NullContext, htexture);
+            DoDeleteTextureComplete(context->m_JobThread, 0, 0,g_NullContext, htexture, 0);
         }
     }
 
@@ -1702,7 +1703,7 @@ namespace dmGraphics
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* _context, void* data)
     {
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -1720,7 +1721,7 @@ namespace dmGraphics
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HJob hjob, uint64_t tag, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* _context, void* data, int result)
     {
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
