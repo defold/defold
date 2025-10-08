@@ -66,6 +66,7 @@ namespace dmDeviceWasapi
         {
             dmLogError("WASAPI device lost in %s (hr=0x%08X)", context, hr);
             CheckAndPrintError(hr);
+            dmSound::NotifyDeviceInvalidated();
         }
 
         device->m_DeviceInvalidated = true;
