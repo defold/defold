@@ -500,8 +500,8 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str ; Required protobuf field.
-            (dynamic label (g/constantly (localization/message "property.sprite.default-animation")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sprite.default-animation")))
+            (dynamic label (properties/label-dynamic :sprite :default-animation))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
                                (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
@@ -510,8 +510,6 @@
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 
   (property material resource/Resource ; Default assigned in load-fn.
-            (dynamic label (g/constantly (localization/message "property.material")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.material")))
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -528,8 +526,8 @@
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))
-            (dynamic label (g/constantly (localization/message "property.sprite.size-mode")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sprite.size-mode")))
+            (dynamic label (properties/label-dynamic :sprite :size-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :size-mode))
             (set (fn [evaluation-context self old-value new-value]
                    ;; Use the texture size for the :manual-size when the user switches
                    ;; from :size-mode-auto to :size-mode-manual.
@@ -555,16 +553,16 @@
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default (protobuf/default Sprite$SpriteDesc :slice9))
-            (dynamic label (g/constantly (localization/message "property.sprite.slice9")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sprite.slice9")))
+            (dynamic label (properties/label-dynamic :sprite :slice9))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :slice9))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
   (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate))
-            (dynamic label (g/constantly (localization/message "property.sprite.playback-rate")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sprite.playback-rate"))))
+            (dynamic label (properties/label-dynamic :sprite :playback-rate))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :playback-rate)))
   (property offset g/Num (default (protobuf/default Sprite$SpriteDesc :offset))
-            (dynamic label (g/constantly (localization/message "property.sprite.offset")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.sprite.offset")))
+            (dynamic label (properties/label-dynamic :sprite :offset))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :offset))
             (dynamic edit-type (g/constantly {:type :slider
                                               :min 0.0
                                               :max 1.0

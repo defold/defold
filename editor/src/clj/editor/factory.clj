@@ -117,14 +117,14 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])}))
-            (dynamic label (g/constantly (localization/message "property.factory.prototype")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.factory.prototype"))))
+            (dynamic label (properties/label-dynamic :factory :prototype))
+            (dynamic tooltip (properties/tooltip-dynamic :factory :prototype)))
   (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically))
-            (dynamic label (g/constantly (localization/message "property.factory.load-dynamically")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.factory.load-dynamically"))))
+            (dynamic label (properties/label-dynamic :factory :load-dynamically))
+            (dynamic tooltip (properties/tooltip-dynamic :factory :load-dynamically)))
   (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype))
-            (dynamic label (g/constantly (localization/message "property.factory.dynamic-prototype")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.factory.dynamic-prototype"))))
+            (dynamic label (properties/label-dynamic :factory :dynamic-prototype))
+            (dynamic tooltip (properties/tooltip-dynamic :factory :dynamic-prototype)))
 
   (output form-data g/Any produce-form-data)
 

@@ -424,8 +424,8 @@
                                   (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
-            (dynamic label (g/constantly (localization/message "property.model.mesh")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.model.mesh"))))
+            (dynamic label (properties/label-dynamic :model :mesh))
+            (dynamic tooltip (properties/tooltip-dynamic :model :mesh)))
   (input copied-nodes g/Any :array :cascade-delete)
   (input material-binding-infos g/Any :array)
   (output materials [Material] :cached
@@ -450,8 +450,8 @@
 
   (property create-go-bones g/Bool
             (default (protobuf/default ModelProto$ModelDesc :create-go-bones))
-            (dynamic label (g/constantly (localization/message "property.model.create-go-bones")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.model.create-go-bones"))))
+            (dynamic label (properties/label-dynamic :model :create-go-bones))
+            (dynamic tooltip (properties/tooltip-dynamic :model :create-go-bones)))
 
   (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))
@@ -464,8 +464,8 @@
                                   (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
-            (dynamic label (g/constantly (localization/message "property.model.skeleton")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.model.skeleton"))))
+            (dynamic label (properties/label-dynamic :model :skeleton))
+            (dynamic tooltip (properties/tooltip-dynamic :model :skeleton)))
   (property animations resource/Resource ; Nil is valid default.
             (value (gu/passthrough animations-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -479,16 +479,16 @@
                                   (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types}))
-            (dynamic label (g/constantly (localization/message "property.model.animations")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.model.animations"))))
+            (dynamic label (properties/label-dynamic :model :animations))
+            (dynamic tooltip (properties/tooltip-dynamic :model :animations)))
   (property default-animation g/Str
             (default (protobuf/default ModelProto$ModelDesc :default-animation))
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
                                   (validate-default-animation _node-id default-animation animation-ids)))
             (dynamic edit-type (g/fnk [animation-ids]
                                       (properties/->choicebox (into [""] animation-ids))))
-            (dynamic label (g/constantly (localization/message "property.model.default-animation")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.model.default-animation"))))
+            (dynamic label (properties/label-dynamic :model :default-animation))
+            (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
   (input mesh-resource resource/Resource)
   (input mesh-set-build-target g/Any)

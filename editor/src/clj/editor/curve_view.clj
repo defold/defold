@@ -40,7 +40,7 @@
            [java.lang Runnable]
            [javafx.beans.property SimpleBooleanProperty]
            [javafx.scene Node Parent]
-           [javafx.scene.control ListCell ListView SelectionMode]
+           [javafx.scene.control ListView SelectionMode]
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image ImageView]
            [javafx.scene.layout AnchorPane]
@@ -72,22 +72,20 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(defn render-curves [^GL2 gl render-args renderables rcount]
-  (let [camera (:camera render-args)
-        viewport (:viewport render-args)]
-    (doseq [renderable renderables
-            :let [screen-tris (get-in renderable [:user-data :screen-tris])
-                  world-lines (get-in renderable [:user-data :world-lines])]]
-      (when world-lines
-        (let [vcount (count world-lines)
-              vertex-binding (vtx/use-with ::lines world-lines line-shader)]
-          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))
-      (when screen-tris
-        (let [vcount (count screen-tris)
-              vertex-binding (vtx/use-with ::tris screen-tris line-shader)]
-          (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
+(defn render-curves [^GL2 gl render-args renderables _rcount]
+  (doseq [renderable renderables
+          :let [screen-tris (get-in renderable [:user-data :screen-tris])
+                world-lines (get-in renderable [:user-data :world-lines])]]
+    (when world-lines
+      (let [vcount (count world-lines)
+            vertex-binding (vtx/use-with ::lines world-lines line-shader)]
+        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))
+    (when screen-tris
+      (let [vcount (count screen-tris)
+            vertex-binding (vtx/use-with ::tris screen-tris line-shader)]
+        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
 
 (defn- has-control-points? [[_ prop-info]]
   (let [value (:value prop-info)]
@@ -138,7 +136,6 @@
                                                   (sort-by (comp first second)))
                               order (into {} (map-indexed (fn [i [idx _]] [idx i]) control-points))]
                           [(properties/->spline (map second control-points)) (into #{} (map order sel))])) visible-curves)
-        scount (count splines)
         color-hues (mapv (fn [{:keys [hue saturation]}] [hue saturation]) visible-curves)
         cp-r 4.0
         quad (let [[v0 v1 v2 v3] (vec (for [x [(- cp-r) cp-r]
@@ -260,9 +257,8 @@
       (g/set-property controller :handle nil)
       (g/set-property controller :initial-evaluation-context nil))))
 
-(defn handle-input [self action user-data]
+(defn handle-input [self action _user-data]
   (let [^Point3d start (g/node-value self :start)
-        ^Point3d current (g/node-value self :current)
         op-seq (g/node-value self :op-seq)
         handle (g/node-value self :handle)
         sub-selection (g/node-value self :sub-selection)
@@ -409,7 +405,7 @@
 (defn- pick-closest-curve [visible-curves ^Rect picking-rect camera viewport]
   (let [p (let [p (camera/camera-unproject camera viewport (.x picking-rect) (.y picking-rect) 0.0)]
             (Point3d. (.x p) (.y p) 0.0))
-        min-distance (Double/MAX_VALUE)
+        min-distance Double/MAX_VALUE
         curve (second
                 (reduce (fn [[min-dist closest-curve] {:keys [node-id property curve]}]
                           (let [s (-> (mapv second curve)
@@ -630,7 +626,7 @@
    (let [view-id (make-view! app-view graph parent list view localization opts false)]
      (reset! view-state {:app-view app-view :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
      view-id))
-  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts reloading?]
+  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
    (let [[node-id] (g/tx-nodes-added
                      (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{}]
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
@@ -693,16 +689,16 @@
              (ui/observe-list list items (fn [_ values] (on-list-selection app-view values))))
            (doto (.getSelectionModel list)
              (.setSelectionMode SelectionMode/MULTIPLE))
-           (.setCellFactory list
-                            (reify Callback
-                              (call ^ListCell [this list]
-                                (proxy [CheckBoxListCell] [selected-callback converter]
-                                  (updateItem [item empty]
-                                    (let [this ^CheckBoxListCell this]
-                                      (proxy-super updateItem item empty)
-                                      (when (and item (not empty))
-                                        (let [[r g b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
-                                          (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))))))
+           (.setCellFactory
+             list
+             (fn [_list]
+               (proxy [CheckBoxListCell] [selected-callback converter]
+                 (updateItem [item empty]
+                   (let [this ^CheckBoxListCell this]
+                     (proxy-super updateItem item empty)
+                     (when (and item (not empty))
+                       (let [[r g b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
+                         (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))))))))))))))
      node-id)))
 
 (defn- delete-cps [sub-selection]

@@ -592,21 +592,70 @@
 
 (def keyword->name (fn/memoize keyword->name-raw))
 
+(def ^:private memoized-label-message
+  (fn/memoize
+    (fn create-label-message [domain k]
+      {:pre [(or (nil? domain) (keyword? domain)) (keyword? k)]}
+      (localization/message
+        (str "property."
+             (when domain (str (name domain) "."))
+             (name k))
+        {}
+        (keyword->name k)))))
+
+(defn label-dynamic
+  "Create a fnk that returns a memoized property label MessagePattern
+
+  Args:
+    domain    optional \"domain\" of property, e.g. :gui; used for semantical
+              localization grouping
+    k         property key, e.g. :position
+
+  Examples:
+    (label-dynamic :position) => property.position
+    (label-dynamic :particlefx :type) => property.particlefx.type"
+  ([k]
+   (label-dynamic nil k))
+  ([domain k]
+   (g/constantly (memoized-label-message domain k))))
+
 (defn label
   [property]
   (or (:label property)
       (let [k (:key property)
-            k (if (vector? k) (last k) k)]
-        (localization/message (str "property." (name k)) {} (keyword->name k)))))
+            k (if (vector? k) (peek k) k)]
+        (memoized-label-message nil k))))
 
-(defn tooltip-message [property-message-key]
-  (localization/message (str property-message-key ".tooltip") {} "none"))
+(def ^:private memoized-tooltip-message
+  (fn/memoize
+    (fn create-tooltip-message [domain k]
+      {:pre [(or (nil? domain) (keyword? domain)) (keyword? k)]}
+      (localization/message
+        (str "property." (when domain (str (name domain) ".")) (name k) ".tooltip")
+        {}
+        "none"))))
+
+(defn tooltip-dynamic
+  "Create a fnk that returns a memoized property tooltip MessagePattern
+
+  Args:
+    domain    optional \"domain\" of property, e.g. :gui; used for semantical
+              localization grouping
+    k         property key, e.g. :position
+
+  Examples:
+    (tooltip-dynamic :position) => property.position.tooltip
+    (tooltip-dynamic :particlefx :type) => property.particlefx.type.tooltip"
+  ([k]
+   (tooltip-dynamic nil k))
+  ([domain k]
+   (g/constantly (memoized-tooltip-message domain k))))
 
 (defn tooltip [property]
   (or (:tooltip property)
       (let [k (:key property)
-            k (if (vector? k) (last k) k)]
-        (tooltip-message (str "property." (name k))))))
+            k (if (vector? k) (peek k) k)]
+        (memoized-tooltip-message nil k))))
 
 (defn read-only? [property]
   (:read-only? property))

@@ -97,13 +97,13 @@
                                  (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource "Collection"))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource :ext "collection"}))
-            (dynamic label (g/constantly (localization/message "property.collection-proxy.collection")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collection-proxy.collection"))))
+            (dynamic label (properties/label-dynamic :collection-proxy :collection))
+            (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :collection)))
 
   (property exclude g/Bool
             (default (protobuf/default GameSystem$CollectionProxyDesc :exclude))
-            (dynamic label (g/constantly (localization/message "property.collection-proxy.exclude")))
-            (dynamic tooltip (g/constantly (properties/tooltip-message "property.collection-proxy.exclude"))))
+            (dynamic label (properties/label-dynamic :collection-proxy :exclude))
+            (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :exclude)))
 
   (output form-data g/Any produce-form-data)
 
