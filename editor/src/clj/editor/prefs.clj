@@ -169,6 +169,8 @@
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
                                                      :default true}
+                :save-on-app-focus-lost {:type :boolean
+                                         :default true}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}

@@ -749,12 +749,21 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(declare async-save!)
+
 (defn- async-reload-on-app-focus? [prefs]
   (prefs/get prefs [:workflow :load-external-changes-on-app-focus]))
+
+(defn- auto-save-on-app-unfocus? [prefs]
+  (prefs/get prefs [:workflow :save-on-app-focus-lost]))
 
 (defn- can-async-reload? []
   (and (disk-availability/available?)
        (not (build-in-progress?))))
+
+(defn- can-async-save? []
+  (and (disk-availability/available?)
+       (not (bob/build-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -770,6 +779,12 @@
   (when (and (async-reload-on-app-focus? prefs)
              (can-async-reload?))
     (async-reload! app-view changes-view workspace [])))
+
+(defn handle-application-unfocused!
+  [app-view changes-view project prefs]
+  (when (and (auto-save-on-app-unfocus? prefs)
+             (can-async-save?))
+    (async-save! app-view changes-view project project/dirty-save-data)))
 
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))

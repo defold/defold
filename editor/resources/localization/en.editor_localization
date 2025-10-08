@@ -509,6 +509,7 @@ prefs.tab.keymap = Keymap
 
 # General tab
 prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
+prefs.label.workflow.save-on-app-focus-lost = Save All on App Focus Lost
 prefs.label.bundle.open-output-directory = Open Bundle Target Folder
 prefs.label.build.open-html5-build = Open Browser After "Build HTML5"
 prefs.label.build.texture-compression = Enable Texture Compression

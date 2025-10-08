@@ -497,6 +497,7 @@ prefs.tab.keymap = Клавиши
 
 # General tab
 prefs.label.workflow.load-external-changes-on-app-focus = Загружать изменения при фокусе
+prefs.label.workflow.save-on-app-focus-lost = Сохранять всё при потере фокуса приложения
 prefs.label.bundle.open-output-directory = Открывать папку сборки
 prefs.label.build.open-html5-build = Открывать браузер после HTML5-сборки
 prefs.label.build.texture-compression = Сжатие текстур
