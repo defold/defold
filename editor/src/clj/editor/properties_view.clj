@@ -928,7 +928,8 @@
   (alt-selection [_]))
 
 (defn- make-property-grid-row [context property-keyword edit-type row property-keyword->property]
-  (let [property-fn #(property-keyword->property property-keyword)
+  (let [{:keys [localization]} context
+        property-fn #(property-keyword->property property-keyword)
         [^Node control update-ctrl-fn drag-update-fn] (make-property-control edit-type context property-fn)
 
         ^MenuButton label
@@ -942,16 +943,18 @@
           (.setMinWidth Region/USE_PREF_SIZE)
           (.setTooltip (doto (Tooltip.)
                          (.setHideDelay Duration/ZERO)
+                         (.setMaxWidth 300.0)
+                         (.setWrapText true)
                          (.setShowDuration (Duration/seconds 30)))))
 
         update-label!
-        (fn update-label! [label-text tooltip-text]
-          (.setText label label-text)
-          (doto (.getTooltip label)
-            (.setText (cond->> (format "Available as `%s` in editor scripts"
-                                       (string/replace (name property-keyword) \- \_))
-                               tooltip-text
-                               (str tooltip-text "\n\n")))))
+        (fn update-label! [label-message tooltip-message]
+          (localization/localize! label localization label-message)
+          (localization/localize! (.getTooltip label) localization
+                                  (localization/message
+                                    "property.tooltip"
+                                    {"help" (or tooltip-message "none")
+                                     "id" (string/replace (name property-keyword) \- \_)})))
 
         update-ui-fn
         (fn update-ui-fn [property selection-provider]
@@ -1046,7 +1049,8 @@
               (mapcat (fn [[category-title properties]]
                         (when (coll/not-empty properties)
                           (when category-title
-                            (ui/add-child! vbox (doto (Label. category-title)
+                            (ui/add-child! vbox (doto (Label.)
+                                                  (localization/localize! (:localization context) category-title)
                                                   (ui/add-style! "property-category"))))
                           (let [[grid property-keyword+update-ui-fns] (make-property-grid context properties property-keyword->property)]
                             (ui/add-child! vbox grid)
@@ -1104,17 +1108,19 @@
   (property prefs g/Any)
 
   (input workspace g/Any)
+  (input localization g/Any)
   (input project g/Any)
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
   (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs]
+  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
                                    (let [context {:workspace workspace
                                                   :project project
                                                   :app-view app-view
                                                   :prefs prefs
+                                                  :localization localization
                                                   :search-results-view search-results-view
                                                   :color-dropper-view color-dropper-view}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
@@ -1128,6 +1134,7 @@
       (g/transact
         (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
+          (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
           (g/connect app-view :selected-node-properties view :selected-node-properties)

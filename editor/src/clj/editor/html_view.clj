@@ -15,6 +15,7 @@
 (ns editor.html-view
   (:require [dynamo.graph :as g]
             [editor.fxui :as fxui]
+            [editor.localization :as localization]
             [editor.markdown :as markdown]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -68,5 +69,5 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :html
-                                :label "HTML"
+                                :label (localization/message "resource.view.html")
                                 :make-view-fn #'make-view))

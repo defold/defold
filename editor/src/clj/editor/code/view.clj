@@ -4213,13 +4213,13 @@
   (concat
     (workspace/register-view-type workspace
       :id :code
-      :label "Code"
+      :label (localization/message "resource.view.code")
       :make-view-fn make-view!
       :focus-fn focus-view!
       :text-selection-fn non-empty-single-selection-text)
     (workspace/register-view-type workspace
       :id :text
-      :label "Text"
+      :label (localization/message "resource.view.text")
       :make-view-fn make-view!
       :focus-fn focus-view!
       :text-selection-fn non-empty-single-selection-text)))

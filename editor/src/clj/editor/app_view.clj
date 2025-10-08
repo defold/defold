@@ -1902,7 +1902,7 @@
    (g/transact
      (concat
        (g/operation-sequence op-seq)
-       (g/operation-label "Select")
+       (g/operation-label (localization/message "operation.select"))
        (select app-view node-ids)))))
 
 (defn sub-select!
@@ -1916,7 +1916,7 @@
        (g/transact
          (concat
            (g/operation-sequence op-seq)
-           (g/operation-label "Select")
+           (g/operation-label (localization/message "operation.select"))
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title

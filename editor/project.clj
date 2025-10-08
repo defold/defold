@@ -232,7 +232,7 @@
                       :reveal {:source-paths ["src/reveal"]
                                :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.309"]
+                               :dependencies [[vlaaad/reveal "1.3.312"]
                                               [org.openjfx/javafx-web "23.0.1"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]

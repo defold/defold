@@ -521,9 +521,13 @@
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
-            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
+            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z))
+            (dynamic label (properties/label-dynamic :tile-map.layer :z))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :z)))
 
-  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
+  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible)))
+            (dynamic label (properties/label-dynamic :tile-map.layer :visible))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :visible)))
 
   (output scene g/Any :cached produce-layer-scene)
   (output node-outline outline/OutlineData :cached produce-layer-outline)
@@ -674,7 +678,9 @@
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
                              (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"}))
+            (dynamic label (properties/label-dynamic :tile-map :tile-source))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map :tile-source)))
 
   ;; material
   (property material resource/Resource ; Default assigned in load-fn.
@@ -1445,7 +1451,7 @@
   (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
     (g/transact
      (concat
-      (g/operation-label "Add layer")
+      (g/operation-label (localization/message "operation.tile-map.add-layer"))
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench

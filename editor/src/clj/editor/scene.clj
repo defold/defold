@@ -1663,7 +1663,7 @@
                                                                                (g/transact
                                                                                  (concat
                                                                                    (g/operation-sequence op-seq)
-                                                                                   (g/operation-label "Select")
+                                                                                   (g/operation-label (localization/message "operation.select"))
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                    grid            (grid-type :prefs prefs)
@@ -1747,7 +1747,7 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
-                                :label "Scene"
+                                :label (localization/message "resource.view.scene")
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview
                                 :dispose-preview-fn dispose-preview

@@ -17,7 +17,9 @@
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -94,9 +96,14 @@
                              (or (validation/prop-error :info _node-id :prototype validation/prop-nil? collection-resource "Collection")
                                  (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource "Collection"))))
             (dynamic edit-type (g/constantly
-                                 {:type resource/Resource :ext "collection"})))
+                                 {:type resource/Resource :ext "collection"}))
+            (dynamic label (properties/label-dynamic :collection-proxy :collection))
+            (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :collection)))
 
-  (property exclude g/Bool (default (protobuf/default GameSystem$CollectionProxyDesc :exclude)))
+  (property exclude g/Bool
+            (default (protobuf/default GameSystem$CollectionProxyDesc :exclude))
+            (dynamic label (properties/label-dynamic :collection-proxy :exclude))
+            (dynamic tooltip (properties/tooltip-dynamic :collection-proxy :exclude)))
 
   (output form-data g/Any produce-form-data)
 

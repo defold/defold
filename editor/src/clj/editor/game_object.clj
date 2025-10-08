@@ -502,7 +502,7 @@
   (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
-        (g/operation-label "Add Component")
+        (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-component go-id resource id nil nil select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
@@ -557,7 +557,7 @@
         id (gen-component-id go-id (:ext resource-type))]
     (g/transact
       (concat
-        (g/operation-label "Add Component")
+        (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-embedded-component go-id project (:ext resource-type) pb-map id nil select-fn)))))
 
 (defn- add-embedded-component-handler [user-data select-fn]

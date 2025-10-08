@@ -385,7 +385,10 @@
 (def ^:private links #{:link :override})
 
 (defn category? [v]
-  (and (sequential? v) (string? (first v))))
+  (and (sequential? v)
+       (let [v (first v)]
+         (or (string? v)
+             (localization/message-pattern? v)))))
 
 (defn- inject-display-order [display-order key injected-display-order]
   (let [injected-display-order (loop [keys injected-display-order
@@ -589,15 +592,70 @@
 
 (def keyword->name (fn/memoize keyword->name-raw))
 
+(def ^:private memoized-label-message
+  (fn/memoize
+    (fn create-label-message [domain k]
+      {:pre [(or (nil? domain) (keyword? domain)) (keyword? k)]}
+      (localization/message
+        (str "property."
+             (when domain (str (name domain) "."))
+             (name k))
+        {}
+        (keyword->name k)))))
+
+(defn label-dynamic
+  "Create a fnk that returns a memoized property label MessagePattern
+
+  Args:
+    domain    optional \"domain\" of property, e.g. :gui; used for semantical
+              localization grouping
+    k         property key, e.g. :position
+
+  Examples:
+    (label-dynamic :position) => property.position
+    (label-dynamic :particlefx :type) => property.particlefx.type"
+  ([k]
+   (label-dynamic nil k))
+  ([domain k]
+   (g/constantly (memoized-label-message domain k))))
+
 (defn label
   [property]
   (or (:label property)
       (let [k (:key property)
-            k (if (vector? k) (last k) k)]
-        (keyword->name k))))
+            k (if (vector? k) (peek k) k)]
+        (memoized-label-message nil k))))
+
+(def ^:private memoized-tooltip-message
+  (fn/memoize
+    (fn create-tooltip-message [domain k]
+      {:pre [(or (nil? domain) (keyword? domain)) (keyword? k)]}
+      (localization/message
+        (str "property." (when domain (str (name domain) ".")) (name k) ".tooltip")
+        {}
+        "none"))))
+
+(defn tooltip-dynamic
+  "Create a fnk that returns a memoized property tooltip MessagePattern
+
+  Args:
+    domain    optional \"domain\" of property, e.g. :gui; used for semantical
+              localization grouping
+    k         property key, e.g. :position
+
+  Examples:
+    (tooltip-dynamic :position) => property.position.tooltip
+    (tooltip-dynamic :particlefx :type) => property.particlefx.type.tooltip"
+  ([k]
+   (tooltip-dynamic nil k))
+  ([domain k]
+   (g/constantly (memoized-tooltip-message domain k))))
 
 (defn tooltip [property]
-  (:tooltip property))
+  (or (:tooltip property)
+      (let [k (:key property)
+            k (if (vector? k) (peek k) k)]
+        (memoized-tooltip-message nil k))))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -628,7 +686,7 @@
        (g/transact
          {:tx-data-context-map {:edited-endpoints edited-endpoints}}
          (concat
-           (g/operation-label (str "Set " (label property)))
+           (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
            (g/operation-sequence op-seq)
            (set-values evaluation-context property set-operations)))))))
 
@@ -666,7 +724,7 @@
   (when (overridden? property)
     (g/transact
       (concat
-        (g/operation-label (str "Clear " (label property)))
+        (g/operation-label (localization/message "operation.property.clear" {"property" (label property)}))
         (let [clear-fn (get-in property [:edit-type :clear-fn])]
           (map (fn [node-id prop-kw]
                  (if clear-fn
@@ -1035,7 +1093,8 @@
   [{:keys [source-node-id source-prop-kw source-prop-label source-clear-fn targets] :as value}]
   (and (g/node-id? source-node-id)
        (keyword? source-prop-kw)
-       (string? source-prop-label)
+       (or (string? source-prop-label)
+           (localization/message-pattern? source-prop-label))
        (ifn? source-clear-fn)
        (contains? value :source-value)
        (vector? targets)
