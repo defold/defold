@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URI;
@@ -2005,6 +2006,18 @@ public class Project {
     }
 
     /**
+     * Set the URLs of libraries to use from the project dependencies
+     */
+    public void setLibUrlsFromProjectDependencies() throws MalformedURLException {
+        String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
+        List<URL> libUrls = new ArrayList<>();
+        for (String val : dependencies) {
+            libUrls.add(new URL(val));
+        }
+        this.libUrls = libUrls;
+    }
+
+    /**
      * Set URLs of libraries to use.
      * @param libUrls list of library URLs
      * @throws IOException
@@ -2019,6 +2032,7 @@ public class Project {
      * @throws IOException
      */
     public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
+        TimeProfiler.start("Resolve libs");
         try {
             String libPath = getLibPath();
             File libDir = new File(libPath);
@@ -2191,6 +2205,7 @@ public class Project {
         } catch (Exception e) {
             throw new LibraryException(e.getMessage(), e);
         }
+        TimeProfiler.stop();
     }
 
     /**

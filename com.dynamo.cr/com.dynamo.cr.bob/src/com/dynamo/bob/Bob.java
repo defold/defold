@@ -622,14 +622,6 @@ public class Bob {
         return cmd;
     }
 
-    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) {
-        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
-        project.setOption("email", email);
-        project.setOption("auth", auth);
-
-        return project;
-    }
-
     public static String logExceptionToString(int severity, IResource res, int line, String message)
     {
         String resourceString = "unspecified";
@@ -642,24 +634,6 @@ public class Bob {
         else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
             strSeverity = "WARNING";
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
-    }
-
-    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress) throws IOException, LibraryException, CompileExceptionError {
-        project.loadProjectFile(false);
-        BobProjectProperties projectProperties = project.getProjectProperties();
-        String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
-        List<URL> libUrls = new ArrayList<>();
-        for (String val : dependencies) {
-            libUrls.add(new URL(val));
-        }
-
-        project.setLibUrls(libUrls);
-        if (resolveLibraries) {
-            TimeProfiler.start("Resolve libs");
-            project.resolveLibUrls(progress);
-            TimeProfiler.stop();
-        }
-        project.mount(new ClassLoaderResourceScanner());
     }
 
     private static void validateChoices(String optionName, String value, List<String> validChoices) throws OptionValidationException {
@@ -724,8 +698,6 @@ public class Bob {
         if (cmd == null) { // nothing to do: requested to print help
             return new InvocationResult(true, Collections.emptyList());
         }
-        String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
-        String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
         init();
         PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
@@ -757,207 +729,204 @@ public class Bob {
         }
 
         try {
-            TimeProfiler.start("ParseCommandLine");
-            if (cmd.hasOption("version")) {
-                System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
-                return new InvocationResult(true, Collections.emptyList());
-            }
-
-            if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
-                System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
-                throw new OptionValidationException(1);
-            }
-
-            if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
-                System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
-                throw new OptionValidationException(1);
-            }
-
-            if (cmd.hasOption("exclude-build-folder")) {
-                // Deprecated in 1.5.1. Just a message for now.
-                System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
-            }
-
-            if (cmd.hasOption("input")) {
-                System.out.println("-i (--input) option is deprecated. Use --root instead.");
-                throw new OptionValidationException(1);
-            }
-
-            String[] commands = cmd.getArgs();
-            if (commands.length == 0) {
-                commands = new String[] { "build" };
-            }
-
-            boolean shouldResolveLibs = false;
-            for (String command : commands) {
-                if (command.equals("resolve")) {
-                    shouldResolveLibs = true;
-                    break;
-                }
-            }
-
-            boolean verbose = cmd.hasOption('v');
-
+            final boolean verbose = cmd.hasOption('v');
             LogHelper.setVerboseLogging(verbose);  // It doesn't iterate over all loggers (including the bob logger)
             LogHelper.configureLogger(logger);     // It was created before the log helper was set to be verbose
 
-            String email = getOptionsValue(cmd, 'e', null);
-            String auth = getOptionsValue(cmd, 'u', null);
-            Project project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
-
-            if (cmd.hasOption("settings")) {
-                for (String filepath : cmd.getOptionValues("settings")) {
-                    project.addPropertyFile(filepath);
-                }
+            List<String> commands = new ArrayList<String>(Arrays.asList(cmd.getArgs()));
+            if (commands.isEmpty()) {
+                commands.add("build");
             }
 
-            if (cmd.hasOption("ne-build-dir")) {
-                for (String filepath : cmd.getOptionValues("ne-build-dir")) {
-                    project.addEngineBuildDir(filepath);
-                }
+            TimeProfiler.start("createProject");
+            final String buildDirectory = cmd.getOptionValue('o', "build/default");
+            final String rootDirectory = cmd.getOptionValue('r', cwd);
+            Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
+            project.loadProjectFile(false);
+            project.setLibUrlsFromProjectDependencies();
+            if (commands.contains("resolve")) {
+                project.resolveLibUrls(progress);
             }
-
-            if (cmd.hasOption("bundle-module")) {
-                for (String filepath : cmd.getOptionValues("bundle-module")) {
-                    project.addBundleModule(filepath);
-                }
-            }
-
-            if (cmd.hasOption("build-server-header")) {
-                for (String header : cmd.getOptionValues("build-server-header")) {
-                    project.addBuildServerHeader(header);
-                }
-            }
+            project.mount(new ClassLoaderResourceScanner());
             TimeProfiler.stop();
 
-            TimeProfiler.start("setupProject");
-            // resolves libraries and finds all sources
-            setupProject(project, shouldResolveLibs, progress);
-            TimeProfiler.stop();
-
-            TimeProfiler.start("setOptions");
-            if (!cmd.hasOption("defoldsdk")) {
-                project.setOption("defoldsdk", EngineVersion.sha1);
-            }
-
-            if (cmd.hasOption("use-vanilla-lua")) {
-                System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
-                project.setOption("use-uncompressed-lua-source", "true");
-            }
-
-            if (cmd.hasOption("build-report")) {
-                if (build_report_json != null) {
-                    project.setOption("build-report-json", build_report_json);
+            TimeProfiler.start("ParseCommandLine");
+            {
+                if (cmd.hasOption("version")) {
+                    System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                    return new InvocationResult(true, Collections.emptyList());
                 }
-                else if (build_report_html != null) {
-                    project.setOption("build-report-html", build_report_html);
-                }
-            }
 
-            if (cmd.hasOption("max-cpu-threads")) {
-                try {
-                    Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
-                }
-                catch (NumberFormatException ex) {
-                    System.out.println("`--max-cpu-threads` expects integer value.");
-                    ex.printStackTrace();
+                if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
+                    System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
                     throw new OptionValidationException(1);
                 }
-            }
 
-            Option[] options = cmd.getOptions();
-            for (Option o : options) {
-                if (cmd.hasOption(o.getLongOpt())) {
-                    if (o.hasArg()) {
-                        project.setOption(o.getLongOpt(), cmd.getOptionValue(o.getLongOpt()));
-                    } else {
-                        project.setOption(o.getLongOpt(), "true");
+                if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
+                    System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
+                    throw new OptionValidationException(1);
+                }
+
+                if (cmd.hasOption("exclude-build-folder")) {
+                    // Deprecated in 1.5.1. Just a message for now.
+                    System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
+                }
+
+                if (cmd.hasOption("input")) {
+                    System.out.println("-i (--input) option is deprecated. Use --root instead.");
+                    throw new OptionValidationException(1);
+                }
+
+                if (cmd.hasOption("settings")) {
+                    for (String filepath : cmd.getOptionValues("settings")) {
+                        project.addPropertyFile(filepath);
                     }
                 }
-            }
-            if (internalOptions != null) {
-                internalOptions.forEach(project::setOption);
-            }
 
-            // Get and set architectures list.
-            Platform platform = project.getPlatform();
-            String[] architectures = platform.getArchitectures().getDefaultArchitectures();
-            List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
+                if (cmd.hasOption("ne-build-dir")) {
+                    for (String filepath : cmd.getOptionValues("ne-build-dir")) {
+                        project.addEngineBuildDir(filepath);
+                    }
+                }
 
-            if (cmd.hasOption("architectures")) {
-                architectures = cmd.getOptionValue("architectures").split(",");
-            }
+                if (cmd.hasOption("bundle-module")) {
+                    for (String filepath : cmd.getOptionValues("bundle-module")) {
+                        project.addBundleModule(filepath);
+                    }
+                }
 
-            if (architectures.length == 0) {
-                System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
-                throw new OptionValidationException(1);
-            }
+                if (cmd.hasOption("build-server-header")) {
+                    for (String header : cmd.getOptionValues("build-server-header")) {
+                        project.addBuildServerHeader(header);
+                    }
+                }
 
-            // Remove duplicates and make sure they are all supported for
-            // selected platform.
-            Set<String> uniqueArchitectures = new HashSet<String>();
-            for (String architecture : architectures) {
-                if (!availableArchitectures.contains(architecture)) {
-                    System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                project.setOption("email", cmd.getOptionValue('e', null));
+                project.setOption("auth", cmd.getOptionValue('u', null));
+
+                if (!cmd.hasOption("defoldsdk")) {
+                    project.setOption("defoldsdk", EngineVersion.sha1);
+                }
+
+                if (cmd.hasOption("use-vanilla-lua")) {
+                    System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
+                    project.setOption("use-uncompressed-lua-source", "true");
+                }
+
+                if (cmd.hasOption("build-report")) {
+                    if (build_report_json != null) {
+                        project.setOption("build-report-json", build_report_json);
+                    }
+                    else if (build_report_html != null) {
+                        project.setOption("build-report-html", build_report_html);
+                    }
+                }
+
+                if (cmd.hasOption("max-cpu-threads")) {
+                    try {
+                        Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
+                    }
+                    catch (NumberFormatException ex) {
+                        System.out.println("`--max-cpu-threads` expects integer value.");
+                        ex.printStackTrace();
+                        throw new OptionValidationException(1);
+                    }
+                }
+
+                Option[] options = cmd.getOptions();
+                for (Option o : options) {
+                    if (cmd.hasOption(o.getLongOpt())) {
+                        if (o.hasArg()) {
+                            project.setOption(o.getLongOpt(), cmd.getOptionValue(o.getLongOpt()));
+                        } else {
+                            project.setOption(o.getLongOpt(), "true");
+                        }
+                    }
+                }
+                if (internalOptions != null) {
+                    internalOptions.forEach(project::setOption);
+                }
+
+                // Get and set architectures list.
+                Platform platform = project.getPlatform();
+                String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
+
+                if (cmd.hasOption("architectures")) {
+                    architectures = cmd.getOptionValue("architectures").split(",");
+                }
+
+                if (architectures.length == 0) {
+                    System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
                     throw new OptionValidationException(1);
                 }
-                uniqueArchitectures.add(architecture);
-            }
 
-            project.setOption("architectures", String.join(",", uniqueArchitectures));
-
-            boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-            project.setOption("liveupdate", shouldPublish ? "true" : "false");
-
-            if (!cmd.hasOption("variant")) {
-                if (cmd.hasOption("debug")) {
-                    System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
-                    project.setOption("variant", VARIANT_DEBUG);
-                } else {
-                    project.setOption("variant", VARIANT_RELEASE);
-                    project.setOption("strip-executable", "true");
+                // Remove duplicates and make sure they are all supported for
+                // selected platform.
+                Set<String> uniqueArchitectures = new HashSet<String>();
+                for (String architecture : architectures) {
+                    if (!availableArchitectures.contains(architecture)) {
+                        System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                        throw new OptionValidationException(1);
+                    }
+                    uniqueArchitectures.add(architecture);
                 }
-            }
 
-            String variant = project.option("variant", VARIANT_RELEASE);
-            if (! (variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS)) ) {
-                System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
-                throw new OptionValidationException(1);
-            }
+                project.setOption("architectures", String.join(",", uniqueArchitectures));
 
-            if (cmd.hasOption("texture-profiles")) {
-                // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
-                System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
-                String texCompression = cmd.getOptionValue("texture-profiles");
-                if (cmd.hasOption("texture-compression")) {
-                    texCompression = "true";
+                boolean shouldPublish = cmd.getOptionValue('l', "no").equals("yes");
+                project.setOption("liveupdate", shouldPublish ? "true" : "false");
+
+                if (!cmd.hasOption("variant")) {
+                    if (cmd.hasOption("debug")) {
+                        System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
+                        project.setOption("variant", VARIANT_DEBUG);
+                    } else {
+                        project.setOption("variant", VARIANT_RELEASE);
+                        project.setOption("strip-executable", "true");
+                    }
                 }
-                project.setOption("texture-compression", texCompression);
-            }
 
-            if (cmd.hasOption("archive-resource-padding")) {
-                String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
-                int resourcePadding;
-                try {
-                    resourcePadding = Integer.parseInt(resourcePaddingStr);
-                } catch (Exception e) {
-                    System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
+                String variant = project.option("variant", VARIANT_RELEASE);
+                if (! (variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS)) ) {
+                    System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
                     throw new OptionValidationException(1);
                 }
 
-                if (!isPowerOfTwo(resourcePadding)) {
-                    System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
-                    throw new OptionValidationException(1);
+                if (cmd.hasOption("texture-profiles")) {
+                    // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
+                    System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
+                    String texCompression = cmd.getOptionValue("texture-profiles");
+                    if (cmd.hasOption("texture-compression")) {
+                        texCompression = "true";
+                    }
+                    project.setOption("texture-compression", texCompression);
                 }
 
-                project.setOption("archive-resource-padding", resourcePaddingStr);
-            }
+                if (cmd.hasOption("archive-resource-padding")) {
+                    String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
+                    int resourcePadding;
+                    try {
+                        resourcePadding = Integer.parseInt(resourcePaddingStr);
+                    } catch (Exception e) {
+                        System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
+                        throw new OptionValidationException(1);
+                    }
 
-            if (project.hasOption("build-artifacts")) {
-                String[] validArtifacts = {"engine", "plugins", "library"};
-                validateChoicesList(project, "build-artifacts", validArtifacts);
+                    if (!isPowerOfTwo(resourcePadding)) {
+                        System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
+                        throw new OptionValidationException(1);
+                    }
+
+                    project.setOption("archive-resource-padding", resourcePaddingStr);
+                }
+
+                if (project.hasOption("build-artifacts")) {
+                    String[] validArtifacts = {"engine", "plugins", "library"};
+                    validateChoicesList(project, "build-artifacts", validArtifacts);
+                }
             }
-            TimeProfiler.stop();
+            TimeProfiler.stop(); // ParseCommandLine
 
             boolean ret = true;
             StringBuilder errors = new StringBuilder();
@@ -1047,14 +1016,5 @@ public class Bob {
         } catch (Exception e) {
             logErrorAndExit(e);
         }
-    }
-
-    private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
-        String value = defaultValue;
-
-        if (cmd.hasOption(o)) {
-            value = cmd.getOptionValue(o);
-        }
-        return value;
     }
 }
