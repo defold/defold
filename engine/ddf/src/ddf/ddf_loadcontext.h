@@ -44,11 +44,10 @@ namespace dmDDF
         uint32_t    IncreaseArrayDataSize(uint32_t info_hash, uint32_t data_size);
         uint32_t    GetArrayElementSize(uint32_t info_hash, uint32_t index);
 
-        void        AddDynamicTypeOffset(uint32_t offset);
+        uint32_t    AddDynamicElementSize(uint32_t info_hash, uint32_t element_size);
+        uint32_t    AddDynamicMessageSize(uint32_t message_size);
         uint32_t    NextDynamicTypeOffset();
         void        ResetDynamicOffsetCursor();
-
-        uint32_t    AddDynamicElementSize(uint32_t info_hash, uint32_t element_size);
         uint32_t    CalculateDynamicTypeMemorySize();
         void*       GetDynamicTypePointer(uint32_t offset);
         void        SetDynamicTypeBase(uint32_t offset);
@@ -75,6 +74,7 @@ namespace dmDDF
         dmHashTable32<ArrayInfo> m_ArrayInfo;
 
         dmArray<uint32_t> m_DynamicOffsets;
+        uint32_t m_DynamicOffsetsTotal;
 
         uintptr_t   m_Start;
         uintptr_t   m_End;

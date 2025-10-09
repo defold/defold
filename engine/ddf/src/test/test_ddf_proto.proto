@@ -389,3 +389,30 @@ message TestMessageRecursive
     repeated Object objects = 1;
 }
 
+message JSONValue
+{
+    oneof value
+    {
+        string string_value = 1;
+        double number_value = 2;
+        bool bool_value = 3;
+        JSONArray array_value = 4;
+        JSONObject object_value = 5;
+    }
+}
+
+message JSONPair
+{
+    required string key = 1;
+    required JSONValue value = 2;
+}
+
+message JSONArray
+{
+    repeated JSONValue items = 1;
+}
+
+message JSONObject
+{
+    repeated JSONPair pairs = 1;
+}

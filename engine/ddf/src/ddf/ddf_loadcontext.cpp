@@ -36,6 +36,7 @@ namespace dmDDF
         m_ArrayInfo.SetCapacity(2048, 2048);
 
         m_OffsetCursor = 0;
+        m_DynamicOffsetsTotal = 0;
     }
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
@@ -141,7 +142,7 @@ namespace dmDDF
 
     uint32_t LoadContext::CalculateDynamicTypeMemorySize()
     {
-        uint32_t total = 0;
+        uint32_t total = m_DynamicOffsetsTotal;
         m_ArrayInfo.Iterate(IterateCallback, &total);
         return total;
     }
@@ -178,6 +179,15 @@ namespace dmDDF
         return hash;
     }
 
+    static inline void AddDynamicTypeOffset(LoadContext* load_context, uint32_t offset)
+    {
+        if (load_context->m_DynamicOffsets.Full())
+        {
+            load_context->m_DynamicOffsets.OffsetCapacity(32);
+        }
+        load_context->m_DynamicOffsets.Push(offset);
+    }
+
     uint32_t LoadContext::AddDynamicElementSize(uint32_t info_hash, uint32_t size)
     {
         ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
@@ -195,7 +205,7 @@ namespace dmDDF
         }
 
         // Automatically add into the running list of data offsets into the dynamic area
-        AddDynamicTypeOffset(info_ptr->m_ElementSizesTotal);
+        AddDynamicTypeOffset(this, info_ptr->m_ElementSizesTotal);
 
         info_ptr->m_ElementSizes->Push(size);
         info_ptr->m_ElementSizesTotal += size;
@@ -245,7 +255,7 @@ namespace dmDDF
 
         dmLogInfo("IncreaseArrayDataSize: %d has size: %d", info_hash, info_ptr->m_DataSize);
 
-        return current_size; // info_ptr->m_DataSize;
+        return current_size;
     }
 
     uint32_t LoadContext::GetArrayElementSize(uint32_t info_hash, uint32_t index)
@@ -256,15 +266,12 @@ namespace dmDDF
         return (*info_ptr->m_ElementSizes)[index];
     }
 
-    void LoadContext::AddDynamicTypeOffset(uint32_t offset)
+    uint32_t LoadContext::AddDynamicMessageSize(uint32_t message_size)
     {
-        if (m_DynamicOffsets.Full())
-        {
-            m_DynamicOffsets.OffsetCapacity(32);
-        }
-        m_DynamicOffsets.Push(offset);
+        AddDynamicTypeOffset(this, m_DynamicOffsetsTotal);
+        m_DynamicOffsetsTotal += message_size;
 
-        // assert(DM_ALIGN(offset, 16) == offset);
+        return m_DynamicOffsetsTotal;
     }
 
     uint32_t LoadContext::NextDynamicTypeOffset()

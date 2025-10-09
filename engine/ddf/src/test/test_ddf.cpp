@@ -927,7 +927,6 @@ TEST(OneOfTests, Recursive)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 }
 
-/*
 TEST(Recursive, TreeSimple)
 {
     TestDDF::MessageRecursiveB* msg_a_child = new TestDDF::MessageRecursiveB();
@@ -964,80 +963,6 @@ TEST(Recursive, TreeSimple)
 
     dmDDF::FreeMessage(message);
 }
-*/
-
-// Checks whether a pointer is inside [buffer, buffer + size)
-static bool IsPointerInBuffer(const void* ptr, const void* buffer, size_t size)
-{
-    uintptr_t p = (uintptr_t)ptr;
-    uintptr_t start = (uintptr_t)buffer;
-    uintptr_t end   = start + size;
-    return p >= start && p < end;
-}
-
-// For relative offsets
-static bool IsOffsetInBuffer(uint32_t offset, size_t size)
-{
-    return offset < size;
-}
-
-// Checks whether a field is storing a raw pointer or a relative offset.
-// Pass `is_relative = true` if the field is supposed to be a relative offset.
-static void DebugCheckField(void* field_addr,
-                            void* buffer_base,
-                            size_t buffer_size,
-                            bool is_relative,
-                            const char* label)
-{
-    uintptr_t field_val = *(uintptr_t*)field_addr;
-
-    if (is_relative)
-    {
-        uint32_t rel = *(uint32_t*)field_addr;
-        fprintf(stderr, "[%s] stored offset = %u\n", label, rel);
-
-        if (rel < buffer_size)
-        {
-            void* resolved = (char*)buffer_base + rel;
-            fprintf(stderr, "   -> resolves inside buffer at %p (offset %u)\n", resolved, rel);
-
-            // Dump memory around the resolved pointer
-            size_t dump_size = 32;
-            size_t start_off = (rel >= 8) ? rel - 8 : 0;
-            size_t end_off   = (rel + dump_size < buffer_size) ? rel + dump_size : buffer_size;
-
-            for (size_t i = start_off; i < end_off; i += 16)
-            {
-                fprintf(stderr, "%04zx: ", i);
-                for (size_t j = 0; j < 16 && i + j < end_off; ++j)
-                {
-                    fprintf(stderr, "%02X ", ((unsigned char*)buffer_base)[i + j]);
-                }
-                fprintf(stderr, "\n");
-            }
-        }
-        else
-        {
-            fprintf(stderr, "   -> OUT OF RANGE offset!\n");
-        }
-    }
-    else
-    {
-        // Interpret as a raw pointer
-        void* ptr = (void*)field_val;
-        fprintf(stderr, "[%s] raw pointer value = %p\n", label, ptr);
-
-        if (ptr >= buffer_base && (char*)ptr < (char*)buffer_base + buffer_size)
-        {
-            fprintf(stderr, "   -> pointer is inside buffer\n");
-        }
-        else
-        {
-            fprintf(stderr, "   -> OUT OF RANGE pointer!\n");
-        }
-    }
-}
-
 
 TEST(Recursive, Repeated)
 {

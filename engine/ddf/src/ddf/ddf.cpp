@@ -87,11 +87,8 @@ namespace dmDDF
         return GetDescriptorFromHash(dmHashString64(name));
     }
 
-    static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
+    static Result CalculateDynamicDescriptorSize(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, bool is_dynamic_type)
     {
-        // Always account for this message's fixed size
-        *size_out += desc->m_Size;
-
         while (!ib->Eof())
         {
             uint32_t tag;
@@ -113,9 +110,6 @@ namespace dmDDF
                 continue;
             }
 
-            dmLogInfo("Desc: %s.%s, cur_size: %u, field_offset: %u",
-                      desc->m_Name, field->m_Name, *size_out, field->m_Offset);
-
             if (field->m_Type == TYPE_MESSAGE)
             {
                 // All submessages are length-delimited
@@ -128,20 +122,22 @@ namespace dmDDF
                 if (!ib->SubBuffer(length, &sub_ib))
                     return RESULT_WIRE_FORMAT_ERROR;
 
-                if (!field->m_FullyDefinedType)
+                is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
+                if (is_dynamic_type)
                 {
-                    uint32_t ptr_offset = *size_out;
-                    dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
-                    load_context->AddDynamicTypeOffset(ptr_offset);
+                    uint32_t current_size = load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
+                    dmLogInfo("  !! Dynamic type %s.%s is not fully defined: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
                 }
 
                 // Recurse into the submessage descriptor
-                Result e = GetDataSizeFromDesc(load_context, &sub_ib, field->m_MessageDescriptor, size_out);
+                Result e = CalculateDynamicDescriptorSize(load_context, &sub_ib, field->m_MessageDescriptor, is_dynamic_type);
                 DDF_CHECK_RESULT(e);
 
                 // Ensure the sub-buffer is fully consumed
                 if (!sub_ib.Eof())
+                {
                     return RESULT_WIRE_FORMAT_ERROR;
+                }
             }
             else
             {
@@ -180,15 +176,11 @@ namespace dmDDF
         if (NeedsSizeResolve(desc))
         {
             dmLogInfo("%s needs resolve!", desc->m_Name);
-            uint32_t calculated_size = 0;
-            Result e = GetDataSizeFromDesc(load_context, ib, desc, &calculated_size);
+            Result e = CalculateDynamicDescriptorSize(load_context, ib, desc, false);
             DDF_CHECK_RESULT(e);
-            *message_out = load_context->AllocMessageRaw(desc, calculated_size);
         }
-        else
-        {
-            *message_out = load_context->AllocMessage(desc);
-        }
+
+        *message_out = load_context->AllocMessage(desc);
 
         return RESULT_OK;
     }
@@ -248,12 +240,7 @@ namespace dmDDF
                         }
 
                         is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
-                        if (is_dynamic_type)
-                        {
-                            dmLogInfo("  !! Array member %s.%s is not fully defined!", desc->m_Name, field->m_Name);
-                        }
-
-                        if (is_dynamic_type)
+                        if (is_dynamic_type && *array_info_hash != 0)
                         {
                             uint32_t current_size = load_context->AddDynamicElementSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
                             dmLogInfo("  !! Dynamic type %s.%s: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
