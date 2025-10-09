@@ -29,7 +29,7 @@
            [editor.buffers BufferData]
            [editor.graphics.types ElementType]
            [java.nio FloatBuffer IntBuffer ShortBuffer]
-           [javax.vecmath Matrix4d Matrix4f Tuple4d Vector4f]))
+           [javax.vecmath Matrix4d Matrix4f Quat4d Quat4f Tuple4d Vector4f]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -414,13 +414,13 @@
 
 (defonce/record TransformedAttributeBufferData
   [^BufferData untransformed-buffer-data
-   ^Matrix4f transform-matrix
+   transform
    ^float w-component])
 
 (defonce/record TransformedAttributeBufferLifecycle
   [request-id
    ^BufferData untransformed-buffer-data
-   transform-matrix-render-arg-key
+   transform-render-arg-key
    ^float w-component]
 
   graphics.types/ElementBuffer
@@ -429,36 +429,40 @@
 
   p/GlBind
   (bind [_this gl render-args]
-    (let [^Matrix4d transform-matrix (get render-args transform-matrix-render-arg-key)]
-      (if (instance? Matrix4d transform-matrix)
-        (let [transformed-attribute-buffer-data (->TransformedAttributeBufferData untransformed-buffer-data (Matrix4f. transform-matrix) w-component)
+    (let [transform (get render-args transform-render-arg-key)]
+      (if (or (instance? Matrix4d transform)
+              (instance? Quat4d transform))
+        (let [transformed-attribute-buffer-data (->TransformedAttributeBufferData untransformed-buffer-data transform w-component)
               [gl-buffer] (scene-cache/request-object! ::transformed-attribute-buffer request-id gl transformed-attribute-buffer-data)]
           (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
           gl-buffer)
-        (throw (ex-info (format "render-args value for %s is not a Matrix4d" transform-matrix-render-arg-key)
-                        {:transform-matrix-render-arg-key transform-matrix-render-arg-key
-                         :render-args render-args})))))
+        (throw
+          (ex-info
+            (format "render-args value for %s is not a Matrix4d or Quat4d" transform-render-arg-key)
+            {:transform-render-arg-key transform-render-arg-key
+             :render-args render-args})))))
 
   (unbind [_this gl _render-args]
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
 
 (defn make-transformed-attribute-buffer
-  ^TransformedAttributeBufferLifecycle [request-id ^BufferData untransformed-buffer-data transform-matrix-render-arg-key w-component]
+  ^TransformedAttributeBufferLifecycle [request-id ^BufferData untransformed-buffer-data transform-render-arg-key w-component]
   (ensure/argument request-id graphics.types/request-id?)
-  (ensure/argument transform-matrix-render-arg-key math/render-transform-key?)
+  (ensure/argument transform-render-arg-key math/render-transform-key?)
   (ensure/argument untransformed-buffer-data gl.types/gl-compatible-buffer-data?)
   (ensure/argument w-component float?)
   (let [data (.-data untransformed-buffer-data)]
     (if (and (instance? FloatBuffer data)
              (zero? (rem (buffers/item-count data) 4)))
-      (->TransformedAttributeBufferLifecycle request-id untransformed-buffer-data transform-matrix-render-arg-key w-component)
+      (->TransformedAttributeBufferLifecycle request-id untransformed-buffer-data transform-render-arg-key w-component)
       (throw (IllegalArgumentException. "untransformed-buffer-data must use a FloatBuffer of tightly-packed four-element vectors")))))
 
-(defn- transform-float-buffer!
-  ^FloatBuffer [^FloatBuffer target ^FloatBuffer source ^Matrix4f transform-matrix w-component]
+(defn- matrix-transform-into!
+  ^FloatBuffer [^FloatBuffer target ^FloatBuffer source ^Matrix4d transform-matrix-4d w-component]
   (assert (buffers/flipped? target) "target Buffer must be flipped before use")
   (assert (buffers/flipped? source) "source Buffer must be flipped before use")
-  (let [w-component (float w-component)
+  (let [transform-matrix (Matrix4f. transform-matrix-4d)
+        w-component (float w-component)
         float-count (buffers/item-count source)
         _ (assert (zero? (rem float-count 4)))
         temp-floats (float-array 4)
@@ -476,6 +480,31 @@
     (assert (buffers/flipped? target))
     target))
 
+(defn- quat-transform-into!
+  ^FloatBuffer [^FloatBuffer target ^FloatBuffer source ^Quat4d transform-quat-4d ^double w-component]
+  (assert (buffers/flipped? target) "target Buffer must be flipped before use")
+  (assert (buffers/flipped? source) "source Buffer must be flipped before use")
+  (let [transform-quat (Quat4f. transform-quat-4d)
+        transform-quat-conjugate (doto (Quat4f.) (.conjugate transform-quat))
+        w-component (float w-component)
+        float-count (buffers/item-count source)
+        _ (assert (zero? (rem float-count 4)))
+        temp-floats (float-array 4)
+        temp-quat (Quat4f.)]
+    (loop [offset 0]
+      (when (< offset float-count)
+        (.get source offset temp-floats)
+        (.set temp-quat (aget temp-floats 0) (aget temp-floats 1) (aget temp-floats 2) w-component)
+        (.mul temp-quat transform-quat temp-quat)
+        (.mul temp-quat transform-quat-conjugate)
+        (aset temp-floats 0 (.-x temp-quat))
+        (aset temp-floats 1 (.-y temp-quat))
+        (aset temp-floats 2 (.-z temp-quat))
+        (.put target offset temp-floats)
+        (recur (+ offset 4))))
+    (assert (buffers/flipped? target))
+    target))
+
 (defn- update-transformed-attribute-buffer!
   [^GL2 gl [gl-buffer ^FloatBuffer transformed-data] ^TransformedAttributeBufferData transformed-attribute-buffer-data]
   (let [untransformed-buffer-data ^BufferData (.-untransformed-buffer-data transformed-attribute-buffer-data)
@@ -483,19 +512,24 @@
         _ (assert (instance? FloatBuffer untransformed-data))
         _ (assert (buffers/flipped? untransformed-data) "untransformed-data Buffer must be flipped before use")
         float-count (buffers/item-count untransformed-data)
-        transform-matrix (.-transform-matrix transformed-attribute-buffer-data)
+        transform (.-transform transformed-attribute-buffer-data)
         w-component (.-w-component transformed-attribute-buffer-data)
 
-        transformed-data
-        (-> (or (when (some? transformed-data)
-                  (assert (instance? FloatBuffer transformed-data))
-                  (when (= float-count (buffers/item-count transformed-data))
-                    transformed-data))
-                (buffers/new-float-buffer float-count :byte-order/native))
-            (transform-float-buffer! untransformed-data transform-matrix w-component))
+        buffer
+        (or (when (some? transformed-data)
+              (assert (instance? FloatBuffer transformed-data))
+              (assert (buffers/flipped? transformed-data))
+              (when (= float-count (buffers/item-count transformed-data))
+                transformed-data))
+            (buffers/new-float-buffer float-count :byte-order/native))
 
-        _ (assert (buffers/flipped? transformed-data))
-        data-byte-size (buffers/total-byte-size transformed-data)]
+        data-byte-size (buffers/total-byte-size buffer)
+
+        transformed-data
+        (condp instance? transform
+          Matrix4d (matrix-transform-into! buffer untransformed-data transform w-component)
+          Quat4d (quat-transform-into! buffer untransformed-data transform w-component))]
+
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
     (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size transformed-data GL2/GL_DYNAMIC_DRAW)
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)

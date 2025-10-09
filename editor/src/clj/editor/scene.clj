@@ -218,12 +218,21 @@
   [^GL2 gl render-args [first-renderable :as renderables] count]
   (when-let [render-fn (:render-fn first-renderable)]
     (try
-      (let [shared-world-transform (:world-transform first-renderable geom/Identity4d) ; rulers apparently don't have world-transform
-            shared-render-args (merge render-args
-                                      (math/derive-render-transforms shared-world-transform
-                                                                     (:view render-args)
-                                                                     (:projection render-args)
-                                                                     (:texture render-args)))]
+      (let [shared-world-transform (:world-transform first-renderable math/identity-mat4) ; rulers apparently don't have world-transform
+            shared-world-rotation (:world-rotation first-renderable math/identity-quat)
+
+            shared-render-args
+            (-> render-args
+                (assoc
+                  :actual/world-rotation shared-world-rotation
+                  :world-rotation shared-world-rotation)
+                (coll/merge
+                  (math/derive-render-transforms
+                    shared-world-transform
+                    (:view render-args)
+                    (:projection render-args)
+                    (:texture render-args))))]
+
         (render-fn gl shared-render-args renderables count))
       (catch Exception e
         (log/error :message "skipping renderable"

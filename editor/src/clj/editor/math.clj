@@ -594,12 +594,24 @@
                    :world-view-proj view-proj)
 
             (and has-world-space-normal (not has-local-space-normal))
-            (assoc :normal (derive-normal-transform view)))))
+            (assoc :normal (derive-normal-transform view)
+                   :world-rotation identity-quat))))
 
 (def render-transform-key?
-  (into #{}
-        (map key)
-        (derive-render-transforms identity-mat4 identity-mat4 identity-mat4 identity-mat4)))
+  #{:actual/normal
+    :actual/world
+    :actual/world-rotation
+    :actual/world-view
+    :actual/world-view-proj
+    :normal
+    :projection
+    :texture
+    :view
+    :view-proj
+    :world
+    :world-rotation
+    :world-view
+    :world-view-proj})
 
 (defn- vecmath-matrix-dim
   ^long [matrix]

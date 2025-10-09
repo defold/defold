@@ -145,16 +145,16 @@
 
 (defn- make-transformed-attribute-buffer [scene-node-id untransformed-attribute-buffer-lifecycle attribute-transform]
   {:pre [(g/node-id? scene-node-id)]}
-  (let [[transform-matrix-render-arg-key w-component]
+  (let [[transform-render-arg-key w-component]
         (case attribute-transform
-          :attribute-transform-normal (pair :actual/normal 0.0)
+          :attribute-transform-normal (pair :actual/world-rotation 0.0)
           :attribute-transform-world (pair :actual/world 1.0))
 
         untransformed-buffer-data (graphics.types/buffer-data untransformed-attribute-buffer-lifecycle)
         untransformed-buffer-request-id (:request-id untransformed-attribute-buffer-lifecycle)
         _ (assert (vector? (not-empty untransformed-buffer-request-id)))
         request-id (conj untransformed-buffer-request-id scene-node-id attribute-transform)]
-    (attribute/make-transformed-attribute-buffer request-id untransformed-buffer-data transform-matrix-render-arg-key w-component)))
+    (attribute/make-transformed-attribute-buffer request-id untransformed-buffer-data transform-render-arg-key w-component)))
 
 (defn- make-index-buffer [mesh-request-id mesh indices-pb-field]
   (when-let [^ByteString indices-byte-string (get mesh indices-pb-field)]
@@ -269,8 +269,7 @@
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
-        render-transforms (math/rederive-render-transforms render-args coordinate-space-info)
-        render-args (coll/merge render-args render-transforms)
+        render-args (math/rederive-render-transforms render-args coordinate-space-info)
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)]
     (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]

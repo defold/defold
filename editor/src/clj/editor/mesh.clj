@@ -560,16 +560,6 @@
                 (populate-scratch-array! data)
                 (transform-array-fn transform)))))
 
-(defn- world-transform->normal-transform
-  ^Matrix4d [^Matrix4d world-transform]
-  (let [normal-transform (Matrix3d.)]
-    (.getRotationScale world-transform normal-transform)
-    (.invert normal-transform)
-    (.transpose normal-transform)
-    (doto (Matrix4d.)
-      (.setIdentity)
-      (.setRotationScale normal-transform))))
-
 (defn- populate-vb! [^VertexBuffer vb {:keys [array-streams normal-stream-name position-stream-name put-vertices-fn scratch-arrays vertex-space world-transform]}]
   (assert (= (count array-streams) (count scratch-arrays)))
   (let [array-streams'
@@ -581,7 +571,7 @@
                    (transform-array-stream! :point array-stream scratch-array world-transform)
 
                    (normal-stream-name? name normal-stream-name)
-                   (let [normal-transform (world-transform->normal-transform world-transform)]
+                   (let [normal-transform (math/derive-normal-transform world-transform)]
                      (transform-array-stream! :normal array-stream scratch-array normal-transform))
 
                    :else
