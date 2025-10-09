@@ -1938,6 +1938,8 @@ namespace dmSound
         if (!sound)
             return;
 
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+
         if (!sound->m_DeviceResetPending)
         {
             dmLogInfo("Audio device invalidated, scheduling reset");
