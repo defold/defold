@@ -19,6 +19,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.tools.AndroidTools;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.FileUtil;
@@ -933,7 +934,17 @@ public class Bob {
 
             List<TaskResult> result = new ArrayList<>();
             try {
-                result = project.build(progress, commands);
+                if (commands.contains("aapt2")) {
+                    commands.remove("aapt2");
+                    AndroidTools.aapt2(commands);
+                }
+                else if (commands.contains("bundletool")) {
+                    commands.remove("bundletool");
+                    AndroidTools.bundletool(commands);
+                }
+                else {
+                    result = project.build(progress, (String[])commands.toArray());
+                }
             } catch(MultipleCompileException e) {
                 errors = parseMultipleException(e, verbose);
                 ret = false;
