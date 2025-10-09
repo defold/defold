@@ -124,6 +124,8 @@ function test_sys()
     assert(sys.get_config_boolean("main.does_not_exists", true) == true)
     assert(sys.get_config_boolean("foo.boolean") == true)
     assert(sys.get_config_boolean("foo.boolean", false) == true)
+    assert(sys.get_config_boolean("foo.negative_boolean") == false)
+    assert(sys.get_config_boolean("foo.negative_boolean", true) == false)
 
     -- load_resource
     print("Load existing resource")
