@@ -1,7 +1,7 @@
 if(DEFINED DEFOLD_SDK_CMAKE_INCLUDED)
     return()
 endif()
-set(DEFOLD_SDK_CMAKE_INCLUDED ON CACHE INTERNAL "sdk.cmake include guard")
+set(DEFOLD_SDK_CMAKE_INCLUDED ON)
 
 if(DEFINED DEFOLD_SDK_DETECTED)
     # Avoid re-running detection when sdk.cmake is included multiple times
@@ -42,4 +42,4 @@ else()
     message(FATAL "Unsupported platform: ${TARGET_PLATFORM}")
 endif()
 
-set(DEFOLD_SDK_DETECTED ON CACHE INTERNAL "Defold SDK/toolchain detection has run")
+set(DEFOLD_SDK_DETECTED ON)
