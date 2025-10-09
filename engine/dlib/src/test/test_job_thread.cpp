@@ -15,62 +15,106 @@
 #include "dlib/job_thread.h"
 #include "dlib/array.h"
 #include "dlib/atomic.h"
+#include "dlib/dalloca.h"
 #include "dlib/time.h"
+
+#include <dlib/thread.h> // We want the defines DM_HAS_THREADS
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-static int ProcessSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data)
+
+static int32_t ProcessSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, void* user_context, void* user_data)
 {
+    printf("ProcessSimple: %p  result: 1\n", (void*)(uintptr_t)job);
     return 1;
 }
 
-static void CallbackSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
+static void CallbackSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, dmJobThread::JobStatus status, void* user_context, void* user_data, int32_t user_result)
 {
-    uint8_t* d = (uint8_t*) data;
+    printf("CallbackSimple: %p  result: %d\n", (void*)(uintptr_t)job, user_result);
+
+    uint8_t* d = (uint8_t*) user_data;
     if (d)
-        *d = result;
+        *d = user_result; // If the task was cancelled, the process function will not have
 }
 
-TEST(dmJobThread, PushJobs)
+struct TestParams
 {
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
-    job_thread_create_param.m_ThreadCount    = 1;
+    int m_NumThreads;
 
-    dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_param);
-    dmJobThread::PushJob(ctx, ProcessSimple, CallbackSimple, 0, 0);
-    dmJobThread::Destroy(ctx);
+    TestParams(int num_threads) : m_NumThreads(num_threads) {};
+};
+
+class dmJobThreadTest : public jc_test_params_class<TestParams>
+{
+public:
+    virtual void SetUp() override
+    {
+        m_NumThreads = GetParam().m_NumThreads;
+
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNamePrefix  = "DefoldTestJobThread1";
+        job_thread_create_param.m_ThreadCount       = m_NumThreads;
+
+        m_JobThread = dmJobThread::Create(job_thread_create_param);
+        ASSERT_NE((dmJobThread::HContext)0, m_JobThread);
+
+        if (m_NumThreads == 0)
+            m_NumThreads = 1;
+    }
+
+    virtual void TearDown() override
+    {
+        if (m_JobThread)
+            dmJobThread::Destroy(m_JobThread);
+    }
+
+    dmJobThread::HJob PushJob(dmJobThread::FProcess process, dmJobThread::FCallback callback, void* context, void* data)
+    {
+        dmJobThread::Job job = {0};
+        job.m_Process = process;
+        job.m_Callback = callback;
+        job.m_Context = context;
+        job.m_Data = data;
+
+        dmJobThread::HJob hjob = dmJobThread::CreateJob(m_JobThread, &job);
+        dmJobThread::PushJob(m_JobThread, hjob);
+        return hjob;
+    }
+
+    dmJobThread::HContext m_JobThread;
+    int m_NumThreads;
+};
+
+TEST_P(dmJobThreadTest, PushJobs)
+{
+    PushJob(ProcessSimple, CallbackSimple, 0, 0);
 }
 
-TEST(dmJobThread, PushJobsMultipleThreads)
+TEST_P(dmJobThreadTest, PushJobsMultipleThreads)
 {
-    dmJobThread::JobThreadCreationParams job_thread_create_params;
-    job_thread_create_params.m_ThreadNames[0] = "DefoldTestJobThread1";
-    job_thread_create_params.m_ThreadNames[1] = "DefoldTestJobThread2";
-    job_thread_create_params.m_ThreadNames[2] = "DefoldTestJobThread3";
-    job_thread_create_params.m_ThreadNames[3] = "DefoldTestJobThread4";
-    job_thread_create_params.m_ThreadCount    = 4;
+    int num_jobs = m_NumThreads * 3;
 
-    dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_params);
+    uint8_t* contexts = (uint8_t*)dmAlloca(sizeof(uint8_t)*num_jobs);
+    uint8_t* datas = (uint8_t*)dmAlloca(sizeof(uint8_t)*num_jobs);
 
-    uint8_t contexts[8];
-    uint8_t datas[8];
-    for (int i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+    for (int i = 0; i < num_jobs; ++i)
     {
         contexts[i] = i;
         datas[i] = 0;
-        dmJobThread::PushJob(ctx, ProcessSimple, CallbackSimple, (void*) &contexts[i], (void*) &datas[i]);
+
+        PushJob(ProcessSimple, CallbackSimple, (void*) &contexts[i], (void*) &datas[i]);
     }
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 2 * 1*1e6; // 1 second
     bool tests_done = false;
     while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
-        dmJobThread::Update(ctx, 0);
+        dmJobThread::Update(m_JobThread, 0);
 
         tests_done = true;
-        for (int i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+        for (int i = 0; i < num_jobs; ++i)
         {
             tests_done &= datas[i];
         }
@@ -78,54 +122,61 @@ TEST(dmJobThread, PushJobsMultipleThreads)
         dmTime::Sleep(20*1000);
     }
 
-    dmJobThread::Destroy(ctx);
+    if (!tests_done)
+    {
+        printf("datas[%d] = ", num_jobs);
+        for (int i = 0; i < num_jobs; ++i)
+        {
+            printf("%2d", datas[i]);
+        }
+        printf("\n");
+    }
 
     ASSERT_TRUE(tests_done);
 }
 
 struct ContextCancel
 {
-    dmJobThread::HContext m_Context;
-    int m_NumProcessed;
-    int m_NumFinished;
-    int m_NumFinishedOk;
+    int32_atomic_t m_NumProcessed;
+    int32_atomic_t m_NumFinished;
+    int32_atomic_t m_NumFinishedOk;
 
     dmArray<dmJobThread::HJob> m_JobsToCancel;
 };
 
 // When the first finished job arrives, we'll cancel the rest of the tasks
-static int ProcessCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* _context, void* data)
+static int32_t ProcessCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, void* user_context, void* user_data)
 {
-    ContextCancel* context = (ContextCancel*)_context;
-    context->m_NumProcessed++;
-    uint64_t t = (uint64_t)(uintptr_t)data;
+    ContextCancel* context = (ContextCancel*)user_context;
+    dmAtomicIncrement32(&context->m_NumProcessed);
 
+    uint64_t t = (uint64_t)(uintptr_t)user_data;
+
+printf("ProcessCancel ->\n");
     for (uint32_t i = 0; i < context->m_JobsToCancel.Size(); ++i)
     {
         dmJobThread::CancelJob(ctx, context->m_JobsToCancel[i]);
     }
+printf("<- ProcessCancel\n");
 
     dmTime::Sleep(t);
     return 1;
 }
 
-static void CallbackCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* _context, void* data, int result)
+static void CallbackCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, dmJobThread::JobStatus status, void* user_context, void* user_data, int32_t user_result)
 {
-    ContextCancel* context = (ContextCancel*)_context;
-    context->m_NumFinished++;
-    context->m_NumFinishedOk += result?1:0;
+    ContextCancel* context = (ContextCancel*)user_context;
+    dmAtomicIncrement32(&context->m_NumFinished);
+    dmAtomicAdd32(&context->m_NumFinishedOk, status == dmJobThread::JOB_STATUS_FINISHED ? 1 : 0);
 }
 
-TEST(dmJobThread, CancelJobs)
+TEST_P(dmJobThreadTest, CancelJobs)
 {
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
-    job_thread_create_param.m_ThreadCount    = 1;
-
-    dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_param);
-
+    if (m_NumThreads > 1)
+    {
+        return; // the test is written for a one worker thread
+    }
     ContextCancel cancelctx = {0};
-    cancelctx.m_Context = ctx;
 
     dmJobThread::Job job = {0};
     job.m_Process = ProcessCancel;
@@ -133,126 +184,40 @@ TEST(dmJobThread, CancelJobs)
     job.m_Context = &cancelctx;
 
     job.m_Data = (void*)(uintptr_t)1000;
-    dmJobThread::HJob job1 = dmJobThread::CreateJob(ctx, &job);
+    dmJobThread::HJob job1 = dmJobThread::CreateJob(m_JobThread, &job);
 
     job.m_Data = 0;
-    dmJobThread::HJob job2 = dmJobThread::CreateJob(ctx, &job);
-    dmJobThread::HJob job3 = dmJobThread::CreateJob(ctx, &job);
-    dmJobThread::HJob job4 = dmJobThread::CreateJob(ctx, &job);
+    dmJobThread::HJob job2 = dmJobThread::CreateJob(m_JobThread, &job);
+    dmJobThread::HJob job3 = dmJobThread::CreateJob(m_JobThread, &job);
+    dmJobThread::HJob job4 = dmJobThread::CreateJob(m_JobThread, &job);
 
     cancelctx.m_JobsToCancel.SetCapacity(2);
     cancelctx.m_JobsToCancel.Push(job2);
     cancelctx.m_JobsToCancel.Push(job3);
 
     // specifically test trying to push a cancelled job
-    dmJobThread::CancelJob(ctx, job4);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_CANCELED, dmJobThread::PushJob(ctx, job4));
+    dmJobThread::CancelJob(m_JobThread, job4);
+    ASSERT_EQ(dmJobThread::JOB_RESULT_CANCELED, dmJobThread::PushJob(m_JobThread, job4));
 
-    dmJobThread::PushJob(ctx, job1);
-    dmJobThread::PushJob(ctx, job2);
-    dmJobThread::PushJob(ctx, job3);
+    dmJobThread::PushJob(m_JobThread, job1);
+    dmJobThread::PushJob(m_JobThread, job2);
+    dmJobThread::PushJob(m_JobThread, job3);
 
     bool tests_done = false;
     uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
     while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
-        dmJobThread::Update(ctx, 500);
+        dmJobThread::Update(m_JobThread, 500);
 
-        tests_done = cancelctx.m_NumFinished == 4;
+        tests_done = cancelctx.m_NumFinished == 3;
 
         dmTime::Sleep(20*1000);
     }
 
-    dmJobThread::Destroy(ctx);
-
     ASSERT_EQ(1, cancelctx.m_NumProcessed);
-    ASSERT_EQ(4, cancelctx.m_NumFinished);
+    ASSERT_EQ(3, cancelctx.m_NumFinished);
     ASSERT_EQ(1, cancelctx.m_NumFinishedOk);
 }
-
-
-// struct ContextCancelWithTag
-// {
-//     dmJobThread::HContext m_Context;
-//     uint64_t              m_Tag;
-//     int m_NumProcessed;
-//     int m_NumFinished;
-//     int m_NumFinishedOk;
-// };
-
-// static int ProcessCancelWithTag(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data)
-// {
-//     ContextCancelWithTag* ctx = (ContextCancelWithTag*)context;
-//     ctx->m_NumProcessed++;
-//     if (ctx->m_Tag)
-//     {
-//         dmJobThread::CancelJobsWithTag(ctx->m_Context, ctx->m_Tag);
-//         ctx->m_Tag = 0;
-//     }
-//     return 1;
-// }
-
-// static void CallbackCancelWithTag(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
-// {
-//     ContextCancelWithTag* ctx = (ContextCancelWithTag*)context;
-//     ctx->m_NumFinished++;
-//     ctx->m_NumFinishedOk += result?1:0;
-// }
-
-// TEST(dmJobThread, CancelJobsWithTag)
-// {
-//     dmJobThread::JobThreadCreationParams job_thread_create_param;
-//     job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
-//     job_thread_create_param.m_ThreadCount    = 1;
-
-//     dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_param);
-
-//     ContextCancelWithTag cancelctx = {0};
-//     cancelctx.m_Context = ctx;
-//     cancelctx.m_Tag = 1;
-
-//     dmJobThread::Job job = {0};
-//     job.m_Process = ProcessCancelWithTag;
-//     job.m_Callback = CallbackCancelWithTag;
-//     job.m_Context = &cancelctx;
-
-//     job.m_Tag = 0;
-//     dmJobThread::HJob job1 = dmJobThread::CreateJob(ctx, &job);
-//     dmJobThread::HJob job2 = dmJobThread::CreateJob(ctx, &job);
-//     dmJobThread::HJob job3 = dmJobThread::CreateJob(ctx, &job);
-
-//     dmJobThread::PushJob(ctx, job1);
-//     dmJobThread::PushJob(ctx, job2);
-//     dmJobThread::PushJob(ctx, job3);
-
-//     job.m_Tag = 1;
-//     dmJobThread::HJob job4 = dmJobThread::CreateJob(ctx, &job);
-//     dmJobThread::HJob job5 = dmJobThread::CreateJob(ctx, &job);
-//     dmJobThread::PushJob(ctx, job4);
-//     dmJobThread::PushJob(ctx, job5);
-
-//     job.m_Tag = 3;
-//     dmJobThread::HJob job6 = dmJobThread::CreateJob(ctx, &job);
-//     dmJobThread::PushJobs(ctx, job6);
-
-//     bool tests_done = false;
-//     uint64_t stop_time = dmTime::GetMonotonicTime() + 250000;
-//     while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
-//     {
-//         dmJobThread::Update(ctx, 500);
-
-//         tests_done = cancelctx.m_NumFinished >= 4;
-
-//         dmTime::Sleep(20*1000);
-//     }
-
-//     dmJobThread::Destroy(ctx);
-
-//     ASSERT_EQ(4, cancelctx.m_NumProcessed);
-//     ASSERT_EQ(6, cancelctx.m_NumFinished);
-//     ASSERT_EQ(4, cancelctx.m_NumFinishedOk);
-// }
-
 
 struct JobWithDependency
 {
@@ -266,33 +231,27 @@ struct JobWithDependency
     int32_atomic_t* m_Order;
 };
 
-static int ProcessSortedDependencyJobs(dmJobThread::HContext ctx, dmJobThread::HJob hjob, uint64_t tag, void* context, void* _data)
+static int32_t ProcessSortedDependencyJobs(dmJobThread::HContext ctx, dmJobThread::HJob hjob, void* user_context, void* user_data)
 {
-    JobWithDependency* data = (JobWithDependency*)_data;
+    JobWithDependency* data = (JobWithDependency*)user_data;
     dmTime::Sleep(data->m_Sleep);
     data->m_ProcessingOrder = dmAtomicIncrement32(data->m_Order);
-    printf("job%d: process: order %d\n", data->m_Index, data->m_ProcessingOrder);
+    printf("job%d: process: order %d  %p\n", data->m_Index, data->m_ProcessingOrder, (void*)(uintptr_t)hjob);
     return 1;
 }
 
-static void CallbackSortedDependencyJobs(dmJobThread::HContext ctx, dmJobThread::HJob job, uint64_t tag, void* context, void* _data, int result)
+static void CallbackSortedDependencyJobs(dmJobThread::HContext ctx, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* user_context, void* user_data, int32_t user_result)
 {
-    uint32_t* count_finished = (uint32_t*)context;
-    JobWithDependency* data = (JobWithDependency*)_data;
+    uint32_t* count_finished = (uint32_t*)user_context;
+    JobWithDependency* data = (JobWithDependency*)user_data;
     data->m_FinishingOrder = dmAtomicIncrement32(data->m_Order);
     printf("job%d: finish: order %d\n", data->m_Index, data->m_FinishingOrder);
     (*count_finished)++;
 }
 
 // Make sure they all children are processed before their parents
-TEST(dmJobThread, SortedDependencyJobs)
+TEST_P(dmJobThreadTest, SortedDependencyJobs)
 {
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
-    job_thread_create_param.m_ThreadCount    = 1;
-
-    dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_param);
-
     const uint32_t      job_count = 7;
     JobWithDependency   items[job_count];
     dmJobThread::HJob   hjobs[job_count];
@@ -314,59 +273,39 @@ TEST(dmJobThread, SortedDependencyJobs)
         job.m_Context = (void*)&count_finished;
         job.m_Data    = (void*)&items[i];
 
-        hjobs[i] = dmJobThread::CreateJob(ctx, &job);
+        hjobs[i] = dmJobThread::CreateJob(m_JobThread, &job);
     }
 
     // Setup the dependencies
     // [      3      ]
     // [  1       5  ]
     // [0   2   4   6]
-    dmJobThread::SetParent(ctx, hjobs[0], hjobs[1]);
-    dmJobThread::SetParent(ctx, hjobs[2], hjobs[1]);
-    dmJobThread::SetParent(ctx, hjobs[4], hjobs[5]);
-    dmJobThread::SetParent(ctx, hjobs[6], hjobs[5]);
+    dmJobThread::SetParent(m_JobThread, hjobs[0], hjobs[1]);
+    dmJobThread::SetParent(m_JobThread, hjobs[2], hjobs[1]);
+    dmJobThread::SetParent(m_JobThread, hjobs[4], hjobs[5]);
+    dmJobThread::SetParent(m_JobThread, hjobs[6], hjobs[5]);
 
-    dmJobThread::SetParent(ctx, hjobs[5], hjobs[3]);
-    dmJobThread::SetParent(ctx, hjobs[1], hjobs[3]);
+    dmJobThread::SetParent(m_JobThread, hjobs[5], hjobs[3]);
+    dmJobThread::SetParent(m_JobThread, hjobs[1], hjobs[3]);
 
-    // for (uint32_t i = 0; i < job_count; ++i)
-    // {
-    //     dmJobThread::JobResult result = dmJobThread::PushJob(ctx, hjobs[i]);
-    //     ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-    // }
     dmJobThread::JobResult result;
 
-    // Current limitation is that we must push all children before the parents
-    result = dmJobThread::PushJob(ctx, hjobs[0]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-    result = dmJobThread::PushJob(ctx, hjobs[2]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-    result = dmJobThread::PushJob(ctx, hjobs[4]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-    result = dmJobThread::PushJob(ctx, hjobs[6]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-
-    result = dmJobThread::PushJob(ctx, hjobs[1]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-    result = dmJobThread::PushJob(ctx, hjobs[5]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-
-    result = dmJobThread::PushJob(ctx, hjobs[3]);
-    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
-
+    for (uint32_t i = 0; i < job_count; ++i)
+    {
+        result = dmJobThread::PushJob(m_JobThread, hjobs[i]);
+        ASSERT_EQ(dmJobThread::JOB_RESULT_OK, result);
+    }
 
     bool tests_done = false;
     uint64_t stop_time = dmTime::GetMonotonicTime() + 250000;
     while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
-        dmJobThread::Update(ctx, 500);
+        dmJobThread::Update(m_JobThread, 500);
 
         tests_done = count_finished == job_count;
 
         dmTime::Sleep(20*1000);
     }
-
-    dmJobThread::Destroy(ctx);
 
     // Make sure all children are processed before their parents
 
@@ -392,6 +331,15 @@ TEST(dmJobThread, SortedDependencyJobs)
     ASSERT_EQ(job_count, count_finished);
 }
 
+
+const TestParams test_setups[] = {
+    TestParams(0), // single threaded test
+#if defined(DM_HAS_THREADS)
+    TestParams(4),
+#endif
+};
+
+INSTANTIATE_TEST_CASE_P(dmJobThreadTest, dmJobThreadTest, jc_test_values_in(test_setups));
 
 int main(int argc, char **argv)
 {
