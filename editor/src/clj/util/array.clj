@@ -54,6 +54,30 @@
 (defn primitive-array? [value]
   (some? (primitive-type value)))
 
+(defn- aget-boolean [^boolean/1 array ^long index] (aget array index))
+(defn- aget-char [^char/1 array ^long index] (aget array index))
+(defn- aget-byte [^byte/1 array ^long index] (aget array index))
+(defn- aget-short [^short/1 array ^long index] (aget array index))
+(defn- aget-int [^int/1 array ^long index] (aget array index))
+(defn- aget-long [^long/1 array ^long index] (aget array index))
+(defn- aget-float [^float/1 array ^long index] (aget array index))
+(defn- aget-double [^double/1 array ^long index] (aget array index))
+
+(defn aget-fn [array]
+  (condp = (class array)
+    boolean/1 aget-boolean
+    char/1 aget-char
+    byte/1 aget-byte
+    short/1 aget-short
+    int/1 aget-int
+    long/1 aget-long
+    float/1 aget-float
+    double/1 aget-double
+    (if (array? array)
+      aget
+      (throw
+        (IllegalArgumentException. "array must be an Array")))))
+
 (defmacro ^:private set-items-impl! [array items start-index]
   {:pre [(symbol? array)]}
   `(reduce

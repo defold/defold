@@ -15,6 +15,7 @@
 (ns editor.graphics.types
   (:require [editor.buffers]
             [editor.protobuf :as protobuf]
+            [util.array :as array]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.ensure :as ensure]
@@ -23,7 +24,8 @@
   (:import [clojure.lang IHashEq]
            [com.dynamo.bob.pipeline GraphicsUtil]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
-           [editor.buffers BufferData]))
+           [editor.buffers BufferData]
+           [javax.vecmath Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -127,6 +129,17 @@
     ;; else
     :attribute-transform-none))
 
+(defn attribute-transform-render-arg-key [attribute-transform]
+  (case attribute-transform
+    :attribute-transform-normal :actual/world-rotation
+    :attribute-transform-world :actual/world))
+
+(defn attribute-transform-w-component
+  ^double [attribute-transform]
+  (case attribute-transform
+    :attribute-transform-normal 0.0
+    :attribute-transform-world 1.0))
+
 (defonce buffer-data-types
   #{:byte
     :ubyte
@@ -197,6 +210,16 @@
     :type-int :int
     :type-unsigned-int :uint
     :type-float :float))
+
+(defn value-to-double-fn [data-type normalize]
+  (case data-type
+    :type-byte (if normalize num/byte-range->normalized double)
+    :type-unsigned-byte (if normalize num/ubyte-range->normalized double)
+    :type-short (if normalize num/short-range->normalized double)
+    :type-unsigned-short (if normalize num/ushort-range->normalized double)
+    :type-int (if normalize num/int-range->normalized double)
+    :type-unsigned-int (if normalize num/uint-range->normalized double)
+    :type-float double))
 
 (defonce semantic-types (protobuf/valid-enum-values Graphics$VertexAttribute$SemanticType))
 
@@ -293,6 +316,44 @@
     :vector-type-mat2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT2_VALUE
     :vector-type-mat3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT3_VALUE
     :vector-type-mat4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT4_VALUE))
+
+(defn assign-vector-components!
+  ^Vector4d [^Vector4d vector value-array ^ElementType element-type]
+  (let [vector-type (.-vector-type element-type)]
+    (if (and (= :vector-type-vec4 vector-type)
+             (= double/1 (class value-array)))
+      (.set vector ^double/1 value-array)
+      (let [aget-fn (array/aget-fn value-array)
+            double-fn (value-to-double-fn (.-data-type element-type) (.-normalize element-type))
+            get (fn get
+                  ^double [^long component-index]
+                  (double-fn (aget-fn value-array component-index)))]
+        (case vector-type
+          :vector-type-scalar
+          (.setX vector (get 0))
+
+          :vector-type-vec2
+          (do (.setX vector (get 0))
+              (.setY vector (get 1)))
+
+          :vector-type-vec3
+          (do (.setX vector (get 0))
+              (.setY vector (get 1))
+              (.setZ vector (get 2)))
+
+          :vector-type-vec4
+          (do (.setX vector (get 0))
+              (.setY vector (get 1))
+              (.setZ vector (get 2))
+              (.setW vector (get 3)))
+
+          ;; else
+          (throw
+            (ex-info
+              (format "%s cannot be assigned to Vector4d" vector-type)
+              {:value-array value-array
+               :element-type element-type}))))))
+  vector)
 
 (defonce vertex-step-functions (protobuf/valid-enum-values Graphics$VertexStepFunction))
 

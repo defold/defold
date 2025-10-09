@@ -29,7 +29,7 @@
            [editor.buffers BufferData]
            [editor.graphics.types ElementType]
            [java.nio FloatBuffer IntBuffer ShortBuffer]
-           [javax.vecmath Matrix4d Matrix4f Quat4d Quat4f Tuple4d Vector4f]))
+           [javax.vecmath Matrix4d Matrix4f Quat4d Quat4f Tuple4d Vector4d Vector4f]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -198,7 +198,7 @@
     :type-float
     (assign-attribute-from-floats! value-array (.vector-type element-type) gl base-location)))
 
-(defn- assign-attribute-from-matrix4d!
+(defn- assign-attribute-from-matrix-4d!
   [^Matrix4d matrix vector-type ^GL2 gl ^long base-location]
   (case vector-type
     (:vector-type-mat2)
@@ -220,7 +220,7 @@
     (:vector-type-scalar :vector-type-vec2 :vector-type-vec3 :vector-type-vec4)
     (.glVertexAttrib4f gl base-location (.m00 matrix) (.m10 matrix) (.m20 matrix) (.m30 matrix))))
 
-(defn- assign-attribute-from-tuple4d!
+(defn- assign-attribute-from-tuple-4d!
   [^Tuple4d tuple ^GL2 gl ^long base-location]
   (.glVertexAttrib4f gl base-location (.x tuple) (.y tuple) (.z tuple) (.w tuple)))
 
@@ -229,8 +229,8 @@
   (if (nil? value)
     (clear-attribute! (.-vector-type element-type) gl base-location)
     (condp instance? value
-      Tuple4d (assign-attribute-from-tuple4d! value gl base-location)
-      Matrix4d (assign-attribute-from-matrix4d! value (.-vector-type element-type) gl base-location)
+      Tuple4d (assign-attribute-from-tuple-4d! value gl base-location)
+      Matrix4d (assign-attribute-from-matrix-4d! value (.-vector-type element-type) gl base-location)
       (assign-attribute-from-array! value element-type gl base-location))))
 
 ;; -----------------------------------------------------------------------------
@@ -294,6 +294,68 @@
   (ensure/argument-type element-type ElementType)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeValueBinding value-array element-type base-location))
+
+;; -----------------------------------------------------------------------------
+;; TransformedAttributeValue
+;; -----------------------------------------------------------------------------
+
+(defn- matrix-transform-vector
+  ^Vector4d [^Vector4d untransformed-vector ^Matrix4d transform-matrix ^double w-component]
+  (let [transformed-vector (doto (Vector4d. untransformed-vector)
+                             (.setW w-component))]
+    (.transform transform-matrix transformed-vector)
+    (.setW transformed-vector (.getW untransformed-vector))
+    transformed-vector))
+
+(defn- quat-transform-vector
+  ^Vector4d [^Vector4d untransformed-vector ^Quat4d transform-quat ^double w-component]
+  (let [transform-quat-conjugate (doto (Quat4d.) (.conjugate transform-quat))
+        transformed-quat (doto (Quat4d.)
+                           (.set untransformed-vector)
+                           (.setW w-component))]
+    (.mul transformed-quat transform-quat transformed-quat)
+    (.mul transformed-quat transform-quat-conjugate)
+    (doto (Vector4d.)
+      (.set transformed-quat)
+      (.setW (.getW untransformed-vector)))))
+
+(defonce/record TransformedAttributeValueBinding
+  [^Vector4d untransformed-vector
+   transform-render-arg-key
+   ^double w-component
+   ^int base-location]
+
+  p/GlBind
+  (bind [_this gl render-args]
+    (let [transform (get render-args transform-render-arg-key)
+
+          transformed-vector
+          (condp instance? transform
+            Matrix4d (matrix-transform-vector untransformed-vector transform w-component)
+            Quat4d (quat-transform-vector untransformed-vector transform w-component)
+            (throw
+              (ex-info
+                (format "render-args value for %s is not a Matrix4d or Quat4d" transform-render-arg-key)
+                {:transform-render-arg-key transform-render-arg-key
+                 :render-args render-args})))]
+
+      (assign-attribute-from-tuple-4d! transformed-vector gl base-location)))
+
+  (unbind [_this gl _render-args]
+    (clear-attribute! :vector-type-vec4 gl base-location)))
+
+(defn make-transformed-attribute-value-binding
+  ^TransformedAttributeValueBinding [untransformed-value-array ^ElementType element-type transform-render-arg-key w-component base-location]
+  (ensure/argument math/render-transform-key? transform-render-arg-key)
+  (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
+  (let [w-component (double w-component)
+
+        untransformed-vector
+        (doto (Vector4d.)
+          (.setW w-component)
+          (graphics.types/assign-vector-components! untransformed-value-array element-type))]
+
+    (->TransformedAttributeValueBinding untransformed-vector transform-render-arg-key w-component base-location)))
 
 ;; -----------------------------------------------------------------------------
 ;; AttributeBuffer

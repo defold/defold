@@ -35,7 +35,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :as coll]
             [util.eduction :as e]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
@@ -145,11 +145,8 @@
 
 (defn- make-transformed-attribute-buffer [scene-node-id untransformed-attribute-buffer-lifecycle attribute-transform]
   {:pre [(g/node-id? scene-node-id)]}
-  (let [[transform-render-arg-key w-component]
-        (case attribute-transform
-          :attribute-transform-normal (pair :actual/world-rotation 0.0)
-          :attribute-transform-world (pair :actual/world 1.0))
-
+  (let [transform-render-arg-key (graphics.types/attribute-transform-render-arg-key attribute-transform)
+        w-component (graphics.types/attribute-transform-w-component attribute-transform)
         untransformed-buffer-data (graphics.types/buffer-data untransformed-attribute-buffer-lifecycle)
         untransformed-buffer-request-id (:request-id untransformed-attribute-buffer-lifecycle)
         _ (assert (vector? (not-empty untransformed-buffer-request-id)))
@@ -586,23 +583,33 @@
           (attribute/make-attribute-buffer-binding location)))))
 
 (defn- make-attribute-value-binding [attribute-bytes attribute-info]
-  (let [{:keys [data-type location normalize semantic-type vector-type]} attribute-info
+  (let [{:keys [attribute-transform data-type location normalize semantic-type vector-type]} attribute-info
         element-type (graphics.types/make-element-type vector-type data-type normalize)
-        value-array (or (when attribute-bytes
-                          (try
-                            (let [byte-buffer (buffers/wrap-byte-array attribute-bytes :byte-order/native)
-                                  buffer-data-type (graphics.types/data-type->buffer-data-type data-type)]
-                              (buffers/as-primitive-array byte-buffer buffer-data-type))
-                            (catch Exception exception
-                              (let [message (format "Vertex attribute '%s' - %s"
-                                                    (:name attribute-info)
-                                                    (ex-message exception))]
-                                (log/warn :message message
-                                          :exception exception
-                                          :ex-data (ex-data exception)))
-                              nil)))
-                        (graphics.types/default-attribute-value-array semantic-type element-type))]
-    (attribute/make-attribute-value-binding value-array element-type location)))
+
+        value-array
+        (or (when attribute-bytes
+              (try
+                (let [byte-buffer (buffers/wrap-byte-array attribute-bytes :byte-order/native)
+                      buffer-data-type (graphics.types/data-type->buffer-data-type data-type)]
+                  (buffers/as-primitive-array byte-buffer buffer-data-type))
+                (catch Exception exception
+                  (let [message (format "Vertex attribute '%s' - %s"
+                                        (:name attribute-info)
+                                        (ex-message exception))]
+                    (log/warn :message message
+                              :exception exception
+                              :ex-data (ex-data exception)))
+                  nil)))
+            (graphics.types/default-attribute-value-array semantic-type element-type))]
+
+    (case attribute-transform
+      (:attribute-transform-none)
+      (attribute/make-attribute-value-binding value-array element-type location)
+
+      (:attribute-transform-normal :attribute-transform-world)
+      (let [transform-render-arg-key (graphics.types/attribute-transform-render-arg-key attribute-transform)
+            w-component (graphics.types/attribute-transform-w-component attribute-transform)]
+        (attribute/make-transformed-attribute-value-binding value-array element-type transform-render-arg-key w-component location)))))
 
 (defn- make-attribute-bindings
   ([semantic-type->attribute-buffers combined-attribute-infos]
