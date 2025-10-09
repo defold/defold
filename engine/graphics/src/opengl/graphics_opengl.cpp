@@ -660,7 +660,7 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
-    static int WorkerAcquireContextRunner(dmJobThread::HContext, dmJobThread::HJob job, uint64_t tag, void* _context, void* _acquire_flag)
+    static int WorkerAcquireContextRunner(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* _acquire_flag)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
@@ -3768,7 +3768,7 @@ static void LogFrameBufferError(GLenum status)
         delete tex;
     }
 
-    static int AsyncDeleteTextureProcess(dmJobThread::HContext, dmJobThread::HJob job, uint64_t tag, void* _context, void* data)
+    static int AsyncDeleteTextureProcess(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DoDeleteTexture(context, (HTexture) data);
@@ -3963,7 +3963,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, uint64_t tag, void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -3991,7 +3991,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, uint64_t tag, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
