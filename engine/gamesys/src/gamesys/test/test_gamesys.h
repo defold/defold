@@ -498,9 +498,8 @@ void GamesysTest<T>::SetUp()
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
-    job_thread_create_param.m_ThreadCount    = 1;
+    dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+    job_thread_create_param.m_ThreadCount = 1;
     m_JobThread = dmJobThread::Create(job_thread_create_param);
 
     dmResource::NewFactoryParams params;

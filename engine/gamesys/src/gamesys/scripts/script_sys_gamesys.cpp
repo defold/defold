@@ -156,7 +156,7 @@ namespace dmGameSystem
     }
 
     // Called from job thread
-    static int LoadBufferFunctionCallback(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* context, void* data)
+    static int LoadBufferFunctionCallback(dmJobThread::HContext, dmJobThread::HJob hjob, void* context, void* data)
     {
         DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
@@ -166,7 +166,7 @@ namespace dmGameSystem
     }
 
     // Called from the main thread
-    static void LoadBufferCompleteCallback(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* context, void* data, int result)
+    static void LoadBufferCompleteCallback(dmJobThread::HContext, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* context, void* data, int result)
     {
         if (((dmResource::Result) result) == dmResource::RESULT_OK)
         {

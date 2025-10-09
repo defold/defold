@@ -82,8 +82,7 @@ class ResourceTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
         job_thread_create_param.m_ThreadCount    = 1;
         m_JobThread = dmJobThread::Create(job_thread_create_param);
 
@@ -114,8 +113,7 @@ class DynamicResourceTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
         job_thread_create_param.m_ThreadCount    = 1;
         m_JobThread = dmJobThread::Create(job_thread_create_param);
 

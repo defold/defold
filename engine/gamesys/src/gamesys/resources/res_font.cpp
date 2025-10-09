@@ -135,7 +135,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void PrewarmGlyphsCallback(dmJobThread::HJob job, uint64_t tag, void* ctx, int result, const char* errmsg)
+    static void PrewarmGlyphsCallback(dmJobThread::HJob job, void* ctx, int result, const char* errmsg)
     {
         FontResource* font = (FontResource*)ctx;
         font->m_Prewarming = 0;

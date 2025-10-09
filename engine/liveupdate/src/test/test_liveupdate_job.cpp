@@ -39,8 +39,7 @@ class AsyncTestThread : public jc_test_base_class
 public:
     virtual void SetUp()
     {
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
         job_thread_create_param.m_ThreadCount = DM_TEST_THREAD_COUNT;
         m_JobThread = dmJobThread::Create(job_thread_create_param);
     }
@@ -58,7 +57,7 @@ struct JobData
     int  m_Result;
 };
 
-static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, uint64_t tag, void* context, void* _data)
+static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, void* context, void* _data)
 {
     HashState64* hash_state = (HashState64*)context;
     JobData* data = (JobData*)_data;
@@ -68,7 +67,7 @@ static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, uint64_t tag, v
     return data->m_Char;
 }
 
-static void FinishData(dmJobThread::HContext, dmJobThread::HJob, uint64_t tag, void* context, void* _data, int result)
+static void FinishData(dmJobThread::HContext, dmJobThread::HJob, dmJobThread::JobStatus status, void* context, void* _data, int result)
 {
     JobData* data = (JobData*)_data;
     data->m_Result = result;
@@ -76,7 +75,13 @@ static void FinishData(dmJobThread::HContext, dmJobThread::HJob, uint64_t tag, v
 
 static void PushJob(dmJobThread::HContext thread, HashState64* hash_state, JobData* data)
 {
-    dmJobThread::PushJob(thread, ProcessData, FinishData, (void*)hash_state, (void*)data);
+    dmJobThread::Job job = {0};
+    job.m_Process = ProcessData;
+    job.m_Callback = FinishData;
+    job.m_Context = (void*)hash_state;
+    job.m_Data = (void*)data;
+    dmJobThread::HJob hjob = dmJobThread::CreateJob(thread, &job);
+    dmJobThread::PushJob(thread, hjob);
 }
 
 #if DM_TEST_THREAD_COUNT==0
