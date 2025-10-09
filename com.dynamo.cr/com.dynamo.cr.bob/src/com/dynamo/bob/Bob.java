@@ -743,12 +743,6 @@ public class Bob {
             final String buildDirectory = cmd.getOptionValue('o', "build/default");
             final String rootDirectory = cmd.getOptionValue('r', cwd);
             Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
-            project.loadProjectFile(false);
-            project.setLibUrlsFromProjectDependencies();
-            if (commands.contains("resolve")) {
-                project.resolveLibUrls(progress);
-            }
-            project.mount(new ClassLoaderResourceScanner());
             TimeProfiler.stop();
 
             TimeProfiler.start("ParseCommandLine");
@@ -929,6 +923,25 @@ public class Bob {
             }
             TimeProfiler.stop(); // ParseCommandLine
 
+            // this step needs to happen last, especially afte additional
+            // project settings have been set using --settings
+            //
+            // 1. game.project with overrides are loaded first
+            // 2. library urls are set
+            // 3. libraries are optionally resolved
+            // 4. project resources are mounted
+            TimeProfiler.start("SetupProject");
+            {
+                project.loadProjectFile(false);
+                project.setLibUrlsFromProjectDependencies();
+                if (commands.contains("resolve")) {
+                    project.resolveLibUrls(progress);
+                }
+                project.mount(new ClassLoaderResourceScanner());
+            }
+            TimeProfiler.stop(); // SetupProject
+
+
             boolean ret = true;
             StringBuilder errors = new StringBuilder();
 
@@ -943,7 +956,7 @@ public class Bob {
                     AndroidTools.bundletool(commands);
                 }
                 else {
-                    result = project.build(progress, (String[])commands.toArray());
+                    result = project.build(progress, commands.toArray(new String[0]));
                 }
             } catch(MultipleCompileException e) {
                 errors = parseMultipleException(e, verbose);
