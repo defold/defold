@@ -1,7 +1,7 @@
 if(DEFINED DEFOLD_PLATFORM_CMAKE_INCLUDED)
     return()
 endif()
-set(DEFOLD_PLATFORM_CMAKE_INCLUDED ON CACHE INTERNAL "platform.cmake include guard")
+set(DEFOLD_PLATFORM_CMAKE_INCLUDED ON)
 
 defold_log("platform.cmake:")
 

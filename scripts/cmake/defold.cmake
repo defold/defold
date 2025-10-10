@@ -1,7 +1,7 @@
 if(DEFINED DEFOLD_CMAKE_INCLUDED)
   return()
 endif()
-set(DEFOLD_CMAKE_INCLUDED ON CACHE INTERNAL "defold.cmake include guard")
+set(DEFOLD_CMAKE_INCLUDED ON)
 
 message(DEBUG "defold.cmake:")
 
