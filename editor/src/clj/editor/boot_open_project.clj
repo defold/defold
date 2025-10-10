@@ -190,6 +190,7 @@
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
+                                                      localization
                                                       {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project

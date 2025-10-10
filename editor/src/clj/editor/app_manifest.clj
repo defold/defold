@@ -17,6 +17,7 @@
             [editor.code.resource :as r]
             [editor.code.util :as util]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
             [editor.yaml :as yaml]))
@@ -560,7 +561,8 @@
                                             :two-spaces 2
                                             4)))))))
   (property physics-2d g/Any
-            (dynamic tooltip (g/constantly "Box2D version 3 or legacy Defold version"))
+            (dynamic label (properties/label-dynamic :appmanifest :physics-2d))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :physics-2d))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:v3 "Box2D Version 3"]
                                                         [:legacy "Box2D (Legacy Defold version)"]
@@ -568,12 +570,14 @@
             (value (g/fnk [manifest] (:2d (get-setting-value manifest physics-setting))))
             (set (setting-property-updater physics-setting assoc :2d)))
   (property physics-3d g/Any
-            (dynamic tooltip (g/constantly "Bullet or none"))
+            (dynamic label (properties/label-dynamic :appmanifest :physics-3d))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :physics-3d))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (g/fnk [manifest] (:3d (get-setting-value manifest physics-setting))))
             (set (setting-property-updater physics-setting assoc :3d)))
-  (property Rig+Model g/Any
-            (dynamic tooltip (g/constantly "Rig, Model or none"))
+  (property rig+model g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :rig+model))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :rig+model))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:model "Rig & Model"]
                                                         [:rig "Rig only"]
@@ -581,58 +585,80 @@
             (value (setting-property-getter rig-setting))
             (set (setting-property-setter rig-setting)))
   (property exclude-record g/Any
-            (dynamic tooltip (g/constantly "Remove the video recording capabilities (desktop platforms)"))
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-record))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-record))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter record-setting))
             (set (setting-property-setter record-setting)))
   (property exclude-profiler g/Any
-            (dynamic tooltip (g/constantly "Remove the on-screen and web profiler"))
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-profiler))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-profiler))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter profiler-setting))
             (set (setting-property-setter profiler-setting)))
   (property exclude-sound g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-sound))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
   (property exclude-sound-decoder-wav g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-sound-decoder-wav))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound-decoder-wav))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-decoder-wav-setting))
             (set (setting-property-setter sound-decoder-wav-setting)))
   (property exclude-sound-decoder-ogg g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-sound-decoder-ogg))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound-decoder-ogg))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-decoder-ogg-setting))
             (set (setting-property-setter sound-decoder-ogg-setting)))
   (property include-sound-decoder-opus g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :include-sound-decoder-opus))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :include-sound-decoder-opus))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-decoder-opus-setting))
             (set (setting-property-setter sound-decoder-opus-setting)))
   (property exclude-input g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-input))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-input))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter input-setting))
             (set (setting-property-setter input-setting)))
   (property exclude-liveupdate g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-liveupdate))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-liveupdate))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter liveupdate-setting))
             (set (setting-property-setter liveupdate-setting)))
   (property exclude-image g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-image))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-image))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter image-setting))
             (set (setting-property-setter image-setting)))
   (property exclude-types g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-types))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-types))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter types-setting))
             (set (setting-property-setter types-setting)))
   (property exclude-basis-transcoder g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-basis-transcoder))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-basis-transcoder))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter basis-transcoder-setting))
             (set (setting-property-setter basis-transcoder-setting)))
   (property use-android-support-lib g/Any
-            (dynamic tooltip (g/constantly "Use the old Android support libraries instead of AndroidX. Available from Defold 1.2.177."))
+            (dynamic label (properties/label-dynamic :appmanifest :use-android-support-lib))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-android-support-lib))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
   (property graphics g/Any
-            (dynamic tooltip (g/constantly "Vulkan supports desktop and mobile platforms only"))
+            (dynamic label (properties/label-dynamic :appmanifest :graphics))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:open-gl "OpenGL"]
                                                         [:vulkan "Vulkan"]
@@ -640,7 +666,8 @@
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
   (property graphics-osx g/Any
-            (dynamic tooltip (g/constantly "Vulkan is the default renderer for OSX"))
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:vulkan "Vulkan"]
                                                         [:open-gl "OpenGL"]
@@ -648,7 +675,8 @@
             (value (setting-property-getter graphics-setting-osx))
             (set (setting-property-setter graphics-setting-osx)))
   (property graphics-web g/Any
-            (dynamic tooltip (g/constantly "WebGPU support is in BETA (web platforms)"))
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-web))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-web))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:web-gl "WebGL"]
                                                         [:web-gpu "WebGPU"]

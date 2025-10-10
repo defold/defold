@@ -1086,7 +1086,8 @@ ordinary paths."
 
   Required kv-args:
     :id       keyword identifying the view type
-    :label    a label for the view type shown in the editor
+    :label    a label for the view type shown in the editor, localization
+              MessagePattern or a string
 
   Optional kv-args:
     :make-view-fn          fn of graph, parent (AnchorPane), resource node and
