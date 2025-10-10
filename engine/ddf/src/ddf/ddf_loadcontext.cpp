@@ -143,7 +143,7 @@ namespace dmDDF
     uint32_t LoadContext::CalculateDynamicTypeMemorySize()
     {
         uint32_t total = m_DynamicOffsetsTotal;
-        m_ArrayInfo.Iterate(IterateCallback, &total);
+        //m_ArrayInfo.Iterate(IterateCallback, &total);
         return total;
     }
 
@@ -205,12 +205,14 @@ namespace dmDDF
         }
 
         // Automatically add into the running list of data offsets into the dynamic area
-        AddDynamicTypeOffset(this, info_ptr->m_ElementSizesTotal);
+        //AddDynamicTypeOffset(this, info_ptr->m_ElementSizesTotal);
 
         info_ptr->m_ElementSizes->Push(size);
         info_ptr->m_ElementSizesTotal += size;
 
-        return info_ptr->m_ElementSizesTotal;
+        return AddDynamicMessageSize(size);
+
+        //return info_ptr->m_ElementSizesTotal;
     }
 
     void* LoadContext::GetDynamicTypePointer(uint32_t offset)

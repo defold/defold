@@ -27,8 +27,8 @@ namespace dmDDF
         m_End = (uintptr_t)buffer + buffer_size;
         m_DryRun = dry_run;
 
-        if (!dry_run)
-            dmLogInfo("Message::Message: start %lu end %lu (%lu)", m_Start, m_End, m_End - m_Start);
+        //if (!dry_run)
+        //    dmLogInfo("Message::Message: start %lu end %lu (%lu)", m_Start, m_End, m_End - m_Start);
     }
 
     #define READSCALARFIELD_CASE(DDF_TYPE, CPP_TYPE, READ_METHOD) \
@@ -357,27 +357,6 @@ namespace dmDDF
             repeated_field->m_ArrayCount++;
 
             return (void*) dest;
-
-            /*
-            // TODO: Refactor
-            uint32_t data_size = load_context->GetArrayElementSize(repeated_field->m_Hash, repeated_field->m_ArrayCount);
-            uint32_t data_offset = 0;
-            for (int i = 0; i < repeated_field->m_ArrayCount; ++i)
-            {
-                data_offset += load_context->GetArrayElementSize(repeated_field->m_Hash, i);
-            }
-
-            uintptr_t dest = repeated_field->m_Array + data_offset;
-
-            dmLogInfo("AddMessage: data_offset=%d, data_size=%d", data_offset, data_size);
-
-            //memset((void*) dest, 0, field->m_MessageDescriptor->m_Size);
-            memset((void*) dest, 0, data_size);
-
-            repeated_field->m_ArrayCount++;
-
-            return (void*) dest;
-            */
         }
         return 0;
     }
@@ -407,6 +386,8 @@ namespace dmDDF
             const char** string_field = (const char**) GetBuffer(field->m_Offset);
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
+
+            dmLogInfo("SetString: %s", str_buf);
 
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
             {
@@ -441,6 +422,8 @@ namespace dmDDF
 
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
+
+            dmLogInfo("AddString: %s", str_buf);
 
             uintptr_t dest = array + repeated_field->m_ArrayCount * sizeof(const char*);
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)

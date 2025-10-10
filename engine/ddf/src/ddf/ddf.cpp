@@ -321,7 +321,10 @@ namespace dmDDF
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
         load_context.SetDynamicTypeBase(aligned_base_memory);
 
-        dmLogInfo("\nAllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
+        dmLogInfo("------------------------");
+        dmLogInfo("DO LOAD REAL");
+        dmLogInfo("AllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
+        dmLogInfo("------------------------");
 
         Message message = load_context.AllocMessage(desc);
 

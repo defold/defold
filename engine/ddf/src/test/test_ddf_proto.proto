@@ -394,7 +394,7 @@ message JSONValue
     oneof value
     {
         string string_value = 1;
-        double number_value = 2;
+        int32 number_value = 2;
         bool bool_value = 3;
         JSONArray array_value = 4;
         JSONObject object_value = 5;

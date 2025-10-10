@@ -199,15 +199,7 @@ namespace dmDDF
                     assert(field_index < DDF_MAX_FIELDS);
                     read_fields[field_index] = 1;
 
-                    dmLogInfo("  %s: %d", field->m_Name, field->m_Number);
-                    /*
-                    const char* m_Name;
-                    uint32_t    m_Number : 22;
-                    uint32_t    m_Type : 6;
-                    uint32_t    m_Label : 4;
-                    Descriptor* m_MessageDescriptor;
-                    uint32_t    m_Offset;
-                    */
+                    // dmLogInfo("  %s: %d", field->m_Name, field->m_Number);
 
                     Result e;
                     e = message->ReadField(load_context, (WireType) type, field, input_buffer);
