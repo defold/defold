@@ -1151,6 +1151,204 @@ TEST(JSON, Simple)
     dmDDF::FreeMessage(message);
 }
 
+TEST(JSON, Complex)
+{
+    TestDDF::JSONObject root;
+
+    // ----------------------------------------------------------------------
+    // "array_int" : [1337, 999, 666]
+    // ----------------------------------------------------------------------
+    {
+        TestDDF::JSONValue* array_int_value = new TestDDF::JSONValue();
+        TestDDF::JSONArray* array_int_items = new TestDDF::JSONArray();
+
+        int values[] = {1337, 999, 666};
+        for (int i = 0; i < 3; ++i)
+        {
+            TestDDF::JSONValue* item = array_int_items->add_items();
+            item->set_number_value(values[i]);
+        }
+
+        array_int_value->set_allocated_array_value(array_int_items);
+
+        TestDDF::JSONPair* array_int = root.add_pairs();
+        array_int->set_key("array_int");
+        array_int->set_allocated_value(array_int_value);
+    }
+
+    // ----------------------------------------------------------------------
+    // "object_value" : { "object_array": [...], "nested_object": {...} }
+    // ----------------------------------------------------------------------
+    {
+        TestDDF::JSONValue* object_value = new TestDDF::JSONValue();
+        TestDDF::JSONObject* object_obj  = new TestDDF::JSONObject();
+
+        // --- object_array ---
+        {
+            TestDDF::JSONPair* obj_array_pair = object_obj->add_pairs();
+            obj_array_pair->set_key("object_array");
+
+            TestDDF::JSONValue* arr_val = new TestDDF::JSONValue();
+            TestDDF::JSONArray* arr = new TestDDF::JSONArray();
+            int arr_vals[] = {2001, 13, 27};
+            for (int i = 0; i < 3; ++i)
+            {
+                TestDDF::JSONValue* item = arr->add_items();
+                item->set_number_value(arr_vals[i]);
+            }
+            arr_val->set_allocated_array_value(arr);
+            obj_array_pair->set_allocated_value(arr_val);
+        }
+
+        // --- nested_object ---
+        {
+            TestDDF::JSONPair* nested_obj_pair = object_obj->add_pairs();
+            nested_obj_pair->set_key("nested_object");
+
+            TestDDF::JSONValue* nested_obj_value = new TestDDF::JSONValue();
+            TestDDF::JSONObject* nested_obj = new TestDDF::JSONObject();
+
+            // key1 : "value1"
+            TestDDF::JSONPair* kv1 = nested_obj->add_pairs();
+            kv1->set_key("key1");
+            TestDDF::JSONValue* v1 = new TestDDF::JSONValue();
+            v1->set_string_value("value1");
+            kv1->set_allocated_value(v1);
+
+            // key2 : false
+            TestDDF::JSONPair* kv2 = nested_obj->add_pairs();
+            kv2->set_key("key2");
+            TestDDF::JSONValue* v2 = new TestDDF::JSONValue();
+            v2->set_bool_value(false);
+            kv2->set_allocated_value(v2);
+
+            // deep_array : [ { "inner_key": 42 }, "text_in_array" ]
+            TestDDF::JSONPair* kv3 = nested_obj->add_pairs();
+            kv3->set_key("deep_array");
+            TestDDF::JSONValue* v3 = new TestDDF::JSONValue();
+            TestDDF::JSONArray* deep_arr = new TestDDF::JSONArray();
+
+            // element 1: object { "inner_key": 42 }
+            TestDDF::JSONValue* obj_in_arr = deep_arr->add_items();
+            TestDDF::JSONObject* inner_obj = new TestDDF::JSONObject();
+            TestDDF::JSONPair* inner_pair = inner_obj->add_pairs();
+            inner_pair->set_key("inner_key");
+            TestDDF::JSONValue* inner_val = new TestDDF::JSONValue();
+            inner_val->set_number_value(42);
+            inner_pair->set_allocated_value(inner_val);
+            obj_in_arr->set_allocated_object_value(inner_obj);
+
+            // element 2: string "text_in_array"
+            TestDDF::JSONValue* text_val = deep_arr->add_items();
+            text_val->set_string_value("text_in_array");
+
+            v3->set_allocated_array_value(deep_arr);
+            kv3->set_allocated_value(v3);
+
+            nested_obj_value->set_allocated_object_value(nested_obj);
+            nested_obj_pair->set_allocated_value(nested_obj_value);
+        }
+
+        object_value->set_allocated_object_value(object_obj);
+
+        TestDDF::JSONPair* object_pair = root.add_pairs();
+        object_pair->set_key("object_value");
+        object_pair->set_allocated_value(object_value);
+    }
+
+    // ----------------------------------------------------------------------
+    // "mixed_array" : ["string_in_array", 123.45, true, { "obj_in_array_key": "obj_in_array_val" }]
+    // ----------------------------------------------------------------------
+    {
+        TestDDF::JSONValue* mixed_val = new TestDDF::JSONValue();
+        TestDDF::JSONArray* mixed_arr = new TestDDF::JSONArray();
+
+        TestDDF::JSONValue* str_val = mixed_arr->add_items();
+        str_val->set_string_value("string_in_array");
+
+        TestDDF::JSONValue* num_val = mixed_arr->add_items();
+        num_val->set_number_value(12345);
+
+        TestDDF::JSONValue* bool_val = mixed_arr->add_items();
+        bool_val->set_bool_value(true);
+
+        TestDDF::JSONValue* obj_val = mixed_arr->add_items();
+        TestDDF::JSONObject* inner_obj = new TestDDF::JSONObject();
+        TestDDF::JSONPair* inner_pair = inner_obj->add_pairs();
+        inner_pair->set_key("obj_in_array_key");
+        TestDDF::JSONValue* inner_pair_val = new TestDDF::JSONValue();
+        inner_pair_val->set_string_value("obj_in_array_val");
+        inner_pair->set_allocated_value(inner_pair_val);
+        obj_val->set_allocated_object_value(inner_obj);
+
+        mixed_val->set_allocated_array_value(mixed_arr);
+
+        TestDDF::JSONPair* mixed_pair = root.add_pairs();
+        mixed_pair->set_key("mixed_array");
+        mixed_pair->set_allocated_value(mixed_val);
+    }
+
+    // ----------------------------------------------------------------------
+    // Serialize + Load via DDF
+    // ----------------------------------------------------------------------
+    std::string msg_str   = root.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::JSONObject* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*)msg_buf, msg_buf_size, &DUMMY::TestDDF_JSONObject_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    // ----------------------------------------------------------------------
+    // Assertions — Verify structure
+    // ----------------------------------------------------------------------
+    ASSERT_EQ(3u, message->m_Pairs.m_Count);
+    ASSERT_STREQ("array_int",    message->m_Pairs[0].m_Key);
+    ASSERT_STREQ("object_value", message->m_Pairs[1].m_Key);
+    ASSERT_STREQ("mixed_array",  message->m_Pairs[2].m_Key);
+
+    // array_int
+    DUMMY::TestDDF::JSONArray* array_int = message->m_Pairs[0].m_Value.m_Value.m_ArrayValue;
+    ASSERT_EQ(3u, array_int->m_Items.m_Count);
+    ASSERT_EQ(1337, array_int->m_Items[0].m_Value.m_NumberValue);
+    ASSERT_EQ(999,  array_int->m_Items[1].m_Value.m_NumberValue);
+    ASSERT_EQ(666,  array_int->m_Items[2].m_Value.m_NumberValue);
+
+    // object_value
+    DUMMY::TestDDF::JSONObject* object_value = message->m_Pairs[1].m_Value.m_Value.m_ObjectValue;
+    ASSERT_EQ(2u, object_value->m_Pairs.m_Count);
+
+    DUMMY::TestDDF::JSONArray* obj_array = object_value->m_Pairs[0].m_Value.m_Value.m_ArrayValue;
+    ASSERT_EQ(3u, obj_array->m_Items.m_Count);
+    ASSERT_EQ(2001, obj_array->m_Items[0].m_Value.m_NumberValue);
+    ASSERT_EQ(13,   obj_array->m_Items[1].m_Value.m_NumberValue);
+    ASSERT_EQ(27,   obj_array->m_Items[2].m_Value.m_NumberValue);
+
+    // nested_object
+    DUMMY::TestDDF::JSONObject* nested_object = object_value->m_Pairs[1].m_Value.m_Value.m_ObjectValue;
+    ASSERT_EQ(3u, nested_object->m_Pairs.m_Count);
+    ASSERT_STREQ("value1", nested_object->m_Pairs[0].m_Value.m_Value.m_StringValue);
+    ASSERT_EQ(false, nested_object->m_Pairs[1].m_Value.m_Value.m_BoolValue);
+
+    DUMMY::TestDDF::JSONArray* deep_array = nested_object->m_Pairs[2].m_Value.m_Value.m_ArrayValue;
+    ASSERT_EQ(2u, deep_array->m_Items.m_Count);
+    DUMMY::TestDDF::JSONObject* inner_object = deep_array->m_Items[0].m_Value.m_ObjectValue;
+    ASSERT_EQ(1u, inner_object->m_Pairs.m_Count);
+    ASSERT_EQ(42, inner_object->m_Pairs[0].m_Value.m_Value.m_NumberValue);
+    ASSERT_STREQ("text_in_array", deep_array->m_Items[1].m_Value.m_StringValue);
+
+    // mixed_array
+    DUMMY::TestDDF::JSONArray* mixed_array = message->m_Pairs[2].m_Value.m_Value.m_ArrayValue;
+    ASSERT_EQ(4u, mixed_array->m_Items.m_Count);
+    ASSERT_STREQ("string_in_array", mixed_array->m_Items[0].m_Value.m_StringValue);
+    ASSERT_EQ(12345, mixed_array->m_Items[1].m_Value.m_NumberValue);
+    ASSERT_EQ(true, mixed_array->m_Items[2].m_Value.m_BoolValue);
+    ASSERT_STREQ("obj_in_array_val", mixed_array->m_Items[3].m_Value.m_ObjectValue->m_Pairs[0].m_Value.m_Value.m_StringValue);
+
+    dmDDF::FreeMessage(message);
+}
+
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
