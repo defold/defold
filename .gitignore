@@ -76,3 +76,4 @@ editor/.lsp/sqlite.db
 /com.dynamo.cr/test_resources/
 /build_times.json
 AGENTS.md
+.packages_downloads/

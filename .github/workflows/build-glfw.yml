@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
 
 env:
-  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  DM_PACKAGES_BASE_URL: ${{ secrets.DM_PACKAGES_BASE_URL }}
+  DM_PACKAGES_BUCKET: ${{ secrets.DM_PACKAGES_BUCKET }}
+  DM_PACKAGES_ACCESS_KEY: ${{ secrets.DM_PACKAGES_ACCESS_KEY }}
+  DM_PACKAGES_ACCESS_SECRET: ${{ secrets.DM_PACKAGES_ACCESS_SECRET }}
+  DM_PACKAGES_ENCRYPTION_KEY: ${{ secrets.DM_PACKAGES_ENCRYPTION_KEY }}
 
 jobs:
   build-linux:

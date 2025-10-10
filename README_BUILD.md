@@ -120,6 +120,7 @@ This step also installs some Python dependencies:
 * `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
+* `minio` - Used for interacting with S3-compatable object storage
 
 ### Step 3 - Installing SDKs (mostly optional)
 
@@ -135,17 +136,47 @@ The `install_sdk`command will install SDKs (build tools etc) such as the Android
 
 If you wish to build for any other platform, you will need to install an sdk package where the build system can find it.
 
+There are two optons how to host prebuilt packages:
+1. Store at local machine
+2. Store in S3-compatable object storage (custom Minio server, Hetzner object storage, AWS S3, etc.)
+
+To control access to location where prebuilt packages stored there are following command-line arguments/environment variables:
+| Argument                 | Environment variable           | Description                                                                                                                              | Example                                                                                                               |
+|--------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| --package-base-url       | **DM_PACKAGES_BASE_URL**       | Base S3-compatable object storage URL or absolute path to local folder                                                                   | Object storage: DM_PACKAGES_BASE_URL=play.min.io. Local folder: DM_PACKAGES_BASE_URL=/Users/user/work/defold-packages |
+| --package-bucket         | **DM_PACKAGES_BUCKET**         | Bucket name in S3 object storage where prebuilt packages stored                                                                          | DM_PACKAGES_BUCKET=prebuilt-packages                                                                                  |
+| --package-access-key     | **DM_PACKAGES_ACCESS_KEY**     | S3 object storage access key id. Account with such Key ID should be allowed to perform `s3:Getobject` and `s3:GetBucketLocation` actions |                                                                                                                       |
+| --package-access-secret  | **DM_PACKAGES_ACCESS_SECRET**  | S3 object storage access secret                                                                                                          |                                                                                                                       |
+| --package-encryption-key | **DM_PACKAGES_ENCRYPTION_KEY** | Hex presentation of 32 bytes long encryption key used when files were uploaded to object storage                                         |                                                                                                                       |
+
 Next thing you need to do is to install external packages:
 
 ```sh
-$ ./scripts/build.py install_sdk --platform=... --package-path=...
+$ ./scripts/build.py install_sdk --platform=... <additional_options>
 ```
 
-You could also set the package path in an environment variable `DM_PACKAGES_URL`:
+Examples:
+1. Install sdks from local folder:
+   ```sh
+   $ ./scripts/build.py install_sdk --platform=... --package-base-url=<path_to_folder>
+   $ DM_PACKAGES_BASE_URL=<path_to_folder> ./scripts/build.py install_sdk --platform=...
+   ```
 
-```sh
-$ DM_PACKAGES_URL=https://my.url ./scripts/build.py install_sdk --platform=...
-```
+2. Install sdks from publicly accessible bucket:
+   ```sh
+   $ ./scripts/build.py install_sdk --platform=... --package-base-url=play.mini.io --package-bucket=defold-packages
+   $ DM_PACKAGES_BASE_URL=play.mini.io DM_PACKAGES_BUCKET=defold-packages ./scripts/build.py install_sdk --platform=...
+   ```
+
+3. Install sdk from private bucket:
+   ```sh
+   $ ./scripts/build.py install_sdk --platform=... --package-base-url=play.mini.io --package-bucket=defold-packages --package-access-key=<key_id> --package-access-secret=<secret>
+   ```
+
+4. Install sdk from bucket where files was encrypted:
+    ```sh
+   $ ./scripts/build.py install_sdk --platform=... --package-base-url=play.mini.io --package-bucket=defold-packages --package-encryption-key=<key>
+   ```
 
 </p></details>
 

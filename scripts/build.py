@@ -29,6 +29,7 @@ import release_to_steam
 import release_to_egs
 import BuildUtility
 import http_cache
+from minio_client import MinioClient
 from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
@@ -305,7 +306,11 @@ PLATFORM_PACKAGES = {
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
-CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
+PACKAGES_STORAGE_BASE_URL = os.environ.get("DM_PACKAGES_BASE_URL", None)
+PACKAGES_STORAGE_BUCKET = os.environ.get("DM_PACKAGES_BUCKET", None)
+PACKAGES_STORAGE_ACCESS_KEY = os.environ.get("DM_PACKAGES_ACCESS_KEY", None)
+PACKAGES_STORAGE_ACCESS_SECRET = os.environ.get("DM_PACKAGES_ACCESS_SECRET", None)
+PACKAGES_STORAGE_ENCRYPTION_KEY = os.environ.get("DM_PACKAGES_ENCRYPTION_KEY", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ.get("DM_RELEASE_REPOSITORY") else release_to_github.get_current_repo()
 
@@ -411,11 +416,11 @@ class Future(object):
         else:
             return self.result
 
-def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=False, format='z'):
+def download_sdk(conf, package_name, targetfolder, strip_components=1, force_extract=False, format='z'):
     if not os.path.exists(targetfolder) or force_extract:
         if not os.path.exists(os.path.dirname(targetfolder)):
             os.makedirs(os.path.dirname(targetfolder))
-        path = conf.get_local_or_remote_file(url)
+        path = conf.get_local_or_remote_file(package_name)
         conf._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
     else:
         print ("SDK already installed:", targetfolder)
@@ -436,7 +441,11 @@ class Configuration(object):
                  generate_compile_commands = False,
                  no_colors = False,
                  archive_domain = None,
-                 package_path = None,
+                 packages_base_path = None,
+                 packages_bucket = None,
+                 packages_access_key = None,
+                 packages_access_secret = None,
+                 packages_encryption_key = None,
                  set_version = None,
                  channel = None,
                  engine_artifacts = None,
@@ -486,7 +495,6 @@ class Configuration(object):
         self.no_colors = no_colors
         self.archive_path = "s3://%s/archive" % (archive_domain)
         self.archive_domain = archive_domain
-        self.package_path = package_path
         self.set_version = set_version
         self.channel = channel
         self.engine_artifacts = engine_artifacts
@@ -520,6 +528,12 @@ class Configuration(object):
                 self.version = f.readlines()[0].strip()
 
         self._create_common_dirs()
+        self.__minio_client = MinioClient(
+                 packages_base_path,
+                 packages_bucket,
+                 packages_access_key,
+                 packages_access_secret,
+                 packages_encryption_key)
 
     def __del__(self):
         if len(getattr(self, "futures", [])) > 0:
@@ -629,11 +643,6 @@ class Configuration(object):
             self._log('Downloading %s failed' % (url))
         return path
 
-    def _check_package_path(self):
-        if self.package_path is None:
-            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
-            sys.exit(1)
-
     def install_waf(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
@@ -733,15 +742,8 @@ class Configuration(object):
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
-    def get_local_or_remote_file(self, path):
-        if os.path.isdir(self.package_path): # is is a local path?
-            if os.path.exists(path):
-                return os.path.normpath(os.path.abspath(path))
-            print("Could not find local file:", path)
-            sys.exit(1)
-        dirname, basename = os.path.split(path)
-        path = dirname + "/" + urllib.parse.quote(basename)
-        path = self._download(path) # it should be an url
+    def get_local_or_remote_file(self, package_name):
+        path = self.__minio_client.download_package(package_name, lambda url, count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
         if path is None:
             print("Error. Could not download %s" % path)
             sys.exit(1)
@@ -807,22 +809,22 @@ class Configuration(object):
 
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
-            download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, force_extract=True)
+            download_sdk(self, f'{sdk.PACKAGES_MACOS_SDK}.tar.gz', join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
+            download_sdk(self, f'{sdk.PACKAGES_XCODE_TOOLCHAIN}.darwin.tar.gz', sdkfolder, force_extract=True)
 
         if target_platform in ('arm64-ios', 'x86_64-ios'):
             # iOS SDK
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self, f'{sdk.PACKAGES_IOS_SDK}.tar.gz', join(sdkfolder, sdk.PACKAGES_IOS_SDK))
+            download_sdk(self, f'{sdk.PACKAGES_IOS_SIMULATOR_SDK}.tar.gz', join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self, f'{sdk.PACKAGES_WIN32_SDK_10}.tar.gz', join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self, f'{sdk.PACKAGES_WIN32_TOOLCHAIN}.tar.gz', join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
         if target_platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
             emsdk_folder = sdk.get_defold_emsdk()
-            download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
+            download_sdk(self, f'{sdk.PACKAGES_EMSCRIPTEN_SDK}-{self.host}.tar.gz', emsdk_folder)
 
             if not os.path.isfile(sdk.get_defold_emsdk_config()):
                 print("Activating emsdk")
@@ -844,20 +846,20 @@ class Configuration(object):
                 host = 'darwin' # our packages are still called darwin
 
             # Android NDK
-            download_sdk(self, '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk(self, f'{PACKAGES_ANDROID_NDK}-{host}.tar.gz', join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, sdk.ANDROID_TARGET_API_LEVEL, sdk.ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, f'{PACKAGES_ANDROID_SDK}-{host}-android-{sdk.ANDROID_TARGET_API_LEVEL}-{sdk.ANDROID_BUILD_TOOLS_VERSION}.tar.gz', join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host:
             package = sdk.PACKAGES_LINUX_X86_64_TOOLCHAIN
             if self.host == 'arm64-linux':
                 package = sdk.PACKAGES_LINUX_ARM64_TOOLCHAIN
 
-            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, package), join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), format='J')
+            download_sdk(self, f'{package}.tar.xz', join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), format='J')
 
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios') and 'linux' in self.host:
             if not os.path.exists(join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG, 'cctools')):
-                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), force_extract=True)
+                download_sdk(self, f'{PACKAGES_CCTOOLS_PORT}.tar.gz', join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), force_extract=True)
 
         build_private.install_sdk(self, target_platform)
 
@@ -2712,10 +2714,25 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = default_archive_domain,
                       help = 'Domain where builds will be archived. Default is %s' % default_archive_domain)
 
-    default_package_path = CDN_PACKAGES_URL
-    parser.add_option('--package-path', dest='package_path',
-                      default = default_package_path,
-                      help = 'Either an url to a file server where the sdk packages are located, or a path to a local folder. Reads $DM_PACKAGES_URL. Default is %s.' % default_package_path)
+    parser.add_option('--package-base-url', dest='package_base_path',
+                      default=PACKAGES_STORAGE_BASE_URL,
+                      help='')
+    
+    parser.add_option('--package-bucket', dest='package_bucket',
+                      default=PACKAGES_STORAGE_BUCKET,
+                      help='')
+
+    parser.add_option('--package-access-key', dest='package_access_key',
+                      default=PACKAGES_STORAGE_ACCESS_KEY,
+                      help='')
+
+    parser.add_option('--package-access-secret', dest='package_access_secret',
+                      default=PACKAGES_STORAGE_ACCESS_SECRET,
+                      help='')
+
+    parser.add_option('--package-encryption-key', dest='package_encryption_key',
+                      default=PACKAGES_STORAGE_ENCRYPTION_KEY,
+                      help='')
 
     parser.add_option('--set-version', dest='set_version',
                       default = None,
@@ -2820,7 +2837,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       generate_compile_commands = options.generate_compile_commands,
                       no_colors = options.no_colors,
                       archive_domain = options.archive_domain,
-                      package_path = options.package_path,
+                      packages_base_path = options.package_base_path,
+                      packages_bucket = options.package_bucket,
+                      packages_access_key = options.package_access_key,
+                      packages_access_secret = options.package_access_secret,
+                      packages_encryption_key = options.package_encryption_key,
                       set_version = options.set_version,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,
