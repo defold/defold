@@ -32,7 +32,7 @@ namespace dmGameSystem
     float FontGenGetEdgeValue(); // [0 .. 255]
 
     // Scripting
-    typedef void (*FGlyphCallback)(dmJobThread::HJob hjob, void* cbk_ctx, int result, const char* errmsg);
+    typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
     bool FontGenAddGlyphs(FontResource* resource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx);
     bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
 

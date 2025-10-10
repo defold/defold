@@ -252,7 +252,7 @@ static void InvokeCallback(dmJobThread::HContext, dmJobThread::HJob hjob, JobIte
     JobStatus* status = item->m_Status;
     if (item->m_Callback) // only the last item has this callback
     {
-        item->m_Callback(hjob, item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
+        item->m_Callback(item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
 
 // // TODO: Hide this behind a verbosity flag
 // // TODO: Protect this using a spinlock
@@ -270,23 +270,6 @@ static void DeleteItem(Context* ctx, JobItem* item)
         delete item->m_Status;
     }
     delete item;
-}
-
-static int JobProcessSentinelGlyph(dmJobThread::HContext, dmJobThread::HJob hjob, uint64_t tag, void* context, void* data)
-{
-    (void)hjob;
-    (void)tag;
-    (void)context;
-    (void)data;
-    return 1;
-}
-
-static void JobPostProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* context, void* data, int result)
-{
-    Context* ctx = (Context*)context;
-    JobItem* item = (JobItem*)data;
-    InvokeCallback(job_thread, hjob, item);
-    DeleteItem(ctx, item);
 }
 
 // Called on the main thread
