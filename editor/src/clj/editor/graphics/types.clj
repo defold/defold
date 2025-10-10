@@ -36,8 +36,8 @@
    ^boolean normalize])
 
 (defonce/protocol ElementBuffer
-  (buffer-data ^BufferData [this] "Returns the BufferData that contains the elements of this buffer.")
-  (element-type ^ElementType [this] "Returns the ElementType of elements in this buffer."))
+  (^BufferData buffer-data [this] "Returns the BufferData that contains the elements of this buffer.")
+  (^ElementType element-type [this] "Returns the ElementType of elements in this buffer."))
 
 (defonce ^:private vec1-doubles-zero (vector-of :double 0.0))
 (defonce ^:private vec1-doubles-one (vector-of :double 1.0))
