@@ -198,6 +198,14 @@ ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** re
  */
 ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource);
 
+/**
+ * Increase resource reference count by 1.
+ * @name ResourceIncRef
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param resource [type: void*] The resource
+ */
+void ResourceIncRef(HResourceFactory factory, void* resource);
+
 /*#
  * Get raw resource data. Unregistered resources can be loaded with this function.
  * If successful, the returned resource data must be deallocated with free()
@@ -398,6 +406,13 @@ uint32_t        ResourceDescriptorGetResourceSize(HResourceDescriptor rd);
  */
 HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
 
+/**
+ * Increase resource reference count by 1.
+ * @name ResourceDescriptorIncRef
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param rd [type: HResourceDescriptor] The resource handle
+ */
+void            ResourceDescriptorIncRef(HResourceFactory factory, HResourceDescriptor rd);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Type functions

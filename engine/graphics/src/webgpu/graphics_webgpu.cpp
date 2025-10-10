@@ -1563,7 +1563,7 @@ static void WebGPUEndRenderPass(WebGPUContext* context)
     }
 }
 
-static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float* clear_color, float clear_depth, uint32_t clear_stencil)
+static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float* clear_color, const float* clear_depth, const uint32_t* clear_stencil)
 {
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPURenderPassDescriptor desc = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
@@ -1641,21 +1641,29 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float
     {
         WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
         if(texture->m_TextureView) {
-            dsAttachment.view              = texture->m_TextureView;
-            dsAttachment.depthLoadOp       = WGPULoadOp_Clear;
-            dsAttachment.depthStoreOp      = WGPUStoreOp_Store;
-            dsAttachment.depthClearValue   = clear_depth;
-            dsAttachment.stencilLoadOp     = WGPULoadOp_Clear;
-            dsAttachment.stencilStoreOp    = WGPUStoreOp_Store;
-            dsAttachment.stencilClearValue = clear_stencil;
-            desc.depthStencilAttachment    = &dsAttachment;
+            dsAttachment.view                  = texture->m_TextureView;
+            dsAttachment.depthStoreOp          = WGPUStoreOp_Store;
+            if (clear_depth) {
+                dsAttachment.depthLoadOp       = WGPULoadOp_Clear;
+                dsAttachment.depthClearValue   = *clear_depth;
+            } else {
+                dsAttachment.depthLoadOp       = WGPULoadOp_Load;
+            }
+            dsAttachment.stencilStoreOp        = WGPUStoreOp_Store;
+            if (clear_stencil) {
+                dsAttachment.stencilLoadOp     = WGPULoadOp_Clear;
+                dsAttachment.stencilClearValue = *clear_stencil;
+            } else {
+                dsAttachment.stencilLoadOp     = WGPULoadOp_Load;
+            }
+            desc.depthStencilAttachment        = &dsAttachment;
         }
     }
 
     return wgpuCommandEncoderBeginRenderPass(context->m_CommandEncoder, &desc);
 }
 
-static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clear_color, float clear_depth, uint32_t clear_stencil)
+static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clear_color, const float* clear_depth, const uint32_t* clear_stencil)
 {
     TRACE_CALL;
     WebGPUEndComputePass(context);
@@ -1698,7 +1706,9 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUEndRenderPass(context);
     const float clear_color[] = { red / 255.0f, green / 255.0f, blue / 255.0f, alpha / 255.0f };
-    WebGPUBeginRenderPass(context, clear_color, depth, stencil);
+    WebGPUBeginRenderPass(context, (flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT) ? clear_color : 0,
+                          (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT) ? &depth : 0,
+                          (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT) ? &stencil : 0);
 }
 
 static void WebGPUBeginFrame(HContext _context)
@@ -2341,7 +2351,7 @@ static void WebGPUSetupComputePipeline(WebGPUContext* context)
 static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* indexBuffer, Type indexBufferType)
 {
     TRACE_CALL;
-    WebGPUBeginRenderPass(context, 0, 1.0f, 0);
+    WebGPUBeginRenderPass(context, 0, 0, 0);
     WebGPUUpdateBindGroups(context);
 
     // Get the pipeline for the active draw state
@@ -3601,7 +3611,7 @@ void dmGraphics::WebGPURenderPassBegin(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*) _context;
-    context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, 0, 1.0f, 0);
+    context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, 0, 0, 0);
 }
 
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()

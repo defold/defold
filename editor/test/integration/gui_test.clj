@@ -21,6 +21,7 @@
             [editor.gl.pass :as pass]
             [editor.gui :as gui]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -563,9 +564,10 @@
           gui-resource (g/node-value node-id :resource)
           context (handler/->context :workbench {:active-resource gui-resource :project project})
           options (test-util/handler-options :scene.set-gui-layout [context] nil)
-          options-by-label (zipmap (map :label options) options)]
-      (is (= ["Default" "Landscape"] (map :label options)))
-      (is (= (get options-by-label "Default") (test-util/handler-state :scene.set-gui-layout [context] nil)))
+          options-by-label (zipmap (map :label options) options)
+          default-label (localization/message "gui.layout.default")]
+      (is (= [default-label "Landscape"] (map :label options)))
+      (is (= (get options-by-label default-label) (test-util/handler-state :scene.set-gui-layout [context] nil)))
       (g/set-property! node-id :visible-layout "Landscape")
       (is (= (get options-by-label "Landscape") (test-util/handler-state :scene.set-gui-layout [context] nil))))))
 

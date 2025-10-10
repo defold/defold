@@ -228,7 +228,7 @@
               :schemas [:default]))
 
 (def localization
-  (localization/make (make-test-prefs) ::test {}))
+  (localization/make (make-test-prefs) ::test {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}))
 
 (declare resolve-prop)
 

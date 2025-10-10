@@ -146,7 +146,6 @@
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
-    (ui/user-data! scene :localization localization)
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -154,7 +153,7 @@
     (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
-    (ui/show! stage)
+    (ui/show! stage localization)
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
@@ -191,12 +190,14 @@
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
+                                                      localization
                                                       {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs)
+                                                      localization)
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
@@ -243,6 +244,7 @@
               (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
+      (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
@@ -303,6 +305,7 @@
       (ui/on-closed! stage (fn [_]
                              (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
+                             (ui/remove-application-unfocused-callback! :main-stage-unfocused)
 
                              ;; TODO: This takes a long time in large projects.
                              ;; Disabled for now since we don't really need to
