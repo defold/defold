@@ -1677,7 +1677,7 @@
             creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
                                (g/connect resource-node-id :_node-id project :nodes)
                                (g/connect resource-node-id :node-id+resource project :node-id+resources))
-            created-resource-node-id (first (g/tx-data-nodes-added creation-tx-data))
+            created-resource-node-id (first (g/tx-data-added-node-ids creation-tx-data))
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
             tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
         [tx-data-context-map' created-resource-node-id creation-tx-data]))))

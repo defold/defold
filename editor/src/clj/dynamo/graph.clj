@@ -46,6 +46,8 @@
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
+(namespaces/import-vars [internal.transaction step-type])
+
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
 
@@ -229,14 +231,21 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
-(defn tx-data-nodes-added
-  "Returns a list of the node-ids added given a list of transaction steps, (tx-data)."
+(defn tx-data-added-nodes
+  "Given a sequence of transaction steps, returns a sequence of Nodes that will
+  be added by the transaction."
   [txs]
-  (keep (fn [tx-data]
-          (case (:type tx-data)
-            :create-node (-> tx-data :node :_node-id)
-            nil))
+  (keep (fn [tx-step]
+          (when (= :tx-step/add-node (it/step-type tx-step))
+            (:added-node tx-step)))
         (flatten txs)))
+
+(defn tx-data-added-node-ids
+  "Given a sequence of transaction steps, returns a sequence of node-ids that
+  will be added by the transaction."
+  [txs]
+  (map gt/node-id
+       (tx-data-added-nodes txs)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
@@ -606,7 +615,7 @@
   "Call the specified function when reaching the transaction step and apply the
   returned transaction steps in the same transaction"
   [f & args]
-  (it/expand f args))
+  (it/expand f args nil))
 
 ;; SDK api
 (defn expand-ec
@@ -619,7 +628,7 @@
   filters out duplicate connections, but it can't see connection txs if they are
   created only when transaction is executed, as is the case with g/expand-ec"
   [f & args]
-  (it/expand-ec f args))
+  (it/expand f args it/inject-evaluation-context-opts))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.

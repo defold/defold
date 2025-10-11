@@ -14,6 +14,7 @@ embedded_instances {
   "material: \\\"/defold-rive/assets/rivemodel.material\\\"\\n"
   "create_go_bones: true\\n"
   "artboard: \\\"New Artboard\\\"\\n"
+  "blit_material: \\\"/defold-rive/assets/shader-library/rivemodel_blit.material\\\"\\n"
   "\"\n"
   "}\n"
   "embedded_components {\n"

@@ -23,7 +23,8 @@
             [editor.util :as util]
             [internal.cache :as c]
             [schema.core :as s]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll])
   (:import [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
@@ -108,7 +109,7 @@
                                            (let [target-id (g/override-root (:node-id item))
                                                  tx-data (tx-attach-fn target-id child-id)]
                                              (keep (fn [tx-step]
-                                                     (when (= :connect (:type tx-step))
+                                                     (when (= :tx-step/connect (g/step-type tx-step))
                                                        (let [src-serial-id (node-id->serial-id (:source-id tx-step))
                                                              tgt-serial-id (node-id->serial-id (:target-id tx-step))]
                                                          (when (and src-serial-id tgt-serial-id)
@@ -203,11 +204,9 @@
 
 (defn- nodes-by-id
   [paste-data]
-  (into {}
-        (comp (filter #(= (:type %) :create-node))
-              (map :node)
-              (map (juxt :_node-id identity)))
-        (:tx-data paste-data)))
+  (->> (:tx-data paste-data)
+       (g/tx-data-added-nodes)
+       (coll/pair-map-by g/node-id)))
 
 (defn- root-nodes [paste-data]
   (let [id->node (nodes-by-id paste-data)]

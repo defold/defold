@@ -12,7 +12,8 @@ profiles {
     os: OS_ID_GENERIC
     formats {
       format: TEXTURE_FORMAT_RGBA
-      compression_level: BEST
+      compressor: "Uncompressed"
+      compressor_preset: "UNCOMPRESSED"
     }
     mipmaps: true
   }
@@ -23,8 +24,8 @@ profiles {
     os: OS_ID_WINDOWS
     formats {
       format: TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-      compression_level: HIGH
-      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+      compressor: "BasisU"
+      compressor_preset: "BASISU_HIGH"
     }
     formats {
       format: TEXTURE_FORMAT_RGBA
