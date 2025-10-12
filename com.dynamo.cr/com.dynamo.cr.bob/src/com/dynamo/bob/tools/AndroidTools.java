@@ -143,6 +143,17 @@ public class AndroidTools {
     }
 
 
+
+    public static Result jarsigner(List<String> jarsignerargs) throws IOException {
+        init();
+
+        List<String> args = new ArrayList<>();
+        args.add(ToolsHelper.getJavaBinFile("jarsigner"));
+        args.addAll(jarsignerargs)
+
+        return exec(args);
+    }
+
     public static Result aapt2(List<String> aapt2args) throws IOException {
         init();
 
