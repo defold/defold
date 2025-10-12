@@ -19,6 +19,7 @@
             [editor.build-target :as bt]
             [editor.code.transpilers :as code.transpilers]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -39,9 +40,9 @@
 
 (defn- compiling-progress-message [node-id->resource-path node-id]
   (if (nil? node-id)
-    "Compiling..."
+    (localization/message "progress.compiling")
     (when-some [resource-path (node-id->resource-path node-id)]
-      (str "Compiling " resource-path))))
+      (localization/message "progress.compiling-resource" {"resource" resource-path}))))
 
 (defn- flatten-build-targets [build-targets]
   (let [seen (HashSet.)
@@ -197,7 +198,7 @@
         node-id->resource-path (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
         progress-message-fn (partial compiling-progress-message node-id->resource-path)
         step-count (count @steps)
-        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10 0 true) 5))
+        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 0 true) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
         _ (doseq [node-id (rseq @steps)]
             (try
@@ -213,9 +214,9 @@
                         project
                         (fn report-resolve-deps-node-id-progress! [node-id]
                           (when-let [path (node-id->resource-path node-id)]
-                            (render-progress! (progress/make-indeterminate (str "Resolving " path)))))
+                            (render-progress! (progress/make-indeterminate (localization/message "progress.resolving-resource" {"resource" path})))))
                         evaluation-context)]
     (if (g/error? build-targets)
       {:error build-targets}
       (let [build-dir (workspace/build-path (project/workspace project evaluation-context))]
-        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make "" 10 5 true) 5))))))
+        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 5 true) 5))))))

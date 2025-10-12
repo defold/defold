@@ -71,32 +71,32 @@
   [menu-items/open-selected
    menu-items/open-as
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Asset Browser"
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
    menu-items/separator
-   {:label "View Diff"
+   {:label (localization/message "command.vcs.diff")
     :icon "icons/32/Icons_S_06_arrowup.png"
     :command :vcs.diff}
-   {:label "Revert"
+   {:label (localization/message "command.vcs.revert")
     :icon "icons/32/Icons_S_02_Reset.png"
     :command :vcs.revert}])
 
@@ -159,7 +159,7 @@
         (notifications/show!
           (workspace/notifications workspace)
           {:type :warning
-           :text "Due to a Git error, Git features are not available for this project."})
+           :message (localization/message "notification.changes-view.git-error")})
         nil))))
 
 (defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]

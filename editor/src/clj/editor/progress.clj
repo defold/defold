@@ -13,21 +13,23 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.progress
-  (:require [util.coll :refer [pair]]
-            [util.defonce :as defonce]))
+  (:require [editor.localization :as localization]
+            [util.coll :refer [pair]]
+            [util.defonce :as defonce])
+  (:import [editor.localization MessagePattern]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce/record Progress
-  [^String message
+  [^MessagePattern message
    ^long size
    ^long pos
    cancel-state])
 
 (defn ->progress
-  ^Progress [^String message ^long size ^long pos cancel-state]
-  {:pre [(string? message)
+  ^Progress [^MessagePattern message ^long size ^long pos cancel-state]
+  {:pre [(localization/message-pattern? message)
          (nat-int? size) ; size 0 means indeterminate.
          (nat-int? pos)
          (<= pos size)
@@ -35,33 +37,33 @@
   (->Progress message size pos cancel-state))
 
 (defn make
-  (^Progress [^String message]
+  (^Progress [^MessagePattern message]
    (->progress message 1 0 :not-cancellable))
-  (^Progress [^String message ^long size]
+  (^Progress [^MessagePattern message ^long size]
    (->progress message size 0 :not-cancellable))
-  (^Progress [^String message ^long size ^long pos]
+  (^Progress [^MessagePattern message ^long size ^long pos]
    (->progress message size pos :not-cancellable))
-  (^Progress [^String message ^long size ^long pos cancellable]
+  (^Progress [^MessagePattern message ^long size ^long pos cancellable]
    (->progress message size pos (if cancellable :cancellable :not-cancellable))))
 
 (defn make-indeterminate
-  ^Progress [^String message]
+  ^Progress [^MessagePattern message]
   (->progress message 0 0 :not-cancellable))
 
 (defn make-cancellable-indeterminate
-  ^Progress [^String message]
+  ^Progress [^MessagePattern message]
   (->progress message 0 0 :cancellable))
 
-(def ^Progress done (->progress "Ready" 1 1 :not-cancellable))
+(def ^Progress done (->progress (localization/message "progress.ready") 1 1 :not-cancellable))
 
 (defn with-message
-  ^Progress [^Progress progress ^String message]
+  ^Progress [^Progress progress ^MessagePattern message]
   (assoc progress :message message))
 
 (defn jump
   (^Progress [^Progress progress ^long pos]
    (assoc progress :pos (min pos (.-size progress))))
-  (^Progress [^Progress progress ^long pos ^String message]
+  (^Progress [^Progress progress ^long pos ^MessagePattern message]
    (with-message (jump progress pos) message)))
 
 (defn advance
@@ -69,7 +71,7 @@
    (advance progress 1))
   (^Progress [^Progress progress ^long delta]
    (jump progress (+ (.-pos progress) delta)))
-  (^Progress [^Progress progress ^long delta ^String message]
+  (^Progress [^Progress progress ^long delta ^MessagePattern message]
    (with-message (advance progress delta) message)))
 
 (defn fraction [^Progress progress]
@@ -82,7 +84,7 @@
     (int (* 100.0 (double fraction)))))
 
 (definline message
-  ^String [^Progress progress]
+  ^MessagePattern [^Progress progress]
   `(.-message ~(with-meta progress {:tag `Progress})))
 
 (defn done? [^Progress progress]
@@ -133,11 +135,6 @@
             (percentage progress))))
 
 (defn null-render-progress! [_])
-
-(defn println-render-progress! [^Progress progress]
-  (if-some [percentage (percentage progress)]
-    (println (message progress) percentage "%")
-    (println (message progress))))
 
 (defn throttle-render-progress [render-progress!]
   (let [last-progress (atom nil)]
@@ -195,15 +192,15 @@
 
 (defn progress-mapv
   ([f coll render-progress!]
-   (progress-mapv f coll render-progress! (constantly "")))
+   (progress-mapv f coll render-progress! (constantly localization/empty-message)))
   ([f coll render-progress! message-fn]
    (persistent!
      (first
        (reduce (fn [[result progress] item]
-                 (let [progress (with-message progress (or (message-fn item) ""))]
+                 (let [progress (with-message progress (or (message-fn item) localization/empty-message))]
                    (render-progress! progress)
                    (pair (conj! result (f item progress))
                          (advance progress))))
                (pair (transient [])
-                     (->progress "" (count coll) 0 :not-cancellable))
+                     (->progress localization/empty-message (count coll) 0 :not-cancellable))
                coll)))))

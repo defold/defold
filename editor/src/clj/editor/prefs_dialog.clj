@@ -57,6 +57,7 @@
     (cond->
       [{:pattern (localization/message "prefs.tab.general")
         :paths [[:workflow :load-external-changes-on-app-focus]
+                [:workflow :save-on-app-focus-lost]
                 [:bundle :open-output-directory]
                 [:build :open-html5-build]
                 [:build :texture-compression]

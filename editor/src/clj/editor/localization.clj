@@ -21,7 +21,6 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui]
             [internal.java :as java]
             [internal.util :as util]
             [util.coll :as coll]
@@ -30,13 +29,23 @@
   (:import [clojure.lang AFn Agent IFn IRef]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
            [com.ibm.icu.util ULocale]
+           [com.sun.javafx.application PlatformImpl]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
+           [java.util.concurrent Executor]
            [javafx.application Platform]
            [javafx.beans.value WritableValue]
-           [javafx.scene.control Labeled Tab]
+           [javafx.scene.control Labeled MenuItem Tab TableColumnBase Tooltip]
            [javafx.scene.text Text]
            [org.apache.commons.io FilenameUtils]))
+
+;; Next line of code makes sure JavaFX is initialized, which is required during
+;; compilation even when we are not actually running the editor. To properly
+;; generate reflection-less code, clojure compiler loads classes and searches
+;; for fitting methods while compiling it. Loading javafx.scene.control.Control
+;; class requires application to be running, because it sets default platform
+;; stylesheet, and this requires Application to be running.
+(PlatformImpl/startup (fn []))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -74,6 +83,11 @@
 ;;        ;; - locale-specific date formatter (e.g. 2025-09-17 or 9/17/25)
 ;;        :date com.ibm.icu.text.DateFormat}))))
 
+(def javafx-executor
+  (reify Executor
+    (execute [_ command]
+      (Platform/runLater command))))
+
 (defonce/protocol Localizable
   (apply-localization [obj str] "Apply a localization string to object"))
 
@@ -90,6 +104,15 @@
   WritableValue
   (apply-localization [tab str]
     (.setValue tab str))
+  MenuItem
+  (apply-localization [menu-item str]
+    (.setText menu-item str))
+  Tooltip
+  (apply-localization [tooltip str]
+    (.setText tooltip str))
+  TableColumnBase
+  (apply-localization [column str]
+    (.setText column str))
   Object
   (apply-localization [unknown _]
     (throw (IllegalArgumentException. (format "%s does not implement Localizable protocol" unknown))))
@@ -260,7 +283,7 @@
   [^Localization localization bundle-key bundle]
   {:pre [(localization? localization)]}
   (send-off (.-agent localization) impl-set-bundle! bundle-key bundle)
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn set-locale!
   "Asynchronously set the active locale and notify listeners
@@ -274,7 +297,7 @@
   [^Localization localization locale]
   {:pre [(localization? localization) (string? locale)]}
   (send-off (.-agent localization) impl-set-locale! (.-prefs localization) locale)
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn localize!
   "Localize an object that implements Localizable protocol
@@ -296,7 +319,7 @@
    {:pre [(localization? localization)]}
    (apply-localization object (impl-format @localization pattern))
    (when (message-pattern? pattern)
-     (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-localize! object pattern))
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern))
    object))
 
 (defn unlocalize!
@@ -314,7 +337,7 @@
     localization    the localization instance created with [[make]]"
   [object ^Localization localization]
   {:pre [(some? object) (localization? localization)]}
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-unlocalize! object)
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-unlocalize! object)
   object)
 
 (defn make
@@ -377,18 +400,19 @@
                       (.reset watch-key)))))))))
       localization)))
 
-(defn- impl-simple-message [k m ^LocalizationState state]
+(defn- impl-simple-message [k m fallback ^LocalizationState state]
   (if-let [format-fn (get (.-messages state) k)]
     (format-fn m)
-    (if (system/defold-dev?)
-      (str "!" k "!")
-      (camel/->TitleCase (peek (string/split k #"\."))))))
+    (or fallback
+        (if (system/defold-dev?)
+          (str "!" k "!")
+          (camel/->TitleCase (peek (string/split k #"\.")))))))
 
-(defonce/record SimpleMessage [k m]
+(defonce/record SimpleMessage [k m fallback]
   MessagePattern
-  (format [_ state] (impl-simple-message k m state)))
+  (format [_ state] (impl-simple-message k m fallback state)))
 
-(defonce/record MessageWithNestedPatterns [k m ks]
+(defonce/record MessageWithNestedPatterns [k m fallback ks]
   MessagePattern
   (format [_ state]
     (impl-simple-message
@@ -398,6 +422,7 @@
           #(assoc! %1 %2 (.format ^MessagePattern (m %2) state))
           (transient m)
           ks))
+      fallback
       state)))
 
 (defn message
@@ -406,21 +431,41 @@
   To actually format, invoke localization (or its state) with pattern
 
   Args:
-    k    localization key, a dot-separated string, e.g. \"some-dialog.title\"
-    m    optional map from string keys (variable names available for use in k's
-         localization message) to either strings, numbers, or message patterns"
-  ([k]
-   (message k {}))
-  ([k m]
-   (if-let [localizable-keys (when (pos? (count m))
+    key          localization key, a dot-separated string, e.g. \"dialog.title\"
+    variables    optional map from string keys (variable names available for
+                 use in key's localization message) to either strings, numbers,
+                 or message patterns
+    fallback     optional fallback string used in the case when localization key
+                 does not exist"
+  ([key]
+   (message key {} nil))
+  ([key variables]
+   (message key variables nil))
+  ([key variables fallback]
+   (if-let [localizable-keys (when (pos? (count variables))
                                (coll/not-empty
                                  (persistent!
                                    (reduce-kv
                                      #(cond-> %1 (message-pattern? %3) (conj! %2))
                                      (transient [])
-                                     m))))]
-     (->MessageWithNestedPatterns k m localizable-keys)
-     (->SimpleMessage k m))))
+                                     variables))))]
+     (->MessageWithNestedPatterns key variables fallback localizable-keys)
+     (->SimpleMessage key variables fallback))))
+
+(defn vary-message-variables
+  "Transforms message variable map with a supplied function
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    original    localization message created using [[message]] fn
+    f           fn that transforms the variable map, will receive it as a first
+                argument, and then the remaining arguments
+    args        the remaining arguments"
+  [original f & args]
+  {:pre [(or (instance? SimpleMessage original)
+             (instance? MessageWithNestedPatterns original))]}
+  (message (:k original) (apply f (:m original) args) (:fallback original)))
 
 (defn- impl-simple-list [list-k items state]
   (.format ^ListFormatter (list-k state) ^Collection items))
@@ -501,11 +546,77 @@
     [^String locale]
     (.localeDisplayName display-names locale)))
 
+(def empty-message
+  "Message pattern that always returns an empty string"
+  ;; We typically use records for patterns to define equality (for cljfx), but
+  ;; in this case it's okay to use a reified interface since it's a single value
+  ;; that we reuse as-is
+  (reify MessagePattern
+    (format [_ _] "")))
+
+(defonce/record Join [separator separator-localizable items localizable-indices]
+  MessagePattern
+  (format [_ state]
+    (coll/join-to-string
+      (if separator-localizable (.format ^MessagePattern separator state) separator)
+      (if localizable-indices
+        (persistent!
+          (reduce
+            #(assoc! %1 %2 (.format ^MessagePattern (items %2) state))
+            (transient items)
+            localizable-indices))
+        items))))
+
+(defn join
+  "Like clojure.string/join, but creates a message pattern
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    separator    optional, either string, number, or other localizable message
+    items        vector of items, either strings, numbers, or other localizable
+                 messages"
+  ([items]
+   (join "" items))
+  ([separator items]
+   {:pre [(vector? items)]}
+   (->Join separator
+           (message-pattern? separator)
+           items
+           (when (pos? (count items))
+             (coll/not-empty
+               (into []
+                     (keep-indexed #(when (message-pattern? %2) %1))
+                     items))))))
+
+(defonce/record Transform [message message-localizable f args]
+  MessagePattern
+  (format [_ state]
+    (str
+      (apply
+        f
+        (if message-localizable (.format ^MessagePattern message state) message)
+        args))))
+
+(defn transform
+  "Create a message pattern that transforms another message pattern
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    :message    any value, but preferably a MessagePattern instance, created
+                with, e.g., [[message]]
+    :f          transformer function, will receive localized string with the
+                rest of the args
+    :args       the rest of the args"
+  [message f & args]
+  (let [message-localizable (message-pattern? message)]
+    (->Transform (cond-> message (not message-localizable) str) message-localizable f args)))
+
 ;; TODO:
-;;  - notifications
-;;  - editor.progress
-;;  - loading project dialog
 ;;  - editor scripts localization
-;;  - menus
-;;  - all properties
+;;  - outline
+;;  - resource type label (requires outline!)
+;;  - form views
 ;;  - missed things...
+;;  - contribution doc / crowdin setup / link in drop-down

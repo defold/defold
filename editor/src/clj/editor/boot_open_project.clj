@@ -153,7 +153,7 @@
     (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
-    (ui/show! stage)
+    (ui/show! stage localization)
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
@@ -173,7 +173,7 @@
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
-          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
+          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
@@ -190,12 +190,14 @@
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
+                                                      localization
                                                       {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs)
+                                                      localization)
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
@@ -212,10 +214,11 @@
                            (notifications/show!
                              (workspace/notifications workspace)
                              {:type :warning
-                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
-                                            server-port
-                                            (.getMessage e)
-                                            (http-server/port server))})
+                              :message (localization/message
+                                         "notification.web-server.port-fallback.warning"
+                                         {"requested" server-port
+                                          "reason" (.getMessage e)
+                                          "fallback" (http-server/port server)})})
                            server)))
           port-file-content (str (http-server/port web-server))
           port-file (doto (io/file project-path ".internal" "editor.port")
@@ -225,10 +228,12 @@
       (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
       (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
       (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
+      (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
       (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
       (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
+
       (.addShutdownHook
         (Runtime/getRuntime)
         (Thread.
@@ -239,6 +244,7 @@
               (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
+      (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
@@ -299,6 +305,7 @@
       (ui/on-closed! stage (fn [_]
                              (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
+                             (ui/remove-application-unfocused-callback! :main-stage-unfocused)
 
                              ;; TODO: This takes a long time in large projects.
                              ;; Disabled for now since we don't really need to
