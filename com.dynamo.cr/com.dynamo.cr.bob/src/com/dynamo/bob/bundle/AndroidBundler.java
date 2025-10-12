@@ -633,7 +633,7 @@ public class AndroidBundler implements IBundler {
         args.add("-keystore"); args.add(keystore);
         args.add("-storepass"); args.add(keystorePassword);
         args.add("-keypass"); args.add(keyPassword);
-        args.add(signFile.getAbsolutePath(),);
+        args.add(signFile.getAbsolutePath());
         args.add(keystoreAlias);
 
         AndroidTools.jarsigner(args);

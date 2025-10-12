@@ -149,7 +149,7 @@ public class AndroidTools {
 
         List<String> args = new ArrayList<>();
         args.add(ToolsHelper.getJavaBinFile("jarsigner"));
-        args.addAll(jarsignerargs)
+        args.addAll(jarsignerargs);
 
         return exec(args);
     }
