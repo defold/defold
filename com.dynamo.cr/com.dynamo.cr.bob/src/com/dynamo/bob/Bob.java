@@ -955,6 +955,10 @@ public class Bob {
                     commands.remove("bundletool");
                     AndroidTools.bundletool(commands);
                 }
+                else if (commands.contains("jarsigner")) {
+                    commands.remove("jarsigner");
+                    AndroidTools.jarsigner(commands);
+                }
                 else {
                     result = project.build(progress, commands.toArray(new String[0]));
                 }
