@@ -57,9 +57,12 @@ public class AndroidTools {
             env.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
         Result res = Exec.execResultWithEnvironment(env, args);
+        String stdout = new String(res.stdOutErr, StandardCharsets.UTF_8);
         if (res.ret != 0) {
-            String stdout = new String(res.stdOutErr, StandardCharsets.UTF_8);
             throw new IOException(stdout);
+        }
+        else {
+            logger.info("result: %s", stdout);
         }
         return res;
     }
