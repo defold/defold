@@ -531,6 +531,27 @@
         (invoke-setter ctx node-id node property old-value new-value override-node? dynamic?))
       ctx)))
 
+(defn- ctx-set-property
+  [ctx node-id property-label new-value]
+  (let [basis (:basis ctx)
+        node (gt/node-by-id-at basis node-id)]
+    (if (nil? node) ; nil if node was deleted in this transaction
+      ctx
+      (let [is-override-node (some? (gt/original node))
+            is-dynamic (not (contains? (in/all-properties (gt/node-type node)) property-label))
+
+            ;; As an optimization, we bypass the property (value ...) clause if
+            ;; the node does not yet have a value for the property. This speeds
+            ;; up project loading significantly.
+            old-value (when (or is-override-node
+                                (contains? node property-label))
+                        ;; Use a custom evaluation-context since we're inside a
+                        ;; transaction and cannot use the cache.
+                        (let [tx-data-context (:tx-data-context ctx)
+                              evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+                          (in/node-property-value node property-label evaluation-context)))]
+        (invoke-setter ctx node-id node property-label old-value new-value is-override-node is-dynamic)))))
+
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
         old-value (gt/get-property node basis property)
@@ -751,6 +772,25 @@
 (defn transfer-overrides [from-id->to-id]
   [(->TransferOverridesTXS from-id->to-id)])
 
+(defonce/record SetPropertyTXS [node-id property-label new-value]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/set-property)
+
+  (metrics-key [_this]
+    (pair node-id property-label))
+
+  (perform [_this ctx]
+    (ctx-set-property ctx node-id property-label new-value)))
+
+(defn set-property
+  "*transaction step* - Sets a property value on a node."
+  [node-id property-label new-value opts]
+  {:pre [(gt/node-id? node-id)
+         (keyword? property-label)
+         (or (nil? opts) (map? opts))]}
+  [(->SetPropertyTXS node-id property-label new-value)])
+
 (defonce/record UpdatePropertyTXS [node-id property-label fn args opts]
   TransactionStep
   (step-type [_this]
@@ -775,13 +815,6 @@
 
 (def inject-evaluation-context-opts
   {:inject-evaluation-context true})
-
-(defn set-property-update-fn [_old-value new-value] new-value)
-
-(defn set-property
-  "*transaction step* - Sets a property value on a node."
-  [node-id property-label new-value opts]
-  (update-property node-id property-label set-property-update-fn [new-value] opts))
 
 (defonce/record ClearPropertyTXS [node-id property-label]
   TransactionStep
