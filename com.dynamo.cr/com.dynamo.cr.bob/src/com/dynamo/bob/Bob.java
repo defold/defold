@@ -923,7 +923,7 @@ public class Bob {
             }
             TimeProfiler.stop(); // ParseCommandLine
 
-            // this step needs to happen last, especially afte additional
+            // this step needs to happen last, especially after additional
             // project settings have been set using --settings
             //
             // 1. game.project with overrides are loaded first
