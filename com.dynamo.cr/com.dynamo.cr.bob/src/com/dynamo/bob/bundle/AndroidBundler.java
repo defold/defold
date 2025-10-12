@@ -628,13 +628,15 @@ public class AndroidBundler implements IBundler {
         String keystoreAlias = getKeystoreAlias(project);
         String keyPassword = getKeyPassword(project);
 
-        AndroidTools.exec(ToolsHelper.getJavaBinFile("jarsigner"),
-            "-verbose",
-            "-keystore", keystore,
-            "-storepass", keystorePassword,
-            "-keypass", keyPassword,
-            signFile.getAbsolutePath(),
-            keystoreAlias);
+        List<String> args = new ArrayList<String>();
+        args.add("-verbose");
+        args.add("-keystore"); args.add(keystore);
+        args.add("-storepass"); args.add(keystorePassword);
+        args.add("-keypass"); args.add(keyPassword);
+        args.add(signFile.getAbsolutePath(),);
+        args.add(keystoreAlias);
+
+        AndroidTools.jarsigner(args);
     }
 
     /**
