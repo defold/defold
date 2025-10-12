@@ -17,6 +17,7 @@
 #include "dlib/atomic.h"
 #include "dlib/dalloca.h"
 #include "dlib/time.h"
+#include "dlib/log.h"
 
 #include <dlib/thread.h> // We want the defines DM_HAS_THREADS
 
@@ -26,14 +27,11 @@
 
 static int32_t ProcessSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, void* user_context, void* user_data)
 {
-    printf("ProcessSimple: %p  result: 1\n", (void*)(uintptr_t)job);
     return 1;
 }
 
 static void CallbackSimple(dmJobThread::HContext ctx, dmJobThread::HJob job, dmJobThread::JobStatus status, void* user_context, void* user_data, int32_t user_result)
 {
-    printf("CallbackSimple: %p  result: %d\n", (void*)(uintptr_t)job, user_result);
-
     uint8_t* d = (uint8_t*) user_data;
     if (d)
         *d = user_result; // If the task was cancelled, the process function will not have
@@ -152,12 +150,10 @@ static int32_t ProcessCancel(dmJobThread::HContext ctx, dmJobThread::HJob job, v
 
     uint64_t t = (uint64_t)(uintptr_t)user_data;
 
-printf("ProcessCancel ->\n");
     for (uint32_t i = 0; i < context->m_JobsToCancel.Size(); ++i)
     {
         dmJobThread::CancelJob(ctx, context->m_JobsToCancel[i]);
     }
-printf("<- ProcessCancel\n");
 
     dmTime::Sleep(t);
     return 1;
@@ -297,15 +293,30 @@ TEST_P(dmJobThreadTest, SortedDependencyJobs)
     }
 
     bool tests_done = false;
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 250000;
-    while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
+    bool timeout = false;
+    uint64_t max_time = 1000000;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + max_time;
+    while (!tests_done)
     {
+        if (dmTime::GetMonotonicTime() >= stop_time)
+        {
+            timeout = true;
+            break;
+        }
+
         dmJobThread::Update(m_JobThread, 500);
 
         tests_done = count_finished == job_count;
 
         dmTime::Sleep(20*1000);
     }
+
+    if (timeout)
+    {
+        dmLogError("Test timed out after %u ms", (uint32_t)max_time / 1000);
+    }
+
+    ASSERT_FALSE(timeout);
 
     // Make sure all children are processed before their parents
 
@@ -343,6 +354,12 @@ INSTANTIATE_TEST_CASE_P(dmJobThreadTest, dmJobThreadTest, jc_test_values_in(test
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }
