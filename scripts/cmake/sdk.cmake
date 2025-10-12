@@ -38,6 +38,13 @@ elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
     include(sdk_windows)
 elseif (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web")
     include(sdk_emscripten)
+elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
+    # Nintendo Switch (NSDK) vendor toolchain
+    # The vendor toolchain file may be absent in some repositories; fail with a clear message.
+    include(sdk_vendor_nsdk OPTIONAL)
+    if(NOT DEFINED DEFOLD_SDK_VENDOR_NSDK_INCLUDED)
+        message(FATAL_ERROR "Unsupported platform in this repository: arm64-nx64 (Nintendo Switch vendor toolchain missing: scripts/cmake/sdk_vendor_nsdk.cmake)")
+    endif()
 else()
     message(FATAL "Unsupported platform: ${TARGET_PLATFORM}")
 endif()

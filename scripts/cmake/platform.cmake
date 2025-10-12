@@ -20,6 +20,10 @@ endif()
 
 defold_log("TARGET_PLATFORM: ${TARGET_PLATFORM}")
 
+# Derive OS part from TARGET_PLATFORM tuple (e.g., x86_64-win32 -> win32)
+string(REGEX REPLACE "^[^-]+-" "" TARGET_PLATFORM_OS "${TARGET_PLATFORM}")
+defold_log("TARGET_PLATFORM_OS: ${TARGET_PLATFORM_OS}")
+
 # Include the sdk
 include(sdk)
 
@@ -50,6 +54,10 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         include(platform_linux)
 elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
         include(platform_windows)
+elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
+        # Mark this configuration as using a private vendor platform (e.g., Switch)
+        set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
+        include(platform_vendor_switch)
 endif()
 
 #**************************************************************************

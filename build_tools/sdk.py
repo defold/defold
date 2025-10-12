@@ -599,7 +599,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
         folders.append(get_defold_emsdk())
 
     if not folders:
-        log.log("sdk.py: No SDK folders specified for %s" %platform)
+        log.log("sdk.py: No SDK folders specified for %s" % platform)
         return False
 
     count = 0

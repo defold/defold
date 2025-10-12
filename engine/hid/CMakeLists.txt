@@ -19,10 +19,18 @@ set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 set(hid_SOURCES )
 list(APPEND hid_SOURCES "${HID_SRC_DIR}/hid.cpp")
 
-if (NOT TARGET_PLATFORM MATCHES "x86_64-ps4|x86_64-ps5|arm64-nx64")
-    list(APPEND hid_SOURCES "${HID_SRC_DIR}/native/hid_native.cpp")
-    list(APPEND hid_SOURCES "${HID_SRC_DIR}/native/hid_gamepad_driver_glfw.cpp")
+# Default to the cross-platform native backend; switch to per-OS directory
+# for private vendor builds (e.g., nx64).
+set(_native_dir "native")
+if(DEFOLD_IS_PRIVATE_VENDOR)
+    set(_native_dir "${TARGET_PLATFORM_OS}")
 endif()
+
+file(GLOB _hid_native_sources
+    "${HID_SRC_DIR}/${_native_dir}/*.c"
+    "${HID_SRC_DIR}/${_native_dir}/*.cpp"
+    "${HID_SRC_DIR}/${_native_dir}/*.mm")
+list(APPEND hid_SOURCES ${_hid_native_sources})
 
 defold_add_library(hid STATIC ${hid_SOURCES})
 target_compile_definitions(hid PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
