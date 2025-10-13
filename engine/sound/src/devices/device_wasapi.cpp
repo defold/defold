@@ -288,7 +288,6 @@ namespace dmDeviceWasapi
 
         if (device->m_DeviceInvalidated)
         {
-            dmTime::Sleep(1000);
             return 0;
         }
 
@@ -343,7 +342,6 @@ namespace dmDeviceWasapi
 
         if (device->m_DeviceInvalidated)
         {
-            dmTime::Sleep(1000);
             return dmSound::RESULT_INIT_ERROR;
         }
 
