@@ -37,7 +37,9 @@ namespace dmGameSystem
 
 struct JobStatus
 {
-    uint64_t    m_TimeGlyphGen;
+    uint64_t    m_TimeStart;        // Time started
+    uint64_t    m_TimeGlyphProcess; // Total processing time for all glyphs
+    uint64_t    m_TimeGlyphCallback; // Total processing time for all glyphs
     uint32_t    m_Count;    // Number of job items pushed
     uint32_t    m_Failures; // Number of failed job items
     const char* m_Error; // First error sets this string
@@ -116,7 +118,7 @@ static float Remap(float value, float outline_edge)
 }
 
 // Called on the worker thread
-static int JobGenerateGlyph(dmJobThread::HJob job, uint64_t tag, void* context, void* data)
+static int JobGenerateGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, void* context, void* data)
 {
     (void)context;
     JobItem* item = (JobItem*)data;
@@ -129,7 +131,7 @@ static int JobGenerateGlyph(dmJobThread::HJob job, uint64_t tag, void* context, 
 
     uint32_t glyph_index = item->m_GlyphIndex;
 
-    uint64_t tstart = dmTime::GetTime();
+    uint64_t tstart = dmTime::GetMonotonicTime();
 
     item->m_Glyph = new FontGlyph;
     memset(item->m_Glyph, 0, sizeof(FontGlyph));
@@ -190,11 +192,11 @@ static int JobGenerateGlyph(dmJobThread::HJob job, uint64_t tag, void* context, 
         glyph->m_Bitmap.m_Data = rgb;
     }
 
-    uint64_t tend = dmTime::GetTime();
+    uint64_t tend = dmTime::GetMonotonicTime();
 
 // TODO: Protect this using a spinlock
     JobStatus* status = item->m_Status;
-    status->m_TimeGlyphGen += tend - tstart;
+    status->m_TimeGlyphProcess += tend - tstart;
 
     return 1;
 }
@@ -211,16 +213,16 @@ static void SetFailedStatus(JobItem* item, const char* msg)
     dmLogError("%s", msg); // log for each error in a batch
 }
 
-static void InvokeCallback(dmJobThread::HJob hjob, uint64_t tag, JobItem* item)
+static void InvokeCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus job_status, JobItem* item)
 {
     JobStatus* status = item->m_Status;
     if (item->m_Callback) // only the last item has this callback
     {
-        item->m_Callback(hjob, tag, item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
+        item->m_Callback(job_thread, hjob, job_status, item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
 
 // // TODO: Hide this behind a verbosity flag
 // // TODO: Protect this using a spinlock
-//         dmLogInfo("Generated %u glyphs in %.2f ms", status->m_Count, status->m_TimeGlyphGen/1000.0f);
+//         dmLogInfo("Generated %u glyphs in %.2f ms", status->m_Count, status->m_TimeGlyphProcess/1000.0f);
     }
 }
 
@@ -236,28 +238,31 @@ static void DeleteItem(Context* ctx, JobItem* item)
     delete item;
 }
 
-static int JobProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* context, void* data)
+static int JobProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, void* context, void* data)
 {
+    (void)job_thread;
     (void)hjob;
-    (void)tag;
     (void)context;
     (void)data;
     return 1;
 }
 
-static void JobPostProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* context, void* data, int result)
+static void JobPostProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus job_status, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
-    InvokeCallback(hjob, tag, item);
+    InvokeCallback(job_thread, hjob, job_status, item);
     DeleteItem(ctx, item);
 }
 
 // Called on the main thread
-static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
+static void JobPostProcessGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob job, dmJobThread::JobStatus job_status, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
+    JobStatus* status = item->m_Status;
+
+    uint64_t tstart = dmTime::GetMonotonicTime();
 
     DM_MUTEX_OPTIONAL_SCOPED_LOCK(item->m_Mutex);
     if (!item->m_FontResource || !item->m_Font)
@@ -291,6 +296,10 @@ static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* conte
     {
         item->m_Glyph = 0; // It was successfully transferred to the .fontc resource (and then the HFontMap)
     }
+
+    uint64_t tend = dmTime::GetMonotonicTime();
+    status->m_TimeGlyphCallback += (tend - tstart);
+
     DeleteItem(ctx, item);
 }
 
@@ -395,11 +404,13 @@ static dmJobThread::HJob GenerateGlyphs(Context* ctx, FontResource* fontresource
         return 0;
     }
 
-    JobStatus* status      = new JobStatus;
-    status->m_TimeGlyphGen = 0;
-    status->m_Count        = 0;
-    status->m_Failures     = 0;
-    status->m_Error        = 0;
+    JobStatus* status           = new JobStatus;
+    status->m_TimeStart         = dmTime::GetMonotonicTime();
+    status->m_TimeGlyphProcess  = 0;
+    status->m_TimeGlyphCallback = 0;
+    status->m_Count             = 0;
+    status->m_Failures          = 0;
+    status->m_Error             = 0;
 
     HFont prev_font = 0;
     float prev_scale = 1;
@@ -487,12 +498,15 @@ dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font,
 
     float scale = FontGetScaleFromSize(font, font_info.m_Size);
 
-    JobStatus* status      = new JobStatus;
-    status->m_TimeGlyphGen = 0;
-    status->m_Count        = 1;
-    status->m_Failures     = 0;
-    status->m_Error        = 0;
+    JobStatus* status           = new JobStatus;
+    status->m_TimeStart         = dmTime::GetMonotonicTime();
+    status->m_TimeGlyphProcess  = 0;
+    status->m_TimeGlyphCallback = 0;
+    status->m_Count             = 1;
+    status->m_Failures          = 0;
+    status->m_Error             = 0;
 
+// TODO: Don't create a sentinel job for a single job!
     dmJobThread::HJob job_sentinel = CreateSentinelJob(ctx, status, cbk, cbk_ctx);
     GenerateGlyphByIndex(ctx, fontresource, font, &font_info, glyph_index, scale, status, job_sentinel);
     return job_sentinel;

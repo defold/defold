@@ -134,7 +134,7 @@ static int RemoveFont(lua_State* L)
     return 0;
 }
 
-static void PrewarmTextCallback(dmJobThread::HJob hjob, uint64_t tag, void* _ctx, int result, const char* errmsg)
+static void PrewarmTextCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;

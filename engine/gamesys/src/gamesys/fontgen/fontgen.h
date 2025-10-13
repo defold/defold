@@ -35,7 +35,7 @@ namespace dmGameSystem
     float FontGenGetEdgeValue(); // [0 .. 255]
 
     // Resource api
-    typedef void (*FGlyphCallback)(dmJobThread::HJob hjob, uint64_t tag, void* cbk_ctx, int result, const char* errmsg);
+    typedef void (*FGlyphCallback)(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* cbk_ctx, int result, const char* errmsg);
     dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, FGlyphCallback cbk, void* cbk_ctx);
     dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, FGlyphCallback cbk, void* cbk_ctx);
 

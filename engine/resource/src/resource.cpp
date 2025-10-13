@@ -379,11 +379,7 @@ static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescript
 
 void DeleteFactory(HFactory factory)
 {
-    if (factory->m_JobThreadContext)
-    {
-        dmJobThread::Destroy(factory->m_JobThreadContext);
-        factory->m_JobThreadContext = 0;
-    }
+    factory->m_JobThreadContext = 0;
 
     ReleaseBuiltinsArchive(factory);
 

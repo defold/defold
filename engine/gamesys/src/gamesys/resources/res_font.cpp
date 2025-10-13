@@ -141,7 +141,7 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    static void PrewarmGlyphsCallback(dmJobThread::HJob hjob, uint64_t tag, void* ctx, int result, const char* errmsg)
+    static void PrewarmGlyphsCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* ctx, int result, const char* errmsg)
     {
         FontResource* font = (FontResource*)ctx;
         font->m_Prewarming = 0;
@@ -168,10 +168,10 @@ namespace dmGameSystem
         FPrewarmTextCallback    m_Callback;
     };
 
-    static void PrewarmTextCallbackWrapper(dmJobThread::HJob hjob, uint64_t tag, void* cbk_ctx, int result, const char* errmsg)
+    static void PrewarmTextCallbackWrapper(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobContextWrapper* ctx = (FontJobContextWrapper*)cbk_ctx;
-        ctx->m_Callback(hjob, tag, ctx->m_Context, result, errmsg);
+        ctx->m_Callback(job_thread, hjob, status, ctx->m_Context, result, errmsg);
         RemovePendingJob(ctx->m_Resource, hjob);
         delete ctx;
     }
@@ -434,9 +434,11 @@ namespace dmGameSystem
         params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
     }
 
-    static void CacheMissGlyphCallback(dmJobThread::HJob hjob, uint64_t tag, void* ctx, int result, const char* errmsg)
+    static void CacheMissGlyphCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus job_status, void* ctx, int result, const char* errmsg)
     {
-        (void)tag;
+        (void)job_thread;
+        (void)hjob;
+        (void)job_status;
         (void)result;
         (void)errmsg;
         FontResource* resource = (FontResource*)ctx;
