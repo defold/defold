@@ -238,7 +238,11 @@ PACKAGES_LINUX_X86_64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -256,7 +260,11 @@ PACKAGES_LINUX_ARM64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_ANDROID=[
 "protobuf-3.20.1",
@@ -268,7 +276,11 @@ PACKAGES_ANDROID=[
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -281,7 +293,11 @@ PACKAGES_ANDROID_64=[
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
@@ -293,7 +309,9 @@ PACKAGES_EMSCRIPTEN=[
     "box2d_defold-2.2.1",
     "opus-1.5.2",
     "harfbuzz-11.3.2",
-    "SheenBidi-2.9.0"]
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
