@@ -1710,7 +1710,7 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :cljfx-form-view
-                                :label "Form"
+                                :label (localization/message "resource.view.form")
                                 :make-view-fn make-form-view))
 
 (handler/defhandler :edit.find :form

@@ -19,6 +19,7 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
@@ -35,8 +36,7 @@
            [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
-           [javafx.scene.layout AnchorPane HBox Priority]
-           [javafx.util Callback]))
+           [javafx.scene.layout AnchorPane HBox Priority]))
 
 (set! *warn-on-reflection* true)
 
@@ -230,67 +230,67 @@
   [menu-items/open-selected
    menu-items/open-as
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Asset Browser"
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
    menu-items/separator
-   {:label "Add"
+   {:label (localization/message "command.edit.add-embedded-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-embedded-component
     :expand true}
-   {:label "Add From File"
+   {:label (localization/message "command.edit.add-referenced-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-referenced-component}
-   {:label "Add Secondary"
+   {:label (localization/message "command.edit.add-secondary-embedded-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-secondary-embedded-component}
-   {:label "Add Secondary From File"
+   {:label (localization/message "command.edit.add-secondary-referenced-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-secondary-referenced-component}
    menu-items/separator
-   {:label "Cut"
+   {:label (localization/message "command.edit.cut")
     :command :edit.cut}
-   {:label "Copy"
+   {:label (localization/message "command.edit.copy")
     :command :edit.copy}
-   {:label "Paste"
+   {:label (localization/message "command.edit.paste")
     :command :edit.paste}
-   {:label "Delete"
+   {:label (localization/message "command.edit.delete")
     :icon "icons/32/Icons_M_06_trash.png"
     :command :edit.delete}
    menu-items/separator
-   {:label "Rename..."
+   {:label (localization/message "command.edit.rename")
     :command :edit.rename}
    menu-items/separator
-   {:label "Move Up"
+   {:label (localization/message "command.edit.reorder-up")
     :command :edit.reorder-up}
-   {:label "Move Down"
+   {:label (localization/message "command.edit.reorder-down")
     :command :edit.reorder-down}
    menu-items/separator
-   {:label "Show/Hide Objects"
+   {:label (localization/message "command.scene.visibility.toggle-selection")
     :command :scene.visibility.toggle-selection}
-   {:label "Hide Unselected Objects"
+   {:label (localization/message "command.scene.visibility.hide-unselected")
     :command :scene.visibility.hide-unselected}
-   {:label "Show Last Hidden Objects"
+   {:label (localization/message "command.scene.visibility.show-last-hidden")
     :command :scene.visibility.show-last-hidden}
-   {:label "Show All Hidden Objects"
+   {:label (localization/message "command.scene.visibility.show-all")
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
@@ -315,10 +315,9 @@
                     handler/selection->node-ids)]
          (g/transact
            (concat
-             (g/operation-label "Delete")
+             (g/operation-label (localization/message "operation.delete"))
              (for [node-id (handler/selection->node-ids selection)]
-               (do
-                 (g/delete-node (g/override-root node-id))))
+               (g/delete-node (g/override-root node-id)))
              (when (seq next)
                (app-view/select app-view next)))))))
 
@@ -638,8 +637,9 @@
                          (.setGraphic visibility-icon)
                          (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
                        (proxy-super setGraphic pane)
-                       (when-let [[r g b a] color]
-                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
+                       (.setStyle text-label
+                                  (when-let [[r g b a] color]
+                                    (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))
@@ -723,7 +723,7 @@
                             (cancel-rename! tree-view)))
       (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
-      (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
+      (.setCellFactory #(make-tree-cell % drag-entered-handler drag-exited-handler))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))

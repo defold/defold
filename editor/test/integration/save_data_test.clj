@@ -245,6 +245,7 @@
      "pieFillAngle" :unused
      "shadow" :unused
      "shadow_alpha" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -301,6 +302,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -322,6 +324,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -356,6 +359,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -385,6 +389,7 @@
      "pieFillAngle" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
