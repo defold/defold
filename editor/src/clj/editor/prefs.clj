@@ -208,7 +208,12 @@
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}}}
+                                         :default [0.5 0.5 0.5 1.0]}}}
+             :snap {:type :object
+                    :scope :project
+                    :properties {:enabled {:type :boolean}
+                                 :threshold {:type :number}
+                                 :active-groups {:type :set :item {:type :keyword}}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :any

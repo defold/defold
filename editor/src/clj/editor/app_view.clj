@@ -72,6 +72,7 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.snap :as snap]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -456,6 +457,22 @@
          (when-let [btn (get-grid-settings-button app-view)]
            (scene-visibility/settings-visible? btn))))
 
+(defn get-snap-settings-button
+  [app-view]
+  (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+          ui/selected-tab
+          .getContent
+          (.lookup "#show-snap-settings")))
+
+(handler/defhandler :scene.snap.show-settings :workbench
+  (run [app-view scene-visibility prefs]
+       (when-let [btn (get-snap-settings-button app-view)]
+         (snap/show-settings! app-view btn prefs)))
+  (state [app-view scene-visibility]
+         (when-let [btn (get-snap-settings-button app-view)]
+           (scene-visibility/settings-visible? btn))))
+
+
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
 
@@ -467,6 +484,9 @@
 
 (def ^:private grid-svg-path
   (ui/load-svg-path "scene/images/grid.svg"))
+
+(def ^:private magnet-svg-path
+  (ui/load-svg-path "scene/images/magnet.svg"))
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
@@ -500,6 +520,12 @@
     :command :scene.visibility.toggle-grid
     :more {:id :show-grid-settings
            :command :scene.grid.show-settings}}
+   {:id :snap
+    :tooltip "Snap"
+    :graphic-fn (partial icons/make-svg-icon-graphic magnet-svg-path)
+    :command :scene.snap.toggle
+    :more {:id :show-snap-settings
+           :command :scene.snap.show-settings}}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
