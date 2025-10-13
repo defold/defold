@@ -638,6 +638,7 @@ namespace dmGameSystem
 
         if (font->m_Prewarming)
         {
+            // This is force updating the global job thread, so that we don't end up in a dead lock
             dmGameSystem::FontGenFlushFinishedJobs(8000);
             return font->m_PrewarmDone ? dmResource::RESULT_OK : dmResource::RESULT_PENDING;
         }

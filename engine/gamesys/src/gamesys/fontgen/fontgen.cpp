@@ -417,11 +417,22 @@ static dmJobThread::HJob GenerateGlyphs(Context* ctx, FontResource* fontresource
 
     dmJobThread::HJob job_sentinel = CreateSentinelJob(ctx, status, cbk, cbk_ctx);
 
+    // Given the prewarm text, it may be that there are a lot of duplicated glyph indices
+    // So we only want to push requests for the unique ones
+    dmHashTable32<bool> unique;
+    unique.OffsetCapacity(num_glyphs);
+
     for (uint32_t i = 0; i < num_glyphs; ++i)
     {
         TextGlyph* glyph = &glyphs[i];
 
         uint32_t glyph_index = glyph->m_GlyphIndex;
+
+        bool* is_unique = unique.Get(glyph_index);
+        if (is_unique)
+            continue; // It means we've already pushed this codepoint in this loop
+        unique.Put(glyph_index, true);
+
         HFont font = glyph->m_Font;
         float scale = prev_scale;
 
