@@ -125,6 +125,19 @@
   (remove-watch focus-state key)
   nil)
 
+(defn add-application-unfocused-callback! [key application-unfocused! & args]
+  (add-watch focus-state key
+             (fn [_key _ref old new]
+               (when (and old
+                          (:focused old)
+                          (not (:focused new)))
+                 (apply application-unfocused! args))))
+  nil)
+
+(defn remove-application-unfocused-callback! [key]
+  (remove-watch focus-state key)
+  nil)
+
 (defprotocol Text
   (text ^String [this])
   (text! [this ^String val]))
