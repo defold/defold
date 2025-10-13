@@ -131,7 +131,19 @@
                (when (and old
                           (:focused old)
                           (not (:focused new)))
-                 (apply application-unfocused! args))))
+                 ;; Delay triggering the unfocused callback to avoid
+                 ;; false positives from transient focus changes (e.g. popups).
+                 (let [^long unfocused-t (:t new)]
+                   (future
+                     (Thread/sleep (long application-unfocused-threshold-ms))
+                     (let [current @focus-state]
+                       ;; Only trigger if we're still unfocused and the
+                       ;; focus-state timestamp matches the event that
+                       ;; scheduled this callback.
+                       (when (and current
+                                  (not (:focused current))
+                                  (= (:t current) unfocused-t))
+                         (apply application-unfocused! args))))))))
   nil)
 
 (defn remove-application-unfocused-callback! [key]
