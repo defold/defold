@@ -226,6 +226,7 @@ TextResult TextLayoutCreateLegacy(HFontCollection collection,
         }
 
         TextGlyph g = {0};
+        g.m_Font = font;
         if (FONT_RESULT_OK == r)
         {
             g.m_Cluster = i;
