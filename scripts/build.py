@@ -200,7 +200,11 @@ PACKAGES_WIN32=[
     "glfw-3.4",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
@@ -219,7 +223,11 @@ PACKAGES_WIN32_64=[
     "directx-headers-1.611.0",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
