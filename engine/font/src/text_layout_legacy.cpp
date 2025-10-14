@@ -85,7 +85,7 @@ void Layout(TextLayout*     layout,
                 if (c != 0)
                     trim = 1;
                 w = metrics(row_start, n - trim, measure_trailing_space);
-                if (abs(w) <= width)
+                if (dmMath::Abs(w) <= width)
                 {
                     last_n = n - trim;
                     last_w = w;
@@ -100,8 +100,8 @@ void Layout(TextLayout*     layout,
                     c = glyphs[last_cursor++].m_Codepoint;
                 }
             }
-        } while (abs(w) <= width && c != 0 && c != '\n');
-        if (abs(w) > width && last_n == 0)
+        } while (dmMath::Abs(w) <= width && c != 0 && c != '\n');
+        if (dmMath::Abs(w) > width && last_n == 0)
         {
             int trim = 0;
             if (c != 0)
