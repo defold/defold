@@ -195,7 +195,7 @@ TextResult TextLayoutCreateLegacy(HFontCollection collection,
     TextLayout* layout = new TextLayout;
     layout->m_Free = TextLayoutFreeLegacy;
 
-    layout->m_Glyphs.OffsetCapacity(layout->m_Glyphs.Capacity() - num_codepoints);
+    layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(num_codepoints);
     layout->m_Lines.SetSize(0);
     layout->m_FontCollection = collection;
