@@ -1894,18 +1894,24 @@ class Configuration(object):
 
         # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
         # or user startup files (Homebrew shellenv), which can shadow our tools.
-        # To ensure our PATH takes precedence, start a login shell, then
-        # immediately re-export our PATH and exec an interactive shell.
+        # On non-Windows, re-export our PATH after login init and exec an
+        # interactive shell to ensure our PATH takes precedence.
+        # On Windows/msys environments, keep previous behavior to avoid
+        # path translation issues and quoting of Windows paths.
         env = self._form_env()
 
-        # Preserve our computed PATH in a temp var that survives login init
-        env['DM_ENV_PATH'] = env['PATH']
+        is_windows_host = (sys.platform == 'win32') or ('win32' in self.host)
 
-        # Build a command that restores our PATH after login files ran
-        # and then chains into an interactive shell
-        reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec %s -i' % SHELL
-
-        args = [SHELL, '-l', '-c', reexport_cmd]
+        if not is_windows_host:
+            env['DM_ENV_PATH'] = env['PATH']
+            # Use $SHELL inside the shell for portability instead of injecting
+            # a potentially platform-specific path from Python.
+            reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
+            args = [SHELL, '-l', '-c', reexport_cmd]
+        else:
+            # Keep legacy behavior on Windows/msys to preserve PATH rewriting
+            # performed by the environment at shell startup.
+            args = [SHELL, '-l']
 
         if os.path.exists("/nix"):
             args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
