@@ -58,21 +58,20 @@ static bool LayoutText(LayoutContext* ctx,
     HFontCollection font_collection = layout->m_FontCollection;
 
     float line_width = settings->m_Width;
-    skb_layout_params_t params = {
-        .font_collection    = FontCollectionGetSkribidiPtr(font_collection),
-        .lang               = "en-us",                  // TODO: support setting
-        .origin             = {0, 0},
-        .layout_width       = line_width,
-        .layout_height      = 1000000.0f,
-        .base_direction     = SKB_DIRECTION_AUTO,
-        .text_wrap          = (uint8_t)(settings->m_LineBreak ? SKB_WRAP_WORD : SKB_WRAP_NONE),
-        .text_overflow      = SKB_OVERFLOW_NONE,
-        .vertical_trim      = SKB_VERTICAL_TRIM_DEFAULT,
-        .horizontal_align   = SKB_ALIGN_START,          // TODO: support the other way around (ask author for SKB_ALIGN_RIGHT/LEFT ?)
-        .vertical_align     = SKB_ALIGN_START,          // TODO: support the other way around (ask author for SKB_ALIGN_RIGHT/LEFT ?)
-        .baseline_align     = SKB_BASELINE_MIDDLE,
-        .flags              = 0
-    };
+    skb_layout_params_t params = {0};
+    params.font_collection    = FontCollectionGetSkribidiPtr(font_collection),
+    params.lang               = "en-us",                  // TODO: support setting
+    params.origin             = {0, 0},
+    params.layout_width       = line_width,
+    params.layout_height      = 1000000.0f,
+    params.base_direction     = SKB_DIRECTION_AUTO,
+    params.text_wrap          = (uint8_t)(settings->m_LineBreak ? SKB_WRAP_WORD : SKB_WRAP_NONE),
+    params.text_overflow      = SKB_OVERFLOW_NONE,
+    params.vertical_trim      = SKB_VERTICAL_TRIM_DEFAULT,
+    params.horizontal_align   = SKB_ALIGN_START,          // TODO: support the other way around (ask author for SKB_ALIGN_RIGHT/LEFT ?)
+    params.vertical_align     = SKB_ALIGN_START,          // TODO: support the other way around (ask author for SKB_ALIGN_RIGHT/LEFT ?)
+    params.baseline_align     = SKB_BASELINE_MIDDLE,
+    params.flags              = 0;
 
     // TODO: Allo setting default as italic etc
     const skb_attribute_t attributes[] = {
