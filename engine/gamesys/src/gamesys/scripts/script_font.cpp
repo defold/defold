@@ -134,7 +134,7 @@ static int RemoveFont(lua_State* L)
     return 0;
 }
 
-static void PrewarmTextCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* _ctx, int result, const char* errmsg)
+static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
@@ -192,7 +192,7 @@ static int PrewarmText(lua_State* L)
     static int requests = 1;
     int request_id = requests++;
 
-    dmGameSystem::FGlyphCallback callback = 0;
+    dmGameSystem::FPrewarmTextCallback callback = 0;
     CallbackContext* cbk_ctx = 0;
     if (luacbk)
     {

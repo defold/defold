@@ -141,7 +141,7 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    static void PrewarmGlyphsCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* ctx, int result, const char* errmsg)
+    static void PrewarmGlyphsCallback(void* ctx, int result, const char* errmsg)
     {
         FontResource* font = (FontResource*)ctx;
         font->m_Prewarming = 0;
@@ -166,13 +166,14 @@ namespace dmGameSystem
         FontResource*           m_Resource;
         void*                   m_Context;
         FPrewarmTextCallback    m_Callback;
+        dmJobThread::HJob       m_Job;
     };
 
-    static void PrewarmTextCallbackWrapper(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* cbk_ctx, int result, const char* errmsg)
+    static void PrewarmTextCallbackWrapper(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobContextWrapper* ctx = (FontJobContextWrapper*)cbk_ctx;
-        ctx->m_Callback(job_thread, hjob, status, ctx->m_Context, result, errmsg);
-        RemovePendingJob(ctx->m_Resource, hjob);
+        ctx->m_Callback(ctx->m_Context, result, errmsg);
+        RemovePendingJob(ctx->m_Resource, ctx->m_Job);
         delete ctx;
     }
 
@@ -200,16 +201,18 @@ namespace dmGameSystem
         wrapperctx->m_Resource  = resource;
         wrapperctx->m_Callback  = cbk;
         wrapperctx->m_Context   = cbk_ctx;
+        wrapperctx->m_Job       = 0;
 
-        dmJobThread::HJob hjob = dmGameSystem::FontGenAddGlyphs(resource, glyphs, glyph_count, PrewarmTextCallbackWrapper, wrapperctx);
+        wrapperctx->m_Job = dmGameSystem::FontGenAddGlyphs(resource, glyphs, glyph_count, PrewarmTextCallbackWrapper, wrapperctx);
         TextLayoutFree(layout);
 
-        if (!hjob)
+        if (!wrapperctx->m_Job)
         {
+            delete wrapperctx;
             return dmResource::RESULT_INVALID_DATA;
         }
 
-        PushPendingJob(resource, hjob);
+        PushPendingJob(resource, wrapperctx->m_Job);
         return dmResource::RESULT_OK;
     }
 
@@ -434,15 +437,10 @@ namespace dmGameSystem
         params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
     }
 
-    static void CacheMissGlyphCallback(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus job_status, void* ctx, int result, const char* errmsg)
+    static void CacheMissGlyphCallback(void* _ctx, int result, const char* errmsg)
     {
-        (void)job_thread;
-        (void)hjob;
-        (void)job_status;
-        (void)result;
-        (void)errmsg;
-        FontResource* resource = (FontResource*)ctx;
-        RemovePendingJob(resource, hjob);
+        FontJobContextWrapper* ctx = (FontJobContextWrapper*)_ctx;
+        RemovePendingJob(ctx->m_Resource, ctx->m_Job);
     }
 
     TTFResource* ResFontGetTTFResourceFromFont(FontResource* resource, HFont font)
@@ -464,13 +462,21 @@ namespace dmGameSystem
     static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
         FontResource* resource = (FontResource*)user_ctx;
-        dmJobThread::HJob hjob = dmGameSystem::FontGenAddGlyphByIndex(resource, font, glyph_index, CacheMissGlyphCallback, resource);
-        if (!hjob)
+
+        FontJobContextWrapper* wrapperctx = new FontJobContextWrapper;
+        wrapperctx->m_Resource  = resource;
+        wrapperctx->m_Callback  = 0;
+        wrapperctx->m_Context   = 0;
+        wrapperctx->m_Job       = 0;
+
+        wrapperctx->m_Job = dmGameSystem::FontGenAddGlyphByIndex(resource, font, glyph_index, CacheMissGlyphCallback, (void*)wrapperctx);
+        if (!wrapperctx->m_Job)
         {
+            delete wrapperctx;
             return FONT_RESULT_ERROR;
         }
 
-        PushPendingJob(resource, hjob);
+        PushPendingJob(resource, wrapperctx->m_Job);
 
         // Instead of keeping track of the async creation process here, we create a null dummy glyph
         // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.

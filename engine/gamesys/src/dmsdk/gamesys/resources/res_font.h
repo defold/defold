@@ -19,7 +19,6 @@
 #include <render/font_ddf.h>
 #include <dmsdk/font/font.h>
 #include <dmsdk/render/render.h>
-#include <gamesys/fontgen/fontgen.h> // FGlyphCallback
 
 namespace dmGameSystem
 {
@@ -92,7 +91,7 @@ namespace dmGameSystem
      * @param result [type: int] The result of the prewarming. Non zero if successful
      * @param errmsg [type: const char*] An error message if not successful.
      */
-    typedef FGlyphCallback FPrewarmTextCallback; // from fontgen.h
+    typedef void (*FPrewarmTextCallback)(void* ctx, int result, const char* errmsg);
 
     /*# Make sure each glyph in the text gets rasterized and put into the glyph cache
      * @name PrewarmText

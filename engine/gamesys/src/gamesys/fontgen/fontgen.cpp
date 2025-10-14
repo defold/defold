@@ -69,9 +69,10 @@ struct JobItem
     uint8_t         :6;
 
     // "global"
-    JobStatus*      m_Status;       // same for all items in the same job batch
-    FGlyphCallback  m_Callback;     // Only set for the last item in the queue
-    void*           m_CallbackCtx;  // Only set for the last item in the queue
+    JobStatus*      m_Status; // same for all items in the same job batch. Owned by the sentinel job
+
+    dmGameSystem::FPrewarmTextCallback  m_Callback;     // Only set for the last item in the queue
+    void*                               m_CallbackCtx;  // Only set for the last item in the queue
 
     // output
     FontGlyph*      m_Glyph;
@@ -220,7 +221,7 @@ static void InvokeCallback(dmJobThread::HContext job_thread, dmJobThread::HJob h
     JobStatus* status = item->m_Status;
     if (item->m_Callback) // only the last item has this callback
     {
-        item->m_Callback(job_thread, hjob, job_status, item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
+        item->m_Callback(item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
 
 // // TODO: Hide this behind a verbosity flag
 // // TODO: Protect this using a spinlock
@@ -318,7 +319,7 @@ static void JobPostProcessGlyph(dmJobThread::HContext job_thread, dmJobThread::H
 // ****************************************************************************************************
 
 static dmJobThread::HJob CreateSentinelJob(Context* ctx,
-                                            JobStatus* status, FGlyphCallback cbk, void* cbk_ctx)
+                                            JobStatus* status, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
 {
     JobItem* item = new JobItem;
     memset(item, 0, sizeof(*item));
@@ -403,7 +404,7 @@ static bool GenerateGlyphByIndex(Context* ctx, FontResource* fontresource, HFont
 
 static dmJobThread::HJob GenerateGlyphs(Context* ctx, FontResource* fontresource,
                                     TextGlyph* glyphs, uint32_t num_glyphs,
-                                    FGlyphCallback cbk, void* cbk_ctx)
+                                    dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
 {
     dmGameSystem::FontInfo font_info;
     dmGameSystem::ResFontGetInfo(fontresource, &font_info);
@@ -512,7 +513,7 @@ float FontGenGetEdgeValue()
 // Resource api
 
 // Called on cache misses by res_font.cpp
-dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, FGlyphCallback cbk, void* cbk_ctx)
+dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
 {
     Context* ctx = g_FontExtContext;
 
@@ -536,7 +537,7 @@ dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font,
 }
 
 // Called to prewarm text by res_font.cpp
-dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, FGlyphCallback cbk, void* cbk_ctx)
+dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
 {
     Context* ctx = g_FontExtContext;
     return GenerateGlyphs(ctx, fontresource, glyphs, num_glyphs, cbk, cbk_ctx);
