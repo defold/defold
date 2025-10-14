@@ -1866,7 +1866,7 @@
 (declare refresh)
 
 (defn- toolbar-control
-  [scene menu-item handler-ctx localization]
+  [scene menu-item handler-ctx localization keymap]
   (let [separator? (= :separator (:label menu-item))
         opts (handler/options handler-ctx)]
     (cond
@@ -1891,9 +1891,17 @@
       :else
       (let [{:keys [graphic-fn label icon tooltip more]} menu-item
             label (or (handler/label handler-ctx) label)
+            tooltip-text (cond
+                           (and (:command menu-item) tooltip)
+                           (let [shortcut (editor.keymap/display-text keymap cmd "")]
+                             (if (seq shortcut)
+                               (str tooltip " (" shortcut ")")
+                               tooltip))
+                           tooltip tooltip
+                           :else nil)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
-                     (tooltip! tooltip localization))]
+                     (tooltip! tooltip-text localization))]
         (cond
           graphic-fn
           ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
@@ -1933,7 +1941,8 @@
 (defn- refresh-toolbar [td command-contexts localization evaluation-context]
  (let [menu (handler/realize-menu (:menu-id td))
        ^Pane control (:control td)
-       scene (.getScene control)]
+       scene (.getScene control)
+       keymap (or (user-data scene :keymap) keymap/empty)]
    (when (and (some? scene)
               (or (not= menu (user-data control ::menu))
                   (not= command-contexts (user-data control ::command-contexts))))
@@ -1947,7 +1956,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization)]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization keymap)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
