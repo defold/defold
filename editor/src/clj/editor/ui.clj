@@ -87,12 +87,8 @@
   (let [delay (/ (double application-unfocused-threshold-ms) 1000.0)
         timer (->future delay
                         (fn []
-                          (let [{stored-timestamp :timestamp} (get @application-unfocused-tasks key)
-                                current @focus-state]
-                            (when (and (= stored-timestamp timestamp)
-                                       current
-                                       (not (:focused current))
-                                       (= (:t current) timestamp))
+                          (let [{stored-timestamp :timestamp} (get @application-unfocused-tasks key)]
+                            (when (= stored-timestamp timestamp)
                               (swap! application-unfocused-tasks dissoc key)
                               (apply application-unfocused! args)))))]
     (swap! application-unfocused-tasks assoc key {:timer timer :timestamp timestamp})
