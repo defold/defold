@@ -499,6 +499,15 @@ namespace dmDeviceWasapi
         SoundDevice* device = (SoundDevice*) _device;
         if (device->m_DeviceInvalidated)
         {
+            if (device->m_AudioClient)
+            {
+                HRESULT hr = device->m_AudioClient->Stop();
+                if (FAILED(hr))
+                {
+                    dmLogError("Failed to stop audio client");
+                    CheckAndPrintError(hr);
+                }
+            }
             return;
         }
         if (device->m_AudioClient)
