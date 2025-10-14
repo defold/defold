@@ -123,7 +123,7 @@ struct TextLine
 /*#
  * Represents a line of glyphs
  * @struct
- * @name TextLine
+ * @name TextLayoutSettings
  * @member m_Size [type: float] The desired size of the font
  * @member m_Width [type: float] Max layout width. used only when line_break is non-zero
  * @member m_Leading [type: float]
