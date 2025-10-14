@@ -32,6 +32,8 @@
 
 #include "fontgen.h"
 
+//#define FONTGEN_DEBUG
+
 namespace dmGameSystem
 {
 
@@ -251,7 +253,17 @@ static void JobPostProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobT
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
+    JobStatus* status = item->m_Status;
     InvokeCallback(job_thread, hjob, job_status, item);
+
+#if defined(FONTGEN_DEBUG)
+    uint64_t tend = dmTime::GetMonotonicTime();
+    float wall_time = (tend - status->m_TimeStart) / 1000.0f;
+    float avg_process = (status->m_TimeGlyphProcess / (float)status->m_Count) / 1000.0f;
+    float avg_callback = (status->m_TimeGlyphCallback / (float)status->m_Count) / 1000.0f;
+    dmLogWarning("Generating %u glyphs took %.3f ms. Avg (ms/glyph): process: %.3f  callback: %.3f", status->m_Count, wall_time, avg_process, avg_callback);
+#endif
+
     DeleteItem(ctx, item);
 }
 
