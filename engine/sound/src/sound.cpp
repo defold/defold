@@ -1792,16 +1792,14 @@ namespace dmSound
                 {
                     continue;
                 }
-                else
-                {
-                    MixContext mix_context(current_buffer, total_buffers, frame_count);
-                    MixInstances(&mix_context);
 
-                    Master(&mix_context);
+                MixContext mix_context(current_buffer, total_buffers, frame_count);
+                MixInstances(&mix_context);
 
-                    buffer_index = sound->m_NextOutBuffer;
-                    sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
-                }
+                Master(&mix_context);
+
+                buffer_index = sound->m_NextOutBuffer;
+                sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
             }
 
             dmSound::Result queue_result;
