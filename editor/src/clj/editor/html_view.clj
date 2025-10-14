@@ -46,7 +46,7 @@
   (output desc g/Any :cached produce-desc))
 
 (defn- repaint! [view-node]
-  (fxui/advance-user-data-component! view-node :view (g/node-value view-node :desc)))
+  (fxui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))
 
 (defn- make-view [graph ^Parent parent html-node {:keys [project ^Tab tab]}]
   (let [view-node (first
@@ -63,7 +63,7 @@
     (repaint! view-node)
     (ui/on-closed! tab (fn [_]
                          (ui/timer-stop! repainter)
-                         (fxui/advance-user-data-component! view-node :view nil)))
+                         (fxui/advance-graph-user-data-component! view-node :view nil)))
     view-node))
 
 (defn register-view-types [workspace]

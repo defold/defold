@@ -15,12 +15,7 @@
 (ns integration.collection-proxy-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [integration.test-util :as test-util]))
 
@@ -31,7 +26,7 @@
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= nil (g/node-value node-id :collection)))
-        (is (= "Collection Proxy" (:label outline)))
+        (is (= (localization/message "outline.collection-proxy") (:label outline)))
         (is (empty? (:children outline)))
         (is (= nil (get-in form-data [:values [:collection]])))))))
 
@@ -42,7 +37,7 @@
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= "/collection_proxy/default.collection" (resource/resource->proj-path (g/node-value node-id :collection))))
-        (is (= "Collection Proxy" (:label outline)))
+        (is (= (localization/message "outline.collection-proxy") (:label outline)))
         (is (empty? (:children outline)))
         (is (= "/collection_proxy/default.collection"
                (resource/resource->proj-path (get-in form-data [:values [:collection]]))))))))

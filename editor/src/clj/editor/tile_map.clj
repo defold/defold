@@ -599,7 +599,7 @@
   [_node-id child-outlines]
   {:node-id          _node-id
    :node-outline-key "Tile Map"
-   :label            "Tile Map"
+   :label            (localization/message "outline.tile-map")
    :icon             tile-map-icon
    :children         (vec (sort-by :z child-outlines))})
 

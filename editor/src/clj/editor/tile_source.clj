@@ -343,13 +343,16 @@
      (g/connect project :collision-groups-data collision-group-node :collision-groups-data))))
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
-  (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
-                                        [(get outlines true) (get outlines false)])]
+  (let [{coll-outlines true anim-outlines false} (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Tile Source"
-     :label "Tile Source"
+     :label (localization/message "outline.tile-source")
      :icon tile-source-icon
-     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))
+     :children (localization/annotate-as-sorted
+                 (fn [localization-state _]
+                   (into (localization/natural-sort-by-label localization-state coll-outlines)
+                         (localization/natural-sort-by-label localization-state anim-outlines)))
+                 (-> coll-outlines (or []) (into anim-outlines)))
      :child-reqs [{:node-type TileAnimationNode
                    :tx-attach-fn attach-animation-node}
                   {:node-type CollisionGroupNode

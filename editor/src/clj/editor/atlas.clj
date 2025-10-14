@@ -347,7 +347,7 @@
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
-                                                     (let [label (or id "<No Image>")]
+                                                     (let [label (or id (localization/message "outline.atlas.no-image"))]
                                                        (cond-> {:node-id _node-id
                                                                 :node-outline-key label
                                                                 :label label
@@ -918,7 +918,7 @@
                                                          ;; We use evaluation context to get child node types that should never change
                                                          {:node-id          _node-id
                                                           :node-outline-key "Atlas"
-                                                          :label            "Atlas"
+                                                          :label            (localization/message "outline.atlas")
                                                           :children         (vec (sort-by (partial atlas-outline-sort-by-fn (:basis _evaluation-context))  child-outlines))
                                                           :icon             atlas-icon
                                                           :outline-error?   (g/error-fatal? own-build-errors)

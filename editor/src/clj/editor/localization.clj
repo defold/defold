@@ -21,6 +21,7 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
+            [editor.util :as eutil]
             [internal.java :as java]
             [internal.util :as util]
             [util.coll :as coll]
@@ -318,8 +319,9 @@
   ([object ^Localization localization pattern]
    {:pre [(localization? localization)]}
    (apply-localization object (impl-format @localization pattern))
-   (when (message-pattern? pattern)
-     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern))
+   (if (message-pattern? pattern)
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern)
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-unlocalize! object))
    object))
 
 (defn unlocalize!
@@ -613,10 +615,37 @@
   (let [message-localizable (message-pattern? message)]
     (->Transform (cond-> message (not message-localizable) str) message-localizable f args)))
 
+(defn annotate-as-sorted
+  "Annotate a vector of items as sorted with localization-aware sorting function
+
+  Args:
+    f        localization-aware sorting function, receive localization state,
+             items, and the rest of the arguments; see [[natural-sort-by-label]]
+    items    vector of items to annotate"
+  [f items]
+  {:pre [(vector? items)]}
+  (vary-meta items assoc ::sort f))
+
+(defn natural-sort-by-label
+  "Localization-aware function that sorts the items on their :label vals"
+  [localization-state items]
+  (->> items
+       (mapv #(coll/pair (localization-state (:label %)) %))
+       (sort-by key eutil/natural-order)
+       (mapv val)))
+
+(defn sort-if-annotated
+  "Perform a localization-aware sorting of the items if they were annotated"
+  [localization-state items]
+  {:pre [(localization-state? localization-state)]}
+  (if-let [f (::sort (meta items))]
+    (f localization-state items)
+    items))
+
 ;; TODO:
-;;  - editor scripts localization
 ;;  - outline
 ;;  - resource type label (requires outline!)
+;;  - editor scripts localization
 ;;  - form views
 ;;  - missed things...
 ;;  - contribution doc / crowdin setup / link in drop-down

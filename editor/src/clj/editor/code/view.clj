@@ -3538,7 +3538,7 @@
     (when editable
       (g/with-auto-evaluation-context evaluation-context
         ;; Show rename popup if appropriate
-        (fxui/advance-user-data-component!
+        (fxui/advance-graph-user-data-component!
           view-node :rename-popup
           (when (g/node-value view-node :rename-cursor-range evaluation-context)
             (g/node-value view-node :rename-view evaluation-context)))

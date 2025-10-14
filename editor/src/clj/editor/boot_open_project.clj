@@ -32,7 +32,6 @@
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
             [editor.engine-profiler :as engine-profiler]
-            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
@@ -175,7 +174,7 @@
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
-          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)

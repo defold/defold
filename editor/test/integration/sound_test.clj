@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [integration.test-util :as test-util]))
@@ -26,7 +27,7 @@
       (let [node-id   (test-util/resource-node project "/sounds/new.sound")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
-        (is (= "Sound" (:label outline)))
+        (is (= (localization/message "outline.sound") (:label outline)))
         (is (empty? (:children outline)))
         (is (= nil (get-in form-data [:values [:sound]])))))))
 
@@ -36,7 +37,7 @@
       (let [node-id   (test-util/resource-node project "/sounds/tink.sound")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
-        (is (= "Sound" (:label outline)))
+        (is (= (localization/message "outline.sound") (:label outline)))
         (is (empty? (:children outline)))
         (is (= "/sounds/tink.wav"
                (resource/resource->proj-path (get-in form-data [:values [:sound]]))))))))
