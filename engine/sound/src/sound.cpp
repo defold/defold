@@ -1781,7 +1781,6 @@ namespace dmSound
                 }
             }
 
-            bool skip_queue = false;
             uint32_t buffer_index = 0;
 
             {
@@ -1791,7 +1790,7 @@ namespace dmSound
 
                 if (frame_count < SOUND_MAX_HISTORY)
                 {
-                    skip_queue = true;
+                    continue;
                 }
                 else
                 {
@@ -1803,11 +1802,6 @@ namespace dmSound
                     buffer_index = sound->m_NextOutBuffer;
                     sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
                 }
-            }
-
-            if (skip_queue)
-            {
-                continue;
             }
 
             dmSound::Result queue_result;
