@@ -51,16 +51,22 @@ protected:
         char buffer[128];
         #define HOSTPATH(_PATH) dmTestUtil::MakeHostPath(buffer, sizeof(buffer), _PATH)
 
-        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+        #if defined(DM_USE_CMAKE)
+            #define BUILD_DIR "build/src/test/build"
+        #else
+            #define BUILD_DIR "build/src/test"
+        #endif
+
+        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
 
         (void)result;
         assert(dmDDF::RESULT_OK == result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
-        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
-        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test2.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
-        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/combinations.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
-        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test_text.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test2.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/combinations.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test_text.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
         m_DT = 1.0f / 60.0f;
 
         #undef HOSTPATH

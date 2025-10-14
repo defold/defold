@@ -64,18 +64,18 @@ platforms:
 
     x86-win32:
         context:
-            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["libphysics_2d_defold.lib"]
+            libs: ["physics_2d_defold"]
             linkFlags: []
 
     x86_64-win32:
         context:
-            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
             excludeSymbols: []
             symbols: []
-            libs: ["libphysics_2d_defold.lib"]
+            libs: ["physics_2d_defold"]
             linkFlags: []
 
     armv7-android:

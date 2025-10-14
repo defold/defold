@@ -225,6 +225,8 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 #define dmLogOnceFatal(format, args... ) dmLogOnceInternal(dmLogFatal, format, ## args )
 #endif
 
+#endif // NDEBUG
+
 /*# Log listener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
@@ -278,8 +280,6 @@ void dmLogSetLevel(LogSeverity severity);
  */
 LogSeverity dmLogGetLevel();
 
-
-#endif // NDEBUG
 
 #ifdef __cplusplus
 } // extern "C"

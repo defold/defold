@@ -37,7 +37,6 @@ def configure(conf):
     conf.env['STLIB_RESOURCE']  = 'resource'
     conf.env['STLIB_SCRIPT']    = 'script'
     conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_HID']       = 'hid_null'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
 

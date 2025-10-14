@@ -34,7 +34,6 @@ def configure(conf):
     conf.env['STLIB_DDF_NOASAN']           = ['ddf_noasan']
     conf.env['STLIB_GRAPHICS_NULL']        = ['graphics_null', 'graphics_proto']
     conf.env['STLIB_GRAPHICS_NULL_NOASAN'] = ['graphics_null_noasan', 'graphics_proto_noasan'] # For the shared library used in editor
-    conf.env['STLIB_PLATFORM_NULL']        = ['platform_null']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RIG"')
 

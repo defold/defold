@@ -579,7 +579,7 @@ platforms:
         CLANG_HOME:         "{{env.CLANG_17_RESOURCE_DIR}}"
     context:
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
-        engineLibs:     ["libengine","libengine_service","libmbedtls","libzip","libprofile","libprofilerext","libprofiler_remotery","librecord","libgameobject","libddf","libfont","libresource","libgamesys","libgamesys_model","libgamesys_rig","libscript_box2d_defold","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libbox2d_defold","librender","librender_font_default","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx", "libdecoder_wav", "libdecoder_ogg"]
+        engineLibs:     ["libengine","libengine_service","libmbedtls","libzip","libprofile","libprofilerext","libprofiler_remotery","librecord","libgameobject","libddf","libfont","libresource","libgamesys","libgamesys_model","libgamesys_rig","libscript_box2d_defold","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","librender","librender_font_default","libscript","libluajit-5.1","libextension","hid","input","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx", "libdecoder_wav", "libdecoder_ogg"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32", "ole32"]
         symbols:        ["GraphicsAdapterOpenGL", "ProfilerRemotery"]
 
@@ -625,8 +625,8 @@ platforms:
         engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx", "decoder_wav", "decoder_ogg"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
-        linkFlags:      ["-g", "-O2"]
-        cxxLinkShFlags: ["-g", "-O2"]
+        linkFlags:      ["-g", "-O2", "-fuse-ld=lld"]
+        cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
         dynamicLibs: ["openal","Xext","X11","Xi","pthread","m","dl"]

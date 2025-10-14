@@ -326,6 +326,8 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
+CMAKE_SUPPORT = ['platform', 'hid', 'input']
+
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
 def get_host_platform():
@@ -520,6 +522,86 @@ class Configuration(object):
                 self.version = f.readlines()[0].strip()
 
         self._create_common_dirs()
+
+    def make_solution(self, target_platform=None, build_dir=None):
+        """
+        Generate an IDE solution from the top-level CMakeLists.txt for the given target platform.
+
+        - macOS/iOS: Xcode
+        - Windows: Visual Studio 2022
+        - Android: Prints guidance to open CMakeLists.txt in Android Studio
+        - Other platforms: falls back to Ninja/Unix Makefiles by default
+        """
+        tp = target_platform or self.target_platform
+        if not tp:
+            raise RuntimeError('make_solution: target_platform must be specified')
+
+        # Android guidance
+        if 'android' in tp:
+            self._log('Android: Open the top-level CMakeLists.txt directly in Android Studio to create a project.')
+            return
+
+        # Choose generator
+        generator = None
+        arch_args = []
+
+        if tp.endswith('-macos') or tp.endswith('-ios'):
+            generator = 'Xcode'
+        elif 'win32' in tp:
+            generator = 'Visual Studio 17 2022'
+            # Map architecture
+            if tp == 'x86_64-win32':
+                arch_args = ['-A', 'x64']
+            elif tp == 'win32':
+                arch_args = ['-A', 'Win32']
+
+        # Build directory per target platform inside solutions/<platform>
+        if not build_dir:
+            build_dir = os.path.join(self.defold_root, 'solutions', tp)
+        self._mkdirs(build_dir)
+
+        cmake_cmd = ['cmake', '-S', self.defold_root, '-B', build_dir, f'-DTARGET_PLATFORM={tp}']
+        if generator:
+            cmake_cmd += ['-G', generator]
+        if arch_args:
+            cmake_cmd += arch_args
+
+        # Generate solution
+        self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
+        run.env_command(self._form_env(), cmake_cmd)
+
+        # Report absolute path to the generated solution files
+        old_project_name = 'defold_libraries'
+        solution_build_dir = os.path.abspath(build_dir)
+
+        target_name = f"Defold-{tp}"
+        final_path = solution_build_dir
+
+        old_path = None
+        new_path = None
+
+        if generator == 'Xcode':
+            # Default name from CMake project()
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.xcodeproj")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.xcodeproj")
+        elif generator and generator.startswith('Visual Studio'):
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.sln")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.sln")
+
+        if new_path != old_path and old_path is not None:
+            if os.path.exists(old_path):
+                try:
+                    if os.path.exists(new_path):
+                        shutil.rmtree(new_path)
+                    shutil.move(old_path, new_path)
+                    final_path = new_path
+                except Exception as e:
+                    self._log(f"Warning: Failed to rename project: {e}. Keeping default name: {old_path}")
+                    final_path = old_path
+            else:
+                final_path = new_path
+
+        self._log(f'Solution generated: {final_path}')
 
     def __del__(self):
         if len(getattr(self, "futures", [])) > 0:
@@ -781,6 +863,13 @@ class Configuration(object):
         if not result:
             self.fatal("Failed sdk check")
 
+        args = ["cmake", f"-DTARGET_PLATFORM={target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        if self.verbose:
+            args.insert(1, '-DDEFOLD_VERBOSE=ON')
+
+        output = run.command(args)
+        self._log(output)
+
     def verify_sdk(self):
         was_verbose = self.verbose
         self.verbose = True
@@ -816,6 +905,8 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
+            if self.package_path is None:
+                self.fatal("The package path isn't specified. Either define DM_PACKAGES_URL or use --package-path.")
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
@@ -1388,22 +1479,96 @@ class Configuration(object):
 # <- Gen source files
 # ------------------------------------------------------------
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
+    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
         commands = "build install"
         if not self.incremental:
             commands = "distclean configure " + commands
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
-    def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
-        self.build_tracker.start_component(lib, platform)
+    def _build_engine_lib_waf(self, args, lib, platform, skip_tests, directory):
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
             skip_build_tests.append('--skip-build-tests')
-        cwd = join(self.defold_root, '%s/%s' % (dir, lib))
+        cwd = join(self.defold_root, '%s/%s' % (directory, lib))
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+
+    def _find_cmake_build_type(self, options):
+        opt_level = 2
+        for x in options:
+            if '--opt-level=' in x:
+                opt_level = x.replace('--opt-level=', '')
+                opt_level = int(opt_level)
+                break
+        if opt_level < 2:
+            return 'Debug'
+        return 'RelWithDebInfo'
+
+    def _build_engine_lib_cmake(self, lib, platform, directory):
+        libdir = join(directory, lib)
+        builddir = join(libdir, 'build')
+
+        build_type = self._find_cmake_build_type(self.waf_options)
+        build_tests = '--skip-build-tests' not in self.waf_options
+        supports_tests = build_tests and self._can_run_tests()
+
+        if not self.incremental:
+            self._remove_tree(builddir) # distclean
+
+        if not os.path.exists(builddir):
+            os.makedirs(builddir)
+
+        env = self._form_env()
+
+        is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        verbose = '-v' if is_verbose else ''
+        test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
+        build_test = 'build_tests' if build_tests else ''
+        install = 'install'
+
+        # ***************************************************************************************
+        # generate the build script
+        log_cmd_config = f'CMake configure {lib}'
+        self.build_tracker.start_command(log_cmd_config)
+
+        cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
+        run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
+
+        self.build_tracker.end_command(log_cmd_config)
+
+        # ***************************************************************************************
+        # execute the build
+        log_cmd_build = f'Ninja build {lib} {build_test}'
+        self.build_tracker.start_command(log_cmd_build)
+
+        ninja_build_args = f"ninja all {build_test} {install} {verbose}".split()
+        run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+        self.build_tracker.end_command(log_cmd_build)
+
+        # ***************************************************************************************
+        # run the build
+        if test:
+            log_cmd_tests = f'Ninja run_tests {lib}'
+            self.build_tracker.start_command(log_cmd_tests)
+
+            ninja_build_args = f"ninja run_tests {verbose}".split()
+            run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+            self.build_tracker.end_command(log_cmd_tests)
+
+
+    def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
+        self.build_tracker.start_component(lib, platform)
+        if lib in CMAKE_SUPPORT:
+            if platform == 'win32':
+                platform = 'x86-win32'
+            self._build_engine_lib_cmake(lib, platform, directory)
+        else:
+            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+
         self.build_tracker.end_component(lib, platform)
 
 # For now gradle right in
@@ -1452,9 +1617,10 @@ class Configuration(object):
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
         self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
 
-        cmd = self._build_engine_cmd(**self._get_build_flags())
+        cmd = self._build_engine_cmd_waf(**self._get_build_flags())
         args = cmd.split()
         host = self.host
+
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
             self._build_engine_lib(args, lib, host)
@@ -1475,7 +1641,7 @@ class Configuration(object):
                 continue
             self._build_engine_lib(args, lib, target_platform)
 
-        self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
+        self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
             self.build_docs()
         if not self.skip_builtins:
@@ -1499,10 +1665,10 @@ class Configuration(object):
     def build_external(self):
         flags = self._get_build_flags()
         flags['prefix'] = join(self.defold_root, 'packages')
-        cmd = self._build_engine_cmd(**flags)
+        cmd = self._build_engine_cmd_waf(**flags)
         args = cmd.split() + ['package']
         for lib in EXTERNAL_LIBS:
-            self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
+            self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
 
     def archive_bob(self):
         sha1 = self._git_sha1()

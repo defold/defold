@@ -66,18 +66,18 @@ platforms:
 
     x86-win32:
         context:
-            excludeLibs: ["libgraphics", "libplatform"]
+            excludeLibs: ["graphics", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib", "libplatform_vulkan.lib", "vulkan-1.lib"]
+            libs: ["graphics_vulkan", "platform_vulkan", "vulkan-1"]
             linkFlags: []
 
     x86_64-win32:
         context:
-            excludeLibs: ["libgraphics", "libplatform"]
+            excludeLibs: ["graphics", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib", "libplatform_vulkan.lib", "vulkan-1.lib"]
+            libs: ["graphics_vulkan", "platform_vulkan", "vulkan-1"]
             linkFlags: []
 
     armv7-android:

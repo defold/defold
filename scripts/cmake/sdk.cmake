@@ -1,0 +1,52 @@
+if(DEFINED DEFOLD_SDK_CMAKE_INCLUDED)
+    return()
+endif()
+set(DEFOLD_SDK_CMAKE_INCLUDED ON)
+
+if(DEFINED DEFOLD_SDK_DETECTED)
+    # Avoid re-running detection when sdk.cmake is included multiple times
+    return()
+endif()
+
+defold_log("sdk.cmake:")
+
+# Bootstrap DEFOLD_HOME/DEFOLD_SDK_ROOT when running before defold.cmake
+if(NOT DEFINED DEFOLD_HOME)
+    get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+endif()
+if(NOT DEFINED DEFOLD_SDK_ROOT)
+    if(DEFINED ENV{DYNAMO_HOME} AND EXISTS "$ENV{DYNAMO_HOME}")
+        set(DEFOLD_SDK_ROOT "$ENV{DYNAMO_HOME}" CACHE PATH "Path to Defold SDK (tmp/dynamo_home)" FORCE)
+    elseif(EXISTS "${DEFOLD_HOME}/tmp/dynamo_home")
+        set(DEFOLD_SDK_ROOT "${DEFOLD_HOME}/tmp/dynamo_home" CACHE PATH "Path to Defold SDK (tmp/dynamo_home)" FORCE)
+    endif()
+endif()
+
+if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos|arm64-ios|x86_64-ios")
+    # NOTE: Minimum iOS-version is also specified in Info.plist-files
+    # (MinimumOSVersion and perhaps DTPlatformVersion)
+    defold_set_from_sdk_py(SOURCE VERSION_IPHONEOS_MIN TARGET SDK_VERSION_IPHONEOS_MIN)
+    defold_set_from_sdk_py(SOURCE VERSION_MACOSX_MIN  TARGET SDK_VERSION_MACOSX_MIN)
+    include(sdk_xcode)
+elseif (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    defold_set_from_sdk_py(SOURCE ANDROID_64_NDK_API_VERSION TARGET SDK_VERSION_ANDROID_ARM64_API_LEVEL)
+    defold_set_from_sdk_py(SOURCE ANDROID_NDK_API_VERSION  TARGET SDK_VERSION_ANDROID_ARMV7_API_LEVEL)
+    include(sdk_android)
+elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    include(sdk_linux)
+elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
+    include(sdk_windows)
+elseif (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web")
+    include(sdk_emscripten)
+elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
+    # Nintendo Switch (NSDK) vendor toolchain
+    # The vendor toolchain file may be absent in some repositories; fail with a clear message.
+    include(sdk_vendor_nsdk OPTIONAL)
+    if(NOT DEFINED DEFOLD_SDK_VENDOR_NSDK_INCLUDED)
+        message(FATAL_ERROR "Unsupported platform in this repository: arm64-nx64 (Nintendo Switch vendor toolchain missing: scripts/cmake/sdk_vendor_nsdk.cmake)")
+    endif()
+else()
+    message(FATAL "Unsupported platform: ${TARGET_PLATFORM}")
+endif()
+
+set(DEFOLD_SDK_DETECTED ON)
