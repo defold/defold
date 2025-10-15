@@ -1889,16 +1889,14 @@
         hbox)
 
       :else
-      (let [{:keys [graphic-fn label icon tooltip more]} menu-item
+      (let [{:keys [graphic-fn label icon tooltip command more]} menu-item
             label (or (handler/label handler-ctx) label)
-            tooltip-text (cond
-                           (and (:command menu-item) tooltip)
-                           (let [shortcut (editor.keymap/display-text keymap cmd "")]
-                             (if (seq shortcut)
-                               (str tooltip " (" shortcut ")")
-                               tooltip))
-                           tooltip tooltip
-                           :else nil)
+            tooltip-text (if (and command tooltip)
+                           (let [shortcut (editor.keymap/display-text keymap command "")]
+                             (cond-> tooltip
+                               (seq shortcut)
+                               (str tooltip " (" shortcut ")")))
+                           tooltip)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
                      (tooltip! tooltip-text localization))]
