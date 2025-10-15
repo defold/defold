@@ -72,6 +72,27 @@
 ;; threshold, we consider the application to have lost focus.
 (defonce ^:private ^:const application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
+(defonce ^:private application-unfocused-tasks (atom {}))
+
+(declare ->future)
+
+(defn- cancel-application-unfocused-task! [key]
+  (when-let [{:keys [timer]} (get @application-unfocused-tasks key)]
+    (.stop ^Timeline timer)
+    (swap! application-unfocused-tasks dissoc key))
+  nil)
+
+(defn- schedule-application-unfocused-task! [key timestamp application-unfocused! args]
+  (cancel-application-unfocused-task! key)
+  (let [delay (/ (double application-unfocused-threshold-ms) 1000.0)
+        timer (->future delay
+                        (fn []
+                          (let [{stored-timestamp :timestamp} (get @application-unfocused-tasks key)]
+                            (when (= stored-timestamp timestamp)
+                              (swap! application-unfocused-tasks dissoc key)
+                              (apply application-unfocused! args)))))]
+    (swap! application-unfocused-tasks assoc key {:timer timer :timestamp timestamp})
+    nil))
 
 (defn node? [value]
   (instance? Node value))
@@ -128,13 +149,16 @@
 (defn add-application-unfocused-callback! [key application-unfocused! & args]
   (add-watch focus-state key
              (fn [_key _ref old new]
+               (when (:focused new)
+                 (cancel-application-unfocused-task! key))
                (when (and old
                           (:focused old)
                           (not (:focused new)))
-                 (apply application-unfocused! args))))
+                 (schedule-application-unfocused-task! key (:t new) application-unfocused! args))))
   nil)
 
 (defn remove-application-unfocused-callback! [key]
+  (cancel-application-unfocused-task! key)
   (remove-watch focus-state key)
   nil)
 

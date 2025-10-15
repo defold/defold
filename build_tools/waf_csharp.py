@@ -138,6 +138,9 @@ def _get_dotnet_nuget_path():
 
 
 def configure(conf):
+    if True:
+        return # until I've fixed the CI setup /MAWE
+
     platform = getattr(Options.options, 'platform', sdk.get_host_platform())
     if platform == '':
         platform = sdk.get_host_platform()
