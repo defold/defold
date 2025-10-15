@@ -2105,6 +2105,12 @@ namespace dmPhysics
         ToB2(from2d, from, scale);
         b2Vec2 to;
         ToB2(to2d, to, scale);
+        
+        if (b2LengthSquared((to - from)) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
+            return;
+        }
 
         // Box2d V3 requires a translation vector, not a point
         b2Vec2 translate = b2Sub(to, from);
