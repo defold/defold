@@ -262,9 +262,15 @@ def configure(conf):
         if not os.path.exists(conf.env.NUGET_PACKAGES):
             conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
 
+    print(f"Nuget path: {nuget_path}")
+    for x in os.listdir(nuget_path):
+        print("MAWE x", x, os.path.isdir(os.path.join(nuget_path, x)))
+
     versions_folder = _get_dotnet_aot_base_folder(nuget_path, dotnet_platform)
     if not os.path.exists(versions_folder):
         print(f"Path does not exist: {versions_folder}")
+        _skip_dotnet(conf)
+        return
 
     conf.env.DOTNET_AOT_VERSION = _find_best_version_from_folder(versions_folder, DOTNET_VERSION)
 
