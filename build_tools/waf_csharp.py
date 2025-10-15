@@ -22,6 +22,63 @@ from BuildUtility import BuildUtility, BuildUtilityException, create_build_utili
 import run
 import sdk
 
+DOTNET_VERSION=9
+
+def sortversions(versions):
+    """Return a list of semantic version strings sorted in ascending order."""
+
+    if not versions:
+        return []
+
+    def _version_key(value):
+        parts = []
+        for token in re.split(r"(\\d+)|([^.]+)", value):
+            if not token or token == '.':
+                continue
+            # trick to make integer vs string comparisons, by making them a separate tuple
+            # this means strings (e.g. "1-rc", will be sorted before actual integers)
+            # this is ok as we're really only using the major version in this
+            if token.isdigit():
+                parts.append((1, int(token)))
+            else:
+                parts.append((0, token.lower()))
+        return parts
+
+    return sorted(versions, key=_version_key)
+
+
+def _find_best_version_from_folder(base_folder, major_version):
+    if not base_folder or not os.path.isdir(base_folder):
+        return None
+
+    candidates = []
+    for entry in os.listdir(base_folder):
+        entry_path = os.path.join(base_folder, entry)
+        if not os.path.isdir(entry_path):
+            continue
+        candidates.append(entry)
+
+    if not candidates:
+        return None
+
+    candidates = sortversions(candidates)
+    candidates.reverse()
+
+    for version in candidates:
+        tokens = version.split('.')
+        major = tokens[0]
+        try:
+            major = int(major)
+        except:
+            continue
+
+        if major > major_version:
+            continue
+
+        return version
+
+    return None
+
 
 # For properties, see https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
 Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} -v q --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC[0].abspath()}',
@@ -103,17 +160,18 @@ def compile_csharp_lib(self):
     if inst_to:
         install_task = self.add_install_files(install_to=inst_to, install_from=tsk.outputs)
 
-
 def _get_dotnet_version():
     result = run.shell_command('dotnet --info')
     lines = result.splitlines()
     lines = [x.strip() for x in lines]
 
-    i = lines.index('Host:')
-    version = lines[i+1].strip().split()[1]
-
+    version = None
     for l in lines:
-        if l.startswith('Base Path:'):
+        l = l.strip()
+        if l.startswith('Version:') and version is None:
+            version = l.split('Version:')[1].strip()
+
+        elif l.startswith('Base Path:'):
             sdk_dir = l.split('Base Path:')[1].strip()
             while sdk_dir.endswith('/'):
                 sdk_dir = sdk_dir[:-1]
@@ -121,7 +179,10 @@ def _get_dotnet_version():
             break
     return version, sdk_dir
 
-def _get_dotnet_aot_base(nuget_path, dotnet_platform, dotnet_version):
+def _get_dotnet_aot_base_folder(nuget_path, dotnet_platform):
+    return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}"
+
+def _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, dotnet_version):
     return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}/{dotnet_version}/runtimes/{dotnet_platform}/native"
 
 def _get_dotnet_nuget_path():
@@ -135,6 +196,14 @@ def _get_dotnet_nuget_path():
         else:
             nuget_path = os.path.expanduser('~/.nuget/packages')
     return nuget_path
+
+def _skip_dotnet(self):
+    conf.env.DOTNET_VERSION = None
+    conf.env.DOTNET_AOT_VERSION = None
+    conf.env.DOTNET_SDK = None
+    print("*************************************************************")
+    print("Dotnet configuration does not work. Skipping!")
+    print("*************************************************************")
 
 
 def configure(conf):
@@ -174,7 +243,24 @@ def configure(conf):
         if not os.path.exists(conf.env.NUGET_PACKAGES):
             conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
 
-    aot_base = _get_dotnet_aot_base(nuget_path, dotnet_platform, conf.env.DOTNET_VERSION)
+    versions_folder = _get_dotnet_aot_base_folder(nuget_path, dotnet_platform)
+    conf.env.DOTNET_AOT_VERSION = _find_best_version_from_folder(versions_folder, DOTNET_VERSION)
+
+    if conf.env.DOTNET_AOT_VERSION is None:
+        print("Failed to find dotnet aot version!")
+        _skip_dotnet(conf)
+        return
+
+    aot_base = _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, conf.env.DOTNET_AOT_VERSION)
+
+    if not os.path.exists(aot_base):
+        print(f"Path does not exist: {aot_base}")
+        _skip_dotnet(conf)
+        return
+
+    print("Setting DOTNET_SDK", conf.env.DOTNET_SDK)
+    print("Setting DOTNET_VERSION", conf.env.DOTNET_VERSION)
+    print("Setting DOTNET_AOT_VERSION", conf.env.DOTNET_AOT_VERSION)
 
     if build_util.get_target_os() in ('win32'):
         pass
