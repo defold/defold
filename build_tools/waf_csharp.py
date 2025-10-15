@@ -48,17 +48,23 @@ def sortversions(versions):
 
 
 def _find_best_version_from_folder(base_folder, major_version):
+
+    print("MAWE _find_best_version_from_folder:", base_folder)
+
     if not base_folder or not os.path.isdir(base_folder):
+        print(f"MAWE not is dir {base_folder}")
         return None
 
     candidates = []
     for entry in os.listdir(base_folder):
+        print("MAWE entry:", entry)
         entry_path = os.path.join(base_folder, entry)
         if not os.path.isdir(entry_path):
             continue
         candidates.append(entry)
 
     if not candidates:
+        print(f"MAWE no candidates")
         return None
 
     print("MAWE ***********************************************")
@@ -257,6 +263,9 @@ def configure(conf):
             conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
 
     versions_folder = _get_dotnet_aot_base_folder(nuget_path, dotnet_platform)
+    if not os.path.exists(versions_folder):
+        print(f"Path does not exist: {versions_folder}")
+
     conf.env.DOTNET_AOT_VERSION = _find_best_version_from_folder(versions_folder, DOTNET_VERSION)
 
     if conf.env.DOTNET_AOT_VERSION is None:
