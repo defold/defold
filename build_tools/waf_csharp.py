@@ -61,11 +61,24 @@ def _find_best_version_from_folder(base_folder, major_version):
     if not candidates:
         return None
 
+    print("MAWE ***********************************************")
+    print("MAWE UNSORTED")
+    for x in candidates:
+        print("MAWE: ", x)
+    print("MAWE ***********************************************")
+
     candidates = sortversions(candidates)
     candidates.reverse()
 
+    print("MAWE ***********************************************")
+    print("MAWE SORTED")
+    for x in candidates:
+        print("MAWE: ", x)
+    print("MAWE ***********************************************")
+
     for version in candidates:
         tokens = version.split('.')
+        print("MAWE KEY:", tokens)
         major = tokens[0]
         try:
             major = int(major)
