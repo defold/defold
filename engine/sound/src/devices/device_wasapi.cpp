@@ -505,8 +505,6 @@ namespace dmDeviceWasapi
                 HRESULT hr = device->m_AudioClient->Stop();
                 if (FAILED(hr))
                 {
-                    if (hr == AUDCLNT_E_SERVICE_NOT_RUNNING)
-                        return;
                     dmLogError("Failed to stop audio client");
                     CheckAndPrintError(hr);
                 }
@@ -541,7 +539,7 @@ namespace dmDeviceWasapi
                 return;
             }
 
-            uint32_t frames_available = buffer_size;// buffer_size - buffer_pos;
+            uint32_t frames_available = buffer_size - buffer_pos;
             hr = device->m_AudioRenderClient->GetBuffer(frames_available, &out);
             if (FAILED(hr))
             {
@@ -573,8 +571,6 @@ namespace dmDeviceWasapi
                     MarkDeviceInvalidated(device, "Stop", hr);
                     return;
                 }
-                if (hr == AUDCLNT_E_SERVICE_NOT_RUNNING)
-                    return;
                 dmLogError("Failed to stop audio client");
                 CheckAndPrintError(hr);
             }
