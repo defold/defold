@@ -1107,19 +1107,6 @@ namespace dmGameSystem
             data->m_VertexCount   = geometry_vx_count; // (x,y) coordinates
             data->m_IndicesCount  = geometry->m_Indices.m_Count;
         }
-        else
-        {
-            if (component->m_UseSlice9)
-            {
-                data->m_VertexCount   = SPRITE_VERTEX_COUNT_SLICE9;
-                data->m_IndicesCount  = SPRITE_INDEX_COUNT_SLICE9;
-            }
-            else
-            {
-                data->m_VertexCount   = SPRITE_VERTEX_COUNT_LEGACY;
-                data->m_IndicesCount  = SPRITE_INDEX_COUNT_LEGACY;
-            }
-        }
     }
 
     static void ResolveUVDataFromQuads(const SpriteComponent* component, AnimationData* data, dmArray<float>* scratch_uvs, float* scratch_uv_ptrs[MAX_TEXTURE_COUNT], float* scratch_pi_ptrs[MAX_TEXTURE_COUNT])
@@ -1813,32 +1800,38 @@ namespace dmGameSystem
         // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
         vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
 
-        if (textures_num == 0)
+        // Get the correct animation frames, and other meta data
+        AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
+
+        dmLogWarning("-Update %d %d", textures_num, anim_data->m_CanUseQuads);
+        if (textures_num == 0 || anim_data->m_CanUseQuads)
         {
             if (component->m_UseSlice9)
             {
+                dmLogWarning("--slice9");
                 num_vertices   += SPRITE_VERTEX_COUNT_SLICE9;
                 num_indices    += SPRITE_INDEX_COUNT_SLICE9;
                 vertex_memsize += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
             }
             else
             {
+                dmLogWarning("--non-slice9");
                 num_vertices   += SPRITE_VERTEX_COUNT_LEGACY;
                 num_indices    += SPRITE_INDEX_COUNT_LEGACY;
                 vertex_memsize += SPRITE_VERTEX_COUNT_LEGACY * vertex_stride;
             }
-            return;
         }
-
-        // Get the correct animation frames, and other meta data
-        AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
-
-        num_vertices += anim_data->m_VertexCount;
-        num_indices += anim_data->m_IndicesCount;
-        vertex_memsize += anim_data->m_VertexCount * vertex_stride;
+        else
+        {
+            dmLogWarning("--custom geometry %d %d", anim_data->m_VertexCount, anim_data->m_IndicesCount);
+            num_vertices += anim_data->m_VertexCount;
+            num_indices += anim_data->m_IndicesCount;
+            vertex_memsize += anim_data->m_VertexCount * vertex_stride;
+        }
     }
 
-    dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+    dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+    {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         uint32_t index = (uint32_t)*params.m_UserData;
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
