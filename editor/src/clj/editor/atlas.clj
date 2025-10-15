@@ -347,16 +347,15 @@
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
-                                                     (let [label (or id (localization/message "outline.atlas.no-image"))]
-                                                       (cond-> {:node-id _node-id
-                                                                :node-outline-key label
-                                                                :label label
-                                                                :order order
-                                                                :icon image-icon
-                                                                :outline-error? (g/error-fatal? build-errors)}
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key (or id "<No Image>")
+                                                              :label (or id (localization/message "outline.atlas.no-image"))
+                                                              :order order
+                                                              :icon image-icon
+                                                              :outline-error? (g/error-fatal? build-errors)}
 
-                                                               (resource/resource? maybe-image-resource)
-                                                               (assoc :link maybe-image-resource :outline-show-link? true)))))
+                                                             (resource/resource? maybe-image-resource)
+                                                             (assoc :link maybe-image-resource :outline-show-link? true))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
                                     :image (resource/resource->proj-path maybe-image-resource)
