@@ -27,6 +27,7 @@
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.validation :as validation]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -218,12 +219,20 @@
     (.setColumn m 3 (.x p) (.y p) (.z p) 1.0)
     m))
 
-(defn- camera-projection-matrix [is-orthographic near far fov-deg aspect-ratio]
-  ;; TODO: Derive aspect-ratio from display setting in game.project when auto-aspect-ratio is enabled.
+(defn- camera-projection-matrix
+  [is-orthographic near far fov-deg aspect-ratio display-width display-height orthographic-zoom orthographic-mode]
   (let [fov-y (double fov-deg)
-        fov-x (* fov-y (double aspect-ratio))]
+        fov-x (* fov-y (double aspect-ratio))
+        dw (double display-width)
+        dh (double display-height)]
     (if (true? is-orthographic)
-      (camera/simple-orthographic-projection-matrix near far fov-x fov-y)
+      (let [zoom (double (or orthographic-zoom 1.0))
+            zoom (if (= orthographic-mode :ortho-mode-fixed)
+                   zoom
+                   1.0)
+            ow (/ dw zoom)
+            oh (/ dh zoom)]
+        (camera/simple-orthographic-projection-matrix near far ow oh))
       (camera/simple-perspective-projection-matrix near far fov-x fov-y))))
 
 (defn- gen-outline-vertex-buffer
@@ -235,10 +244,10 @@
             cr (get color 0)
             cg (get color 1)
             cb (get color 2)
-            {:keys [is-orthographic near-z far-z fov aspect-ratio]} (:user-data renderable)
+            {:keys [is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode]} (:user-data renderable)
             world-translation (:world-translation renderable)
             world-rotation (:world-rotation renderable)
-            ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio)
+            ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode)
             ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
             ^Matrix4d inv-view-matrix (math/inverse view-matrix)
             ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
@@ -253,7 +262,7 @@
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov aspect-ratio near-z far-z orthographic-projection]
+  [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
@@ -273,20 +282,27 @@
                                           :aspect-ratio aspect-ratio
                                           :near-z near-z
                                           :far-z far-z
-                                          :is-orthographic orthographic-projection}
+                                          :is-orthographic orthographic-projection
+                                          :orthographic-zoom orthographic-zoom
+                                          :orthographic-mode orthographic-mode
+                                          :display-width project-display-width
+                                          :display-height project-display-height}
                               :passes [pass/outline]}}]}))
 
-(defn load-camera [_project self _resource camera-desc]
+(defn load-camera [project self _resource camera-desc]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
-  (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
-    aspect-ratio :aspect-ratio
-    fov :fov
-    near-z :near-z
-    far-z :far-z
-    auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
-    orthographic-projection (protobuf/int->boolean :orthographic-projection)
-    orthographic-zoom :orthographic-zoom
-    orthographic-mode :orthographic-mode))
+  (concat
+    (g/connect project :display-width self :project-display-width)
+    (g/connect project :display-height self :project-display-height)
+    (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
+      aspect-ratio :aspect-ratio
+      fov :fov
+      near-z :near-z
+      far-z :far-z
+      auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
+      orthographic-projection (protobuf/int->boolean :orthographic-projection)
+      orthographic-zoom :orthographic-zoom
+      orthographic-mode :orthographic-mode)))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
@@ -296,7 +312,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :camera :aspect-ratio)))
   (property fov g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :fov))
-            (dynamic tooltip (properties/tooltip-dynamic :camera :fov)))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :fov))
+            (dynamic read-only? (g/fnk [orthographic-projection] orthographic-projection)))
   (property near-z g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :near-z))
             (dynamic tooltip (properties/tooltip-dynamic :camera :near-z)))
@@ -317,7 +334,11 @@
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
             (dynamic label (properties/label-dynamic :camera :orthographic-zoom))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-zoom))
-            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed))))))
+            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed)))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? orthographic-zoom)))
+
+  (input project-display-width g/Num)
+  (input project-display-height g/Num)
 
   (output form-data g/Any produce-form-data)
 
