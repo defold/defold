@@ -184,13 +184,11 @@ def _get_dotnet_version():
     lines = result.splitlines()
     lines = [x.strip() for x in lines]
 
-    version = None
-    for l in lines:
-        l = l.strip()
-        if l.startswith('Version:') and version is None:
-            version = l.split('Version:')[1].strip()
+    i = lines.index('Host:')
+    version = lines[i+1].strip().split()[1]
 
-        elif l.startswith('Base Path:'):
+    for l in lines:
+        if l.startswith('Base Path:'):
             sdk_dir = l.split('Base Path:')[1].strip()
             while sdk_dir.endswith('/'):
                 sdk_dir = sdk_dir[:-1]
@@ -266,29 +264,11 @@ def configure(conf):
     for x in os.listdir(nuget_path):
         print("MAWE x", x, os.path.isdir(os.path.join(nuget_path, x)))
 
-    versions_folder = _get_dotnet_aot_base_folder(nuget_path, dotnet_platform)
-    if not os.path.exists(versions_folder):
-        print(f"Path does not exist: {versions_folder}")
-        _skip_dotnet(conf)
-        return
-
-    conf.env.DOTNET_AOT_VERSION = _find_best_version_from_folder(versions_folder, DOTNET_VERSION)
-
-    if conf.env.DOTNET_AOT_VERSION is None:
-        print("Failed to find dotnet aot version!")
-        _skip_dotnet(conf)
-        return
-
     print("Setting DOTNET_SDK", conf.env.DOTNET_SDK)
     print("Setting DOTNET_VERSION", conf.env.DOTNET_VERSION)
-    print("Setting DOTNET_AOT_VERSION", conf.env.DOTNET_AOT_VERSION)
 
-    aot_base = _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, conf.env.DOTNET_AOT_VERSION)
-
-    if not os.path.exists(aot_base):
-        print(f"Path does not exist: {aot_base}")
-        _skip_dotnet(conf)
-        return
+    aot_base = _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, conf.env.DOTNET_VERSION)
+    # Note, we can't check it here, in case this is a clean install, and we haven't downloaded any packages with nuget yet
 
     if build_util.get_target_os() in ('win32'):
         pass
