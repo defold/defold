@@ -22,7 +22,6 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.FileUtil;
-import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.util.PackedResources;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.cli.CommandLine;
@@ -323,97 +322,8 @@ public class Bob {
         return Bob.getExe(Platform.getHostPlatform(), exeName);
     }
 
-    private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
-        init();
-        TimeProfiler.start("DownloadExes %s for %s", platform, variant);
-        List<File> binaryFiles = new ArrayList<File>();
-        String[] exeSuffixes = platform.getExeSuffixes();
-        List<String> exes = new ArrayList<String>();
-        String downloadFolder = rootFolder + File.pathSeparator + platform.getPair() + File.separator + platform;
-        String defaultDmengineExeName = getDefaultDmengineExeName(variant);
-        for (String exeSuffix : exeSuffixes) {
-            String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
-            File f = new File(rootFolder, exeName);
-            try {
-                URL url = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
-                logger.info("Download: %s", url);
-                File file = new File(downloadFolder, exeName);
-                HttpUtil http = new HttpUtil();
-
-                // Try to download the first URL
-                try {
-                    http.downloadToFile(url, file);
-                } catch (Exception downloadException) {
-                    // If the first URL fails, try the fallback URL for 'win32' platform
-                    URL fallbackUrl = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getOs(), exeName));
-                    logger.info("First download attempt failed, trying fallback URL: %s", fallbackUrl);
-                    http.downloadToFile(fallbackUrl, file);
-                }
-
-                FileUtil.deleteOnExit(file);
-                binaryFiles.add(file);
-            } catch (Exception e) {
-                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
-            }
-        }
-        TimeProfiler.stop();
-        return binaryFiles;
-    }
-
-    private static String getDefaultDmengineExeName(String variant) {
-        switch (variant)
-        {
-            case VARIANT_DEBUG:
-                return "dmengine";
-            case VARIANT_RELEASE:
-                return "dmengine_release";
-            case VARIANT_HEADLESS:
-                return "dmengine_headless";
-            default:
-                throw new RuntimeException(String.format("Invalid variant %s", variant));
-        }
-    }
-
-    private static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
-        return getExes(platform, getDefaultDmengineExeName(variant));
-    }
-
-    public static List<File> getDefaultDmengineFiles(Platform platform, String variant, String artifactsURL) throws IOException {
-        List<File> binaryFiles;
-        try {
-            List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
-            binaryFiles = new ArrayList<File>();
-            for (String path : binaryPaths) {
-                binaryFiles.add(new File(path));
-            }
-        }
-        catch (RuntimeException e) {
-            binaryFiles = downloadExes(platform, variant, artifactsURL);
-        }
-        return binaryFiles;
-    }
-
     public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
-        return getDefaultDmengineFiles(platform, variant, ARTIFACTS_URL);
-    }
-
-    public static String getLib(Platform platform, String name) throws IOException {
-        init();
-
-        TimeProfiler.start("getLib %s", name);
-        String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
-        File f = new File(rootFolder, libName);
-        if (!f.exists()) {
-            URL url = Bob.class.getResource("/lib/" + libName);
-            if (url == null) {
-                throw new RuntimeException(String.format("/lib/%s not found", libName));
-            }
-
-            atomicCopy(url, f, true);
-        }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
-        return f.getAbsolutePath();
+        return EngineArtifactsProvider.getDefaultDmengineFiles(platform, variant);
     }
 
     // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
@@ -803,6 +713,7 @@ public class Bob {
             String email = getOptionsValue(cmd, 'e', null);
             String auth = getOptionsValue(cmd, 'u', null);
             Project project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
+            EngineArtifactsProvider.setCacheBase(new File(project.getBuildCachePath()));
 
             if (cmd.hasOption("settings")) {
                 for (String filepath : cmd.getOptionValues("settings")) {
