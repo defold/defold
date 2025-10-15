@@ -693,7 +693,7 @@ namespace dmGameSystem
         component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
         component->m_AnimationFrameCount = 1;
 
-        if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL)
+        if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL || component->m_NumTextures == 0)
         {
             component->m_Size[0] = component->m_Resource->m_DDF->m_Size.getX();
             component->m_Size[1] = component->m_Resource->m_DDF->m_Size.getY();
@@ -1518,15 +1518,18 @@ namespace dmGameSystem
                     const float* local_position_channels[] = { (float*) &positions_local };
                     const float* world_position_channels[] = { (float*) &positions_world };
 
+                    const uint8_t uv_channels_count = textures_num != 0 ? textures_num : 1;
+                    const uint8_t pi_channels_count = textures_num != 0 ? textures_num : 1;
+
                     FillWriteVertexAttributeParams(&write_params,
                         sprite_attribute_info_ptr,
                         world_matrix_channel,
                         world_position_channels,
                         local_position_channels,
                         (const float**) scratch_uv_ptrs,
-                        textures_num,
+                        uv_channels_count,
                         (const float**) scratch_pi_ptrs,
-                        textures_num);
+                        pi_channels_count);
 
                     vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
 
@@ -1803,19 +1806,16 @@ namespace dmGameSystem
         // Get the correct animation frames, and other meta data
         AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
 
-        dmLogWarning("-Update %d %d", textures_num, anim_data->m_CanUseQuads);
         if (textures_num == 0 || anim_data->m_CanUseQuads)
         {
             if (component->m_UseSlice9)
             {
-                dmLogWarning("--slice9");
                 num_vertices   += SPRITE_VERTEX_COUNT_SLICE9;
                 num_indices    += SPRITE_INDEX_COUNT_SLICE9;
                 vertex_memsize += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
             }
             else
             {
-                dmLogWarning("--non-slice9");
                 num_vertices   += SPRITE_VERTEX_COUNT_LEGACY;
                 num_indices    += SPRITE_INDEX_COUNT_LEGACY;
                 vertex_memsize += SPRITE_VERTEX_COUNT_LEGACY * vertex_stride;
@@ -1823,7 +1823,6 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogWarning("--custom geometry %d %d", anim_data->m_VertexCount, anim_data->m_IndicesCount);
             num_vertices += anim_data->m_VertexCount;
             num_indices += anim_data->m_IndicesCount;
             vertex_memsize += anim_data->m_VertexCount * vertex_stride;
