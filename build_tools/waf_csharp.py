@@ -251,16 +251,16 @@ def configure(conf):
         _skip_dotnet(conf)
         return
 
+    print("Setting DOTNET_SDK", conf.env.DOTNET_SDK)
+    print("Setting DOTNET_VERSION", conf.env.DOTNET_VERSION)
+    print("Setting DOTNET_AOT_VERSION", conf.env.DOTNET_AOT_VERSION)
+
     aot_base = _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, conf.env.DOTNET_AOT_VERSION)
 
     if not os.path.exists(aot_base):
         print(f"Path does not exist: {aot_base}")
         _skip_dotnet(conf)
         return
-
-    print("Setting DOTNET_SDK", conf.env.DOTNET_SDK)
-    print("Setting DOTNET_VERSION", conf.env.DOTNET_VERSION)
-    print("Setting DOTNET_AOT_VERSION", conf.env.DOTNET_AOT_VERSION)
 
     if build_util.get_target_os() in ('win32'):
         pass
