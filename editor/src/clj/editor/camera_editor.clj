@@ -309,7 +309,8 @@
 
   (property aspect-ratio g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :aspect-ratio))
-            (dynamic tooltip (properties/tooltip-dynamic :camera :aspect-ratio)))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :aspect-ratio))
+            (dynamic read-only? (g/fnk [orthographic-projection] orthographic-projection)))
   (property fov g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :fov))
             (dynamic tooltip (properties/tooltip-dynamic :camera :fov))
@@ -322,7 +323,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :camera :far-z)))
   (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio)))
             (dynamic label (properties/label-dynamic :camera :auto-aspect-ratio))
-            (dynamic tooltip (properties/tooltip-dynamic :camera :auto-aspect-ratio)))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :auto-aspect-ratio))
+            (dynamic read-only? (g/fnk [orthographic-projection] orthographic-projection)))
   (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection)))
             (dynamic label (properties/label-dynamic :camera :orthographic-projection))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-projection)))
