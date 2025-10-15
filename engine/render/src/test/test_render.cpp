@@ -71,7 +71,7 @@ protected:
     dmRender::HFontMap m_SystemFontMap;
     dmRender::FontGlyph m_Glyphs[128];
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmGraphics::InstallAdapter();
 
@@ -127,7 +127,7 @@ protected:
         dmRender::SetFontMapUserData(m_SystemFontMap, m_Glyphs);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);

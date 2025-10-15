@@ -33,7 +33,7 @@ using namespace dmVMath;
 class FactoryTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -84,7 +84,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);

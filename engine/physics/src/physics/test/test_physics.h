@@ -44,7 +44,7 @@ class PhysicsTest : public jc_test_base_class
 {
 protected:
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
         context_params.m_Scale = PHYSICS_SCALE;
@@ -70,7 +70,7 @@ protected:
         m_StepWorldContext.m_Box2DSubStepCount = 10;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         (*m_Test.m_DeleteWorldFunc)(m_Context, m_World);
         (*m_Test.m_DeleteContextFunc)(m_Context);

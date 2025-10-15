@@ -25,7 +25,7 @@
 class dlib : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmHashEnableReverseHash(true);
     }

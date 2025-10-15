@@ -26,7 +26,7 @@
 
 class dmHttpCacheTest : public jc_test_base_class
 {
-    virtual void SetUp()
+    void SetUp() override
     {
         char path[1024];
         dmTestUtil::MakeHostPath(path, sizeof(path), "tmp");

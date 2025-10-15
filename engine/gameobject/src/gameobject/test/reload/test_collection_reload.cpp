@@ -61,7 +61,7 @@ static void ResetWorldCounters(Stats* stats) {
 class ReloadCollectionTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_NewResource = 0x0;
 
@@ -122,7 +122,7 @@ protected:
         m_Collection = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Collection)
             dmGameObject::DeleteCollection(m_Collection);

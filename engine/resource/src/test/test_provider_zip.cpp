@@ -145,7 +145,7 @@ struct ZipParams
 class ArchiveProviderZip : public jc_test_params_class<ZipParams>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
 #if defined(__EMSCRIPTEN__)
         // Trigger the vsf init for emscripten (hidden in MakeHostPath)
@@ -165,7 +165,7 @@ protected:
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);

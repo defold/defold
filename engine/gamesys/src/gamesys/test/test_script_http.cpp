@@ -105,7 +105,7 @@ public:
 
 protected:
 
-    virtual void SetUp()
+    void SetUp() override
     {
         char path[1024];
         dmTestUtil::MakeHostPath(path, sizeof(path), "src/gamesys/test/http/test_http.config.raw");
@@ -190,7 +190,7 @@ protected:
         m_NumberOfFails = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmScript::GetInstance(L);
         ScriptInstance* script_instance = (ScriptInstance*)lua_touserdata(L, -1);
