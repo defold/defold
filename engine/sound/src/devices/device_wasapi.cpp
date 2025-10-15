@@ -505,6 +505,8 @@ namespace dmDeviceWasapi
                 HRESULT hr = device->m_AudioClient->Stop();
                 if (FAILED(hr))
                 {
+                    if (hr == AUDCLNT_E_SERVICE_NOT_RUNNING)
+                        return;
                     dmLogError("Failed to stop audio client");
                     CheckAndPrintError(hr);
                 }
@@ -571,6 +573,8 @@ namespace dmDeviceWasapi
                     MarkDeviceInvalidated(device, "Stop", hr);
                     return;
                 }
+                if (hr == AUDCLNT_E_SERVICE_NOT_RUNNING)
+                    return;
                 dmLogError("Failed to stop audio client");
                 CheckAndPrintError(hr);
             }
