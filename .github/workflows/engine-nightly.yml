@@ -24,7 +24,7 @@ jobs:
       {
         name: 'Setup dotnet',
         shell: bash,
-        run: 'wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh &&
+        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
               chmod +x ./dotnet-install.sh &&
               export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
               export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
@@ -67,7 +67,7 @@ jobs:
       {
         name: 'Setup dotnet',
         shell: bash,
-        run: 'wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh &&
+        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
               chmod +x ./dotnet-install.sh &&
               export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
               export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
@@ -114,7 +114,7 @@ jobs:
       {
         name: 'Setup dotnet',
         shell: bash,
-        run: 'wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh &&
+        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
               chmod +x ./dotnet-install.sh &&
               export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
               export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
@@ -190,7 +190,7 @@ jobs:
       {
         name: 'Setup dotnet',
         shell: bash,
-        run: 'wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh &&
+        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
               chmod +x ./dotnet-install.sh &&
               export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
               export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
