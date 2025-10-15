@@ -426,51 +426,15 @@ public class HTML5Bundler implements IBundler {
         if (variant.equals(Bob.VARIANT_RELEASE)) {
             symbolsName = "dmengine_release.js.symbols";
         }
-        // Copy symbols for relevant web pairs (js-web, wasm-web, wasm_pthread-web)
-        String[] webSymbolPairs = new String[] {
-            Platform.JsWeb.getExtenderPair(),
-            Platform.WasmWeb.getExtenderPair(),
-            Platform.WasmPthreadWeb.getExtenderPair()
-        };
-        for (String pair : webSymbolPairs) {
-            String dir = FilenameUtils.concat(project.getBinaryOutputDirectory(), pair);
-            File expected = new File(dir, symbolsName);
-
-            File srcSymbols = null;
-            if (expected.exists()) {
-                srcSymbols = expected;
-            } else {
-                // Try to discover any *.js.symbols in the platform directory
-                File platformDir = new File(dir);
-                File[] matches = platformDir.listFiles(new java.io.FilenameFilter() {
-                    @Override
-                    public boolean accept(File d, String name) {
-                        return name.endsWith(".js.symbols");
-                    }
-                });
-                if (matches != null && matches.length > 0) {
-                    srcSymbols = matches[0];
-                }
-            }
-
-            if (srcSymbols != null) {
-                // Put all HTML5 symbols into a single folder named <ExeName>_symbols
-                File symbolsDir = new File(appDir.getParentFile(), enginePrefix + "_symbols");
-                symbolsDir.mkdirs();
-                String destName;
-                if (pair.equals(Platform.JsWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_asmjs.js.symbols";
-                } else if (pair.equals(Platform.WasmWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_wasm.js.symbols";
-                } else if (pair.equals(Platform.WasmPthreadWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_pthread_wasm.js.symbols";
-                } else {
-                    destName = srcSymbols.getName();
-                }
-                File destSymbols = new File(symbolsDir, destName);
-                FileUtils.copyFile(srcSymbols, destSymbols);
-                logger.info("HTML5 symbols copied (%s): %s", pair, destSymbols.getAbsolutePath());
-            }
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.JsWeb.getExtenderPair());
+        File bundleSymbols = new File(zipDir, symbolsName);
+        if (!bundleSymbols.exists()) {
+            zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            bundleSymbols = new File(zipDir, symbolsName);
+        }
+        if (bundleSymbols.exists()) {
+            File symbolsOut = new File(appDir.getParentFile(), enginePrefix + ".symbols");
+            FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 
 
