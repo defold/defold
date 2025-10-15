@@ -522,8 +522,17 @@
 (defn title! [^Stage window t]
   (.setTitle window t))
 
-(defn tooltip! [^Control ctrl tip localization]
-  (.setTooltip ctrl (when tip (localization/localize! (Tooltip.) localization tip))))
+(defn tooltip!
+  ([^Control ctrl tip localization]
+   (.setTooltip ctrl (when tip (localization/localize! (Tooltip.) localization tip))))
+  ([^Control ctrl tip localization keymap command]
+   (.setTooltip ctrl (when tip
+                       (let [tooltip-obj (localization/localize! (Tooltip.) localization tip)
+                             shortcut (when (and keymap command)
+                                        (editor.keymap/display-text keymap command ""))]
+                         (when (seq shortcut)
+                           (.setText tooltip-obj (str (.getText tooltip-obj) " (" shortcut ")")))
+                         tooltip-obj)))))
 
 (defn request-focus! [^Node node]
   (.requestFocus node))
@@ -1891,15 +1900,9 @@
       :else
       (let [{:keys [graphic-fn label icon tooltip command more]} menu-item
             label (or (handler/label handler-ctx) label)
-            tooltip-text (if (and command tooltip)
-                           (let [shortcut (editor.keymap/display-text keymap command "")]
-                             (cond-> tooltip
-                               (seq shortcut)
-                               (str tooltip " (" shortcut ")")))
-                           tooltip)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
-                     (tooltip! tooltip-text localization))]
+                     (tooltip! tooltip localization keymap command))]
         (cond
           graphic-fn
           ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
