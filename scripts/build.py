@@ -1906,7 +1906,12 @@ class Configuration(object):
             env['DM_ENV_PATH'] = env['PATH']
             # Use $SHELL inside the shell for portability instead of injecting
             # a potentially platform-specific path from Python.
-            reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
+            shell_name = os.path.basename(SHELL)
+            if shell_name == 'fish':
+                # Fish shell isn't POSIX compatible
+                reexport_cmd = 'set -gx PATH $DM_ENV_PATH; set -e DM_ENV_PATH; exec "$SHELL" -i'
+            else:
+                reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
             args = [SHELL, '-l', '-c', reexport_cmd]
         else:
             # Keep legacy behavior on Windows/msys to preserve PATH rewriting
