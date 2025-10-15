@@ -68,7 +68,6 @@
                (let [r (workspace/resolve-workspace-resource workspace "/nope.convexshape")]
                  (test-util/with-prop [node-id :collision-shape r]
                    (is (g/error? (test-util/prop-error node-id :collision-shape))))))
-      (tap> (g/node-value node-id :node-outline))
       (doseq [[type index props] [["sphere" 0 {:diameter -1}]
                                   ["box" 1 {:dimensions [-1 1 1]}]
                                   ["capsule" 2 {:diameter -1
