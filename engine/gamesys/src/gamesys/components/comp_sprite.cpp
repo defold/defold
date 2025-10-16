@@ -1961,7 +1961,14 @@ namespace dmGameSystem
 
             float radius_sq = radiuses[entry->m_UserData];
 
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, entry->m_WorldPosition, radius_sq);
+            SpriteComponent* component = &sprite_world->m_Components.Get(entry->m_UserData);
+            const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
+            float pivot_x = 0.f, pivot_y = 0.f;
+            GetPivot(anim_data, &pivot_x, &pivot_y);
+            Point3 pivot(-pivot_x, -pivot_y, 0.f);
+            Vector3 world_pos = (component->m_World * pivot).getXYZ();
+
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, Point3(world_pos), radius_sq);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
@@ -2035,12 +2042,8 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, &component);
-            float pivot_x = 0.f, pivot_y = 0.f;
-            GetPivot(anim_data, &pivot_x, &pivot_y);
-            Point3 pivot(-pivot_x, -pivot_y, 0.f);
-            Vector3 world_pos = (component.m_World * pivot).getXYZ();
-            write_ptr->m_WorldPosition = Point3(world_pos);
+            const Vector3 trans = component.m_World.getCol(3).getXYZ();
+            write_ptr->m_WorldPosition = Point3(trans);
             write_ptr->m_UserData = i; // Assuming the object pool stays intact
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(&component));
