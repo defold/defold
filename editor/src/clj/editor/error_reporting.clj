@@ -106,8 +106,8 @@
   ([^Throwable exception thread]
    (try
      (let [{:keys [ex-map]} (record-exception! exception)
-           suppressed? (some #(-> % :data :suppressed?) (:via ex-map))]
-       (if suppressed?
+           suppress-dialog-window? (some #(-> % :data :suppress-dialog-window?) (:via ex-map))]
+       (if suppress-dialog-window?
          (when (system/defold-dev?)
            (if-let [data (ex-data exception)]
              (log/debug :msg "Suppressed unhandled" :exception exception :ex-data data)
