@@ -176,7 +176,7 @@
                   :children
                   (mapv #(outline->tree-item % node-id-path->expanded swap-state active-resource-node)))})
 
-(defn- reset-tree-view-state [old {:keys [active-resource-node selection open-resource-nodes active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded] :as new}]
+(defn- reset-tree-view-state [old {:keys [active-resource-node selection open-resource-nodes active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]}]
   (let [ret (-> old
                 (update :active-node-id->selected-node-id->node-id-paths
                         (fn [old-active-node-id->selected-node-id->node-id-paths]

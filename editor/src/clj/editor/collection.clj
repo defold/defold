@@ -493,7 +493,7 @@
                  (fn [localization-state _]
                    (into (localization/natural-sort-by-label localization-state coll-outlines)
                          (localization/natural-sort-by-label localization-state go-outlines)))
-                 (-> coll-outlines (or []) (into go-outlines)))
+                 (into (or coll-outlines []) go-outlines))
      :child-reqs [{:node-type ReferencedGOInstanceNode
                    :tx-attach-fn outline-tx-attach-coll-referenced-go}
                   {:node-type EmbeddedGOInstanceNode
