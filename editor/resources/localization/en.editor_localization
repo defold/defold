@@ -1048,7 +1048,7 @@ property.gui.outline = Outline
 property.gui.outline-alpha = Outline Alpha
 property.gui.outer-bounds = Outer Bounds
 property.gui.perimeter-vertices = Perimeter Vertices
-property.gui.particlefx = Particle FX
+property.gui.particlefx = ParticleFX
 property.gui.pie-fill-angle = Pie Fill Angle
 property.gui.pivot = Pivot
 property.gui.script = Script
@@ -1180,6 +1180,30 @@ property.tile-source.tile-height = Tile Height
 property.tile-source.tile-margin = Tile Margin
 property.tile-source.tile-spacing = Tile Spacing
 property.tile-source.tile-width = Tile Width
+
+# Outline
+
+outline.atlas.no-image = <No Image>
+outline.atlas = Atlas
+outline.camera = Camera
+outline.collection = Collection
+outline.collection-proxy = Collection Proxy
+outline.collision-object = Collision Object
+outline.game-object = Game Object
+outline.gui.fonts = Fonts
+outline.gui.layouts = Layouts
+outline.gui.layers = Layers
+outline.gui.nodes = Nodes
+outline.gui.materials = Materials
+outline.gui.textures = Textures
+outline.non-editable-collection = Non-Editable Collection
+outline.non-editable-game-object = Non-Editable Game Object
+outline.particlefx = ParticleFX
+outline.sound = Sound
+outline.tile-map = Tile Map
+outline.tile-source = Tile Source
+outline.unknown = Unknown
+outline.unnamed-collision-shape = <Unnamed {shape}>
 
 # Resources
 

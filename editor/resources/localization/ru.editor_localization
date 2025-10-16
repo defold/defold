@@ -1170,6 +1170,30 @@ property.tile-source.tile-margin = Отступ тайла
 property.tile-source.tile-spacing = Отступ между тайлами
 property.tile-source.tile-width = Ширина тайла
 
+# Outline
+
+outline.atlas.no-image = <Нет изображения>
+outline.atlas = Атлас
+outline.camera = Камера
+outline.collection = Коллекция
+outline.collection-proxy = Прокси коллекции
+outline.collision-object = Объект коллизий
+outline.game-object = Игровой объект
+outline.gui.fonts = Шрифты
+outline.gui.layouts = Макеты
+outline.gui.layers = Слои
+outline.gui.nodes = Элементы
+outline.gui.materials = Материалы
+outline.gui.textures = Текстуры
+outline.non-editable-collection = Нередактируемая коллекция
+outline.non-editable-game-object = Нередактируемый игровой объект
+outline.particlefx = ParticleFX
+outline.sound = Звук
+outline.tile-map = Тайловая карта
+outline.tile-source = Набор тайлов
+outline.unknown = Неизвестно
+outline.unnamed-collision-shape = <Безымянная форма: {shape}>
+
 # Resources
 
 resource.view.scene = Сцена

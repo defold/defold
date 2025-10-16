@@ -324,7 +324,7 @@
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
                                                      {:node-id _node-id
                                                       :node-outline-key "Camera"
-                                                      :label "Camera"
+                                                      :label (localization/message "outline.camera")
                                                       :icon camera-icon}))
 
   (output save-value g/Any :cached produce-save-value)

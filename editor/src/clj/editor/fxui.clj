@@ -1209,9 +1209,15 @@
       (localization/unlocalize! (fx/instance component) (:localization component))
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 
-(defn advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
+(defn- advance-user-data-component! [target user-data user-data! key desc]
+  (let [component (user-data target key)]
     (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
+      (and component desc) (user-data! target key (fx/advance-component component desc))
+      component (do (fx/delete-component component) (user-data! target key nil))
+      desc (user-data! target key (fx/create-component desc)))))
+
+(defn advance-graph-user-data-component! [view-node key desc]
+  (advance-user-data-component! view-node g/user-data g/user-data! key desc))
+
+(defn advance-ui-user-data-component! [javafx-node key desc]
+  (advance-user-data-component! javafx-node ui/user-data ui/user-data! key desc))

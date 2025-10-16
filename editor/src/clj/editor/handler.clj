@@ -403,12 +403,13 @@
   Returns either a non-empty vector or nil"
   [[{:keys [command]} :as handler+command-context]]
   (when-let [opts (options handler+command-context)]
-    (->> opts
-         (e/mapcat flatten-menu-item-tree)
-         (e/remove #(= :separator (:label %)))
-         (e/filter #(= command (:command %)))
-         vec
-         coll/not-empty)))
+    (when-let [flat-opts (->> opts
+                              (e/mapcat flatten-menu-item-tree)
+                              (e/remove #(= :separator (:label %)))
+                              (e/filter #(= command (:command %)))
+                              vec
+                              coll/not-empty)]
+      (with-meta flat-opts (meta opts)))))
 
 (defn- eval-dynamics [context evaluation-context]
   (cond-> context

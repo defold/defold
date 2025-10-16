@@ -1462,7 +1462,7 @@
                                 localization
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts keymap localization evaluation-context)
+                                (make-menu-items scene (localization/sort-if-annotated @localization options) command-contexts keymap localization evaluation-context)
                                 on-open))
                 (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)))))))))
 

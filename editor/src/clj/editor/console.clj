@@ -18,6 +18,7 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -289,7 +290,7 @@
                                       :items (into [] (map-indexed coll/pair) filters)
                                       :fixed-cell-size 27
                                       :max-height (* 27 (min 10 (count filters)))
-                                      :cell-factory {:fx/cell-type :list-cell
+                                      :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                      :describe filter-console-list-cell-view}}
                                      {:fx/type fxui/ext-focused-by-default
                                       :v-box/margin 4

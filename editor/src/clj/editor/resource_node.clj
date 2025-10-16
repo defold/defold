@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.code.util :as code.util]
             [editor.core :as core]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -149,12 +150,13 @@
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
            (let [rt (resource/resource-type resource)
-                 label (or (:label rt) (:ext rt) "unknown")
+                 outline-key (or (:label rt) (:ext rt) "unknown")
+                 label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
                  icon (or (:icon rt) unknown-icon)
                  children (cond-> child-outlines
                             source-outline (into (:children source-outline)))]
              {:node-id _node-id
-              :node-outline-key label
+              :node-outline-key outline-key
               :label label
               :icon icon
               :children children

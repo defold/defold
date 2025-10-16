@@ -96,7 +96,7 @@
   [_node-id]
   {:node-id _node-id
    :node-outline-key "Sound"
-   :label "Sound"
+   :label (localization/message "outline.sound")
    :icon sound-icon})
 
 (g/defnk produce-form-data

@@ -21,6 +21,7 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
+            [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -39,7 +40,7 @@
         ;; Two game objects under the collection
         (is (= 2 (count (:children outline))))
         ;; One component and game object under the game object
-        (is (= 2 (count (:children (second (:children outline)))))))))
+        (is (= 2 (count (:children (first (:children outline)))))))))
   (testing "Deleting hierarchy deletes children"
     (test-util/with-loaded-project
       (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
@@ -94,7 +95,7 @@
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ;; Verify outline labels
-               (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
+               (is (= (list (localization/message "outline.collection") "go") (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
                (is (= [geom/null-aabb geom/empty-bounding-box]
                       (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
@@ -106,7 +107,7 @@
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ;; Verify outline labels
-               (is (= (list "Collection" "my_instance" "unknown")
+               (is (= (list (localization/message "outline.collection") "my_instance" "unknown")
                       (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
                (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]
