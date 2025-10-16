@@ -105,7 +105,8 @@
    (report-exception! exception (Thread/currentThread)))
   ([^Throwable exception thread]
    (try
-     (let [{:keys [ex-map suppressed?]} (record-exception! exception)]
+     (let [{:keys [ex-map]} (record-exception! exception)
+           suppressed? (some #(-> % :data :suppressed?) (:via ex-map))]
        (if suppressed?
          (when (system/defold-dev?)
            (if-let [data (ex-data exception)]

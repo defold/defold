@@ -55,6 +55,7 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -1405,9 +1406,20 @@
       (let [main-scene (.getScene ^Stage main-stage)
             render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
         (build-errors-view/clear-build-errors build-errors-view)
-        (if (debug-view/can-attach? prefs)
-          (attach-debugger! workspace project prefs debug-view render-build-error!)
-          (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
+        (try
+          (if (debug-view/can-attach? prefs)
+            (attach-debugger! workspace project prefs debug-view render-build-error!)
+            (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
+          (catch Exception e
+            (notifications/show!
+             (workspace/notifications workspace)
+             {:type :error
+              :id ::debugger-connection-error
+              :message (localization/message "notification.debug-view.connect-failed.error" {"error" "Testing"})})
+            (throw (ex-info "Failed to attach to debugger"
+                            {:type ::cannot-check-attach
+                             :suppressed? true}
+                            e))))))))
 
 (def ^:private clean-build-dialog-info
   {:title (localization/message "dialog.clean-build.title")
