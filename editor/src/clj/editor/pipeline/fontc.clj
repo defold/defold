@@ -474,7 +474,11 @@
         semi-glyphs (into []
                           (comp
                             (filter displayable-codepoint?)
-                            (map (partial ttf-semi-glyph font antialias)))
+                            (map (partial ttf-semi-glyph font antialias))
+                            (remove (fn [semi-glyph]
+                                      (and (zero? (int (:width semi-glyph)))
+                                           (zero? (double (:advance semi-glyph)))
+                                           (<= 65000 (long (:character semi-glyph)))))))
                           prospect-codepoints)]
     (when-not (seq semi-glyphs)
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))

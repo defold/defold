@@ -115,7 +115,8 @@ sourceSets {
 
 task copyDependencies {
     doLast {
-        exec {
+        services.get(org.gradle.process.ExecOperations).exec {
+            workingDir project.bobDir
             commandLine project.python, "${project.bobDir}/engine_version_generator.py"
         }
         def includeJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']

@@ -338,7 +338,7 @@
                           (or "")
                           io/file
                           .getCanonicalFile)
-        protected-dirs [(io/file resources-dir "packages" "jdk-21.0.5+11")]
+        protected-dirs [(io/file resources-dir "packages" "jdk-25+36")]
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os

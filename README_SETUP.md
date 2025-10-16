@@ -125,7 +125,7 @@ apt install <package_name>
 </p></details>
 
 
-### Required Software - Java JDK 21
+### Required Software - Java JDK 25
 
 You can use a package manager or do a manual download and installation.
 
@@ -134,10 +134,10 @@ You can use a package manager or do a manual download and installation.
 Install [temurin jdk](https://adoptium.net/en-GB/installation/) using Chocolatey:
 
 ```sh
-choco install temurin21
+choco install temurin25
 ```
 
-*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-21.0.5_11*
+*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-25_36*
 
 Once the Java SDK is installed you need to add java to PATH environment variable.
 
@@ -148,7 +148,7 @@ Once the Java SDK is installed you need to add java to PATH environment variable
 Install [temurin jdk](https://adoptium.net/en-GB/installation/) using `apt-get`:
 
 ```
-> sudo apt-get install temurin-21-jdk
+> sudo apt-get install temurin-25-jdk
 ```
 
 Once the Java SDK is installed you may need to add `<java install path>/Contents/Home/bin` to your PATH:
@@ -189,9 +189,9 @@ source ~/.zprofile
 
 <details><summary>Manual download...</summary><p>
 
-Download and install the latest JDK 21 (21.0.5 or later) release from either of these locations:
+Download and install the latest JDK 25 (25+36 or later) release from either of these locations:
 
-* [Adoptium/Temurin](https://github.com/adoptium/temurin21-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
+* [Adoptium/Temurin](https://github.com/adoptium/temurin25-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
 
 </p></details>
 
