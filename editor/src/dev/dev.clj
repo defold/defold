@@ -1630,3 +1630,10 @@
                       (inc batch-index)
                       (conj! batches batch)))))
          (persistent! batches))))))
+
+(defn clear-enable-all! []
+  (clear-caches!)
+  (handler/enable-disabled-handlers!)
+  (ui/enable-stopped-timers!)
+  (println "Re-enabled all disabled handlers and timers")
+  nil)
