@@ -18,12 +18,15 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.camera :as camera]
+            [editor.types :as types]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.scene-tools :as scene-tools]
+            [editor.localization :as localization]
             [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -56,6 +59,16 @@
                                      (Vector4d. (p 0) (p 1) (p 2) 1.0))
                                    camera-edge-list)]
     camera-mesh-lines-v4))
+
+;; Precomputed extents of the authored camera mesh (in view-space units).
+;; Used to calibrate pixel-stable scaling so the icon keeps a reasonable size.
+(def ^:private camera-mesh-height-units
+  (let [ys (map #(.y ^Vector4d %) camera-mesh-lines)
+        ^double maxy (reduce (fn [^double a ^double b] (Math/max a b)) Double/NEGATIVE_INFINITY ys)
+        ^double miny (reduce (fn [^double a ^double b] (Math/min a b)) Double/POSITIVE_INFINITY ys)]
+    (- ^double maxy ^double miny)))
+
+(def ^:private ^:const camera-mesh-target-pixels 32.0)
 
 (g/defnk produce-form-data
   [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom orthographic-mode]
@@ -141,14 +154,27 @@
 (defmacro ^:private gen-outline-vertex [x y z w cr cg cb]
   `[(/ ~x ~w) (/ ~y ~w) (/ ~z ~w) ~cr ~cg ~cb 1.0])
 
-(defn- conj-camera-mesh-vertices! [vbuf ^Matrix4d inv-view cr cg cb]
+(defn- conj-camera-mesh-vertices!
+  "Append the small camera mesh to the vertex buffer.
+  The mesh is authored in camera view space. We scale it uniformly in view space
+  by `mesh-scale` before transforming to world space with `inv-view` to achieve
+  a pixel-stable on-screen size."
+  [vbuf ^Matrix4d inv-view mesh-scale cr cg cb]
   (mapv (fn [^Vector4d p]
-          (let [tp (math/transform-vector-v4 inv-view p)
+          (let [sx (* (.x p) (double mesh-scale))
+                sy (* (.y p) (double mesh-scale))
+                sz (* (.z p) (double mesh-scale))
+                sp (Vector4d. sx sy sz 1.0)
+                tp (math/transform-vector-v4 inv-view sp)
                 camera-mesh-vx (gen-outline-vertex (.x tp) (.y tp) (.z tp) (.w tp) cr cg cb)]
             (conj! vbuf camera-mesh-vx)))
         camera-mesh-lines))
 
-(defn- conj-camera-outline! [vbuf ^Vector3d camera-pos ^Matrix4d inv-view ^Matrix4d inv-proj-view cr cg cb]
+(defn- conj-camera-outline!
+  "Append the camera preview (small mesh + frustum) for one camera component.
+  `mesh-scale` only affects the small camera mesh. Frustum geometry remains
+  world-sized to reflect the camera's true near/far and FOV."
+  [vbuf ^Vector3d camera-pos ^Matrix4d inv-view ^Matrix4d inv-proj-view mesh-scale cr cg cb]
   (let [far-p0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 1.0 1.0))
         far-p1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 1.0 1.0))
         far-p2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 1.0 1.0))
@@ -181,8 +207,8 @@
 
         ;; camera vertex for center
         camera-v (gen-outline-vertex (.x camera-pos) (.y camera-pos) (.z camera-pos) 1 cr-less cg-less cb-less)]
-    ;; Add camera mesh vertices
-    (conj-camera-mesh-vertices! vbuf inv-view cr cg cb)
+    ;; Add camera mesh vertices (pixel-stable size)
+    (conj-camera-mesh-vertices! vbuf inv-view mesh-scale cr cg cb)
     (-> vbuf
         ;; Add square for near plane
         (conj! near-v0) (conj! near-v1) (conj! near-v1) (conj! near-v2) (conj! near-v2) (conj! near-v3) (conj! near-v3) (conj! near-v0)
@@ -235,7 +261,7 @@
       (camera/simple-perspective-projection-matrix near far fov-x fov-y))))
 
 (defn- gen-outline-vertex-buffer
-  [renderables ^long renderable-count]
+  [render-args renderables ^long renderable-count]
   (loop [renderables renderables
          vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
     (if-let [renderable (first renderables)]
@@ -247,24 +273,45 @@
             world-translation (:world-translation renderable)
             world-rotation (:world-rotation renderable)]
         ;; Hide frustum preview when orthographic zoom is invalid (<= 0) in fixed mode
-        (if (and is-orthographic (= orthographic-mode :ortho-mode-fixed) (not (pos? (double (or orthographic-zoom 0)))))
+        (if (and is-orthographic (= orthographic-mode :ortho-mode-fixed)
+                 (not (> (double (or orthographic-zoom 0.0)) 0.0)))
           (recur (rest renderables) vbuf)
-          (let [^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode)
+          (let [;; Pixel-stable scale for the small camera mesh at the camera position.
+                ;; Similar to manipulators: 1 world unit at the reference depth -> Δpx.
+                ;; We target a fixed on-screen height (camera-mesh-target-pixels).
+                view-cam (:camera render-args)
+                view-pos (types/position view-cam)
+                ;; Avoid projecting the view camera position itself (w=0 in perspective).
+                ;; If the camera component sits exactly at the view camera position,
+                ;; offset the reference point slightly forward along the view direction.
+                ref-point (let [dx (- (.x ^Vector3d world-translation) (.x ^javax.vecmath.Point3d view-pos))
+                                dy (- (.y ^Vector3d world-translation) (.y ^javax.vecmath.Point3d view-pos))
+                                dz (- (.z ^Vector3d world-translation) (.z ^javax.vecmath.Point3d view-pos))
+                                dist2 (+ (* dx dx) (* dy dy) (* dz dz))]
+                            (if (< dist2 1.0e-12)
+                              (let [p (javax.vecmath.Point3d. world-translation)
+                                    fwd ^javax.vecmath.Vector3d (camera/camera-forward-vector view-cam)]
+                                (.scaleAdd p 1.0 fwd)
+                                p)
+                              (javax.vecmath.Point3d. world-translation)))
+                sf (scene-tools/scale-factor view-cam (:viewport render-args) ref-point)
+                mh (double camera-mesh-height-units)
+                tp (double camera-mesh-target-pixels)
+                ratio (if (> mh 0.0) (/ tp mh) 1.0)
+                mesh-scale (* (double sf) ratio)
+                ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode)
                 ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
                 ^Matrix4d inv-view-matrix (math/inverse view-matrix)
                 ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
                 ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
-            (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))))
+            (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix mesh-scale cr cg cb)))))
       (persistent! vbuf))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
   (assert (= pass/outline (:pass render-args)))
-  (let [vbuf (gen-outline-vertex-buffer renderables renderable-count)
-        outline-vertex-binding (vtx/use-with ::frustum-outline vbuf outline-shader)
-        vcount (count vbuf)]
-    (when (pos? vcount)
-      (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-        (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))
+  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer render-args renderables renderable-count) outline-shader)]
+    (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
   [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
