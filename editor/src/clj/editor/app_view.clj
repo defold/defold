@@ -1418,7 +1418,7 @@
               :message (localization/message "notification.debug-view.connect-failed.error" {"error" "Testing"})})
             (throw (ex-info "Failed to attach to debugger"
                             {:type ::cannot-check-attach
-                             :suppressed? true}
+                             :suppress-dialog-window? true}
                             e))))))))
 
 (def ^:private clean-build-dialog-info
