@@ -74,6 +74,11 @@ Label.emphasis {
         -fx-font-size: 150%;
         -fx-font-smoothing-type: lcd;
     }
+    .df-sub-header {
+        -fx-font-family: $default-font;
+        -fx-font-size: 125%;
+        -fx-font-smoothing-type: lcd;
+    }
 }
 
 #welcome-dialog #left-pane .pane-button {
