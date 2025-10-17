@@ -1,1208 +1,1219 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+
 # Localizations of the Welcome dialog
-welcome.button.open-from-disk = Открыть с Диска…
-welcome.button.open-selected = Открыть Проект
-welcome.recent-projects = Недавние Проекты
-welcome.tab.new-project = НОВЫЙ ПРОЕКТ
-welcome.tab.home = МОИ ПРОЕКТЫ
-welcome.greeting = Добро пожаловать! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
-welcome.button.create-new-project = Создать Проект
-welcome.downloading-project = Загружается {template}…
-welcome.button.cancel-download = Отменить Загрузку
-welcome.header.open = Открыть
-welcome.header.new-project-from = Создать
-welcome.tab.templates = ИЗ ШАБЛОНОВ
-welcome.tab.tutorials = ИЗ ТУТОРИАЛОВ
-welcome.tab.samples = ИЗ ПРИМЕРОВ
-welcome.new-project.default-name = Мой Проект
-welcome.new-project.title = Имя
-welcome.new-project.location = Путь
-welcome.open-from-disk.dialog.title = Открыть Проект
-welcome.open-from-disk.dialog.filter.defold = Файлы Проектов Defold
-welcome.new-project.location.dialog.title = Выберите Расположение Нового Проекта
-welcome.new-project.error.no-project-title.title = Нет Названия Проекта
-welcome.new-project.error.no-project-title.header = Необходимо указать название проекта
-welcome.new-project.error.invalid-project-title.title = Недопустимое Название Проекта
-welcome.new-project.error.invalid-project-title.header = Пробелы в начале и в конце названия проекта не допускаются
-welcome.new-project.error.conflicting-project-location.title = Конфликт Расположения Проекта
-welcome.new-project.error.conflicting-project-location.header = По указанному пути уже существует непустая папка
-welcome.new-project.error.no-internet-connection.title = Нет Подключения к Интернету
-welcome.new-project.error.no-internet-connection.header = Для загрузки содержимого проекта требуется подключение к Интернету
-welcome.new-project.error.host-unreachable.title = Хост Недоступен
-welcome.new-project.error.host-unreachable.header = Возможно, брандмауэр блокирует сетевые соединения
-welcome.new-project.error.host-not-responding.title = Хост Не Отвечает
-welcome.new-project.error.host-not-responding.header = Время ожидания соединения истекло
-welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
-welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
-welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен: 
+welcome.button.open-from-disk = Open From Disk…
+welcome.button.open-selected = Open Selected
+welcome.button.create-new-project = Create New Project
+welcome.button.cancel-download = Cancel Download
+welcome.recent-projects = Recent Projects
+welcome.tab.new-project = NEW PROJECT
+welcome.tab.home = MY PROJECTS
+welcome.greeting = Welcome\! As soon as you start working with Defold, all your recent projects will appear here.
+welcome.downloading-project = Downloading {template}…
+welcome.header.open = Open
+welcome.header.new-project-from = Create From
+welcome.tab.templates = TEMPLATES
+welcome.tab.tutorials = TUTORIALS
+welcome.tab.samples = SAMPLES
+welcome.new-project.default-name = My Project
+welcome.new-project.title = Title
+welcome.new-project.location = Location
+welcome.open-from-disk.dialog.title = Open Project
+welcome.open-from-disk.dialog.filter.defold = Defold Project Files
+welcome.new-project.location.dialog.title = Select New Project Location
+welcome.new-project.error.no-project-title.title = No Project Title
+welcome.new-project.error.no-project-title.header = You must specify a title for the project
+welcome.new-project.error.invalid-project-title.title = Invalid Project Title
+welcome.new-project.error.invalid-project-title.header = Whitespace is not allowed around the project title
+welcome.new-project.error.conflicting-project-location.title = Conflicting Project Location
+welcome.new-project.error.conflicting-project-location.header = A non-empty folder already exists at the chosen location
+welcome.new-project.error.no-internet-connection.title = No Internet Connection
+welcome.new-project.error.no-internet-connection.header = You must be connected to the internet to download project content
+welcome.new-project.error.host-unreachable.title = Host Unreachable
+welcome.new-project.error.host-unreachable.header = A firewall might be blocking network connections
+welcome.new-project.error.host-not-responding.title = Host Not Responding
+welcome.new-project.error.host-not-responding.header = The connection timed out
+welcome.new-project.error.ssl-connection-error.title = SSL Connection Error
+welcome.new-project.error.ssl-connection-error.header = Could not establish an SSL connection
+welcome.new-project.error.ssl-connection-error.common-causes = Common causes are\:\n  • Antivirus software configured to scan encrypted connections\n  • Expired or misconfigured server certificate\n  • Untrusted server certificate\n\nThe following FAQ may apply\: 
 welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
 
 # Welcome -> New Project -> From Template
-welcome.new-project.empty-project.title = Пустой Проект
-welcome.new-project.empty-project.description = Выберите этот шаблон, если хотите начать с чистого листа.
-welcome.new-project.mobile-game.title = Мобильная Игра
-welcome.new-project.mobile-game.description = Этот шаблон содержит полезные настройки и ресурсы для начала разработки игры для мобильных устройств.
-welcome.new-project.desktop-game.title = Игра для ПК
-welcome.new-project.desktop-game.description = Этот шаблон содержит полезные настройки и ресурсы для создания игры для ПК.
-welcome.new-project.poki-html5-game.title = Игра Poki HTML5
-welcome.new-project.poki-html5-game.description = Этот шаблон включает SDK Poki, предназначенный для настольных и мобильных веб‑игр. Он также предоставляет быстрый экспорт на платформу Poki for Developers.
-welcome.new-project.native-extension.title = Нативное Расширение
-welcome.new-project.native-extension.description = Этот шаблон содержит базовую настройку для создания нативного расширения.
-welcome.new-project.basic-3d-project.title = Базовый 3D‑проект
-welcome.new-project.basic-3d-project.description = Этот шаблон содержит базовую настройку для 3D‑рендеринга.
-welcome.new-project.platformer-game.title = Игра‑платформер
-welcome.new-project.platformer-game.description = Этот шаблон содержит базовую настройку для начала разработки платформера.
-welcome.new-project.rive-project.title = Проект Rive
-welcome.new-project.rive-project.description = Этот шаблон использует расширение rive для быстрого старта.
+welcome.new-project.empty-project.title = Empty Project
+welcome.new-project.empty-project.description = Choose this template if you want to start from a completely blank slate.
+welcome.new-project.mobile-game.title = Mobile Game
+welcome.new-project.mobile-game.description = This template contains useful settings and assets if you want to start building a game for mobile devices.
+welcome.new-project.desktop-game.title = Desktop Game
+welcome.new-project.desktop-game.description = This template contains useful settings and assets if you want to start building a game for desktop.
+welcome.new-project.poki-html5-game.title = Poki HTML5 Game
+welcome.new-project.poki-html5-game.description = This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform.
+welcome.new-project.native-extension.title = Native Extension
+welcome.new-project.native-extension.description = This template contains the basic setup if you want to start creating a native extension.
+welcome.new-project.basic-3d-project.title = Basic 3D Project
+welcome.new-project.basic-3d-project.description = This template contains a basic setup for doing 3D rendering.
+welcome.new-project.platformer-game.title = Platformer Game
+welcome.new-project.platformer-game.description = This template contains a basic setup if you want to start building a platformer game.
+welcome.new-project.rive-project.title = Rive Project
+welcome.new-project.rive-project.description = This template uses the rive extension to get you started.
 
 # Welcome -> New Project -> From Tutorial
-welcome.new-project.side-scroller-tutorial.title = Туториал По Сайд‑Скроллеру
-welcome.new-project.side-scroller-tutorial.description = В этом туториале для начинающих вы познакомитесь с тем, как создать игру в Defold, изменяя простой сайд‑скроллер.
-welcome.new-project.walking-astronaut-tutorial.title = Туториал «Идущий Астронавт»
-welcome.new-project.walking-astronaut-tutorial.description = В этом туториале для начинающих вы научитесь обрабатывать ввод игрока и заставлять персонажа двигаться и анимироваться. Также вы узнаете об основных строительных блоках Defold: игровых объектах, компонентах и коллекциях.
-welcome.new-project.movement-tutorial.title = Туториал по движению
-welcome.new-project.movement-tutorial.description = В этом туториале для начинающих вы научитесь создавать реалистичное движение, используя векторы и простую векторную алгебру.
-welcome.new-project.war-battles-tutorial.title = Туториал «War Battles»
-welcome.new-project.war-battles-tutorial.description = В этом туториале средней сложности вы создадите основу шутера с видом сверху на базе пакета ресурсов «War Battles» RTS.
-welcome.new-project.colorslide-tutorial.title = Туториал «Colorslide»
-welcome.new-project.colorslide-tutorial.description = В этом туториале средней сложности вы создадите внутриигровой интерфейс, экран выбора уровня и стартовый экран для простой многоуровневой мобильной игры.
+welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
+welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
+welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold\: game objects, components, and collections.
+welcome.new-project.movement-tutorial.title = Movement Tutorial
+welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
+welcome.new-project.war-battles-tutorial.title = War Battles Tutorial
+welcome.new-project.war-battles-tutorial.description = In this medium difficulty tutorial you build the foundation for a top-down shooter game based on the "War Battles" RTS asset pack.
+welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
+welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
-welcome.new-project.linker-sample-game.title = Пример: Linker
-welcome.new-project.linker-sample-game.description = Это полноценная пример‑игра, где вы соединяете рыбок одного цвета, чтобы удалить их с поля. Длинные цепочки рыбок дают усилители.
-welcome.new-project.roids-sample-game.title = Пример: Roids
-welcome.new-project.roids-sample-game.description = Это полноценная пример‑игра, где вы управляете космическим кораблём и пробиваетесь через поток метеоритов.
-welcome.new-project.pixel-line-platformer.title = Платформер Pixel Line
-welcome.new-project.pixel-line-platformer.description = Это полноценный платформер в современном пиксель‑арт стиле от Kenney.
-welcome.new-project.main-menu-animation.title = Анимация главного меню
-welcome.new-project.main-menu-animation.description = В этом примере мы демонстрируем эффекты для представления главного меню.
-welcome.new-project.parallax.title = Параллакс
-welcome.new-project.parallax.description = В этом примере мы показываем, как использовать эффект параллакса для имитации глубины игрового мира.
+welcome.new-project.linker-sample-game.title = Linker Sample Game
+welcome.new-project.linker-sample-game.description = This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters.
+welcome.new-project.roids-sample-game.title = Roids Sample Game
+welcome.new-project.roids-sample-game.description = This is a complete sample game where you steer a space ship and fire your way through a storm of meteors.
+welcome.new-project.pixel-line-platformer.title = Pixel Line Platformer
+welcome.new-project.pixel-line-platformer.description = This is a complete platformer game with a modern pixel art style created by Kenney.
+welcome.new-project.main-menu-animation.title = Main Menu Animation
+welcome.new-project.main-menu-animation.description = In this sample, we demonstrate effects to present a main menu.
+welcome.new-project.parallax.title = Parallax
+welcome.new-project.parallax.description = In this sample, we demonstrate how to use a parallax effect to simulate depth in the game world.
 welcome.new-project.hud.title = HUD
-welcome.new-project.hud.description = В этом примере мы демонстрируем эффекты подсчёта очков.
-welcome.new-project.level-complete.title = Уровень завершён
-welcome.new-project.level-complete.description = В этом примере мы демонстрируем эффекты показа подсчёта очков, которые могут отображаться после завершения уровня.
-welcome.new-project.rpg-map-sample.title = Пример RPG‑карты
-welcome.new-project.rpg-map-sample.description = Этот пример показывает, как создать большую карту RPG, прокручивающуюся на один экран за раз по мере продвижения героя.
-welcome.new-project.shadertoy-sample.title = Пример Shadertoy
-welcome.new-project.shadertoy-sample.description = Этот пример содержит шейдер GLSL, взятый с Shadertoy и перенесённый в Defold. Он демонстрирует работу с материалами и шейдерами в Defold.
-welcome.new-project.3d-treasure-scene.title = 3D‑сцена с сокровищем
-welcome.new-project.3d-treasure-scene.description = Этот пример показывает стилизованную 3D‑сцену с анимацией.
-welcome.new-project.perspective-parallax.title = Перспективный параллакс
-welcome.new-project.perspective-parallax.description = Этот пример показывает параллакс с перспективной камерой.
-welcome.new-project.lightning-vfx.title = Эффект молнии
-welcome.new-project.lightning-vfx.description = Пример демонстрирует эффект молнии в 2D скроллере и то, как компонент mesh настроен для изменения в процессе игры.
+welcome.new-project.hud.description = In this sample, we demonstrate effects for score counting.
+welcome.new-project.level-complete.title = Level Complete
+welcome.new-project.level-complete.description = In this sample, we demonstrate effects to show the score counting that could occur when a level has been completed.
+welcome.new-project.rpg-map-sample.title = RPG Map Sample
+welcome.new-project.rpg-map-sample.description = This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses.
+welcome.new-project.shadertoy-sample.title = Shadertoy Sample
+welcome.new-project.shadertoy-sample.description = This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold.
+welcome.new-project.3d-treasure-scene.title = 3D Treasure Scene
+welcome.new-project.3d-treasure-scene.description = This sample shows a stylized 3D scene with animation.
+welcome.new-project.perspective-parallax.title = Perspective Parallax
+welcome.new-project.perspective-parallax.description = This sample shows a perspective camera parallax effect.
+welcome.new-project.lightning-vfx.title = Lightning VFX
+welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
 
 # Updater
-updater.button.update-available = Доступно Обновление
-updater.button.restart-to-update = Перезапустить
-updater.download-or-restart-dialog.title = Установить Обновление?
-updater.download-or-restart-dialog.header = Обновление готово, но доступна ещё более новая версия
-updater.download-or-restart-dialog.detail = Вы можете установить загруженное обновление или загрузить более новое
-updater.platform-not-supported-dialog.title = Платформа Не Поддерживается
-updater.platform-not-supported-dialog.header = Для этой платформы обновления больше не предоставляются
-updater.platform-not-supported-dialog.detail = Поддерживаемые платформы: 64‑битные Linux, macOS и Windows
-updater.download-dialog.title = Загрузить Обновление?
-updater.download-dialog.header = Доступна новая версия Defold!
-updater.update-failed.title = Ошибка обновления
-updater.update-failed.header = Во время установки обновления произошла ошибка
-updater.update-failed.detail = Возможно, потребуется выполнить чистую установку
-updater.dialog.title = Установить Обновление и Перезапустить?
-updater.dialog.header = Установить Загруженное Обновление и Перезапустить?
-updater.dialog.button.not-now = Не Сейчас
-updater.dialog.button.download = Загрузить Обновление
-updater.dialog.button.install-and-restart = Установить и Перезапустить
-updater.dialog.button.download-newer-version = Загрузить Более Новую Версию
+updater.button.update-available = Update Available
+updater.button.restart-to-update = Restart to Update
+updater.download-or-restart-dialog.title = Install Update?
+updater.download-or-restart-dialog.header = Update is ready, but there is even newer version available
+updater.download-or-restart-dialog.detail = You can install downloaded update or download newer one
+updater.platform-not-supported-dialog.title = Platform Not Supported
+updater.platform-not-supported-dialog.header = Updates are no longer provided for this platform
+updater.platform-not-supported-dialog.detail = Supported platforms are 64-bit Linux, macOS and Windows
+updater.download-dialog.title = Download Update?
+updater.download-dialog.header = A newer version of Defold is available\!
+updater.update-failed.title = Update Failed
+updater.update-failed.header = An error occurred during update installation
+updater.update-failed.detail = You probably should perform a fresh install
+updater.dialog.title = Install Update and Restart?
+updater.dialog.header = Install downloaded update and restart?
+updater.dialog.button.not-now = Not Now
+updater.dialog.button.download = Download Update
+updater.dialog.button.install-and-restart = Install and Restart
+updater.dialog.button.download-newer-version = Download Newer Version
 
 # Time
-time.vague.unknown = Неизвестно
-time.vague.just-now = Только что
-time.vague.a-minute-ago = Минуту назад
-time.vague.a-few-minutes-ago = Несколько минут назад
-time.vague.minutes-ago = {count} {count, plural, one {минуту} few {минуты} other {минут}} назад
-time.vague.half-an-hour-ago = Полчаса назад
-time.vague.an-hour-ago = Час назад
-time.vague.a-few-hours-ago = Несколько часов назад
-time.vague.hours-ago = {count} {count, plural, one {час} few {часа} other {часов}} назад
-time.vague.a-day-ago = День назад
+time.vague.unknown = Unknown
+time.vague.just-now = Just now
+time.vague.a-minute-ago = A minute ago
+time.vague.a-few-minutes-ago = A few minutes ago
+time.vague.minutes-ago = {count} minutes ago
+time.vague.half-an-hour-ago = Half an hour ago
+time.vague.an-hour-ago = An hour ago
+time.vague.a-few-hours-ago = A few hours ago
+time.vague.hours-ago = {count} hours ago
+time.vague.a-day-ago = A day ago
 
 # Common dialogs
 
-dialog.button.close = Закрыть
-dialog.button.quit = Выйти
-dialog.button.open-defold-website = Открыть defold.com
-dialog.button.dismiss = Закрыть
-dialog.button.report = Сообщить об ошибке
-dialog.button.disable-scene-editor = Отключить редактор сцен
-dialog.button.cancel = Отмена
-dialog.button.delete = Удалить
+dialog.button.close = Close
+dialog.button.quit = Quit
+dialog.button.open-defold-website = Open defold.com
+dialog.button.dismiss = Dismiss
+dialog.button.report = Report
+dialog.button.disable-scene-editor = Disable Scene Editor
+dialog.button.cancel = Cancel
+dialog.button.delete = Delete
 
 # Error Dialog
-dialog.error.title = Ошибка
-dialog.error.header = Произошла ошибка
-dialog.error.footer = Вы можете помочь нам исправить эту проблему, отправив отчёт и указав, что вы делали в момент её возникновения.
+
+dialog.error.title = Error
+dialog.error.header = An error occurred
+dialog.error.footer = You can help us fix this problem by reporting it and providing more information about what you were doing when it happened.
 
 # Build Error Dialog
 
-dialog.build-error.title = Ошибка сборки
-dialog.build-error.cycle.header = Обнаружена циклическая зависимость ресурсов
+dialog.build-error.title = Build Error
+dialog.build-error.cycle.header = Cyclic resource dependency detected
 dialog.build-error.cycle.message = {header}. {detail}
-dialog.build-error.cycle.detail.collection = Это вызвано двумя или более коллекциями, которые ссылаются друг на друга через прокси или фабрики коллекций. Один из ресурсов: {resource}.
-dialog.build-error.cycle.detail.game-object = Это вызвано двумя или более игровыми объектами, которые ссылаются друг на друга через фабрики игровых объектов. Один из ресурсов: {resource}.
-dialog.build-error.cycle.detail.script = Это вызвано двумя или более модулями Lua, которые требуют друг друга в цикле. Один из ресурсов: {resource}.
-dialog.build-error.cycle.detail.generic = Это вызвано двумя или более ресурсами, которые ссылаются друг на друга. Один из ресурсов: {resource}.
+dialog.build-error.cycle.detail.collection = This is caused by two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is\: {resource}.
+dialog.build-error.cycle.detail.game-object = This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is\: {resource}.
+dialog.build-error.cycle.detail.script = This is caused by two or more Lua modules required in a loop. One of the resources is\: {resource}.
+dialog.build-error.cycle.detail.generic = This is caused by two or more resources referenced in a loop. One of the resources is\: {resource}.
 
 # Clean Build Dialog
 
-dialog.clean-build.title = Выполнить чистую сборку проекта?
-dialog.clean-build.header = Вы уверены, что хотите выполнить чистую сборку проекта?
-dialog.clean-build.button.clean = Чистая сборка
+dialog.clean-build.title = Perform Clean Project Build?
+dialog.clean-build.header = Are you sure you want to perform a clean project build?
+dialog.clean-build.button.clean = Clean Build
 
 # Debugging Not Supported Dialog
 
-dialog.debugging-not-supported.title = Отладка не поддерживается
-dialog.debugging-not-supported.header = Этот проект нельзя использовать с отладчиком
-dialog.debugging-not-supported.content = В проекте отключено объединённое состояние скриптов.\n\nЕсли вам не требуется раздельное состояние скриптов, измените параметр script.shared_state в файле game.project.
+dialog.debugging-not-supported.title = Debugging Not Supported
+dialog.debugging-not-supported.header = This project cannot be used with the debugger
+dialog.debugging-not-supported.content = It is configured to disable shared script state.\n\nIf you do not specifically require different script states, consider changing the script.shared_state property in game.project.
 
 # Defunload Issues Dialog
 
-dialog.defunload-issues.title = Пересмотрите шаблоны .defunload
-dialog.defunload-issues.header = Найдены небезопасные ссылки на выгруженные ресурсы.
-dialog.defunload-issues.summary = Один или несколько ресурсов содержат небезопасные ссылки на ресурсы, выгруженные по шаблонам `.defunload`.
-dialog.defunload-issues.advice = Исправьте шаблоны в файле `.defunload`, чтобы избежать загрузки нежелательных ресурсов.
-dialog.defunload-issues.report-path = Полный отчёт сохранён в файле:
-dialog.defunload-issues.button.ignore = Игнорировать
-dialog.defunload-issues.button.open-report = Открыть отчёт
-dialog.defunload-issues.report-line = {resource} - ссылается на выгруженные ресурсы:
-dialog.defunload-issues.report.section-loading-resources = ### Загрузка ресурсов ###
-dialog.defunload-issues.report.loaded-undesired = Следующие ресурсы, соответствующие шаблонам `.defunload`, были загружены по необходимости:
+dialog.defunload-issues.title = Revise .defunload Patterns
+dialog.defunload-issues.header = Found unsafe references to unloaded resources.
+dialog.defunload-issues.summary = One or more resources have unsafe references to resources unloaded by `.defunload` patterns.
+dialog.defunload-issues.advice = Please fix the patterns in the `.defunload` file to avoid loading unwanted resources.
+dialog.defunload-issues.report-path = The full report has been written to\:
+dialog.defunload-issues.button.ignore = Ignore
+dialog.defunload-issues.button.open-report = Open Report
+dialog.defunload-issues.report-line = {resource} - refers to unloaded resources\:
+dialog.defunload-issues.report.section-loading-resources = \#\#\# Loading Resources \#\#\#
+dialog.defunload-issues.report.loaded-undesired = The following resources matching `.defunload` patterns were loaded out of necessity\:
 
-notification.defunload-issues.action.show-details = Показать подробности…
+notification.defunload-issues.action.show-details = Show Details…
 
 # Launch Failed Dialog
 
-dialog.launch-failed.title = Ошибка запуска
-dialog.launch-failed.header = Не удалось запустить {engine}
-dialog.launch-failed.detail = Если движок уже запущен, завершите процесс вручную и попробуйте снова
-dialog.launch-failed.target.new-local-engine = Новый локальный движок
+dialog.launch-failed.title = Launch Failed
+dialog.launch-failed.header = Launching {engine} failed
+dialog.launch-failed.detail = If the engine is already running, shut down the process manually and retry
+dialog.launch-failed.target.new-local-engine = New Local Engine
 
 # Hot Reload Failed Dialog
 
-dialog.hot-reload-failed.title = Ошибка горячей перезагрузки
-dialog.hot-reload-failed.header = Не удалось перезагрузить ресурсы в движке «{engine}»
+dialog.hot-reload-failed.title = Hot Reload Failed
+dialog.hot-reload-failed.header = Failed to reload resources on engine "{engine}"
 
 # GL support error dialog
-dialog.gl-support.title = Недостаточная поддержка OpenGL
-dialog.gl-support.header = Это очень распространённая проблема. Посмотрите, помогут ли следующие инструкции:
-dialog.gl-support.linux = OpenGL в Linux
+
+dialog.gl-support.title = Insufficient OpenGL Support
+dialog.gl-support.header = This is a very common issue. See if any of these instructions help\:
+dialog.gl-support.linux = OpenGL on linux
 dialog.gl-support.gl-gen-buffers = glGenBuffers
-dialog.gl-support.detail = Вы можете продолжить работу с отключённым редактором сцен.
+dialog.gl-support.detail = You can continue with scene editing disabled.
 
 # New folder
 
-dialog.new-folder.title = Новая папка
-dialog.new-folder.header = Введите имя новой папки
-dialog.new-folder.label.name = Имя
-dialog.new-folder.label.preview = Просмотр
-dialog.new-folder.button.create-folder = Создать папку
+dialog.new-folder.title = New Folder
+dialog.new-folder.header = Enter New Folder Name
+dialog.new-folder.label.name = Name
+dialog.new-folder.label.preview = Preview
+dialog.new-folder.button.create-folder = Create Folder
 
 # Target IP dialog
 
-dialog.target-ip.title = Введите IP целевого устройства
-dialog.target-ip.header = Введите IP-адрес целевого устройства
-dialog.target-ip.label.ip = IP-адрес
-dialog.target-ip.button.add = Добавить IP-адрес
+dialog.target-ip.title = Enter Target IP
+dialog.target-ip.header = Enter Target IP Address
+dialog.target-ip.label.ip = Target IP Address
+dialog.target-ip.button.add = Add Target IP
 
 # Search in Files Dialogs
 
-dialog.search-in-files.title = Поиск в файлах
-dialog.search-in-files.label.search = Шаблон поиска (* для совпадения с любой строкой)
-dialog.search-in-files.label.types = Типы файлов для поиска (через запятую)
-dialog.search-in-files.label.include-libraries = Искать внутри библиотек
-dialog.search-in-files.button.keep-results = Сохранить результаты
+dialog.search-in-files.title = Search in Files
+dialog.search-in-files.label.search = Search pattern (* to match any string)
+dialog.search-in-files.label.types = File types to search in (comma separated)
+dialog.search-in-files.label.include-libraries = Search Inside Libraries
+dialog.search-in-files.button.keep-results = Keep Results
 
 # Target Discovery Log Dialog
 
-dialog.target-discovery-log.title = Журнал обнаружения целевых устройств
-dialog.target-discovery-log.header = Журнал обнаружения целевых устройств
-dialog.target-discovery-log.button.clear-log = Очистить журнал
-dialog.target-discovery-log.button.restart-discovery = Перезапустить обнаружение
+dialog.target-discovery-log.title = Target Discovery Log
+dialog.target-discovery-log.header = Target Discovery Log
+dialog.target-discovery-log.button.clear-log = Clear Log
+dialog.target-discovery-log.button.restart-discovery = Restart Discovery
 
 # Generic file/directory dialog titles
 
-dialog.directory.title.set-path = Указать путь
-dialog.directory.title.select = Выбор папки
-dialog.file.title.select = Выбор файла
+dialog.directory.title.set-path = Set Path
+dialog.directory.title.select = Select Directory
+dialog.file.title.select = Select File
 
 # Set Custom Resolution dialog
 
-dialog.custom-resolution.title = Задать пользовательское разрешение
-dialog.custom-resolution.header = Укажите пользовательское разрешение
-dialog.custom-resolution.detail = Окно игры будет изменено до указанного размера
-dialog.custom-resolution.label.width = Ширина
-dialog.custom-resolution.label.height = Высота
-dialog.custom-resolution.button.set-resolution = Установить разрешение
+dialog.custom-resolution.title = Set Custom Resolution
+dialog.custom-resolution.header = Set custom game resolution
+dialog.custom-resolution.detail = Game window will be resized to this size
+dialog.custom-resolution.label.width = Width
+dialog.custom-resolution.label.height = Height
+dialog.custom-resolution.button.set-resolution = Set Resolution
 
 # Tracked internal files dialog
 
-dialog.tracked-internal-files.title = Внутренние файлы под контролем версий
-dialog.tracked-internal-files.header = Внутренние файлы оказались под контролем версий
-dialog.tracked-internal-files.content = Похоже, что внутренние файлы, например загруженные зависимости или результаты сборки, попали в систему контроля версий.\nЭто могло случиться, если коммит был сделан до того, как файл .gitignore был настроен должным образом.\n\nЧтобы исправить это, сделайте коммит, в котором вы удалите папки .internal и build, а затем снова откройте проект.
+dialog.tracked-internal-files.title = Internal Files Under Version Control
+dialog.tracked-internal-files.header = Internal files were placed under version control
+dialog.tracked-internal-files.content = It looks like internal files such as downloaded dependencies or build output were placed under version control.\nThis can happen if a commit was made when the .gitignore file was not properly configured.\n\nTo fix this, make a commit where you delete the .internal and build directories, then reopen the project.
 
 # Quit Defold dialog
 
-dialog.quit-defold.title = Выйти из Defold?
-dialog.quit-defold.header = Есть несохранённые изменения. Вы уверены, что хотите выйти?
-dialog.quit-defold.button.cancel = Отменить и продолжить работу
-dialog.quit-defold.button.quit = Выйти без сохранения
+dialog.quit-defold.title = Quit Defold?
+dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit?
+dialog.quit-defold.button.cancel = Cancel and Keep Working
+dialog.quit-defold.button.quit = Quit Without Saving
 
 # Save and upgrade file formats dialogs
 
-dialog.save-and-upgrade.title.not-safe = Небезопасно обновлять форматы файлов
-dialog.save-and-upgrade.version-control.header = Рекомендуется контроль версий
-dialog.save-and-upgrade.version-control.preamble = Из-за риска потери данных обновлять форматы файлов следует только в проектах под контролем версий.
-dialog.save-and-upgrade.version-control.info.before-manual = Проект под контролем версий хранит историю изменений и позволяет сотрудничать с другими, синхронизируя изменения с сервером.\n\nО том, как настроить контроль версий, можно прочитать в 
-dialog.save-and-upgrade.version-control.info.manual-link = Руководстве Defold
+dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
+dialog.save-and-upgrade.version-control.header = Version Control Recommended
+dialog.save-and-upgrade.version-control.preamble = Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.
+dialog.save-and-upgrade.version-control.info.before-manual = A project under Version Control keeps a history of changes and enables you to collaborate with others by pushing changes to a server.\n\nYou can read about how to configure Version Control in the 
+dialog.save-and-upgrade.version-control.info.manual-link = Defold Manual
 dialog.save-and-upgrade.version-control.info.after-manual = .
-dialog.save-and-upgrade.uncommitted.header = Обнаружены незафиксированные изменения
-dialog.save-and-upgrade.uncommitted.content = Из-за риска потери данных обновление форматов файлов следует выполнять только в чистой рабочей копии.\n\nРекомендуем зафиксировать локальные изменения перед повторной попыткой.
-dialog.save-and-upgrade.confirm.title = Сохранить и обновить форматы файлов?
-dialog.save-and-upgrade.confirm.header = Пересохранить все файлы в новом формате?
-dialog.save-and-upgrade.confirm.content = Файлы проекта будут пересохранены в новейшем файловом формате. Отменить эту операцию нельзя.\n\nПоскольку может затронуться множество файлов, согласуйте действия с руководителем проекта перед продолжением.
-dialog.save-and-upgrade.button.abort = Прервать
-dialog.save-and-upgrade.button.proceed-anyway = Всё равно продолжить
-dialog.save-and-upgrade.button.upgrade-editable-files = Обновить редактируемые файлы
-dialog.save-and-upgrade.button.upgrade-project-files = Обновить файлы проекта
-dialog.save-and-upgrade.button.upgrade-all-files = Обновить все файлы
+dialog.save-and-upgrade.uncommitted.header = Uncommitted changes detected
+dialog.save-and-upgrade.uncommitted.content = Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation.
+dialog.save-and-upgrade.confirm.title = Save and Upgrade File Formats?
+dialog.save-and-upgrade.confirm.header = Re-save all files in the latest file format?
+dialog.save-and-upgrade.confirm.content = Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this.
+dialog.save-and-upgrade.button.abort = Abort
+dialog.save-and-upgrade.button.proceed-anyway = Proceed Anyway
+dialog.save-and-upgrade.button.upgrade-editable-files = Upgrade Editable Files
+dialog.save-and-upgrade.button.upgrade-project-files = Upgrade Project Files
+dialog.save-and-upgrade.button.upgrade-all-files = Upgrade All Files
 
 # Plugin load error dialog
 
-dialog.plugin-load-error.title = Не удалось загрузить плагин
-dialog.plugin-load-error.header = Плагин редактора «{plugin}» не совместим с этой версией редактора. Измените зависимости проекта, чтобы использовать подходящую версию.
+dialog.plugin-load-error.title = Unable to Load Plugin
+dialog.plugin-load-error.header = The editor plugin "{plugin}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 
 # Desktop entry dialogs
 
-dialog.desktop-entry.created.title = Ярлык рабочего стола создан
-dialog.desktop-entry.created.header = Ярлык рабочего стола создан!
-dialog.desktop-entry.created.content = Теперь вы можете запускать редактор Defold из системного меню.
-dialog.desktop-entry.creation-failed.title = Не удалось создать ярлык рабочего стола
-dialog.desktop-entry.creation-failed.header = Не удалось создать ярлык рабочего стола!
-dialog.desktop-entry.creation-failed.content = Произошла ошибка при создании ярлыка рабочего стола:\n{error}
+dialog.desktop-entry.created.title = Desktop Entry Created
+dialog.desktop-entry.created.header = Desktop entry has been created\!
+dialog.desktop-entry.created.content = You may now launch the Defold editor from the system menu.
+dialog.desktop-entry.creation-failed.title = Desktop Entry Creation Failed
+dialog.desktop-entry.creation-failed.header = Desktop entry couldn't be created\!
+dialog.desktop-entry.creation-failed.content = An error occurred while creating the desktop entry\:\n{error}
 
 # Texture compressor error dialog
 
-dialog.texture-compressor-error.title = Не удалось загрузить плагин
-dialog.texture-compressor-error.header = Не удалось инициализировать компрессоры текстур
-dialog.texture-compressor-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+dialog.texture-compressor-error.title = Unable to Load Plugin
+dialog.texture-compressor-error.header = Failed to initialize texture compressors
+dialog.texture-compressor-error.content = The following classes from editor plugins are not compatible with this version of the editor\:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
 
 # Lua preprocessors error dialog
 
-dialog.lua-preprocessors-error.title = Не удалось загрузить плагин
-dialog.lua-preprocessors-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
-dialog.lua-preprocessors-error.construct.header = Не удалось создать препроцессоры Lua
-dialog.lua-preprocessors-error.initialize.header = Не удалось инициализировать препроцессоры Lua
+dialog.lua-preprocessors-error.title = Unable to Load Plugin
+dialog.lua-preprocessors-error.content = The following classes from editor plugins are not compatible with this version of the editor\:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+dialog.lua-preprocessors-error.construct.header = Failed to construct Lua preprocessors
+dialog.lua-preprocessors-error.initialize.header = Failed to initialize Lua preprocessors
 
 # Lua transpilers error dialog
 
-dialog.lua-transpilers-error.title = Не удалось загрузить плагин
-dialog.lua-transpilers-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
-dialog.lua-transpilers-error.construct.header = Не удалось создать транспиляторы Lua
-dialog.lua-transpilers-error.initialize.header = Не удалось инициализировать транспиляторы Lua
-dialog.lua-transpilers-error.generic.header = Не удалось загрузить транспиляторы Lua
+dialog.lua-transpilers-error.title = Unable to Load Plugin
+dialog.lua-transpilers-error.content = The following classes from editor plugins are not compatible with this version of the editor\:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+dialog.lua-transpilers-error.construct.header = Failed to construct Lua transpilers
+dialog.lua-transpilers-error.initialize.header = Failed to initialize Lua transpilers
+dialog.lua-transpilers-error.generic.header = Failed to load Lua transpilers
 
 # Diff view dialogs
 
-dialog.diff-view.unchanged.title = Файл не изменён
-dialog.diff-view.unchanged.header = Файл не изменён
-dialog.diff-view.binary.title = Невозможно сравнить двоичные файлы
-dialog.diff-view.binary.header = Невозможно сравнить двоичные файлы
+dialog.diff-view.unchanged.title = The File Is Unchanged
+dialog.diff-view.unchanged.header = The file is unchanged
+dialog.diff-view.binary.title = Unable to Diff Binary Files
+dialog.diff-view.binary.header = Unable to diff binary files
 
 # Fetch libraries dialog
 
-dialog.fetch-libraries.host-unreachable.title = Ошибка обновления библиотек
-dialog.fetch-libraries.host-unreachable.header = Загрузка остановлена: хост недоступен
-dialog.fetch-libraries.host-unreachable.content = Недоступный хост: {host}\n\nПроверьте подключение к интернету и попробуйте ещё раз.
+dialog.fetch-libraries.host-unreachable.title = Fetch Failed
+dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
+dialog.fetch-libraries.host-unreachable.content = Unreachable host\: {host}\n\nPlease verify your internet connection and try again.
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = Зависимости проекта изменились. Обновить библиотеки сейчас?
-notification.fetch-libraries.dependencies-changed.action.fetch = Обновить библиотеки
-notification.fetch-libraries.dependencies-missing.warning = Отсутствуют следующие зависимости:\n{dependencies}\nПроект может не работать без них.\nЧтобы их загрузить, подключитесь к интернету и обновите библиотеки.
-notification.fetch-libraries.dependencies-error.error = Не удалось установить следующие зависимости:\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = Открыть game.project
+notification.fetch-libraries.dependencies-changed.prompt = Project dependencies have changed. Do you want to fetch the libraries now?
+notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
+notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing\:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
+notification.fetch-libraries.dependencies-error.error = Couldn''t install the following dependencies\:\n{dependencies}
+notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
 
 # Language server notification
 
-notification.lsp.language-server-missing.prompt = Невозможно выполнить это действие, потому что для языка {language} не запущен сервер LSP.
-notification.lsp.language-server-missing.action.about = Подробнее об LSP в Defold
+notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
+notification.lsp.language-server-missing.action.about = About LSP in Defold
 
 # Asset browser notifications
 
-notification.asset-browser.circular-paste.error = Невозможно вставить папку {source} в её подпапку {target}.
+notification.asset-browser.circular-paste.error = Cannot paste folder {source} into its subfolder {target}.
 
 # Workspace notifications
 
-notification.resource-collision.directory.warning = Папка «{resource}» скрывает папку с таким же именем
-notification.resource-collision.builtins.warning = Папка «{resource}» скрывает папку с таким же именем во встроенных ресурсах
-notification.resource-collision.library.warning = Папка «{resource}» скрывает папку с таким же именем в зависимости проекта: {library}
+notification.resource-collision.directory.warning = Folder "{resource}" is shadowing a folder with the same name.
+notification.resource-collision.builtins.warning = Folder "{resource}" is shadowing a folder with the same name in builtins.
+notification.resource-collision.library.warning = Folder "{resource}" is shadowing a folder with the same name in a project dependency\: {library}
 
 # Web server notifications
 
-notification.web-server.port-fallback.warning = Не удалось запустить сервер на запрошенном порту {requested} ({reason}). Используется порт {fallback}.
+notification.web-server.port-fallback.warning = Failed to start a server on the requested port {requested} ({reason}). Using fallback port {fallback} instead.
 
 # Changes view notifications
 
-notification.changes-view.git-error = Из-за ошибки Git функции Git недоступны для этого проекта.
+notification.changes-view.git-error = Due to a Git error, Git features are not available for this project.
 
 # Debug view notifications
 
-notification.debug-view.connect-failed.error = {error}\n\nУбедитесь, что игра запущена и доступна по сети.
+notification.debug-view.connect-failed.error = {error}\n\nCheck that the game is running and is reachable over the network.
 
 # Target notifications
 
-notification.targets.selected-target-unavailable.error = {error}\n\nВыбранная цель недоступна.
+notification.targets.selected-target-unavailable.error = {error}\n\nThe target you have chosen isn''t available.
 
 # Form view dialogs
 
-dialog.form-view.directory-not-in-project.title = Недопустимая Папка
-dialog.form-view.directory-not-in-project.header = Папка должна находиться внутри проекта.
-dialog.form-view.file-not-in-project.title = Недопустимый Файл
-dialog.form-view.file-not-in-project.header = Файл должен находиться внутри проекта.
+dialog.form-view.directory-not-in-project.title = Invalid Directory
+dialog.form-view.directory-not-in-project.header = The directory must reside within the project.
+dialog.form-view.file-not-in-project.title = Invalid File
+dialog.form-view.file-not-in-project.header = The file must reside within the project.
 
 # Shared editor settings load error dialog
 
-dialog.shared-editor-settings.load-error.title = Не удалось загрузить общие настройки редактора
-dialog.shared-editor-settings.load-error.header = Не удалось загрузить файл общих настроек редактора.
-dialog.shared-editor-settings.load-error.detail = Используются настройки по умолчанию. Работа редактора может ухудшиться.
-dialog.shared-editor-settings.load-error.content = Файл: {file}\n\n{error}
+dialog.shared-editor-settings.load-error.title = Error Loading Shared Editor Settings
+dialog.shared-editor-settings.load-error.header = Failed to load Shared Editor Settings file.
+dialog.shared-editor-settings.load-error.detail = Falling back to defaults. Your user experience might suffer.
+dialog.shared-editor-settings.load-error.content = File\: {file}\n\n{error}
 
 # Updated gitignore dialog
 
-dialog.gitignore-updated.title = Файл .gitignore обновлён
-dialog.gitignore-updated.header = Файл .gitignore был обновлён
-dialog.gitignore-updated.content = Файл .gitignore был автоматически обновлён, чтобы игнорировать результаты сборки и файлы метаданных.\nДобавьте его к своим изменениям при следующей синхронизации.
+dialog.gitignore-updated.title = Updated .gitignore File
+dialog.gitignore-updated.header = Updated .gitignore file
+dialog.gitignore-updated.content = The .gitignore file was automatically updated to ignore build output and metadata files.\nYou should include it along with your changes the next time you synchronize.
 
 # Asset browser reserved targets dialog
 
-dialog.asset-paste-reserved.title = Невозможно вставить
-dialog.asset-paste-reserved.header = Некоторые папки назначения зарезервированы
-dialog.asset-paste-reserved.content = Следующие папки назначения зарезервированы:\n{directories}
+dialog.asset-paste-reserved.title = Cannot Paste
+dialog.asset-paste-reserved.header = Some target directories are reserved
+dialog.asset-paste-reserved.content = The following target directories are reserved\:\n{directories}
 
 # Asset deletion dialogs
 
-dialog.asset-delete-single.title = Удалить файл?
-dialog.asset-delete-single.header = Вы уверены, что хотите удалить {name}?
-dialog.asset-delete-multiple.title = Удалить файлы?
-dialog.asset-delete-multiple.header = Вы уверены, что хотите удалить эти файлы?
-dialog.asset-delete-multiple.content = Вы собираетесь удалить:{items}
-dialog.asset-delete-multiple.content.item = \n\u00A0\u00A0\u2022\u00A0{name}
+dialog.asset-delete-single.title = Delete File?
+dialog.asset-delete-single.header = Are you sure you want to delete {name}?
+dialog.asset-delete-multiple.title = Delete Files?
+dialog.asset-delete-multiple.header = Are you sure you want to delete these files?
+dialog.asset-delete-multiple.content = You are about to delete\:{items}
+dialog.asset-delete-multiple.content.item = \n  • {name}
 
 # Rename dialog
 
-dialog.rename.title = Переименовать {name}
-dialog.rename.preview = Просмотр
-dialog.rename.button.rename = Переименовать
-dialog.rename.label.folder = Новое имя папки
-dialog.rename.label.file = Новое имя файла
-dialog.rename.header.folder = Переименовать папку
-dialog.rename.header.files = Переименовать {n, plural, one {файл} few {# файла} other {# файлов}}
-dialog.rename.error.reserved-name = Имя {name} зарезервировано
+dialog.rename.title = Rename {name}
+dialog.rename.preview = Preview
+dialog.rename.button.rename = Rename
+dialog.rename.label.folder = New Folder Name
+dialog.rename.label.file = New File Name
+dialog.rename.header.folder = Rename Folder
+dialog.rename.header.files = Rename {n, plural, one {File} other {\# Files}}
+dialog.rename.error.reserved-name = The name {name} is reserved
 
 # Name conflict dialog (appears on conflict during rename)
 
-dialog.name-conflict.title = Конфликт имён
-dialog.name-conflict.header = В папке назначения {count, plural, one {уже есть объект с таким именем} few {# объекта с конфликтующими именами} other {# объектов с конфликтующими именами}}.
-dialog.name-conflict.button.name-differently = Переименовать
-dialog.name-conflict.button.overwrite-files = Перезаписать файлы
+dialog.name-conflict.title = Name Conflict
+dialog.name-conflict.header = The destination has {count, plural, one {an entry with the same name} other {\# entries with conflicting names}}.
+dialog.name-conflict.button.name-differently = Name Differently
+dialog.name-conflict.button.overwrite-files = Overwrite Files
 
 # New file dialog
 
-dialog.new-file.title.file = Новый файл
-dialog.new-file.title.resource = Новый файл ({type})
-dialog.new-file.header.file = Введите имя файла
-dialog.new-file.header.resource = Введите имя файла ({type})
-dialog.new-file.label.name = Имя
-dialog.new-file.label.location = Расположение
-dialog.new-file.label.preview = Просмотр
-dialog.new-file.button.create.file = Создать
-dialog.new-file.button.create.resource = Создать
+dialog.new-file.title.file = New File
+dialog.new-file.title.resource = New {type}
+dialog.new-file.header.file = Enter the File Name
+dialog.new-file.header.resource = Enter {type} File Name
+dialog.new-file.label.name = Name
+dialog.new-file.label.location = Location
+dialog.new-file.label.preview = Preview
+dialog.new-file.button.create.file = Create
+dialog.new-file.button.create.resource = Create {type}
 
 # List dialogs
-dialog.select-item.title = Выбрать вариант
-dialog.select-item.prompt = Отфильтровать…
-dialog.select-item.button.ok = ОК
-dialog.open-assets.title = Открыть ресурс
-dialog.open-assets.button.ok = Открыть
-dialog.referencing-files.title = Ссылающиеся файлы
-dialog.referencing-files.button.ok = Открыть
-dialog.dependencies.title = Зависимости
-dialog.dependencies.button.ok = Открыть
-dialog.add-atlas-images.title = Выбрать изображения
-dialog.select-game-object-file.title = Выбрать файл игрового объекта
-dialog.select-collection-file.title = Выбрать файл коллекции
-dialog.select-component-file.title = Выбрать файл компонента
-dialog.select-gui-component.title = Выбрать компонент ({component})
-dialog.select-resource.title = Выбрать ресурс
-dialog.recent-files.title = Недавние файлы
-dialog.recent-files.button.ok = Открыть
+
+dialog.select-item.title = Select Item
+dialog.select-item.prompt = Type to filter
+dialog.select-item.button.ok = OK
+dialog.open-assets.title = Open Asset
+dialog.open-assets.button.ok = Open
+dialog.referencing-files.title = Referencing Files
+dialog.referencing-files.button.ok = Open
+dialog.dependencies.title = Dependencies
+dialog.dependencies.button.ok = Open
+dialog.add-atlas-images.title = Select Images
+dialog.select-game-object-file.title = Select Game Object File
+dialog.select-collection-file.title = Select Collection File
+dialog.select-component-file.title = Select Component File
+dialog.select-gui-component.title = Select {component}
+dialog.select-resource.title = Select Resource
+dialog.recent-files.title = Recent Files
+dialog.recent-files.button.ok = Open
 
 # Open resource dialogs
 
-dialog.open-resource.excluded.title = Ресурс исключён из загрузки
-dialog.open-resource.excluded.header = Не удалось открыть «{resource}», так как он был исключён из загрузки файлом «.defunload».
-dialog.open-resource.unrecognized.title = Не удалось открыть ресурс
-dialog.open-resource.unrecognized.header = Не удалось открыть «{resource}», так как он содержит нераспознаваемые данные. Возможно, проекту не хватает требуемого расширения?
-dialog.open-resource.open-file-failed.title = Не удалось открыть файл
-dialog.open-resource.open-file-failed.header = Не удалось открыть «{resource}»
-dialog.open-resource.open-file-failed.detail = Это может произойти, если тип файла не связан с приложением в вашей ОС.\n\nСообщение об ошибке от ОС:\n{error}
+dialog.open-resource.excluded.title = Resource Excluded from Loading
+dialog.open-resource.excluded.header = Unable to open "{resource}", since it was excluded from loading by the ".defunload" file.
+dialog.open-resource.unrecognized.title = Unable to Open Resource
+dialog.open-resource.unrecognized.header = Unable to open "{resource}", since it contains unrecognizable data. Could the project be missing a required extension?
+dialog.open-resource.open-file-failed.title = Could Not Open File
+dialog.open-resource.open-file-failed.header = Could not open "{resource}"
+dialog.open-resource.open-file-failed.detail = This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS\:\n{error}
 
 # Loading project dialog
 
-dialog.loading-project.header = Загрузка проекта
+dialog.loading-project.header = Loading project
 
 # Editor panes
 
-pane.assets = Ресурсы
-pane.changed-files = Изменённые Файлы
-pane.outline = Структура
-pane.properties = Свойства
-pane.console = Консоль
-pane.curve-editor = Редактор Кривых
-pane.build-errors = Ошибки Сборки
-pane.search-results = Результаты Поиска
+pane.assets = Assets
+pane.changed-files = Changed Files
+pane.outline = Outline
+pane.properties = Properties
+pane.console = Console
+pane.curve-editor = Curve Editor
+pane.build-errors = Build Errors
+pane.search-results = Search Results
 
 # Console
 
-console.button.clear = Очистить
-console.button.filter = Фильтры
-console.filter.enable-filtering = Включить фильтрацию
-console.filter.add-filter = Новый фильтр ("текст" или "!убрать")
-console.search = Поиск
+console.button.clear = Clear
+console.button.filter = Filter
+console.filter.enable-filtering = Enable filtering
+console.filter.add-filter = Add filter (e.g. text, \!exclude)
+console.search = Search
 
 # Changes view
 
-changes-view.button.diff = Сравнить
-changes-view.button.revert = Откатить
-dialog.changes-revert.title = Откатить изменения?
-dialog.changes-revert.header = Вы уверены, что хотите откатить изменения выбранных файлов?
-dialog.changes-revert.button.revert-changes = Откатить изменения
+changes-view.button.diff = Diff
+changes-view.button.revert = Revert
+dialog.changes-revert.title = Revert Changes?
+dialog.changes-revert.header = Are you sure you want to revert changes on selected files?
+dialog.changes-revert.button.revert-changes = Revert Changes
 
 # Prefs
 
-prefs.dialog.title = Настройки
+prefs.dialog.title = Preferences
 
-prefs.tab.general = Общие
-prefs.tab.code = Код
-prefs.tab.extensions = Расширения
-prefs.tab.tools = Инструменты
-prefs.tab.dev = Разработка
-prefs.tab.keymap = Клавиши
+prefs.tab.general = General
+prefs.tab.code = Code
+prefs.tab.extensions = Extensions
+prefs.tab.tools = Tools
+prefs.tab.dev = Dev
+prefs.tab.keymap = Keymap
 
 # General tab
-prefs.label.workflow.load-external-changes-on-app-focus = Загружать изменения при фокусе
-prefs.label.workflow.save-on-app-focus-lost = Сохранять при потере фокуса
-prefs.label.bundle.open-output-directory = Открывать папку сборки
-prefs.label.build.open-html5-build = Открывать браузер после HTML5-сборки
-prefs.label.build.texture-compression = Сжатие текстур
-prefs.label.run.quit-on-escape = Escape закрывает игру
-prefs.label.asset-browser.track-active-tab = Фокусировать активный ресурс
-prefs.label.build.lint-code = Проверять код при сборке
-prefs.label.window.locale = Язык редактора
-prefs.label.run.engine-arguments = Аргументы движка
-prefs.prompt.run.engine-arguments = По одному аргументу на строку
-prefs.help.run.engine-arguments = Аргументы, которые будут переданы исполняемым файлам dmengine при сборке и запуске редактора.\nИспользуйте по одному аргументу на строку. Например:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
+prefs.label.workflow.save-on-app-focus-lost = Save All on App Focus Lost
+prefs.label.bundle.open-output-directory = Open Bundle Target Folder
+prefs.label.build.open-html5-build = Open Browser After "Build HTML5"
+prefs.label.build.texture-compression = Enable Texture Compression
+prefs.label.run.quit-on-escape = Escape Quits Game
+prefs.label.asset-browser.track-active-tab = Track Active Tab in Asset Browser
+prefs.label.build.lint-code = Lint Code on Build
+prefs.label.window.locale = Editor Language
+prefs.label.run.engine-arguments = Engine Arguments
+prefs.prompt.run.engine-arguments = One argument per line
+prefs.help.run.engine-arguments = Arguments that will be passed to the dmengine executables when the editor builds and runs.\nUse one argument per line. For example\:\n--config\=bootstrap.main_collection\=/my dir/1.collectionc\n--verbose\n--graphics-adapter\=vulkan
 
 # Code tab
-prefs.label.code.custom-editor = Внешний редактор
-prefs.label.code.open-file = Открыть файл
-prefs.label.code.open-file-at-line = Открыть файл на строке
-prefs.label.code.font.name = Шрифт кода (требуется перезапуск)
-prefs.label.code.zoom-on-scroll = Масштаб колесом мышки
-prefs.label.code.hover = Подсказки при наведении
-prefs.help.code.hover = Показывать документацию кода при наведении
-prefs.label.code.auto-closing-parens = Авто-закрытие скобок
+prefs.label.code.custom-editor = Custom Editor
+prefs.label.code.open-file = Open File
+prefs.label.code.open-file-at-line = Open File at Line
+prefs.label.code.font.name = Code Editor Font (Requires Restart)
+prefs.label.code.zoom-on-scroll = Zoom on Scroll
+prefs.label.code.hover = Hover popup
+prefs.help.code.hover = Show code documentation popup on hover
+prefs.label.code.auto-closing-parens = Auto-insert closing parens
 
 # Extensions tab
-prefs.label.extensions.build-server = Сервер сборки
-prefs.label.extensions.build-server-username = Логин сервера
-prefs.label.extensions.build-server-password = Пароль сервера
-prefs.label.extensions.build-server-headers = HTTP-заголовки сервера
+prefs.label.extensions.build-server = Build Server
+prefs.label.extensions.build-server-username = Build Server Username
+prefs.label.extensions.build-server-password = Build Server Password
+prefs.label.extensions.build-server-headers = Build Server Headers
 
 # Tools
-prefs.label.tools.adb-path = Путь к ADB
-prefs.help.tools.adb-path = Путь к команде ADB, которая может использоваться для установки и запуска Android-приложения после сборки
-prefs.label.tools.ios-deploy-path = Путь к ios-deploy
-prefs.help.tools.ios-deploy-path = Путь к команде ios-deploy, которая может использоваться для установки и запуска iOS-приложения после сборки
+prefs.label.tools.adb-path = ADB path
+prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
+prefs.label.tools.ios-deploy-path = ios-deploy path
+prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
 
 # Dev tab
-prefs.label.dev.custom-engine = Свой движок
+prefs.label.dev.custom-engine = Custom Engine
 
 # Keymap tab
-prefs.keymap.filter.prompt = Фильтр комбинаций клавиш…
-prefs.keymap.command = Команда
-prefs.keymap.shortcuts = Комбинации клавиш
-prefs.keymap.context-menu.new-shortcut = Новая комбинация клавиш…
-prefs.keymap.context-menu.reset-to-default = Восстановить по умолчанию
-prefs.keymap.context-menu.remove = Удалить {shortcut}
-prefs.keymap.context-menu.add = Добавить {shortcut}
-prefs.keymap.new-shortcut = Новая комбинация: «{shortcut}»
-prefs.keymap.new-shortcut.commit = Нажмите {enter}, чтобы подтвердить
-prefs.keymap.new-shortcut.commit-or-cancel = Нажмите {enter}, чтобы подтвердить, {escape} — отменить
-prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужную комбинацию клавиш
-prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
-prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}
-prefs.keymap.warnings = Предупреждения:{warnings}
+prefs.keymap.filter.prompt = Filter keymap…
+prefs.keymap.command = Command
+prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.context-menu.new-shortcut = New Shortcut…
+prefs.keymap.context-menu.reset-to-default = Reset to Default
+prefs.keymap.context-menu.remove = Remove {shortcut}
+prefs.keymap.context-menu.add = Add {shortcut}
+prefs.keymap.new-shortcut = New "{shortcut}" Shortcut
+prefs.keymap.new-shortcut.press-desired-combination = Press the desired key combination
+prefs.keymap.new-shortcut.commit = Press {enter} to commit
+prefs.keymap.new-shortcut.commit-or-cancel = Press {enter} to commit, {escape} again to cancel
+prefs.keymap.warnings = Warnings\:{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = Typable (may interfere with text inputs)
+prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
 
 # Progress
 
-progress.ready = Готово
-progress.writing = Записывается {resource}
-progress.linting = Проверка кода…
-progress.fetching-engine = Загрузка движка…
-progress.executing-pre-build-hooks = Выполнение pre-build хуков…
-progress.executing-post-build-hooks = Выполнение post-build хуков…
-progress.executing-bundle-hook = Выполнение bundle-хука…
-progress.building-project = Сборка проекта…
-progress.installing-updated-libraries = Установка обновлённых библиотек…
-progress.initializing-editor = Инициализация редактора {lib}
-progress.loading-editor = Загрузка редактора
-progress.loading = Загрузка
-progress.loading-resource = Загрузка {resource}
-progress.resolving-resource = Разрешение {resource}
-progress.reading-resource = Чтение {resource}
-progress.finalizing = Завершение…
-progress.saving = Сохранение…
-progress.compiling = Компиляция…
-progress.compiling-resource = Компиляция {resource}…
-progress.updating-dependencies = Обновление зависимостей…
-progress.syncing-resources = Синхронизация ресурсов…
-progress.loading-project = Загрузка проекта…
-progress.loading-external-changes = Загрузка внешних изменений…
-progress.writing-files = Запись файлов…
-progress.caching-save-results = Кэширование результатов сохранения…
-progress.reading-timestamps = Чтение меток времени…
-progress.building = Сборка…
-progress.building-resource = Сборка {resource}
-progress.fetching = Загрузка {uri}
-progress.downloading-update = Загрузка обновления
-progress.extracting-update = Распаковка обновления
-progress.waiting = Ожидание
-progress.bundling = Подготовка бандла…
-progress.building-engine = Сборка движка…
-progress.cleaning-engine = Очистка движка…
-progress.downloading-symbols = Загрузка символов…
-progress.transpiling-to-lua = Транспиляция в Lua…
-progress.reading-tasks = Чтение задач…
-progress.cleaning = Очистка…
-progress.generating-report = Генерация отчёта…
-progress.working = Выполнение…
-progress.reading-classes = Чтение классов…
-progress.downloading-archives = Загрузка архивов…
-progress.launching-engine = Запуск движка…
-progress.launched-engine = Запущен {engine}
-progress.engine-launch-failed = Ошибка запуска
-progress.rebooting-engine = Перезапуск {engine}…
-progress.rebooted-engine = Перезапущен {engine}
-progress.engine-reboot-failed = Ошибка перезапуска
-progress.aborting = Прерывание…
+progress.ready = Ready
+progress.writing = Writing {resource}
+progress.linting = Linting code…
+progress.fetching-engine = Fetching engine…
+progress.executing-pre-build-hooks = Executing pre-build hooks…
+progress.executing-post-build-hooks = Executing post-build hooks…
+progress.executing-bundle-hook = Executing bundle hook…
+progress.building-project = Building project…
+progress.installing-updated-libraries = Installing updated libraries…
+progress.initializing-editor = Initializing editor {lib}
+progress.loading-editor = Loading editor
+progress.loading = Loading
+progress.loading-resource = Loading {resource}
+progress.resolving-resource = Resolving {resource}
+progress.reading-resource = Reading {resource}
+progress.finalizing = Finalizing…
+progress.saving = Saving…
+progress.compiling = Compiling…
+progress.compiling-resource = Compiling {resource}…
+progress.updating-dependencies = Updating dependencies…
+progress.syncing-resources = Syncing resources…
+progress.loading-project = Loading project…
+progress.loading-external-changes = Loading external changes…
+progress.writing-files = Writing files…
+progress.caching-save-results = Caching save results…
+progress.reading-timestamps = Reading timestamps…
+progress.building = Building…
+progress.building-resource = Building {resource}
+progress.fetching = Fetching {uri}
+progress.downloading-update = Downloading update
+progress.extracting-update = Extracting update
+progress.waiting = Waiting
+progress.bundling = Bundling…
+progress.building-engine = Building engine…
+progress.cleaning-engine = Cleaning engine…
+progress.downloading-symbols = Downloading symbols…
+progress.transpiling-to-lua = Transpiling to Lua…
+progress.reading-tasks = Reading tasks…
+progress.cleaning = Cleaning…
+progress.generating-report = Generating report…
+progress.working = Working…
+progress.reading-classes = Reading classes…
+progress.downloading-archives = Downloading archives…
+progress.launching-engine = Launching engine…
+progress.launched-engine = Launched {engine}
+progress.engine-launch-failed = Launch failed
+progress.rebooting-engine = Rebooting {engine}…
+progress.rebooted-engine = Rebooted {engine}
+progress.engine-reboot-failed = Reboot failed
+progress.aborting = Aborting…
 progress.percentage = {percentage}%
 
 # Engine targets
 
-engine.url.unavailable = служба движка недоступна
-engine.url.invalid-host = недопустимое имя хоста
-engine.name.local = Локальный {name}
+engine.url.unavailable = engine service not available
+engine.url.invalid-host = invalid host
+engine.name.local = Local {name}
 engine.name.with-url = {name} — {url}
-engine.name.with-instance = {name} — экземпляр {instance}
+engine.name.with-instance = {name} — instance {instance}
 
 # Search results: overrides
 
-search.overrides.title.all = Все переопределения свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
-search.overrides.title.list = Переопределения {count, plural, one {свойства} other {свойств}} {list}{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
-search.overrides.title.specific = Переопределения отдельных свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
-search.column.resource = Ресурс
+search.overrides.title.all = All Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = Specific Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = Resource
 
 # Menus
 
-menu.file = Файл
-menu.project = Проект
-menu.edit = Правка
-menu.debug = Отладка
-menu.view = Вид
-menu.help = Справка
+menu.file = File
+menu.project = Project
+menu.edit = Edit
+menu.debug = Debug
+menu.view = View
+menu.help = Help
 
 # Commands
 
-command.file.new = Создать…
-command.file.new.option.any-file = Файл
-command.file.new.any-file = Новый файл
-command.file.new-folder = Новая папка
-command.file.open = Открыть…
-command.file.open-as = Открыть как
-command.file.open-as.option.associated-application = Ассоциированное приложение
-command.file.open-as.option.in-custom-editor = {view} в пользовательском редакторе
-command.file.open-as.option.in-defold-editor = {view} в редакторе Defold
-command.file.open-selected = Открыть
-command.file.load-external-changes = Загрузить внешние изменения
-command.file.save-all = Сохранить всё
-command.file.save-and-upgrade-all = Обновить форматы файлов…
-command.file.search = Поиск по файлам…
-command.file.reopen-recent = Переоткрыть закрытый файл
+command.file.new = New…
+command.file.new.option.any-file = File
+command.file.new.any-file = New File
+command.file.new-folder = New Folder
+command.file.open = Open…
+command.file.open-as = Open As
+command.file.open-as.option.associated-application = Associated Application
+command.file.open-as.option.in-custom-editor = {view} in Custom Editor
+command.file.open-as.option.in-defold-editor = {view} in Defold Editor
+command.file.open-selected = Open
+command.file.load-external-changes = Load External Changes
+command.file.save-all = Save All
+command.file.save-and-upgrade-all = Upgrade File Formats…
+command.file.search = Search in Files…
+command.file.reopen-recent = Re-Open Closed File
 command.private.recent-files.option.entry = {path} • {view}
-command.private.recent-files = Недавние файлы
-command.private.recent-files.option.more = Еще…
-command.window.tab.close = Закрыть
-command.window.tab.close-all = Закрыть все
-command.window.tab.close-others = Закрыть остальные
-command.window.tab.join-groups = Объединить панели вкладок
-command.window.tab.move-to-other-group = Переместить в другую панель вкладок
-command.window.tab.swap-with-other-group = Поменять с другой панелью вкладок
-command.file.show-in-assets = Показать в браузере ресурсов
-command.file.show-in-desktop = Показать в файловом менеджере
-command.file.show-references = Ссылающиеся файлы…
-command.file.show-dependencies = Зависимости…
-command.run.hot-reload = Горячая перезагрузка
-command.run.select-target = Целевое устройство
-command.run.select-target.option.all-launched-instances = Все запущенные экземпляры
-command.run.select-target.option.new-local-engine = Новый локальный движок
-command.run.stop = Остановить движок
-command.run.set-instance-count = Количество запущенных экземпляров
-command.run.set-instance-count.option.count = {count, plural, one {# экземпляр} few {# экземпляра} other {# экземпляра}}
-command.run.set-target-ip = Ввести IP целевого устройства
-command.run.open-profiler = Открыть веб-профилировщик
-command.run.open-resource-profiler = Открыть профилировщик ресурсов
-command.run.reset-resolution = Сбросить симулированное разрешение
-command.run.set-resolution = Установить разрешение
-command.run.set-resolution.option.android-devices = Устройства Android
+command.private.recent-files = Recent Files
+command.private.recent-files.option.more = More…
+command.window.tab.close = Close
+command.window.tab.close-all = Close All
+command.window.tab.close-others = Close Others
+command.window.tab.join-groups = Join Tab Panes
+command.window.tab.move-to-other-group = Move to Other Tab Pane
+command.window.tab.swap-with-other-group = Swap With Other Tab Pane
+command.file.show-in-assets = Show in Asset Browser
+command.file.show-in-desktop = Show in Desktop
+command.file.show-references = Referencing Files…
+command.file.show-dependencies = Dependencies…
+command.run.hot-reload = Hot Reload
+command.run.select-target = Target
+command.run.select-target.option.all-launched-instances = All Launched Instances
+command.run.select-target.option.new-local-engine = New Local Engine
+command.run.stop = Close Engine
+command.run.set-instance-count = Launched Instance Count
+command.run.set-instance-count.option.count = {count, plural, one {\# Instance} other {\# Instances}}
+command.run.set-target-ip = Enter Target IP
+command.run.show-target-log = Target Discovery Log
+command.run.open-profiler = Open Web Profiler
+command.run.open-resource-profiler = Open Resource Profiler
+command.run.reset-resolution = Reset Simulated Resolution
+command.run.set-resolution = Set Resolution
+command.run.set-resolution.option.android-devices = Android Devices
 command.run.set-resolution.option.apple = Apple
-command.run.set-resolution.option.custom-resolution = Пользовательское разрешение…
-command.run.set-resolution.option.handheld = Портативные
+command.run.set-resolution.option.custom-resolution = Custom Resolution…
+command.run.set-resolution.option.handheld = Handheld
 command.run.set-resolution.option.ipad = iPad
 command.run.set-resolution.option.iphone = iPhone
-command.run.set-resolution.option.native-resolutions = Нативные разрешения
-command.run.set-resolution.option.viewport-resolutions = Разрешения области просмотра
-command.run.toggle-device-rotated = Повернутое устройство
-command.run.show-target-log = Журнал обнаружения целевых устройств
-command.file.open-liveupdate-settings = Настройки Live Update
-command.file.open-project = Открыть проект…
-command.file.open-shared-editor-settings = Общие настройки редактора
-command.app.preferences = Настройки…
-command.app.quit = Выйти
-command.project.build = Собрать
-command.project.clean-build = Очистить и собрать
-command.project.build-html5 = Собрать HTML5
-command.project.clean-build-html5 = Очистить и собрать HTML5
-command.project.bundle = Собрать бандл
-command.project.rebundle = Пересобрать бандл
-command.project.fetch-libraries = Загрузить библиотеки
-command.project.reload-editor-scripts = Перезагрузить скрипты редактора
-command.private.clear-override = Сбросить переопределение свойства {property}
-command.edit.undo = Отменить
-command.edit.redo = Повторить
-command.edit.add-embedded-component = Добавить
-command.edit.add-embedded-component.variant.atlas = Добавить анимацию
-command.edit.add-embedded-component.variant.collection = Добавить игровой объект
-command.edit.add-embedded-component.variant.collision-object = Добавить форму
-command.edit.add-embedded-component.variant.collision-object.option.box = Прямоугольник
-command.edit.add-embedded-component.variant.collision-object.option.capsule = Капсула
-command.edit.add-embedded-component.variant.collision-object.option.sphere = Сфера
-command.edit.add-embedded-component.variant.game-object = Добавить компонент
-command.edit.add-embedded-component.variant.particlefx = Добавить эмиттер
-command.edit.add-embedded-component.variant.particlefx.option.circle = Круг
-command.edit.add-embedded-component.variant.particlefx.option.sphere = Сфера
-command.edit.add-embedded-component.variant.particlefx.option.cone = Конус
-command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D-конус
-command.edit.add-embedded-component.variant.particlefx.option.box = Прямоугольник
-command.edit.add-embedded-component.variant.tile-map = Добавить слой
-command.edit.add-embedded-component.variant.tile-source = Добавить
-command.edit.add-embedded-component.variant.tile-source.option.animation = Анимация
-command.edit.add-embedded-component.variant.tile-source.option.collision-group = Группа столкновений
-command.edit.add-referenced-component = Добавить из файла
-command.edit.add-referenced-component.variant.atlas = Добавить изображения…
-command.edit.add-referenced-component.variant.collection = Добавить игровой объект из файла
-command.edit.add-referenced-component.variant.game-object = Добавить компонент из файла
-command.edit.add-secondary-embedded-component = Добавить вторичный компонент
-command.edit.add-secondary-embedded-component.variant.collection-game-object = Добавить игровой объект
-command.edit.add-secondary-embedded-component.variant.particlefx = Добавить модификатор
-command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Ускорение
-command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Сопротивление
-command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Радиальный
-command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Вихрь
-command.edit.add-secondary-referenced-component = Добавить вторичный компонент из файла
-command.edit.add-secondary-referenced-component.variant.collection = Добавить файл коллекции
-command.edit.add-secondary-referenced-component.variant.collection-game-object = Добавить игровой объект из файла
-command.edit.cut = Вырезать
-command.edit.copy = Копировать
-command.edit.copy-absolute-path = Копировать полный путь
-command.edit.copy-require-path = Копировать путь require
-command.edit.copy-resource-path = Копировать путь ресурса
-command.edit.find = Найти…
-command.edit.paste = Вставить
-command.code.select-all = Выделить всё
-command.edit.delete = Удалить
-command.edit.reorder-up = Переместить вверх
-command.edit.reorder-down = Переместить вниз
-command.edit.rename = Переименовать
-command.edit.pull-up-overrides = Поднять переопределения
-command.edit.pull-up-overrides.variant.property = Поднять переопределение свойства {property}
-command.edit.pull-up-overrides.option = Поднять {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {{target, select, undefined {предка} other {«{target}»}}} other {{target_count} предков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
-command.edit.push-down-overrides = Опустить переопределения
-command.edit.push-down-overrides.variant.property = Опустить переопределение свойства {property}
-command.edit.push-down-overrides.option = Опустить {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {{target, select, undefined {потомка} other {«{target}»}}} other {{target_count} потомков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
-command.edit.show-overrides = Показать переопределения…
-command.code.find-next = Найти следующее
-command.code.find-previous = Найти предыдущее
-command.code.replace = Заменить…
-command.code.replace-next = Заменить следующее
-command.code.toggle-comment = Переключить комментарий
-command.code.reindent-lines = Выравнять отступы
-command.code.convert-indentation = Преобразовать отступы
-command.code.convert-indentation.to-tabs = В табуляцию
-command.code.convert-indentation.to-two-spaces = В два пробела
-command.code.convert-indentation.to-four-spaces = В четыре пробела
-command.code.sort-lines = Сортировать строки
-command.code.sort-lines.case-sensitive = Сортировать строки (с учетом регистра)
-command.code.sort-lines.option.case-insensitive = Без учета регистра
-command.code.sort-lines.option.case-sensitive = С учетом регистра
-command.code.select-next-occurrence = Выбрать следующее вхождение
-command.code.split-selection-into-lines = Разделить выделение на строки
-command.code.goto-definition = Перейти к определению
-command.code.goto-line = Перейти к строке…
-command.code.show-references = Найти ссылки
-command.code.toggle-minimap = Мини-карта
-command.code.toggle-indentation-guides = Линии отступов
-command.code.toggle-visible-whitespace = Пробельные символы
-command.code.zoom.increase = Увеличить размер шрифта
-command.code.zoom.decrease = Уменьшить размер шрифта
-command.code.zoom.reset = Сбросить размер шрифта
-command.debugger.start = Запустить/Подключиться
-command.debugger.continue = Продолжить
-command.debugger.break = Пауза
-command.debugger.step-over = Шаг с обходом
-command.debugger.step-into = Шаг внутрь
-command.debugger.step-out = Шаг из функции
-command.debugger.detach = Отсоединить отладчик
-command.debugger.stop = Остановить отладчик
-command.debugger.toggle-breakpoint = Переключить точку останова
-command.debugger.edit-breakpoint = Изменить точку останова
-command.scene.set-manipulator-space = Задать пространство манипулятора
-command.scene.set-manipulator-space.option.world = Глобальное пространство
-command.scene.set-manipulator-space.option.local = Локальное пространство
-command.scene.set-camera-type = Задать тип камеры
-command.scene.set-camera-type.option.orthographic = Ортографическая камера
-command.scene.set-camera-type.option.perspective = Перспективная камера
-command.scene.set-gui-layout = Задать компоновку GUI
-command.scene.toggle-move-whole-pixels = Перемещать по целым пикселям
-command.scene.visibility.toggle-filters = Переключить фильтры видимости
-command.scene.visibility.toggle-component-guides = Переключить направляющие компонентов
-command.scene.visibility.toggle-grid = Переключить сетку
-command.scene.visibility.toggle-selection = Показать/скрыть выбранные объекты
-command.scene.visibility.hide-unselected = Скрыть невыбранные объекты
-command.scene.visibility.show-last-hidden = Показать последние скрытые объекты
-command.scene.visibility.show-all = Показать все скрытые объекты
-command.scene.play = Запустить
-command.scene.stop = Остановить
-command.scene.frame-selection = Вписать выделение в кадр
-command.scene.realign-camera = Выровнять камеру
-command.scene.toggle-tile-palette = Выбрать тайл…
-command.scene.select-erase-tool = Выбрать ластик
-command.scene.flip-brush-horizontally = Отразить кисть по горизонтали
-command.scene.flip-brush-vertically = Отразить кисть по вертикали
-command.scene.rotate-brush-90-degrees = Повернуть кисть на 90 градусов
-command.window.toggle-left-pane = Переключить панель ресурсов
-command.window.toggle-changed-files-pane = Переключить изменённые файлы
-command.window.toggle-bottom-pane = Переключить панель инструментов
-command.window.toggle-right-pane = Переключить панель свойств
-command.window.show-console = Показать консоль
-command.window.show-curve-editor = Показать редактор кривых
-command.window.show-build-errors = Показать ошибки сборки
-command.window.show-search-results = Показать результаты поиска
-command.dev.reload-css = Перезагрузить стили
-command.help.open-logs = Показать логи
-command.file.create-desktop-entry = Создать ярлык на рабочем столе
-command.help.open-documentation = Документация
-command.help.open-forum = Открыть форум
-command.help.open-asset-portal = Найти ассеты
-command.help.report-issue = Сообщить о проблеме
-command.help.report-suggestion = Предложить улучшение
-command.help.open-issues = Поиск по задачам
-command.help.open-donations = Фонд разработки
-command.app.about = О программе
-command.vcs.diff = Сравнить
-command.vcs.revert = Откатить
+command.run.set-resolution.option.native-resolutions = Native Resolutions
+command.run.set-resolution.option.viewport-resolutions = Viewport Resolutions
+command.run.toggle-device-rotated = Rotated Device
+command.file.open-liveupdate-settings = Live Update Settings
+command.file.open-project = Open Project…
+command.file.open-shared-editor-settings = Shared Editor Settings
+command.app.preferences = Preferences…
+command.app.quit = Quit
+command.project.build = Build
+command.project.clean-build = Clean Build
+command.project.build-html5 = Build HTML5
+command.project.clean-build-html5 = Clean Build HTML5
+command.project.bundle = Bundle
+command.project.rebundle = Rebundle
+command.project.fetch-libraries = Fetch Libraries
+command.project.reload-editor-scripts = Reload Editor Scripts
+command.private.clear-override = Clear {property} Override
+command.edit.undo = Undo
+command.edit.redo = Redo
+command.edit.add-embedded-component = Add
+command.edit.add-embedded-component.variant.atlas = Add Animation
+command.edit.add-embedded-component.variant.collection = Add Game Object
+command.edit.add-embedded-component.variant.collision-object = Add Shape
+command.edit.add-embedded-component.variant.collision-object.option.box = Box
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
+command.edit.add-embedded-component.variant.game-object = Add Component
+command.edit.add-embedded-component.variant.particlefx = Add Emitter
+command.edit.add-embedded-component.variant.particlefx.option.circle = Circle
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Sphere
+command.edit.add-embedded-component.variant.particlefx.option.cone = Cone
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D Cone
+command.edit.add-embedded-component.variant.particlefx.option.box = Box
+command.edit.add-embedded-component.variant.tile-map = Add Layer
+command.edit.add-embedded-component.variant.tile-source = Add
+command.edit.add-embedded-component.variant.tile-source.option.animation = Animation
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = Collision Group
+command.edit.add-referenced-component = Add From File
+command.edit.add-referenced-component.variant.atlas = Add Images…
+command.edit.add-referenced-component.variant.collection = Add Game Object File
+command.edit.add-referenced-component.variant.game-object = Add Component File
+command.edit.add-secondary-embedded-component = Add Secondary
+command.edit.add-secondary-embedded-component.variant.collection-game-object = Add Game Object
+command.edit.add-secondary-embedded-component.variant.particlefx = Add Modifier
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Acceleration
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Drag
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Radial
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Vortex
+command.edit.add-secondary-referenced-component = Add Secondary From File
+command.edit.add-secondary-referenced-component.variant.collection = Add Collection File
+command.edit.add-secondary-referenced-component.variant.collection-game-object = Add Game Object File
+command.edit.cut = Cut
+command.edit.copy = Copy
+command.edit.copy-absolute-path = Copy Full Path
+command.edit.copy-require-path = Copy Require Path
+command.edit.copy-resource-path = Copy Resource Path
+command.edit.find = Find…
+command.edit.paste = Paste
+command.code.select-all = Select All
+command.edit.delete = Delete
+command.edit.reorder-up = Move Up
+command.edit.reorder-down = Move Down
+command.edit.rename = Rename
+command.edit.pull-up-overrides = Pull Up Overrides
+command.edit.pull-up-overrides.variant.property = Pull Up {property} Override
+command.edit.pull-up-overrides.option = Pull Up {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Ancestor} other {"{target}"}}} other {{target_count} Ancestors}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.push-down-overrides = Push Down Overrides
+command.edit.push-down-overrides.variant.property = Push Down {property} Override
+command.edit.push-down-overrides.option = Push Down {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Descendant} other {"{target}"}}} other {{target_count} Descendants}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.show-overrides = Show Overrides…
+command.code.find-next = Find Next
+command.code.find-previous = Find Previous
+command.code.replace = Replace…
+command.code.replace-next = Replace Next
+command.code.toggle-comment = Toggle Comment
+command.code.reindent-lines = Reindent Lines
+command.code.convert-indentation = Convert Indentation
+command.code.convert-indentation.to-tabs = To Tabs
+command.code.convert-indentation.to-two-spaces = To Two Spaces
+command.code.convert-indentation.to-four-spaces = To Four Spaces
+command.code.sort-lines = Sort Lines
+command.code.sort-lines.case-sensitive = Sort Lines (Case Sensitive)
+command.code.sort-lines.option.case-insensitive = Case Insensitive
+command.code.sort-lines.option.case-sensitive = Case Sensitive
+command.code.select-next-occurrence = Select Next Occurrence
+command.code.split-selection-into-lines = Split Selection Into Lines
+command.code.goto-definition = Go to Definition
+command.code.goto-line = Go to Line…
+command.code.show-references = Find References
+command.code.toggle-minimap = Minimap
+command.code.toggle-indentation-guides = Indentation Guides
+command.code.toggle-visible-whitespace = Visible Whitespace
+command.code.zoom.increase = Increase Font Size
+command.code.zoom.decrease = Decrease Font Size
+command.code.zoom.reset = Reset Font Size
+command.debugger.start = Start/Attach
+command.debugger.continue = Continue
+command.debugger.break = Break
+command.debugger.step-over = Step Over
+command.debugger.step-into = Step Into
+command.debugger.step-out = Step Out
+command.debugger.detach = Detach Debugger
+command.debugger.stop = Stop Debugger
+command.debugger.toggle-breakpoint = Toggle Breakpoint
+command.debugger.edit-breakpoint = Edit Breakpoint
+command.scene.set-manipulator-space = Set Manipulator Space
+command.scene.set-manipulator-space.option.world = World Space
+command.scene.set-manipulator-space.option.local = Local Space
+command.scene.set-camera-type = Set Camera Type
+command.scene.set-camera-type.option.orthographic = Orthographic Camera
+command.scene.set-camera-type.option.perspective = Perspective Camera
+command.scene.set-gui-layout = Set GUI Layout
+command.scene.toggle-move-whole-pixels = Move Whole Pixels
+command.scene.visibility.toggle-filters = Toggle Visibility Filters
+command.scene.visibility.toggle-component-guides = Toggle Component Guides
+command.scene.visibility.toggle-grid = Toggle Grid
+command.scene.visibility.toggle-selection = Show/Hide Selected Objects
+command.scene.visibility.hide-unselected = Hide Unselected Objects
+command.scene.visibility.show-last-hidden = Show Last Hidden Objects
+command.scene.visibility.show-all = Show All Hidden Objects
+command.scene.play = Play
+command.scene.stop = Stop
+command.scene.frame-selection = Frame Selection
+command.scene.realign-camera = Realign Camera
+command.scene.toggle-tile-palette = Select Tile…
+command.scene.select-erase-tool = Select Eraser
+command.scene.flip-brush-horizontally = Flip Brush Horizontally
+command.scene.flip-brush-vertically = Flip Brush Vertically
+command.scene.rotate-brush-90-degrees = Rotate Brush 90 Degrees
+command.window.toggle-left-pane = Toggle Assets Pane
+command.window.toggle-changed-files-pane = Toggle Changed Files
+command.window.toggle-bottom-pane = Toggle Tools Pane
+command.window.toggle-right-pane = Toggle Properties Pane
+command.window.show-console = Show Console
+command.window.show-curve-editor = Show Curve Editor
+command.window.show-build-errors = Show Build Errors
+command.window.show-search-results = Show Search Results
+command.dev.reload-css = Reload Stylesheet
+command.help.open-logs = Show Logs
+command.file.create-desktop-entry = Create Desktop Entry
+command.help.open-documentation = Documentation
+command.help.open-forum = Support Forum
+command.help.open-asset-portal = Find Assets
+command.help.report-issue = Report Issue
+command.help.report-suggestion = Report Suggestion
+command.help.open-issues = Search Issues
+command.help.open-donations = Development Fund
+command.app.about = About
+command.vcs.diff = View Diff
+command.vcs.revert = Revert
 
 # Overrides
 
-override.aspect.layout = компоновке «{layout}»
-override.aspect.layout.kind = {count, plural, one {# компоновке} other {# компоновках}}
-override.aspect.generic.kind = {count, plural, one {# аспекте} other {# аспектах}}
+override.aspect.layout = {layout} Layout
+override.aspect.layout.kind = {count, plural, one {\# Layout} other {\# Layouts}}
+override.aspect.generic.kind = {count, plural, one {\# Aspect} other {\# Aspects}}
 
 # GUI
 
-gui.layout.default = Базовая
+gui.layout.default = Default
 
 # Editing operations
 
-operation.atlas.add-animation = Добавить анимацию
-operation.atlas.add-images = Добавить изображения
-operation.atlas.move-pivot-point = Переместить опорную точку
-operation.collision-object.add-shape = Добавить форму
-operation.collection.add-collection = Добавить коллекцию
-operation.collection.add-game-object = Добавить игровой объект
-operation.game-object.add-component = Добавить компонент
-operation.gui.add-gui-node = Добавить GUI-элемент
-operation.gui.add-layer = Добавить слой
-operation.gui.add-layout = Добавить компоновку
-operation.gui.add-resources = Добавить ресурсы типа {type}
-operation.particlefx.add-emitter = Добавить эмиттер
-operation.particlefx.add-modifier = Добавить модификатор
-operation.property.clear = Сбросить свойство {property}
-operation.property.set = Задать свойство {property}
-operation.scene.move = Переместить
-operation.scene.rotate = Повернуть
-operation.scene.scale = Масштабировать
-operation.cut = Вырезать
-operation.delete = Удалить
-operation.drop = Переместить
-operation.paste = Вставить
-operation.select = Выделить
-operation.tile-map.add-layer = Добавить слой
+operation.atlas.add-animation = Add Animation
+operation.atlas.add-images = Add Images
+operation.atlas.move-pivot-point = Move Pivot Point
+operation.collision-object.add-shape = Add Shape
+operation.collection.add-collection = Add Collection
+operation.collection.add-game-object = Add Game Object
+operation.game-object.add-component = Add Component
+operation.gui.add-gui-node = Add GUI Node
+operation.gui.add-layer = Add Layer
+operation.gui.add-layout = Add Layout
+operation.gui.add-resources = Add {type}
+operation.particlefx.add-emitter = Add Emitter
+operation.particlefx.add-modifier = Add Modifier
+operation.property.clear = Clear {property}
+operation.property.set = Set {property}
+operation.scene.move = Move
+operation.scene.rotate = Rotate
+operation.scene.scale = Scale
+operation.cut = Cut
+operation.delete = Delete
+operation.drop = Drop
+operation.paste = Paste
+operation.select = Select
+operation.tile-map.add-layer = Add Layer
 
 # Properties
 
-property.tooltip = {help, select, none {} other {{help}\n\n}}Свойство доступно как «{id}» в скриптах редактора
+property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}" in editor scripts
 
 # Properties: universal
 
-property.blend-mode = Режим смешивания
+property.blend-mode = Blend Mode
 property.id = Id
-property.image = Изображение
-property.material = Материал
-property.name = Название
-property.path = Путь
-property.position = Позиция
-property.rotation = Вращение
-property.scale = Масштаб
-property.size = Размер
+property.image = Image
+property.material = Material
+property.name = Name
+property.path = Path
+property.position = Position
+property.rotation = Rotation
+property.scale = Scale
+property.size = Size
 property.url = URL
 
 # Properties: appmanifest
 
-property.appmanifest.physics-2d = Физика 2D
-property.appmanifest.physics-2d.tooltip = Box2D версия 3 или устаревшая версия для Defold
-property.appmanifest.physics-3d = Физика 3D
-property.appmanifest.physics-3d.tooltip = Bullet или отключено
+property.appmanifest.physics-2d = Physics 2D
+property.appmanifest.physics-2d.tooltip = Box2D version 3 or legacy Defold version
+property.appmanifest.physics-3d = Physics 3D
+property.appmanifest.physics-3d.tooltip = Bullet or none
 property.appmanifest.rig+model = Rig + Model
-property.appmanifest.rig+model.tooltip = Rig, Model или отключено
-property.appmanifest.exclude-record = Отключить запись
-property.appmanifest.exclude-record.tooltip = Удаляет возможности записи видео (настольные платформы)
-property.appmanifest.exclude-profiler = Отключить профайлер
-property.appmanifest.exclude-profiler.tooltip = Удаляет экранный и веб-профайлер
-property.appmanifest.exclude-sound = Отключить звук
-property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука: WAV
-property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука: OGG
-property.appmanifest.include-sound-decoder-opus = Включить декодер звука: Opus
-property.appmanifest.exclude-input = Отключить ввод
-property.appmanifest.exclude-liveupdate = Отключить Live Update
-property.appmanifest.exclude-image = Отключить Image
-property.appmanifest.exclude-types = Отключить Types
-property.appmanifest.exclude-basis-transcoder = Отключить Basis Transcoder
-property.appmanifest.use-android-support-lib = Android Support Library
-property.appmanifest.use-android-support-lib.tooltip = Использовать устаревшие библиотеки Android Support вместо AndroidX. Доступно начиная с Defold 1.2.177.
-property.appmanifest.graphics = Графика
-property.appmanifest.graphics.tooltip = Vulkan поддерживается только на настольных и мобильных платформах
-property.appmanifest.graphics-osx = Графика (macOS)
-property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
-property.appmanifest.graphics-web = Графика (HTML5)
-property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
+property.appmanifest.rig+model.tooltip = Rig, Model or none
+property.appmanifest.exclude-record = Exclude Record
+property.appmanifest.exclude-record.tooltip = Remove the video recording capabilities (desktop platforms)
+property.appmanifest.exclude-profiler = Exclude Profiler
+property.appmanifest.exclude-profiler.tooltip = Remove the on-screen and web profiler
+property.appmanifest.exclude-sound = Exclude Sound
+property.appmanifest.exclude-sound-decoder-wav = Exclude Sound Decoder\: WAV
+property.appmanifest.exclude-sound-decoder-ogg = Exclude Sound Decoder\: OGG
+property.appmanifest.include-sound-decoder-opus = Include Sound Decoder\: Opus
+property.appmanifest.exclude-input = Exclude Input
+property.appmanifest.exclude-liveupdate = Exclude Live Update
+property.appmanifest.exclude-image = Exclude Image
+property.appmanifest.exclude-types = Exclude Types
+property.appmanifest.exclude-basis-transcoder = Exclude Basis Transcoder
+property.appmanifest.use-android-support-lib = Use Android Support Library
+property.appmanifest.use-android-support-lib.tooltip = Use the old Android support libraries instead of AndroidX. Available from Defold 1.2.177.
+property.appmanifest.graphics = Graphics
+property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
+property.appmanifest.graphics-osx = Graphics (macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-web = Graphics (HTML5)
+property.appmanifest.graphics-web.tooltip = WebGPU support is in BETA (web platforms)
 
 # Properties: atlas
 
 property.atlas.animation.fps = FPS
-property.atlas.animation.flip-horizontal = Горизонтальное отражение
-property.atlas.animation.flip-vertical = Вертикальное отражение
-property.atlas.animation.playback = Воспроизведение
-property.atlas.image.pivot = Опорная точка
-property.atlas.image.sprite-trim-mode = Обрезка спрайта
-property.atlas.margin = Отступ
-property.atlas.margin.tooltip = Количество пикселей между изображениями атласа
-property.atlas.inner-padding = Внутренний отступ
-property.atlas.inner-padding.tooltip = Количество пустых пикселей вокруг каждого изображения
-property.atlas.extrude-borders = Расширение границ
-property.atlas.extrude-borders.tooltip = Копирует крайние пиксели наружу, чтобы избежать смешивания между изображениями
-property.atlas.max-page-size = Макс. размер страницы
-property.atlas.max-page-size.tooltip = Наибольшая ширина и высота каждой страницы в многостраничном атласе
-property.atlas.rename-patterns = Шаблоны переименований
-property.atlas.rename-patterns.tooltip = Шаблоны search=replace, разделенные запятыми; каждый применяется к базовому имени изображения. Например, «hat=cat,_normal=» переименует «hat_normal» в «cat», что помогает сопоставлять анимации между атласами
-
+property.atlas.animation.flip-horizontal = Flip Horizontal
+property.atlas.animation.flip-vertical = Flip Vertical
+property.atlas.animation.playback = Playback
+property.atlas.image.pivot = Pivot
+property.atlas.image.sprite-trim-mode = Sprite Trim Mode
+property.atlas.margin = Margin
+property.atlas.margin.tooltip = Pixels inserted between each image on the atlas
+property.atlas.inner-padding = Inner Padding
+property.atlas.inner-padding.tooltip = Empty pixels padded around each image
+property.atlas.extrude-borders = Extrude Borders
+property.atlas.extrude-borders.tooltip = Copies edge pixels outward to avoid bleeding between images
+property.atlas.max-page-size = Max Page Size
+property.atlas.max-page-size.tooltip = Largest width and height for each page in a multi-page atlas
+property.atlas.rename-patterns = Rename Patterns
+property.atlas.rename-patterns.tooltip = Comma-separated search\=replace patterns applied to each image base name; for example "hat\=cat,_normal\=" renames "hat_normal" to "cat", which helps match animations across atlases
 
 # Properties: camera
 
-property.camera.aspect-ratio = Соотношение сторон
-property.camera.aspect-ratio.tooltip = Только для перспективной камеры. Отношение ширины и высоты пирамиды видимости. 1.0 — квадратное окно; 1.33 подходит для 4:3 (1024x768); 1.78 — для 16:9. Игнорируется, если включено авто-соотношение.
-property.camera.fov = Угол обзора
-property.camera.fov.tooltip = Только для перспективной камеры. Вертикальный угол обзора в радианах. Чем больше значение, тем больше видимая область.
-property.camera.near-z = Ближняя Z
-property.camera.near-z.tooltip = Значение Z ближней плоскости отсечения.
-property.camera.far-z = Дальняя Z
-property.camera.far-z.tooltip = Значение Z дальней плоскости отсечения.
-property.camera.auto-aspect-ratio = Авто соотношение сторон
-property.camera.auto-aspect-ratio.tooltip = Только для перспективной камеры. Автоматически рассчитывает соотношение сторон.
-property.camera.orthographic-projection = Ортографическая проекция
-property.camera.orthographic-projection.tooltip = Переключает камеру в ортографическую проекцию.
-property.camera.orthographic-zoom = Ортографический зум
-property.camera.orthographic-zoom.tooltip = Только для ортографической камеры. Коэффициент масштабирования (> 1 — приближение; < 1 — отдаление).
-property.camera.orthographic-mode = Режим ортографического зума
+property.camera.aspect-ratio = Aspect Ratio
+property.camera.aspect-ratio.tooltip = Perspective cameras only. Ratio between the frustum width and height. 1.0 assumes a square view; 1.33 fits 4\:3 (1024x768); 1.78 fits 16\:9. Ignored when Auto Aspect Ratio is enabled.
+property.camera.fov = FOV
+property.camera.fov.tooltip = Perspective cameras only. Vertical field of view in radians. Higher values show more of the scene.
+property.camera.near-z = Near Z
+property.camera.near-z.tooltip = Z value of the near clipping plane.
+property.camera.far-z = Far Z
+property.camera.far-z.tooltip = Z value of the far clipping plane.
+property.camera.auto-aspect-ratio = Auto Aspect Ratio
+property.camera.auto-aspect-ratio.tooltip = Perspective cameras only. Automatically computes the aspect ratio.
+property.camera.orthographic-projection = Orthographic Projection
+property.camera.orthographic-projection.tooltip = Switches the camera to orthographic projection.
+property.camera.orthographic-zoom = Orthographic Zoom
+property.camera.orthographic-zoom.tooltip = Orthographic cameras only. Zoom factor (> 1 zooms in; < 1 zooms out).
+property.camera.orthographic-mode = Orthographic Zoom Mode
 
 # Properties: collection proxy
 
-property.collection-proxy.collection = Коллекция
-property.collection-proxy.exclude = Исключить
+property.collection-proxy.collection = Collection
+property.collection-proxy.exclude = Exclude
 
 # Properties: collision object
 
-property.collision-object.collision-shape = Форма столкновения
-property.collision-object.type = Тип
-property.collision-object.type.tooltip = Свойство доступно как «collision_type» в скриптах редактора. Используйте этот идентификатор вместо «type», так как «type» применяется для типов компонентов при встраивании компонентов в игровые объекты и перекрывает это свойство.
-property.collision-object.mass = Масса
-property.collision-object.friction = Трение
-property.collision-object.restitution = Упругость
-property.collision-object.linear-damping = Линейное затухание
-property.collision-object.angular-damping = Угловое затухание
-property.collision-object.locked-rotation = Фиксировать вращение
-property.collision-object.bullet = Пуля
-property.collision-object.event-collision = События столкновения
-property.collision-object.event-collision.tooltip = Если выключено, фильтрует все события столкновения с этим объектом
-property.collision-object.event-contact = События контакта
-property.collision-object.event-contact.tooltip = Если выключено, фильтрует все события контакта с этим объектом
-property.collision-object.event-trigger = События триггера
-property.collision-object.event-trigger.tooltip = Если выключено, фильтрует все события триггера с этим объектом
-property.collision-object.group = Группа
-property.collision-object.mask = Маска
-property.collision-object.shape.diameter = Диаметр
-property.collision-object.shape.dimensions = Размер
-property.collision-object.shape.height = Высота
+property.collision-object.collision-shape = Collision Shape
+property.collision-object.type = Type
+property.collision-object.type.tooltip = Available as "collision_type" in editor scripts. Prefer this identifier over "type", since "type" is used for component types when a component is embedded in game objects, which will shadow this property.
+property.collision-object.mass = Mass
+property.collision-object.friction = Friction
+property.collision-object.restitution = Restitution
+property.collision-object.linear-damping = Linear Damping
+property.collision-object.angular-damping = Angular Damping
+property.collision-object.locked-rotation = Locked Rotation
+property.collision-object.bullet = Bullet
+property.collision-object.event-collision = Generate Collision Events
+property.collision-object.event-collision.tooltip = If disabled, filters out any collision events involving this collision object
+property.collision-object.event-contact = Generate Contact Events
+property.collision-object.event-contact.tooltip = If disabled, filters out any contact events involving this collision object
+property.collision-object.event-trigger = Generate Trigger Events
+property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
+property.collision-object.group = Group
+property.collision-object.mask = Mask
+property.collision-object.shape.diameter = Diameter
+property.collision-object.shape.dimensions = Dimensions
+property.collision-object.shape.height = Height
 
 # Properties: cubemap
 
-property.cubemap.back = Зад
-property.cubemap.bottom = Низ
-property.cubemap.front = Перед
-property.cubemap.left = Лево
-property.cubemap.right = Право
-property.cubemap.top = Верх
+property.cubemap.back = Back
+property.cubemap.bottom = Bottom
+property.cubemap.front = Front
+property.cubemap.left = Left
+property.cubemap.right = Right
+property.cubemap.top = Top
 
 # Properties: factory
 
-property.factory.prototype = Прототип
-property.factory.load-dynamically = Динамическая загрузка
-property.factory.dynamic-prototype = Динамический прототип
+property.factory.prototype = Prototype
+property.factory.load-dynamically = Load Dynamically
+property.factory.dynamic-prototype = Dynamic Prototype
 
 # Properties: font
 
-property.font.font = Шрифт
-property.font.output-format = Формат вывода
-property.font.render-mode = Режим рендеринга
-property.font.size = Размер
-property.font.antialias = Сглаживание
-property.font.alpha = Альфа
-property.font.outline-alpha = Альфа контура
-property.font.outline-width = Толщина контура
-property.font.shadow-alpha = Альфа тени
-property.font.shadow-blur = Размытие тени
-property.font.shadow-x = Смещение тени X
-property.font.shadow-y = Смещение тени Y
-property.font.cache-width = Ширина кэша
-property.font.cache-height = Высота кэша
-property.font.characters = Символы
-property.font.all-chars = Все символы
+property.font.font = Font
+property.font.output-format = Output Format
+property.font.render-mode = Render Mode
+property.font.size = Size
+property.font.antialias = Antialias
+property.font.alpha = Alpha
+property.font.outline-alpha = Outline Alpha
+property.font.outline-width = Outline Width
+property.font.shadow-alpha = Shadow Alpha
+property.font.shadow-blur = Shadow Blur
+property.font.shadow-x = Shadow X
+property.font.shadow-y = Shadow Y
+property.font.cache-width = Cache Width
+property.font.cache-height = Cache Height
+property.font.characters = Characters
+property.font.all-chars = All Chars
 
 # Properties: gui
 
-property.gui.adjust-mode = Режим подстройки
-property.gui.adjust-reference = Опорный режим подстройки
-property.gui.alpha = Альфа
-property.gui.clipping-inverted = Инверсия отсечения
-property.gui.clipping-mode = Режим отсечения
-property.gui.clipping-visible = Видимость отсечения
-property.gui.color = Цвет
-property.gui.current-nodes = Текущие элементы
-property.gui.enabled = Включено
-property.gui.font = Шрифт
-property.gui.inherit-alpha = Наследовать альфу
-property.gui.inner-radius = Внутренний радиус
-property.gui.layer = Слой
-property.gui.line-break = Перенос строки
-property.gui.max-dynamic-textures = Максимум динамических текстур
-property.gui.max-nodes = Максимум элементов
-property.gui.outline = Контур
-property.gui.outline-alpha = Альфа контура
-property.gui.outer-bounds = Внешние границы
-property.gui.perimeter-vertices = Количество вершин
+property.gui.adjust-mode = Adjust Mode
+property.gui.adjust-reference = Adjust Reference
+property.gui.alpha = Alpha
+property.gui.clipping-inverted = Clipping Inverted
+property.gui.clipping-mode = Clipping Mode
+property.gui.clipping-visible = Clipping Visible
+property.gui.color = Color
+property.gui.current-nodes = Current Nodes
+property.gui.enabled = Enabled
+property.gui.font = Font
+property.gui.inherit-alpha = Inherit Alpha
+property.gui.inner-radius = Inner Radius
+property.gui.layer = Layer
+property.gui.line-break = Line Break
+property.gui.max-dynamic-textures = Max Dynamic Textures
+property.gui.max-nodes = Max Nodes
+property.gui.outline = Outline
+property.gui.outline-alpha = Outline Alpha
+property.gui.outer-bounds = Outer Bounds
+property.gui.perimeter-vertices = Perimeter Vertices
 property.gui.particlefx = ParticleFX
-property.gui.pie-fill-angle = Угол заполнения
-property.gui.pivot = Опорная точка
-property.gui.script = Скрипт
-property.gui.shadow = Тень
-property.gui.shadow-alpha = Альфа тени
-property.gui.size-mode = Режим размера
-property.gui.slice9 = 9-слайс
-property.gui.texture = Текстура
-property.gui.template = Шаблон
-property.gui.text = Текст
-property.gui.text-leading = Интерлиньяж
-property.gui.text-tracking = Трекинг
-property.gui.visible = Видимость
-property.gui.x-anchor = Привязка по X
-property.gui.y-anchor = Привязка по Y
+property.gui.pie-fill-angle = Pie Fill Angle
+property.gui.pivot = Pivot
+property.gui.script = Script
+property.gui.shadow = Shadow
+property.gui.shadow-alpha = Shadow Alpha
+property.gui.size-mode = Size Mode
+property.gui.slice9 = Slice 9
+property.gui.texture = Texture
+property.gui.template = Template
+property.gui.text = Text
+property.gui.text-leading = Text Leading
+property.gui.text-tracking = Text Tracking
+property.gui.visible = Visible
+property.gui.x-anchor = X Anchor
+property.gui.y-anchor = Y Anchor
 
 # Properties: label
 
-property.label.color = Цвет
-property.label.font = Шрифт
-property.label.leading = Интерлиньяж
-property.label.line-break = Перенос строки
-property.label.outline = Контур
-property.label.pivot = Опорная точка
-property.label.shadow = Тень
-property.label.size = Размер
-property.label.text = Текст
-property.label.tracking = Трекинг
+property.label.color = Color
+property.label.font = Font
+property.label.leading = Leading
+property.label.line-break = Line Break
+property.label.outline = Outline
+property.label.pivot = Pivot
+property.label.shadow = Shadow
+property.label.size = Size
+property.label.text = Text
+property.label.tracking = Tracking
 
 # Properties: mesh
 
-property.mesh.normal-stream = Поток нормалей
-property.mesh.position-stream = Поток позиций
-property.mesh.primitive-type = Тип примитива
-property.mesh.vertices = Вершины
+property.mesh.normal-stream = Normal Stream
+property.mesh.position-stream = Position Stream
+property.mesh.primitive-type = Primitive Type
+property.mesh.vertices = Vertices
 
 # Properties: model
 
-property.model.animations = Анимации
-property.model.create-go-bones = Создавать GO кости
-property.model.default-animation = Анимация по умолчанию
-property.model.mesh = Меш
-property.model.skeleton = Скелет
+property.model.animations = Animations
+property.model.create-go-bones = Create GO Bones
+property.model.default-animation = Default Animation
+property.model.mesh = Mesh
+property.model.skeleton = Skeleton
 
 # Properties: particlefx
 
-property.particlefx.category.particle-life = Частица в течении жизни
+property.particlefx.category.particle-life = Particle Life
 
-property.particlefx.animation = Анимация
-property.particlefx.duration = Длительность
-property.particlefx.inherit-velocity = Наследовать скорость
-property.particlefx.material = Материал
-property.particlefx.max-particle-count = Макс. число частиц
-property.particlefx.mode = Режим проигрывания
-property.particlefx.particle-orientation = Ориентация частиц
-property.particlefx.pivot = Опорная точка
-property.particlefx.size-mode = Режим размера
-property.particlefx.space = Пространство эмиссии
-property.particlefx.start-delay = Задержка запуска
-property.particlefx.start-offset = Начальное смещение
-property.particlefx.stretch-with-velocity = Растягивать по скорости
-property.particlefx.tile-source = Изображение
-property.particlefx.type = Тип эмиттера
+property.particlefx.animation = Animation
+property.particlefx.duration = Duration
+property.particlefx.inherit-velocity = Inherit Velocity
+property.particlefx.material = Material
+property.particlefx.max-particle-count = Max Particle Count
+property.particlefx.mode = Play Mode
+property.particlefx.particle-orientation = Particle Orientation
+property.particlefx.pivot = Pivot
+property.particlefx.size-mode = Size Mode
+property.particlefx.space = Emission Space
+property.particlefx.start-delay = Start Delay
+property.particlefx.start-offset = Start Offset
+property.particlefx.stretch-with-velocity = Stretch With Velocity
+property.particlefx.tile-source = Image
+property.particlefx.type = Emitter Type
 
-property.particlefx.emitter-key-particle-alpha = Начальная альфа
-property.particlefx.emitter-key-particle-angular-velocity = Начальная угловая скорость
-property.particlefx.emitter-key-particle-blue = Начальный синий
-property.particlefx.emitter-key-particle-green = Начальный зелёный
-property.particlefx.emitter-key-particle-life-time = Время жизни частицы
-property.particlefx.emitter-key-particle-red = Начальный красный
-property.particlefx.emitter-key-particle-rotation = Начальный поворот
-property.particlefx.emitter-key-particle-size = Начальный размер
-property.particlefx.emitter-key-particle-speed = Начальная скорость
-property.particlefx.emitter-key-particle-stretch-factor-x = Начальное растяжение X
-property.particlefx.emitter-key-particle-stretch-factor-y = Начальное растяжение Y
-property.particlefx.emitter-key-size-x = Размер эмиттера X
-property.particlefx.emitter-key-size-y = Размер эмиттера Y
-property.particlefx.emitter-key-size-z = Размер эмиттера Z
-property.particlefx.emitter-key-spawn-rate = Скорость появления
-property.particlefx.magnitude = Величина
-property.particlefx.max-distance = Макс. расстояние
-property.particlefx.particle-key-alpha = Альфа
-property.particlefx.particle-key-angular-velocity = Угловая скорость
-property.particlefx.particle-key-blue = Синий
-property.particlefx.particle-key-green = Зелёный
-property.particlefx.particle-key-red = Красный
-property.particlefx.particle-key-rotation = Поворот
-property.particlefx.particle-key-scale = Масштаб
-property.particlefx.particle-key-stretch-factor-x = Растяжение X
-property.particlefx.particle-key-stretch-factor-y = Растяжение Y
+property.particlefx.emitter-key-particle-alpha = Initial Alpha
+property.particlefx.emitter-key-particle-angular-velocity = Initial Angular Velocity
+property.particlefx.emitter-key-particle-blue = Initial Blue
+property.particlefx.emitter-key-particle-green = Initial Green
+property.particlefx.emitter-key-particle-life-time = Particle Life Time
+property.particlefx.emitter-key-particle-red = Initial Red
+property.particlefx.emitter-key-particle-rotation = Initial Rotation
+property.particlefx.emitter-key-particle-size = Initial Size
+property.particlefx.emitter-key-particle-speed = Initial Speed
+property.particlefx.emitter-key-particle-stretch-factor-x = Initial Stretch X
+property.particlefx.emitter-key-particle-stretch-factor-y = Initial Stretch Y
+property.particlefx.emitter-key-size-x = Emitter Size X
+property.particlefx.emitter-key-size-y = Emitter Size Y
+property.particlefx.emitter-key-size-z = Emitter Size Z
+property.particlefx.emitter-key-spawn-rate = Spawn Rate
+property.particlefx.magnitude = Magnitude
+property.particlefx.max-distance = Max Distance
+property.particlefx.particle-key-alpha = Alpha
+property.particlefx.particle-key-angular-velocity = Angular Velocity
+property.particlefx.particle-key-blue = Blue
+property.particlefx.particle-key-green = Green
+property.particlefx.particle-key-red = Red
+property.particlefx.particle-key-rotation = Rotation
+property.particlefx.particle-key-scale = Scale
+property.particlefx.particle-key-stretch-factor-x = Stretch X
+property.particlefx.particle-key-stretch-factor-y = Stretch Y
 
 # Properties: sound
 
-property.sound.sound = Звук
-property.sound.looping = Зациклить
-property.sound.loopcount = Повторы
-property.sound.group = Группа
-property.sound.gain = Усиление
-property.sound.pan = Панорама
-property.sound.speed = Скорость
+property.sound.sound = Sound
+property.sound.looping = Loop
+property.sound.loopcount = Loop Count
+property.sound.group = Group
+property.sound.gain = Gain
+property.sound.pan = Pan
+property.sound.speed = Speed
 
 # Properties: sprite
 
-property.sprite.default-animation = Анимация по умолчанию
-property.sprite.offset = Смещение
-property.sprite.playback-rate = Скорость воспроизведения
-property.sprite.size-mode = Режим размера
-property.sprite.slice9 = 9-слайс
+property.sprite.default-animation = Default Animation
+property.sprite.offset = Offset
+property.sprite.playback-rate = Playback Rate
+property.sprite.size-mode = Size Mode
+property.sprite.slice9 = Slice 9
 
 # Properties: tile map
 
-property.tile-map.layer.visible = Видимость
+property.tile-map.layer.visible = Visible
 property.tile-map.layer.z = Z
-property.tile-map.tile-source = Набор тайлов
+property.tile-map.tile-source = Tile Source
 
 # Properties: tile source
 
-property.tile-source.collision = Коллизия
-property.tile-source.end-tile = Конечный тайл
-property.tile-source.extrude-borders = Расширение границ
-property.tile-source.extrude-borders.tooltip = Копирует крайние пиксели наружу, чтобы избежать смешивания между изображениями
-property.tile-source.flip-horizontal = Горизонтальное отражение
-property.tile-source.flip-vertical = Вертикальное отражение
+property.tile-source.collision = Collision
+property.tile-source.end-tile = End Tile
+property.tile-source.extrude-borders = Extrude Borders
+property.tile-source.flip-horizontal = Flip Horizontal
+property.tile-source.flip-vertical = Flip Vertical
 property.tile-source.fps = FPS
-property.tile-source.inner-padding = Внутренний отступ
-property.tile-source.playback = Воспроизведение
-property.tile-source.sprite-trim-mode = Обрезка спрайта
-property.tile-source.start-tile = Начальный тайл
-property.tile-source.tile-height = Высота тайла
-property.tile-source.tile-margin = Отступ тайла
-property.tile-source.tile-spacing = Отступ между тайлами
-property.tile-source.tile-width = Ширина тайла
+property.tile-source.inner-padding = Inner Padding
+property.tile-source.playback = Playback
+property.tile-source.sprite-trim-mode = Sprite Trim Mode
+property.tile-source.start-tile = Start Tile
+property.tile-source.tile-height = Tile Height
+property.tile-source.tile-margin = Tile Margin
+property.tile-source.tile-spacing = Tile Spacing
+property.tile-source.tile-width = Tile Width
 
 # Outline
 
-outline.atlas.no-image = <Нет изображения>
-outline.atlas = Атлас
-outline.camera = Камера
-outline.collection = Коллекция
-outline.collection-proxy = Прокси коллекции
-outline.collision-object = Объект коллизий
-outline.game-object = Игровой объект
-outline.gui.fonts = Шрифты
-outline.gui.layouts = Макеты
-outline.gui.layers = Слои
-outline.gui.nodes = Элементы
-outline.gui.materials = Материалы
-outline.gui.textures = Текстуры
-outline.non-editable-collection = Нередактируемая коллекция
-outline.non-editable-game-object = Нередактируемый игровой объект
+outline.atlas.no-image = <No Image>
+outline.atlas = Atlas
+outline.camera = Camera
+outline.collection = Collection
+outline.collection-proxy = Collection Proxy
+outline.collision-object = Collision Object
+outline.game-object = Game Object
+outline.gui.fonts = Fonts
+outline.gui.layouts = Layouts
+outline.gui.layers = Layers
+outline.gui.nodes = Nodes
+outline.gui.materials = Materials
+outline.gui.textures = Textures
+outline.non-editable-collection = Non-Editable Collection
+outline.non-editable-game-object = Non-Editable Game Object
 outline.particlefx = ParticleFX
-outline.sound = Звук
-outline.tile-map = Тайловая карта
-outline.tile-source = Набор тайлов
-outline.unknown = Неизвестно
-outline.unnamed-collision-shape = <Безымянная форма: {shape}>
+outline.sound = Sound
+outline.tile-map = Tile Map
+outline.tile-source = Tile Source
+outline.unknown = Unknown
+outline.unnamed-collision-shape = <Unnamed {shape}>
 
 # Resources
 
-resource.view.scene = Сцена
+resource.view.scene = Scene
 resource.view.html = HTML
-resource.view.form = Форма
-resource.view.code = Код
-resource.view.text = Текст
+resource.view.form = Form
+resource.view.code = Code
+resource.view.text = Text
 
-resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
-resource.readonly.button.read-more = Подробнее…
+resource.readonly.detail = This file is part of a library and cannot be saved.
+resource.readonly.button.read-more = Read more…
