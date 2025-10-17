@@ -508,7 +508,6 @@ public class Bob {
                 opt("p", "platform", ONE, "Platform (when building and bundling)"),
                 opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory"),
                 opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')"),
-                opt("bm", "bundle-module", MANY, ABS_OR_CWD_REL_PATH, "Zip archive with additional files to include in the bundle. Platform specific how the archive is treated. Android only."),
 
                 opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)"),
                 opt(null, "identity", ONE, "Sign identity (iOS)"),
@@ -781,12 +780,6 @@ public class Bob {
                 if (cmd.hasOption("ne-build-dir")) {
                     for (String filepath : cmd.getOptionValues("ne-build-dir")) {
                         project.addEngineBuildDir(filepath);
-                    }
-                }
-
-                if (cmd.hasOption("bundle-module")) {
-                    for (String filepath : cmd.getOptionValues("bundle-module")) {
-                        project.addBundleModule(filepath);
                     }
                 }
 

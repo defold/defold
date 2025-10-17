@@ -597,13 +597,9 @@ public class AndroidBundler implements IBundler {
                 writer.write("{\"compression\":{\"uncompressedGlob\": [" + uncompressedGlob + "]}}");
             }
 
-            List<String> modules = new ArrayList<String>();
-            modules.addAll(project.getBundleModules());
-            modules.add(baseZip.getAbsolutePath());
-
             List<String> args = new ArrayList<String>();
             args.add("build-bundle");
-            args.add("--modules"); args.add(String.join(",", modules));
+            args.add("--modules"); args.add(baseZip.getAbsolutePath());
             args.add("--output"); args.add(baseAab.getAbsolutePath());
             args.add("--config"); args.add(baseConfig.getAbsolutePath());
 
