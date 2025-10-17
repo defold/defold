@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]))
 
@@ -41,7 +42,11 @@
             outline   (g/node-value node-id :node-outline)
             scene     (g/node-value node-id :scene)]
         (is (= 3 (count (:children scene))))
-        (is (= ["Collision Object" "<Unnamed Box>" "<Unnamed Capsule>" "<Unnamed Sphere>"] (outline-seq outline)))))))
+        (is (= [(localization/message "outline.collision-object")
+                (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")})
+                (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")})
+                (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})]
+               (outline-seq outline)))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"
@@ -51,7 +56,8 @@
         (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
           (is (= 4 (count (:children outline))))
-          (is (= "<Unnamed Sphere>" (last (outline-seq outline)))))))))
+          (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")})
+                 (last (outline-seq outline)))))))))
 
 (deftest validation
   (test-util/with-loaded-project
@@ -62,10 +68,10 @@
                (let [r (workspace/resolve-workspace-resource workspace "/nope.convexshape")]
                  (test-util/with-prop [node-id :collision-shape r]
                    (is (g/error? (test-util/prop-error node-id :collision-shape))))))
-      (doseq [[type index props] [["box" 0 {:dimensions [-1 1 1]}]
-                                  ["capsule" 1 {:diameter -1
-                                                :height -1}]
-                                  ["sphere" 2 {:diameter -1}]]]
+      (doseq [[type index props] [["sphere" 0 {:diameter -1}]
+                                  ["box" 1 {:dimensions [-1 1 1]}]
+                                  ["capsule" 2 {:diameter -1
+                                                :height -1}]]]
         (testing type
                (let [shape (:node-id (test-util/outline node-id [index]))]
                  (doseq [[prop value] props]

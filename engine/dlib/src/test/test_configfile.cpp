@@ -73,7 +73,7 @@ public:
     dmConfigFile::Result r;
     char* m_Buffer;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         const uint32_t buffer_size = 1024 * 1024; // Big enough..
         m_Buffer = new char[buffer_size];
@@ -106,7 +106,7 @@ public:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         delete [] m_Buffer;
         m_Buffer = 0;
@@ -390,14 +390,14 @@ static bool TestGetFloat(dmConfigFile::HConfig config, const char* key, float de
 DM_DECLARE_CONFIGFILE_EXTENSION(TestConfigfileExtension, "TestConfigfileExtension", TestCreate, TestDestroy, TestGetString, TestGetInt, TestGetFloat);
 
 class ConfigfileExtension : public ConfigTest {
-    virtual void SetUp()
+    void SetUp() override
     {
         g_ExtensionTestEnabled = 1;
         ConfigTest::SetUp();
 
         ASSERT_EQ(g_ExtensionTestCreated, 1);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         ConfigTest::TearDown();
         g_ExtensionTestEnabled = 0;

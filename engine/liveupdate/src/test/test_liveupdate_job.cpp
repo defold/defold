@@ -30,14 +30,14 @@ class AsyncTestSingleThread : public jc_test_base_class
 #endif
 {
 public:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmJobThread::JobThreadCreationParams job_thread_create_param;
         job_thread_create_param.m_ThreadNames[0] = "test_jobs";
         job_thread_create_param.m_ThreadCount    = 1;
         m_JobThread = dmJobThread::Create(job_thread_create_param);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmJobThread::Destroy(m_JobThread);
     }

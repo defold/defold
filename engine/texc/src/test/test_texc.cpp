@@ -26,11 +26,11 @@
 class TexcTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
     }
 };
@@ -390,7 +390,7 @@ CompileInfo compile_info[] =
 class TexcCompileTest : public jc_test_params_class<CompileInfo>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         const CompileInfo& info = GetParam();
         uint8_t* image = stbi_load(info.m_Path, &m_Width, &m_Height, 0, 0);
@@ -399,7 +399,7 @@ protected:
         m_Image = dmTexc::CreateImage(info.m_Path, m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, m_Width*m_Height*4, image);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmTexc::DestroyImage(m_Image);
     }

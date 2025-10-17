@@ -19,6 +19,7 @@
             [editor.build-target :as bt]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -218,7 +219,7 @@
   [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
   (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
-        progress (atom (progress/make "" (count build-targets-by-content-hash)))]
+        progress (atom (progress/make localization/empty-message (count build-targets-by-content-hash)))]
     (prune-build-dir! build-dir build-targets-by-content-hash)
     (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-content-hash))
           build-target-batches (into (partition-all cheap-batch-size cheap-build-targets)
@@ -230,7 +231,7 @@
                             cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
                                               (when (valid? resource artifact)
                                                 (assoc artifact :resource resource)))
-                            message (str "Building " resource-path)]
+                            message (localization/message "progress.building-resource" {"resource" resource-path})]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)

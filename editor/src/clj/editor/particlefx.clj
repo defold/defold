@@ -32,11 +32,12 @@
             [editor.graphics :as graphics]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.particle-lib :as plib]
-            [editor.properties :as props]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -150,7 +151,7 @@
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
-       (props/curve-vals)
+       (properties/curve-vals)
        (sort-by first)
        (mapv (fn [[x y t-x t-y]]
                (protobuf/make-map-without-defaults Particle$SplinePoint
@@ -169,24 +170,24 @@
              (identical? protobuf/float-zero y)
              (identical? protobuf/float-one t-x)
              (identical? protobuf/float-zero t-y))
-      props/default-control-point
+      properties/default-control-point
       [x y t-x t-y])))
 
 (defn- pb-property->curve [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.
-  (props/->curve (some->> (:points pb-property)
-                          (map pb-spline-point->control-point))))
+  (properties/->curve (some->> (:points pb-property)
+                               (map pb-spline-point->control-point))))
 
 (defn- pb-property->curve-spread [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property or Particle$Modifier$Property in map format.
-  (props/->curve-spread (some->> (:points pb-property)
-                                 (map pb-spline-point->control-point))
-                        (:spread pb-property)))
+  (properties/->curve-spread (some->> (:points pb-property)
+                                      (map pb-spline-point->control-point))
+                             (:spread pb-property)))
 
 (defn- curve->pb-property [^Class property-pb-class property-key curve]
   (let [points (curve->pb-spline-points curve)
-        spread (or (:spread curve) props/default-spread)]
-    (if (= props/default-spread spread)
+        spread (or (:spread curve) properties/default-spread)]
+    (if (= properties/default-spread spread)
       (protobuf/make-map-without-defaults property-pb-class
         :key property-key
         :points points)
@@ -200,8 +201,8 @@
 (defn- significant-pb-property? [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.
   (let [points (:points pb-property)
-        spread (:spread pb-property props/default-spread)]
-    (or (not= props/default-spread spread)
+        spread (:spread pb-property properties/default-spread)]
+    (or (not= properties/default-spread spread)
         (< 1 (count points))
         (if-let [point (first points)]
           (not= default-pb-spline-point point)
@@ -311,45 +312,50 @@
                             (geom/circling 8)
                             (geom/scale [40 40 1])))
 
-(def ^:private mod-types {:modifier-type-acceleration {:label "Acceleration"
-                                                       :template {:type :modifier-type-acceleration
-                                                                  :properties [{:key :modifier-key-magnitude
-                                                                                :points [{:y (float -100.0)}]}]}
-                                                       :geom-data-screen (fn [magnitude _]
-                                                                           (if (< magnitude 0)
-                                                                             acceleration-neg-geom-data
-                                                                             acceleration-geom-data))
-                                                       :geom-data-world (constantly [])}
-                          :modifier-type-drag {:label "Drag"
-                                               :template {:type :modifier-type-drag
-                                                          :properties [{:key :modifier-key-magnitude
-                                                                        :points [{:y (float 1.0)}]}]}
-                                               :geom-data-screen (constantly drag-geom-data)
-                                               :geom-data-world (constantly [])}
-                          :modifier-type-radial {:label "Radial"
-                                                 :template {:type :modifier-type-radial
-                                                            :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:y (float 100.0)}]}
-                                                                         {:key :modifier-key-max-distance
-                                                                          :points [{:y (float 1000.0)}]}]}
-                                                 :geom-data-screen (fn [magnitude _]
-                                                                     (if (< magnitude 0)
-                                                                       radial-neg-geom-data
-                                                                       radial-geom-data))
-                                                 :geom-data-world (fn [_ max-distance]
-                                                                    (geom/scale [max-distance max-distance 1] dash-circle))}
-                          :modifier-type-vortex {:label "Vortex"
-                                                 :template {:type :modifier-type-vortex
-                                                            :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:y (float 100.0)}]}
-                                                                         {:key :modifier-key-max-distance
-                                                                          :points [{:y (float 1000.0)}]}]}
-                                                 :geom-data-screen (fn [magnitude _]
-                                                                     (if (< magnitude 0)
-                                                                       vortex-neg-geom-data
-                                                                       vortex-geom-data))
-                                                 :geom-data-world (fn [_ max-distance]
-                                                                    (geom/scale [max-distance max-distance 1] dash-circle))}})
+(def ^:private mod-types
+  {:modifier-type-acceleration {:label "Acceleration"
+                                :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration")
+                                :template {:type :modifier-type-acceleration
+                                           :properties [{:key :modifier-key-magnitude
+                                                         :points [{:y (float -100.0)}]}]}
+                                :geom-data-screen (fn [magnitude _]
+                                                    (if (< magnitude 0)
+                                                      acceleration-neg-geom-data
+                                                      acceleration-geom-data))
+                                :geom-data-world (constantly [])}
+   :modifier-type-drag {:label "Drag"
+                        :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.drag")
+                        :template {:type :modifier-type-drag
+                                   :properties [{:key :modifier-key-magnitude
+                                                 :points [{:y (float 1.0)}]}]}
+                        :geom-data-screen (constantly drag-geom-data)
+                        :geom-data-world (constantly [])}
+   :modifier-type-radial {:label "Radial"
+                          :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.radial")
+                          :template {:type :modifier-type-radial
+                                     :properties [{:key :modifier-key-magnitude
+                                                   :points [{:y (float 100.0)}]}
+                                                  {:key :modifier-key-max-distance
+                                                   :points [{:y (float 1000.0)}]}]}
+                          :geom-data-screen (fn [magnitude _]
+                                              (if (< magnitude 0)
+                                                radial-neg-geom-data
+                                                radial-geom-data))
+                          :geom-data-world (fn [_ max-distance]
+                                             (geom/scale [max-distance max-distance 1] dash-circle))}
+   :modifier-type-vortex {:label "Vortex"
+                          :message (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex")
+                          :template {:type :modifier-type-vortex
+                                     :properties [{:key :modifier-key-magnitude
+                                                   :points [{:y (float 100.0)}]}
+                                                  {:key :modifier-key-max-distance
+                                                   :points [{:y (float 1000.0)}]}]}
+                          :geom-data-screen (fn [magnitude _]
+                                              (if (< magnitude 0)
+                                                vortex-neg-geom-data
+                                                vortex-geom-data))
+                          :geom-data-world (fn [_ max-distance]
+                                             (geom/scale [max-distance max-distance 1] dash-circle))}})
 
 (defn- modifier-type-label [modifier-type]
   (:label (mod-types modifier-type)))
@@ -364,8 +370,8 @@
 (g/defnk produce-modifier-scene
   [_node-id transform type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
-        magnitude (props/sample magnitude)
-        max-distance (props/sample max-distance)]
+        magnitude (properties/sample magnitude)
+        max-distance (properties/sample max-distance)]
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
@@ -386,8 +392,12 @@
   (property type g/Keyword (dynamic visible (g/constantly false))) ; Required protobuf field.
   (property use-direction g/Bool (default (protobuf/int->boolean (protobuf/default Particle$Modifier :use-direction)))
             (dynamic visible (g/constantly false)))
-  (property magnitude CurveSpread (default props/default-curve-spread))
-  (property max-distance Curve (default props/default-curve)
+  (property magnitude CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :magnitude))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :magnitude)))
+  (property max-distance Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :max-distance))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :max-distance))
             (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
   (property node-outline-key g/Str (dynamic visible (g/constantly false))) ; Either assigned in load-fn or generated when attached
 
@@ -398,7 +408,7 @@
       (let [mod-type (mod-types type)]
         {:node-id _node-id
          :node-outline-key node-outline-key
-         :label (:label mod-type)
+         :label (:message mod-type)
          :icon modifier-icon})))
   (output scene g/Any :cached produce-modifier-scene))
 
@@ -417,19 +427,19 @@
                               (geom/circling 4))]
                      (interleave ps (drop 1 (cycle ps)))))
 
-(def emitter-types {:emitter-type-circle {:label "Circle"
+(def emitter-types {:emitter-type-circle {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.circle")
                                           :geom-data-world (fn [size-x _ _]
                                                              (geom/scale [size-x size-x 1] circle-geom-data))}
-                    :emitter-type-sphere {:label "Sphere"
+                    :emitter-type-sphere {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.sphere")
                                           :geom-data-world (fn [size-x _ _]
                                                              (geom/scale [size-x size-x 1] circle-geom-data))}
-                    :emitter-type-cone {:label "Cone"
+                    :emitter-type-cone {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.cone")
                                         :geom-data-world (fn [size-x size-y _]
                                                            (geom/scale [size-x size-y 1] cone-geom-data))}
-                    :emitter-type-2dcone {:label "2D Cone"
+                    :emitter-type-2dcone {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.2d-cone")
                                           :geom-data-world (fn [size-x size-y _]
                                                              (geom/scale [size-x size-y 1] cone-geom-data))}
-                    :emitter-type-box {:label "Box"
+                    :emitter-type-box {:label (localization/message "command.edit.add-embedded-component.variant.particlefx.option.box")
                                        :geom-data-world (fn [size-x size-y _]
                                                           (geom/scale [size-x size-y 1] box-geom-data))}})
 
@@ -478,16 +488,16 @@
 (g/defnk produce-emitter-aabb [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
   (case type
     (:emitter-type-2dcone :emitter-type-cone)
-    (let [+bx (* 0.5 (props/sample emitter-key-size-x))
-          +by (props/sample emitter-key-size-y)
+    (let [+bx (* 0.5 (properties/sample emitter-key-size-x))
+          +by (properties/sample emitter-key-size-y)
           -bx (- +bx)]
       (geom/coords->aabb [-bx 0.0 (case type :emitter-type-2dcone 0.0 -bx)]
                          [+bx +by (case type :emitter-type-2dcone 0.0 +bx)]))
 
     :emitter-type-box
-    (let [+bx (* 0.5 (props/sample emitter-key-size-x))
-          +by (* 0.5 (props/sample emitter-key-size-y))
-          +bz (* 0.5 (props/sample emitter-key-size-z))
+    (let [+bx (* 0.5 (properties/sample emitter-key-size-x))
+          +by (* 0.5 (properties/sample emitter-key-size-y))
+          +bz (* 0.5 (properties/sample emitter-key-size-z))
           -bx (- +bx)
           -by (- +by)
           -bz (- +bz)]
@@ -495,7 +505,7 @@
                          [+bx +by +bz]))
 
     (:emitter-type-circle :emitter-type-sphere)
-    (let [+bx (props/sample emitter-key-size-x)
+    (let [+bx (properties/sample emitter-key-size-x)
           -bx (- +bx)]
       (geom/coords->aabb [-bx -bx (case type :emitter-type-circle 0.0 -bx)]
                          [+bx +bx (case type :emitter-type-circle 0.0 +bx)]))))
@@ -504,7 +514,7 @@
   ^double [prop ^double default]
   (if (nil? prop)
     default
-    (let [[^double -r ^double +r] (props/sample-range prop)]
+    (let [[^double -r ^double +r] (properties/sample-range prop)]
       (max (Math/abs -r) +r))))
 
 (g/defnk produce-emitter-visibility-aabb
@@ -579,7 +589,7 @@
                    :vertex-attribute-bytes vertex-attribute-bytes
                    :color [1.0 1.0 1.0 1.0]
                    :geom-data-world (apply (:geom-data-world emitter-type)
-                                           (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
+                                           (mapv properties/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
      :node-outline-key id
      :transform transform
@@ -613,21 +623,51 @@
         (butlast (protobuf/enum-values property-key-enum-pb-class))))
 
 (g/defnode EmitterProperties
-  (property emitter-key-spawn-rate CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Spawn Rate")))
-  (property emitter-key-size-x CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Emitter Size X")))
-  (property emitter-key-size-y CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Emitter Size Y")))
-  (property emitter-key-size-z CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Emitter Size Z")))
-  (property emitter-key-particle-life-time CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Particle Life Time")))
-  (property emitter-key-particle-speed CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Speed")))
-  (property emitter-key-particle-size CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Size")))
-  (property emitter-key-particle-red CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Red")))
-  (property emitter-key-particle-green CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Green")))
-  (property emitter-key-particle-blue CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Blue")))
-  (property emitter-key-particle-alpha CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Alpha")))
-  (property emitter-key-particle-rotation CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Rotation")))
-  (property emitter-key-particle-stretch-factor-x CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Stretch X")))
-  (property emitter-key-particle-stretch-factor-y CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Stretch Y")))
-  (property emitter-key-particle-angular-velocity CurveSpread (default props/default-curve-spread) (dynamic label (g/constantly "Initial Angular Velocity")))
+  (property emitter-key-spawn-rate CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-spawn-rate))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-spawn-rate)))
+  (property emitter-key-size-x CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-size-x))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-size-x)))
+  (property emitter-key-size-y CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-size-y))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-size-y)))
+  (property emitter-key-size-z CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-size-z))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-size-z)))
+  (property emitter-key-particle-life-time CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-life-time))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-life-time)))
+  (property emitter-key-particle-speed CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-speed))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-speed)))
+  (property emitter-key-particle-size CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-size))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-size)))
+  (property emitter-key-particle-red CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-red))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-red)))
+  (property emitter-key-particle-green CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-green))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-green)))
+  (property emitter-key-particle-blue CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-blue))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-blue)))
+  (property emitter-key-particle-alpha CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-alpha))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-alpha)))
+  (property emitter-key-particle-rotation CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-rotation))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-rotation)))
+  (property emitter-key-particle-stretch-factor-x CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-stretch-factor-x))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-stretch-factor-x)))
+  (property emitter-key-particle-stretch-factor-y CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-stretch-factor-y))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-stretch-factor-y)))
+  (property emitter-key-particle-angular-velocity CurveSpread (default properties/default-curve-spread)
+            (dynamic label (properties/label-dynamic :particlefx :emitter-key-particle-angular-velocity))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :emitter-key-particle-angular-velocity)))
 
   (output emitter-property-msgs g/Any (g/fnk [emitter-key-spawn-rate
                                               emitter-key-size-x
@@ -652,15 +692,33 @@
                                           args))))
 
 (g/defnode ParticleProperties
-  (property particle-key-scale Curve (default props/default-curve) (dynamic label (g/constantly "Life Scale")))
-  (property particle-key-red Curve (default props/default-curve) (dynamic label (g/constantly "Life Red")))
-  (property particle-key-green Curve (default props/default-curve) (dynamic label (g/constantly "Life Green")))
-  (property particle-key-blue Curve (default props/default-curve) (dynamic label (g/constantly "Life Blue")))
-  (property particle-key-alpha Curve (default props/default-curve) (dynamic label (g/constantly "Life Alpha")))
-  (property particle-key-rotation Curve (default props/default-curve) (dynamic label (g/constantly "Life Rotation")))
-  (property particle-key-stretch-factor-x Curve (default props/default-curve) (dynamic label (g/constantly "Life Stretch X")))
-  (property particle-key-stretch-factor-y Curve (default props/default-curve) (dynamic label (g/constantly "Life Stretch Y")))
-  (property particle-key-angular-velocity Curve (default props/default-curve) (dynamic label (g/constantly "Life Angular Velocity")))
+  (property particle-key-scale Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-scale))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-scale)))
+  (property particle-key-red Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-red))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-red)))
+  (property particle-key-green Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-green))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-green)))
+  (property particle-key-blue Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-blue))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-blue)))
+  (property particle-key-alpha Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-alpha))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-alpha)))
+  (property particle-key-rotation Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-rotation))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-rotation)))
+  (property particle-key-stretch-factor-x Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-stretch-factor-x))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-stretch-factor-x)))
+  (property particle-key-stretch-factor-y Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-stretch-factor-y))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-stretch-factor-y)))
+  (property particle-key-angular-velocity Curve (default properties/default-curve)
+            (dynamic label (properties/label-dynamic :particlefx :particle-key-angular-velocity))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-key-angular-velocity)))
 
   (output particle-property-msgs g/Any (g/fnk [particle-key-scale
                                                particle-key-red
@@ -799,18 +857,25 @@
   (inherits ParticleProperties)
 
   (property id g/Str (default (protobuf/default Particle$Emitter :id)))
-  (property pivot types/Vec3 (default scene/default-position))
+  (property pivot types/Vec3 (default scene/default-position)
+            (dynamic label (properties/label-dynamic :particlefx :pivot))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :pivot)))
   (property mode g/Keyword ; Required protobuf field.
-            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$PlayMode)))
-            (dynamic label (g/constantly "Play Mode")))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$PlayMode)))
+            (dynamic label (properties/label-dynamic :particlefx :mode))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :mode)))
   (property duration types/Vec2 (default default-duration)
-            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]}))
+            (dynamic label (properties/label-dynamic :particlefx :duration))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :duration)))
   (property space g/Keyword ; Required protobuf field.
-            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$EmissionSpace)))
-            (dynamic label (g/constantly "Emission Space")))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$EmissionSpace)))
+            (dynamic label (properties/label-dynamic :particlefx :space))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :space)))
 
   (property tile-source resource/Resource ; Required protobuf field.
-            (dynamic label (g/constantly "Image"))
+            (dynamic label (properties/label-dynamic :particlefx :tile-source))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :tile-source))
             (value (gu/passthrough tile-source-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -827,15 +892,19 @@
                                   (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
 
   (property animation g/Str ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :particlefx :animation))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :animation))
             (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
                              (when tile-source
                                (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
                                    (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
             (dynamic edit-type (g/fnk [anim-ids]
                                       (let [vals (seq anim-ids)]
-                                        (props/->choicebox vals)))))
+                                        (properties/->choicebox vals)))))
 
   (property material resource/Resource ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :particlefx :material))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :material))
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -854,27 +923,41 @@
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
-            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$BlendMode))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$BlendMode))))
 
   (property particle-orientation g/Keyword (default (protobuf/default Particle$Emitter :particle-orientation))
-            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$ParticleOrientation))))
-  (property inherit-velocity g/Num (default (protobuf/default Particle$Emitter :inherit-velocity)))
-  (property max-particle-count g/Int) ; Required protobuf field.
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$ParticleOrientation)))
+            (dynamic label (properties/label-dynamic :particlefx :particle-orientation))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :particle-orientation)))
+  (property inherit-velocity g/Num (default (protobuf/default Particle$Emitter :inherit-velocity))
+            (dynamic label (properties/label-dynamic :particlefx :inherit-velocity))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :inherit-velocity)))
+  (property max-particle-count g/Int ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :particlefx :max-particle-count))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :max-particle-count)))
   (property type g/Keyword ; Required protobuf field.
-            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$EmitterType)))
-            (dynamic label (g/constantly "Emitter Type")))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$EmitterType)))
+            (dynamic label (properties/label-dynamic :particlefx :type))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :type)))
   (property start-delay types/Vec2 (default default-start-delay)
-            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]}))
+            (dynamic label (properties/label-dynamic :particlefx :start-delay))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :start-delay)))
   (property size-mode g/Keyword (default (protobuf/default Particle$Emitter :size-mode))
-            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
-            (dynamic label (g/constantly "Size Mode")))
-  (property stretch-with-velocity g/Bool (default (protobuf/default Particle$Emitter :stretch-with-velocity)))
-  (property start-offset g/Num (default (protobuf/default Particle$Emitter :start-offset)))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$SizeMode)))
+            (dynamic label (properties/label-dynamic :particlefx :size-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :size-mode)))
+  (property stretch-with-velocity g/Bool (default (protobuf/default Particle$Emitter :stretch-with-velocity))
+            (dynamic label (properties/label-dynamic :particlefx :stretch-with-velocity))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :stretch-with-velocity)))
+  (property start-offset g/Num (default (protobuf/default Particle$Emitter :start-offset))
+            (dynamic label (properties/label-dynamic :particlefx :start-offset))
+            (dynamic tooltip (properties/tooltip-dynamic :particlefx :start-offset)))
   (property vertex-attribute-overrides g/Any (default {})
             (dynamic visible (g/constantly false)))
 
   (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
-                  :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
+                  :max-particle-count :type :particle-orientation :inherit-velocity [(localization/message "property.particlefx.category.particle-life") ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
@@ -914,7 +997,7 @@
                                                       :node-outline-key id
                                                       :label id
                                                       :icon emitter-icon
-                                                      :children (outline/natural-sort child-outlines)
+                                                      :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
                                                                     :tx-attach-fn attach-modifier}]}))
   (output aabb AABB produce-emitter-aabb)
@@ -1069,9 +1152,13 @@
                   emitter-outlines (get outlines false)]
               {:node-id _node-id
                :node-outline-key "ParticleFX"
-               :label "ParticleFX"
+               :label (localization/message "outline.particlefx")
                :icon particle-fx-icon
-               :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
+               :children (localization/annotate-as-sorted
+                           (fn [localization-state _]
+                             (into (localization/natural-sort-by-label localization-state emitter-outlines)
+                                   (localization/natural-sort-by-label localization-state mod-outlines)))
+                           (into emitter-outlines mod-outlines))
                :child-reqs [{:node-type EmitterNode
                              :tx-attach-fn (fn [self-id child-id]
                                              (attach-emitter self-id child-id true))}
@@ -1105,7 +1192,7 @@
           mod-node (first (g/tx-nodes-added
                             (g/transact
                               (concat
-                                (g/operation-label "Add Modifier")
+                                (g/operation-label (localization/message "operation.particlefx.add-modifier"))
                                 (g/operation-sequence op-seq)
                                 (make-modifier parent-id modifier node-outline-key)))))]
       (when (some? select-fn)
@@ -1124,18 +1211,20 @@
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
   (label [user-data] (if-not user-data
-                       "Add Modifier"
-                       (->> user-data :modifier-type mod-types :label)))
+                       (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx")
+                       (->> user-data :modifier-type mod-types :message)))
   (run [selection user-data app-view]
     (let [parent-id (or (selection->particlefx selection)
                         (selection->emitter selection))]
       (add-modifier-handler parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (when (not user-data)
-      (mapv (fn [[type data]] {:label (:label data)
-                               :icon modifier-icon
-                               :command :edit.add-secondary-embedded-component
-                               :user-data {:modifier-type type}}) mod-types))))
+      (mapv (fn [[type data]]
+              {:label (:message data)
+               :icon modifier-icon
+               :command :edit.add-secondary-embedded-component
+               :user-data {:modifier-type type}})
+            mod-types))))
 
 (defn- make-emitter
   ([self emitter]
@@ -1193,23 +1282,25 @@
     (let [emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
       (g/transact
         (concat
-          (g/operation-label "Add Emitter")
+          (g/operation-label (localization/message "operation.particlefx.add-emitter"))
           (make-emitter self (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->particlefx selection))
-  (label [user-data] (if-not user-data
-                       "Add Emitter"
-                       (->> user-data :emitter-type (get emitter-types) :label)))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.particlefx")
+      (->> user-data :emitter-type (get emitter-types) :label)))
   (run [selection user-data app-view] (let [pfx (selection->particlefx selection)]
                                         (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (selection->particlefx selection)]
-               (mapv (fn [[type data]] {:label (:label data)
-                                        :icon emitter-icon
-                                        :command :edit.add-embedded-component
-                                        :user-data {:emitter-type type}}) emitter-types)))))
+             (mapv (fn [[type data]]
+                     {:label (:label data)
+                      :icon emitter-icon
+                      :command :edit.add-embedded-component
+                      :user-data {:emitter-type type}})
+                   emitter-types))))
 
 
 ;;--------------------------------------------------------------------
@@ -1217,9 +1308,9 @@
 
 (defn- update-curve-spread-start-value
   [curve-spread f]
-  (let [[first-point & rest] (props/curve-vals curve-spread)
+  (let [[first-point & rest] (properties/curve-vals curve-spread)
         first-point' (update first-point 1 f)]
-    (props/->curve-spread (into [first-point'] rest) (:spread curve-spread))))
+    (properties/->curve-spread (into [first-point'] rest) (:spread curve-spread))))
 
 (defmethod scene-tools/manip-scalable? ::ModifierNode [_node-id] true)
 
@@ -1229,7 +1320,7 @@
 (defmethod scene-tools/manip-scale ::ModifierNode
   [evaluation-context node-id ^Vector3d delta]
   (let [old-magnitude (g/node-value node-id :magnitude evaluation-context)
-        new-magnitude (update-curve-spread-start-value old-magnitude #(props/scale-and-round % (.getX delta)))]
+        new-magnitude (update-curve-spread-start-value old-magnitude #(properties/scale-and-round % (.getX delta)))]
     (g/set-property node-id :magnitude new-magnitude)))
 
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
@@ -1239,9 +1330,9 @@
   (let [old-x (g/node-value node-id :emitter-key-size-x evaluation-context)
         old-y (g/node-value node-id :emitter-key-size-y evaluation-context)
         old-z (g/node-value node-id :emitter-key-size-z evaluation-context)
-        new-x (update-curve-spread-start-value old-x #(props/scale-by-absolute-value-and-round % (.getX delta)))
-        new-y (update-curve-spread-start-value old-y #(props/scale-by-absolute-value-and-round % (.getY delta)))
-        new-z (update-curve-spread-start-value old-z #(props/scale-by-absolute-value-and-round % (.getZ delta)))]
+        new-x (update-curve-spread-start-value old-x #(properties/scale-by-absolute-value-and-round % (.getX delta)))
+        new-y (update-curve-spread-start-value old-y #(properties/scale-by-absolute-value-and-round % (.getY delta)))
+        new-z (update-curve-spread-start-value old-z #(properties/scale-by-absolute-value-and-round % (.getZ delta)))]
     (g/set-properties node-id
       :emitter-key-size-x new-x
       :emitter-key-size-y new-y

@@ -132,7 +132,7 @@ public:
 
     DynamicTextureContainer m_DynamicTextures;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -194,7 +194,7 @@ public:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmParticle::DestroyContext(m_Scene->m_ParticlefxContext);
         dmGui::DeleteScript(m_Script);
@@ -1572,7 +1572,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
                     "    gui.animate(self.node, gui.PROP_COLOR, vmath.vector4(1,0,0,0), gui.EASING_NONE, 0.2)\n"
-                    "    gui.cancel_animation(self.node, gui.PROP_COLOR)\n"
+                    "    gui.cancel_animations(self.node, gui.PROP_COLOR)\n"
                     "end\n"
                     "function update(self, dt)\n"
                     "end\n"
@@ -1614,7 +1614,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
                     "function update(self, dt)\n"
                     "    self.nframes = self.nframes + 1\n"
                     "    if self.nframes > 30 then\n"
-                    "        gui.cancel_animation(self.node, gui.PROP_POSITION)\n"
+                    "        gui.cancel_animations(self.node, gui.PROP_POSITION)\n"
                     "    end\n"
                     "end\n"
                     "function final(self)\n"

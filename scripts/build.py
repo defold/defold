@@ -522,7 +522,7 @@ class Configuration(object):
         self._create_common_dirs()
 
     def __del__(self):
-        if len(self.futures) > 0:
+        if len(getattr(self, "futures", [])) > 0:
             print('ERROR: Pending futures (%d)' % len(self.futures))
             os._exit(5)
 
@@ -1892,12 +1892,36 @@ class Configuration(object):
         self.check_python()
         print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
-        args = [SHELL, '-l']
+        # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
+        # or user startup files (Homebrew shellenv), which can shadow our tools.
+        # On non-Windows, re-export our PATH after login init and exec an
+        # interactive shell to ensure our PATH takes precedence.
+        # On Windows/msys environments, keep previous behavior to avoid
+        # path translation issues and quoting of Windows paths.
+        env = self._form_env()
+
+        is_windows_host = (sys.platform == 'win32') or ('win32' in self.host)
+
+        if not is_windows_host:
+            env['DM_ENV_PATH'] = env['PATH']
+            # Use $SHELL inside the shell for portability instead of injecting
+            # a potentially platform-specific path from Python.
+            shell_name = os.path.basename(SHELL)
+            if shell_name == 'fish':
+                # Fish shell isn't POSIX compatible
+                reexport_cmd = 'set -gx PATH $DM_ENV_PATH; set -e DM_ENV_PATH; exec "$SHELL" -i'
+            else:
+                reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
+            args = [SHELL, '-l', '-c', reexport_cmd]
+        else:
+            # Keep legacy behavior on Windows/msys to preserve PATH rewriting
+            # performed by the environment at shell startup.
+            args = [SHELL, '-l']
 
         if os.path.exists("/nix"):
             args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
 
-        process = subprocess.Popen(args, env=self._form_env())
+        process = subprocess.Popen(args, env=env)
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:

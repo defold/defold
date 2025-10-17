@@ -54,12 +54,12 @@ class dmSoundTest : public jc_test_base_class
 {
 public:
 
-    virtual void SetUp()
+    void SetUp() override
     {
 
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
 
     }

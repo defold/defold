@@ -30,7 +30,7 @@ public:
     dmRender::RenderContextParams m_Params;
     bool                          m_MultiBufferingRequired;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmGraphics::InstallAdapter();
 
@@ -56,7 +56,7 @@ public:
 
         m_MultiBufferingRequired = m_RenderContext->m_MultiBufferingRequired;
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmRender::DeleteRenderContext(m_RenderContext, 0);
         dmGraphics::DeleteContext(m_GraphicsContext);

@@ -15,13 +15,10 @@
 (ns integration.tile-map-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.tile-map :as tile-map]
-            [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
+            [editor.tile-map :as tile-map]
             [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
             [integration.test-util :as test-util]))
 
 (deftest tile-map-outline
@@ -29,7 +26,7 @@
     (test-util/with-loaded-project
       (let [node-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
             outline (g/node-value node-id :node-outline)]
-        (is (= "Tile Map" (:label outline)))
+        (is (= (localization/message "outline.tile-map") (:label outline)))
         (is (= #{"layer1" "layer2" "blaha"} (set (map :label (:children outline)))))))))
 
 (deftest tile-map-validation

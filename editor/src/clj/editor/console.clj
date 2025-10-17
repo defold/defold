@@ -18,6 +18,7 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -275,7 +276,7 @@
                                     [{:fx/type fxui/ext-localize
                                       :v-box/margin 4
                                       :localization localization
-                                      :pattern (localization/message "console.filter.enable-filtering")
+                                      :message (localization/message "console.filter.enable-filtering")
                                       :desc {:fx/type fx.check-box/lifecycle
                                              :focus-traversable false
                                              :max-width ##Inf
@@ -289,13 +290,13 @@
                                       :items (into [] (map-indexed coll/pair) filters)
                                       :fixed-cell-size 27
                                       :max-height (* 27 (min 10 (count filters)))
-                                      :cell-factory {:fx/cell-type :list-cell
+                                      :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                      :describe filter-console-list-cell-view}}
                                      {:fx/type fxui/ext-focused-by-default
                                       :v-box/margin 4
                                       :desc {:fx/type fxui/ext-localize
                                              :localization localization
-                                             :pattern (localization/message "console.filter.add-filter")
+                                             :message (localization/message "console.filter.add-filter")
                                              :object-fn TextField/.promptTextProperty
                                              :desc {:fx/type fx.text-field/lifecycle
                                                     :text text

@@ -15,6 +15,7 @@
 (ns editor.html-view
   (:require [dynamo.graph :as g]
             [editor.fxui :as fxui]
+            [editor.localization :as localization]
             [editor.markdown :as markdown]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -45,7 +46,7 @@
   (output desc g/Any :cached produce-desc))
 
 (defn- repaint! [view-node]
-  (fxui/advance-user-data-component! view-node :view (g/node-value view-node :desc)))
+  (fxui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))
 
 (defn- make-view [graph ^Parent parent html-node {:keys [project ^Tab tab]}]
   (let [view-node (first
@@ -62,11 +63,11 @@
     (repaint! view-node)
     (ui/on-closed! tab (fn [_]
                          (ui/timer-stop! repainter)
-                         (fxui/advance-user-data-component! view-node :view nil)))
+                         (fxui/advance-graph-user-data-component! view-node :view nil)))
     view-node))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :html
-                                :label "HTML"
+                                :label (localization/message "resource.view.html")
                                 :make-view-fn #'make-view))

@@ -535,7 +535,7 @@ namespace dmGraphics
 
     static inline bool IsTextureType3D(TextureType type)
     {
-        return type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
+        return type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
     }
 
     static inline uint32_t GetLayerCount(TextureType type)

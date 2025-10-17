@@ -25,6 +25,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.pipeline :as pipeline]
             [editor.pipeline.font-gen :as font-gen]
@@ -677,17 +678,19 @@
   (inherits resource-node/ResourceNode)
 
   (property font resource/Resource ; Required protobuf field.
-    (value (gu/passthrough font-resource))
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:resource :font-resource]
-                                    [:font-resource-map :font-resource-map])))
-    (dynamic error (g/fnk [_node-id font-resource]
-                          (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource "Font")
-                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font"))))
-    (dynamic edit-type (g/constantly
-                         {:type resource/Resource
-                          :ext font-file-extensions})))
+            (value (gu/passthrough font-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :font-resource]
+                                            [:font-resource-map :font-resource-map])))
+            (dynamic error (g/fnk [_node-id font-resource]
+                             (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource "Font")
+                                 (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font"))))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext font-file-extensions}))
+            (dynamic label (properties/label-dynamic :font :font))
+            (dynamic tooltip (properties/tooltip-dynamic :font :font)))
 
   (property material resource/Resource ; Required protobuf field.
     (value (gu/passthrough material-resource))
@@ -705,42 +708,68 @@
                           :ext ["material"]})))
 
   (property output-format g/Keyword (default (protobuf/default Font$FontDesc :output-format))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat)))
+            (dynamic label (properties/label-dynamic :font :output-format))
+            (dynamic tooltip (properties/tooltip-dynamic :font :output-format)))
   (property render-mode g/Keyword (default (protobuf/default Font$FontDesc :render-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontRenderMode))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontRenderMode)))
+            (dynamic label (properties/label-dynamic :font :render-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :font :render-mode)))
   (property size g/Int (default (protobuf/required-default Font$FontDesc :size))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size))
+            (dynamic label (properties/label-dynamic :font :size))
+            (dynamic tooltip (properties/tooltip-dynamic :font :size)))
   (property antialias g/Bool (default (protobuf/int->boolean (protobuf/default Font$FontDesc :antialias)))
-            (dynamic visible output-format-defold-or-distance-field?))
+            (dynamic visible output-format-defold-or-distance-field?)
+            (dynamic label (properties/label-dynamic :font :antialias))
+            (dynamic tooltip (properties/tooltip-dynamic :font :antialias)))
   (property alpha g/Num (default (protobuf/default Font$FontDesc :alpha))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha))
-            (dynamic edit-type (g/constantly alpha-slider-edit-type)))
+            (dynamic edit-type (g/constantly alpha-slider-edit-type))
+            (dynamic label (properties/label-dynamic :font :alpha))
+            (dynamic tooltip (properties/tooltip-dynamic :font :alpha)))
   (property outline-alpha g/Num (default (protobuf/default Font$FontDesc :outline-alpha))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha))
-            (dynamic edit-type (g/constantly alpha-slider-edit-type)))
+            (dynamic edit-type (g/constantly alpha-slider-edit-type))
+            (dynamic label (properties/label-dynamic :font :outline-alpha))
+            (dynamic tooltip (properties/tooltip-dynamic :font :outline-alpha)))
   (property outline-width g/Num (default (protobuf/default Font$FontDesc :outline-width))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width))
-            (dynamic edit-type (g/constantly shadows-outline-slider-edit-type)))
+            (dynamic edit-type (g/constantly shadows-outline-slider-edit-type))
+            (dynamic label (properties/label-dynamic :font :outline-width))
+            (dynamic tooltip (properties/tooltip-dynamic :font :outline-width)))
   (property shadow-alpha g/Num (default (protobuf/default Font$FontDesc :shadow-alpha))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha))
-            (dynamic edit-type (g/constantly alpha-slider-edit-type)))
+            (dynamic edit-type (g/constantly alpha-slider-edit-type))
+            (dynamic label (properties/label-dynamic :font :shadow-alpha))
+            (dynamic tooltip (properties/tooltip-dynamic :font :shadow-alpha)))
   (property shadow-blur g/Num (default (protobuf/default Font$FontDesc :shadow-blur))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur))
-            (dynamic edit-type (g/constantly shadows-outline-slider-edit-type)))
+            (dynamic edit-type (g/constantly shadows-outline-slider-edit-type))
+            (dynamic label (properties/label-dynamic :font :shadow-blur))
+            (dynamic tooltip (properties/tooltip-dynamic :font :shadow-blur)))
   (property shadow-x g/Num (default (protobuf/default Font$FontDesc :shadow-x))
-            (dynamic visible output-format-defold-or-distance-field?))
+            (dynamic visible output-format-defold-or-distance-field?)
+            (dynamic label (properties/label-dynamic :font :shadow-x))
+            (dynamic tooltip (properties/tooltip-dynamic :font :shadow-x)))
   (property shadow-y g/Num (default (protobuf/default Font$FontDesc :shadow-y))
-            (dynamic visible output-format-defold-or-distance-field?))
+            (dynamic visible output-format-defold-or-distance-field?)
+            (dynamic label (properties/label-dynamic :font :shadow-y))
+            (dynamic tooltip (properties/tooltip-dynamic :font :shadow-y)))
   (property cache-width g/Int (default (protobuf/default Font$FontDesc :cache-width))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width))
+            (dynamic label (properties/label-dynamic :font :cache-width))
+            (dynamic tooltip (properties/tooltip-dynamic :font :cache-width)))
   (property cache-height g/Int (default (protobuf/default Font$FontDesc :cache-height))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height))
+            (dynamic label (properties/label-dynamic :font :cache-height))
+            (dynamic tooltip (properties/tooltip-dynamic :font :cache-height)))
   (property characters g/Str (default (protobuf/default Font$FontDesc :characters))
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic read-only? (gu/passthrough all-chars))
@@ -751,9 +780,13 @@
                    ;; to the printable ASCII characters.
                    (when (and (= "" new-value)
                               (properties/user-edit? self :characters evaluation-context))
-                     (g/set-property self :characters fontc/default-characters-string)))))
+                     (g/set-property self :characters fontc/default-characters-string))))
+            (dynamic label (properties/label-dynamic :font :characters))
+            (dynamic tooltip (properties/tooltip-dynamic :font :characters)))
   (property all-chars g/Bool (default (protobuf/default Font$FontDesc :all-chars))
-            (dynamic visible output-format-defold-or-distance-field?))
+            (dynamic visible output-format-defold-or-distance-field?)
+            (dynamic label (properties/label-dynamic :font :all-chars))
+            (dynamic tooltip (properties/tooltip-dynamic :font :all-chars)))
 
   (input dep-build-targets g/Any :array)
   (input font-resource resource/Resource)

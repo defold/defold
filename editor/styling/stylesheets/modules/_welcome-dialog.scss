@@ -399,6 +399,11 @@
     -fx-max-width: Infinity;
   }
 
+  .df-sub-header {
+    -fx-text-fill: -df-text;
+    -fx-opacity: 0.75;
+  }
+
   .remove-button {
     -fx-min-width: 22px;
     -fx-max-width: 22px;

@@ -27,6 +27,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -53,18 +54,25 @@
 
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
+                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")
                   :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
                   :physics-types #{"2D" "3D"}}
    :type-box     {:label "Box"
+                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")
                   :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
                   :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
+                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
                   :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
                   :physics-types #{"3D"}}})
 
 (defn- shape-type-label
   [shape-type]
   (get-in shape-type-ui [shape-type :label]))
+
+(defn- shape-type-message
+  [shape-type]
+  (get-in shape-type-ui [shape-type :message]))
 
 (defn- shape-type-icon
   [shape-type]
@@ -118,7 +126,7 @@
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (str "<Unnamed " (shape-type-label shape-type) ">")
+                                                               (localization/message "outline.unnamed-collision-shape" {"shape" (shape-type-message shape-type)})
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 
@@ -259,6 +267,8 @@
 
   (property diameter g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
 
   (display-order [Shape :diameter])
@@ -286,6 +296,8 @@
 
   (property dimensions types/Vec3 ; Always assigned in load-fn.
             (default [0.0 0.0 0.0]) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (properties/label-dynamic :collision-object.shape :dimensions))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :dimensions))
             (dynamic error (validation/prop-error-fnk :fatal
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
@@ -313,9 +325,13 @@
 
   (property diameter g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
+            (dynamic label (properties/label-dynamic :collision-object.shape :height))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
 
   (display-order [Shape :diameter :height])
@@ -632,11 +648,14 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
                              (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
-                                 (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)))))
+                                 (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape))))
+            (dynamic label (properties/label-dynamic :collision-object :collision-shape))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :collision-shape)))
 
   (property type g/Any ; Required protobuf field.
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType)))
-            (dynamic tooltip (g/constantly "Available as `collision_type` in editor scripts. Prefer this identifier over `type`, since `type` is used for component types when a component is embedded in game objects, which will shadow this property.")))
+            (dynamic label (properties/label-dynamic :collision-object :type))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :type)))
 
   (property mass g/Num ; Required protobuf field.
             (value (g/fnk [mass type]
@@ -645,42 +664,60 @@
                                   (not= :collision-object-type-dynamic type)))
             (dynamic error (g/fnk [_node-id mass type]
                              (when (= :collision-object-type-dynamic type)
-                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass")))))
+                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass"))))
+            (dynamic label (properties/label-dynamic :collision-object :mass))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :mass)))
 
-  (property friction g/Num) ; Required protobuf field.
-  (property restitution g/Num) ; Required protobuf field.
+  (property friction g/Num ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :collision-object :friction))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :friction)))
+  (property restitution g/Num ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :collision-object :restitution))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :restitution)))
   (property linear-damping g/Num
-            (default (protobuf/default Physics$CollisionObjectDesc :linear-damping)))
+            (default (protobuf/default Physics$CollisionObjectDesc :linear-damping))
+            (dynamic label (properties/label-dynamic :collision-object :linear-damping))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :linear-damping)))
   (property angular-damping g/Num
-            (default (protobuf/default Physics$CollisionObjectDesc :angular-damping)))
+            (default (protobuf/default Physics$CollisionObjectDesc :angular-damping))
+            (dynamic label (properties/label-dynamic :collision-object :angular-damping))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :angular-damping)))
   (property locked-rotation g/Bool
-            (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation)))
+            (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation))
+            (dynamic label (properties/label-dynamic :collision-object :locked-rotation))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :locked-rotation)))
   (property bullet g/Bool
-            (default (protobuf/default Physics$CollisionObjectDesc :bullet)))
+            (default (protobuf/default Physics$CollisionObjectDesc :bullet))
+            (dynamic label (properties/label-dynamic :collision-object :bullet))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :bullet)))
   (property event-collision g/Bool
-            (dynamic label (g/constantly "Generate Collision Events"))
-            (dynamic tooltip (g/constantly "If disabled, filters out any collision events involving this collision object"))
-            (default (protobuf/default Physics$CollisionObjectDesc :event-collision)))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-collision))
+            (dynamic label (properties/label-dynamic :collision-object :event-collision))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :event-collision)))
   (property event-contact g/Bool
-            (dynamic label (g/constantly "Generate Contact Events"))
-            (dynamic tooltip (g/constantly "If disabled, filters out any contact events involving this collision object"))
-            (default (protobuf/default Physics$CollisionObjectDesc :event-contact)))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-contact))
+            (dynamic label (properties/label-dynamic :collision-object :event-contact))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :event-contact)))
   (property event-trigger g/Bool
-            (dynamic label (g/constantly "Generate Trigger Events"))
-            (dynamic tooltip (g/constantly "If disabled, filters out any trigger events involving this collision object"))
-            (default (protobuf/default Physics$CollisionObjectDesc :event-trigger)))
+            (default (protobuf/default Physics$CollisionObjectDesc :event-trigger))
+            (dynamic label (properties/label-dynamic :collision-object :event-trigger))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :event-trigger)))
 
-  (property group g/Str) ; Required protobuf field.
-  (property mask g/Str) ; Nil is valid default.
+  (property group g/Str ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :collision-object :group))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :group)))
+  (property mask g/Str ; Nil is valid default.
+            (dynamic label (properties/label-dynamic :collision-object :mask))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object :mask)))
 
   (output scene g/Any :cached produce-scene)
   (output project-physics-type PhysicsType (g/fnk [project-settings] (project-physics-type project-settings)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                      {:node-id _node-id
                                                       :node-outline-key "Collision Object"
-                                                      :label "Collision Object"
+                                                      :label (localization/message "outline.collision-object")
                                                       :icon collision-object-icon
-                                                      :children (outline/natural-sort child-outlines)
+                                                      :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
                                                       :child-reqs [{:node-type Shape
                                                                     :tx-attach-fn attach-shape-node}]}))
 
@@ -739,7 +776,7 @@
         shape-node (first (g/tx-nodes-added
                             (g/transact
                               (concat
-                                (g/operation-label "Add Shape")
+                                (g/operation-label (localization/message "operation.collision-object.add-shape"))
                                 (g/operation-sequence op-seq)
                                 (make-shape-node collision-object-node shape)))))]
     (when (some? select-fn)
@@ -754,23 +791,24 @@
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
          (if-not user-data
-           "Add Shape"
-           (shape-type-label (:shape-type user-data))))
+           (localization/message "command.edit.add-embedded-component.variant.collision-object")
+           (shape-type-message (:shape-type user-data))))
   (active? [selection] (selection->collision-object selection))
   (run [selection user-data app-view]
     (add-shape-handler (selection->collision-object selection) (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
-           (let [self (selection->collision-object selection)]
-             (when-not user-data
-               (->> shape-type-ui
-                    (reduce-kv (fn [res shape-type {:keys [label icon]}]
-                                 (conj res {:label label
-                                            :icon icon
-                                            :command :edit.add-embedded-component
-                                            :user-data {:_node-id self :shape-type shape-type}}))
-                               [])
-                    (sort-by :label)
-                    (into []))))))
+    (let [self (selection->collision-object selection)]
+      (when-not user-data
+        (->> shape-type-ui
+             (reduce-kv
+               (fn [acc shape-type {:keys [icon message]}]
+                 (conj! acc {:label message
+                             :icon icon
+                             :command :edit.add-embedded-component
+                             :user-data {:_node-id self :shape-type shape-type}}))
+               (transient []))
+             persistent!
+             (localization/annotate-as-sorted localization/natural-sort-by-label))))))
 
 (ext-graph/register-property-getter!
   ::CollisionObjectNode

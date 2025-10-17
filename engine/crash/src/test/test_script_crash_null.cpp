@@ -40,7 +40,7 @@ extern "C"
 class ScriptCrashTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmCrash::Init("DefoldScriptTest", "0123456789abcdef");
 
@@ -64,7 +64,7 @@ protected:
 
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmConfigFile::Delete(m_ConfigFile);
         dmResource::DeleteFactory(m_ResourceFactory);

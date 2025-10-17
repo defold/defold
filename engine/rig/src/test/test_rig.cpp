@@ -880,7 +880,7 @@ public:
     dmRig::HRigContext m_Context;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmRig::NewContextParams params = {0};
         params.m_MaxRigInstanceCount = 2;
         if (dmRig::RESULT_OK != dmRig::NewContext(params, &m_Context)) {
@@ -888,7 +888,7 @@ protected:
         }
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmRig::DeleteContext(m_Context);
     }
 };
@@ -899,7 +899,7 @@ class RigContextCursorTest : public jc_test_params_class<T>
 public:
     dmRig::HRigContext m_Context;
 
-    virtual void SetUp() {
+    void SetUp() override {
         dmRig::NewContextParams params = {0};
         params.m_MaxRigInstanceCount = 2;
         if (dmRig::RESULT_OK != dmRig::NewContext(params, &m_Context)) {
@@ -907,7 +907,7 @@ public:
         }
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmRig::DeleteContext(m_Context);
     }
 };
@@ -924,7 +924,7 @@ public:
     dmRigDDF::AnimationSet* m_AnimationSet;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         RigContextCursorTest<T>::SetUp();
 
         m_Instance = 0x0;
@@ -950,7 +950,7 @@ protected:
         }
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (dmRig::RESULT_OK != dmRig::InstanceDestroy(RigContextCursorTest<T>::m_Context, m_Instance)) {
             dmLogError("Could not delete rig instance!");
         }
@@ -1158,7 +1158,7 @@ public:
     dmRigDDF::AnimationSet* m_AnimationSet;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         RigContextTest::SetUp();
 
         m_Instance = 0x0;
@@ -1186,7 +1186,7 @@ protected:
         }
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (dmRig::RESULT_OK != dmRig::InstanceDestroy(m_Context, m_Instance)) {
             dmLogError("Could not delete rig instance!");
         }

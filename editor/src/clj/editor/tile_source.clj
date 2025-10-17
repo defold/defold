@@ -33,6 +33,7 @@
             [editor.id :as id]
             [editor.image :as image]
             [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -46,7 +47,6 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable])
   (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
@@ -268,6 +268,8 @@
   (property id g/Str ; Required protobuf field.
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
   (property start-tile g/Int ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :tile-source :start-tile))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :start-tile))
             (dynamic error (g/fnk [_node-id start-tile tile-count]
                              ;; Editor scripts evaluate _properties output
                              ;; during node initialization while it's not
@@ -275,6 +277,8 @@
                              (when tile-count
                                (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile")))))
   (property end-tile g/Int ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :tile-source :end-tile))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :end-tile))
             (dynamic error (g/fnk [_node-id end-tile tile-count]
                              ;; Editor scripts evaluate _properties output
                              ;; during node initialization while it's not
@@ -282,11 +286,19 @@
                              (when tile-count
                                (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile")))))
   (property playback types/AnimationPlayback (default (protobuf/default Tile$Animation :playback))
+            (dynamic label (properties/label-dynamic :tile-source :playback))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :playback))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
   (property fps g/Int (default (protobuf/default Tile$Animation :fps))
+            (dynamic label (properties/label-dynamic :tile-source :fps))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :fps))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
-  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal))))
-  (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-vertical))))
+  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal)))
+            (dynamic label (properties/label-dynamic :tile-source :flip-horizontal))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :flip-horizontal)))
+  (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-vertical)))
+            (dynamic label (properties/label-dynamic :tile-source :flip-vertical))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :flip-vertical)))
   (property cues g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
 
@@ -331,13 +343,16 @@
      (g/connect project :collision-groups-data collision-group-node :collision-groups-data))))
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
-  (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
-                                        [(get outlines true) (get outlines false)])]
+  (let [{coll-outlines true anim-outlines false} (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Tile Source"
-     :label "Tile Source"
+     :label (localization/message "outline.tile-source")
      :icon tile-source-icon
-     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))
+     :children (localization/annotate-as-sorted
+                 (fn [localization-state _]
+                   (into (localization/natural-sort-by-label localization-state coll-outlines)
+                         (localization/natural-sort-by-label localization-state anim-outlines)))
+                 (-> coll-outlines (or []) (into anim-outlines)))
      :child-reqs [{:node-type TileAnimationNode
                    :tx-attach-fn attach-animation-node}
                   {:node-type CollisionGroupNode
@@ -588,19 +603,31 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
   (property tile-width g/Int (default (protobuf/required-default Tile$TileSet :tile-width))
+            (dynamic label (properties/label-dynamic :tile-source :tile-width))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-width))
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
                              (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
   (property tile-height g/Int (default (protobuf/required-default Tile$TileSet :tile-height))
+            (dynamic label (properties/label-dynamic :tile-source :tile-height))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-height))
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
                              (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
   (property tile-margin g/Int (default (protobuf/default Tile$TileSet :tile-margin))
+            (dynamic label (properties/label-dynamic :tile-source :tile-margin))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-margin))
             (dynamic error (g/fnk [_node-id tile-margin tile-width-error tile-height-error]
                              (validation/prop-error :fatal _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
   (property tile-spacing g/Int (default (protobuf/default Tile$TileSet :tile-spacing))
+            (dynamic label (properties/label-dynamic :tile-source :tile-spacing))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-spacing))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? tile-spacing)))
   (property extrude-borders g/Int (default (protobuf/default Tile$TileSet :extrude-borders))
+            (dynamic label (properties/label-dynamic :tile-source :extrude-borders))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :extrude-borders))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
   (property inner-padding g/Int (default (protobuf/default Tile$TileSet :inner-padding))
+            (dynamic label (properties/label-dynamic :tile-source :inner-padding))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :inner-padding))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-resource))
@@ -609,6 +636,8 @@
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic label (properties/label-dynamic :tile-source :collision))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :collision))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
                              (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
   (property material-tag g/Str (default (protobuf/default Tile$TileSet :material-tag))
@@ -616,6 +645,8 @@
   (property original-convex-hulls g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property sprite-trim-mode g/Keyword (default (protobuf/default Tile$TileSet :sprite-trim-mode))
+            (dynamic label (properties/label-dynamic :tile-source :sprite-trim-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source :sprite-trim-mode))
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
   (property tile->collision-group-node g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
@@ -1015,18 +1046,20 @@
   (active? [selection] (selection->tile-source selection))
   (label [selection user-data]
          (if-not user-data
-           "Add"
+           (localization/message "command.edit.add-embedded-component.variant.tile-source")
            (:label user-data)))
   (options [selection user-data]
            (when-not user-data
-             [{:label "Animation"
+             [{:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")
                :icon animation-icon
                :command :edit.add-embedded-component
-               :user-data {:action add-animation-node!}}
-              {:label "Collision Group"
+               :user-data {:action add-animation-node!
+                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.animation")}}
+              {:label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")
                :icon collision-icon
                :command :edit.add-embedded-component
-               :user-data {:action add-collision-group-node!}}]))
+               :user-data {:action add-collision-group-node!
+                           :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
   (run [selection user-data app-view]
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 

@@ -53,7 +53,7 @@ static const luaL_reg META_TABLE[] =
 class ScriptMsgTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -77,7 +77,7 @@ protected:
         assert(top == lua_gettop(L));
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         lua_pushnil(L);
         dmScript::SetInstance(L);

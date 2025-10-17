@@ -21,6 +21,7 @@
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
             [editor.gui :as gui]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
@@ -453,7 +454,7 @@
           (is (not (contains? built-layout-desc :nodes)))))
 
       ;; Override the default animation on the SpineNode.
-      (let [spine-node (test-util/outline-node-id gui-scene "Nodes" "spineboy")]
+      (let [spine-node (test-util/outline-node-id gui-scene (localization/message "outline.gui.nodes") "spineboy")]
         (gui-test/with-visible-layout! gui-scene "Portrait"
           (test-util/prop! spine-node :spine-default-animation "jump")))
 

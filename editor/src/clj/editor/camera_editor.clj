@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.camera :as camera]
-            [editor.properties :as properties]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -26,8 +25,10 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -290,16 +291,32 @@
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
 
-  (property aspect-ratio g/Num) ; Required protobuf field.
-  (property fov g/Num) ; Required protobuf field.
-  (property near-z g/Num) ; Required protobuf field.
-  (property far-z g/Num) ; Required protobuf field.
-  (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio))))
-  (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection))))
+  (property aspect-ratio g/Num ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :camera :aspect-ratio))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :aspect-ratio)))
+  (property fov g/Num ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :camera :fov))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :fov)))
+  (property near-z g/Num ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :camera :near-z))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :near-z)))
+  (property far-z g/Num ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :camera :far-z))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :far-z)))
+  (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio)))
+            (dynamic label (properties/label-dynamic :camera :auto-aspect-ratio))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :auto-aspect-ratio)))
+  (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection)))
+            (dynamic label (properties/label-dynamic :camera :orthographic-projection))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-projection)))
   (property orthographic-mode g/Keyword (default (protobuf/default Camera$CameraDesc :orthographic-mode))
+            (dynamic label (properties/label-dynamic :camera :orthographic-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-mode))
             (dynamic read-only? (g/fnk [orthographic-projection] (not orthographic-projection)))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Camera$OrthoZoomMode))))
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
+            (dynamic label (properties/label-dynamic :camera :orthographic-zoom))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-zoom))
             (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed))))))
 
   (output form-data g/Any produce-form-data)
@@ -307,7 +324,7 @@
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
                                                      {:node-id _node-id
                                                       :node-outline-key "Camera"
-                                                      :label "Camera"
+                                                      :label (localization/message "outline.camera")
                                                       :icon camera-icon}))
 
   (output save-value g/Any :cached produce-save-value)
