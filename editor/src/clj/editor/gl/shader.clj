@@ -638,9 +638,14 @@ This must be submitted to the driver for compilation before you can use it. See
 (defn read-shader
   ^ShaderLifecycle [request-type shader-paths opts shader-path->source]
   {:pre [(keyword? request-type)]}
-  (let [request-id
+  (let [coordinate-space (:coordinate-space opts)
+        max-page-count (or (:max-page-count opts) 0)
+        _ (assert (types/concrete-coordinate-space? coordinate-space))
+        _ (assert (nat-int? max-page-count))
+
+        request-id
         {:request-type request-type
-         :max-page-count (or (:max-page-count opts) 0)
+         :max-page-count max-page-count
          :shader-paths (vec (sort shader-paths))}
 
         {:keys [array-sampler-name->slice-sampler-names
@@ -655,7 +660,11 @@ This must be submitted to the driver for compilation before you can use it. See
           shader-type+source-pairs
           location+attribute-name-pairs
           array-sampler-name->slice-sampler-names
-          strip-resource-binding-namespace-regex-str)]
+          strip-resource-binding-namespace-regex-str)
+
+        attribute-reflection-infos
+        (mapv #(editor.graphics.types/assign-attribute-transform % coordinate-space)
+              attribute-reflection-infos)]
 
     (make-shader-lifecycle request-id shader-request-data attribute-reflection-infos {})))
 
@@ -665,20 +674,12 @@ This must be submitted to the driver for compilation before you can use it. See
     (slurp url)
     (throw (FileNotFoundException. (format "'%s' was not found on the classpath." shader-path)))))
 
-(defn- parse-opts+shader-paths [maybe-opts-and-shader-paths]
-  (let [opts-or-first-shader-path (first maybe-opts-and-shader-paths)]
-    (if (map? opts-or-first-shader-path)
-      (pair (coll/not-empty opts-or-first-shader-path)
-            (next maybe-opts-and-shader-paths))
-      (pair nil
-            maybe-opts-and-shader-paths))))
-
 (defn classpath-shader
-  ^ShaderRequestData [& shader-paths]
-  (let [[opts shader-paths] (parse-opts+shader-paths shader-paths)]
-    (if (coll/empty? shader-paths)
-      (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
-      (read-shader :classpath-shader shader-paths opts classpath-shader-path->source))))
+  ^ShaderRequestData [opts & shader-paths]
+  {:pre [(map? opts)]}
+  (if (coll/empty? shader-paths)
+    (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
+    (read-shader :classpath-shader shader-paths opts classpath-shader-path->source)))
 
 (defn is-using-array-samplers? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)

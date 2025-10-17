@@ -473,18 +473,7 @@
       []
       cat
       (iutil/distinct-by :name-key)
-      (map (fn [{:keys [coordinate-space semantic-type] :as decorated-attribute-info}]
-             (let [coordinate-space
-                   (case coordinate-space
-                     (:coordinate-space-default nil) default-coordinate-space
-                     (:coordinate-space-local :coordinate-space-world) coordinate-space)
-
-                   attribute-transform
-                   (types/attribute-transform semantic-type coordinate-space)]
-
-               (assoc decorated-attribute-info
-                 :coordinate-space coordinate-space
-                 :attribute-transform attribute-transform)))))))
+      (map #(types/assign-attribute-transform % default-coordinate-space)))))
 
 (defn coordinate-space-info
   "Returns a map of coordinate-space to sets of semantic-type that expect that

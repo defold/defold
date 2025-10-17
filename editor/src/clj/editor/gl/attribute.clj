@@ -20,7 +20,6 @@
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.scene-cache :as scene-cache]
-            [util.array :as array]
             [util.coll :refer [pair]]
             [util.defonce :as defonce]
             [util.ensure :as ensure]
@@ -196,7 +195,7 @@
       (assign-attribute-from-unsigned-ints! value-array (.-vector-type element-type) gl base-location))
 
     :type-float
-    (assign-attribute-from-floats! value-array (.vector-type element-type) gl base-location)))
+    (assign-attribute-from-floats! value-array (.-vector-type element-type) gl base-location)))
 
 (defn- assign-attribute-from-matrix-4d!
   [^Matrix4d matrix vector-type ^GL2 gl ^long base-location]
@@ -273,6 +272,11 @@
    ^ElementType element-type
    ^int base-location]
 
+  graphics.types/ValueBinding
+  (with-value [this new-value]
+    (graphics.types/ensure-element-type-value-array element-type new-value)
+    (assoc this :value-array new-value))
+
   p/GlBind
   (bind [_this gl _render-args]
     (assign-attribute-from-array! value-array element-type gl base-location))
@@ -280,19 +284,11 @@
   (unbind [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
-(defn value-array? [value]
-  (case (array/primitive-type value)
-    (:byte :short :int :long :float)
-    (case (count value)
-      (1 2 3 4 9 16) true
-      false)
-    false))
-
 (defn make-attribute-value-binding
   ^AttributeValueBinding [value-array ^ElementType element-type ^long base-location]
-  (ensure/argument value-array value-array?)
   (ensure/argument-type element-type ElementType)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
+  (graphics.types/ensure-element-type-value-array element-type value-array)
   (->AttributeValueBinding value-array element-type base-location))
 
 ;; -----------------------------------------------------------------------------
@@ -324,6 +320,11 @@
    transform-render-arg-key
    ^double w-component
    ^int base-location]
+
+  graphics.types/ValueBinding
+  (with-value [this new-value]
+    (ensure/argument-type new-value Vector4d)
+    (assoc this :untransformed-vector new-value))
 
   p/GlBind
   (bind [_this gl render-args]

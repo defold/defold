@@ -52,31 +52,11 @@
 
 (def ^:private preview-shader
   (-> (shader/classpath-shader
+        {:coordinate-space :coordinate-space-local}
         "shaders/model-scene-preview.vp"
         "shaders/model-scene-preview.fp")
       (assoc :uniforms {"mtx_view" :view
                         "mtx_proj" :projection})))
-
-(def ^:private preview-shader-combined-attribute-infos
-  (graphics/combined-attribute-infos (:attribute-reflection-infos preview-shader) nil :coordinate-space-local))
-
-(def ^:private preview-shader-coordinate-space-info
-  (graphics/coordinate-space-info preview-shader-combined-attribute-infos))
-
-(def ^:private selection-shader
-  (-> (shader/classpath-shader
-        "shaders/selection-local-space.vp"
-        "shaders/selection-local-space.fp")
-      (assoc :uniforms {"mtx_view" :view
-                        "mtx_proj" :projection})))
-
-(def ^:private selection-shader-combined-attribute-infos
-  (graphics/combined-attribute-infos (:attribute-reflection-infos selection-shader) nil :coordinate-space-local))
-
-(def ^:private selection-shader-id-color-attribute-location
-  (let [id-color-attribute-location (-> selection-shader :attribute-locations :id-color)]
-    (assert (graphics.types/location? id-color-attribute-location))
-    id-color-attribute-location))
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -292,14 +272,15 @@
         index-count (graphics.types/element-count index-buffer)
 
         selection-attribute-bindings
-        (assoc-in (:selection-attribute-bindings user-data)
-                  [id-color-selection-attribute-binding-index :value-array]
-                  (scene-picking/picking-id->float-array picking-id))]
+        (update (:selection-attribute-bindings user-data)
+                id-color-selection-attribute-binding-index
+                graphics.types/with-value
+                (scene-picking/picking-id->float-array picking-id))]
 
-    (gl/with-gl-bindings gl render-args [selection-shader selection-attribute-bindings index-buffer]
+    (gl/with-gl-bindings gl render-args [scene-picking/local-selection-shader selection-attribute-bindings index-buffer]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
-        (shader/set-samplers-by-name selection-shader gl name (:texture-units t)))
+        (shader/set-samplers-by-name scene-picking/local-selection-shader gl name (:texture-units t)))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -655,13 +636,16 @@
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers preview-shader-combined-attribute-infos)
-        selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-shader-combined-attribute-infos)
-        id-color-selection-attribute-binding-index (util/first-index-where #(= selection-shader-id-color-attribute-location (:base-location %)) selection-attribute-bindings)
+        attribute-reflection-infos (:attribute-reflection-infos preview-shader)
+        coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
+        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
+        selection-attribute-reflection-infos (:attribute-reflection-infos scene-picking/local-selection-shader)
+        selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
+        id-color-selection-attribute-binding-index (util/first-index-where #(= scene-picking/local-selection-shader-id-color-attribute-location (:base-location %)) selection-attribute-bindings)
 
         user-data
         {:attribute-bindings attribute-bindings
-         :coordinate-space-info preview-shader-coordinate-space-info
+         :coordinate-space-info coordinate-space-info
          :id-color-selection-attribute-binding-index id-color-selection-attribute-binding-index
          :index-buffer index-buffer
          :material-data material-data

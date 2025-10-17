@@ -39,6 +39,9 @@
   (^BufferData buffer-data [this] "Returns the BufferData that contains the elements of this buffer.")
   (^ElementType element-type [this] "Returns the ElementType of elements in this buffer."))
 
+(defonce/protocol ValueBinding
+  (with-value [this new-value] "Return a new instance with the value replaced."))
+
 (defonce ^:private vec1-doubles-zero (vector-of :double 0.0))
 (defonce ^:private vec1-doubles-one (vector-of :double 1.0))
 
@@ -107,39 +110,6 @@
 
 (def ^{:arglists '([semantic-type ^ElementType element-type])} default-attribute-value-array (fn/memoize default-attribute-value-array-raw))
 
-(defonce attribute-transforms
-  #{:attribute-transform-none
-    :attribute-transform-normal
-    :attribute-transform-world})
-
-(fn/defamong attribute-transform? attribute-transforms)
-
-(defn attribute-transform [semantic-type coordinate-space]
-  (case semantic-type
-    (:semantic-type-position)
-    (case coordinate-space
-      :coordinate-space-local :attribute-transform-none
-      :coordinate-space-world :attribute-transform-world)
-
-    (:semantic-type-normal :semantic-type-tangent)
-    (case coordinate-space
-      :coordinate-space-local :attribute-transform-none
-      :coordinate-space-world :attribute-transform-normal)
-
-    ;; else
-    :attribute-transform-none))
-
-(defn attribute-transform-render-arg-key [attribute-transform]
-  (case attribute-transform
-    :attribute-transform-normal :actual/world-rotation
-    :attribute-transform-world :actual/world))
-
-(defn attribute-transform-w-component
-  ^double [attribute-transform]
-  (case attribute-transform
-    :attribute-transform-normal 0.0
-    :attribute-transform-world 1.0))
-
 (defonce buffer-data-types
   #{:byte
     :ubyte
@@ -201,6 +171,13 @@
     :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
     :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
 
+(defn data-type->primitive-type [data-type]
+  (case data-type
+    (:type-byte :type-unsigned-byte) :byte
+    (:type-short :type-unsigned-short) :short
+    (:type-int :type-unsigned-int) :int
+    (:type-float) :float))
+
 (defn data-type->buffer-data-type [data-type]
   (case data-type
     :type-byte :byte
@@ -248,6 +225,55 @@
         (protobuf/protocol-message-enums Graphics$VertexAttribute$SemanticType)))
 
 (fn/defamong engine-provided-semantic-type? engine-provided-semantic-types)
+
+(defonce attribute-transforms
+  #{:attribute-transform-none
+    :attribute-transform-normal
+    :attribute-transform-world})
+
+(fn/defamong attribute-transform? attribute-transforms)
+
+(defn attribute-transform [semantic-type coordinate-space]
+  (case semantic-type
+    (:semantic-type-position)
+    (case coordinate-space
+      :coordinate-space-local :attribute-transform-none
+      :coordinate-space-world :attribute-transform-world)
+
+    (:semantic-type-normal :semantic-type-tangent)
+    (case coordinate-space
+      :coordinate-space-local :attribute-transform-none
+      :coordinate-space-world :attribute-transform-normal)
+
+    ;; else
+    (do
+      (assert (semantic-type? semantic-type))
+      :attribute-transform-none)))
+
+(defn attribute-transform-render-arg-key [attribute-transform]
+  (case attribute-transform
+    :attribute-transform-normal :actual/world-rotation
+    :attribute-transform-world :actual/world))
+
+(defn attribute-transform-w-component
+  ^double [attribute-transform]
+  (case attribute-transform
+    :attribute-transform-normal 0.0
+    :attribute-transform-world 1.0))
+
+(defn assign-attribute-transform [{:keys [coordinate-space semantic-type] :as attribute-info} default-coordinate-space]
+  (ensure/argument default-coordinate-space concrete-coordinate-space?)
+  (let [coordinate-space
+        (case coordinate-space
+          (:coordinate-space-default nil) default-coordinate-space
+          (:coordinate-space-local :coordinate-space-world) coordinate-space)
+
+        attribute-transform
+        (attribute-transform semantic-type coordinate-space)]
+
+    (assoc attribute-info
+      :coordinate-space coordinate-space
+      :attribute-transform attribute-transform)))
 
 (def location? nat-int?)
 
@@ -323,11 +349,11 @@
     (if (and (= :vector-type-vec4 vector-type)
              (= double/1 (class value-array)))
       (.set vector ^double/1 value-array)
-      (let [aget-fn (array/aget-fn value-array)
+      (let [nth-fn (array/nth-fn value-array)
             double-fn (value-to-double-fn (.-data-type element-type) (.-normalize element-type))
             get (fn get
                   ^double [^long component-index]
-                  (double-fn (aget-fn value-array component-index)))]
+                  (double-fn (nth-fn value-array component-index)))]
         (case vector-type
           :vector-type-scalar
           (.setX vector (get 0))
@@ -390,52 +416,6 @@
               component-count (vector-type-component-count vector-type)]
           (quot item-count component-count))))))
 
-(defn element-data-types-assignable? [^ElementType source ^ElementType target]
-  (let [source-data-type (.-data-type source)
-        target-data-type (.-data-type target)]
-    (or (= target-data-type source-data-type)
-        (case source-data-type
-          (:type-byte :type-unsigned-byte :type-short :type-unsigned-short :type-int :type-unsigned-int)
-          (case target-data-type
-            (:type-float) (.-normalize source)
-            (<= (data-type-byte-size source-data-type)
-                (data-type-byte-size target-data-type)))
-
-          (:type-float)
-          (case target
-            (:type-float) true
-            false)))))
-
-(defn element-vector-types-assignable? [^ElementType source ^ElementType target]
-  (let [source-vector-type (.-vector-type source)
-        target-vector-type (.-vector-type target)]
-    (or (= target-vector-type source-vector-type)
-        (case source-vector-type
-          (:vector-type-scalar :vector-type-vec2 :vector-type-vec3 :vector-type-vec4)
-          (case target-vector-type
-            (:vector-type-scalar :vector-type-vec2 :vector-type-vec3 :vector-type-vec4) true
-            false)
-
-          (:vector-type-mat2 :vector-type-mat3 :vector-type-mat4)
-          (case target-vector-type
-            (:vector-type-mat2 :vector-type-mat3 :vector-type-mat4) true
-            false)))))
-
-(defn element-types-assignable? [^ElementType source ^ElementType target]
-  (and (element-data-types-assignable? source target)
-       (element-vector-types-assignable? source target)))
-
-(defn floating-point-element-type? [value]
-  (and (element-type? value)
-       (= :type-float (.-data-type ^ElementType value))))
-
-(defn ensure-floating-point-target-element-type [^ElementType target-element-type]
-  (when-not (floating-point-element-type? target-element-type)
-    (throw
-      (IllegalArgumentException.
-        (str "floating-point values cannot be assigned to target data-type: "
-             (.-data-type target-element-type))))))
-
 (defn- make-element-type-raw
   ^ElementType [vector-type data-type normalize]
   (ensure/argument vector-type vector-type?)
@@ -444,6 +424,20 @@
   (->ElementType vector-type data-type normalize))
 
 (def ^{:arglists '([vector-type data-type normalize])} make-element-type (fn/memoize make-element-type-raw))
+
+(defn element-type-value-array? [^ElementType element-type value]
+  (and (= (data-type->primitive-type (.-data-type element-type))
+          (array/primitive-type value))
+       (= (vector-type-component-count (.-vector-type element-type))
+          (array/length value))))
+
+(defn ensure-element-type-value-array [^ElementType element-type value]
+  (when-not (element-type-value-array? element-type value)
+    (throw
+      (ex-info
+        "The value must be a primitive array matching the element-type."
+        {:value value
+         :element-type element-type}))))
 
 (defn attribute-name-key [^String attribute-name]
   (protobuf/field-name->key attribute-name))

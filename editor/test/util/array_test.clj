@@ -71,7 +71,24 @@
   (is (false? (array/primitive-array? "")))
   (is (false? (array/primitive-array? (Object.)))))
 
-(deftest aget-fn-test
+(deftest length-test
+  (doseq [expected-length (range 0 16)
+
+          [make-array values]
+          [[boolean-array [false true]]
+           [char-array "abc"]
+           [byte-array [Byte/MIN_VALUE Byte/MAX_VALUE]]
+           [short-array [Short/MIN_VALUE Short/MAX_VALUE]]
+           [int-array [Integer/MIN_VALUE Integer/MAX_VALUE]]
+           [long-array [Long/MIN_VALUE Long/MAX_VALUE]]
+           [float-array [Float/MIN_VALUE Float/MAX_VALUE]]
+           [double-array [Double/MIN_VALUE Double/MAX_VALUE]]
+           [object-array [(Object.) (Object.)]]]]
+
+    (let [array (make-array (take expected-length (cycle values)))]
+      (is (= expected-length (array/length array))))))
+
+(deftest nth-fn-test
   (doseq [array [(boolean-array [false true])
                  (char-array "abc")
                  (byte-array [Byte/MIN_VALUE Byte/MAX_VALUE])
@@ -81,11 +98,11 @@
                  (float-array [Float/MIN_VALUE Float/MAX_VALUE])
                  (double-array [Double/MIN_VALUE Double/MAX_VALUE])
                  (object-array [(Object.) (Object.)])]]
-    (let [aget-fn (array/aget-fn array)]
+    (let [nth-fn (array/nth-fn array)]
       (doseq [index (range (count array))]
         (is (= (nth array index)
-               (aget-fn array index))))))
-  (is (thrown-with-msg? IllegalArgumentException #"must be an Array" (array/aget-fn nil))))
+               (nth-fn array index))))))
+  (is (thrown-with-msg? IllegalArgumentException #"must be an Array" (array/nth-fn nil))))
 
 (deftest of-test
   (is (= Object/1 (class (array/of))))

@@ -25,15 +25,15 @@
 
 (defonce empty-of-type (memoize empty-of-type-raw))
 
+(defonce ^boolean/1 empty-boolean-array (empty-of-type Boolean/TYPE))
+(defonce ^char/1 empty-char-array (empty-of-type Character/TYPE))
+(defonce ^byte/1 empty-byte-array (empty-of-type Byte/TYPE))
+(defonce ^short/1 empty-short-array (empty-of-type Short/TYPE))
+(defonce ^int/1 empty-int-array (empty-of-type Integer/TYPE))
+(defonce ^long/1 empty-long-array (empty-of-type Long/TYPE))
+(defonce ^float/1 empty-float-array (empty-of-type Float/TYPE))
+(defonce ^double/1 empty-double-array (empty-of-type Double/TYPE))
 (defonce ^"[Ljava.lang.Object;" empty-object-array (empty-of-type Object))
-(defonce ^"[Z" empty-boolean-array (empty-of-type Boolean/TYPE))
-(defonce ^"[C" empty-char-array (empty-of-type Character/TYPE))
-(defonce ^"[B" empty-byte-array (empty-of-type Byte/TYPE))
-(defonce ^"[S" empty-short-array (empty-of-type Short/TYPE))
-(defonce ^"[I" empty-int-array (empty-of-type Integer/TYPE))
-(defonce ^"[J" empty-long-array (empty-of-type Long/TYPE))
-(defonce ^"[F" empty-float-array (empty-of-type Float/TYPE))
-(defonce ^"[D" empty-double-array (empty-of-type Double/TYPE))
 
 (defn primitive-type [array]
   (condp = (class array)
@@ -54,27 +54,41 @@
 (defn primitive-array? [value]
   (some? (primitive-type value)))
 
-(defn- aget-boolean [^boolean/1 array ^long index] (aget array index))
-(defn- aget-char [^char/1 array ^long index] (aget array index))
-(defn- aget-byte [^byte/1 array ^long index] (aget array index))
-(defn- aget-short [^short/1 array ^long index] (aget array index))
-(defn- aget-int [^int/1 array ^long index] (aget array index))
-(defn- aget-long [^long/1 array ^long index] (aget array index))
-(defn- aget-float [^float/1 array ^long index] (aget array index))
-(defn- aget-double [^double/1 array ^long index] (aget array index))
-
-(defn aget-fn [array]
+(defn length
+  ^long [array]
   (condp = (class array)
-    boolean/1 aget-boolean
-    char/1 aget-char
-    byte/1 aget-byte
-    short/1 aget-short
-    int/1 aget-int
-    long/1 aget-long
-    float/1 aget-float
-    double/1 aget-double
+    boolean/1 (alength ^boolean/1 array)
+    char/1 (alength ^char/1 array)
+    byte/1 (alength ^byte/1 array)
+    short/1 (alength ^short/1 array)
+    int/1 (alength ^int/1 array)
+    long/1 (alength ^long/1 array)
+    float/1 (alength ^float/1 array)
+    double/1 (alength ^double/1 array)
+    (alength ^"[Ljava.lang.Object;" array)))
+
+(defn- nth-boolean [^boolean/1 array ^long index] (aget array index))
+(defn- nth-char [^char/1 array ^long index] (aget array index))
+(defn- nth-byte [^byte/1 array ^long index] (aget array index))
+(defn- nth-short [^short/1 array ^long index] (aget array index))
+(defn- nth-int [^int/1 array ^long index] (aget array index))
+(defn- nth-long [^long/1 array ^long index] (aget array index))
+(defn- nth-float [^float/1 array ^long index] (aget array index))
+(defn- nth-double [^double/1 array ^long index] (aget array index))
+(defn- nth-object [^"[Ljava.lang.Object;" array ^long index] (aget array index))
+
+(defn nth-fn [array]
+  (condp = (class array)
+    boolean/1 nth-boolean
+    char/1 nth-char
+    byte/1 nth-byte
+    short/1 nth-short
+    int/1 nth-int
+    long/1 nth-long
+    float/1 nth-float
+    double/1 nth-double
     (if (array? array)
-      aget
+      nth-object
       (throw
         (IllegalArgumentException. "array must be an Array")))))
 
@@ -208,7 +222,8 @@
      int/1 (Arrays/hashCode ^ints array)
      long/1 (Arrays/hashCode ^longs array)
      float/1 (Arrays/hashCode ^floats array)
-     double/1 (Arrays/hashCode ^doubles array)))
+     double/1 (Arrays/hashCode ^doubles array)
+     (Arrays/hashCode ^"[Ljava.lang.Object;" array)))
   (^long [array ^long start ^long end]
    (if (and (zero? start)
             (= (Array/getLength array) end))
@@ -221,4 +236,5 @@
        int/1 (Arrays/hashCode (Arrays/copyOfRange ^ints array start end))
        long/1 (Arrays/hashCode (Arrays/copyOfRange ^longs array start end))
        float/1 (Arrays/hashCode (Arrays/copyOfRange ^floats array start end))
-       double/1 (Arrays/hashCode (Arrays/copyOfRange ^doubles array start end))))))
+       double/1 (Arrays/hashCode (Arrays/copyOfRange ^doubles array start end))
+       (Arrays/hashCode (Arrays/copyOfRange ^"[Ljava.lang.Object;" array start end))))))
