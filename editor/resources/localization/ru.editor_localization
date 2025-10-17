@@ -43,7 +43,7 @@ welcome.new-project.error.host-not-responding.header = Время ожидани
 welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
 welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
 welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины\:\n  • Антивирус, настроенный на проверку зашифрованных соединений\n  • Просроченный или некорректно настроенный сертификат сервера\n  • Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен\: 
-welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Сбой при построении пути PKIX
 
 # Welcome -> New Project -> From Template
 welcome.new-project.empty-project.title = Пустой Проект
@@ -86,7 +86,7 @@ welcome.new-project.main-menu-animation.title = Анимация главног�
 welcome.new-project.main-menu-animation.description = В этом примере мы демонстрируем эффекты для представления главного меню.
 welcome.new-project.parallax.title = Параллакс
 welcome.new-project.parallax.description = В этом примере мы показываем, как использовать эффект параллакса для имитации глубины игрового мира.
-welcome.new-project.hud.title = HUD
+welcome.new-project.hud.title = Интерфейс
 welcome.new-project.hud.description = В этом примере мы демонстрируем эффекты подсчёта очков.
 welcome.new-project.level-complete.title = Уровень завершён
 welcome.new-project.level-complete.description = В этом примере мы демонстрируем эффекты показа подсчёта очков, которые могут отображаться после завершения уровня.
@@ -405,7 +405,7 @@ dialog.asset-delete-single.header = Вы уверены, что хотите у�
 dialog.asset-delete-multiple.title = Удалить файлы?
 dialog.asset-delete-multiple.header = Вы уверены, что хотите удалить эти файлы?
 dialog.asset-delete-multiple.content = Вы собираетесь удалить\:{items}
-dialog.asset-delete-multiple.content.item = \n  • {name}
+dialog.asset-delete-multiple.content.item = \n  • {name}
 
 # Rename dialog
 
@@ -629,9 +629,9 @@ engine.name.with-instance = {name} — экземпляр {instance}
 
 # Search results: overrides
 
-search.overrides.title.all = All Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
-search.overrides.title.list = {list} Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
-search.overrides.title.specific = Specific Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.all = Все переопределения свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
+search.overrides.title.list = Переопределения {count, plural, one {свойства} other {свойств}} {list}{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
+search.overrides.title.specific = Переопределения отдельных свойств{qualifier, select, none {} other { элемента «{qualifier}»}}{resource, select, none {} other { ресурса «{resource}»}}
 search.column.resource = Ресурс
 
 # Menus
@@ -757,10 +757,10 @@ command.edit.reorder-down = Переместить вниз
 command.edit.rename = Переименовать
 command.edit.pull-up-overrides = Поднять переопределения
 command.edit.pull-up-overrides.variant.property = Поднять переопределение свойства {property}
-command.edit.pull-up-overrides.option = Pull Up {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Ancestor} other {"{target}"}}} other {{target_count} Ancestors}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.pull-up-overrides.option = Поднять {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {{target, select, undefined {предка} other {«{target}»}}} other {{target_count} предков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
 command.edit.push-down-overrides = Опустить переопределения
 command.edit.push-down-overrides.variant.property = Опустить переопределение свойства {property}
-command.edit.push-down-overrides.option = Push Down {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Descendant} other {"{target}"}}} other {{target_count} Descendants}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.push-down-overrides.option = Опустить {property_count, plural, one {переопределение свойства «{property}»} other {переопределения {property_count} свойств}} до {target_count, plural, one {{target, select, undefined {потомка} other {«{target}»}}} other {{target_count} потомков}} {aspect_count, select, 0 {} other {в {aspect} }}{resource_count, plural, one {{aspect_count, select, 0 {в «{resource}»} other {ресурса «{resource}»}}} other {среди {resource_count} ресурсов}}
 command.edit.show-overrides = Показать переопределения…
 command.code.find-next = Найти следующее
 command.code.find-previous = Найти предыдущее
@@ -904,7 +904,7 @@ property.appmanifest.physics-2d = Физика 2D
 property.appmanifest.physics-2d.tooltip = Box2D версия 3 или устаревшая версия для Defold
 property.appmanifest.physics-3d = Физика 3D
 property.appmanifest.physics-3d.tooltip = Bullet или отключено
-property.appmanifest.rig+model = Rig + Model
+property.appmanifest.rig+model = Rig + модель
 property.appmanifest.rig+model.tooltip = Rig, Model или отключено
 property.appmanifest.exclude-record = Отключить запись
 property.appmanifest.exclude-record.tooltip = Удаляет возможности записи видео (настольные платформы)
