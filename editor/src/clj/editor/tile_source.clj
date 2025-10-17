@@ -675,7 +675,7 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output layout-result g/Any :cached (g/fnk [tile-source-attributes] (texture-set-gen/calculate-layout-result tile-source-attributes)))
+  (output layout-result g/Any :cached (g/fnk [tile-source-attributes] (texture-set-gen/tile-source->layout-result tile-source-attributes)))
 
   (output texture-set-data-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
