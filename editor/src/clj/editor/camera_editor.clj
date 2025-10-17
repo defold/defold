@@ -245,20 +245,26 @@
             cb (get color 2)
             {:keys [is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode]} (:user-data renderable)
             world-translation (:world-translation renderable)
-            world-rotation (:world-rotation renderable)
-            ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode)
-            ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
-            ^Matrix4d inv-view-matrix (math/inverse view-matrix)
-            ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
-            ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
-        (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))
+            world-rotation (:world-rotation renderable)]
+        ;; Hide frustum preview when orthographic zoom is invalid (<= 0) in fixed mode
+        (if (and is-orthographic (= orthographic-mode :ortho-mode-fixed) (not (pos? (double (or orthographic-zoom 0)))))
+          (recur (rest renderables) vbuf)
+          (let [^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode)
+                ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
+                ^Matrix4d inv-view-matrix (math/inverse view-matrix)
+                ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
+                ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
+            (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))))
       (persistent! vbuf))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables renderable-count) outline-shader)]
-    (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
+  (let [vbuf (gen-outline-vertex-buffer renderables renderable-count)
+        outline-vertex-binding (vtx/use-with ::frustum-outline vbuf outline-shader)
+        vcount (count vbuf)]
+    (when (pos? vcount)
+      (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))
 
 (g/defnk produce-camera-scene
   [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
