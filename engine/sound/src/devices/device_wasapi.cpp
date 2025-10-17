@@ -66,6 +66,7 @@ namespace dmDeviceWasapi
         {
             dmLogError("WASAPI device lost in %s (hr=0x%08X)", context, hr);
             CheckAndPrintError(hr);
+            dmSound::NotifyDeviceInvalidated();
         }
 
         device->m_DeviceInvalidated = true;
@@ -538,7 +539,7 @@ namespace dmDeviceWasapi
                 return;
             }
 
-            uint32_t frames_available = buffer_size;// buffer_size - buffer_pos;
+            uint32_t frames_available = buffer_size - buffer_pos;
             hr = device->m_AudioRenderClient->GetBuffer(frames_available, &out);
             if (FAILED(hr))
             {
