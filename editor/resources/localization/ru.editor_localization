@@ -10,7 +10,7 @@
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = Открыть с Диска…
 welcome.button.open-selected = Открыть Проект
-welcome.button.create-new-project = Создать Проект YOLOLO
+welcome.button.create-new-project = Создать Проект
 welcome.button.cancel-download = Отменить Загрузку
 welcome.recent-projects = Недавние Проекты
 welcome.tab.new-project = НОВЫЙ ПРОЕКТ
@@ -43,7 +43,7 @@ welcome.new-project.error.host-not-responding.header = Время ожидани
 welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
 welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
 welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины\:\n  • Антивирус, настроенный на проверку зашифрованных соединений\n  • Просроченный или некорректно настроенный сертификат сервера\n  • Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен\: 
-welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Сбой при построении пути PKIX
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
 
 # Welcome -> New Project -> From Template
 welcome.new-project.empty-project.title = Пустой Проект
@@ -86,7 +86,7 @@ welcome.new-project.main-menu-animation.title = Анимация главног�
 welcome.new-project.main-menu-animation.description = В этом примере мы демонстрируем эффекты для представления главного меню.
 welcome.new-project.parallax.title = Параллакс
 welcome.new-project.parallax.description = В этом примере мы показываем, как использовать эффект параллакса для имитации глубины игрового мира.
-welcome.new-project.hud.title = Интерфейс
+welcome.new-project.hud.title = HUD
 welcome.new-project.hud.description = В этом примере мы демонстрируем эффекты подсчёта очков.
 welcome.new-project.level-complete.title = Уровень завершён
 welcome.new-project.level-complete.description = В этом примере мы демонстрируем эффекты показа подсчёта очков, которые могут отображаться после завершения уровня.
@@ -405,7 +405,7 @@ dialog.asset-delete-single.header = Вы уверены, что хотите у�
 dialog.asset-delete-multiple.title = Удалить файлы?
 dialog.asset-delete-multiple.header = Вы уверены, что хотите удалить эти файлы?
 dialog.asset-delete-multiple.content = Вы собираетесь удалить\:{items}
-dialog.asset-delete-multiple.content.item = \n•{name}
+dialog.asset-delete-multiple.content.item = \n  • {name}
 
 # Rename dialog
 
