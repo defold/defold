@@ -523,8 +523,17 @@
 (defn title! [^Stage window t]
   (.setTitle window t))
 
-(defn tooltip! [^Control ctrl tip localization]
-  (.setTooltip ctrl (when tip (localization/localize! (Tooltip.) localization tip))))
+(defn tooltip!
+  ([^Control ctrl tip localization]
+   (.setTooltip ctrl (when tip (localization/localize! (Tooltip.) localization tip))))
+  ([^Control ctrl tip localization keymap command]
+   (.setTooltip ctrl (when tip
+                       (let [tooltip-obj (localization/localize! (Tooltip.) localization tip)
+                             shortcut (when (and keymap command)
+                                        (editor.keymap/display-text keymap command ""))]
+                         (when (seq shortcut)
+                           (.setText tooltip-obj (str (.getText tooltip-obj) " (" shortcut ")")))
+                         tooltip-obj)))))
 
 (defn request-focus! [^Node node]
   (.requestFocus node))
@@ -1867,7 +1876,7 @@
 (declare refresh)
 
 (defn- toolbar-control
-  [scene menu-item handler-ctx localization]
+  [scene menu-item handler-ctx localization keymap]
   (let [separator? (= :separator (:label menu-item))
         opts (handler/options handler-ctx)]
     (cond
@@ -1890,11 +1899,11 @@
         hbox)
 
       :else
-      (let [{:keys [graphic-fn label icon tooltip more]} menu-item
+      (let [{:keys [graphic-fn label icon tooltip command more]} menu-item
             label (or (handler/label handler-ctx) label)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
-                     (tooltip! tooltip localization))]
+                     (tooltip! tooltip localization keymap command))]
         (cond
           graphic-fn
           ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
@@ -1934,7 +1943,8 @@
 (defn- refresh-toolbar [td command-contexts localization evaluation-context]
  (let [menu (handler/realize-menu (:menu-id td))
        ^Pane control (:control td)
-       scene (.getScene control)]
+       scene (.getScene control)
+       keymap (or (user-data scene :keymap) keymap/empty)]
    (when (and (some? scene)
               (or (not= menu (user-data control ::menu))
                   (not= command-contexts (user-data control ::command-contexts))))
@@ -1948,7 +1958,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization)]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization keymap)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)

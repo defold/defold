@@ -477,11 +477,7 @@
                      (.setId "active-indicator"))])))
 
 (handler/register-menu! :toolbar
-  [{:id :select
-    :tooltip "Select tool"
-    :icon "icons/45/Icons_T_01_Select.png"
-    :command :scene.select-select-tool}
-   {:id :move
+  [{:id :move
     :tooltip "Move tool"
     :icon "icons/45/Icons_T_02_Move.png"
     :command :scene.select-move-tool}
