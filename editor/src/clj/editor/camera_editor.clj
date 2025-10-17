@@ -63,10 +63,16 @@
 ;; Precomputed extents of the authored camera mesh (in view-space units).
 ;; Used to calibrate pixel-stable scaling so the icon keeps a reasonable size.
 (def ^:private camera-mesh-height-units
-  (let [ys (map #(.y ^Vector4d %) camera-mesh-lines)
-        ^double maxy (reduce (fn [^double a ^double b] (Math/max a b)) Double/NEGATIVE_INFINITY ys)
-        ^double miny (reduce (fn [^double a ^double b] (Math/min a b)) Double/POSITIVE_INFINITY ys)]
-    (- ^double maxy ^double miny)))
+  (if-let [s (seq camera-mesh-lines)]
+    (let [[^double miny ^double maxy]
+          (reduce (fn [[mn mx] ^Vector4d v]
+                    (let [y (.y v)]
+                      [(Math/min (double mn) y)
+                       (Math/max (double mx) y)]))
+                  [Double/POSITIVE_INFINITY Double/NEGATIVE_INFINITY]
+                  s)]
+      (- maxy miny))
+    0.0))
 
 (def ^:private ^:const camera-mesh-target-pixels 32.0)
 
