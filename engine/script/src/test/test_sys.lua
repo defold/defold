@@ -119,6 +119,14 @@ function test_sys()
     assert(sys.get_config_number("main.does_not_exists") == 0)
     assert(sys.get_config_number("main.does_not_exists", 456.7) - 456.7 < 0.1)
 
+    -- test get_config_boolean
+    assert(sys.get_config_boolean("main.does_not_exists") == false)
+    assert(sys.get_config_boolean("main.does_not_exists", true) == true)
+    assert(sys.get_config_boolean("foo.boolean") == true)
+    assert(sys.get_config_boolean("foo.boolean", false) == true)
+    assert(sys.get_config_boolean("foo.negative_boolean") == false)
+    assert(sys.get_config_boolean("foo.negative_boolean", true) == false)
+
     -- load_resource
     print("Load existing resource")
     local test_resource = sys.load_resource("/src/test/test_resource.txt")
