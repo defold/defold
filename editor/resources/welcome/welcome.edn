@@ -1,5 +1,5 @@
 {:new-project
- {:categories [{:label "welcome.category.from-template"
+ {:categories [{:label "welcome.tab.templates"
                 :templates [{:name "welcome.new-project.empty-project.title"
                              :description "welcome.new-project.empty-project.description"
                              :image "empty.svg"
@@ -65,7 +65,7 @@
                              :zip-url "https://github.com/defold/template-rive/archive/master.zip"
                              :skip-root? true}]}
 
-               {:label "welcome.category.from-tutorial"
+               {:label "welcome.tab.tutorials"
                 :templates [{:name "welcome.new-project.side-scroller-tutorial.title"
                              :description "welcome.new-project.side-scroller-tutorial.description"
                              :image "side-scroller.png"
@@ -107,7 +107,7 @@
                              :zip-url "https://github.com/defold/tutorial-colorslide/archive/master.zip"
                              :skip-root? true}]}
 
-               {:label "welcome.category.from-sample"
+               {:label "welcome.tab.samples"
                 :templates [{:name "welcome.new-project.linker-sample-game.title"
                              :description "welcome.new-project.linker-sample-game.description"
                              :image "linker.png"
