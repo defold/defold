@@ -1,12 +1,12 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,8 +29,14 @@
 #include "ddf_util.h"
 #include "config.h"
 
+#include <dlib/log.h> // TEMP
+
 namespace dmDDF
 {
+    #define DDF_CHECK_RESULT(e) \
+        if (e != RESULT_OK) \
+            return e;
+
     Descriptor* g_FirstDescriptor = 0;
     dmHashTable64<const Descriptor*> g_Descriptors;
 
@@ -81,7 +87,105 @@ namespace dmDDF
         return GetDescriptorFromHash(dmHashString64(name));
     }
 
-    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc)
+    static Result CalculateDynamicDescriptorSize(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, bool is_dynamic_type)
+    {
+        while (!ib->Eof())
+        {
+            uint32_t tag;
+            if (!ib->ReadVarInt32(&tag))
+                return RESULT_WIRE_FORMAT_ERROR;
+
+            uint32_t key  = tag >> 3;
+            uint32_t type = tag & 0x7;
+
+            if (key == 0)
+                return RESULT_WIRE_FORMAT_ERROR;
+
+            const FieldDescriptor* field = FindField(desc, key, 0);
+            if (!field)
+            {
+                // Unknown field, just skip
+                Result e = SkipField(ib, type);
+                DDF_CHECK_RESULT(e);
+                continue;
+            }
+
+            if (field->m_Type == TYPE_MESSAGE)
+            {
+                // All submessages are length-delimited
+                uint32_t length;
+                if (!ib->ReadVarInt32(&length))
+                    return RESULT_WIRE_FORMAT_ERROR;
+
+                // Create a view of just this submessage's bytes
+                InputBuffer sub_ib;
+                if (!ib->SubBuffer(length, &sub_ib))
+                    return RESULT_WIRE_FORMAT_ERROR;
+
+                is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
+                if (is_dynamic_type)
+                {
+                    uint32_t current_size = load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
+                    dmLogInfo("  !! Dynamic type %s.%s is not fully defined: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
+                }
+
+                // Recurse into the submessage descriptor
+                Result e = CalculateDynamicDescriptorSize(load_context, &sub_ib, field->m_MessageDescriptor, is_dynamic_type);
+                DDF_CHECK_RESULT(e);
+
+                // Ensure the sub-buffer is fully consumed
+                if (!sub_ib.Eof())
+                {
+                    return RESULT_WIRE_FORMAT_ERROR;
+                }
+            }
+            else
+            {
+                // Primitive field, just skip its payload
+                Result e = SkipField(ib, type);
+                DDF_CHECK_RESULT(e);
+            }
+        }
+
+        return RESULT_OK;
+    }
+
+    static bool NeedsSizeResolve(const Descriptor* desc)
+    {
+        bool has_message_ptr = false;
+        for (int i = 0; i < desc->m_FieldCount; ++i)
+        {
+            const FieldDescriptor* field = &desc->m_Fields[i];
+            if (field->m_Label != LABEL_REPEATED && field->m_Type == TYPE_MESSAGE)
+            {
+                if (!field->m_FullyDefinedType)
+                {
+                    return true;
+                }
+                else
+                {
+                    has_message_ptr |= NeedsSizeResolve(field->m_MessageDescriptor);
+                }
+            }
+        }
+        return has_message_ptr;
+    }
+
+    static Result CreateMessage(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, Message* message_out)
+    {
+        if (NeedsSizeResolve(desc))
+        {
+            dmLogInfo("%s needs resolve!", desc->m_Name);
+            Result e = CalculateDynamicDescriptorSize(load_context, ib, desc, false);
+            DDF_CHECK_RESULT(e);
+        }
+
+        *message_out = load_context->AllocMessage(desc);
+
+        return RESULT_OK;
+    }
+
+    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* array_info_hash, bool is_dynamic_type)
     {
         assert(desc);
 
@@ -108,9 +212,12 @@ namespace dmDDF
                 }
                 else
                 {
+                    dmLogInfo("Array member desc: %s.%s, offset: %d", desc->m_Name, field->m_Name, field->m_Offset);
+
                     if (field->m_Label == LABEL_REPEATED)
                     {
-                        load_context->IncreaseArrayCount(start, field->m_Number);
+                        *array_info_hash = load_context->IncreaseArrayCount(start, field->m_Number);
+                        is_dynamic_type = false;
                     }
 
                     if (field->m_Type != TYPE_MESSAGE)
@@ -126,21 +233,25 @@ namespace dmDDF
                         if (!ib->ReadVarInt32(&length))
                             return RESULT_WIRE_FORMAT_ERROR;
 
-                        #if 1
                         InputBuffer sub_ib;
                         if (!ib->SubBuffer(length, &sub_ib))
                         {
                             return RESULT_WIRE_FORMAT_ERROR;
                         }
 
-                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
-                        #else
-                        InputBuffer sub_ib = ib;
-                        sub_ib->m_End = sub_ib->m_Current + length;
-                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
-                        #endif
+                        is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
+                        if (is_dynamic_type && *array_info_hash != 0)
+                        {
+                            uint32_t current_size = load_context->AddDynamicElementSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
+                            dmLogInfo("  !! Dynamic type %s.%s: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
+                        }
+
+                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash, is_dynamic_type);
+
                         if (e != RESULT_OK)
+                        {
                             return e;
+                        }
                     }
                 }
             }
@@ -157,6 +268,21 @@ namespace dmDDF
         return LoadMessage(buffer, buffer_size, desc, out_message, 0, 0);
     }
 
+    static void DumpHex(const void* data, size_t size, const char* label)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
+        fprintf(stderr, "%s (%zu bytes):\n", label, size);
+
+        for (size_t i = 0; i < size; i++)
+        {
+            if (i % 16 == 0)
+                fprintf(stderr, "%04zx: ", i);
+            fprintf(stderr, "%02X ", bytes[i]);
+            if ((i+1) % 16 == 0 || i == size-1)
+                fprintf(stderr, "\n");
+        }
+    }
+
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message, uint32_t options, uint32_t* size)
     {
         DM_PROFILE("DdfLoadMessage");
@@ -170,33 +296,53 @@ namespace dmDDF
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
 
-        LoadContext load_context(0, 0, true, options);
-        Message dry_message = load_context.AllocMessage(desc);
+        //DumpHex(buffer, buffer_size, "Serialized msg");
 
+        LoadContext load_context(0, 0, true, options);
         InputBuffer input_buffer((const char*) buffer, buffer_size);
 
-        Result e = CalculateRepeated(&load_context, &input_buffer, desc);
-        if (e != RESULT_OK)
-        {
-            return e;
-        }
+        Message dry_message(0, 0, 0, true);
+        Result e = CreateMessage(&load_context, &input_buffer, desc, &dry_message);
+
+        uint32_t array_info_hash = 0;
+        input_buffer.Seek(0);
+        e = CalculateRepeated(&load_context, &input_buffer, desc, &array_info_hash, false);
+        DDF_CHECK_RESULT(e);
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
-        int message_buffer_size = load_context.GetMemoryUsage();
+        int aligned_base_memory = DM_ALIGN(load_context.GetMemoryUsage(), 16);
+        int message_buffer_size = aligned_base_memory + load_context.CalculateDynamicTypeMemorySize();
         char* message_buffer = 0;
+
         dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size);
         assert(message_buffer);
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
+        load_context.SetDynamicTypeBase(aligned_base_memory);
+
+        dmLogInfo("------------------------");
+        dmLogInfo("DO LOAD REAL");
+        dmLogInfo("AllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
+        dmLogInfo("------------------------");
+
         Message message = load_context.AllocMessage(desc);
+
+        load_context.ResetDynamicOffsetCursor();
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
+
+        char* buffer_start = message.GetBuffer(0);
+
+        DumpHex(buffer_start, message_buffer_size, "DDF message buffer");
+
         if ( e == RESULT_OK )
         {
             if (size)
+            {
                 *size = message_buffer_size;
+            }
             *out_message = (void*) message_buffer;
         }
         else
@@ -335,7 +481,6 @@ namespace dmDDF
         return RESULT_OK;
     }
 
-
     int32_t GetEnumValue(const EnumDescriptor* desc, const char* name)
     {
         assert(desc);
@@ -373,4 +518,6 @@ namespace dmDDF
         assert(message);
         dmMemory::AlignedFree(message);
     }
+
+    #undef DDF_CHECK_RESULT
 }

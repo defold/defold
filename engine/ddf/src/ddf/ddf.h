@@ -52,8 +52,9 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
-        uint8_t     m_OneOfIndex : 7;
-        uint8_t     m_OneOfSet   : 1;
+        uint8_t     m_OneOfIndex       : 6;
+        uint8_t     m_OneOfSet         : 1;
+        uint8_t     m_FullyDefinedType : 1;
     };
 
     struct Descriptor
@@ -72,6 +73,7 @@ namespace dmDDF
     {
         uintptr_t m_Array;
         uint32_t  m_ArrayCount;
+        uint32_t  m_Hash;
     };
 
     enum Label

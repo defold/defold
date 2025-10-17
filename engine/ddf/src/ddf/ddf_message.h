@@ -36,14 +36,18 @@ namespace dmDDF
 
         void     SetScalar(const FieldDescriptor* field, const void* buffer, int buffer_size);
         void*    AddScalar(const FieldDescriptor* field, const void* buffer, int buffer_size);
-        void*    AddMessage(const FieldDescriptor* field);
-        void     AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count);
-        void     SetRepeatedBuffer(const FieldDescriptor* field, void* buffer);
+        void*    AddMessage(LoadContext* load_context, const FieldDescriptor* field);
+        void     AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size, uint32_t hash);
+        void     SetRepeatedBuffer(const FieldDescriptor* field, void* buffer, uint32_t hash);
         void     SetString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     AddString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     SetBytes(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
 
         Message  SubMessage(const FieldDescriptor* field);
+
+        uint32_t GetSize() { return m_End - m_Start; }
+
+        char* GetBuffer(uint32_t offset)     { return (char*)(m_Start + offset); }
 
     private:
         Result ReadScalarField(LoadContext* load_context,
@@ -65,8 +69,6 @@ namespace dmDDF
                                 WireType wire_type,
                                 const FieldDescriptor* field,
                                 InputBuffer* input_buffer);
-
-        char* GetBuffer(uint32_t offset)     { return (char*)(m_Start + offset); }
 
         const Descriptor*     m_MessageDescriptor;
         uintptr_t             m_Start;
