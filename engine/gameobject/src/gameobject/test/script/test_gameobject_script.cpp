@@ -33,7 +33,7 @@ using namespace dmVMath;
 class ScriptTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -73,7 +73,7 @@ protected:
         assert(result == dmMessage::RESULT_OK);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);

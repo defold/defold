@@ -40,7 +40,7 @@ class dmCrashTest : public jc_test_base_class
 {
     public:
 
-        virtual void SetUp()
+        void SetUp() override
         {
 
             time_t t = time(NULL);
@@ -52,7 +52,7 @@ class dmCrashTest : public jc_test_base_class
             dmCrash::Init("TEST", m_EngineHash);
         }
 
-        virtual void TearDown()
+        void TearDown() override
         {
             dmCrash::Purge();
         }

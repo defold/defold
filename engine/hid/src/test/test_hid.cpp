@@ -20,7 +20,7 @@
 class HIDTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Context = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(m_Context);
@@ -35,7 +35,7 @@ protected:
 
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmHID::Final(m_Context);
         dmHID::DeleteContext(m_Context);

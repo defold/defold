@@ -132,7 +132,7 @@ public:
 
     DynamicTextureContainer m_DynamicTextures;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -194,7 +194,7 @@ public:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmParticle::DestroyContext(m_Scene->m_ParticlefxContext);
         dmGui::DeleteScript(m_Script);

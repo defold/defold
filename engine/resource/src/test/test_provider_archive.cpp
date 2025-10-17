@@ -107,7 +107,7 @@ TEST(ArchiveProviderBasic, CanMount)
 class ArchiveProviderArchive : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
@@ -128,7 +128,7 @@ protected:
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
@@ -258,7 +258,7 @@ struct InMemoryParams
 class ArchiveProviderArchiveInMemory : public jc_test_params_class<InMemoryParams>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         const InMemoryParams& params = GetParam();
 
@@ -279,7 +279,7 @@ protected:
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);

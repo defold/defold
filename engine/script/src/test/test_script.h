@@ -38,11 +38,11 @@ namespace dmScriptTest
     class ScriptTest : public jc_test_base_class
     {
     public:
-        virtual void SetUp();
+        void SetUp() override;
 
         void FinalizeLogs();
 
-        virtual void TearDown();
+        void TearDown() override;
         char* GetLog();
         void AppendToLog(const char* log);
 

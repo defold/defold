@@ -37,7 +37,7 @@
 class InputTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(m_HidContext);
@@ -66,7 +66,7 @@ protected:
         #undef HOSTPATH
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmDDF::FreeMessage(m_TestDDF);
         dmDDF::FreeMessage(m_Test2DDF);

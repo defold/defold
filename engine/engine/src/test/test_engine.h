@@ -29,12 +29,12 @@
 class EngineTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_DT = 1.0f / 60.0f;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
     }
 
@@ -46,14 +46,14 @@ template<typename T>
 class EngineParamsTest : public jc_test_params_class<T>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_DT = 1.0f / 60.0f;
         dmEngineInitialize();
         m_Engine = dmEngine::New(0);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmEngine::Delete(m_Engine);
         dmEngineFinalize();

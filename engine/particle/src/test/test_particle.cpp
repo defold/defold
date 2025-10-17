@@ -59,7 +59,7 @@ static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t
 class ParticleTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Context = dmParticle::CreateContext(64, 1024);
         assert(m_Context != 0);
@@ -76,7 +76,7 @@ protected:
         m_AttributeInfos.m_VertexStride = sizeof(TestVertex);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Prototype != 0x0)
         {
