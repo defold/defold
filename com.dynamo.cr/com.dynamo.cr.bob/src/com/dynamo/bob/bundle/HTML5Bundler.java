@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -421,11 +422,7 @@ public class HTML5Bundler implements IBundler {
 
 
         BundleHelper.throwIfCanceled(canceled);
-        // Copy debug symbols if they were generated
-        String symbolsName = "dmengine.js.symbols";
-        if (variant.equals(Bob.VARIANT_RELEASE)) {
-            symbolsName = "dmengine_release.js.symbols";
-        }
+
         // Copy symbols for relevant web pairs (js-web, wasm-web, wasm_pthread-web)
         String[] webSymbolPairs = new String[] {
             Platform.JsWeb.getExtenderPair(),
@@ -434,23 +431,18 @@ public class HTML5Bundler implements IBundler {
         };
         for (String pair : webSymbolPairs) {
             String dir = FilenameUtils.concat(project.getBinaryOutputDirectory(), pair);
-            File expected = new File(dir, symbolsName);
 
             File srcSymbols = null;
-            if (expected.exists()) {
-                srcSymbols = expected;
-            } else {
-                // Try to discover any *.js.symbols in the platform directory
-                File platformDir = new File(dir);
-                File[] matches = platformDir.listFiles(new java.io.FilenameFilter() {
-                    @Override
-                    public boolean accept(File d, String name) {
-                        return name.endsWith(".js.symbols");
-                    }
-                });
-                if (matches != null && matches.length > 0) {
-                    srcSymbols = matches[0];
+            // Try to discover any *.js.symbols in the platform directory
+            File platformDir = new File(dir);
+            File[] matches = platformDir.listFiles(new FilenameFilter() {
+                @Override
+                public boolean accept(File d, String name) {
+                    return name.endsWith(".js.symbols");
                 }
+            });
+            if (matches != null && matches.length > 0) {
+                srcSymbols = matches[0];
             }
 
             if (srcSymbols != null) {
