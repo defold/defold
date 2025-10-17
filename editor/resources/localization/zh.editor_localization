@@ -8,6 +8,7 @@
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
 
 # Localizations of the Welcome dialog
+welcome.new-project.title = 标题
 
 # Welcome -> New Project -> From Template
 
