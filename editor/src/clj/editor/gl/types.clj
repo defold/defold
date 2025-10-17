@@ -27,6 +27,9 @@
   (bind! [this gl render-args] "Bind this object to the GPU context.")
   (unbind! [this gl render-args] "Unbind this object from the GPU context."))
 
+(defn gl-binding? [value]
+  (satisfies? GLBinding value))
+
 (defn data-type-gl-type
   ^long [data-type]
   (case data-type

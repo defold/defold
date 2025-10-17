@@ -764,6 +764,28 @@
            result
            (reduce (preserving-reduced xf) result (children input))))))))
 
+(defn find-values
+  "Performs a recursive search in the supplied collection. Returns a sequence of
+  all values that match the specified predicate. If the predicate returns true
+  for a collection, it will be included in the result. Otherwise, its values
+  will be recursively traversed to find additional matches. For maps, the
+  predicate will be called on the value of each entry, and the key is ignored.
+  Returns a stateless transducer if no input collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn xf
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (cond
+          (pred input) (rf result input)
+          (nil? input) result
+          (map? input) (reduce (preserving-reduced xf) result (vals input))
+          (seqable? input) (reduce (preserving-reduced xf) result input)
+          :else result)))))
+  ([pred coll]
+   (sequence (find-values pred) coll)))
+
 (defn some
   "Like clojure.core/some, but uses reduce instead of lazy sequences."
   [pred coll]

@@ -482,7 +482,7 @@
 (defn with-gl-bindings-impl [^GL2 gl render-args bindable-items body-fn!]
   (let [[bound-items exception]
         (transduce
-          coll/flatten-xf
+          (coll/find-values gl.types/gl-binding?)
           (fn
             ([[bound-items exception]]
              (pair (persistent! bound-items) exception))

@@ -16,6 +16,7 @@
   (:require [clojure.core :as core]
             [clojure.test :refer :all]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.fn :as fn])
   (:import [clojure.lang IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
            [java.util Hashtable]))
@@ -23,9 +24,9 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defrecord Nothing [])
-(defrecord JustA [a])
-(defrecord PairAB [a b])
+(defonce/record Nothing [])
+(defonce/record JustA [a])
+(defonce/record PairAB [a b])
 
 (defn- java-map
   ^Hashtable [& key-vals]
@@ -1583,6 +1584,95 @@
              [{:children [{:children []}
                           :stop
                           {:children (repeatedly #(throw (Exception. "Should not be reduced!")))}]}])))))
+
+(deftest find-values-test
+  (testing "Empty collections."
+    (doseq [coll [nil
+                  ""
+                  []
+                  (vector-of :long)
+                  '()
+                  {}
+                  #{}
+                  (sorted-map)
+                  (sorted-set)
+                  (double-array 0)
+                  (object-array 0)
+                  (range 0)
+                  (repeatedly 0 rand)
+                  (Nothing.)]]
+      (is (= []
+             (coll/find-values
+               #(= :wanted (:type %))
+               coll)))))
+
+  (testing "Traverses collections."
+    (let [make-coll-fns
+          [vector
+           list
+           #(array-map :key %)
+           #(hash-map :key %)
+           hash-set
+           #(object-array [%])
+           #(repeatedly 1 (constantly %))
+           ->JustA]]
+
+      (testing "Top-level."
+        (doseq [make-coll make-coll-fns]
+          (is (= [{:type :wanted}]
+                 (coll/find-values
+                   #(= :wanted (:type %))
+                   (make-coll {:type :wanted}))))))
+
+      (testing "Nested."
+        (doseq [make-inner-coll make-coll-fns
+                make-middle-coll make-coll-fns
+                make-outer-coll make-coll-fns]
+          (is (= [{:type :wanted}]
+                 (coll/find-values
+                   #(= :wanted (:type %))
+                   (make-outer-coll
+                     (make-middle-coll
+                       (make-inner-coll {:type :wanted}))))))))))
+
+  (testing "Match is returned as-is."
+    (is (= [{:type :wanted
+             :vec [{:type :wanted
+                    :map {:a 1}
+                    :vec [0]}]
+             :map {:type :wanted
+                   :map {:a 1}
+                   :vec [0]}}]
+           (coll/find-values
+             #(= :wanted (:type %))
+             [{:type :wanted
+               :vec [{:type :wanted
+                      :map {:a 1}
+                      :vec [0]}]
+               :map {:type :wanted
+                     :map {:a 1}
+                     :vec [0]}}]))))
+
+  (testing "Over sequence."
+    (is (= [{:type :wanted :index 0}
+            {:type :wanted :index 1}
+            {:type :wanted :index 2}]
+           (coll/find-values
+             #(= :wanted (:type %))
+             [{:type :wanted :index 0}
+              [{:type :wanted :index 1}]
+              {:key {:type :wanted :index 2}}]))))
+
+
+  (testing "As transducer."
+    (is (= [{:type :wanted :index 0}
+            {:type :wanted :index 1}
+            {:type :wanted :index 2}]
+           (into []
+                 (coll/find-values #(= :wanted (:type %)))
+                 [{:type :wanted :index 0}
+                  [{:type :wanted :index 1}]
+                  {:key {:type :wanted :index 2}}])))))
 
 (deftest some-test
   (testing "some behavior"
