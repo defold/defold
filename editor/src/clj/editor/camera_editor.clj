@@ -18,16 +18,14 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.camera :as camera]
-            [editor.types :as types]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.scene-tools :as scene-tools]
-            [editor.localization :as localization]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -35,6 +33,7 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.scene-tools :as scene-tools]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc Camera$OrthoZoomMode]
@@ -285,22 +284,7 @@
           (let [;; Pixel-stable scale for the small camera mesh at the camera position.
                 ;; Similar to manipulators: 1 world unit at the reference depth -> Δpx.
                 ;; We target a fixed on-screen height (camera-mesh-target-pixels).
-                view-cam (:camera render-args)
-                view-pos (types/position view-cam)
-                ;; Avoid projecting the view camera position itself (w=0 in perspective).
-                ;; If the camera component sits exactly at the view camera position,
-                ;; offset the reference point slightly forward along the view direction.
-                ref-point (let [dx (- (.x ^Vector3d world-translation) (.x ^javax.vecmath.Point3d view-pos))
-                                dy (- (.y ^Vector3d world-translation) (.y ^javax.vecmath.Point3d view-pos))
-                                dz (- (.z ^Vector3d world-translation) (.z ^javax.vecmath.Point3d view-pos))
-                                dist2 (+ (* dx dx) (* dy dy) (* dz dz))]
-                            (if (< dist2 1.0e-12)
-                              (let [p (javax.vecmath.Point3d. world-translation)
-                                    fwd ^javax.vecmath.Vector3d (camera/camera-forward-vector view-cam)]
-                                (.scaleAdd p 1.0 fwd)
-                                p)
-                              (javax.vecmath.Point3d. world-translation)))
-                sf (scene-tools/scale-factor view-cam (:viewport render-args) ref-point)
+                sf (scene-tools/scale-factor (:camera render-args) (:viewport render-args) world-translation)
                 mh (double camera-mesh-height-units)
                 tp (double camera-mesh-target-pixels)
                 ratio (if (> mh 0.0) (/ tp mh) 1.0)
