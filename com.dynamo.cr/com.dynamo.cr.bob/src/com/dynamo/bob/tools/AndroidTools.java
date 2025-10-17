@@ -50,6 +50,13 @@ public class AndroidTools {
 
     private static boolean initialized = false;
 
+    /**
+     * Execute a command.
+     * Sets LD_LIBRARY_PATH on Linux before running the command.
+     * TODO: Could this be done in com.dynamo.bob.util.Exec instead?
+     * @param args List of arguments
+     * @return The result
+     */
     public static Result exec(List<String> args) throws IOException {
         logger.info("exec: " + String.join(" ", args));
         Map<String, String> env = new HashMap<String, String>();
@@ -143,7 +150,12 @@ public class AndroidTools {
     }
 
 
-
+    /**
+     * Run the Java jarsigner tool
+     * https://docs.oracle.com/en/java/javase/21/docs/specs/man/jarsigner.html
+     * @param jarsignerargs List of jarsigner arguments
+     * @return The result of running jarsigner
+     */
     public static Result jarsigner(List<String> jarsignerargs) throws IOException {
         init();
 
@@ -154,6 +166,12 @@ public class AndroidTools {
         return exec(args);
     }
 
+    /**
+     * Run the Android Asset Packaging Tool with a set of arguments
+     * https://developer.android.com/tools/aapt2
+     * @param aapt2args List of aapt2 arguments
+     * @return The result of running aapt2
+     */
     public static Result aapt2(List<String> aapt2args) throws IOException {
         init();
 
@@ -169,7 +187,12 @@ public class AndroidTools {
         return exec(args);
     }
 
-
+    /**
+     * Run the Android bundle tool
+     * https://developer.android.com/tools/bundletool
+     * @param bundletoolargs List of bundletool arguments
+     * @return The result of running bundletool
+     */
     public static Result bundletool(List<String> bundletoolargs) throws IOException {
         init();
 
