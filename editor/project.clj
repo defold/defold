@@ -89,14 +89,14 @@
                                    org.openjfx/javafx-media
                                    org.openjfx/javafx-web]]
 
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0"]
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-windows-amd64"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]
 
@@ -165,7 +165,9 @@
                       ;; hide warnings about illegal reflective access by clojure
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
                       ;; used in editor.scene$read_to_buffered_image
-                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
+                      "--enable-native-access=ALL-UNNAMED"
+                      "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
 
   :main ^:skip-aot   com.defold.editor.Main
@@ -233,7 +235,7 @@
                                :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.312"]
-                                              [org.openjfx/javafx-web "23.0.1"]]}
+                                              [org.openjfx/javafx-web "25"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
@@ -253,41 +255,41 @@
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :16gb {:jvm-opts ["-Xmx16g"]}
-                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "25" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "25" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "25" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "25" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "25" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "25" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
-                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "25" :classifier "win" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "25" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "25" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "25" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "25" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "25" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "25" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "25" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "25" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "25" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "25" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "25" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
-                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-controls "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-graphics "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-media "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-fxml "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                   [org.openjfx/javafx-swing "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-controls "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-graphics "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-media "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-fxml "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                   [org.openjfx/javafx-swing "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
                       :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform
-                                                    [org.openjfx/javafx-base "23.0.1"]
-                                                    [org.openjfx/javafx-controls "23.0.1"]
-                                                    [org.openjfx/javafx-graphics "23.0.1"]
-                                                    [org.openjfx/javafx-media "23.0.1"]
-                                                    [org.openjfx/javafx-fxml "23.0.1"]
-                                                    [org.openjfx/javafx-swing "23.0.1"]
+                                                    [org.openjfx/javafx-base "25"]
+                                                    [org.openjfx/javafx-controls "25"]
+                                                    [org.openjfx/javafx-graphics "25"]
+                                                    [org.openjfx/javafx-media "25"]
+                                                    [org.openjfx/javafx-fxml "25"]
+                                                    [org.openjfx/javafx-swing "25"]
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]

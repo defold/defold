@@ -58,7 +58,7 @@ DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '21.0.5+11'
+java_version = '25+36'
 
 platform_to_java = {'x86_64-linux': 'x64_linux',
                     'x86_64-macos': 'x64_mac',
@@ -254,7 +254,7 @@ def full_jdk_url(jdk_platform):
     version = urllib.parse.quote(java_version)
     platform = urllib.parse.quote(jdk_platform)
     extension = "zip" if "windows" in jdk_platform else "tar.gz"
-    major_version = java_version.split('.')[0]
+    major_version = java_version.split('.')[0].split('+')[0]
     artifact_version = java_version.replace('+', '_')
     return 'https://github.com/adoptium/temurin%s-binaries/releases/download/jdk-%s/OpenJDK%sU-jdk_%s_hotspot_%s.%s' % (major_version, version, major_version, platform, artifact_version, extension)
 
@@ -495,6 +495,13 @@ def create_bundle(options):
                       '@jlink-options',
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s' % packages_jdk])
+        file_result = subprocess.run(['file', '%s/bin/java' % packages_jdk],
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT,
+                                     text=True,
+                                     check=False)
+        print('JDK TYPE:')
+        print(file_result.stdout.strip())
 
         # create final zip file
         zipfile = 'target/editor/Defold-%s.zip' % platform
@@ -543,7 +550,7 @@ def sign(options):
         if 'macos' in platform:
             # we need to sign the binaries in Resources folder manually as codesign of
             # the *.app will not process files in Resources
-            jdk_dir = "jdk-%s" % (java_version)
+            jdk_dir = "jdk-%s" % java_version
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
                 sign_file('macos', options, exe)

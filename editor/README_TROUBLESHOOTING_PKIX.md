@@ -4,10 +4,10 @@
 
 This exception occurs when the editor tries to make an https connection but the certificate chain provided by the server cannot be verified.
 
-The Java Runtime Environment we bundle with the editor comes with a list of trusted CA certificates, found in ``packages/jdk-21.0.5+11/lib/security/cacerts``. You can inspect and modify this list using [keytool](https://docs.oracle.com/en/java/javase/21/docs/specs/man/keytool.html). The default password is `changeit`.
+The Java Runtime Environment we bundle with the editor comes with a list of trusted CA certificates, found in ``packages/jdk-25+36/lib/security/cacerts``. You can inspect and modify this list using [keytool](https://docs.oracle.com/en/java/javase/21/docs/specs/man/keytool.html). The default password is `changeit`.
 
 ```
-$ keytool -list -v -keystore packages/jdk-21.0.5+11/lib/security/cacerts -storepass changeit
+$ keytool -list -v -keystore packages/jdk-25+36/lib/security/cacerts -storepass changeit
 ```
 
 ## Common causes
@@ -38,7 +38,7 @@ To help debug ssl issues, you can start the editor manually with an additional `
 Start `cmd.exe` and `cd` into the Defold directory. Then run:
 
 ```
-packages\jdk-21.0.5+11\bin\java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefold.resourcespath=. -Ddefold.version=12345 -Ddefold.editor.sha1=<editor_sha1 from config file> -Ddefold.engine.sha1=testing -Ddefold.buildtime=testing -Ddefold.channel= -Djava.ext.dirs=packages\jre\lib\ext -Djava.net.preferIPv4Stack=true -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -Djogl.texture.notexrect=true -Dglass.accessible.force=false -Djavax.net.debug=SSL -jar packages\defold-<editor_sha1 from config file>.jar
+packages\jdk-25+36\bin\java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefold.resourcespath=. -Ddefold.version=12345 -Ddefold.editor.sha1=<editor_sha1 from config file> -Ddefold.engine.sha1=testing -Ddefold.buildtime=testing -Ddefold.channel= -Djava.ext.dirs=packages\jre\lib\ext -Djava.net.preferIPv4Stack=true -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -Djogl.texture.notexrect=true -Dglass.accessible.force=false -Djavax.net.debug=SSL -jar packages\defold-<editor_sha1 from config file>.jar
 ```
 
 ### Mac
@@ -46,7 +46,7 @@ packages\jdk-21.0.5+11\bin\java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefol
 Open a terminal window and `cd` into the `Defold.app/Contents/Resources` directory. Then run:
 
 ```
-packages/jdk-21.0.5+11/bin/java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefold.resourcespath=. -Ddefold.version=12345 -Ddefold.editor.sha1=<editor_sha1 from config file> -Ddefold.engine.sha1=testing -Ddefold.buildtime=testing -Ddefold.channel= -Djava.ext.dirs=packages/jre/lib/ext -Djava.net.preferIPv4Stack=true -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -Djogl.texture.notexrect=true -Dglass.accessible.force=false -Djavax.net.debug=SSL -jar packages/defold-<editor_sha1 from config file>.jar
+packages/jdk-25+36/bin/java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefold.resourcespath=. -Ddefold.version=12345 -Ddefold.editor.sha1=<editor_sha1 from config file> -Ddefold.engine.sha1=testing -Ddefold.buildtime=testing -Ddefold.channel= -Djava.ext.dirs=packages/jre/lib/ext -Djava.net.preferIPv4Stack=true -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -Djogl.texture.notexrect=true -Dglass.accessible.force=false -Djavax.net.debug=SSL -jar packages/defold-<editor_sha1 from config file>.jar
 ```
 
 ### Linux
@@ -54,5 +54,5 @@ packages/jdk-21.0.5+11/bin/java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefol
 Open a terminal window and `cd` into the Defold directory. Then run:
 
 ```
-packages/jdk-21.0.5+11/bin/java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefold.resourcespath=. -Ddefold.version=12345 -Ddefold.editor.sha1=<editor_sha1 from config file> -Ddefold.engine.sha1=testing -Ddefold.buildtime=testing -Ddefold.channel= -Djava.ext.dirs=packages/jre/lib/ext -Djava.net.preferIPv4Stack=true -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -Djogl.texture.notexrect=true -Dglass.accessible.force=false -Djavax.net.debug=SSL -jar packages/defold-<editor_sha1 from config file>.jar
+packages/jdk-25+36/bin/java -Djna.nosys=true -Ddefold.launcherpath=. -Ddefold.resourcespath=. -Ddefold.version=12345 -Ddefold.editor.sha1=<editor_sha1 from config file> -Ddefold.engine.sha1=testing -Ddefold.buildtime=testing -Ddefold.channel= -Djava.ext.dirs=packages/jre/lib/ext -Djava.net.preferIPv4Stack=true -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -Djogl.texture.notexrect=true -Dglass.accessible.force=false -Djavax.net.debug=SSL -jar packages/defold-<editor_sha1 from config file>.jar
 ```
