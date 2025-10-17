@@ -16,7 +16,7 @@
   "Expose some GL functions and constants with Clojure-ish flavor"
   (:refer-clojure :exclude [repeat])
   (:require [clojure.string :as string]
-            [editor.gl.protocols :as p]
+            [editor.gl.types :as gl.types]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.num :as num])
@@ -488,7 +488,7 @@
              (pair (persistent! bound-items) exception))
             ([[bound-items] bindable-item]
              (try
-               (p/bind bindable-item gl render-args)
+               (gl.types/bind! bindable-item gl render-args)
                (pair (conj! bound-items bindable-item) nil)
                (catch Throwable exception
                  (reduced (pair bound-items exception))))))
@@ -497,7 +497,7 @@
 
     (let [result (when-not exception
                    (body-fn!))]
-      (reduce #(p/unbind %2 gl render-args)
+      (reduce #(gl.types/unbind! %2 gl render-args)
               nil
               (rseq bound-items))
       (if exception
@@ -508,10 +508,10 @@
   `(with-gl-bindings-impl ~gl-expr ~render-args-expr ~bindable-items-expr (fn ~'body-fn! [] ~@body)))
 
 (defn bind [^GL2 gl bindable render-args]
-  (p/bind bindable gl render-args))
+  (gl.types/bind! bindable gl render-args))
 
 (defn unbind [^GL2 gl bindable render-args]
-  (p/unbind bindable gl render-args))
+  (gl.types/unbind! bindable gl render-args))
 
 (defmacro do-gl
   [glsymb render-args bindings & body]

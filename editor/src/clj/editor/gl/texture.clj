@@ -15,14 +15,14 @@
 (ns editor.gl.texture
   "Functions for creating and using textures"
   (:require [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind]]
+            [editor.gl.types :as gl.types]
             [editor.image-util :as image-util]
             [editor.scene-cache :as scene-cache]
             [internal.util :as util]
             [service.log :as log]
             [util.defonce :as defonce])
-  (:import [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
-           [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
+  (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
            [com.jogamp.opengl GL GL2 GL3 GLProfile]
            [com.jogamp.opengl.util.awt ImageUtil]
            [com.jogamp.opengl.util.texture Texture TextureData TextureIO]
@@ -126,11 +126,11 @@
   (->texture [this gl texture-array-index]
     (texture-lifecycle->texture this gl texture-array-index))
 
-  GlBind
-  (bind [this gl _render-args]
+  gl.types/GLBinding
+  (bind! [this gl _render-args]
     (bind-texture-lifecycle! this gl))
 
-  (unbind [this gl _render-args]
+  (unbind! [this gl _render-args]
     (unbind-texture-lifecycle! this gl)))
 
 (defn- texture-lifecycle->texture
@@ -250,17 +250,18 @@
       (ImageUtil/flipImageVertically))))
 
 (defn image-texture
-  "Create an image texture from a BufferedImage. The returned value
-supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
+  "Create an image texture from a BufferedImage. The returned value satisfies
+  the GLBinding protocol.
 
-If supplied, the params argument must be a map of parameter name to value. Parameter names
-can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
-`texture-params` (e.g., :wrap-s).
+  If supplied, the params argument must be a map of parameter name to value.
+  Parameter names can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their
+  keyword equivalents from `texture-params` (e.g., :wrap-s).
 
-If you supply parameters, then those parameters are used. If you do not supply parameters,
-then defaults in `default-image-texture-params` are used.
+  If you supply parameters, then those parameters are used. If you do not supply
+  parameters, then defaults in `default-image-texture-params` are used.
 
-If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The default is 0."
+  If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The
+  default is 0."
   ([request-id img]
    (image-texture request-id img default-image-texture-params 0))
   ([request-id img params]
@@ -332,7 +333,7 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
 
 (defn texture-image->gpu-texture
   "Create an image texture from a generated `TextureImage`. The returned value
-  supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
+  satisfies the GLBinding protocol.
 
   If supplied, the params argument must be a map of parameter name to value.
   Parameter names can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their

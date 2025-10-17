@@ -38,8 +38,8 @@ the `do-gl` macro from `editor.gl`."
   (:require [clojure.string :as str]
             [editor.buffers :as b]
             [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
+            [editor.gl.types :as gl.types]
             [editor.scene-cache :as scene-cache]
             [internal.util :as util])
   (:import [clojure.lang IEditableCollection IPersistentVector ITransientVector]
@@ -509,28 +509,28 @@ the `do-gl` macro from `editor.gl`."
   (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
 
 (defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
-  GlBind
-  (bind [_this gl render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
 
-  (unbind [_this gl render-args]
+  (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)))
 
 (defrecord VertexIndexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer ^"[I" index-buffer shader]
-  GlBind
-  (bind [_this gl render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
     (bind-index-buffer! gl request-id index-buffer))
 
-  (unbind [_this gl render-args]
+  (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)
     (unbind-index-buffer! gl)))
 
 (defn use-with
-  "Return a GlBind implementation that can match vertex buffer attributes to the
-  given shader's attributes. Matching is done by attribute names. An attribute
-  that exists in the vertex buffer but is not used by the shader will simply be
-  ignored."
+  "Return a GLBinding implementation that can match vertex buffer attributes to
+  the given shader's attributes. Matching is done by attribute names. An
+  attribute that exists in the vertex buffer but is not used by the shader will
+  simply be ignored."
   ([request-id ^PersistentVertexBuffer vertex-buffer shader]
    (->VertexBufferShaderLink request-id vertex-buffer shader))
   ([request-id ^PersistentVertexBuffer vertex-buffer ^"[I" index-buffer shader]

@@ -15,7 +15,6 @@
 (ns editor.gl.attribute
   (:require [editor.buffers :as buffers]
             [editor.gl :as gl]
-            [editor.gl.protocols :as p]
             [editor.gl.types :as gl.types]
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
@@ -241,8 +240,8 @@
    ^ElementType element-type
    ^int base-location]
 
-  p/GlBind
-  (bind [this gl render-args]
+  gl.types/GLBinding
+  (bind! [this gl render-args]
     (let [render-arg-value (get render-args render-arg-key ::not-found)]
       (if (= ::not-found render-arg-value)
         (throw
@@ -251,7 +250,7 @@
             (assoc this :render-args render-args)))
         (assign-attribute-from-value! render-arg-value element-type gl base-location))))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
 (defn make-attribute-render-arg-binding-raw
@@ -277,11 +276,11 @@
     (graphics.types/ensure-element-type-value-array element-type new-value)
     (assoc this :value-array new-value))
 
-  p/GlBind
-  (bind [_this gl _render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (assign-attribute-from-array! value-array element-type gl base-location))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
 (defn make-attribute-value-binding
@@ -326,8 +325,8 @@
     (ensure/argument-type new-value Vector4d)
     (assoc this :untransformed-vector new-value))
 
-  p/GlBind
-  (bind [_this gl render-args]
+  gl.types/GLBinding
+  (bind! [_this gl render-args]
     (let [transform (get render-args transform-render-arg-key)
 
           transformed-vector
@@ -342,7 +341,7 @@
 
       (assign-attribute-from-tuple-4d! transformed-vector gl base-location)))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (clear-attribute! :vector-type-vec4 gl base-location)))
 
 (defn make-transformed-attribute-value-binding
@@ -383,13 +382,13 @@
   (buffer-data [_this] (.-buffer-data attribute-buffer-data))
   (element-type [_this] element-type)
 
-  p/GlBind
-  (bind [_this gl _render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (let [gl-buffer (scene-cache/request-object! ::attribute-buffer request-id gl attribute-buffer-data)]
       (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
       gl-buffer))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
 
 (defn make-attribute-buffer
@@ -403,8 +402,8 @@
   [attribute-buffer-lifecycle
    ^int base-location]
 
-  p/GlBind
-  (bind [_this gl render-args]
+  gl.types/GLBinding
+  (bind! [_this gl render-args]
     (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
           vector-type (.-vector-type element-type)
           data-type (.-data-type element-type)
@@ -427,7 +426,7 @@
                 (gl/gl-vertex-attrib-pointer gl location row-column-count item-gl-type normalize vertex-byte-size byte-offset)
                 (recur (inc column-index)))))))))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (let [element-type (graphics.types/element-type attribute-buffer-lifecycle)
           vector-type (.-vector-type element-type)
           attribute-count (graphics.types/vector-type-attribute-count vector-type)]
@@ -436,7 +435,7 @@
 (defn make-attribute-buffer-binding
   ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
   (ensure/argument-satisfies attribute-buffer-lifecycle graphics.types/ElementBuffer)
-  (ensure/argument-satisfies attribute-buffer-lifecycle p/GlBind)
+  (ensure/argument-satisfies attribute-buffer-lifecycle gl.types/GLBinding)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeBufferBinding attribute-buffer-lifecycle base-location))
 
@@ -490,8 +489,8 @@
   (buffer-data [_this] untransformed-buffer-data)
   (element-type [_this] transformed-attribute-buffer-element-type)
 
-  p/GlBind
-  (bind [_this gl render-args]
+  gl.types/GLBinding
+  (bind! [_this gl render-args]
     (let [transform (get render-args transform-render-arg-key)]
       (if (or (instance? Matrix4d transform)
               (instance? Quat4d transform))
@@ -505,7 +504,7 @@
             {:transform-render-arg-key transform-render-arg-key
              :render-args render-args})))))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
 
 (defn make-transformed-attribute-buffer
@@ -632,13 +631,13 @@
   (buffer-data [_this] (.-buffer-data index-buffer-data))
   (element-type [_this] element-type)
 
-  p/GlBind
-  (bind [_this gl _render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (let [gl-buffer (scene-cache/request-object! ::index-buffer request-id gl index-buffer-data)]
       (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER gl-buffer)
       gl-buffer))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)))
 
 (defn make-index-buffer

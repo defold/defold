@@ -102,8 +102,8 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [editor.buffers :refer [bbuf->string]]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind]]
-            [editor.graphics.types :as types]
+            [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.scene-cache :as scene-cache]
             [util.array :as array]
@@ -480,8 +480,8 @@ This must be submitted to the driver for compilation before you can use it. See
    attribute-locations
    uniforms]
 
-  GlBind
-  (bind [_this gl render-args]
+  gl.types/GLBinding
+  (bind! [_this gl render-args]
     (let [{:keys [^int program uniform-infos]} (scene-cache/request-object! ::shader request-id gl request-data)]
       (.glUseProgram ^GL2 gl program)
       (when-not (zero? program)
@@ -492,7 +492,7 @@ This must be submitted to the driver for compilation before you can use it. See
                             val)]]
           (set-uniform-impl! gl program uniform-infos name val)))))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
@@ -574,7 +574,7 @@ This must be submitted to the driver for compilation before you can use it. See
   {:pre [(scene-cache/valid-request-id? request-id)
          (instance? ShaderRequestData request-data)
          (vector? attribute-reflection-infos)
-         (every? types/attribute-reflection-info? attribute-reflection-infos)
+         (every? graphics.types/attribute-reflection-info? attribute-reflection-infos)
          (map? uniform-values-by-name)
          (every? string? (keys uniform-values-by-name))]}
   ;; TODO(instancing): We should be able to derive the attribute-infos from the
@@ -640,7 +640,7 @@ This must be submitted to the driver for compilation before you can use it. See
   {:pre [(keyword? request-type)]}
   (let [coordinate-space (:coordinate-space opts)
         max-page-count (or (:max-page-count opts) 0)
-        _ (assert (types/concrete-coordinate-space? coordinate-space))
+        _ (assert (graphics.types/concrete-coordinate-space? coordinate-space))
         _ (assert (nat-int? max-page-count))
 
         request-id

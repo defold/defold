@@ -15,7 +15,7 @@
 (ns editor.graphics-test
   (:require [clojure.test :refer :all]
             [editor.graphics :as graphics]
-            [editor.graphics.types :as types]
+            [editor.graphics.types :as graphics.types]
             [util.coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
@@ -228,9 +228,9 @@
     {:vector-type-vec4 [1.1 1.2 1.3 1.0]}}})
 
 (deftest convert-double-values-rule-declaration-test
-  (is (= (conj types/vector-types nil)
+  (is (= (conj graphics.types/vector-types nil)
          (set (keys (convert-double-values-rule-declaration :semantic-type-none)))))
-  (is (every? #(is (= types/vector-types (set (keys %))))
+  (is (every? #(is (= graphics.types/vector-types (set (keys %))))
               (vals (convert-double-values-rule-declaration :semantic-type-none)))))
 
 (def ^:private convert-double-values-rules
@@ -240,7 +240,7 @@
                  (let [declared-semantic-rules (convert-double-values-rule-declaration semantic-type)
                        semantic-rules (merge-with merge default-semantic-rules declared-semantic-rules)]
                    (pair semantic-type semantic-rules))))
-          types/semantic-types)))
+          graphics.types/semantic-types)))
 
 (deftest convert-double-values-rules-test
   ;; Sanity checks to verify the rules were merged as expected.

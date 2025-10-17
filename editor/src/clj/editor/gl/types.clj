@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gl.types
-  (:require [editor.graphics.types :as graphics.types])
+  (:require [editor.graphics.types :as graphics.types]
+            [util.defonce :as defonce])
   (:import [com.jogamp.opengl GL2]
            [editor.buffers BufferData]
            [editor.graphics.types ElementType]
@@ -21,6 +22,10 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defonce/protocol GLBinding
+  (bind! [this gl render-args] "Bind this object to the GPU context.")
+  (unbind! [this gl render-args] "Unbind this object from the GPU context."))
 
 (defn data-type-gl-type
   ^long [data-type]

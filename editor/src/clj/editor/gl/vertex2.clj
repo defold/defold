@@ -16,9 +16,9 @@
   (:require [clojure.string :as str]
             [editor.buffers :as buffers]
             [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
-            [editor.graphics.types :as types]
+            [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
             [editor.scene-cache :as scene-cache]
             [util.coll :as coll]
             [util.defonce :as defonce]
@@ -212,8 +212,8 @@
                            :vec3 3
                            :vec4 4)
         attribute-name   (name nm)
-        attribute-key    (types/attribute-name-key attribute-name)
-        semantic-type    (types/infer-semantic-type attribute-key)
+        attribute-key    (graphics.types/attribute-name-key attribute-name)
+        semantic-type    (graphics.types/infer-semantic-type attribute-key)
         vector-type      (case num-components
                            1 :vector-type-scalar
                            2 :vector-type-vec2
@@ -282,7 +282,7 @@
     (gl/gl-disable-vertex-attrib-array gl location)))
 
 (defn vertex-attribute->row-column-count [vertex-attribute]
-  (let [vector-type-row-column-count (types/vector-type-row-column-count (:vector-type vertex-attribute))]
+  (let [vector-type-row-column-count (graphics.types/vector-type-row-column-count (:vector-type vertex-attribute))]
     (if (pos? vector-type-row-column-count)
       vector-type-row-column-count
       (case (long (:components vertex-attribute -1))
@@ -341,21 +341,21 @@
   (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
 
 (defonce/type VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
-  GlBind
-  (bind [_this gl _render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
     (set! expanded-attribute-locations nil)))
 
 (defonce/type VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
-  GlBind
-  (bind [_this gl _render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
     (bind-index-buffer! gl request-id index-buffer))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
     (set! expanded-attribute-locations nil)
     (unbind-index-buffer! gl)))
