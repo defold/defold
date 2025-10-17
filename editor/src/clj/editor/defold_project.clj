@@ -1606,6 +1606,10 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
+  (output display-width g/Num (g/fnk [settings]
+                                 (double (or (get settings ["display" "width"]) 0))))
+  (output display-height g/Num (g/fnk [settings]
+                                  (double (or (get settings ["display" "height"]) 0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
