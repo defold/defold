@@ -51,7 +51,7 @@
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
@@ -281,8 +281,11 @@
                      (HBox/setHgrow Priority/ALWAYS)
                      (ui/add-style! "path-field")
                      (ui/children! [(doto (Label.)
-                                      (HBox/setHgrow Priority/NEVER)
+                                      (HBox/setHgrow Priority/ALWAYS)
                                       (.setId "directory-text")
+                                      (.setMaxWidth Double/MAX_VALUE)
+                                      (.setTextOverrun OverrunStyle/LEADING_ELLIPSIS)
+                                      (.setEllipsisString "…")
                                       (ui/add-styles! ["path-element" "explicit"])
                                       (ui/text! (or (some-> directory .getAbsolutePath) "")))
                                     (doto (Label. File/separator)
@@ -290,7 +293,9 @@
                                       (ui/add-styles! ["path-element" "implicit"]))
                                     (doto (Label.)
                                       (HBox/setHgrow Priority/NEVER)
-                                      (.setMinWidth Region/USE_PREF_SIZE)
+                                      (.setMinWidth Region/USE_COMPUTED_SIZE)
+                                      (.setTextOverrun OverrunStyle/ELLIPSIS)
+                                      (.setEllipsisString "…")
                                       (.setId "title-text")
                                       (ui/add-styles! ["path-element" "implicit"]))]))
                    (doto (Button. "\u2022 \u2022 \u2022") ; "* * *" (BULLET)
