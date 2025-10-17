@@ -25,6 +25,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
