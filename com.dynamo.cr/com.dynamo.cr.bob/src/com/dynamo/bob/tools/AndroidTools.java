@@ -203,4 +203,33 @@ public class AndroidTools {
 
         return exec(args);
     }
+
+
+    public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            System.out.println("Usage: AndroidTools <aapt2|bundletool|jarsigner> <arg1..n>");
+            return;
+        }
+
+        // create list of args, starting from the second value (first is the command to run)
+        List<String> argslist = new ArrayList<>();
+        for (int i = 1; i < args.length; i++) {
+            argslist.add(args[i]);
+        }
+
+        final String command = args[0];
+        switch (command) {
+            case "aapt2":
+                aapt2(argslist);
+                break;
+            case "bundletool":
+                bundletool(argslist);
+                break;
+            case "jarsigner":
+                jarsigner(argslist);
+                break;
+            default:
+                System.out.println("Unknown command: " + command);
+        }
+    }
 }
