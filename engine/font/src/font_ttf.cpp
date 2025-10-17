@@ -120,10 +120,10 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
 
     stbtt_fontinfo* info = &font->m_Font;
 
-    int advx, lsb;
+    int advx = 0, lsb = 0;
     stbtt_GetGlyphHMetrics(info, glyph_index, &advx, &lsb);
 
-    int x0, y0, x1, y1;
+    int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
     stbtt_GetGlyphBox(info, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
@@ -169,7 +169,6 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
         x1 += padding;
         y1 += padding;
     }
-
 
     glyph->m_Width = (x1 - x0) * scale;
     glyph->m_Height = (y1 - y0) * scale;
@@ -276,5 +275,6 @@ hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont)
 bool FontGetGlyphBoxTTF(HFont hfont, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
 {
     TTFFont* font = ToFont(hfont);
+    x0 = y0 = x1 = y1 = 0;
     return stbtt_GetGlyphBox(&font->m_Font, glyph_index, x0, y0, x1, y1);
 }
