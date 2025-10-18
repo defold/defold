@@ -16,8 +16,8 @@
 #include <dlib/log.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include <render/font/fontmap.h>
 #include <render/render.h>
-#include <render/font_renderer.h>
 #include <script/script.h>
 #include <dmsdk/gamesys/script.h>
 

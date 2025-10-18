@@ -25,8 +25,6 @@
 #include <resource/resource.h>
 
 #include <render/render.h>
-#include <render/font_renderer.h>
-#include <rig/rig.h>
 
 #include <hid/hid.h>
 #include <input/input.h>
@@ -43,7 +41,11 @@
 #include "engine_service.h"
 #include "engine.h"
 #include <engine/engine_ddf.h>
-#include <dmsdk/gamesys/resources/res_font.h>
+
+namespace dmGameSystem
+{
+    struct FontResource;
+}
 
 namespace dmEngine
 {

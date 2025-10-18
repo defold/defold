@@ -13,9 +13,26 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_glyph_bank.h"
+#include <render/font/font_glyphbank.h>
 
 namespace dmGameSystem
 {
+    struct GlyphBankResource
+    {
+        dmRenderDDF::GlyphBank* m_DDF;
+        HFont                   m_Font;
+    };
+
+    HFont GetFont(GlyphBankResource* resource)
+    {
+        return resource->m_Font;
+    }
+
+    dmRenderDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource)
+    {
+        return resource->m_DDF;
+    }
+
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmRenderDDF::GlyphBank* ddf;
@@ -33,6 +50,7 @@ namespace dmGameSystem
     {
         GlyphBankResource* resource   = new GlyphBankResource();
         resource->m_DDF               = (dmRenderDDF::GlyphBank*) params->m_PreloadData;
+        resource->m_Font              = CreateGlyphBankFont(params->m_Filename, resource->m_DDF);
         dmResource::SetResource(params->m_Resource, resource);
         return dmResource::RESULT_OK;
     }
@@ -40,6 +58,11 @@ namespace dmGameSystem
     dmResource::Result ResGlyphBankDestroy(const dmResource::ResourceDestroyParams* params)
     {
         GlyphBankResource* resource = (GlyphBankResource*) dmResource::GetResource(params->m_Resource);
+        if (resource->m_Font)
+        {
+            FontDestroy(resource->m_Font);
+        }
+
         if (resource->m_DDF != 0x0)
         {
             dmDDF::FreeMessage(resource->m_DDF);

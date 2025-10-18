@@ -24,7 +24,7 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 #include <dmsdk/dlib/vmath.h>
-#include <render/font_renderer.h>
+#include <render/font/font_renderer.h>
 #include <render/font_ddf.h>
 
 namespace dmProfileRender

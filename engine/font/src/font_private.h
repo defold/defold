@@ -12,20 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_FONT_PRIVATE_H)
+#ifndef DM_FONT_PRIVATE_H
 #define DM_FONT_PRIVATE_H
 
 #include "font.h"
 
-namespace dmFont
-{
-
-struct Font
-{
-    FontType m_Type;
-    const char* m_Path;
-};
-
-} // namespace
+// Unit tests
+void FontDebug(HFont font, float scale, float padding, const char* text);
+void FontDebugGlyph(FontGlyph* glyph, int indent);
 
 #endif // DM_FONT_PRIVATE_H

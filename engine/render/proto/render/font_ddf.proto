@@ -52,7 +52,7 @@ message GlyphBank
 // TODO: Bob shouldn't write down X/Y, in order to slim down content!
     message Glyph
     {
-        required uint32 character         = 1;                  // utf8 codepoint
+        required uint32 character         = 1;                  // utf32 codepoint
         optional float  width             = 2 [default = 0];    // glyph width
         optional uint32 image_width       = 3 [default = 0];    // glyph image width
         optional float  advance           = 4 [default = 0.0];

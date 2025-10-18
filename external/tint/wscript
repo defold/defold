@@ -1,0 +1,172 @@
+#! /usr/bin/env python
+
+srcdir = '.'
+blddir = 'build'
+
+APPNAME='tint'
+VERSION='22b958'
+
+import os, sys, re, shutil
+import waf_dynamo
+import run
+from waflib import Build
+from waflib.TaskGen import feature, after
+
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
+    conf.load('waf_dynamo')
+    conf.env.append_unique('DEFINES', 'NDEBUG')
+
+def build(bld):
+    name = '%s-%s' % (APPNAME, VERSION)
+    packagedir = 'package/%s/src' % name
+
+    # path = '%s/BulletCollision' % packagedir
+
+    source = bld.path.ant_glob(['tint/src/tint/lang/**/*.cc',
+                                'tint/src/tint/utils/**/*.cc',
+                                'tint/src/tint/cmd/tint/**/*.cc'])
+
+    def filter(path):
+        if '_test.cc' in path.name:
+            return False
+        if '_bench.cc' in path.name:
+            return False
+        return True
+    source = [x for x in source if filter(x)]
+
+    # From their build page:
+    # TINT_BUILD_SPV_READER : enable the SPIR-V input reader (off by default)
+    # TINT_BUILD_SPV_WRITER : enable the SPIR-V output writer (on by default)
+    # TINT_BUILD_WGSL_READER : enable the WGSL input reader (on by default)
+    # TINT_BUILD_WGSL_WRITER : enable the WGSL output writer (on by default)
+    # TINT_BUILD_FUZZERS : enable building fuzzzers (off by default)
+
+    defines = []
+    defines += [ "TINT_BUILD_SPV_READER=0" ]
+    defines += [ "TINT_BUILD_SPV_WRITER=1" ]
+    defines += [ "TINT_BUILD_WGSL_READER=1" ]
+    defines += [ "TINT_BUILD_WGSL_WRITER=1" ]
+    defines += [ "TINT_BUILD_MSL_WRITER=1" ]
+    defines += [ "TINT_BUILD_FUZZERS=0" ]
+
+    platform = bld.env.PLATFORM
+    if platform in ['x86_64-win32', 'arm64-win32']:
+        defines += ["TINT_BUILD_IS_WIN=1"]
+    else:
+        defines += ["TINT_BUILD_IS_WIN=0"]
+
+    if platform in ['x86_64-macos', 'arm64-macos']:
+        defines += ["TINT_BUILD_IS_MAC=1"]
+    else:
+        defines += ["TINT_BUILD_IS_MAC=0"]
+
+    if platform in ['x86_64-linux', 'arm64-linux']:
+        defines += ["TINT_BUILD_IS_LINUX=1"]
+    else:
+        defines += ["TINT_BUILD_IS_LINUX=0"]
+
+    print(bld.env)
+
+    remove_flags = {}
+    remove_flags['CXXFLAGS'] = []
+    remove_flags['CXXFLAGS'].append(('-std=c++11', 0))
+
+    b = bld(features = 'cxx cprogram remove_flags',
+            source = source,
+            includes = './tint',
+            defines = defines,
+            remove_flags = remove_flags,
+            target = 'tint')
+
+    b.env.append_unique('CXXFLAGS', ['-std=c++17'])
+
+    print(b.env)
+
+    # source_files = bld.path.ant_glob(['%s/BroadphaseCollision/**/*.cpp' % path,
+    #                                    '%s/CollisionShapes/**/*.cpp' % path,
+    #                                    '%s/CollisionDispatch/**/*.cpp' % path,
+    #                                    '%s/Gimpact/**/*.cpp' % path,
+    #                                    '%s/NarrowPhaseCollision/**/*.cpp' % path])
+
+    # bullet_collision = bld.stlib(features = 'c cxx',
+    #                             source    = source_files,
+    #                             defines   = ['NDEBUG','_USE_MATH_DEFINES'],
+    #                             includes  = '. .. ./package/%s/src' % name,
+    #                             target    = 'BulletCollision')
+
+    # bullet_collision.install_path = None
+
+    # path = '%s/BulletDynamics' % packagedir
+    # source_files = bld.path.ant_glob(['%s/Character/**/*.cpp' % path,
+    #                                   '%s/ConstraintSolver/**/*.cpp' % path,
+    #                                   '%s/Dynamics/**/*.cpp' % path,
+    #                                   '%s/Vehicle/**/*.cpp' % path])
+    # bullet_dynamics = bld.stlib(features = 'c cxx',
+    #                             source   = source_files,
+    #                             defines  = ['NDEBUG','_USE_MATH_DEFINES'],
+    #                             includes = '. .. ./package/%s/src' % name,
+    #                             target   = 'BulletDynamics')
+
+    # bullet_dynamics.install_path = None
+
+    # path = '%s/LinearMath' % packagedir
+    # source_files = bld.path.ant_glob(['%s/LinearMath/**/*.cpp' % packagedir])
+
+    # linear_math = bld.stlib(features = 'c cxx',
+    #                        source   = source_files,
+    #                        defines = ['NDEBUG','_USE_MATH_DEFINES'],
+    #                        includes = '. .. ./package/%s/src' % name,
+    #                        target = 'LinearMath')
+    # linear_math.install_path = None
+
+    # linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
+
+    # if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+    #     bld.env.STLIB_ST         = 'lib%s.lib'
+    #     bld.env.cstlib_PATTERN   = 'lib%s.lib'
+    #     bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+
+    # bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'BulletCollision')
+    # bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'BulletDynamics')
+    # bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'LinearMath')
+    # bld.install_files('${PREFIX}/%s/include' % (name),
+    #                     bld.path.ant_glob('%s/**/*.h' % packagedir),
+    #                     relative_base=bld.path.find_dir(packagedir),
+    #                     relative_trick=True)
+
+    # if isinstance(bld, Build.InstallContext):
+    #     bld.add_group() # make sure the previous install step is done before we create the archive
+
+    #     output_dir = '%s/%s-%s' % (bld.env.PREFIX, APPNAME, VERSION)
+    #     pkg = bld(rule=create_package,
+    #               cwd=output_dir,
+    #               target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
+    #               always=True)
+
+def create_package(self):
+    target = self.outputs[0].abspath()
+    name = self.outputs[0].name
+    args = ['tar', 'zcvf', os.path.normpath(target)]
+    args.extend(os.listdir(self.cwd))
+    run.command(args, cwd=self.cwd)
+    print("Wrote", target)
+
+    # copy to the defold package path
+    source = target
+    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(source, target)
+    print("Installed to", target)
+
+    shutil.rmtree(self.cwd)
+
+def package(self):
+    pass

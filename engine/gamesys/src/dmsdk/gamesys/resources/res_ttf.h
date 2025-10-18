@@ -22,7 +22,7 @@ namespace dmGameSystem
 {
     struct TTFResource;
 
-    dmFont::HFont GetFont(TTFResource* resource);
+    HFont GetFont(TTFResource* resource);
 }
 
 #endif

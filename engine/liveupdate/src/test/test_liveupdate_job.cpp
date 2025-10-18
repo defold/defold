@@ -23,18 +23,24 @@
 #include <dlib/time.h>
 #include <dlib/job_thread.h>
 
-#if defined(DM_USE_SINGLE_THREAD)
-class AsyncTestMultiThread : public jc_test_base_class
+#if DM_TEST_THREAD_COUNT==0
+#define TestClassName AsyncTestNoThread
 #else
-class AsyncTestSingleThread : public jc_test_base_class
+#define TestClassName AsyncTestThread
+#endif
+
+// Make the name nicer in the terminal output
+#if DM_TEST_THREAD_COUNT==0
+class AsyncTestNoThread : public jc_test_base_class
+#else
+class AsyncTestThread : public jc_test_base_class
 #endif
 {
 public:
     void SetUp() override
     {
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
-        job_thread_create_param.m_ThreadCount    = 1;
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount = DM_TEST_THREAD_COUNT;
         m_JobThread = dmJobThread::Create(job_thread_create_param);
     }
     void TearDown() override
@@ -51,7 +57,7 @@ struct JobData
     int  m_Result;
 };
 
-static int ProcessData(void* context, void* _data)
+static int ProcessData(dmJobThread::HContext, dmJobThread::HJob, void* context, void* _data)
 {
     HashState64* hash_state = (HashState64*)context;
     JobData* data = (JobData*)_data;
@@ -61,7 +67,7 @@ static int ProcessData(void* context, void* _data)
     return data->m_Char;
 }
 
-static void FinishData(void* context, void* _data, int result)
+static void FinishData(dmJobThread::HContext, dmJobThread::HJob, dmJobThread::JobStatus status, void* context, void* _data, int result)
 {
     JobData* data = (JobData*)_data;
     data->m_Result = result;
@@ -69,13 +75,19 @@ static void FinishData(void* context, void* _data, int result)
 
 static void PushJob(dmJobThread::HContext thread, HashState64* hash_state, JobData* data)
 {
-    dmJobThread::PushJob(thread, (dmJobThread::FProcess)ProcessData, (dmJobThread::FCallback)FinishData, (void*)hash_state, (void*)data);
+    dmJobThread::Job job = {0};
+    job.m_Process = ProcessData;
+    job.m_Callback = FinishData;
+    job.m_Context = (void*)hash_state;
+    job.m_Data = (void*)data;
+    dmJobThread::HJob hjob = dmJobThread::CreateJob(thread, &job);
+    dmJobThread::PushJob(thread, hjob);
 }
 
-#if defined(DM_USE_SINGLE_THREAD)
-TEST_F(AsyncTestMultiThread, TestJobs)
+#if DM_TEST_THREAD_COUNT==0
+TEST_F(AsyncTestNoThread, TestJobs)
 #else
-TEST_F(AsyncTestSingleThread, TestJobs)
+TEST_F(AsyncTestThread, TestJobs)
 #endif
 {
     const char* test_data = "TESTSTRING";
@@ -96,7 +108,7 @@ TEST_F(AsyncTestSingleThread, TestJobs)
     uint64_t time_start = dmTime::GetMonotonicTime();
     while (true)
     {
-        if ((dmTime::GetMonotonicTime() - time_start) >= 5 * 10000000)
+        if ((dmTime::GetMonotonicTime() - time_start) >= 2 * 10000000)
         {
             dmLogError("Test timed out!");
             break;

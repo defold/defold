@@ -156,7 +156,7 @@ namespace dmGameSystem
     }
 
     // Called from job thread
-    static int LoadBufferFunctionCallback(void* context, void* data)
+    static int LoadBufferFunctionCallback(dmJobThread::HContext, dmJobThread::HJob hjob, void* context, void* data)
     {
         DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
@@ -166,7 +166,7 @@ namespace dmGameSystem
     }
 
     // Called from the main thread
-    static void LoadBufferCompleteCallback(void* context, void* data, int result)
+    static void LoadBufferCompleteCallback(dmJobThread::HContext, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* context, void* data, int result)
     {
         if (((dmResource::Result) result) == dmResource::RESULT_OK)
         {
@@ -187,10 +187,14 @@ namespace dmGameSystem
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
     static void DispatchRequest(LuaRequest* request)
     {
-        dmJobThread::PushJob(g_SysModule.m_JobThread,
-            LoadBufferFunctionCallback,
-            LoadBufferCompleteCallback,
-            (void*) (uintptr_t) request->m_Handle, 0);
+        dmJobThread::Job job = {0};
+        job.m_Process = LoadBufferFunctionCallback;
+        job.m_Callback = LoadBufferCompleteCallback;
+        job.m_Context = (void*) (uintptr_t) request->m_Handle;
+        job.m_Data = 0;
+
+        dmJobThread::HJob hjob = dmJobThread::CreateJob(g_SysModule.m_JobThread, &job);
+        dmJobThread::PushJob(g_SysModule.m_JobThread, hjob);
     }
 
     /*# loads a buffer from a resource or disk path

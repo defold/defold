@@ -32,7 +32,7 @@ struct ResourceStreamJob
     const char*             m_CanonicalPath;
 };
 
-static int JobProcess(void* context, void* data)
+static int JobProcess(dmJobThread::HContext, dmJobThread::HJob hjob, void* context, void* data)
 {
     HFactory factory = (HFactory)context;
     ResourceStreamJob* job = (ResourceStreamJob*)data;
@@ -55,7 +55,7 @@ static int JobProcess(void* context, void* data)
     return 1;
 }
 
-static void JobCallback(void* context, void* data, int result)
+static void JobCallback(dmJobThread::HContext, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* context, void* data, int result)
 {
     HFactory factory = (HFactory)context;
     ResourceStreamJob* job = (ResourceStreamJob*)data;
@@ -96,7 +96,16 @@ Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t
     job->m_Path = strdup(path);
 
     dmJobThread::HContext job_context = dmResource::GetJobThread(factory);
-    dmJobThread::PushJob(job_context, JobProcess, JobCallback, factory, job);
+    assert(job_context != 0);
+
+    dmJobThread::Job threadjob = {0};
+    threadjob.m_Process = JobProcess;
+    threadjob.m_Callback = JobCallback;
+    threadjob.m_Context = (void*) factory;
+    threadjob.m_Data = (void*) job;
+
+    dmJobThread::HJob hjob = dmJobThread::CreateJob(job_context, &threadjob);
+    dmJobThread::PushJob(job_context, hjob);
 
     return dmResource::RESULT_OK;
 }

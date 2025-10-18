@@ -673,7 +673,7 @@ namespace dmGraphics
         // Create main render pass with two attachments
         RenderPassAttachment  attachments[3];
         RenderPassAttachment* attachment_resolve = 0;
-        
+
         // Main color attachment
         attachments[0].m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
         attachments[0].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -2266,7 +2266,7 @@ bail:
                 case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
-                    
+
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
@@ -2553,7 +2553,7 @@ bail:
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_FrameBegun);
-        
+
         const uint8_t ix = context->m_CurrentFrameInFlight;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
@@ -4248,7 +4248,7 @@ bail:
         VulkanSetTextureInternal(context, tex, params);
     }
 
-    static int AsyncProcessCallback(void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4342,7 +4342,7 @@ bail:
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4454,11 +4454,14 @@ bail:
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::PushJob(context->m_JobThread,
-                AsyncProcessCallback,
-                AsyncCompleteCallback,
-                (void*) context,
-                (void*) (uintptr_t) param_array_index);
+            dmJobThread::Job job = {0};
+            job.m_Process = AsyncProcessCallback;
+            job.m_Callback = AsyncCompleteCallback;
+            job.m_Context = (void*) context;
+            job.m_Data = (void*) (uintptr_t) param_array_index;
+
+            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
+            dmJobThread::PushJob(context->m_JobThread, hjob);
         } 
         else
         {

@@ -21,9 +21,12 @@
 #include <dmsdk/dlib/dstrings.h>
 
 #include "render/render.h"
-#include "render/font_renderer.h"
 #include "render/render_private.h"
 #include "render/render_script.h"
+#include "render/font/font_renderer.h"
+#include "render/font/font_glyphbank.h"
+#include "font/font.h"
+#include <dmsdk/font/fontcollection.h>
 
 #include "render/render_ddf.h"
 
@@ -51,27 +54,48 @@ namespace
     }
 }
 
-static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
+static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
 {
-    dmRender::FontGlyph* glyphs = (dmRender::FontGlyph*)user_ctx;
-    return &glyphs[utf8];
+    dmRenderDDF::GlyphBank* bank = new dmRenderDDF::GlyphBank;
+    memset(bank, 0, sizeof(*bank));
+
+    bank->m_Glyphs.m_Count = glyph_count;
+    bank->m_Glyphs.m_Data = new dmRenderDDF::GlyphBank::Glyph[glyph_count];
+
+    memset(bank->m_Glyphs.m_Data, 0, sizeof(dmRenderDDF::GlyphBank::Glyph) * glyph_count);
+    for (uint32_t i = 0; i < glyph_count; ++i)
+    {
+        bank->m_Glyphs[i].m_Character = i;
+        bank->m_Glyphs[i].m_Width = 1;
+        bank->m_Glyphs[i].m_LeftBearing = 1;
+        bank->m_Glyphs[i].m_Advance = 2;
+        bank->m_Glyphs[i].m_Ascent = 2;
+        bank->m_Glyphs[i].m_Descent = 1;
+    }
+
+    bank->m_MaxAscent = max_ascent;
+    bank->m_MaxDescent = max_descent;
+
+    return bank;
 }
 
-static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
 {
-    return 0;
+    delete[] bank->m_Glyphs.m_Data;
+    delete bank;
 }
 
 class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
-    dmPlatform::HWindow          m_Window;
-    dmScript::HContext           m_ScriptContext;
-    dmRender::HRenderContext     m_Context;
-    dmGraphics::HContext         m_GraphicsContext;
-    dmRender::HFontMap           m_SystemFontMap;
-    dmRender::HMaterial          m_FontMaterial;
-    dmRender::FontGlyph          m_Glyphs[128];
+    dmPlatform::HWindow         m_Window;
+    dmScript::HContext          m_ScriptContext;
+    dmRender::HRenderContext    m_Context;
+    dmGraphics::HContext        m_GraphicsContext;
+    dmRender::HFontMap          m_SystemFontMap;
+    dmRender::HMaterial         m_FontMaterial;
+    dmRenderDDF::GlyphBank*     m_GlyphBank;
+    HFont                       m_Font;
 
     dmGraphics::HProgram m_FontProgram;
     dmGraphics::HProgram m_ComputeProgram;
@@ -102,23 +126,20 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
+        m_GlyphBank = CreateGlyphBank(1, 1, 128);
+        m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
+
+        HFontCollection font_collection = FontCollectionCreate();
+        FontCollectionAddFont(font_collection, m_Font);
+
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;
         font_map_params.m_CacheHeight = 128;
         font_map_params.m_CacheCellWidth = 8;
         font_map_params.m_CacheCellHeight = 8;
-        font_map_params.m_GetGlyph = GetGlyph;
-        font_map_params.m_GetGlyphData = GetGlyphData;
+        font_map_params.m_FontCollection = font_collection;
 
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
-
-        memset(m_Glyphs, 0, sizeof(m_Glyphs));
-        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
-        {
-            m_Glyphs[i].m_Width = 1;
-            m_Glyphs[i].m_Character = i;
-        }
-        dmRender::SetFontMapUserData(m_SystemFontMap, m_Glyphs);
 
         dmRender::RenderContextParams params;
         params.m_ScriptContext = m_ScriptContext;
@@ -160,6 +181,10 @@ protected:
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
+
+        FontDestroy(m_Font);
+        DestroyGlyphBank(m_GlyphBank);
+
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmPlatform::CloseWindow(m_Window);
         dmPlatform::DeleteWindow(m_Window);

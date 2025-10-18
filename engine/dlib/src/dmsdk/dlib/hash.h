@@ -313,7 +313,7 @@ DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
  *
  * ```cpp
  * DM_HASH_REVERSE_MEM(hash_ctx, 128);
- * const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
+ * const char* reverse = dmHashReverseSafe64Alloc(&hash_ctx, hash);
  * ```
  */
 DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash);

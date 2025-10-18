@@ -1,0 +1,150 @@
+# Windows/Cygwin support
+ifdef windir
+    WINDOWS := 1
+    CYGWIN  := 0
+else
+    ifdef WINDIR
+        WINDOWS := 1
+        CYGWIN  := 1
+    else
+        WINDOWS := 0
+    endif
+endif
+ifeq ($(WINDOWS),1)
+    EXEEXT := .exe
+    DLLEXT := .dll
+    DEVNUL := nul
+    ifeq ($(CYGWIN),1)
+        PATHSEP := /
+    else
+        PATHSEP := $(strip \ )
+    endif
+else
+    EXEEXT :=
+    DLLEXT := .so
+    DEVNUL := /dev/null
+    PATHSEP := /
+endif
+
+CFG ?= Debug
+ifeq ($(CFG),Debug)
+    all: debug
+else
+    all: release
+endif
+
+OLDGCC ?= N
+
+DEBUG   := DebugDir
+RELEASE := ReleaseDir
+
+$(DEBUG)/%.o: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(DBGFLAGS) $(TARGET_ARCH) -c -o $@ $<
+
+$(RELEASE)/%.o: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(RELFLAGS) $(TARGET_ARCH) -c -o $@ $<
+
+$(DEBUG)/%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DBGFLAGS) $(TARGET_ARCH) -c -o $@ $<
+
+$(RELEASE)/%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(RELFLAGS) $(TARGET_ARCH) -c -o $@ $<
+
+ifeq ($(OLDGCC),N)
+
+$(DEBUG)/%.dep: %.c
+	$(CC) -MM -MT $(patsubst %.dep,%.o,$@) $(CFLAGS) $(CPPFLAGS) $(DBGFLAGS) $(TARGET_ARCH) -o $@ $<
+
+$(RELEASE)/%.dep: %.c
+	$(CC) -MM -MT $(patsubst %.dep,%.o,$@) $(CFLAGS) $(CPPFLAGS) $(RELFLAGS) $(TARGET_ARCH) -o $@ $<
+
+$(DEBUG)/%.dep: %.cpp
+	$(CXX) -MM -MT $(patsubst %.dep,%.o,$@) $(CXXFLAGS) $(CPPFLAGS) $(DBGFLAGS) $(TARGET_ARCH) -o $@ $<
+
+$(RELEASE)/%.dep: %.cpp
+	$(CXX) -MM -MT $(patsubst %.dep,%.o,$@) $(CXXFLAGS) $(CPPFLAGS) $(RELFLAGS) $(TARGET_ARCH) -o $@ $<
+
+else
+
+$(DEBUG)/%.dep: %.c
+	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(DBGFLAGS) $(TARGET_ARCH) $< | sed "s!^!$(DEBUG)/!" > $@
+
+$(RELEASE)/%.dep: %.c
+	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $(RELFLAGS) $(TARGET_ARCH) $< | sed "s!^!$(RELEASE)/!" > $@
+
+$(DEBUG)/%.dep: %.cpp
+	$(CXX) -MM $(CXXFLAGS) $(CPPFLAGS) $(DBGFLAGS) $(TARGET_ARCH) $< | sed "s!^!$(DEBUG)/!" > $@
+
+$(RELEASE)/%.dep: %.cpp
+	$(CXX) -MM $(CXXFLAGS) $(CPPFLAGS) $(RELFLAGS) $(TARGET_ARCH) $< | sed "s!^!$(RELEASE)/!" > $@
+
+endif
+
+CC  = gcc
+CXX = g++
+AR  = ar
+LD  = $(CXX) $(CXXFLAGS) $(TARGET_ARCH)
+
+INCLUDE  = -I. $(patsubst %,-I%,$(VPATH))
+CFLAGS   = -W -Wall $(INCLUDE)
+CXXFLAGS = $(CFLAGS)
+DBGFLAGS = -D_DEBUG -g
+RELFLAGS = -DNDEBUG -O2
+CPPFLAGS =
+
+ifeq ($(OLDGCC),N)
+    CFLAGS += -fmessage-length=0
+endif
+
+HFILES   = $(wildcard $(patsubst -I%,%/*.h,$(INCLUDE)))
+OBJFILES = $(CFILES:.c=.o) $(CXXFILES:.cpp=.o)
+
+DEBUG_OBJS   = $(patsubst %.o,$(DEBUG)/%.o,$(OBJFILES))
+RELEASE_OBJS = $(patsubst %.o,$(RELEASE)/%.o,$(OBJFILES))
+
+DEBUG_DEPS   = $(patsubst %.o,%.dep,$(DEBUG_OBJS))
+RELEASE_DEPS = $(patsubst %.o,%.dep,$(RELEASE_OBJS))
+
+CFILES   := linebreak.c linebreakdata.c linebreakdef.c wordbreak.c \
+            graphemebreak.c eastasianwidthdef.c emojidef.c \
+	    unibreakbase.c unibreakdef.c
+CXXFILES :=
+
+LIBS :=
+
+TARGET         = libunibreak.a
+DEBUG_TARGET   = $(patsubst %,$(DEBUG)/%,$(TARGET))
+RELEASE_TARGET = $(patsubst %,$(RELEASE)/%,$(TARGET))
+
+debug:   $(DEBUG) $(DEBUG_TARGET)
+
+release: $(RELEASE) $(RELEASE_TARGET)
+
+$(DEBUG):
+	mkdir $(DEBUG)
+
+$(RELEASE):
+	mkdir $(RELEASE)
+
+$(DEBUG_TARGET): $(DEBUG_DEPS) $(DEBUG_OBJS)
+	$(AR) -r $(DEBUG_TARGET) $(DEBUG_OBJS)
+
+$(RELEASE_TARGET): $(RELEASE_DEPS) $(RELEASE_OBJS)
+	$(AR) -r $(RELEASE_TARGET) $(RELEASE_OBJS)
+
+
+.PHONY: all debug release clean distclean doc
+
+doc:
+	cd .. && doxygen
+
+clean:
+	$(RM) $(DEBUG)/*.o $(DEBUG)/*.dep $(DEBUG_TARGET)
+	$(RM) $(RELEASE)/*.o $(RELEASE)/*.dep $(RELEASE_TARGET)
+
+distclean: clean
+	$(RM) $(DEBUG)/* $(RELEASE)/* tags 
+	-rmdir $(DEBUG) 2> $(DEVNUL)
+	-rmdir $(RELEASE) 2> $(DEVNUL)
+
+-include $(wildcard $(DEBUG)/*.dep) $(wildcard $(RELEASE)/*.dep)

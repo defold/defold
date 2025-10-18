@@ -17,10 +17,11 @@
 
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../graphics/src/null/graphics_null_private.h"
-#include "../../../../render/src/render/font_renderer_private.h"
 #include "../../../../render/src/render/render_private.h"
 #include "../../../../resource/src/resource_private.h"
 #include "../../../../gui/src/gui_private.h"
+
+#include <render/font/fontmap.h>
 
 #include "gamesys/resources/res_compute.h"
 #include "gamesys/resources/res_font.h"
@@ -36,6 +37,8 @@
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <testmain/testmain.h>
+
+#include <font/fontcollection.h>
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -136,6 +139,21 @@ bool UnlinkResource(const char* name)
     dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", name);
     return dmSys::Unlink(path) == 0;
 }
+
+static FontResult GetGlyph(dmRender::HFontMap font_map, HFont font, uint32_t codepoint, FontGlyph** glyph)
+{
+    if (!font)
+    {
+        return FONT_RESULT_ERROR;
+    }
+
+    FontResult r = dmRender::GetOrCreateGlyph(font_map, font, codepoint, glyph);
+    if ((*glyph))
+        (*glyph)->m_Codepoint = codepoint;
+    return r;
+}
+
+
 
 static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
     dmGameObject::UpdateContext ctx;
@@ -1662,32 +1680,28 @@ TEST_F(FontTest, GlyphBankTest)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_2));
     ASSERT_NE((void*)0, font_2);
 
-    dmRender::HFont font_map_1 = dmGameSystem::ResFontGetHandle(font_1);
+    dmRender::HFontMap font_map_1 = dmGameSystem::ResFontGetHandle(font_1);
     ASSERT_NE((void*)0, font_map_1);
-    dmRender::HFont font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
+    dmRender::HFontMap font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
     ASSERT_NE((void*)0, font_map_2);
 
-    dmRender::FontGlyph* glyph_1 = dmRender::GetGlyph(font_map_1, 'A');
-    dmRender::FontGlyph* glyph_2 = dmRender::GetGlyph(font_map_2, 'A');
+    HFontCollection font_collection1 = dmRender::GetFontCollection(font_map_1);
+    HFontCollection font_collection2 = dmRender::GetFontCollection(font_map_2);
+    HFont hfont_1 = FontCollectionGetFont(font_collection1, 0);
+    HFont hfont_2 = FontCollectionGetFont(font_collection2, 0);
 
-    uint32_t glyph1_data_compression; // E.g. FONT_map_GLYPH_COMPRESSION_NONE;
-    uint32_t glyph1_data_size = 0;
-    uint32_t glyph1_image_width = 0;
-    uint32_t glyph1_image_height = 0;
-    uint32_t glyph1_image_channels = 0;
-    const uint8_t* glyph1_data = dmRender::GetGlyphData(font_map_1, 'A', &glyph1_data_size, &glyph1_data_compression, &glyph1_image_width, &glyph1_image_height, &glyph1_image_channels);
+    FontResult r;
+    FontGlyph* glyph_1 = 0;
+    r = GetGlyph(font_map_1, hfont_1, 'A', &glyph_1);
+    ASSERT_EQ(FONT_RESULT_OK, r);
+    ASSERT_NE((FontGlyph*)0, glyph_1);
 
-    uint32_t glyph2_data_compression; // E.g. FONT_map_GLYPH_COMPRESSION_NONE;
-    uint32_t glyph2_data_size = 0;
-    uint32_t glyph2_image_width = 0;
-    uint32_t glyph2_image_height = 0;
-    uint32_t glyph2_image_channels = 0;
-    const uint8_t* glyph2_data = dmRender::GetGlyphData(font_map_2, 'A', &glyph2_data_size, &glyph2_data_compression, &glyph2_image_width, &glyph2_image_height, &glyph2_image_channels);
+    FontGlyph* glyph_2 = 0;
+    r = GetGlyph(font_map_2, hfont_2, 'A', &glyph_2);
+    ASSERT_EQ(FONT_RESULT_OK, r);
+    ASSERT_NE((FontGlyph*)0, glyph_2);
 
-    ASSERT_NE((void*)0, glyph_1);
-    ASSERT_NE((void*)0, glyph_2);
-    ASSERT_NE(glyph_1, glyph_2);
-    ASSERT_NE(glyph1_data, glyph2_data);
+    ASSERT_NE(glyph_1->m_Bitmap.m_Data, glyph_2->m_Bitmap.m_Data);
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
@@ -1701,65 +1715,67 @@ TEST_F(FontTest, DynamicGlyph)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
     ASSERT_NE((void*)0, font);
 
-    dmRender::HFont font_map = dmGameSystem::ResFontGetHandle(font);
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    HFont hfont = FontCollectionGetFont(font_collection, 0);
 
     uint32_t codepoint = 'A';
 
     {
-        dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
-        ASSERT_EQ((void*)0, glyph);
+        FontGlyph* glyph = 0;
+        FontResult r = GetGlyph(font_map, hfont, codepoint, &glyph);
+        ASSERT_EQ(FONT_RESULT_OK, r); // glyph fallback returns OK, but cannot create a sdf bitmap from a ttf font via this api
+        ASSERT_NE((FontGlyph*)0, glyph);
+        ASSERT_EQ(codepoint, glyph->m_Codepoint);
+        ASSERT_EQ(36U, glyph->m_GlyphIndex);
     }
 
     // Add a new glyph
     const char* data = "Test Image Data";
-    uint32_t data_size = strlen(data) + 2;
-    uint32_t glyph_padding = 2; // see the glyph bank for the actual number
     {
-        uint8_t* mem = (uint8_t*)malloc(strlen(data) + 2);
-        memcpy(mem+1, data, data_size-1);
-        mem[0] = 0; // No compression
+        uint8_t* mem = (uint8_t*)strdup(data);
 
-        dmGameSystem::FontGlyph new_glyph;
-        new_glyph.m_Width = 1;
-        new_glyph.m_Height = 2;
-        new_glyph.m_Channels = 3;
-        new_glyph.m_Advance = 4;
-        new_glyph.m_LeftBearing = 5;
-        new_glyph.m_Ascent = 6;
-        new_glyph.m_Descent = 7;
-        new_glyph.m_ImageWidth = 8;
-        new_glyph.m_ImageHeight = 9;
+        FontGlyph* glyph = new FontGlyph;
+        memset(glyph, 0, sizeof(*glyph));
 
-        dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, codepoint, &new_glyph, mem, data_size);
+        glyph->m_Codepoint = codepoint;
+        glyph->m_GlyphIndex = FontGetGlyphIndex(hfont, codepoint);
+        glyph->m_Width = 1;
+        glyph->m_Height = 2;
+        glyph->m_Advance = 3;
+        glyph->m_LeftBearing = 4;
+        glyph->m_Ascent = 5;
+        glyph->m_Descent = 6;
+        glyph->m_Bitmap.m_Width = 10;
+        glyph->m_Bitmap.m_Height = 11;
+        glyph->m_Bitmap.m_Channels = 12;
+        glyph->m_Bitmap.m_Flags = 0;
+        glyph->m_Bitmap.m_Data = (uint8_t*)mem;
+
+        dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, 0, glyph);
         ASSERT_EQ(dmResource::RESULT_OK, r);
     }
 
     {
-        uint32_t glyph_data_compression; // E.g. FONT_GLYPH_COMPRESSION_NONE;
-        uint32_t glyph_data_size = 0;
-        uint32_t glyph_image_width = 0;
-        uint32_t glyph_image_height = 0;
-        uint32_t glyph_image_channels = 0;
-        const uint8_t* glyph_data = dmRender::GetGlyphData(font_map, codepoint, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height, &glyph_image_channels);
-        ASSERT_NE((void*)0, glyph_data);
+        FontGlyph* glyph = 0;
+        FontResult r = GetGlyph(font_map, hfont, codepoint, &glyph);
+        ASSERT_EQ(FONT_RESULT_OK, r);
+        ASSERT_NE((FontGlyph*)0, glyph);
+        ASSERT_EQ(codepoint, glyph->m_Codepoint);
+        ASSERT_EQ(36U, glyph->m_GlyphIndex);
 
-        dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
-        ASSERT_NE((void*)0, glyph);
-
-        ASSERT_EQ((uint32_t)dmRender::FONT_GLYPH_COMPRESSION_NONE, glyph_data_compression);
-        ASSERT_EQ(data_size-1, glyph_data_size);
-        ASSERT_EQ(8U, glyph_image_width);
-        ASSERT_EQ(9U, glyph_image_height);
-        ASSERT_EQ(3U, glyph_image_channels);
-
-        ASSERT_EQ(codepoint, glyph->m_Character);
         ASSERT_EQ(1U, glyph->m_Width);
-        ASSERT_EQ(8U, glyph->m_ImageWidth);
-        ASSERT_EQ(4.0f, glyph->m_Advance);
-        ASSERT_EQ(5.0f, glyph->m_LeftBearing);
-        ASSERT_EQ(6U, glyph->m_Ascent);
-        ASSERT_EQ(7U, glyph->m_Descent);
-        ASSERT_STREQ(data, (const char*)glyph_data);
+        ASSERT_EQ(2U, glyph->m_Height);
+        ASSERT_EQ(3U, glyph->m_Advance);
+        ASSERT_EQ(4U, glyph->m_LeftBearing);
+        ASSERT_EQ(5U, glyph->m_Ascent);
+        ASSERT_EQ(6U, glyph->m_Descent);
+
+        ASSERT_EQ(10U, glyph->m_Bitmap.m_Width);
+        ASSERT_EQ(11U, glyph->m_Bitmap.m_Height);
+        ASSERT_EQ(12U, glyph->m_Bitmap.m_Channels);
+        ASSERT_EQ(0U, (uint32_t)glyph->m_Bitmap.m_Flags);
+        ASSERT_STREQ(data, (const char*)glyph->m_Bitmap.m_Data);
     }
 
     dmResource::Release(m_Factory, font);

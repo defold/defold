@@ -1,0 +1,192 @@
+name: Linux CI
+
+on:
+  push:
+    branches: [master, develop]
+    paths-ignore:
+      - '*.md'
+  pull_request:
+    types: [opened, synchronize]
+    paths-ignore:
+      - '*.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cmake:
+    name: CMake - ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - compiler: gcc
+            name: GCC
+            coverage: true
+          - compiler: clang
+            name: Clang
+            coverage: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        if: matrix.coverage
+        run: sudo apt install lcov
+
+      - name: Setup Compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            echo "CC=gcc" >> $GITHUB_ENV
+            echo "CXX=g++" >> $GITHUB_ENV
+          else
+            echo "CC=clang" >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          fi
+
+      - name: Build in Release Mode
+        continue-on-error: true
+        run: |
+          cmake -S . -B build-release \
+            -DSB_CONFIG_UNITY=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_STANDARD=90 \
+            -DCMAKE_C_EXTENSIONS=OFF \
+            -DCMAKE_C_STANDARD_REQUIRED=ON
+          cmake --build build-release
+
+      - name: Build in Debug Mode
+        run: |
+          cmake -S. -B build-debug \
+            -DSB_CONFIG_UNITY=OFF \
+            -DENABLE_ASAN=ON \
+            -DENABLE_UBSAN=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_STANDARD=90 \
+            -DCMAKE_C_EXTENSIONS=OFF \
+            -DCMAKE_C_STANDARD_REQUIRED=ON \
+            $([ "${{ matrix.coverage }}" = "true" ] && echo "-DENABLE_COVERAGE=ON")
+          cmake --build build-debug
+
+      - name: Run Tests (Debug)
+        run: ctest --test-dir build-debug --output-on-failure
+
+      - name: Generate Coverage Report
+        if: matrix.coverage
+        run: |
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' 'Tests/*' 'Tools/*' --output-file coverage.info
+
+      - name: Upload Code Coverage
+        if: matrix.coverage
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: coverage.info
+
+  meson:
+    name: Meson - ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - compiler: gcc
+            name: GCC
+          - compiler: clang
+            name: Clang
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        run: python -m pip install meson ninja
+
+      - name: Setup Compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            echo "CC=gcc" >> $GITHUB_ENV
+            echo "CXX=g++" >> $GITHUB_ENV
+          else
+            echo "CC=clang" >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          fi
+
+      - name: Build in Release Mode
+        continue-on-error: true
+        run: |
+          meson setup build-release \
+            --buildtype release \
+            -Dunity_mode=enabled \
+            -Dc_std=c89
+          meson compile -C build-release
+
+      - name: Build in Debug Mode
+        run: |
+          meson setup build-debug \
+            --buildtype debugoptimized \
+            -Dunity_mode=disabled \
+            -Db_sanitize=address,undefined \
+            -Db_lundef=false \
+            -Dc_std=c89
+          meson compile -C build-debug
+
+      - name: Run Tests (Debug)
+        run: meson test --print-errorlogs -C build-debug
+
+  make:
+    name: Make - Valgrind
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        run: sudo apt install valgrind
+
+      - name: Build in Release Mode
+        continue-on-error: true
+        run: |
+          make clean
+          make release
+
+      - name: Build Test Executable (Debug Mode)
+        run: |
+          make clean
+          make tests
+
+      - name: Run Tests with Valgrind
+        id: valgrind
+        continue-on-error: true
+        run: |
+          valgrind \
+            --leak-check=full \
+            --show-leak-kinds=all \
+            --track-origins=yes \
+            --error-exitcode=1 \
+            --log-file=valgrind.log \
+            ./Debug/tests Tools/Unicode
+
+      - name: Upload Valgrind Log on Failure
+        if: steps.valgrind.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: valgrind-log
+          path: valgrind.log
