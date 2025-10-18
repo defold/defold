@@ -122,7 +122,7 @@ namespace dmSoundCodec
         };
 
         struct DecodeStreamInfoADPCM : public DecodeStreamInfo {
-            virtual ~DecodeStreamInfoADPCM() {}
+            ~DecodeStreamInfoADPCM() override = default;
 
             dmArray<int16_t> m_OutBuffer;
             dmArray<int8_t> m_InBuffer;
