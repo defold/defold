@@ -179,24 +179,52 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource);
 
 
 /*#
- * Get a resource from factory
+ * Get (load) a resource from factory
+ * @note if successful, it increments the ref count by one
  * @name ResourceGet
  * @param factory [type: HResourceFactory] Factory handle
- * @param name [type: const char*] Resource name
+ * @param path [type: const char*] Resource path
  * @param resource [type: void**] Created resource
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
-ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** resource);
+ResourceResult ResourceGet(HResourceFactory factory, const char* path, void** resource);
 
 /*#
- * Get a resource from factory
+ * Get (load) a resource from factory
+ * @note if successful, it increments the ref count by one
+ * @name ResourceGetWithExt
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path [type: const char*] Resource path
+ * @param ext [type: const char*] Resource extension (e.g. "texturec", "ttf"). Must match the extension of the path.
+ * @param resource [type: void**] Created resource
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success.
+ *                                       RESOURCE_RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+ */
+ResourceResult ResourceGetWithExt(HResourceFactory factory, const char* path, const char* ext, void** resource);
+
+/*#
+ * Get a loaded resource from factory
+ * @note this currently doesn't load a resource
+ * @note if successful, it increments the ref count by one
  * @name ResourceGetByHash
  * @param factory [type: HResourceFactory] Factory handle
- * @param name [type: dmhash_t] Resource name
+ * @param path_hash [type: dmhash_t] Resource path hash
  * @param resource [type: void**] Created resource
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
-ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource);
+ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, void** resource);
+
+/*#
+ * Get a loaded resource from factory and also verifying that it's the expected file type
+ * @name ResourceGetByHashAndExt
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path_hash [type: dmhash_t] Resource path hash
+ * @param ext_hash [type: dmhash_t] Resource extension hash (e.g. "texturec", "ttf"). Must match the extension of the path.
+ * @param resource [type: void**] Created resource
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success.
+ *                                       RESOURCE_RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+ */
+ResourceResult ResourceGetByHashAndExt(HResourceFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource);
 
 /**
  * Increase resource reference count by 1.
@@ -516,7 +544,7 @@ const char* ResourceTypeGetName(HResourceType type);
 /*# get registered extension name hash of the type
  * @name ResourceTypeGetNameHash
  * @param type [type: HResourceType] The type
- * @return hash [type: dmhash_t] The name hash
+ * @return hash [type: dmhash_t] The name hash of the type (e.g. "collectionc")
  */
 dmhash_t ResourceTypeGetNameHash(HResourceType type);
 

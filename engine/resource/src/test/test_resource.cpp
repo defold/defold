@@ -565,6 +565,33 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
+TEST_P(GetResourceTest, GetWithExt)
+{
+    void* resource = 0;
+    dmResource::Result e = dmResource::GetWithExt(m_Factory, m_ResourceName, "cont", &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, resource);
+
+    void* sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, m_ResourceName, "foo", &sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0, sentinel);
+
+    void* hashed_resource = 0;
+    dmhash_t name_hash = dmHashString64(m_ResourceName);
+    e = dmResource::GetWithExt(m_Factory, name_hash, CONT_EXT_HASH, &hashed_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, hashed_resource);
+
+    void* hashed_sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, name_hash, FOO_EXT_HASH, &hashed_sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0xdeadbeef, hashed_sentinel);
+
+    dmResource::Release(m_Factory, hashed_resource);
+    dmResource::Release(m_Factory, resource);
+}
+
 const char* params_resource_paths[] = {
     "build/src/test",
 #if defined(DM_TEST_HTTP_SUPPORTED)
