@@ -494,10 +494,9 @@ namespace dmRender
     //     {
     //         uint16_t index = font_map->m_CacheIndices[i];
     //         CacheGlyph* g = &font_map->m_Cache[index];
-    //         printf("%d: '%c'  t: %u  x/y: %u, %u  is_in_cache: %d\n", i, g->m_Glyph->m_Character, g->m_Frame, g->m_X, g->m_Y, IsInCache(font_map, g->m_Glyph->m_Character));
+    //         printf("%d: %p  t: %u  x/y: %u, %u  in cache: %d\n", i, (void*)(uintptr_t)g->m_GlyphKey, g->m_Frame, g->m_X, g->m_Y, IsInCache(font_map, g->m_GlyphKey));
     //     }
     // }
-
 
     // From Box2D
     inline bool IsPowerOfTwo(uint32_t x)
@@ -702,12 +701,13 @@ namespace dmRender
     // Either get a free slot, or the oldest one
     static CacheGlyph* AcquireFreeGlyphFromCache(HFontMap font_map, uint32_t time)
     {
-        uint32_t index;
+        uint32_t i;
         if (font_map->m_CacheCursor < font_map->m_CacheCellCount)
-            index = font_map->m_CacheCursor++;      // Get the unused slot
+            i = font_map->m_CacheCursor++;      // Get the unused slot
         else
-            index = font_map->m_CacheCellCount-1;   // Get the oldest slot
+            i = font_map->m_CacheCellCount-1;   // Get the oldest slot
 
+        uint32_t index = font_map->m_CacheIndices[i];
         return &font_map->m_Cache[index];
     }
 
