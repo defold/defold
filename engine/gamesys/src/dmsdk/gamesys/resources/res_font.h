@@ -15,9 +15,10 @@
 #ifndef DMSDK_GAMESYS_RES_FONT_H
 #define DMSDK_GAMESYS_RES_FONT_H
 
-#include <dmsdk/resource/resource.h>
 #include <render/font_ddf.h>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/font/font.h>
+#include <dmsdk/font/fontcollection.h>
 #include <dmsdk/render/render.h>
 
 namespace dmGameSystem
@@ -112,14 +113,29 @@ namespace dmGameSystem
     TTFResource* ResFontGetTTFResourceFromFont(FontResource* resource, HFont font);
 
     /*#
+     * @name ResFontGetPathHashFromFont
+     * @param resource [type: FontResource*] The font resource
+     * @param font [type: HFont] The font
+     * @return path_hash [type: dmhash_t] The path hash to the associated TTFresource*
+     */
+    dmhash_t ResFontGetPathHashFromFont(FontResource* resource, HFont font);
+
+    /*#
+     * @name ResFontGetFontCollection
+     * @param resource [type: FontResource*] The font resource
+     * @return font_collection [type: HFontCollection*] The font collection if successful. 0 otherwise.
+     */
+    HFontCollection ResFontGetFontCollection(FontResource* resource);
+
+    // FontGen API
+
+    /*#
      * @name ResFontGetInfo
      * @param font [type: FontResource*] The font resource to query
      * @param info [type: FontInfo*] The output info
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
-
-    // FontGen API
 
     /*#
      * @name ResFontAddGlyph

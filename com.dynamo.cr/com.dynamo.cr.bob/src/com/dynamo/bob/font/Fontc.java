@@ -257,7 +257,6 @@ public class Fontc {
         // If there is no blur, the shadow should essentially work the same way as the outline.
         // This enables effects like a hard drop shadow. In the shader, the pseudo code
         // that does this looks something like this:
-
         // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadowEdge))
         if (fontDesc.getShadowBlur() == 0)
         {

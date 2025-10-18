@@ -39,6 +39,8 @@ namespace dmGameSystem
 
     //////////////////////////////////////////////////////////////////////////////
 
+const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
+
 dmResource::HFactory g_ResourceFactory = 0;
 
 struct CallbackContext
@@ -50,13 +52,17 @@ struct CallbackContext
 
 /*#
  * associates a ttf resource to a .fontc file.
+ * @note The ttf font is loaded via the resource system. There are a few ways it can be accessed:
+ *     - It was already loaded in the resource system
+ *     - It is bundled via our game data
+ *     - It is accessible via a live update mount
+ *
  * @note The reference count will increase for the .ttf font
+ *
  *
  * @name font.add_font
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @param ttf [type:string|hash] The path to the .ttf resource
- * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
- * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
  *
  * @examples
  *
@@ -71,10 +77,11 @@ static int AddFont(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    // TODO: If it's a string, pass a string to the function to allow for explicit loading of the resource
     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
 
     dmGameSystem::FontResource* resource;
-    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
@@ -98,15 +105,13 @@ static int AddFont(lua_State* L)
  * @name font.remove_font
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @param ttf [type:string|hash] The path to the .ttf resource
- * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
- * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
  *
  * @examples
  *
  * ```lua
  * local font_hash = hash("/assets/fonts/roboto.fontc")
  * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
- * font.add_font(font_hash, ttf_hash)
+ * font.remove_font(font_hash, ttf_hash)
  * ```
  */
 static int RemoveFont(lua_State* L)
@@ -117,7 +122,7 @@ static int RemoveFont(lua_State* L)
     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
 
     dmGameSystem::FontResource* resource;
-    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
@@ -167,12 +172,29 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
  * @name font.prewarm_text
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @param text [type:string] The text to layout
+ * @param [callback] [type:function(self, request_id, result, errstring)] (optional) A callback function that is called after the request is finished
+ *
+ * `self`
+ * : [type:object] The current object.
+ *
+ * `request_id`
+ * : [type:number] The request id
+ *
+ * `result`
+ * : [type:boolean] True if request was succesful
+ *
+ * `errstring`
+ * : [type:string] `nil` if the request was successful
+ *
+ * @return request_id [type:number] Returns the asynchronous request id
  *
  * @examples
  *
  * ```lua
  * local font_hash = hash("/assets/fonts/roboto.fontc")
- * font.prewarm_text(font_hash, "Some text")
+ * font.prewarm_text(font_hash, "Some text", function (self, request_id, result, errstring)
+ *         -- cache is warm, show the text!
+ *     end)
  * ```
  */
 static int PrewarmText(lua_State* L)
@@ -203,7 +225,7 @@ static int PrewarmText(lua_State* L)
     }
 
     dmGameSystem::FontResource* resource;
-    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
@@ -221,12 +243,66 @@ static int PrewarmText(lua_State* L)
     return 1;
 }
 
+static int GetFontInfo(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+
+    dmGameSystem::FontResource* resource;
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
+    }
+
+    lua_createtable(L,0,0);
+
+    {
+        dmScript::PushHash(L, fontc_path_hash);
+        lua_setfield(L, -2, "path");
+
+        HFontCollection fontcollection = ResFontGetFontCollection(resource);
+        uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
+
+        lua_newtable(L);
+
+        {
+            for (uint32_t i = 0; i < num_fonts; ++i)
+            {
+                HFont font = FontCollectionGetFont(fontcollection, i);
+                dmhash_t font_path_hash = ResFontGetPathHashFromFont(resource, font);
+
+                lua_newtable(L);
+
+                lua_pushstring(L, FontGetPath(font));
+                lua_setfield(L, -2, "path");
+
+                dmScript::PushHash(L, font_path_hash);
+                lua_setfield(L, -2, "path_hash");
+
+                lua_rawseti(L, -2, i + 1);
+            }
+        }
+
+        lua_setfield(L, -2, "fonts");
+    }
+
+    dmResource::Release(g_ResourceFactory, resource);
+
+    return 1;
+}
+
+
+
+
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
     {"add_font", AddFont},
     {"remove_font", RemoveFont},
     {"prewarm_text", PrewarmText},
+    {"get_info", GetFontInfo},
     {0, 0}
 };
 

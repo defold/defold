@@ -34,6 +34,9 @@
 
 namespace dmGameSystem
 {
+    const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
+    const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
+
     struct ImageDataHeader
     {
         uint8_t m_Compression; // FontGlyphCompression
@@ -123,7 +126,6 @@ namespace dmGameSystem
         if (resource->m_Jobs)
         {
             CancelPendingJobs(resource);
-            dmJobThread::DebugPrintJobs(resource->m_Jobs);
         }
 
         if (resource->m_MaterialResource)
@@ -443,6 +445,11 @@ namespace dmGameSystem
         RemovePendingJob(ctx->m_Resource, ctx->m_Job);
     }
 
+    HFontCollection ResFontGetFontCollection(FontResource* resource)
+    {
+        return dmRender::GetFontCollection(resource->m_FontMap);
+    }
+
     TTFResource* ResFontGetTTFResourceFromFont(FontResource* resource, HFont font)
     {
         dmhash_t* path_hash = resource->m_FontHashes.Get(FontGetPathHash(font));
@@ -450,6 +457,14 @@ namespace dmGameSystem
             return 0;
         TTFResource** ttfresource = resource->m_TTFResources.Get(*path_hash);
         return ttfresource != 0 ? *ttfresource : 0;
+    }
+
+    dmhash_t ResFontGetPathHashFromFont(FontResource* resource, HFont font)
+    {
+        dmhash_t* path_hash = resource->m_FontHashes.Get(FontGetPathHash(font));
+        if (!path_hash)
+            return 0;
+        return *path_hash;
     }
 
     static TTFResource* ResFontGetTTFResourceFromPathHash(FontResource* resource, dmhash_t path_hash)
@@ -616,9 +631,11 @@ namespace dmGameSystem
 
             HFont hfont = dmGameSystem::GetFont(font->m_TTFResource);
             uint32_t font_hash = FontGetPathHash(hfont);
-            dmhash_t path_hash = dmHashString64(path);
-            font->m_TTFResources.Put(path_hash, font->m_TTFResource);
-            font->m_FontHashes.Put(font_hash, path_hash);
+            dmhash_t ttf_hash;
+            dmResource::GetPath(params->m_Factory, font->m_TTFResource, &ttf_hash);
+
+            font->m_TTFResources.Put(ttf_hash, font->m_TTFResource);
+            font->m_FontHashes.Put(font_hash, ttf_hash);
 
             font->m_Jobs = dmResource::GetJobThread(params->m_Factory);
 
@@ -746,7 +763,7 @@ namespace dmGameSystem
         }
 
         dmGameSystem::TTFResource* ttfresource;
-        dmResource::Result r = dmResource::Get(factory, ttf_hash, (void**)&ttfresource);
+        dmResource::Result r = dmResource::GetWithExt(factory, ttf_hash, EXT_HASH_TTF, (void**)&ttfresource);
         if (dmResource::RESULT_OK != r)
         {
             dmLogError("Failed to get ttf '%s': %d", dmHashReverseSafe64(ttf_hash), r);

@@ -12,9 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_COLLECTION_H
-#define DM_COLLECTION_H
+#ifndef DM_FONTCOLLECTION_H
+#define DM_FONTCOLLECTION_H
 
+#include <dmsdk/font/font.h>
 #include <dmsdk/font/fontcollection.h>
 #include <dmsdk/font/text_layout.h>
 
@@ -28,4 +29,4 @@ skb_font_collection_t* FontCollectionGetSkribidiPtr(HFontCollection coll);
 HFont FontCollectionGetFontFromHandle(HFontCollection coll, skb_font_handle_t handle);
 #endif
 
-#endif // DM_COLLECTION_H
+#endif // DM_FONTCOLLECTION_H
