@@ -950,6 +950,7 @@
     ;; `CLOSED_HAND ``OPEN_HAND_HAND ``HAND `all render a pointer cursor on Linux and Windows.
     ;; `MOVE `renders the default cursor on macOS.
     :pan (if (os/is-mac-os?) Cursor/CLOSED_HAND Cursor/MOVE)
+    :none Cursor/NONE
     Cursor/DEFAULT))
 
 (defn refresh-scene-view! [node-id dt]
@@ -1444,6 +1445,58 @@
 (handler/defhandler :scene.move-right-major :workbench
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
+
+(handler/defhandler :scene.camera-move-forward :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view]
+       (when-some [view (active-scene-view app-view)]
+         (let [camera-node (view->camera view)
+               current-camera (g/node-value camera-node :local-camera)
+               forward (c/camera-forward-vector current-camera)
+               offset (doto (Vector3d. forward) (.scale 10.0))
+               new-camera (c/camera-move current-camera (.x offset) (.y offset) (.z offset))]
+           (set-camera! camera-node current-camera new-camera false)))))
+
+(handler/defhandler :scene.camera-move-backward :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view]
+       (when-some [view (active-scene-view app-view)]
+         (let [camera-node (view->camera view)
+               current-camera (g/node-value camera-node :local-camera)
+               forward (c/camera-forward-vector current-camera)
+               offset (doto (Vector3d. forward) (.scale -10.0))
+               new-camera (c/camera-move current-camera (.x offset) (.y offset) (.z offset))]
+           (set-camera! camera-node current-camera new-camera false)))))
+
+(handler/defhandler :scene.camera-move-left :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view]
+       (when-some [view (active-scene-view app-view)]
+         (let [camera-node (view->camera view)
+               current-camera (g/node-value camera-node :local-camera)
+               right (c/camera-right-vector current-camera)
+               offset (doto (Vector3d. right) (.scale -10.0))
+               new-camera (c/camera-move current-camera (.x offset) (.y offset) (.z offset))]
+           (set-camera! camera-node current-camera new-camera false)))))
+
+(handler/defhandler :scene.camera-move-right :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view] (not (camera-animating? app-view)))
+  (run [app-view]
+       (when-some [view (active-scene-view app-view)]
+         (let [camera-node (view->camera view)
+               current-camera (g/node-value camera-node :local-camera)
+               right (c/camera-right-vector current-camera)
+               offset (doto (Vector3d. right) (.scale 10.0))
+               new-camera (c/camera-move current-camera (.x offset) (.y offset) (.z offset))]
+           (set-camera! camera-node current-camera new-camera false)))))
 
 (defn- handle-key-pressed! [^KeyEvent event]
   ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
