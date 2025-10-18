@@ -1,0 +1,269 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+
+# Localizations of the Welcome dialog
+welcome.new-project.title = 标题
+
+# Welcome -> New Project -> From Template
+
+# Welcome -> New Project -> From Tutorial
+
+# Welcome -> New Project -> From Sample
+
+# Updater
+
+# Time
+
+# Common dialogs
+
+
+# Error Dialog
+
+
+# Build Error Dialog
+
+
+# Clean Build Dialog
+
+
+# Debugging Not Supported Dialog
+
+
+# Defunload Issues Dialog
+
+
+
+# Launch Failed Dialog
+
+
+# Hot Reload Failed Dialog
+
+
+# GL support error dialog
+
+
+# New folder
+
+
+# Target IP dialog
+
+
+# Search in Files Dialogs
+
+
+# Target Discovery Log Dialog
+
+
+# Generic file/directory dialog titles
+
+
+# Set Custom Resolution dialog
+
+
+# Tracked internal files dialog
+
+
+# Quit Defold dialog
+
+
+# Save and upgrade file formats dialogs
+
+
+# Plugin load error dialog
+
+
+# Desktop entry dialogs
+
+
+# Texture compressor error dialog
+
+
+# Lua preprocessors error dialog
+
+
+# Lua transpilers error dialog
+
+
+# Diff view dialogs
+
+
+# Fetch libraries dialog
+
+
+# Fetch libraries notification
+
+
+# Language server notification
+
+
+# Asset browser notifications
+
+
+# Workspace notifications
+
+
+# Web server notifications
+
+
+# Changes view notifications
+
+
+# Debug view notifications
+
+
+# Target notifications
+
+
+# Form view dialogs
+
+
+# Shared editor settings load error dialog
+
+
+# Updated gitignore dialog
+
+
+# Asset browser reserved targets dialog
+
+
+# Asset deletion dialogs
+
+
+# Rename dialog
+
+
+# Name conflict dialog (appears on conflict during rename)
+
+
+# New file dialog
+
+
+# List dialogs
+
+
+# Open resource dialogs
+
+
+# Loading project dialog
+
+
+# Editor panes
+
+
+# Console
+
+
+# Changes view
+
+
+# Prefs
+
+
+
+# General tab
+
+# Code tab
+
+# Extensions tab
+
+# Tools
+
+# Dev tab
+
+# Keymap tab
+
+# Progress
+
+
+# Engine targets
+
+
+# Search results: overrides
+
+
+# Menus
+
+
+# Commands
+
+
+# Overrides
+
+
+# GUI
+
+
+# Editing operations
+
+
+# Properties
+
+
+# Properties: universal
+
+
+# Properties: appmanifest
+
+
+# Properties: atlas
+
+
+# Properties: camera
+
+
+# Properties: collection proxy
+
+
+# Properties: collision object
+
+
+# Properties: cubemap
+
+
+# Properties: factory
+
+
+# Properties: font
+
+
+# Properties: gui
+
+
+# Properties: label
+
+
+# Properties: mesh
+
+
+# Properties: model
+
+
+# Properties: particlefx
+
+
+
+
+# Properties: sound
+
+
+# Properties: sprite
+
+
+# Properties: tile map
+
+
+# Properties: tile source
+
+
+# Outline
+
+
+# Resources
+
+
