@@ -78,7 +78,16 @@ static int AddFont(lua_State* L)
 
     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
     // TODO: If it's a string, pass a string to the function to allow for explicit loading of the resource
-    dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+    const char* ttf_path = 0;
+    dmhash_t ttf_path_hash = 0;
+    if (lua_isstring(L, 2))
+    {
+        ttf_path = luaL_checkstring(L, 2);
+    }
+    else
+    {
+        ttf_path_hash = dmScript::CheckHash(L, 2);
+    }
 
     dmGameSystem::FontResource* resource;
     dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
@@ -87,7 +96,10 @@ static int AddFont(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    r = dmGameSystem::ResFontAddFont(g_ResourceFactory, resource, ttf_path_hash);
+    if (ttf_path)
+        r = dmGameSystem::ResFontAddFontByPath(g_ResourceFactory, resource, ttf_path);
+    else
+        r = dmGameSystem::ResFontAddFontByPathHash(g_ResourceFactory, resource, ttf_path_hash);
     dmResource::Release(g_ResourceFactory, resource);
 
     if (dmResource::RESULT_OK != r)

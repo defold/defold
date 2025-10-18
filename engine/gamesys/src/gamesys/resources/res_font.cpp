@@ -755,10 +755,34 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFontAddFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash)
+    static dmResource::Result AddFontInternal(dmResource::HFactory factory, FontResource* resource, dmGameSystem::TTFResource* ttfresource, dmhash_t ttf_hash)
     {
-        if (!font->m_TTFResource) // Only dynamic fonts are supported
+        HFont hfont = dmGameSystem::GetFont(ttfresource);
+
+        HFontCollection font_collection = dmRender::GetFontCollection(resource->m_FontMap);
+        FontResult fr = FontCollectionAddFont(font_collection, hfont);
+        if (FONT_RESULT_OK != fr)
         {
+            dmResource::Release(factory, ttfresource);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
+        if (resource->m_TTFResources.Full())
+        {
+            resource->m_TTFResources.OffsetCapacity(4);
+            resource->m_FontHashes.OffsetCapacity(4);
+        }
+        resource->m_TTFResources.Put(ttf_hash, ttfresource);
+        resource->m_FontHashes.Put(FontGetPathHash(hfont), ttf_hash);
+
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* resource, dmhash_t ttf_hash)
+    {
+        if (!resource->m_TTFResource) // Only dynamic fonts are supported
+        {
+            dmLogError("Cannot only add font to a dynamic font collection!");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 
@@ -770,25 +794,29 @@ namespace dmGameSystem
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
-        HFont hfont = dmGameSystem::GetFont(ttfresource);
+        return AddFontInternal(factory, resource, ttfresource, ttf_hash);
+    }
 
-        HFontCollection font_collection = dmRender::GetFontCollection(font->m_FontMap);
-        FontResult fr = FontCollectionAddFont(font_collection, hfont);
-        if (FONT_RESULT_OK != fr)
+    dmResource::Result ResFontAddFontByPath(dmResource::HFactory factory, FontResource* resource, const char* ttf_path)
+    {
+        if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
-            dmResource::Release(factory, ttfresource);
-            return dmResource::RESULT_INVALID_DATA;
+            dmLogError("Cannot only add font to a dynamic font collection!");
+            return dmResource::RESULT_NOT_SUPPORTED;
         }
 
-        if (font->m_TTFResources.Full())
+        dmGameSystem::TTFResource* ttfresource;
+        dmResource::Result r = dmResource::GetWithExt(factory, ttf_path, "ttf", (void**)&ttfresource);
+        if (dmResource::RESULT_OK != r)
         {
-            font->m_TTFResources.OffsetCapacity(4);
-            font->m_FontHashes.OffsetCapacity(4);
+            dmLogError("Failed to get ttf '%s': %d", ttf_path, r);
+            return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
-        font->m_TTFResources.Put(ttf_hash, ttfresource);
-        font->m_FontHashes.Put(FontGetPathHash(hfont), ttf_hash);
 
-        return dmResource::RESULT_OK;
+        dmhash_t ttf_hash;
+        dmResource::GetPath(factory, resource->m_TTFResource, &ttf_hash); // We get it like this in case the path != canonical path
+
+        return AddFontInternal(factory, resource, ttfresource, ttf_hash);
     }
 
     dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash)

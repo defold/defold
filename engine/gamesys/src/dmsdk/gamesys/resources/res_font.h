@@ -156,13 +156,24 @@ namespace dmGameSystem
     dmResource::Result ResFontAddGlyph(FontResource* font, HFont hfont, FontGlyph* glyph);
 
     /*# add a ttf font to a font collection
-     * @name ResFontAddFont
+     * @note Loads the resource if not already loaded
+     * @name ResFontAddFontByPath
+     * @param factory [type: dmResource::HFactory] The factory
+     * @param font [type: FontResource*] The font collection (.fontc)
+     * @param ttf_path [type: const char*] The .ttf path
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontAddFontByPath(dmResource::HFactory factory, FontResource* font, const char* ttf_path);
+
+    /*# add a ttf font to a font collection
+     * @note the ttf resource must already be loaded
+     * @name ResFontAddFontByPathHash
      * @param factory [type: dmResource::HFactory] The factory
      * @param font [type: FontResource*] The font collection (.fontc)
      * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontAddFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
+    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
 
     /*# remove a ttf font from a font collection
      * @name ResFontRemoveFont
