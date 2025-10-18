@@ -51,7 +51,7 @@
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListCell ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
@@ -408,11 +408,20 @@
           (.setFixedCellSize 56.0)
           (ui/items! (recent-projects prefs))
           (ui/cell-factory!
-            (fn [recent-project]
-              {:graphic (make-recent-project-entry recent-project recent-projects-list prefs localization)}))
+           (fn [recent-project]
+             {:graphic (make-recent-project-entry recent-project recent-projects-list prefs localization)}))
           (.setOnMouseClicked (ui/event-handler event
-                                (when (= 2 (.getClickCount ^MouseEvent event))
-                                  (open-selected-project!)))))))
+                                (let [^MouseEvent mouse-event event
+                                      ^Node target (.getTarget mouse-event)]
+                                  (when (and (instance? javafx.scene.control.ListCell target)
+                                             (nil? (.getItem ^ListCell target)))
+                                    (.clearSelection (.getSelectionModel recent-projects-list)))
+                                  (when (and (= 2 (.getClickCount mouse-event))
+                                             (not-empty (ui/selection recent-projects-list)))
+                                    (open-selected-project!)))))
+          (.setOnKeyPressed (ui/event-handler event
+                              (when (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
+                                (open-selected-project!)))))))
     home-pane))
 
 ;; -----------------------------------------------------------------------------
@@ -473,7 +482,7 @@
   (ui/with-controls root [^ButtonBase create-new-project-button
                           new-project-location-field
                           ^TextField new-project-title-field
-                          ^ListVew template-list
+                          ^ListView template-list
                           new-project-title-label
                           new-project-location-label]
     (.setText new-project-title-field (localization (localization/message "welcome.new-project.default-name")))
@@ -486,7 +495,20 @@
       (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
     (doto template-list
       (ui/cell-factory! (fn [project-template]
-                          {:graphic (make-template-entry project-template localization)})))
+                          {:graphic (make-template-entry project-template localization)}))
+      (.setOnMouseClicked (ui/event-handler event
+                            (let [^MouseEvent mouse-event event
+                                  ^Node target (.getTarget mouse-event)]
+                              (when (and (instance? javafx.scene.control.ListCell target)
+                                         (nil? (.getItem ^ListCell target)))
+                                (.clearSelection (.getSelectionModel template-list)))
+                              (when (and (= 2 (.getClickCount mouse-event))
+                                         (not-empty (ui/selection template-list)))
+                                (.fire create-new-project-button)))))
+      (.setOnKeyPressed (ui/event-handler event
+                          (when (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
+                            (when-some [project-template (first (ui/selection template-list))]
+                              (.fire create-new-project-button))))))
     (when (some? templates)
       (ui/items! template-list templates)
       (when (seq templates)
@@ -815,7 +837,7 @@
                                 (let [key-event ^KeyEvent event
                                       selected-pane-button (.getSelectedToggle pane-buttons-toggle-group)]
                                   (when (and (.isShortcutDown key-event)
-                                             (= "r" (.getText key-event)))
+                                             (= javafx.scene.input.KeyCode/R (.getCode key-event)))
                                     (ui/close! stage)
                                     (show-welcome-dialog! prefs localization updater open-project-fn
                                                           {:x (.getX stage)
