@@ -157,6 +157,8 @@ TEST_F(FontTest, LayoutSingleLine)
     ASSERT_NE((TextLayout*)0, layout);
     DebugPrintLayout(layout);
     ASSERT_EQ(1u, layout->m_Lines.Size());
+    ASSERT_LT(0.0f, layout->m_Width);
+    ASSERT_GE(300.0f, layout->m_Width);
 
     TextLine& line = layout->m_Lines[0];
     ASSERT_EQ(0u, line.m_Index);
