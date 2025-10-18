@@ -78,7 +78,7 @@ const uint32_t MAX_RESOURCE_TYPES = 128;
 struct ResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
-    dmHashTable64<ResourceDescriptor>*          m_Resources;
+    dmHashTable64<ResourceDescriptor>*           m_Resources;
     dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     // Used for reloading of resources
@@ -251,10 +251,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     archive_loader_params.m_HttpCache = params->m_HttpCache;
     dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "ResourceJobThread";
-    job_thread_create_param.m_ThreadCount    = 1;
-    factory->m_JobThreadContext              = dmJobThread::Create(job_thread_create_param);
+    factory->m_JobThreadContext = params->m_JobThreadContext;
 
     int num_mounted = 0;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
@@ -345,17 +342,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     factory->m_ResourceTypesCount = 0;
 
-    const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
     factory->m_Resources = new dmHashTable64<ResourceDescriptor>();
-    factory->m_Resources->SetCapacity(table_size, params->m_MaxResources);
+    factory->m_Resources->OffsetCapacity(params->m_MaxResources);
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
-    factory->m_ResourceToHash->SetCapacity(table_size, params->m_MaxResources);
+    factory->m_ResourceToHash->OffsetCapacity(params->m_MaxResources);
 
     if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
         factory->m_ResourceHashToFilename = new dmHashTable64<const char*>();
-        factory->m_ResourceHashToFilename->SetCapacity(table_size, params->m_MaxResources);
+        factory->m_ResourceHashToFilename->OffsetCapacity(params->m_MaxResources);
 
         factory->m_ResourceReloadedCallbacks = new dmArray<ResourceReloadedCallbackPair>();
         factory->m_ResourceReloadedCallbacks->SetCapacity(256);
@@ -383,11 +379,7 @@ static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescript
 
 void DeleteFactory(HFactory factory)
 {
-    if (factory->m_JobThreadContext)
-    {
-        dmJobThread::Destroy(factory->m_JobThreadContext);
-        factory->m_JobThreadContext = 0;
-    }
+    factory->m_JobThreadContext = 0;
 
     ReleaseBuiltinsArchive(factory);
 
@@ -460,7 +452,6 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
-    dmJobThread::Update(factory->m_JobThreadContext, 0);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
@@ -823,6 +814,8 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
             create_error = (Result)resource_type->m_PostCreateFunction(&params);
             if(create_error != RESULT_PENDING)
                 break;
+            // As we're stalling on the main thread here, we also need to finish any potential resource tasks here.
+            dmJobThread::Update(factory->m_JobThreadContext, 1000);
             dmTime::Sleep(1000);
         }
     }

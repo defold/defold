@@ -152,16 +152,13 @@ public:
     void SetUp()
     {
         GamesysTest::SetUp();
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
-        job_thread_create_param.m_ThreadCount    = 1;
 
         m_Scriptlibcontext.m_Factory         = m_Factory;
         m_Scriptlibcontext.m_Register        = m_Register;
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
         m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-        m_Scriptlibcontext.m_JobThread = dmJobThread::Create(job_thread_create_param);
+        m_Scriptlibcontext.m_JobThread       = m_JobThread;
 
         dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
@@ -169,8 +166,6 @@ public:
     void TearDown() override
     {
         dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
-
-        dmJobThread::Destroy(m_Scriptlibcontext.m_JobThread);
 
         GamesysTest::TearDown();
     }
@@ -503,9 +498,14 @@ void GamesysTest<T>::SetUp()
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+    job_thread_create_param.m_ThreadCount = 1;
+    m_JobThread = dmJobThread::Create(job_thread_create_param);
+
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    params.m_JobThreadContext = m_JobThread;
 
     m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
@@ -518,10 +518,6 @@ void GamesysTest<T>::SetUp()
     dmHID::Init(m_HidContext);
     dmHID::SetWindow(m_HidContext, m_Window);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
-    job_thread_create_param.m_ThreadCount    = 1;
-    m_JobThread = dmJobThread::Create(job_thread_create_param);
 
     dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
