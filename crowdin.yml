@@ -1,0 +1,5 @@
+files:
+  - source: /**/en.editor_localization
+    translation: /**/%two_letters_code%.editor_localization
+    type: properties
+    escape_special_characters: 0

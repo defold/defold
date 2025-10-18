@@ -21,6 +21,8 @@ def build(bld):
         source += ' profiler_proc_utils.cpp'
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
+    elif bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        source += ' profiler_web.cpp'
     else:
         source += ' profiler_unsupported.cpp'
 

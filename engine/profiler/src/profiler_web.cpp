@@ -12,9 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_DOUBLE_LINKED_LIST_H
-#define DM_DOUBLE_LINKED_LIST_H
+#include "profiler_private.h"
 
-#include <dmsdk/dlib/double_linked_list.h>
+#include <malloc.h>
 
-#endif
+void dmProfilerExt::SampleCpuUsage()
+{
+    // nop
+}
+
+uint64_t dmProfilerExt::GetMemoryUsage()
+{
+    const struct mallinfo info = mallinfo();
+    return info.uordblks;
+}
+
+double dmProfilerExt::GetCpuUsage()
+{
+    return 0.0;
+}
+
+void dmProfilerExt::UpdatePlatformProfiler()
+{
+    // nop
+}

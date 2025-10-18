@@ -102,7 +102,7 @@ protected:
 
     dmRender::HComputeProgram m_Compute;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmGraphics::InstallAdapter();
 
@@ -171,7 +171,7 @@ protected:
         m_Compute = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGraphics::DeleteProgram(m_GraphicsContext, m_FontProgram);
         dmGraphics::DeleteProgram(m_GraphicsContext, m_ComputeProgram);

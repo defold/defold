@@ -65,7 +65,7 @@ TEST(FileProviderBasic, CanMount)
 class FileProviderArchive : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("file"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
@@ -84,7 +84,7 @@ protected:
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);

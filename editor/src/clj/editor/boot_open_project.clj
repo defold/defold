@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.prefs :as prefs]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
@@ -31,7 +32,6 @@
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
             [editor.engine-profiler :as engine-profiler]
-            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
@@ -105,6 +105,12 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
+(defn- persist-window-state!
+  [^Stage stage ^Scene scene prefs]
+  (app-view/store-window-dimensions stage prefs)
+  (app-view/store-split-positions! scene prefs)
+  (app-view/store-hidden-panes! scene prefs))
+
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
@@ -168,7 +174,7 @@
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
-          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
@@ -282,25 +288,44 @@
         (app-view/restore-hidden-panes! scene prefs))
 
       (ui/on-closing! stage (fn [_]
-                              (let [result (or (empty? (project/dirty-save-data project))
-                                               (dialogs/make-confirmation-dialog
-                                                 localization
-                                                 {:title (localization/message "dialog.quit-defold.title")
-                                                  :icon :icon/circle-question
-                                                  :size :large
-                                                  :header (localization/message "dialog.quit-defold.header")
-                                                  :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
-                                                             :default-button true
-                                                             :cancel-button true
-                                                             :result false}
-                                                            {:text (localization/message "dialog.quit-defold.button.quit")
-                                                             :variant :danger
-                                                             :result true}]}))]
-                                (when result
-                                  (app-view/store-window-dimensions stage prefs)
-                                  (app-view/store-split-positions! scene prefs)
-                                  (app-view/store-hidden-panes! scene prefs))
-                                result)))
+                              (let [dirty-save-data (project/dirty-save-data project)
+                                    auto-save-on-quit? (prefs/get prefs [:workflow :save-on-app-focus-lost])]
+                                (if (and auto-save-on-quit? (seq dirty-save-data))
+                                  (do
+                                    ;; Auto-save is enabled: save changes and then close without prompting.
+                                    (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+                                          render-save-progress! (app-view/make-render-task-progress :save-all)]
+                                      (ui/disable-ui!)
+                                      (disk/async-save!
+                                        render-reload-progress!
+                                        render-save-progress!
+                                        project/dirty-save-data
+                                        project
+                                        changes-view
+                                        (fn [successful?]
+                                          (if successful?
+                                            (do
+                                              (persist-window-state! stage scene prefs)
+                                              (ui/close! stage))
+                                            (ui/enable-ui!)))))
+                                    false)
+                                  (let [result (or (empty? dirty-save-data)
+                                                   (dialogs/make-confirmation-dialog
+                                                     localization
+                                                     {:title (localization/message "dialog.quit-defold.title")
+                                                      :icon :icon/circle-question
+                                                      :size :large
+                                                      :header (localization/message "dialog.quit-defold.header")
+                                                      :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
+                                                                 :default-button true
+                                                                 :cancel-button true
+                                                                 :result false}
+                                                                {:text (localization/message "dialog.quit-defold.button.quit")
+                                                                 :variant :danger
+                                                                 :result true}]}))]
+                                    (when result
+                                      (persist-window-state! stage scene prefs))
+                                    result)))))
 
       (ui/on-closed! stage (fn [_]
                              (http-server/stop! web-server)

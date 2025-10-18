@@ -90,7 +90,7 @@ protected:
         m_projectOptions = options;
     }
 
-    virtual void SetUp() = 0;
+    void SetUp() override = 0;
 };
 
 template<typename T>
@@ -108,8 +108,8 @@ public:
         this->m_projectOptions.m_VelocityThreshold = 1.0f;
     }
 protected:
-    virtual void SetUp();
-    virtual void TearDown();
+    void SetUp() override;
+    void TearDown() override;
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
     void WaitForTestsDone(int update_count, bool render, bool* result);
@@ -163,7 +163,7 @@ public:
         dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
@@ -786,7 +786,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
 class ScriptImageTest : public GamesysTest<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
 
@@ -799,7 +799,7 @@ protected:
 
         L = dmScript::GetLuaState(m_ScriptContext);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
         GamesysTest::TearDown();
@@ -813,7 +813,7 @@ protected:
 class ScriptBufferTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmBuffer::NewContext();
 
@@ -838,7 +838,7 @@ protected:
         dmBuffer::Create(m_Count, streams_decl, 2, &m_Buffer);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if( m_Buffer )
             dmBuffer::Destroy(m_Buffer);
@@ -869,7 +869,7 @@ struct CopyBufferTestParams
 class ScriptBufferCopyTest : public jc_test_params_class<CopyBufferTestParams>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmBuffer::NewContext();
         dmScript::ContextParams script_context_params = {};
@@ -894,7 +894,7 @@ protected:
         dmBuffer::Create(p.m_Count, streams_decl, 2, &m_Buffer);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmBuffer::Destroy(m_Buffer);
 
@@ -915,7 +915,7 @@ protected:
 class LabelTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Position = dmVMath::Point3(0.0);
         m_Size = dmVMath::Vector3(2.0, 2.0, 0.0);

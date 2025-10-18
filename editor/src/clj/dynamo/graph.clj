@@ -482,9 +482,9 @@
   Example:
 
   (make-nodes view [render     AtlasRender
-                   scene      scene/SceneRenderer
-                   background background/Gradient
-                   camera     [c/CameraController :camera (c/make-orthographic)]]
+                    scene      scene/SceneRenderer
+                    background background/Gradient
+                    camera     [c/CameraController :camera (c/make-orthographic)]]
      (g/connect background   :renderable scene :renderables)
      (g/connect atlas-render :renderable scene :renderables))"
   [graph-id binding-expr & body-exprs]

@@ -61,7 +61,7 @@ static int Lua_Spawn(lua_State* L) {
 class SpawnDeleteTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -131,7 +131,7 @@ protected:
         m_Collection = NewCollection("collection", m_Factory, m_Register, 10u, 0x0);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmMessage::DeleteSocket(m_Socket);

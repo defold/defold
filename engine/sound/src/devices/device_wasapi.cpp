@@ -40,10 +40,12 @@ namespace dmDeviceWasapi
 
         uint32_t            m_Format;
         uint32_t            m_FrameCount;
+        bool                m_DeviceInvalidated;
 
         SoundDevice()
         {
             memset(this, 0, sizeof(*this));
+            m_DeviceInvalidated = false;
         }
     };
 
@@ -53,6 +55,20 @@ namespace dmDeviceWasapi
         {
             dmLogError("WASAPI error 0x%X: %s", hr, "");
         }
+    }
+
+    static void MarkDeviceInvalidated(SoundDevice* device, const char* context, HRESULT hr)
+    {
+        if (!device)
+            return;
+
+        if (!device->m_DeviceInvalidated)
+        {
+            dmLogError("WASAPI device lost in %s (hr=0x%08X)", context, hr);
+            CheckAndPrintError(hr);
+        }
+
+        device->m_DeviceInvalidated = true;
     }
 
     static void DeleteDevice(SoundDevice* device)
@@ -253,6 +269,7 @@ namespace dmDeviceWasapi
             return dmSound::RESULT_INIT_ERROR;
         }
 
+        device->m_DeviceInvalidated = false;
         *outdevice = device;
         return dmSound::RESULT_OK;
     }
@@ -269,6 +286,11 @@ namespace dmDeviceWasapi
         assert(_device);
         SoundDevice* device = (SoundDevice*) _device;
 
+        if (device->m_DeviceInvalidated)
+        {
+            return 0;
+        }
+
         HRESULT hr = WaitForSingleObject(device->m_ClientBufferEvent, 250);
         if (WAIT_OBJECT_0 != hr)
         {
@@ -282,17 +304,30 @@ namespace dmDeviceWasapi
         assert(_device);
         SoundDevice* device = (SoundDevice*) _device;
 
+        if (device->m_DeviceInvalidated)
+        {
+            return 0;
+        }
+
         uint32_t buffer_size = 0;
         uint32_t buffer_pos = 0;
         HRESULT hr = device->m_AudioClient->GetBufferSize(&buffer_size);
         if (FAILED(hr))
         {
+            if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "GetBufferSize", hr);
+            }
             return 0;
         }
 
         hr = device->m_AudioClient->GetCurrentPadding(&buffer_pos);
         if (FAILED(hr))
         {
+            if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "GetCurrentPadding", hr);
+            }
             return 0;
         }
         return buffer_size - buffer_pos;
@@ -305,18 +340,33 @@ namespace dmDeviceWasapi
         SoundDevice* device = (SoundDevice*) _device;
         const int16_t* samples = (const int16_t*)_samples;
 
+        if (device->m_DeviceInvalidated)
+        {
+            return dmSound::RESULT_INIT_ERROR;
+        }
+
         uint32_t buffer_size = 0;
         uint32_t buffer_pos = 0;
 
         HRESULT hr = device->m_AudioClient->GetBufferSize(&buffer_size);
         if (FAILED(hr))
         {
+            if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "Queue/GetBufferSize", hr);
+                return dmSound::RESULT_INIT_ERROR;
+            }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
 
         hr = device->m_AudioClient->GetCurrentPadding(&buffer_pos);
         if (FAILED(hr))
         {
+            if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "Queue/GetCurrentPadding", hr);
+                return dmSound::RESULT_INIT_ERROR;
+            }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
 
@@ -329,6 +379,11 @@ namespace dmDeviceWasapi
         hr = device->m_AudioRenderClient->GetBuffer(frames_available, &out);
         if (FAILED(hr))
         {
+            if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "Queue/GetBuffer", hr);
+                return dmSound::RESULT_INIT_ERROR;
+            }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
 
@@ -370,7 +425,16 @@ namespace dmDeviceWasapi
             }
         }
 
-        device->m_AudioRenderClient->ReleaseBuffer(frames_available, 0);
+        HRESULT release_hr = device->m_AudioRenderClient->ReleaseBuffer(frames_available, 0);
+        if (FAILED(release_hr))
+        {
+            if (release_hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "Queue/ReleaseBuffer", release_hr);
+                return dmSound::RESULT_INIT_ERROR;
+            }
+            return dmSound::RESULT_OUT_OF_BUFFERS;
+        }
 
         return dmSound::RESULT_OK;
     }
@@ -394,19 +458,38 @@ namespace dmDeviceWasapi
     {
         assert(_device);
         SoundDevice* device = (SoundDevice*) _device;
+        if (device->m_DeviceInvalidated)
+        {
+            return;
+        }
         if (device->m_AudioClient)
         {
             HRESULT hr = device->m_AudioClient->Start();
             if (FAILED(hr))
             {
+                if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    MarkDeviceInvalidated(device, "Start", hr);
+                    return;
+                }
                 dmLogError("Failed to start audio client");
                 CheckAndPrintError(hr);
             }
 
             uint32_t buffer_size = 0;
             uint32_t buffer_pos = 0;
-            device->m_AudioClient->GetBufferSize(&buffer_size);
-            device->m_AudioClient->GetCurrentPadding(&buffer_pos);
+            hr = device->m_AudioClient->GetBufferSize(&buffer_size);
+            if (FAILED(hr) && hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "Start/GetBufferSize", hr);
+                return;
+            }
+            hr = device->m_AudioClient->GetCurrentPadding(&buffer_pos);
+            if (FAILED(hr) && hr == AUDCLNT_E_DEVICE_INVALIDATED)
+            {
+                MarkDeviceInvalidated(device, "Start/GetCurrentPadding", hr);
+                return;
+            }
         }
     }
 
@@ -414,21 +497,79 @@ namespace dmDeviceWasapi
     {
         assert(_device);
         SoundDevice* device = (SoundDevice*) _device;
+        if (device->m_DeviceInvalidated)
+        {
+            if (device->m_AudioClient)
+            {
+                HRESULT hr = device->m_AudioClient->Stop();
+                if (FAILED(hr))
+                {
+                    dmLogError("Failed to stop audio client");
+                    CheckAndPrintError(hr);
+                }
+            }
+            return;
+        }
         if (device->m_AudioClient)
         {
             uint32_t buffer_size = 0;
             uint32_t buffer_pos = 0;
             uint8_t* out;
-            device->m_AudioClient->GetBufferSize(&buffer_size);
-            device->m_AudioClient->GetCurrentPadding(&buffer_pos);
-
-            uint32_t frames_available = buffer_size;// buffer_size - buffer_pos;
-            device->m_AudioRenderClient->GetBuffer(frames_available, &out);
-            device->m_AudioRenderClient->ReleaseBuffer(frames_available, AUDCLNT_BUFFERFLAGS_SILENT);
-
-            HRESULT hr = device->m_AudioClient->Stop();
+            HRESULT hr = device->m_AudioClient->GetBufferSize(&buffer_size);
             if (FAILED(hr))
             {
+                if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    MarkDeviceInvalidated(device, "Stop/GetBufferSize", hr);
+                    return;
+                }
+                CheckAndPrintError(hr);
+                return;
+            }
+            hr = device->m_AudioClient->GetCurrentPadding(&buffer_pos);
+            if (FAILED(hr))
+            {
+                if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    MarkDeviceInvalidated(device, "Stop/GetCurrentPadding", hr);
+                    return;
+                }
+                CheckAndPrintError(hr);
+                return;
+            }
+
+            uint32_t frames_available = buffer_size;// buffer_size - buffer_pos;
+            hr = device->m_AudioRenderClient->GetBuffer(frames_available, &out);
+            if (FAILED(hr))
+            {
+                if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    MarkDeviceInvalidated(device, "Stop/GetBuffer", hr);
+                    return;
+                }
+                CheckAndPrintError(hr);
+                return;
+            }
+            hr = device->m_AudioRenderClient->ReleaseBuffer(frames_available, AUDCLNT_BUFFERFLAGS_SILENT);
+            if (FAILED(hr))
+            {
+                if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    MarkDeviceInvalidated(device, "Stop/ReleaseBuffer", hr);
+                    return;
+                }
+                CheckAndPrintError(hr);
+                return;
+            }
+
+            hr = device->m_AudioClient->Stop();
+            if (FAILED(hr))
+            {
+                if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    MarkDeviceInvalidated(device, "Stop", hr);
+                    return;
+                }
                 dmLogError("Failed to stop audio client");
                 CheckAndPrintError(hr);
             }
