@@ -539,9 +539,12 @@ HContext Create(const JobThreadCreationParams& create_params)
 
         for (int i = 0; i < thread_count; ++i)
         {
-            char name_buf[128];
-            const char* prefix = create_params.m_ThreadNamePrefix ? create_params.m_ThreadNamePrefix : "job_thread";
-            dmSnPrintf(name_buf, sizeof(name_buf), "%s_%d", prefix, i);
+            char name_buf[32];
+            const char* thread_name_prefix = create_params.m_ThreadNamePrefix ? create_params.m_ThreadNamePrefix : "defoldjob";
+            // According to doc for pthread_set_name: https://man7.org/linux/man-pages/man3/pthread_setname_np.3.html
+            assert(strlen(thread_name_prefix) < 16-3); // account for "_00"
+
+            dmSnPrintf(name_buf, sizeof(name_buf), "%s_%d", thread_name_prefix, i);
             context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, name_buf);
         }
     }
@@ -604,9 +607,6 @@ void Update(HContext context, uint64_t time_limit)
 {
     DM_PROFILE("JobThreadUpdate");
 
-    // printf("*********************************************\n");
-    // printf("UPDATE\n");
-
     if (!context->m_UseThreads)
     {
         UpdateSingleThread(&context->m_ThreadContext, time_limit);
@@ -622,8 +622,6 @@ void Update(HContext context, uint64_t time_limit)
 
     // Now do the callbacks
     ProcessFinishedJobs(context, items);
-
-    //printf("*********************************************\n");
 }
 static void DebugPrintJob(JobThreadContext* ctx, HJob hjob)
 {
