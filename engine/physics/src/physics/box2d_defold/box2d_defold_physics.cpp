@@ -1396,18 +1396,26 @@ namespace dmPhysics
         }
 
         float scale = world->m_Context->m_Scale;
+        b2Vec2 from;
+        ToB2(from2d, from, scale);
+        b2Vec2 to;
+        ToB2(to2d, to, scale);
+        
+        if ((to - from).LengthSquared() <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
+            return;
+        }
+
         ProcessRayCastResultCallback2D query;
         query.m_Request = &request;
         query.m_ReturnAllResults = request.m_ReturnAllResults;
         query.m_Context = world->m_Context;
         query.m_Results = &results;
-        b2Vec2 from;
-        ToB2(from2d, from, scale);
-        b2Vec2 to;
-        ToB2(to2d, to, scale);
         query.m_IgnoredUserData = request.m_IgnoredUserData;
         query.m_CollisionMask = request.m_Mask;
         query.m_Response.m_Hit = 0;
+
         world->m_World.RayCast(&query, from, to);
 
         if (!request.m_ReturnAllResults) {
