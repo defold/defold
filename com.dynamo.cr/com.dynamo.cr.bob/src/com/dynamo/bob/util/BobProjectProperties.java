@@ -36,7 +36,6 @@ import java.lang.IllegalAccessException;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.Bob;
 
 /**
@@ -273,6 +272,10 @@ public class BobProjectProperties {
      */
     public void load(InputStream in) throws IOException, ParseException {
         load(in, false);
+    }
+
+    public void cleanupEmptyProperties() {
+        properties.remove("");
     }
 
     /**

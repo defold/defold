@@ -637,6 +637,7 @@ public class Project {
         try {
             // load meta.properties embeded in bob.jar
             properties.loadDefaultMetaFile();
+            properties.cleanupEmptyProperties();
             if (scanExtensions) {
                 // load property files from extensions
                 List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
