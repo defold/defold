@@ -222,6 +222,12 @@ TextResult TextLayoutCreateSkribidi(HFontCollection collection,
     layout->m_Direction = TEXT_DIRECTION_LTR;
     layout->m_NumValidGlyphs = 0;
 
+    if (num_codepoints == 0) // empty string
+    {
+        *outlayout = layout;
+        return TEXT_RESULT_OK;
+    }
+
     LayoutContext ctx = {0};
     AllocLayout(&ctx, collection);
 

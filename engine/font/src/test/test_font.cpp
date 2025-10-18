@@ -185,6 +185,21 @@ TEST_F(FontTest, LayoutSingleLine)
     TextLayoutFree(layout);
 }
 
+TEST_F(FontTest, LayoutEmptyString)
+{
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0.0f;
+    settings.m_Size = 16.0f;
+
+    HTextLayout layout = 0;
+    TextResult r = TextLayoutCreate(m_FontCollection, 0, 0, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(0u, layout->m_Lines.Size());
+    TextLayoutFree(layout);
+}
+
 TEST_F(FontTest, LayoutMultiLine)
 {
     dmArray<uint32_t> codepoints;
