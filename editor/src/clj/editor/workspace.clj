@@ -540,14 +540,24 @@ ordinary paths."
   (let [escaped-name (protobuf/escape-string name)]
     (string/replace template "{{NAME}}" escaped-name)))
 
+(defn- dependency-error-line [loc {:keys [uri reason required current]}]
+  (if (= reason :defold-min-version)
+    (loc (localization/message
+           "library.defold-min-version.error-line"
+           {"uri" (str uri)
+            "required" (str required)
+            "current" (str current)}))
+    (str uri)))
+
 (defn- update-dependency-notifications! [workspace lib-states]
-  (let [{:keys [error missing]} (->> lib-states
-                                     (eduction
-                                       (keep (fn [{:keys [status file uri]}]
-                                               (cond
-                                                 (= status :error) (pair :error uri)
-                                                 (nil? file) (pair :missing uri)))))
-                                     (iutil/group-into {} [] key val))
+  (let [missing (into [] (keep (fn [{:keys [file uri]}] (when (nil? file) uri))) lib-states)
+        error (g/with-auto-evaluation-context evaluation-context
+                (let [loc (localization workspace evaluation-context)]
+                  (into []
+                        (keep (fn [s]
+                                (when (= :error (:status s))
+                                  (dependency-error-line loc s))))
+                        lib-states)))
         notifications (notifications workspace)]
     (if (pos? (count missing))
       (notifications/show!
