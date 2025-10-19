@@ -2093,11 +2093,6 @@ namespace dmPhysics
 
         const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
         const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-        if (lengthSqr(to2d - from2d) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
 
         float scale = world->m_Context->m_Scale;
 
