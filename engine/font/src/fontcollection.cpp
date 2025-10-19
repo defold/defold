@@ -109,6 +109,7 @@ FontResult FontCollectionRemoveFont(HFontCollection coll, HFont hfont)
         if (iter.GetValue() == hfont)
         {
             skb_font_collection_remove_font(coll->m_Collection, iter.GetKey());
+            coll->m_FontLookup.Erase(iter.GetKey());
             break;
         }
      }
