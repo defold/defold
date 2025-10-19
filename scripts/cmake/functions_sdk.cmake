@@ -1,7 +1,7 @@
 if(DEFINED DEFOLD_FUNCTIONS_SDK_CMAKE_INCLUDED)
     return()
 endif()
-set(DEFOLD_FUNCTIONS_SDK_CMAKE_INCLUDED ON CACHE INTERNAL "functions_sdk.cmake include guard")
+set(DEFOLD_FUNCTIONS_SDK_CMAKE_INCLUDED ON)
 
 defold_log("functions_sdk.cmake:")
 
@@ -51,4 +51,3 @@ function(defold_set_from_sdk_py)
     # Export to caller's scope
     set(${DSDK_TARGET} "${_value}" PARENT_SCOPE)
 endfunction()
-

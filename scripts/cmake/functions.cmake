@@ -1,7 +1,7 @@
 if(DEFINED DEFOLD_FUNCTIONS_CMAKE_INCLUDED)
     return()
 endif()
-set(DEFOLD_FUNCTIONS_CMAKE_INCLUDED ON CACHE INTERNAL "functions.cmake include guard")
+set(DEFOLD_FUNCTIONS_CMAKE_INCLUDED ON)
 
 message(DEBUG "functions.cmake:")
 

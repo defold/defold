@@ -452,20 +452,7 @@ def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
     return os.environ.get('GITHUB_BASE_REF', '')
 
-def is_workflow_enabled_in_repo():
-    if not is_repo_private():
-        return True # all workflows are enabled by default
-
-    workflow = os.environ.get('GITHUB_WORKFLOW', '')
-    if workflow in ('CI - Main',):
-        return True
-    return False
-
 def main(argv):
-    if not is_workflow_enabled_in_repo():
-        print("Workflow '{}' is disabled in repo '{}'. Skipping".format(os.environ.get('GITHUB_WORKFLOW', ''), os.environ.get('GITHUB_REPOSITORY', '')))
-        return
-
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")

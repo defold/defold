@@ -1,7 +1,7 @@
 if(DEFINED DEFOLD_PLATFORM_HOST_CMAKE_INCLUDED)
   return()
 endif()
-set(DEFOLD_PLATFORM_HOST_CMAKE_INCLUDED ON CACHE INTERNAL "platform_host.cmake include guard")
+set(DEFOLD_PLATFORM_HOST_CMAKE_INCLUDED ON)
 
 defold_log("platform_host.cmake:")
 
@@ -84,10 +84,20 @@ if(NOT _HOST_PLATFORM_OS)
   endif()
 endif()
 
+# Export OS as a public variable for other modules
+set(HOST_PLATFORM_OS "${_HOST_PLATFORM_OS}")
+
 if(NOT _HOST_PLATFORM_ARCH)
   set(_HOST_PLATFORM_ARCH "x86_64")
 endif()
 
-set(HOST_PLATFORM "${_HOST_PLATFORM_ARCH}-${_HOST_PLATFORM_OS}")
+set(HOST_PLATFORM "${_HOST_PLATFORM_ARCH}-${HOST_PLATFORM_OS}")
 
 message(STATUS "HOST_PLATFORM: ${HOST_PLATFORM}")
+
+# Convenience flag: boolean indicating if the host is Windows
+if(HOST_PLATFORM_OS STREQUAL "win32")
+  set(HOST_PLATFORM_IS_WINDOWS ON CACHE BOOL "Host platform is Windows" FORCE)
+else()
+  set(HOST_PLATFORM_IS_WINDOWS OFF CACHE BOOL "Host platform is Windows" FORCE)
+endif()
