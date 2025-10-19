@@ -40,6 +40,7 @@ namespace dmGameSystem
         GlyphBankResource*      m_GlyphBankResource;
         TTFResource*            m_TTFResource;          // the default ttf resource (if it's a dynamic font)
         dmJobThread::HContext   m_Jobs;
+        dmResource::HFactory    m_Factory;
         uint32_t                m_CacheCellPadding;
         uint32_t                m_ResourceSize;         // For correct resource usage reporting
         bool                    m_IsDynamic;            // Are the glyphs populated at runtime?

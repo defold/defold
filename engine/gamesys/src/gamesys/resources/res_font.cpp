@@ -143,6 +143,46 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
+    static void IncRefJobResources(dmResource::HFactory factory, FontResource* resource)
+    {
+        HFontCollection fontcollection = ResFontGetFontCollection(resource);
+        uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
+
+        for (uint32_t i = 0; i < num_fonts; ++i)
+        {
+            HFont hfont = FontCollectionGetFont(fontcollection, i);
+            TTFResource* ttfresource = ResFontGetTTFResourceFromFont(resource, hfont);
+
+            dmResource::IncRef(factory, ttfresource);
+        }
+
+        // during the creation phase, the resource isn't actually added to the resource system yet
+        if (!resource->m_Prewarming)
+        {
+            dmResource::IncRef(factory, resource);
+        }
+    }
+
+    static void DecRefJobResources(dmResource::HFactory factory, FontResource* resource)
+    {
+        HFontCollection fontcollection = ResFontGetFontCollection(resource);
+        uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
+
+        for (uint32_t i = 0; i < num_fonts; ++i)
+        {
+            HFont hfont = FontCollectionGetFont(fontcollection, i);
+            TTFResource* ttfresource = ResFontGetTTFResourceFromFont(resource, hfont);
+
+            dmResource::Release(factory, ttfresource);
+        }
+
+        // during the creation phase, the resource isn't actually added to the resource system yet
+        if (!resource->m_Prewarming)
+        {
+            dmResource::Release(factory, resource);
+        }
+    }
+
     static void PrewarmGlyphsCallback(void* ctx, int result, const char* errmsg)
     {
         FontResource* font = (FontResource*)ctx;
@@ -174,6 +214,7 @@ namespace dmGameSystem
     static void PrewarmTextCallbackWrapper(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobContextWrapper* ctx = (FontJobContextWrapper*)cbk_ctx;
+        DecRefJobResources(ctx->m_Resource->m_Factory, ctx->m_Resource);
         ctx->m_Callback(ctx->m_Context, result, errmsg);
         RemovePendingJob(ctx->m_Resource, ctx->m_Job);
         delete ctx;
@@ -204,6 +245,8 @@ namespace dmGameSystem
         wrapperctx->m_Callback  = cbk;
         wrapperctx->m_Context   = cbk_ctx;
         wrapperctx->m_Job       = 0;
+
+        IncRefJobResources(resource->m_Factory, resource);
 
         wrapperctx->m_Job = dmGameSystem::FontGenAddGlyphs(resource, glyphs, glyph_count, PrewarmTextCallbackWrapper, wrapperctx);
         TextLayoutFree(layout);
@@ -442,6 +485,7 @@ namespace dmGameSystem
     static void CacheMissGlyphCallback(void* _ctx, int result, const char* errmsg)
     {
         FontJobContextWrapper* ctx = (FontJobContextWrapper*)_ctx;
+        DecRefJobResources(ctx->m_Resource->m_Factory, ctx->m_Resource);
         RemovePendingJob(ctx->m_Resource, ctx->m_Job);
     }
 
@@ -483,6 +527,8 @@ namespace dmGameSystem
         wrapperctx->m_Callback  = 0;
         wrapperctx->m_Context   = 0;
         wrapperctx->m_Job       = 0;
+
+        IncRefJobResources(resource->m_Factory, resource);
 
         wrapperctx->m_Job = dmGameSystem::FontGenAddGlyphByIndex(resource, font, glyph_index, CacheMissGlyphCallback, (void*)wrapperctx);
         if (!wrapperctx->m_Job)
@@ -566,14 +612,15 @@ namespace dmGameSystem
                 return dmResource::RESULT_OK;
             }
 
+            font->m_Prewarming = 1;
+
             dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
             if (dmResource::RESULT_OK != r)
             {
+                font->m_Prewarming = 0;
                 dmLogError("Failed to prewarm glyph cache for font '%s'", path);
                 return dmResource::RESULT_OK;
             }
-
-            font->m_Prewarming = 1;
         }
         else
         {
@@ -603,6 +650,7 @@ namespace dmGameSystem
     static dmResource::Result ResFontCreate(const dmResource::ResourceCreateParams* params)
     {
         FontResource* font = new FontResource;
+        font->m_Factory = params->m_Factory;
         font->m_Resource = params->m_Resource;
 
         const char* path = params->m_Filename;
@@ -843,7 +891,6 @@ namespace dmGameSystem
 
         if (FONT_RESULT_OK != fr)
         {
-            dmResource::Release(factory, ttfresource);
             return dmResource::RESULT_INVALID_DATA;
         }
 
