@@ -64,6 +64,7 @@ static void FontDestroyTTF(HFont hfont)
     {
         free((void*)font->m_Data);
     }
+    memset(font, 0, sizeof(*font));
     free((void*)font);
 }
 
