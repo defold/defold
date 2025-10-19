@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 4.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
 include(defold)
 
-project(defold_platform LANGUAGES C CXX)
+project(defold_platform LANGUAGES C CXX OBJC OBJCXX)
 
 # Sources
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
@@ -19,7 +19,7 @@ if (_GLFW_VERSION EQUAL 3)
         list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_osx.cpp")
     elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_linux.cpp")
-    elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
+    elseif (TARGET_PLATFORM MATCHES "x86_64-win32|x86-win32")
         list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_win32.cpp")
     endif()
 else()

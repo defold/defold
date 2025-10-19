@@ -496,6 +496,7 @@ def default_flags(self):
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
+    # TODO: Remove the redundant lib folders ("win32") once we've moved fully to CMake
     if build_util.get_target_platform() == 'win32':
         alias = 'x86-win32' # used by the new/CMake code path
         # Includes under DYNAMO_HOME and DYNAMO_HOME/ext

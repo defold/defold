@@ -8,7 +8,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/scripts/cmake")
 include(defold)
 
 # we rename this project in build.py when we generate the solution
-project(defold_libraries LANGUAGES C CXX)
+project(defold_libraries LANGUAGES C CXX OBJC OBJCXX)
 
 # Load full Defold CMake (platform flags, interface target, etc.)
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")

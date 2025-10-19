@@ -35,7 +35,7 @@ include(functions)
 set(_DEFOLD_OPT_CONFIGS Release RelWithDebInfo MinSizeRel)
 foreach(_cfg IN LISTS _DEFOLD_OPT_CONFIGS)
   string(TOUPPER "${_cfg}" _CFG_UP)
-  foreach(_lang C CXX)
+  foreach(_lang C CXX OBJC OBJCXX)
     set(_cache_var "CMAKE_${_lang}_FLAGS_${_CFG_UP}")
     set(_init_var  "CMAKE_${_lang}_FLAGS_${_CFG_UP}_INIT")
 
