@@ -18,6 +18,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
@@ -172,6 +173,26 @@
                       error))))
           setting-values)))
 
+(defn get-dependencies-setting-errors
+  "Return build errors derived from project dependencies (e.g., incompatible
+  library.defold_min_version). Expects a Project node id and an
+  evaluation-context."
+  [project evaluation-context]
+  (let [ws (project/workspace project evaluation-context)
+        deps (g/node-value ws :dependencies evaluation-context)
+        incompatible (into [] (filter #(and (= :error (:status %))
+                                            (= :defold-min-version (:reason %)))) deps)
+        loc (workspace/localization ws evaluation-context)]
+    (mapv (fn [{:keys [uri required current]}]
+            (g/map->error
+              {:severity :fatal
+               :message (loc (localization/message
+                               "library.defold-min-version.error-line"
+                               {"uri" (str uri)
+                                "required" (str required)
+                                "current" (str current)}))}))
+          incompatible)))
+
 (g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   (let [meta-settings (:settings meta-info)
         sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
@@ -234,8 +255,10 @@
   (output form-data g/Any :cached produce-form-data)
 
   (output save-value g/Any (gu/passthrough merged-raw-settings))
-  (output setting-errors g/Any :cached (g/fnk [form-data]
-                                              (get-settings-errors form-data)))
+  (output setting-errors g/Any :cached (g/fnk [form-data project]
+                                         (let [base-errors (get-settings-errors form-data)]
+                                           (g/with-auto-evaluation-context evaluation-context
+                                             (into base-errors (get-dependencies-setting-errors project evaluation-context))))))
   (output meta-info g/Any :cached
           (g/fnk [raw-meta-info meta-infos owner-resource]
             (let [{:keys [ext-meta-info game-project-proj-path->additional-meta-info]} meta-infos
