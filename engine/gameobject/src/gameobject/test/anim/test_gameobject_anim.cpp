@@ -26,7 +26,7 @@
 class AnimTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f ;
 
@@ -59,7 +59,7 @@ protected:
         m_CancelCount = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);

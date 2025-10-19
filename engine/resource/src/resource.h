@@ -245,20 +245,6 @@ namespace dmResource
     Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor);
 
     /**
-     * Increase resource reference count
-     * @param factory Factory handle
-     * @param resource Resource
-     */
-    void IncRef(HFactory factory, void* resource);
-
-    /**
-     * Increase resource reference count
-     * @param factory Factory handle
-     * @param resource Resource descriptor
-     */
-    void IncRef(HFactory factory, HResourceDescriptor rd);
-
-    /**
      * Get the resource version. The resource version is a sequential serial number
      * that increases with every resource insertion into the resource system.
      * This is useful for checking resource validity for resource pointers.

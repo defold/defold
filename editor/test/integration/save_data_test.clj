@@ -245,6 +245,7 @@
      "pieFillAngle" :unused
      "shadow" :unused
      "shadow_alpha" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -301,6 +302,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -322,6 +324,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -356,6 +359,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -385,6 +389,7 @@
      "pieFillAngle" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -645,8 +650,8 @@
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
-            embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
-            referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
+            referenced-go (:node-id (test-util/outline uniform-scale-collection [1]))
+            embedded-go (:node-id (test-util/outline uniform-scale-collection [2]))]
         (is (= collection/CollectionInstanceNode (g/node-type* referenced-collection)))
         (is (= collection/EmbeddedGOInstanceNode (g/node-type* embedded-go)))
         (is (= collection/ReferencedGOInstanceNode (g/node-type* referenced-go)))

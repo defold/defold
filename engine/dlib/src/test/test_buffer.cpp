@@ -25,11 +25,11 @@
 
 class BufferTest : public jc_test_base_class
 {
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::DeleteContext();
     }
 };
@@ -39,7 +39,7 @@ class MetaDataTest : public jc_test_base_class
 public:
     dmBuffer::HBuffer buffer;
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
 
         dmBuffer::StreamDeclaration streams_decl[] = {
@@ -49,7 +49,7 @@ protected:
         dmBuffer::Create(4, streams_decl, 2, &buffer);
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::Destroy(buffer);
         dmBuffer::DeleteContext();
     }
@@ -67,7 +67,7 @@ public:
     uint32_t          out_stride;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
 
         dmBuffer::StreamDeclaration streams_decl[] = {
@@ -80,7 +80,7 @@ protected:
         dmBuffer::Create(count, streams_decl, 2, &buffer);
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::Destroy(buffer);
         dmBuffer::DeleteContext();
     }
@@ -105,12 +105,12 @@ public:
     uint32_t          out_stride;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
         buffer = 0x0;
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::Destroy(buffer);
         dmBuffer::DeleteContext();
     }

@@ -17,7 +17,9 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.ui :as ui]
+            [integration.test-util :as test-util]
             [support.test-support :as test-support])
   (:import [javafx.scene Scene]
            [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
@@ -40,18 +42,18 @@
 
 (deftest extend-menu-test
   (handler/register-menu! ::menubar
-    [{:label "File"
-      :children [{:label "New"
+    [{:label (localization/message "command.file")
+      :children [{:label (localization/message "command.file.new")
                   :id ::new}]}])
   (handler/register-menu! ::save-menu ::new
-    [{:label "Save"}])
+    [{:label (localization/message "command.file.save-all")}])
   (handler/register-menu! ::quit-menu ::new
-    [{:label "Quit"}])
-  (is (= (handler/realize-menu ::menubar) [{:label "File"
-                                            :children [{:label "New"
+    [{:label (localization/message "command.app.quit")}])
+  (is (= (handler/realize-menu ::menubar) [{:label (localization/message "command.file")
+                                            :children [{:label (localization/message "command.file.new")
                                                         :id ::new}
-                                                       {:label "Save"}
-                                                       {:label "Quit"}]}])))
+                                                       {:label (localization/message "command.file.save-all")}
+                                                       {:label (localization/message "command.app.quit")}]}])))
 
 (defrecord TestSelectionProvider [selection]
   handler/SelectionProvider
@@ -61,16 +63,16 @@
 
 (defn- make-menu-items [scene menu-id command-context]
   (g/with-auto-evaluation-context evaluation-context
-    (#'ui/make-menu-items scene (handler/realize-menu menu-id) [command-context] {} evaluation-context)))
+    (#'ui/make-menu-items scene (handler/realize-menu menu-id) [command-context] {} test-util/localization evaluation-context)))
 
 (deftest menu-test
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
-      [{:label "File"
-        :children [{:label "Open"
+      [{:label (localization/message "command.file")
+        :children [{:label (localization/message "command.file.open")
                     :id ::open
                     :command :file.open}
-                   {:label "Save"
+                   {:label (localization/message "command.file.save-all")
                     :command :file.save}]}])
 
     (handler/defhandler :file.open :global
@@ -94,16 +96,16 @@
 (deftest options-menu-test
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
-      [{:label "Add"
+      [{:label (localization/message "command.edit.add-embedded-component")
         :command :edit.add-embedded-component}])
 
     (handler/defhandler :edit.add-embedded-component :global
       (run [user-data] user-data)
       (active? [user-data] (or (not user-data) (= user-data 1)))
-      (options [user-data] (when-not user-data [{:label "first"
+      (options [user-data] (when-not user-data [{:label (localization/message "command.file.new")
                                                  :command :edit.add-embedded-component
                                                  :user-data 1}
-                                                {:label "second"
+                                                {:label (localization/message "command.file.open")
                                                  :command :edit.add-embedded-component
                                                  :user-data 2}])))
 
@@ -119,7 +121,7 @@
   @(fx/on-fx-thread
      (test-support/with-clean-system
        (handler/register-menu! ::my-menu
-         [{:label "Open"
+         [{:label (localization/message "command.file.open")
            :command :file.open
            :id ::open}])
 
@@ -139,6 +141,7 @@
              app-view (g/make-node! world FakeAppView :active-tab tab)
              scene (Scene. tab-pane)
              selection-provider (TestSelectionProvider. [])]
+         (ui/user-data! scene :localization test-util/localization)
          (.add (.getTabs tab-pane) tab)
          (.setSkin tab-pane (TabPaneSkin. tab-pane)) ;;
          (.setId root "toolbar")
@@ -151,7 +154,7 @@
            (is (= (.get c1 0) (.get c2 0))))
 
          (handler/register-menu! ::extra ::open
-           [{:label "Save"
+           [{:label (localization/message "command.file.save-all")
              :command :file.save}])
          (ui/refresh scene)
          (is (= 2 (count (.getChildren root))))))))
@@ -160,9 +163,9 @@
   @(fx/on-fx-thread
      (test-support/with-clean-system
        (handler/register-menu! ::my-menu
-         [{:label "File"
+         [{:label (localization/message "command.file")
            :children
-           [{:label "Open"
+           [{:label (localization/message "command.file.open")
              :id ::open
              :command :file.open}]}])
 
@@ -178,6 +181,7 @@
              scene (Scene. root)
              selection-provider (TestSelectionProvider. [])
              menubar (MenuBar.)]
+         (ui/user-data! scene :localization test-util/localization)
          (ui/context! root :global {} selection-provider)
          (.add (.getChildren root) menubar)
          (.setId menubar "menubar")
@@ -188,7 +192,7 @@
            (is (= 1 (count c1) (count c2)))
            (is (= (.get c1 0) (.get c2 0))))
          (handler/register-menu! ::extra ::open
-           [{:label "Save"
+           [{:label (localization/message "command.file.save-all")
              :command :file.save}])
          (ui/refresh scene)
          (let [c1 (do (ui/refresh scene) (.getItems (first (.getMenus menubar))))

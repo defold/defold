@@ -188,6 +188,23 @@ namespace dmResource
     */
    Result RemoveFile(HFactory factory, const char* path);
 
+   /**
+    * Increase resource reference count by 1.
+    * @name IncRef
+    * @param factory [type: HFactory] Factory handle
+    * @param resource [type: void*] The resource
+    */
+   void IncRef(HFactory factory, void* resource);
+
+   /**
+    * Increase resource reference count by 1.
+    * @name IncRef
+    * @param factory [type: HFactory] Factory handle
+    * @param rd [type: HResourceDescriptor] The resource handle
+    */
+   void IncRef(HFactory factory, HResourceDescriptor rd);
+
+
    static const uint32_t s_ResourceTypeCreatorDescBufferSize = ResourceTypeCreatorDescBufferSize;
 
    /*#

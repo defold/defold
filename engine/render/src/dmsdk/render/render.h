@@ -235,7 +235,6 @@ namespace dmRender
      * @param m_MajorOrder [type: uint32_t:2] If RENDER_ORDER_WORLD, then sorting is done based on the world position.
                                               Otherwise the sorting uses the m_Order value directly.
      * @param m_Dispatch [type: uint32_t:8] The dispatch function callback (dmRender::HRenderListDispatch)
-     * @param m_Visibility [type: uint32_t:1] Visibility flag. Used for frustrum culling. See enum Visibility
      */
     struct RenderListEntry
     {

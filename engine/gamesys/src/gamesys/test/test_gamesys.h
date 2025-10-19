@@ -70,6 +70,7 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
   uint32_t m_MaxInstances;
+  uint32_t m_TriggerOverlapCapacity;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
@@ -89,7 +90,7 @@ protected:
         m_projectOptions = options;
     }
 
-    virtual void SetUp() = 0;
+    void SetUp() override = 0;
 };
 
 template<typename T>
@@ -107,8 +108,8 @@ public:
         this->m_projectOptions.m_VelocityThreshold = 1.0f;
     }
 protected:
-    virtual void SetUp();
-    virtual void TearDown();
+    void SetUp() override;
+    void TearDown() override;
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
     void WaitForTestsDone(int update_count, bool render, bool* result);
@@ -165,7 +166,7 @@ public:
         dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
@@ -219,6 +220,13 @@ public:
     }
 };
 
+class Trigger2DTest : public CollisionObject2DTest
+{
+public:
+	Trigger2DTest() {
+		m_projectOptions.m_TriggerOverlapCapacity = 1;
+	}
+};
 
 class VelocityThreshold2DTest : public CollisionObject2DTest
 {
@@ -615,6 +623,7 @@ void GamesysTest<T>::SetUp()
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
         context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+        context2DParams.m_TriggerOverlapCapacity = this->m_projectOptions.m_TriggerOverlapCapacity;
         m_PhysicsContextBox2D.m_Context = dmPhysics::NewContext2D(context2DParams);
 
         physics_context = &m_PhysicsContextBox2D.m_BaseContext;
@@ -780,7 +789,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
 class ScriptImageTest : public GamesysTest<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
 
@@ -793,7 +802,7 @@ protected:
 
         L = dmScript::GetLuaState(m_ScriptContext);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
         GamesysTest::TearDown();
@@ -807,7 +816,7 @@ protected:
 class ScriptBufferTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmBuffer::NewContext();
 
@@ -832,7 +841,7 @@ protected:
         dmBuffer::Create(m_Count, streams_decl, 2, &m_Buffer);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if( m_Buffer )
             dmBuffer::Destroy(m_Buffer);
@@ -863,7 +872,7 @@ struct CopyBufferTestParams
 class ScriptBufferCopyTest : public jc_test_params_class<CopyBufferTestParams>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmBuffer::NewContext();
         dmScript::ContextParams script_context_params = {};
@@ -888,7 +897,7 @@ protected:
         dmBuffer::Create(p.m_Count, streams_decl, 2, &m_Buffer);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmBuffer::Destroy(m_Buffer);
 
@@ -909,7 +918,7 @@ protected:
 class LabelTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Position = dmVMath::Point3(0.0);
         m_Size = dmVMath::Vector3(2.0, 2.0, 0.0);

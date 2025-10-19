@@ -413,14 +413,20 @@
     (map? coll)
     (if (sorted? coll)
       coll
-      (with-meta (into (sorted-map) coll)
-                 (meta coll)))
+      (try
+        (with-meta (into (sorted-map) coll)
+                   (meta coll))
+        (catch ClassCastException _
+          coll)))
 
     (set? coll)
     (if (sorted? coll)
       coll
-      (with-meta (into (sorted-set) coll)
-                 (meta coll)))
+      (try
+        (with-meta (into (sorted-set) coll)
+                   (meta coll))
+        (catch ClassCastException _
+          coll)))
 
     :else
     coll))

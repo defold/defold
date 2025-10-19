@@ -2515,9 +2515,8 @@ namespace dmGameSystem
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
 
-            /////////! FIXME: need obtain GraphicsContext somehow
-            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(0, texture_set_res->m_Texture->m_Texture);
-            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(0, texture_set_res->m_Texture->m_Texture);
+            out_data->m_State.m_OriginalTextureWidth = texture_set_res->m_Texture->m_OriginalWidth;
+            out_data->m_State.m_OriginalTextureHeight = texture_set_res->m_Texture->m_OriginalHeight;
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
@@ -2969,9 +2968,10 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_component->m_World->m_CompGuiContext->m_RenderContext);
                 dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
-                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(graphics_context, texture), dmGraphics::GetOriginalTextureHeight(graphics_context, texture));
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
+                                                            texture_source->m_Texture->m_OriginalWidth,
+                                                            texture_source->m_Texture->m_OriginalHeight);
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);

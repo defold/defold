@@ -159,7 +159,7 @@ public:
         T_ASSERT_LE(iter, 10000);
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Quit = 0;
         m_ServerStarted = 0;
@@ -173,7 +173,7 @@ public:
         ASSERT_EQ(dmHttpServer::RESULT_OK, result_server);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Server)
             dmHttpServer::Delete(m_Server);
@@ -222,12 +222,12 @@ public:
         return r;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Major = m_Minor = m_ContentOffset = -1;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
     }
 };

@@ -22,7 +22,6 @@ from BuildUtility import BuildUtility, BuildUtilityException, create_build_utili
 import run
 import sdk
 
-
 # For properties, see https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
 Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} -v q --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC[0].abspath()}',
                       color='BROWN',
@@ -103,7 +102,6 @@ def compile_csharp_lib(self):
     if inst_to:
         install_task = self.add_install_files(install_to=inst_to, install_from=tsk.outputs)
 
-
 def _get_dotnet_version():
     result = run.shell_command('dotnet --info')
     lines = result.splitlines()
@@ -121,7 +119,10 @@ def _get_dotnet_version():
             break
     return version, sdk_dir
 
-def _get_dotnet_aot_base(nuget_path, dotnet_platform, dotnet_version):
+def _get_dotnet_aot_base_folder(nuget_path, dotnet_platform):
+    return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}"
+
+def _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, dotnet_version):
     return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}/{dotnet_version}/runtimes/{dotnet_platform}/native"
 
 def _get_dotnet_nuget_path():
@@ -136,8 +137,10 @@ def _get_dotnet_nuget_path():
             nuget_path = os.path.expanduser('~/.nuget/packages')
     return nuget_path
 
-
 def configure(conf):
+    if True:
+        return # until I've fixed the CI setup /MAWE
+
     platform = getattr(Options.options, 'platform', sdk.get_host_platform())
     if platform == '':
         platform = sdk.get_host_platform()
@@ -174,7 +177,11 @@ def configure(conf):
         if not os.path.exists(conf.env.NUGET_PACKAGES):
             conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
 
-    aot_base = _get_dotnet_aot_base(nuget_path, dotnet_platform, conf.env.DOTNET_VERSION)
+    print("Setting DOTNET_SDK", conf.env.DOTNET_SDK)
+    print("Setting DOTNET_VERSION", conf.env.DOTNET_VERSION)
+
+    # Note, we can't check the path here, in case this is a clean install, and we haven't downloaded any packages with nuget yet
+    aot_base = _get_dotnet_aot_base_with_version(nuget_path, dotnet_platform, conf.env.DOTNET_VERSION)
 
     if build_util.get_target_os() in ('win32'):
         pass
@@ -210,4 +217,4 @@ def configure(conf):
                 f'{aot_base}/licucore.a']
 
         if build_util.get_target_os() in ('macos'):
-            conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
+            conf.env['FRAMEWORK_CSHARP'] = ["OpenAL","OpenGL","QuartzCore"]

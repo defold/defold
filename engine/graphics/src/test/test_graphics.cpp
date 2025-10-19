@@ -82,7 +82,7 @@ public:
         return data->m_ShouldClose;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmGraphics::InstallAdapter();
 
@@ -122,7 +122,7 @@ public:
         m_ResizeData.m_Height = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_JobThread)
             dmJobThread::Destroy(m_JobThread);

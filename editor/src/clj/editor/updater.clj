@@ -17,6 +17,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.connection-properties :refer [connection-properties]]
+            [editor.localization :as localization]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -127,7 +128,7 @@
   (net/download! url zip-file
                  :progress-callback (fn [current total]
                                       (track-download-progress!
-                                        (progress/make "Downloading update" total current)))
+                                        (progress/make (localization/message "progress.downloading-update") total current)))
                  :chunk-size (* 1024 1024)
                  :cancelled-derefable cancelled-atom
                  :read-timeout 10000
@@ -169,7 +170,7 @@
             (io/copy in target-file))
           (when (executable? (.getUnixMode e))
             (.setExecutable target-file true))
-          (track-extract-progress! (progress/make "Extracting update" entry-count (inc i)))))
+          (track-extract-progress! (progress/make (localization/message "progress.extracting-update") entry-count (inc i)))))
       (if @cancelled-atom
         (do (FileUtils/deleteQuietly update-dir)
             false)
@@ -199,12 +200,12 @@
         cancelled-atom (atom false)
         track-progress! (fn [progress]
                           (swap! state-atom assoc-in [:current-download :progress] progress))
-        track-download-progress! (progress/nest-render-progress track-progress! (progress/make "" 2 0))
-        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make "" 2 1))]
+        track-download-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 0))
+        track-extract-progress! (progress/nest-render-progress track-progress! (progress/make localization/empty-message 2 1))]
     (when (some? current-download)
       (reset! (:cancelled-derefable current-download) true))
     (swap! state-atom assoc :current-download {:sha1 server-sha1
-                                               :progress (progress/make "" 2 0)
+                                               :progress (progress/make localization/empty-message 2 0)
                                                :cancelled-derefable cancelled-atom})
     (future
       (try

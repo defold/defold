@@ -80,7 +80,7 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 class ResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
@@ -90,7 +90,7 @@ protected:
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
@@ -104,7 +104,7 @@ protected:
 class DynamicResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         const char* test_dir = "build/src/test";
         dmResource::NewFactoryParams params;
@@ -114,7 +114,7 @@ protected:
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
@@ -219,7 +219,7 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams* p
 class GetResourceTest : public jc_test_params_class<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_ResourceContainerCreateCallCount = 0;
         m_ResourceContainerDestroyCallCount = 0;
@@ -253,7 +253,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Factory != NULL)
         {

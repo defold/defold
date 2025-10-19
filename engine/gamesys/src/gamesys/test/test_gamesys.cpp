@@ -2702,6 +2702,46 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(Trigger2DTest, EventTriggerFalseTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_trigger_go = "/collision_object/eventtrigger_false_trigger.goc";
+    dmhash_t hash_trigger_go = dmHashString64("/trigger-go");
+    // place this body standing on the base with its center at (20,5)
+    dmGameObject::HInstance trigger_go = Spawn(m_Factory, m_Collection, path_trigger_go, hash_trigger_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, trigger_go);
+
+    const char* path_body1_go = "/collision_object/eventtrigger_false_body1.goc";
+    dmhash_t hash_body1_go = dmHashString64("/body1-go");
+    // place this body standing on the base with its center at (5,5)
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body1_go);
+
+    // iterate until the lua env signals the end of the test of error occurs
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
 {
     const GroupAndMaskParams& params = GetParam();
@@ -5095,14 +5135,14 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Attribute not found
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("attribute_does_not_exist"), desc, Test_GetMaterialAttributeCallback, &ctx));
     }
 
     // Attribute(s) found
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
@@ -5143,7 +5183,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set a dynamic attribute by vector
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("position");
 
         dmGameObject::PropertyVar var = {};
@@ -5176,7 +5216,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set a dynamic attribute by value(s)
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash_x    = dmHashString64("position.x");
         dmhash_t attr_name_hash_y    = dmHashString64("position.y");
         dmhash_t attr_name_hash_full = dmHashString64("position");
@@ -5221,7 +5261,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set multiple dynamic attributes (more than original capacity)
     {
-        dmArray<uint16_t> allocated_indices;
+        dmArray<uint32_t> allocated_indices;
         allocated_indices.SetCapacity( dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 2 + INITIAL_SIZE + 1); // Should equate to three resizes
 
         dmhash_t attr_name_hash = dmHashString64("position");
@@ -5232,7 +5272,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         {
             var.m_Number = (float) i;
 
-            uint16_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+            uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
             ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
             ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
 
@@ -5269,7 +5309,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         dmGameObject::PropertyVar var = {};
         dmGameObject::PropertyDesc desc = {};
 
-        uint16_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
     }
 
@@ -5359,7 +5399,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Data conversion for dynamic attributes
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("normal");
 
         dmGameObject::PropertyVar var = {};

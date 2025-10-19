@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.prefs :as prefs]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
@@ -31,7 +32,6 @@
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
             [editor.engine-profiler :as engine-profiler]
-            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
@@ -105,6 +105,12 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
+(defn- persist-window-state!
+  [^Stage stage ^Scene scene prefs]
+  (app-view/store-window-dimensions stage prefs)
+  (app-view/store-split-positions! scene prefs)
+  (app-view/store-hidden-panes! scene prefs))
+
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
@@ -153,7 +159,7 @@
     (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
-    (ui/show! stage)
+    (ui/show! stage localization)
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
@@ -168,12 +174,12 @@
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
-          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
-          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
+          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
@@ -190,12 +196,14 @@
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
+                                                      localization
                                                       {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs)
+                                                      localization)
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
@@ -212,10 +220,11 @@
                            (notifications/show!
                              (workspace/notifications workspace)
                              {:type :warning
-                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
-                                            server-port
-                                            (.getMessage e)
-                                            (http-server/port server))})
+                              :message (localization/message
+                                         "notification.web-server.port-fallback.warning"
+                                         {"requested" server-port
+                                          "reason" (.getMessage e)
+                                          "fallback" (http-server/port server)})})
                            server)))
           port-file-content (str (http-server/port web-server))
           port-file (doto (io/file project-path ".internal" "editor.port")
@@ -225,10 +234,12 @@
       (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
       (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
       (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
+      (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
       (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
       (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
+
       (.addShutdownHook
         (Runtime/getRuntime)
         (Thread.
@@ -239,6 +250,7 @@
               (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
+      (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
@@ -276,29 +288,49 @@
         (app-view/restore-hidden-panes! scene prefs))
 
       (ui/on-closing! stage (fn [_]
-                              (let [result (or (empty? (project/dirty-save-data project))
-                                               (dialogs/make-confirmation-dialog
-                                                 localization
-                                                 {:title (localization/message "dialog.quit-defold.title")
-                                                  :icon :icon/circle-question
-                                                  :size :large
-                                                  :header (localization/message "dialog.quit-defold.header")
-                                                  :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
-                                                             :default-button true
-                                                             :cancel-button true
-                                                             :result false}
-                                                            {:text (localization/message "dialog.quit-defold.button.quit")
-                                                             :variant :danger
-                                                             :result true}]}))]
-                                (when result
-                                  (app-view/store-window-dimensions stage prefs)
-                                  (app-view/store-split-positions! scene prefs)
-                                  (app-view/store-hidden-panes! scene prefs))
-                                result)))
+                              (let [dirty-save-data (project/dirty-save-data project)
+                                    auto-save-on-quit? (prefs/get prefs [:workflow :save-on-app-focus-lost])]
+                                (if (and auto-save-on-quit? (seq dirty-save-data))
+                                  (do
+                                    ;; Auto-save is enabled: save changes and then close without prompting.
+                                    (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+                                          render-save-progress! (app-view/make-render-task-progress :save-all)]
+                                      (ui/disable-ui!)
+                                      (disk/async-save!
+                                        render-reload-progress!
+                                        render-save-progress!
+                                        project/dirty-save-data
+                                        project
+                                        changes-view
+                                        (fn [successful?]
+                                          (if successful?
+                                            (do
+                                              (persist-window-state! stage scene prefs)
+                                              (ui/close! stage))
+                                            (ui/enable-ui!)))))
+                                    false)
+                                  (let [result (or (empty? dirty-save-data)
+                                                   (dialogs/make-confirmation-dialog
+                                                     localization
+                                                     {:title (localization/message "dialog.quit-defold.title")
+                                                      :icon :icon/circle-question
+                                                      :size :large
+                                                      :header (localization/message "dialog.quit-defold.header")
+                                                      :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
+                                                                 :default-button true
+                                                                 :cancel-button true
+                                                                 :result false}
+                                                                {:text (localization/message "dialog.quit-defold.button.quit")
+                                                                 :variant :danger
+                                                                 :result true}]}))]
+                                    (when result
+                                      (persist-window-state! stage scene prefs))
+                                    result)))))
 
       (ui/on-closed! stage (fn [_]
                              (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
+                             (ui/remove-application-unfocused-callback! :main-stage-unfocused)
 
                              ;; TODO: This takes a long time in large projects.
                              ;; Disabled for now since we don't really need to

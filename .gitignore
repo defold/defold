@@ -24,6 +24,7 @@
 *.apidoc_
 engine/.clang_complete
 /.vscode
+/.idea
 .npm
 /**/.project
 /**/.gradle

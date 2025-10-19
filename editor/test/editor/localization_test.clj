@@ -48,7 +48,16 @@
         (is (= "1, 2, or APPLE" (localization (localization/or-list [1 2 (localization/message "apple")])))))))
   (testing "date"
     (let [localization (make)]
-      (is (= "8/5/25" (localization (localization/date (LocalDate/of 2025 8 5))))))))
+      (is (= "8/5/25" (localization (localization/date (LocalDate/of 2025 8 5)))))))
+  (testing "join"
+    (let [localization (make {"en" "arrow = ->\n a = apple"})]
+      (is (= "a->b->c" (localization (localization/join "->" ["a" "b" "c"]))))
+      (is (= "a->b->c" (localization (localization/join (localization/message "arrow") ["a" "b" "c"]))))
+      (is (= "apple->b->c" (localization (localization/join "->" [(localization/message "a") "b" "c"]))))))
+  (testing "transform"
+    (let [localization (make {"en" "apple = APPLE"})]
+      (is (= "=huh=" (localization (localization/transform "huh" #(str "=" % "=")))))
+      (is (= "=APPLE=" (localization (localization/transform (localization/message "apple") #(str "=" % "="))))))))
 
 (deftest available-locales-test
   (is (= [] (localization/available-locales @(make))))

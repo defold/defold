@@ -396,7 +396,7 @@ namespace dmGameSystem
         }
     }
 
-    void FreeMaterialAttribute(DynamicAttributePool& pool, uint16_t dynamic_attribute_index)
+    void FreeMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index)
     {
         if (dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
@@ -469,7 +469,7 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult GetMaterialAttribute(
         DynamicAttributePool&            pool,
-        uint16_t                         dynamic_attribute_index,
+        uint32_t                         dynamic_attribute_index,
         dmRender::HMaterial              material,
         dmhash_t                         name_hash,
         dmGameObject::PropertyDesc&      out_desc,
@@ -522,7 +522,7 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult SetMaterialAttribute(
         DynamicAttributePool&            pool,
-        uint16_t*                        dynamic_attribute_index,
+        uint32_t*                        dynamic_attribute_index,
         dmRender::HMaterial              material,
         dmhash_t                         name_hash,
         const dmGameObject::PropertyVar& var,
@@ -575,7 +575,7 @@ namespace dmGameSystem
             pool.Set(new_index, new_info);
 
             dynamic_info = &pool.Get(new_index);
-            *dynamic_attribute_index = (uint16_t)new_index;
+            *dynamic_attribute_index = new_index;
             needs_initial_copying = true;
         }
         else

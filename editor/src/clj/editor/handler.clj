@@ -18,6 +18,7 @@
             [editor.analytics :as analytics]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
+            [editor.localization :as localization]
             [editor.util :as util]
             [plumbing.core :refer [fnk]]
             [util.coll :as coll :refer [pair]]
@@ -127,7 +128,7 @@
                    :editor.menu/check
                    :editor.menu/on-submenu-open]))
 (s/def :editor.menu/command (s/or :synthetic-command synthetic-command? :named-command keyword?))
-(s/def :editor.menu/label (s/or :string string? :separator #{:separator}))
+(s/def :editor.menu/label (s/or :string string? :message localization/message-pattern? :separator #{:separator}))
 (s/def :editor.menu/children :editor.menu/menu)
 (s/def :editor.menu/id :editor.menu/location)
 (s/def :editor.menu/icon string?)
@@ -156,7 +157,7 @@
 (s/def ::active? fn?)
 (s/def ::enabled? fn?)
 (s/def ::state fn?)
-(s/def ::label (s/or :fn fn? :string string?))
+(s/def ::label (s/or :fn fn? :string string? :message localization/message-pattern?))
 (s/def ::options fn?)
 
 ;; register args
@@ -175,7 +176,8 @@
                  menu items, where each menu item is a map with the following
                  optional keys:
                    :command            a keyword command identifier
-                   :label              either a string (item label text) or
+                   :label              either a string (item label text),
+                                       localization MessagePattern, or
                                        :separator (will display the menu item
                                        as a separator)
                    :children           nested collection of menu items
@@ -228,10 +230,11 @@
                    :state        optional fnk that returns value that is then
                                  coerced to boolean and gets presented as a
                                  checked or unchecked menu item
-                   :label        optional, either a string or an fnk that
-                                 returns label for the menu item associated with
-                                 this command; takes precedence over label
-                                 defined on the menu item
+                   :label        optional, either a string, localization
+                                 MessagePattern, or an fnk that returns
+                                 for the menu item associated with this command;
+                                 takes precedence over label defined on the menu
+                                 item
                    :options      optional fnk that returns a list of menu items
                                  that the user has to choose from instead of
                                  running this command; presented as a drop-down
@@ -378,7 +381,7 @@
 
 (defn label [[handler command-context]]
   (let [label (:label handler)]
-    (if (string? label)
+    (if (or (string? label) (localization/message-pattern? label))
       label
       (invoke-fnk handler :label command-context nil))))
 
@@ -390,7 +393,7 @@
        :children
        (e/mapcat (fn [child-item]
                    (-> child-item
-                       (cond-> (not= :separator (:label child-item)) (update :label #(str (:label item) " → " %)))
+                       (cond-> (not= :separator (:label child-item)) (update :label #(localization/join " → " [(:label item) %])))
                        (flatten-menu-item-tree))))
        (e/cons item)))
 
@@ -400,12 +403,13 @@
   Returns either a non-empty vector or nil"
   [[{:keys [command]} :as handler+command-context]]
   (when-let [opts (options handler+command-context)]
-    (->> opts
-         (e/mapcat flatten-menu-item-tree)
-         (e/remove #(= :separator (:label %)))
-         (e/filter #(= command (:command %)))
-         vec
-         coll/not-empty)))
+    (when-let [flat-opts (->> opts
+                              (e/mapcat flatten-menu-item-tree)
+                              (e/remove #(= :separator (:label %)))
+                              (e/filter #(= command (:command %)))
+                              vec
+                              coll/not-empty)]
+      (with-meta flat-opts (meta opts)))))
 
 (defn- eval-dynamics [context evaluation-context]
   (cond-> context

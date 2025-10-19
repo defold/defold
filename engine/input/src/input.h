@@ -28,35 +28,36 @@ namespace dmInput
         float m_Value;
         float m_PrevValue;
         float m_RepeatTimer;
-        int32_t m_X;
-        int32_t m_Y;
-        int32_t m_DX;
-        int32_t m_DY;
+        int16_t m_X;
+        int16_t m_Y;
+        int16_t m_DX;
+        int16_t m_DY;
         float m_AccX;
         float m_AccY;
         float m_AccZ;
-        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-        int32_t      m_TouchCount;
-        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
-        char         m_Text[dmHID::MAX_CHAR_COUNT];
-        uint32_t     m_TextCount;
-        uint32_t     m_HasText;
-        uint32_t     m_GamepadIndex;
-        uint32_t     m_UserID;
+        union {
+            dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char         m_Text[dmHID::MAX_CHAR_COUNT];
+        };
+        /// Text or touch count
+        int16_t      m_Count;
+        uint16_t     m_GamepadIndex;
+        uint16_t     m_UserID;
         dmHID::GamepadPacket m_GamepadPacket;
 
-        uint32_t m_IsGamepad : 1;
-        uint32_t m_GamepadUnknown : 1;
-        uint32_t m_GamepadDisconnected : 1;
-        uint32_t m_GamepadConnected : 1;
-        uint32_t m_HasGamepadPacket : 1;
-        uint32_t m_Pressed : 1;
-        uint32_t m_Released : 1;
-        uint32_t m_Repeated : 1;
-        uint32_t m_PositionSet : 1;
-        uint32_t m_AccelerationSet : 1;
-        uint32_t m_Dirty : 1; // it's dirty and should report its value
-        uint32_t :22;
+        uint16_t m_IsGamepad : 1;
+        uint16_t m_GamepadUnknown : 1;
+        uint16_t m_GamepadDisconnected : 1;
+        uint16_t m_GamepadConnected : 1;
+        uint16_t m_HasGamepadPacket : 1;
+        uint16_t m_Pressed : 1;
+        uint16_t m_Released : 1;
+        uint16_t m_Repeated : 1;
+        uint16_t m_PositionSet : 1;
+        uint16_t m_AccelerationSet : 1;
+        uint16_t m_HasText : 1;
+        uint16_t m_Dirty : 1; // it's dirty and should report its value
+        uint16_t : 4;
     };
 
     typedef struct Context* HContext;
