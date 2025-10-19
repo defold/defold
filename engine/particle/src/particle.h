@@ -190,14 +190,11 @@ namespace dmParticle
      */
     struct Stats
     {
-        Stats()
-        {
-            m_StructSize = sizeof(*this);
-        }
+        Stats() = default;
 
         uint32_t m_Particles;
         uint32_t m_MaxParticles;
-        uint32_t m_StructSize;
+        uint32_t m_StructSize = sizeof(*this);
     };
 
     /**
@@ -205,13 +202,10 @@ namespace dmParticle
      */
     struct InstanceStats
     {
-        InstanceStats()
-        {
-            m_StructSize = sizeof(*this);
-        }
+        InstanceStats() = default;
 
         float m_Time;
-        uint32_t m_StructSize;
+        uint32_t m_StructSize = sizeof(*this);
     };
 
     // For tests

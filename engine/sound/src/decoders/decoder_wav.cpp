@@ -110,7 +110,7 @@ namespace dmSoundCodec
         };
 
         struct DecodeStreamInfo {
-            virtual ~DecodeStreamInfo() {}
+            virtual ~DecodeStreamInfo() = default;
 
             Info m_Info;
             bool m_IsADPCM : 1;

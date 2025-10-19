@@ -104,17 +104,9 @@ namespace dmProfileRender
     static ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame);
     static ProfilerThread* GetSelectedThread(HRenderProfile render_profile, ProfilerFrame* frame);
 
-    ProfilerThread::ProfilerThread()
-    : m_NameHash(0)
-    , m_Time(0)
-    , m_SamplesTotalTime(0)
-    {
-    }
+    ProfilerThread::ProfilerThread() = default;
 
-    ProfilerFrame::ProfilerFrame()
-    : m_Time(0)
-    {
-    }
+    ProfilerFrame::ProfilerFrame() = default;
 
     // The RenderProfile contains the current "live" frame and
     // stats used to sort/purge sample items
@@ -327,7 +319,7 @@ namespace dmProfileRender
 
     struct ThreadSortTimePred
     {
-        ThreadSortTimePred() {}
+        ThreadSortTimePred() = default;
         bool operator()(ProfilerThread* a, ProfilerThread* b) const
         {
             return a->m_SamplesTotalTime > b->m_SamplesTotalTime;

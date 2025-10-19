@@ -46,7 +46,7 @@ namespace dmGraphics
 
     struct DeviceBuffer
     {
-        DeviceBuffer(){}
+        DeviceBuffer() = default;
         DeviceBuffer(const VkBufferUsageFlags usage)
         : m_MappedDataPtr(0)
         , m_Usage(usage)

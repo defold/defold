@@ -47,9 +47,7 @@ namespace dmGui
     const dmhash_t DEFAULT_LAYOUT = DEFAULT_LAYER;
     const uint16_t INVALID_INDEX = 0xffff;
 
-    InputAction::InputAction()
-    {
-    }
+    InputAction::InputAction() = default;
 
     HContext NewContext(const NewContextParams* params)
     {

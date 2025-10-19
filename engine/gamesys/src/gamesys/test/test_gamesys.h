@@ -175,7 +175,7 @@ public:
         GamesysTest::TearDown();
     }
 
-    virtual ~ScriptBaseTest() { }
+    virtual ~ScriptBaseTest() = default;
 
     dmGameSystem::ScriptLibContext m_Scriptlibcontext;
 };
@@ -240,7 +240,7 @@ public:
 class ResourceTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~ResourceTest() {}
+    virtual ~ResourceTest() = default;
 };
 
 struct ResourceReloadParams
@@ -253,7 +253,7 @@ struct ResourceReloadParams
 class ResourceReloadTest : public GamesysTest<ResourceReloadParams>
 {
 public:
-    virtual ~ResourceReloadTest() {}
+    virtual ~ResourceReloadTest() = default;
 };
 
 struct ResourceFailParams
@@ -452,7 +452,7 @@ public:
 class RenderConstantsTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~RenderConstantsTest() {}
+    virtual ~RenderConstantsTest() = default;
 };
 
 class MaterialTest : public ScriptBaseTest

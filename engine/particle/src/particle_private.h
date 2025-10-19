@@ -198,10 +198,7 @@ namespace dmParticle
             m_InstanceIndexPool.SetCapacity(max_instance_count);
         }
 
-        ~Context()
-        {
-
-        }
+        ~Context() = default;
 
         /// Instance buffer.
         dmArray<Instance*>  m_Instances;
@@ -274,16 +271,12 @@ namespace dmParticle
      */
     struct Prototype
     {
-        Prototype()
-        : m_Emitters()
-        , m_DDF(0x0)
-        {
-        }
+        Prototype() = default;
 
         /// Emitter prototypes
-        dmArray<EmitterPrototype>   m_Emitters;
+        dmArray<EmitterPrototype>   m_Emitters {};
         /// DDF structure read from the resource.
-        dmParticleDDF::ParticleFX*  m_DDF;
+        dmParticleDDF::ParticleFX*  m_DDF {0x0};
     };
 
     void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index);

@@ -73,5 +73,5 @@ struct DrawCountParams
 class DrawCountTest : public EngineParamsTest<DrawCountParams>
 {
 public:
-    virtual ~DrawCountTest() {}
+    virtual ~DrawCountTest() = default;
 };

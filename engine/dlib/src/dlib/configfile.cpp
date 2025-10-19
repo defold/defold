@@ -501,9 +501,7 @@ namespace dmConfigFile
 
     struct HttpContext
     {
-        HttpContext()
-        {
-        }
+        HttpContext() = default;
         dmArray<char> m_Buffer;
     };
 

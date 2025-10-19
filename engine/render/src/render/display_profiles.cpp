@@ -34,10 +34,7 @@
 
 namespace dmRender
 {
-    DisplayProfilesParams::DisplayProfilesParams()
-    : m_DisplayProfilesDDF(0x0)
-    , m_NameHash(0x0)
-    { }
+    DisplayProfilesParams::DisplayProfilesParams() = default;
 
     HDisplayProfiles NewDisplayProfiles()
     {

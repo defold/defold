@@ -74,7 +74,7 @@ namespace dmPhysics
             , m_CollisionMask((uint16_t)~0u)
             , m_ReturnAllResults(0) {}
 
-        virtual ~ProcessRayCastResultCallback2D() {}
+        virtual ~ProcessRayCastResultCallback2D() = default;
 
         /// Called for each fixture found in the query. You control how the ray cast
         /// proceeds by returning a float:

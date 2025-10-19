@@ -50,12 +50,9 @@ const int MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
 {
-    dmLogConnection()
-    {
-        m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-    }
+    dmLogConnection() = default;
 
-    dmSocket::Socket m_Socket;
+    dmSocket::Socket m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
 };
 
 static const uint32_t DLIB_MAX_LOG_CONNECTIONS = 16;

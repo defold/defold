@@ -48,7 +48,7 @@ namespace dmGameSystem
 
     struct BoxVertex
     {
-        inline BoxVertex() {}
+        inline BoxVertex() = default;
         inline BoxVertex(const dmVMath::Vector4& p, float u, float v, const dmVMath::Vector4& color, uint32_t page_index)
         {
             SetPosition(p);
@@ -116,7 +116,7 @@ namespace dmGameSystem
 
     struct CompGuiNodeType
     {
-        CompGuiNodeType() {}
+        CompGuiNodeType() = default;
 
         CompGuiNodeTypeDescriptor*  m_TypeDesc;
         void*                       m_Context;

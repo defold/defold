@@ -60,10 +60,10 @@ namespace dmGameSystem
     // In general, rare overrides should be kept out of the struct, to keep memory down
     struct SpriteResourceOverrides
     {
-        MaterialResource*       m_Material;
+        MaterialResource*       m_Material {0};
         dmArray<SpriteTexture>  m_Textures; // sampler name to texture set
 
-        SpriteResourceOverrides() : m_Material(0) {}
+        SpriteResourceOverrides() = default;
     };
 
     const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;

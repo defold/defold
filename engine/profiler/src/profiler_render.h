@@ -64,9 +64,9 @@ namespace dmProfileRender
     struct ProfilerThread
     {
         dmArray<ProfilerSample>     m_Samples;
-        uint32_t                    m_NameHash;
-        uint64_t                    m_Time;             // The time of the last update for this thread
-        uint64_t                    m_SamplesTotalTime; // The elapsed time of the samples in the thread
+        uint32_t                    m_NameHash {0};
+        uint64_t                    m_Time {0};             // The time of the last update for this thread
+        uint64_t                    m_SamplesTotalTime {0}; // The elapsed time of the samples in the thread
 
         ProfilerThread();
     };
@@ -76,7 +76,7 @@ namespace dmProfileRender
     {
         dmArray<ProfilerThread*>    m_Threads;
         dmArray<ProfilerProperty>   m_Properties;
-        uint64_t                    m_Time;           // The time of the last update for this frame
+        uint64_t                    m_Time {0};           // The time of the last update for this frame
 
         ProfilerFrame();
     };

@@ -53,9 +53,7 @@ struct ModelImporterInitializer
 namespace dmModelImporter
 {
 
-Options::Options()
-{
-}
+Options::Options() = default;
 
 static void DestroyMesh(Mesh* mesh)
 {

@@ -76,12 +76,9 @@ namespace dmSoundCodec
     struct NewCodecContextParams
     {
         /// Maximum number of decoders supported in context
-        uint32_t m_MaxDecoders;
+        uint32_t m_MaxDecoders {32};
 
-        NewCodecContextParams()
-        {
-            m_MaxDecoders = 32;
-        }
+        NewCodecContextParams() = default;
     };
 
     /**

@@ -43,8 +43,8 @@ namespace dmRender
         DisplayProfilesParams();
 
         /// Pointer to DDF buffer
-        dmRenderDDF::DisplayProfiles* m_DisplayProfilesDDF;
-        dmhash_t m_NameHash;
+        dmRenderDDF::DisplayProfiles* m_DisplayProfilesDDF {0x0};
+        dmhash_t m_NameHash {0x0};
     };
 
     /**

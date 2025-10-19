@@ -54,9 +54,7 @@ struct LogMessage
 const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
 struct LogParams
 {
-    LogParams()
-    {
-    }
+    LogParams() = default;
 };
 
 /**

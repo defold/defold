@@ -964,19 +964,19 @@ protected:
 class RigInstanceCursorBackwardTest : public RigInstanceCursorTest<dmRig::RigPlayback>
 {
 public:
-    virtual ~RigInstanceCursorBackwardTest() {}
+    virtual ~RigInstanceCursorBackwardTest() = default;
 };
 
 class RigInstanceCursorForwardTest : public RigInstanceCursorTest<dmRig::RigPlayback>
 {
 public:
-    virtual ~RigInstanceCursorForwardTest() {}
+    virtual ~RigInstanceCursorForwardTest() = default;
 };
 
 class RigInstanceCursorPingpongTest : public RigInstanceCursorTest<dmRig::RigPlayback>
 {
 public:
-    virtual ~RigInstanceCursorPingpongTest() {}
+    virtual ~RigInstanceCursorPingpongTest() = default;
 };
 
 TEST_P(RigInstanceCursorPingpongTest, CursorSet)

@@ -67,10 +67,7 @@ namespace dmPhysics
         {
         }
 
-        virtual ~MotionState()
-        {
-
-        }
+        virtual ~MotionState() = default;
 
         virtual void getWorldTransform(btTransform& world_trans) const
         {

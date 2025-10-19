@@ -116,9 +116,7 @@ namespace dmGameObject
             m_ToBeAdded = 0;
         }
 
-        ~Instance()
-        {
-        }
+        ~Instance() = default;
 
         dmTransform::Transform m_Transform;
 

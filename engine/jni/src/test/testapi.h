@@ -44,7 +44,7 @@ namespace dmJniTest
     {
         int x, y;
 
-        Vec2i() {}
+        Vec2i() = default;
         Vec2i(int _x, int _y) : x(_x), y(_y) {}
     };
 

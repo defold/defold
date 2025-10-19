@@ -166,9 +166,7 @@ struct ProfileContext
     dmHashTable32<const char*> m_ThreadNames;
     dmHashTable32<ThreadData*> m_ThreadData;
 
-    ProfileContext()
-    {
-    }
+    ProfileContext() = default;
 
     ~ProfileContext()
     {
@@ -428,9 +426,7 @@ namespace dmProfiler
     {
     }
 
-    SampleIterator::~SampleIterator()
-    {
-    }
+    SampleIterator::~SampleIterator() = default;
 
     SampleIterator* SampleIterateChildren(HSample hsample, SampleIterator* iter)
     {
