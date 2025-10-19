@@ -222,9 +222,10 @@ namespace dmRender
      * Gets a struct representing a slot in the glyph texture cache
      * @param font_map [type: HFontMap] Font map handle
      * @param glyph_key [type: uint64_t] A key created by #MakeGlyphIndexKey()
+     * @param frame [type: uint32_t] The current frame number. Used to for evicting old cache entries.
      * @return cache_glyph [type: CacheGlyph*] the glyph cache info
      */
-    CacheGlyph* GetFromCache(HFontMap font_map, uint64_t glyph_key);
+    CacheGlyph* GetFromCache(HFontMap font_map, uint64_t glyph_key, uint32_t frame);
 
     /**
      * Checks if a codepoint is already stored within the cache

@@ -487,7 +487,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
                     AddGlyphToCache(font_map, frame, glyph_key, glyph, px_cell_offset_y);
                 }
 
-                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key);
+                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key, frame);
                 if (cache_glyph)
                 {
                     cell_x = cache_glyph->m_X;

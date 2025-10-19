@@ -699,7 +699,7 @@ namespace dmRender
     }
 
     // Either get a free slot, or the oldest one
-    static CacheGlyph* AcquireFreeGlyphFromCache(HFontMap font_map, uint32_t time)
+    static CacheGlyph* AcquireFreeGlyphFromCache(HFontMap font_map)
     {
         uint32_t i;
         if (font_map->m_CacheCursor < font_map->m_CacheCellCount)
@@ -711,15 +711,21 @@ namespace dmRender
         return &font_map->m_Cache[index];
     }
 
-    CacheGlyph* GetFromCache(HFontMap font_map, uint64_t glyph_key)
+    CacheGlyph* GetFromCache(HFontMap font_map, uint64_t glyph_key, uint32_t frame)
     {
         CacheGlyph** glyphp = font_map->m_GlyphCache.Get(glyph_key);
-        return glyphp ? *glyphp : 0;
+        if (glyphp)
+        {
+            (*glyphp)->m_Frame = frame;
+            return *glyphp;
+        }
+        return 0;
     }
 
     bool IsInCache(HFontMap font_map, uint64_t glyph_key)
     {
-        return GetFromCache(font_map, glyph_key) != 0;
+        CacheGlyph** glyphp = font_map->m_GlyphCache.Get(glyph_key);
+        return glyphp != 0;
     }
 
     static bool CanCacheTextureGrow(HFontMap font_map)
@@ -739,8 +745,13 @@ namespace dmRender
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
 
+        // Since accessing glyphs will update their timestamps, we need to sort them when
+        // we need to allocate a new glyph, so that we pick the oldest one
+        SortCache(font_map);
+        //DebugCache(font_map);
+
         // Locate a cache cell candidate
-        CacheGlyph* cache_glyph = AcquireFreeGlyphFromCache(font_map, frame);
+        CacheGlyph* cache_glyph = AcquireFreeGlyphFromCache(font_map);
 
         if (cache_glyph->m_Glyph && cache_glyph->m_Frame == frame)
         {
@@ -765,14 +776,10 @@ namespace dmRender
         }
         cache_glyph->m_Glyph = glyph;
         cache_glyph->m_GlyphKey = glyph_key;
+        cache_glyph->m_Frame = frame;
 
         font_map->m_GlyphCache.Put(glyph_key, cache_glyph);
 
-        // Sort the glyphs, so that if we need to add another one, the oldest is at the end, for fast access
-        cache_glyph->m_Frame = frame;
-        SortCache(font_map);
-
-        //DebugCache(font_map);
 
         UpdateGlyphTexture(font_map, glyph, cache_glyph->m_X, cache_glyph->m_Y, g_offset_y);
     }
