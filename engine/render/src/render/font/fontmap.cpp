@@ -194,18 +194,9 @@ namespace dmRender
         font_map->m_OnGlyphCacheMissContext = params.m_OnGlyphCacheMissContext;
 
         // Is the cache allowed to grow?
-        font_map->m_DynamicCacheSize = params.m_CacheWidth == 0 && params.m_CacheHeight == 0;
-        if (font_map->m_DynamicCacheSize)
-        {
-            // we mustn't have a 0x0 size texture
-            font_map->m_CacheWidth  = 64;
-            font_map->m_CacheHeight = 64;
-        }
-        else
-        {
-            font_map->m_CacheWidth = params.m_CacheWidth;
-            font_map->m_CacheHeight = params.m_CacheHeight;
-        }
+        font_map->m_DynamicCacheSize = params.m_CacheWidth < params.m_CacheMaxWidth || params.m_CacheHeight < params.m_CacheMaxHeight;
+        font_map->m_CacheWidth = params.m_CacheWidth;
+        font_map->m_CacheHeight = params.m_CacheHeight;
         font_map->m_CacheMaxWidth = params.m_CacheMaxWidth;
         font_map->m_CacheMaxHeight = params.m_CacheMaxHeight;
 
