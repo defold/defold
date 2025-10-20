@@ -958,6 +958,7 @@ ordinary paths."
   (input notifications g/NodeID :cascade-delete)
 
   (output dependency-uris g/Any (g/fnk [dependencies] (mapv :uri dependencies)))
+  (output dependencies g/Any (g/fnk [dependencies] dependencies))
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
