@@ -265,6 +265,7 @@ uri = http://localhost:1234/save-data-project
 
 [library]
 include_dirs = library
+defold_min_version = 1.10.0
 
 [liveupdate]
 enabled = 1
