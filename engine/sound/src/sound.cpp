@@ -1877,7 +1877,7 @@ namespace dmSound
                 queue_result = sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[buffer_index], frame_count);
             }
 
-            if (queue_result == dmSound::RESULT_INIT_ERROR)
+            if (queue_result == dmSound::RESULT_INIT_ERROR || queue_result == dmSound::RESULT_DEVICE_LOST)
             {
                 NotifyDeviceInvalidated();
                 return queue_result;

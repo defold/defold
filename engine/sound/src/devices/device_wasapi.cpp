@@ -66,7 +66,6 @@ namespace dmDeviceWasapi
         {
             dmLogError("WASAPI device lost in %s (hr=0x%08X)", context, hr);
             CheckAndPrintError(hr);
-            dmSound::NotifyDeviceInvalidated();
         }
 
         device->m_DeviceInvalidated = true;
@@ -289,7 +288,8 @@ namespace dmDeviceWasapi
 
         if (device->m_DeviceInvalidated)
         {
-            return 0;
+            // Return one slot so the queue path surfaces RESULT_DEVICE_LOST.
+            return 1;
         }
 
         HRESULT hr = WaitForSingleObject(device->m_ClientBufferEvent, 250);
@@ -343,7 +343,7 @@ namespace dmDeviceWasapi
 
         if (device->m_DeviceInvalidated)
         {
-            return dmSound::RESULT_INIT_ERROR;
+            return dmSound::RESULT_DEVICE_LOST;
         }
 
         uint32_t buffer_size = 0;
@@ -355,7 +355,7 @@ namespace dmDeviceWasapi
             if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
             {
                 MarkDeviceInvalidated(device, "Queue/GetBufferSize", hr);
-                return dmSound::RESULT_INIT_ERROR;
+                return dmSound::RESULT_DEVICE_LOST;
             }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
@@ -366,7 +366,7 @@ namespace dmDeviceWasapi
             if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
             {
                 MarkDeviceInvalidated(device, "Queue/GetCurrentPadding", hr);
-                return dmSound::RESULT_INIT_ERROR;
+                return dmSound::RESULT_DEVICE_LOST;
             }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
@@ -383,7 +383,7 @@ namespace dmDeviceWasapi
             if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
             {
                 MarkDeviceInvalidated(device, "Queue/GetBuffer", hr);
-                return dmSound::RESULT_INIT_ERROR;
+                return dmSound::RESULT_DEVICE_LOST;
             }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
@@ -432,7 +432,7 @@ namespace dmDeviceWasapi
             if (release_hr == AUDCLNT_E_DEVICE_INVALIDATED)
             {
                 MarkDeviceInvalidated(device, "Queue/ReleaseBuffer", release_hr);
-                return dmSound::RESULT_INIT_ERROR;
+                return dmSound::RESULT_DEVICE_LOST;
             }
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
