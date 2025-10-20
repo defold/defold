@@ -169,15 +169,12 @@
                       error))))
           setting-values)))
 
-(defn get-dependencies-setting-errors
-  "Return build errors derived from project dependencies (e.g., incompatible
-  library.defold_min_version). Expects a Project node id and an
-  evaluation-context."
-  [project evaluation-context]
-  (let [workspace (project/workspace project evaluation-context)
-        dependencies (g/node-value workspace :dependencies evaluation-context)
-        min-version (into [] (filter #(and (= :error (:status %))
-                                      (= :defold-min-version (:reason %)))) dependencies)]
+(defn get-dependencies-setting-errors-from
+  "Return build errors derived from a dependency vector (e.g., incompatible
+  library.defold_min_version)."
+  [dependencies]
+  (let [min-version (into [] (filter #(and (= :error (:status %))
+                                           (= :defold-min-version (:reason %)))) dependencies)]
     (mapv (fn [{:keys [uri required current]}]
             (g/map->error
               {:severity :fatal
@@ -218,6 +215,7 @@
   (input project g/NodeID)
   (input owner-resource resource/Resource)
   (input meta-infos g/Any)
+  (input project-dependencies g/Any)
 
   (output resource-setting-nodes g/Any :cached
           (g/fnk [resource-setting-references]
@@ -247,10 +245,9 @@
   (output form-data g/Any :cached produce-form-data)
 
   (output save-value g/Any (gu/passthrough merged-raw-settings))
-  (output setting-errors g/Any :cached (g/fnk [form-data project]
+  (output setting-errors g/Any :cached (g/fnk [form-data project-dependencies]
                                          (let [base-errors (get-settings-errors form-data)]
-                                           (g/with-auto-evaluation-context evaluation-context
-                                             (into base-errors (get-dependencies-setting-errors project evaluation-context))))))
+                                           (into base-errors (get-dependencies-setting-errors-from project-dependencies)))))
   (output meta-info g/Any :cached
           (g/fnk [raw-meta-info meta-infos owner-resource]
             (let [{:keys [ext-meta-info game-project-proj-path->additional-meta-info]} meta-infos
@@ -288,6 +285,7 @@
       (g/set-properties self :raw-settings raw-settings :raw-meta-info meta-info :resource-setting-connections resource-setting-connections)
       (g/connect project :meta-infos self :meta-infos)
       (g/connect project :_node-id self :project)
+      (g/connect project :dependencies self :project-dependencies)
       (g/connect owner-resource-node :resource self :owner-resource)
       (for [path resource-setting-paths]
         (let [resource (settings-core/get-setting-or-default meta-settings settings path)]
