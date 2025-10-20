@@ -260,31 +260,31 @@ struct ResourceFailParams
 class ResourceFailTest : public GamesysTest<ResourceFailParams>
 {
 public:
-    virtual ~ResourceFailTest() {}
+    ~ResourceFailTest() override = default;
 };
 
 class InvalidVertexSpaceTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~InvalidVertexSpaceTest() {}
+    ~InvalidVertexSpaceTest() override = default;
 };
 
 class ComponentTest : public ScriptBaseTest
 {
 public:
-    virtual ~ComponentTest() {}
+    ~ComponentTest() override = default;
 };
 
 class ComponentFailTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~ComponentFailTest() {}
+    ~ComponentFailTest() override = default;
 };
 
 class BufferMetadataTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~BufferMetadataTest() {}
+    ~BufferMetadataTest() override = default;
 };
 
 struct FactoryTestParams
@@ -297,7 +297,7 @@ struct FactoryTestParams
 class FactoryTest : public GamesysTest<FactoryTestParams>
 {
 public:
-    virtual ~FactoryTest() {}
+    ~FactoryTest() override = default;
 };
 
 struct CollectionFactoryTestParams
@@ -311,26 +311,26 @@ struct CollectionFactoryTestParams
 class CollectionFactoryTest : public GamesysTest<CollectionFactoryTestParams>
 {
 public:
-    virtual ~CollectionFactoryTest() {}
+    ~CollectionFactoryTest() override = default;
 };
 
 class SpriteTest : public ScriptBaseTest
 {
 public:
-    virtual ~SpriteTest() {}
+    ~SpriteTest() override = default;
 };
 
 class ParticleFxTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~ParticleFxTest() {}
+    ~ParticleFxTest() override = default;
 };
 
 
 class WindowTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~WindowTest() {}
+    ~WindowTest() override = default;
 };
 
 struct DrawCountParams
@@ -342,7 +342,7 @@ struct DrawCountParams
 class DrawCountTest : public GamesysTest<DrawCountParams>
 {
 public:
-    virtual ~DrawCountTest() {}
+    ~DrawCountTest() override = default;
 };
 
 struct BoxRenderParams
@@ -359,13 +359,13 @@ struct BoxRenderParams
 class BoxRenderTest : public GamesysTest<BoxRenderParams>
 {
 public:
-    virtual ~BoxRenderTest() {}
+    ~BoxRenderTest() override = default;
 };
 
 class GamepadConnectedTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~GamepadConnectedTest() {}
+    ~GamepadConnectedTest() override = default;
 };
 
 struct ResourcePropParams {
@@ -389,13 +389,13 @@ protected:
         GamesysTest::SetUp();
     }
 public:
-    virtual ~ResourcePropTest() {}
+    ~ResourcePropTest() override = default;
 };
 
 class FlipbookTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~FlipbookTest() {}
+    ~FlipbookTest() override = default;
 };
 
 struct CursorTestParams
@@ -410,19 +410,19 @@ struct CursorTestParams
 class CursorTest : public GamesysTest<CursorTestParams>
 {
 public:
-    virtual ~CursorTest() {}
+    ~CursorTest() override = default;
 };
 
 class FontTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~FontTest() {}
+    ~FontTest() override = default;
 };
 
 class GuiTest : public ScriptBaseTest
 {
 public:
-    virtual ~GuiTest() {}
+    ~GuiTest() override = default;
 };
 
 struct ScriptComponentTestParams
@@ -435,13 +435,13 @@ struct ScriptComponentTestParams
 class ScriptComponentTest : public GamesysTest<ScriptComponentTestParams>
 {
 public:
-    virtual ~ScriptComponentTest() {}
+    ~ScriptComponentTest() override = default;
 };
 
 class SoundTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~SoundTest() {}
+    ~SoundTest() override = default;
 };
 
 class RenderConstantsTest : public GamesysTest<const char*>
@@ -453,25 +453,25 @@ public:
 class MaterialTest : public ScriptBaseTest
 {
 public:
-    virtual ~MaterialTest() {}
+    ~MaterialTest() override = default;
 };
 
 class ModelTest : public ScriptBaseTest
 {
 public:
-    virtual ~ModelTest() {}
+    ~ModelTest() override = default;
 };
 
 class ShaderTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~ShaderTest() {}
+    ~ShaderTest() override = default;
 };
 
 class SysTest : public ScriptBaseTest
 {
 public:
-    virtual ~SysTest() {}
+    ~SysTest() override = default;
 };
 
 bool CopyResource(const char* src, const char* dst);

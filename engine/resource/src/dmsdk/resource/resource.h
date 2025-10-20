@@ -180,7 +180,7 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource);
 
 /*#
  * Get (load) a resource from factory
- * @note if succesful, it increments the ref count by one
+ * @note if successful, it increments the ref count by one
  * @name ResourceGet
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: const char*] Resource path
@@ -191,7 +191,7 @@ ResourceResult ResourceGet(HResourceFactory factory, const char* path, void** re
 
 /*#
  * Get (load) a resource from factory
- * @note if succesful, it increments the ref count by one
+ * @note if successful, it increments the ref count by one
  * @name ResourceGetWithExt
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: const char*] Resource path
@@ -205,7 +205,7 @@ ResourceResult ResourceGetWithExt(HResourceFactory factory, const char* path, co
 /*#
  * Get a loaded resource from factory
  * @note this currently doesn't load a resource
- * @note if succesful, it increments the ref count by one
+ * @note if successful, it increments the ref count by one
  * @name ResourceGetByHash
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash

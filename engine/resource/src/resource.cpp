@@ -814,7 +814,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
             create_error = (Result)resource_type->m_PostCreateFunction(&params);
             if(create_error != RESULT_PENDING)
                 break;
-            // As we're stalling on the main thread here, we also need to finishe any potential resource tasks here.
+            // As we're stalling on the main thread here, we also need to finish any potential resource tasks here.
             dmJobThread::Update(factory->m_JobThreadContext, 1000);
             dmTime::Sleep(1000);
         }

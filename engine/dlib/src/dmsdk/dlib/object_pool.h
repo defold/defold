@@ -82,7 +82,6 @@ public:
         m_ToLogical.SetSize(capacity);
     }
 
-
     /*#
      * Grow by an amount.
      * @name OffsetCapacity
