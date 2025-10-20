@@ -370,7 +370,7 @@ namespace dmDDF
             RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             repeated_field->m_Array = (uintptr_t) buffer;
             repeated_field->m_ArrayCount = 0;
-            repeated_field->m_Hash = hash;
+            // repeated_field->m_Hash = hash;
         }
     }
 
