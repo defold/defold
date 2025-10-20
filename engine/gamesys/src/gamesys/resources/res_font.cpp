@@ -222,6 +222,11 @@ namespace dmGameSystem
 
     dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
     {
+        if (!resource->m_IsDynamic)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
         dmArray<uint32_t> codepoints;
         TextToCodePoints(text, codepoints);
 
@@ -613,6 +618,7 @@ namespace dmGameSystem
             }
 
             font->m_Prewarming = 1;
+            font->m_PrewarmDone = 0;
 
             dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
             if (dmResource::RESULT_OK != r)
@@ -706,6 +712,10 @@ namespace dmGameSystem
     static dmResource::Result ResFontPostCreate(const dmResource::ResourcePostCreateParams* params)
     {
         FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
+        if (font->m_PrewarmDone)
+        {
+            return dmResource::RESULT_OK;
+        }
 
         if (font->m_Prewarming)
         {
