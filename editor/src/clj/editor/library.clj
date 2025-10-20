@@ -24,8 +24,7 @@
             [editor.url :as url]
             [util.coll :refer [pair]]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.archive EngineVersion]
-           [java.io File InputStream]
+  (:import [java.io File InputStream]
            [java.net HttpURLConnection URI]
            [java.nio.file.attribute FileTime]
            [java.util Base64]
@@ -248,68 +247,6 @@
   (when-let [game-project-entry (locate-zip-entry zip-file "game.project")]
     (:path game-project-entry)))
 
-;; ----- Version compatibility checks -----
-
-(defn- parse-leading-int ^long [^String s]
-  (let [len (count s)]
-    (loop [i 0 n 0 found false]
-      (if (< i len)
-        (let [c (.charAt s i)]
-          (if (Character/isDigit c)
-            (recur (unchecked-inc i)
-                   (unchecked-add (unchecked-multiply n 10) (Character/digit c 10))
-                   true)
-            (if found n 0)))
-        (if found n 0)))))
-
-(defn- compare-versions
-  "Compares semantic-like versions (e.g. 1.2.3). Ignores non-digit suffixes.
-   Returns negative if v1 < v2, zero if equal, positive if v1 > v2."
-  [v1 v2]
-  (let [a (str/split (or v1 "") #"\.")
-        b (str/split (or v2 "") #"\.")
-        len (max (count a) (count b))]
-    (loop [i 0]
-      (if (< i len)
-        (let [sa (get a i "0")
-              sb (get b i "0")
-              ia (parse-leading-int sa)
-              ib (parse-leading-int sb)
-              d (- ia ib)]
-          (if (zero? d)
-            (recur (unchecked-inc i))
-            d))
-        0))))
-
-(defn- read-defold-min-version
-  "Reads library.defold_min_version from game.project inside the provided zip file."
-  [^File zip-file]
-  (when (and zip-file (.isFile zip-file))
-    (let [base (library-base-path zip-file)
-          entry-path (if (str/blank? base)
-                       "game.project"
-                       (str base "/game.project"))]
-      (with-open [zip (ZipFile. zip-file)]
-        (when-let [^ZipEntry entry (.getEntry zip entry-path)]
-          (with-open [r (io/reader (.getInputStream zip entry))]
-            (let [settings (settings-core/parse-settings r)
-                  v (settings-core/get-setting settings ["library" "defold_min_version"])]
-              (when (and v (not (str/blank? (str v)))) (str v)))))))))
-
-(defn- validate-min-version
-  "If the library declares a minimum Defold version higher than the editor/Bob
-   version, marks lib-state as error with reason :defold-min-version."
-  [lib-state file-key]
-  (let [^File f (get lib-state file-key)
-        minv (read-defold-min-version f)]
-    (if (and minv (< (compare-versions EngineVersion/version minv) 0))
-      (assoc lib-state
-        :status :error
-        :reason :defold-min-version
-        :required minv
-        :current EngineVersion/version)
-      lib-state)))
-
 (defn- validate-updated-library [lib-state]
   (merge lib-state
          (try
@@ -361,26 +298,15 @@
     render-progress!))
 
 (defn validate-updated-libraries
-  "Validate libraries after fetching updates.
+  "Validate newly downloaded libraries (:status is :stale).
 
   Will update:
-  - :status to :error (with :reason, :exception) for invalid zips
-  - :status to :error (with :reason :defold-min-version) when the library
-    requires a newer Defold version than the running editor"
+  :status to :error (with :reason, :exception) if the library is invalid"
   [lib-states]
   (mapv
     (fn [lib-state]
-      (cond
-        (= (:status lib-state) :stale)
-        (let [validated (validate-updated-library lib-state)]
-          (if (= (:status validated) :error)
-            validated
-            (validate-min-version validated :new-file)))
-
-        (= (:status lib-state) :up-to-date)
-        (validate-min-version lib-state :file)
-
-        :else
+      (if (= (:status lib-state) :stale)
+        (validate-updated-library lib-state)
         lib-state))
     lib-states))
 

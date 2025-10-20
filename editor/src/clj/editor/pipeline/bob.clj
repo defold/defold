@@ -225,36 +225,20 @@
               [cli-options internal-options] (parse-options (.toPath (workspace/project-directory basis workspace)) options)
               cli-args (-> [] (into cli-options) (into commands))]
           (log/info :bob-command (string/join " " (into ["java" "-jar" "bob.jar"] (map quote-arg-if-needed) cli-args)))
-
-          ;; Pre-build guard: fail fast if any dependency requires a newer Defold version.
-          (let [deps (g/node-value workspace :dependencies evaluation-context)
-                incompatible (into [] (filter #(and (= :error (:status %)) (= :defold-min-version (:reason %)))) deps)]
-            (if (seq incompatible)
-              (let [loc (workspace/localization workspace evaluation-context)
-                    lines (map (fn [{:keys [uri required current]}]
-                                 (loc (localization/message
-                                        "library.defold-min-version.error-line"
-                                        {"uri" (str uri)
-                                         "required" (str required)
-                                         "current" (str current)})))
-                               incompatible)
-                    msg (string/join "\n" lines)]
-                {:error (g/map->error {:message msg :severity :fatal})})
-              (do
-                (System/setOut build-out)
-                (System/setErr build-err)
-                (ui/with-progress [render-progress! render-progress!]
-                  (let [result (Bob/invoke
-                                 java/class-loader
-                                 (->progress render-progress! task-cancelled?)
-                                 internal-options
-                                 (into-array String cli-args))]
-                    (if (.-success result)
-                      nil
-                      (let [failed-tasks (filterv #(not (.isOk ^TaskResult %)) (.-taskResults result))]
-                        (if (coll/empty? failed-tasks)
-                          {:error (g/map->error {:message "Bob failed, see console output for more details" :severity :fatal})}
-                          {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}}))))))))))
+          (System/setOut build-out)
+          (System/setErr build-err)
+          (ui/with-progress [render-progress! render-progress!]
+            (let [result (Bob/invoke
+                           java/class-loader
+                           (->progress render-progress! task-cancelled?)
+                           internal-options
+                           (into-array String cli-args))]
+              (if (.-success result)
+                nil
+                (let [failed-tasks (filterv #(not (.isOk ^TaskResult %)) (.-taskResults result))]
+                  (if (coll/empty? failed-tasks)
+                    {:error (g/map->error {:message "Bob failed, see console output for more details" :severity :fatal})}
+                    {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}})))))))
       (catch Exception e
         {:exception e})
       (finally
