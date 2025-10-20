@@ -2938,6 +2938,7 @@
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
+                                          (workspace/update-dependencies-min-version-from-cache! workspace)
                                           (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
                                           (project/update-fetch-libraries-notification! project)))))))))))))
 
