@@ -551,30 +551,31 @@ ordinary paths."
                                                  (= status :error) (pair :error uri)
                                                  (nil? file) (pair :missing uri)))))
                                      (iutil/group-into {} [] key val))
-        notifications (notifications workspace)]
+        notifications (notifications workspace)
+        ;; Compute min-version failures once and reuse below
+        min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
+        failing-uris (into #{} (map :uri) min-version-states)
+        all-uris (into #{} (map :uri) lib-states)
+        notification-id (fn [uri] [::dependencies-min-version uri])]
     ;; Per-library min-version notifications
-    (let [min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
-          failing-uris (into #{} (map :uri) min-version-states)
-          all-uris (into #{} (map :uri) lib-states)
-          notification-id (fn [uri] [::dependencies-min-version uri])]
-      (doseq [{:keys [uri required current]} min-version-states]
-        (notifications/show!
-          notifications
-          {:id (notification-id uri)
-           :type :error
-           :message (localization/message
-                      "notification.fetch-libraries.min-version.error"
-                      {"uri" (str uri)
-                       "required" (str required)
-                       "current" (str current)})
-           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                      :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene))
-                                    :file.open
-                                    "/game.project")}]}))
-      ;; Close for those no longer failing
-      (doseq [uri (set/difference all-uris failing-uris)]
-        (notifications/close! notifications (notification-id uri))))
+    (doseq [{:keys [uri required current]} min-version-states]
+      (notifications/show!
+        notifications
+        {:id (notification-id uri)
+         :type :error
+         :message (localization/message
+                    "notification.fetch-libraries.min-version.error"
+                    {"uri" (str uri)
+                     "required" (str required)
+                     "current" (str current)})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :file.open
+                                  "/game.project")}]}))
+    ;; Close for those no longer failing
+    (doseq [uri (set/difference all-uris failing-uris)]
+      (notifications/close! notifications (notification-id uri)))
     (if (pos? (count missing))
       (notifications/show!
         notifications
@@ -589,9 +590,7 @@ ordinary paths."
                                   :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
-    (let [min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
-          failing-uris (into #{} (map :uri) min-version-states)
-          other-errors (into [] (remove failing-uris) (or error []))]
+    (let [other-errors (into [] (remove failing-uris) (or error []))]
       (if (pos? (count other-errors))
         (notifications/show!
           notifications
