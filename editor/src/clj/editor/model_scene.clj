@@ -35,7 +35,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
@@ -270,12 +270,11 @@
         {:keys [id-color-selection-attribute-binding-index index-buffer textures]} user-data
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)
+        picking-id-float-array (scene-picking/picking-id->float-array picking-id)
 
         selection-attribute-bindings
-        (update (:selection-attribute-bindings user-data)
-                id-color-selection-attribute-binding-index
-                graphics.types/with-value
-                (scene-picking/picking-id->float-array picking-id))]
+        (-> (:selection-attribute-bindings user-data)
+            (update :id-color graphics.types/with-value picking-id-float-array))]
 
     (gl/with-gl-bindings gl render-args [scene-picking/local-selection-shader selection-attribute-bindings index-buffer]
       (doseq [[name t] textures]
@@ -592,45 +591,56 @@
             w-component (graphics.types/attribute-transform-w-component attribute-transform)]
         (attribute/make-transformed-attribute-value-binding value-array element-type transform-render-arg-key w-component location)))))
 
+(defn- make-render-arg-attribute-binding-entries [attribute-infos render-arg-key]
+  (->> attribute-infos
+       (e/map
+         (fn [{:keys [name-key] :as attribute-info}]
+           {:pre [(keyword? name-key)]}
+           (pair name-key
+                 (make-attribute-render-arg-binding render-arg-key attribute-info))))))
+
+(defn- make-model-attribute-binding-entries [attribute-infos attribute-buffers attribute-bytes-by-name-key scene-node-id]
+  (let [attribute-buffer-count (count attribute-buffers)]
+    (->> attribute-infos
+         (e/map-indexed
+           (fn [^long channel {:keys [name-key] :as attribute-info}]
+             {:pre [(keyword? name-key)]}
+             ;; Use attribute buffers from the mesh when available. Otherwise,
+             ;; use the attribute value from the referencing Model component. If
+             ;; not overridden by the Model, use the value specified for the
+             ;; attribute in the Material. Finally, if none of the above are
+             ;; available, use a suitable default value inferred from the
+             ;; semantic-type.
+             (pair name-key
+                   (if (< channel attribute-buffer-count)
+                     (let [attribute-buffer (attribute-buffers channel)]
+                       (make-attribute-buffer-binding attribute-buffer attribute-info scene-node-id))
+                     (let [attribute-bytes (or (get attribute-bytes-by-name-key name-key) ; From the referencing Model component.
+                                               (:bytes attribute-info))] ; From the Material.
+                       (make-attribute-value-binding attribute-bytes attribute-info)))))))))
+
 (defn- make-attribute-bindings
   ([semantic-type->attribute-buffers combined-attribute-infos]
    (make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos nil nil))
   ([semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes scene-node-id]
+   ;; Note: The combined-attribute-infos are in material declaration order. This
+   ;; becomes important when channels are assigned later in this function.
    (->> combined-attribute-infos
         (util/group-into {} [] :semantic-type)
-        (coll/mapcat
-          (fn [[semantic-type attribute-infos]]
-            {:pre [(graphics.types/semantic-type? semantic-type)]}
-            (case semantic-type
-              :semantic-type-world-matrix
-              (e/map #(make-attribute-render-arg-binding :world %)
-                     attribute-infos)
+        (into {}
+              (mapcat
+                (fn [[semantic-type attribute-infos]]
+                  {:pre [(graphics.types/semantic-type? semantic-type)]}
+                  (case semantic-type
+                    :semantic-type-world-matrix
+                    (make-render-arg-attribute-binding-entries attribute-infos :world)
 
-              :semantic-type-normal-matrix
-              (e/map #(make-attribute-render-arg-binding :normal %)
-                     attribute-infos)
+                    :semantic-type-normal-matrix
+                    (make-render-arg-attribute-binding-entries attribute-infos :normal)
 
-              ;; else
-              (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)
-                    attribute-buffer-count (count attribute-buffers)]
-                (e/map-indexed
-                  (fn [^long channel attribute-info]
-                    ;; Use attribute buffers from the mesh when available.
-                    ;; Otherwise, use the attribute value from the referencing
-                    ;; Model component. If not overridden by the Model, use the
-                    ;; value specified for the attribute in the Material.
-                    ;; Finally, if none of the above are available, use a
-                    ;; suitable default value inferred from the semantic-type.
-                    (if (< channel attribute-buffer-count)
-                      (let [attribute-buffer (attribute-buffers channel)]
-                        (make-attribute-buffer-binding attribute-buffer attribute-info scene-node-id))
-                      (let [attribute-key (:name-key attribute-info)
-                            attribute-bytes (or (get vertex-attribute-bytes attribute-key) ; From the referencing Model component.
-                                                (:bytes attribute-info))] ; From the Material.
-                        (make-attribute-value-binding attribute-bytes attribute-info))))
-                  attribute-infos)))))
-        (sort-by :base-location)
-        (vec))))
+                    ;; else
+                    (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
+                      (make-model-attribute-binding-entries attribute-infos attribute-buffers vertex-attribute-bytes scene-node-id)))))))))
 
 (defn- make-mesh-scene [renderable-mesh]
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
@@ -641,12 +651,10 @@
         attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
         selection-attribute-reflection-infos (:attribute-reflection-infos scene-picking/local-selection-shader)
         selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
-        id-color-selection-attribute-binding-index (util/first-index-where #(= scene-picking/local-selection-shader-id-color-attribute-location (:base-location %)) selection-attribute-bindings)
 
         user-data
         {:attribute-bindings attribute-bindings
          :coordinate-space-info coordinate-space-info
-         :id-color-selection-attribute-binding-index id-color-selection-attribute-binding-index
          :index-buffer index-buffer
          :material-data material-data
          :material-name material-name
