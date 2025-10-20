@@ -51,8 +51,8 @@ public:
     {
         m_NumThreads = GetParam().m_NumThreads;
 
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadCount       = m_NumThreads;
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount = m_NumThreads;
 
         m_JobThread = dmJobThread::Create(job_thread_create_param);
         ASSERT_NE((dmJobThread::HContext)0, m_JobThread);
