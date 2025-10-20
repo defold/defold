@@ -79,6 +79,16 @@ public class LibraryUtil {
         return 0;
     }
 
+    /**
+     * Returns true if the current EngineVersion is older than the specified minVersion.
+     * Ignores non-numeric suffixes in each version segment.
+     * Used in the editor.
+     */
+    public static boolean isCurrentEngineOlderThan(String minVersion) {
+        if (minVersion == null || minVersion.isEmpty()) return false;
+        return compareVersions(EngineVersion.version, minVersion) < 0;
+    }
+
     /** Convert the supplied URL into a short string representation
      *
      * @param url Url of the library
@@ -171,6 +181,7 @@ public class LibraryUtil {
         }
         return baseDir;
     }
+
 
     /**
      * Fetch the include dirs from the game.project file embedded in the specified archive.

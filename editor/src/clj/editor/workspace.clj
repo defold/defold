@@ -549,6 +549,29 @@ ordinary paths."
                                                  (nil? file) (pair :missing uri)))))
                                      (iutil/group-into {} [] key val))
         notifications (notifications workspace)]
+    ;; Per-library min-version notifications
+    (let [min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
+          failing-uris (into #{} (map :uri) min-version-states)
+          all-uris (into #{} (map :uri) lib-states)
+          notification-id (fn [uri] [::dependencies-min-version uri])]
+      (doseq [{:keys [uri required current]} min-version-states]
+        (let [message (format "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility."
+                          (str uri) (str required) (str current))]
+          (notifications/show!
+            notifications
+            {:id (notification-id uri)
+             :type :error
+             :message (reify editor.localization.MessagePattern
+                        (format [_ _] message))
+             :actions [{:message (reify editor.localization.MessagePattern
+                                   (format [_ _] "Open game.project"))
+                        :on-action #(ui/execute-command
+                                      (ui/contexts (ui/main-scene))
+                                      :file.open
+                                      "/game.project")}]})))
+      ;; Close for those no longer failing
+      (doseq [uri (set/difference all-uris failing-uris)]
+        (notifications/close! notifications (notification-id uri))))
     (if (pos? (count missing))
       (notifications/show!
         notifications
@@ -563,20 +586,23 @@ ordinary paths."
                                   :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
-    (if (pos? (count error))
-      (notifications/show!
-        notifications
-        {:id ::dependencies-error
-         :type :error
-         :message (localization/message
-                    "notification.fetch-libraries.dependencies-error.error"
-                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet error))})
-         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                    :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene))
-                                  :file.open
-                                  "/game.project")}]})
-      (notifications/close! notifications ::dependencies-error))))
+    (let [min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
+          failing-uris (into #{} (map :uri) min-version-states)
+          other-errors (into [] (remove failing-uris) (or error []))]
+      (if (pos? (count other-errors))
+        (notifications/show!
+          notifications
+          {:id ::dependencies-error
+           :type :error
+           :message (localization/message
+                      "notification.fetch-libraries.dependencies-error.error"
+                      {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet other-errors))})
+           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene))
+                                    :file.open
+                                    "/game.project")}]})
+        (notifications/close! notifications ::dependencies-error)))))
 
 (defn set-project-dependencies! [workspace lib-states]
   (g/set-property! workspace :dependencies lib-states)
