@@ -28,6 +28,12 @@ endif()
 #include helper functions (e.g. defold_log)
 include(functions)
 
+# Determine which language families we need across the toolchain logic
+set(DEFOLD_LANGUAGE_LIST C CXX)
+if(APPLE OR CMAKE_SYSTEM_NAME MATCHES "Darwin" OR CMAKE_SYSTEM_NAME MATCHES "iOS")
+  list(APPEND DEFOLD_LANGUAGE_LIST OBJC OBJCXX)
+endif()
+
 # Prime Release-like flag variables before CMake enables the toolchains so
 # /DNDEBUG or -DNDEBUG never sneak into optimised builds. We update both the
 # cached values and their *_INIT counterparts; the post-project hook keeps a
@@ -35,7 +41,7 @@ include(functions)
 set(_DEFOLD_OPT_CONFIGS Release RelWithDebInfo MinSizeRel)
 foreach(_cfg IN LISTS _DEFOLD_OPT_CONFIGS)
   string(TOUPPER "${_cfg}" _CFG_UP)
-  foreach(_lang C CXX OBJC OBJCXX)
+  foreach(_lang IN LISTS DEFOLD_LANGUAGE_LIST)
     set(_cache_var "CMAKE_${_lang}_FLAGS_${_CFG_UP}")
     set(_init_var  "CMAKE_${_lang}_FLAGS_${_CFG_UP}_INIT")
 

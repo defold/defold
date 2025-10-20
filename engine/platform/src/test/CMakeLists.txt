@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 4.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
 include(defold)
 
-project(defold_platform_tests LANGUAGES C CXX OBJC OBJCXX)
+project(defold_platform_tests LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
