@@ -1410,16 +1410,8 @@
           (if (debug-view/can-attach? prefs)
             (attach-debugger! workspace project prefs debug-view render-build-error!)
             (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
-          (catch Exception e
-            (notifications/show!
-             (workspace/notifications workspace)
-             {:type :error
-              :id ::debugger-connection-error
-              :message (localization/message "notification.debug-view.connect-failed.error" {"error" "Testing"})})
-            (throw (ex-info "Failed to attach to debugger"
-                            {:type ::cannot-check-attach
-                             :suppress-dialog-window? true}
-                            e))))))))
+          (catch java.net.SocketTimeoutException e
+            (debug-view/show-connect-failed-info! e workspace)))))))
 
 (def ^:private clean-build-dialog-info
   {:title (localization/message "dialog.clean-build.title")
