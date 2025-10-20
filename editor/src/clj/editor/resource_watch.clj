@@ -37,10 +37,13 @@
 (defn parse-include-dirs [include-string]
   (filter (comp not str/blank?) (str/split include-string  #"[,\s]")))
 
-(defn- extract-game-project-include-dirs [game-project-resource]
+(defn- extract-game-project-metadata [game-project-resource]
   (with-open [reader (io/reader game-project-resource)]
-    (let [settings (settings-core/parse-settings reader)]
-      (parse-include-dirs (str (settings-core/get-setting settings ["library" "include_dirs"]))))))
+    (let [settings (settings-core/parse-settings reader)
+          include (str (settings-core/get-setting settings ["library" "include_dirs"]))
+          defold-min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
+      {:include-dirs (parse-include-dirs include)
+       :defold-min-version defold-min-version})))
 
 (defn- load-library-zip [workspace file]
   (let [base-path (library/library-base-path file)
@@ -50,17 +53,20 @@
                                         resource))
                                     (:tree zip-resources))]
     (when game-project-resource
-      (let [include-dirs (set (extract-game-project-include-dirs game-project-resource))]
-        (update zip-resources :tree (fn [resources]
-                                      (filterv #(include-dirs (resource-root-dir %))
-                                               resources)))))))
+      (let [{:keys [include-dirs defold-min-version]} (extract-game-project-metadata game-project-resource)
+            include-dirs (set include-dirs)]
+        (-> zip-resources
+            (assoc :defold-min-version defold-min-version)
+            (update :tree (fn [resources]
+                            (filterv #(include-dirs (resource-root-dir %))
+                                     resources))))))))
 
 (defn- make-library-snapshot [workspace lib-state]
   (let [file ^File (:file lib-state)
         tag (:tag lib-state)
         uri-string (.toString ^URI (:uri lib-state))
         zip-file-version (if-not (str/blank? tag) tag (str (.lastModified file)))
-        {resources :tree crc :crc} (load-library-zip workspace file)]
+        {resources :tree crc :crc defold-min-version :defold-min-version} (load-library-zip workspace file)]
     {:resources resources
      :status-map (into {}
                        (comp resource/xform-recursive-resources
@@ -71,7 +77,8 @@
                                             {:version version
                                              :source :library
                                              :library uri-string})))))
-                       resources)}))
+                       resources)
+     :defold-min-version defold-min-version}))
 
 (defn- update-library-snapshot-cache
   [library-snapshot-cache workspace lib-states]

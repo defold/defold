@@ -24,9 +24,7 @@
             [editor.url :as url]
             [util.coll :refer [pair]]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.util LibraryUtil]
-           [com.dynamo.bob.archive EngineVersion]
-           [java.io File InputStream]
+  (:import [java.io File InputStream]
            [java.net HttpURLConnection URI]
            [java.nio.file.attribute FileTime]
            [java.util Base64]
@@ -249,39 +247,6 @@
   (when-let [game-project-entry (locate-zip-entry zip-file "game.project")]
     (:path game-project-entry)))
 
-(defn- validate-min-version
-  "If the library declares a minimum Defold version higher than the editor/Bob
-   version, marks lib-state as error with reason :defold-min-version.
-   Reads game.project from the zip and compares using LibraryUtil/isCurrentEngineOlderThan."
-  [lib-state file-key]
-  (let [^File file (get lib-state file-key)]
-    (if (and file (.isFile file))
-      (try
-        (with-open [zip (ZipFile. file)]
-          (let [base (library-base-path file)]
-            (if (some? base)
-              (let [entry-path (if (str/blank? base)
-                                 "game.project"
-                                 (str base "/game.project"))
-                    entry (.getEntry zip entry-path)]
-                (if (some? entry)
-                  (with-open [r (io/reader (.getInputStream zip entry))]
-                    (let [settings (settings-core/parse-settings r)
-                          min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
-                      (if (LibraryUtil/isCurrentEngineOlderThan min-version)
-                        (assoc lib-state
-                          :status :error
-                          :reason :defold-min-version
-                          :required min-version
-                          :current (str EngineVersion/version))
-                        lib-state)))
-                  lib-state))
-              lib-state)))
-        (catch Exception _
-          ;; Ignore I/O/parse exceptions here; other validations handle them.
-          lib-state))
-      lib-state)))
-
 (defn- validate-updated-library [lib-state]
   (merge lib-state
          (try
@@ -336,21 +301,14 @@
   "Validate libraries after fetching updates.
 
   Will update:
-  - :status to :error (with :reason, :exception) for invalid zips
-  - :status to :error (with :reason :defold-min-version) when the library
-    requires a newer Defold version than the running editor"
+  - :status to :error (with :reason, :exception) for invalid zips"
   [lib-states]
   (mapv
     (fn [lib-state]
       (cond
         (= (:status lib-state) :stale)
         (let [validated (validate-updated-library lib-state)]
-          (if (= (:status validated) :error)
-            validated
-            (validate-min-version validated :new-file)))
-
-        (= (:status lib-state) :up-to-date)
-        (validate-min-version lib-state :file)
+          validated)
 
         :else
         lib-state))
