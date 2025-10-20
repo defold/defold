@@ -2046,7 +2046,7 @@
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
-(defn- restore-open-tabs! [app-view prefs localization workspace project evaluation-context]
+(defn- restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
   (when-let [open-tab-panes (prefs/get prefs [:workflow :open-tabs])]
     (doseq [[pane-num pane] (map-indexed vector open-tab-panes)
             [proj-path view-type-id] pane
@@ -2057,8 +2057,6 @@
         (open-resource app-view prefs localization workspace project resource
                    {:selected-view-type view-type
                     :use-custom-editor false})))))
-
-
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)]
