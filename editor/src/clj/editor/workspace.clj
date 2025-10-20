@@ -564,8 +564,7 @@ ordinary paths."
              :type :error
              :message (reify editor.localization.MessagePattern
                         (format [_ _] message))
-             :actions [{:message (reify editor.localization.MessagePattern
-                                   (format [_ _] "Open game.project"))
+             :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                         :on-action #(ui/execute-command
                                       (ui/contexts (ui/main-scene))
                                       :file.open

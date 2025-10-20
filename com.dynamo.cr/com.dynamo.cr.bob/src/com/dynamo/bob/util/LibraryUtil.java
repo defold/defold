@@ -205,12 +205,10 @@ public class LibraryUtil {
                 String dirs = properties.getStringValue("library", "include_dirs", "");
                 // Validate minimum required Defold/Bob version if specified
                 String minVersion = properties.getStringValue("library", "defold_min_version", "");
-                if (minVersion != null && !minVersion.isEmpty()) {
-                    if (compareVersions(EngineVersion.version, minVersion) < 0) {
-                        throw new IOException(String.format(
-                            "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility.",
-                            dirs, minVersion, EngineVersion.version));
-                    }
+                if (isCurrentEngineOlderThan(minVersion)) {
+                    throw new IOException(String.format(
+                        "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility.",
+                        dirs, minVersion, EngineVersion.version));
                 }
                 for (String dir : dirs.split("[,\\s]")) {
                     if (!dir.isEmpty()) {
