@@ -50,13 +50,13 @@
 (def model-file-types ["dae" "gltf" "glb"])
 (def animation-file-types ["animationset" "dae" "gltf" "glb"])
 
-(def ^:private preview-shader
-  (-> (shader/classpath-shader
-        {:coordinate-space :coordinate-space-local}
-        "shaders/model-scene-preview.vp"
-        "shaders/model-scene-preview.fp")
-      (assoc :uniforms {"mtx_view" :view
-                        "mtx_proj" :projection})))
+(def ^:private local-space-mesh-shader
+  (shader/classpath-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_view" :view
+                "mtx_proj" :projection}}
+    "shaders/mesh-local-space.vp"
+    "shaders/mesh.fp"))
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -267,7 +267,7 @@
 (defn- render-mesh-opaque-selection [^GL2 gl render-args renderables]
   ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
   (let [{:keys [picking-id user-data]} (first renderables)
-        {:keys [id-color-selection-attribute-binding-index index-buffer textures]} user-data
+        {:keys [index-buffer textures]} user-data
         index-type (gl.types/element-buffer-gl-type index-buffer)
         index-count (graphics.types/element-count index-buffer)
         picking-id-float-array (scene-picking/picking-id->float-array picking-id)
@@ -276,10 +276,10 @@
         (-> (:selection-attribute-bindings user-data)
             (update :id-color graphics.types/with-value picking-id-float-array))]
 
-    (gl/with-gl-bindings gl render-args [scene-picking/local-selection-shader selection-attribute-bindings index-buffer]
+    (gl/with-gl-bindings gl render-args [scene-picking/local-space-selection-shader selection-attribute-bindings index-buffer]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
-        (shader/set-samplers-by-name scene-picking/local-selection-shader gl name (:texture-units t)))
+        (shader/set-samplers-by-name scene-picking/local-space-selection-shader gl name (:texture-units t)))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -646,10 +646,10 @@
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        attribute-reflection-infos (:attribute-reflection-infos preview-shader)
+        attribute-reflection-infos (:attribute-reflection-infos local-space-mesh-shader)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
-        selection-attribute-reflection-infos (:attribute-reflection-infos scene-picking/local-selection-shader)
+        selection-attribute-reflection-infos (:attribute-reflection-infos scene-picking/local-space-selection-shader)
         selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
 
         user-data
@@ -660,7 +660,7 @@
          :material-name material-name
          :mesh-renderable-buffers renderable-buffers
          :selection-attribute-bindings selection-attribute-bindings
-         :shader preview-shader
+         :shader local-space-mesh-shader
          :textures {"tex0" @texture/white-pixel}}
 
         renderable

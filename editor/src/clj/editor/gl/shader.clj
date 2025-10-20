@@ -640,6 +640,7 @@ This must be submitted to the driver for compilation before you can use it. See
   {:pre [(keyword? request-type)]}
   (let [coordinate-space (:coordinate-space opts)
         max-page-count (or (:max-page-count opts) 0)
+        uniform-values-by-name (or (:uniforms opts) {})
         _ (assert (graphics.types/concrete-coordinate-space? coordinate-space))
         _ (assert (nat-int? max-page-count))
 
@@ -666,7 +667,7 @@ This must be submitted to the driver for compilation before you can use it. See
         (mapv #(editor.graphics.types/assign-attribute-transform % coordinate-space)
               attribute-reflection-infos)]
 
-    (make-shader-lifecycle request-id shader-request-data attribute-reflection-infos {})))
+    (make-shader-lifecycle request-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
 (defn classpath-shader-path->source
   ^String [^String shader-path]

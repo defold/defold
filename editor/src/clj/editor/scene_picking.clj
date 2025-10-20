@@ -14,22 +14,22 @@
 
 (ns editor.scene-picking
   (:require [editor.gl.shader :as shader]
-            [editor.graphics.types :as graphics.types]
             [util.coll :as coll]
             [util.eduction :as e]))
 
-(def local-selection-shader
-  (-> (shader/classpath-shader
-        {:coordinate-space :coordinate-space-local}
-        "shaders/selection-local-space.vp"
-        "shaders/selection-local-space.fp")
-      (assoc :uniforms {"mtx_view" :view
-                        "mtx_proj" :projection})))
+(def local-space-selection-shader
+  (shader/classpath-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_view_proj" :view-proj}}
+    "shaders/selection-local-space.vp"
+    "shaders/selection.fp"))
 
-(def local-selection-shader-id-color-attribute-location
-  (let [id-color-attribute-location (-> local-selection-shader :attribute-locations :id-color)]
-    (assert (graphics.types/location? id-color-attribute-location))
-    id-color-attribute-location))
+(def world-space-selection-shader
+  (shader/classpath-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_view_proj" :view-proj}}
+    "shaders/selection-world-space.vp"
+    "shaders/selection.fp"))
 
 (defn picking-id->color [^long picking-id]
   (assert (<= picking-id 0xffffff))
