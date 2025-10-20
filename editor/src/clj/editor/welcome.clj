@@ -421,7 +421,10 @@
                                     (open-selected-project!)))))
           (.setOnKeyPressed (ui/event-handler event
                               (when (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
-                                (open-selected-project!)))))))
+                                (open-selected-project!))))
+          (when (not-empty (recent-projects prefs))
+            (ui/select-index! recent-projects-list 0)
+            (.requestFocus recent-projects-list)))))
     home-pane))
 
 ;; -----------------------------------------------------------------------------
