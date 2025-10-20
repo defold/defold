@@ -307,7 +307,7 @@ namespace dmDeviceWasapi
 
         if (device->m_DeviceInvalidated)
         {
-            return 0;
+            return device->m_FrameCount;
         }
 
         uint32_t buffer_size = 0;
@@ -318,6 +318,7 @@ namespace dmDeviceWasapi
             if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
             {
                 MarkDeviceInvalidated(device, "GetBufferSize", hr);
+                return device->m_FrameCount;
             }
             return 0;
         }
@@ -328,6 +329,7 @@ namespace dmDeviceWasapi
             if (hr == AUDCLNT_E_DEVICE_INVALIDATED)
             {
                 MarkDeviceInvalidated(device, "GetCurrentPadding", hr);
+                return device->m_FrameCount;
             }
             return 0;
         }
