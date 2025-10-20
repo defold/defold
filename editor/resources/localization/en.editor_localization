@@ -2165,3 +2165,4 @@ quick-help.reopen-closed-file = Reopen Closed File
 quick-help.search-in-files = Search in Files
 quick-help.build-and-run-project = Build and Run Project
 quick-help.start-or-attach-debugger = Start or Attach Debugger
+notification.fetch-libraries.min-version.error = Library {uri} requires Defold {required} or newer (bob.jar is {current}). Update Defold or check older extension versions for compatibility.

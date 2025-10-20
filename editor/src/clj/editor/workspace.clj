@@ -556,19 +556,20 @@ ordinary paths."
           all-uris (into #{} (map :uri) lib-states)
           notification-id (fn [uri] [::dependencies-min-version uri])]
       (doseq [{:keys [uri required current]} min-version-states]
-        (let [message (format "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility."
-                          (str uri) (str required) (str current))]
-          (notifications/show!
-            notifications
-            {:id (notification-id uri)
-             :type :error
-             :message (reify editor.localization.MessagePattern
-                        (format [_ _] message))
-             :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                        :on-action #(ui/execute-command
-                                      (ui/contexts (ui/main-scene))
-                                      :file.open
-                                      "/game.project")}]})))
+        (notifications/show!
+          notifications
+          {:id (notification-id uri)
+           :type :error
+           :message (localization/message
+                      "notification.fetch-libraries.min-version.error"
+                      {"uri" (str uri)
+                       "required" (str required)
+                       "current" (str current)})
+           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene))
+                                    :file.open
+                                    "/game.project")}]}))
       ;; Close for those no longer failing
       (doseq [uri (set/difference all-uris failing-uris)]
         (notifications/close! notifications (notification-id uri))))
