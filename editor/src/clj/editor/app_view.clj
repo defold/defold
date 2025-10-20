@@ -2016,6 +2016,7 @@
       (.addListener
         (reify ListChangeListener
           (onChanged [_this _change]
+            ;; TODO: Refresh open tabs prefs
             ;; Check if we've ended up with an empty TabPane.
             ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
             (when (empty? (.getTabs tab-pane))
@@ -2045,6 +2046,20 @@
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
+(defn- restore-open-tabs! [app-view prefs localization workspace project evaluation-context]
+  (when-let [open-tab-panes (prefs/get prefs [:workflow :open-tabs])]
+    (doseq [[pane-num pane] (map-indexed vector open-tab-panes)
+            [proj-path view-type-id] pane
+            :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+            :when (and (resource/openable-resource? resource)
+                       (resource/exists? resource))]
+      (let [view-type (workspace/get-view-type workspace view-type-id)]
+        (open-resource app-view prefs localization workspace project resource
+                   {:selected-view-type view-type
+                    :use-custom-editor false})))))
+
+
+
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2063,6 +2078,9 @@
                                                                      :keymap keymap))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
+
+      ;; TODO: Restore tabs here
+
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
                     (handle-focus-owner-change! app-view app-scene new-focus-owner)))

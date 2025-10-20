@@ -174,6 +174,11 @@
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
+                :open-tabs {:type :array
+                            :item {:type :array
+                                   :item {:type :tuple
+                                          :items [{:type :string} {:type :keyword}]}}
+                            :scope :project}
                 :saved-colors {:type :array
                                :item {:type :string}
                                :scope :project}}}
