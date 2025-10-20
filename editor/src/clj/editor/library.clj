@@ -258,22 +258,24 @@
     (if (and file (.isFile file))
       (try
         (with-open [zip (ZipFile. file)]
-          (let [base (library-base-path file)
-                entry-path (if (str/blank? base)
-                             "game.project"
-                             (str base "/game.project"))
-                entry (.getEntry zip entry-path)]
-            (if (some? entry)
-              (with-open [r (io/reader (.getInputStream zip entry))]
-                (let [settings (settings-core/parse-settings r)
-                      minv (some-> (settings-core/get-setting settings ["library" "defold_min_version"]) str)]
-                  (if (and minv (not (str/blank? minv)) (LibraryUtil/isCurrentEngineOlderThan minv))
-                    (assoc lib-state
-                      :status :error
-                      :reason :defold-min-version
-                      :required minv
-                      :current (str EngineVersion/version))
-                    lib-state)))
+          (let [base (library-base-path file)]
+            (if (some? base)
+              (let [entry-path (if (str/blank? base)
+                                 "game.project"
+                                 (str base "/game.project"))
+                    entry (.getEntry zip entry-path)]
+                (if (some? entry)
+                  (with-open [r (io/reader (.getInputStream zip entry))]
+                    (let [settings (settings-core/parse-settings r)
+                          min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
+                      (if (LibraryUtil/isCurrentEngineOlderThan min-version)
+                        (assoc lib-state
+                          :status :error
+                          :reason :defold-min-version
+                          :required min-version
+                          :current (str EngineVersion/version))
+                        lib-state)))
+                  lib-state))
               lib-state)))
         (catch Exception _
           ;; Ignore I/O/parse exceptions here; other validations handle them.

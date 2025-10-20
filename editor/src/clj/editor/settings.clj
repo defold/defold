@@ -173,14 +173,16 @@
   "Return build errors derived from a dependency vector (e.g., incompatible
   library.defold_min_version)."
   [dependencies]
-  (let [min-version (into [] (filter #(and (= :error (:status %))
-                                           (= :defold-min-version (:reason %)))) dependencies)]
-    (mapv (fn [{:keys [uri required current]}]
-            (g/map->error
-              {:severity :fatal
-               :message (format "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility."
-                                (str uri) (str required) (str current))}))
-          min-version)))
+  (into []
+        (comp
+          (filter #(and (= :error (:status %))
+                        (= :defold-min-version (:reason %))))
+          (map (fn [{:keys [uri required current]}]
+                 (g/map->error
+                   {:severity :fatal
+                    :message (format "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility."
+                                     (str uri) (str required) (str current))}))))
+        dependencies))
 
 (g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   (let [meta-settings (:settings meta-info)
