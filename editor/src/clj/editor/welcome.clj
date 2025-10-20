@@ -511,7 +511,7 @@
       (.setOnKeyPressed (ui/event-handler event
                           (when (and (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
                                      (first (ui/selection template-list)))
-                              (.fire create-new-project-button)))))
+                            (.fire create-new-project-button)))))
     (when (some? templates)
       (ui/items! template-list templates)
       (when (seq templates)
