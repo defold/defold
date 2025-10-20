@@ -408,8 +408,8 @@
           (.setFixedCellSize 56.0)
           (ui/items! (recent-projects prefs))
           (ui/cell-factory!
-           (fn [recent-project]
-             {:graphic (make-recent-project-entry recent-project recent-projects-list prefs localization)}))
+            (fn [recent-project]
+              {:graphic (make-recent-project-entry recent-project recent-projects-list prefs localization)}))
           (.setOnMouseClicked (ui/event-handler event
                                 (let [^MouseEvent mouse-event event
                                       ^Node target (.getTarget mouse-event)]
@@ -506,9 +506,9 @@
                                          (not-empty (ui/selection template-list)))
                                 (.fire create-new-project-button)))))
       (.setOnKeyPressed (ui/event-handler event
-                          (when (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
-                            (when-some [project-template (first (ui/selection template-list))]
-                              (.fire create-new-project-button))))))
+                          (when (and (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
+                                     (first (ui/selection template-list)))
+                              (.fire create-new-project-button)))))
     (when (some? templates)
       (ui/items! template-list templates)
       (when (seq templates)
