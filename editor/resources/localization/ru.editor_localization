@@ -1217,3 +1217,4 @@ resource.view.text = Текст
 
 resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
 resource.readonly.button.read-more = Подробнее…
+notification.fetch-libraries.min-version.error = Библиотека {uri} требует Defold {required} или новее (текущая версия {current}). Обновите Defold или используйте более старую версию расширения, совместимую с вашей версией Defold.
