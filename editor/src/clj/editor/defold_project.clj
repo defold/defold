@@ -1771,7 +1771,7 @@
               (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
                 (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
         project-id
-    (second
+        (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
