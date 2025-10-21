@@ -507,11 +507,11 @@
                                 (.clearSelection (.getSelectionModel template-list)))
                               (when (and (= 2 (.getClickCount mouse-event))
                                          (not-empty (ui/selection template-list)))
-                                (.fire create-new-project-button)))))
+                                (.requestFocus new-project-title-field)))))
       (.setOnKeyPressed (ui/event-handler event
                           (when (and (= KeyCode/ENTER (.getCode ^KeyEvent event))
                                      (first (ui/selection template-list)))
-                            (.fire create-new-project-button)))))
+                            (.requestFocus new-project-title-field)))))
     (when (some? templates)
       (ui/items! template-list templates)
       (when (seq templates)
