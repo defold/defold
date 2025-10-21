@@ -2051,20 +2051,6 @@
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
-(declare ^:private open-resource)
-
-(defn restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
-  (when-let [open-tab-panes (prefs/get prefs [:workflow :open-tabs])]
-    (doseq [[pane-num pane] (map-indexed vector open-tab-panes)
-            [proj-path view-type-id] pane
-            :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
-            :when (and (resource/openable-resource? resource)
-                       (resource/exists? resource))]
-      (let [view-type (workspace/get-view-type workspace view-type-id)]
-        (open-resource app-view prefs localization workspace project resource
-                   {:selected-view-type view-type
-                    :use-custom-editor false})))))
-
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2301,6 +2287,18 @@
                                               :text (localization/message "dialog.open-resource.open-file-failed.detail"
                                                                           {"error" msg})}}))))
              false)))))))
+
+(defn restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
+  (when-let [open-tab-panes (prefs/get prefs [:workflow :open-tabs])]
+    (doseq [[pane-num pane] (map-indexed vector open-tab-panes)
+            [proj-path view-type-id] pane
+            :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+            :when (and (resource/openable-resource? resource)
+                       (resource/exists? resource))]
+      (let [view-type (workspace/get-view-type workspace view-type-id)]
+        (open-resource app-view prefs localization workspace project resource
+                   {:selected-view-type view-type
+                    :use-custom-editor false})))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
