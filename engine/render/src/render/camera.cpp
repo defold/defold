@@ -202,6 +202,74 @@ namespace dmRender
         }
     }
 
+    Result CameraScreenToWorld(HRenderContext render_context, HRenderCamera camera_handle, float screen_x, float screen_y, float z, dmVMath::Vector3* out_world)
+    {
+        RenderCamera* camera = render_context->m_RenderCameras.Get(camera_handle);
+        if (!camera)
+        {
+            return RESULT_INVALID_PARAMETER;
+        }
+
+        // Window size
+        dmGraphics::HContext gc = GetGraphicsContext(render_context);
+        float win_w = (float) dmGraphics::GetWindowWidth(gc);
+        float win_h = (float) dmGraphics::GetWindowHeight(gc);
+        if (win_w <= 0.0f)
+        {
+            win_w = 1.0f;
+        }
+        if (win_h <= 0.0f)
+        {
+            win_h = 1.0f;
+        }
+
+        // Viewport-aware screen->Normalized Device Coordinates
+        const dmVMath::Vector4& vp = camera->m_Data.m_Viewport;
+        float vx = vp.getX() * win_w;
+        float vy = vp.getY() * win_h;
+        float vw = vp.getZ() * win_w;
+        float vh = vp.getW() * win_h;
+        if (vw <= 0.0f || vh <= 0.0f)
+        {
+            vx = 0.0f; vy = 0.0f; vw = win_w; vh = win_h;
+        }
+        float x_ndc = 2.0f * ((screen_x - vx) / vw) - 1.0f;
+        float y_ndc = 2.0f * ((screen_y - vy) / vh) - 1.0f;
+
+        dmVMath::Matrix4 inv_vp = dmVMath::Inverse(camera->m_ViewProjection);
+
+        // Unproject near/far points and build pixel ray (world)
+        dmVMath::Vector4 v_near_clip(x_ndc, y_ndc, -1.0f, 1.0f);
+        dmVMath::Vector4 v_far_clip (x_ndc, y_ndc,  1.0f, 1.0f);
+        dmVMath::Vector4 v0 = inv_vp * v_near_clip;
+        dmVMath::Vector4 v1 = inv_vp * v_far_clip;
+        float iw0 = 1.0f / v0.getW();
+        float iw1 = 1.0f / v1.getW();
+        dmVMath::Point3  p_near(v0.getX() * iw0, v0.getY() * iw0, v0.getZ() * iw0);
+        dmVMath::Point3  p_far (v1.getX() * iw1, v1.getY() * iw1, v1.getZ() * iw1);
+        dmVMath::Vector3 dir    = dmVMath::Normalize(p_far - p_near);
+
+        // Camera forward (world)
+        dmVMath::Vector3 forward = dmVMath::Rotate(camera->m_LastRotation, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        forward = dmVMath::Normalize(forward);
+
+        // z is view-depth along forward (world units from camera plane)
+        float denom = dmVMath::Dot(dir, forward);
+        const float EPS_DENOM = 1.0e-8f;
+        if (denom > -EPS_DENOM && denom < EPS_DENOM)
+        {
+            return RESULT_INVALID_PARAMETER;
+        }
+
+        dmVMath::Point3 cam_pos = camera->m_LastPosition;
+        // Intersect the ray r(s) = p_near + s * dir with the view-depth plane at distance z along 'forward'
+        float dot0 = dmVMath::Dot(p_near - cam_pos, forward);
+        float s = (z - dot0) / denom;
+        dmVMath::Point3 p_point = p_near + dir * s;
+        *out_world = dmVMath::Vector3(p_point.getX(), p_point.getY(), p_point.getZ());
+        return RESULT_OK;
+    }
+
     // render_private.h
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url)
     {

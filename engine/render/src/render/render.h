@@ -240,6 +240,25 @@ namespace dmRender
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, dmVMath::Vector4 color);
 
     /**
+     * Maps screen coordinates to a world-space point along the pixel ray.
+     * The mapping is viewport-aware and woks for both perspective and orthographic cameras.
+     *
+     * z is interpreted as view depth in world units measured from the camera plane,
+     * along the camera forward axis. The returned point lies on the ray passing through
+     * (screen_x, screen_y) at the specified view depth. The point is guaranteed to be
+     * inside the camera frustum only if z is between the camera near and far planes.
+     *
+     * @param render_context Render context handle
+     * @param camera         Camera handle
+     * @param screen_x       X coordinate in window pixels
+     * @param screen_y       Y coordinate in window pixels
+     * @param z              View depth in world units from the camera plane
+     * @param out_world      Output world-space position
+     * @return Result        RESULT_OK on success, error otherwise
+     */
+    Result CameraScreenToWorld(HRenderContext render_context, HRenderCamera camera, float screen_x, float screen_y, float z, dmVMath::Vector3* out_world);
+
+    /**
      * Render debug triangle in world space.
      * @param context Render context handle
      * @param vertices Vertices of the triangle, CW winding
