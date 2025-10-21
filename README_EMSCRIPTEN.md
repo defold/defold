@@ -53,11 +53,7 @@ As all other platforms, our builds can pick up a locally installed Emscripten by
 
 ### Using a remote packaged Emscripten
 
-For our internal team (and CI), we rely on a CDN for packages.
-```bash
-> export DM_PACKAGES_URL=<url>
-> ./scripts/build.py install_sdk --platform=wasm-web
-```
+For our internal team (and CI), we rely on a CDN for packages. Read more [here](./README_BUILD.md#step-3---installing-sdks-mostly-optional)
 
 ## Running tests
 

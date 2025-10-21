@@ -231,7 +231,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-linux', 'x86_64-linux'):
         install_sdk = ''
 
-    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
+    args = ('python scripts/build.py distclean install_ext %s check_sdk' % install_sdk).split()
 
     opts = []
     waf_opts = []
@@ -316,7 +316,7 @@ def download_editor2(channel, platform = None):
         install_sdk ='install_sdk'
 
     for platform in platforms:
-        call('python scripts/build.py %s install_ext download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
+        call('python scripts/build.py install_ext %s download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
 
 
 def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
@@ -399,7 +399,7 @@ def install_ext(platform = None):
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
 def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
+    args = "python scripts/build.py install_ext install_sdk sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
 

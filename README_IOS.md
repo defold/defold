@@ -101,19 +101,6 @@ Update the sdk version(s) at the top of the file
 
 ### Native Extension
 
-#### Dockerfile
-
-Open ```extender/server/docker-base/Dockerfile```
-
-Make sure you unpack the package with the correct version number!
-Here, the package is downloaded and extracted to 'iPhoneOSXxx.sdk',
-making sure that the contained library has a version number!
-
-    NOTE: If it doesn't have a version number, it will bug out in subtle ways (E.g. the device orientation events won't fire properly)
-
-    RUN \
-      wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt
-
 ### Defold SDK (build.yml)
 
 Also, you should update the list of `allowedLibs` in the `defold/share/extender/build.yml` for both iOS and OSX. The easiest way to do that is to use the `defold/share/extender/find_libs_apple.sh` (after running `./scripts/build.py install_ext` to download the packages to `$DYNAMO_HOME`)

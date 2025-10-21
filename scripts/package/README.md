@@ -1,6 +1,6 @@
 # Packaging the SDK's
 
-Most of the SDKs used by Defold have licenses that prevent third party redistribution. To efficiently work with the build servers and our build pipeline it is recommended to package the SDKs and serve them from a private URL, accessible by `build.py`. The URL is defined as `CDN_PACKAGES_URL` in `build.py` (or `DM_PACKAGES_URL` environment variable).
+Most of the SDKs used by Defold have licenses that prevent third party redistribution. To efficiently work with the build servers and our build pipeline it is recommended to package the SDKs and serve them from a private S3 object storage bucket, accessible by `build.py`, or from local folder. More information [here](./../../README_BUILD.md#step-3---installing-sdks-mostly-optional). 
 
 We provide a number of scripts to package the SDKs into a format expected by `build.py`. The basic principle when packaging an SDK is to "zip it up" and put it in a cloud storage that the build scripts can access later on. Some of the package scripts can be run on a single host, and yet package the SDK for another host. However, some scripts need to be run on a certain host (for instance various installers).
 
@@ -12,15 +12,19 @@ Usually, the folders can be packaged as-is, but it's generally preferable to rem
 This step is automated given the proper archives (sdk's) are available either locally or on a file server.
 You can configure the path via a command line option:
 
-	 ./scripts/build.py --package-path=<local_folder_or_url> install_sdk --platform=<platform>
+```sh
+	$ ./scripts/build.py install_sdk --platform=<platform> <additional_options>
+```
+More about `<additional_options>` read [here](./../../README_BUILD.md#step-3---installing-sdks-mostly-optional).
 
-or by specifying the `DM_PACKAGES_URL` environment variable.
 
 As a result, all packages should be unpacked under the path `$DYNAMO_HOME/ext/SDKs`:
 
+```
 	./tmp/dynamo_home/ext/SDKs
 	├── android-ndk-r25b
 	└── android-sdk
+```
 
 ## Android
 
@@ -38,9 +42,11 @@ Version 9 or 10 _can_ work with some hacks, but 11 won't work at all (see sdk sc
 
 Run the script (on any host):
 
+```sh
 	$ ./scripts/package/package_android_ndk.sh darwin
 	$ ./scripts/package/package_android_ndk.sh linux
 	$ ./scripts/package/package_android_ndk.sh windows
+```
 
 and it will output the package in:
 
@@ -56,7 +62,9 @@ and it will output the package in:
 
 Run the script (hostsystem is any of darwin/linux/windows):
 
+```sh
 	$ ./scripts/package/package_android_sdk.sh <hostsystem>
+```
 
 and it will output a package (depending on hostsystem):
 
@@ -72,12 +80,16 @@ An alternative approach could be using GitHub Actions. See *Package Android SDKs
 
 Download and unpack this this:
 
+```sh
 	$ wget https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 	$ unzip sdk-tools-linux-3859397.zip
+```
 
 And repackage into a tar file:
 
+```sh
 	$ tar -czf android-sdk-tools-linux-3859397.tar.gz tools
+```
 
 
 ## iOS + macOS
@@ -90,31 +102,41 @@ This script cannot download the sdk's by itself, but instead relies on the user 
 
 Run the script
 
-	./scripts/package/package_xcode_and_sdks.sh
+```sh
+	$ ./scripts/package/package_xcode_and_sdks.sh
+```
 
 and it will output files in `local_sdks` (version depends on which is the current recommended version):
 
+```
 	./local_sdks/MacOSX15.2.sdk.tar.gz
 	./local_sdks/XcodeDefault16.2.xctoolchain.darwin.tar.gz
 	./local_sdks/iPhoneOS18.2.sdk.tar.gz
 	./local_sdks/iPhoneSimulator18.2.sdk.tar.gz
+```
 
 ## Windows
 
 Run the script
 
-	./scripts/package/package_win32_sdk.sh
+```sh
+	$ ./scripts/package/package_win32_sdk.sh
+```
 
 ## HTML5
 
 The installation of the HTML5 compiler is done by calling the build function `install_ems`:
 
+```sh
 	$ ./scripts/build.py install_ems
+```
 
 ## Linux
 
-We use packages from [Clang](https://github.com/llvm/llvm-project/releases) for the Ubuntu16.04 target.
-Current version: https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0/clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+We use packages from [Clang](https://github.com/llvm/llvm-project/releases) for the Ubuntu18.04 target.
+Current version:
+* (x86_64) https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+* (arm64) https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.0/clang+llvm-16.0.0-aarch64-linux-gnu.tar.xz
 
 Download this file and put it into your `./local_sdks` folder.
 The package will then be extracted when you run the `./scripts/build.py install_sdk` command.

@@ -26,9 +26,28 @@ if [ ! -z "${DYNAMO_HOME}" ]; then
     USE_PATH_MAPPINGS="-v ${DYNAMO_HOME}:/dynamo_home"
 fi
 
-if [ ! -z "${DM_PACKAGES_URL}" ]; then
-    USE_ENV="--env DM_PACKAGES_URL=${DM_PACKAGES_URL}"
+USE_ENV=""
+
+if [ ! -z "${DM_PACKAGES_BASE_URL}" ]; then
+    USE_ENV="${USE_ENV} --env DM_PACKAGES_BASE_URL=${DM_PACKAGES_BASE_URL}"
 fi
+
+if [ ! -z "${DM_PACKAGES_BUCKET}" ]; then
+    USE_ENV="${USE_ENV} --env DM_PACKAGES_BUCKET=${DM_PACKAGES_BUCKET}"
+fi
+
+if [ ! -z "${DM_PACKAGES_ACCESS_KEY}" ]; then
+    USE_ENV="${USE_ENV} --env DM_PACKAGES_ACCESS_KEY=${DM_PACKAGES_ACCESS_KEY}"
+fi
+
+if [ ! -z "${DM_PACKAGES_ACCESS_SECRET}" ]; then
+    USE_ENV="${USE_ENV} --env DM_PACKAGES_ACCESS_SECRET=${DM_PACKAGES_ACCESS_SECRET}"
+fi
+
+if [ ! -z "${DM_PACKAGES_ENCRYPTION_KEY}" ]; then
+    USE_ENV="${USE_ENV} --env DM_PACKAGES_ENCRYPTION_KEY=${DM_PACKAGES_ENCRYPTION_KEY}"
+fi
+
 
 if [ ! -z "${DM_DOCKER_BUILD_PLATFORM}" ]; then
     DOCKER_PLATFORM="--platform ${DM_DOCKER_BUILD_PLATFORM}"
