@@ -1557,16 +1557,15 @@
 (handler/defhandler :window.tab.close :global
   (enabled? [app-view evaluation-context]
             (not-empty (get-active-tabs app-view evaluation-context)))
-  (run [app-view prefs]
+  (run [app-view]
     (let [tab-pane (g/node-value app-view :active-tab-pane)]
       (when-let [tab (ui/selected-tab tab-pane)]
-        (remove-tab! tab-pane tab app-view prefs)
-        (workspace-tabs/save-prefs prefs app-view)))))
+        (remove-tab! tab-pane tab)))))
 
 (handler/defhandler :window.tab.close-others :global
   (enabled? [app-view evaluation-context]
             (not-empty (next (get-active-tabs app-view evaluation-context))))
-  (run [app-view prefs]
+  (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (when-let [selected-tab (ui/selected-tab tab-pane)]
         ;; Plain doseq over .getTabs will use the iterable interface
@@ -1575,17 +1574,15 @@
         ;; in a (non-lazy) vec before iterating.
         (doseq [tab (vec (.getTabs tab-pane))]
           (when (not= tab selected-tab)
-            (remove-tab! tab-pane tab app-view prefs)))
-        (workspace-tabs/save-prefs prefs app-view)))))
+            (remove-tab! tab-pane tab)))))))
 
 (handler/defhandler :window.tab.close-all :global
   (enabled? [app-view evaluation-context]
             (not-empty (get-active-tabs app-view evaluation-context)))
-  (run [app-view prefs]
+  (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (doseq [tab (vec (.getTabs tab-pane))]
-        (remove-tab! tab-pane tab app-view prefs)))
-    (workspace-tabs/save-prefs prefs app-view)))
+        (remove-tab! tab-pane tab)))))
 
 (defn- editor-tab-pane
   "Returns the editor TabPane that is above the Node in the scene hierarchy, or
@@ -2018,26 +2015,26 @@
   (-> tab-pane
       (.getTabs)
       (.addListener
-        (reify ListChangeListener
-          (onChanged [_this change]
-            ;; NOTE: wasPermutated is fired when tabs are dragged around and swap in order. If we don't
-            ;; check this, commands like CloseAll will fire once for each tab that was closed
-            (while (.next change)
-              (when (.wasPermutated change)
-                (workspace-tabs/save-prefs prefs app-view)))
-            ;; Check if we've ended up with an empty TabPane.
-            ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
-            (when (empty? (.getTabs tab-pane))
-              (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
-                    tab-panes (.getItems editor-tabs-split)]
-                (when (< 1 (count tab-panes))
-                  (.remove tab-panes tab-pane)
-                  (let [remaining-tab-pane (.get tab-panes 0)
-                        selected-tab (ui/selected-tab remaining-tab-pane)
-                        resource-node (tab->resource-node selected-tab)
-                        view-type (tab->view-type selected-tab)]
-                    (.requestFocus ^TabPane remaining-tab-pane)
-                    (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))))))
+       (let [save-scheduled (atom false)]
+         (reify ListChangeListener
+           (onChanged [_this change]
+             (when (compare-and-set! save-scheduled false true)
+               (ui/run-later
+                 (reset! save-scheduled false)
+                 (workspace-tabs/save-prefs prefs app-view)))
+             ;; Check if we've ended up with an empty TabPane.
+             ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+             (when (empty? (.getTabs tab-pane))
+               (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
+                     tab-panes (.getItems editor-tabs-split)]
+                 (when (< 1 (count tab-panes))
+                   (.remove tab-panes tab-pane)
+                   (let [remaining-tab-pane (.get tab-panes 0)
+                         selected-tab (ui/selected-tab remaining-tab-pane)
+                         resource-node (tab->resource-node selected-tab)
+                         view-type (tab->view-type selected-tab)]
+                     (.requestFocus ^TabPane remaining-tab-pane)
+                     (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type))))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
@@ -2175,7 +2172,6 @@
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
                           (recent-files/add! prefs resource view-type)
-                          (workspace-tabs/save-prefs prefs app-view)
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
                           ;; focus, causing handlers to evaluate against deleted
