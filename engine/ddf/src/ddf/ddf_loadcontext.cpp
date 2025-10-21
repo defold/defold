@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -62,31 +62,30 @@ namespace dmDDF
         Type type = (Type) field_desc->m_Type;
 
         m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
-        int data_size_to_set = 0;
+        int data_size_to_add = 0;
 
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
             if (data_size)
             {
-                data_size_to_set = data_size;
+                data_size_to_add = data_size;
             }
             else
             {
-                data_size_to_set = field_desc->m_MessageDescriptor->m_Size * count;
+                data_size_to_add = field_desc->m_MessageDescriptor->m_Size * count;
             }
         }
         else if ( field_desc->m_Type == TYPE_STRING )
         {
-            data_size_to_set = sizeof(const char*) * count;
+            data_size_to_add = sizeof(const char*) * count;
         }
         else
         {
-            data_size_to_set = ScalarTypeSize(type) * count;
+            data_size_to_add = ScalarTypeSize(type) * count;
         }
 
         uintptr_t b = m_Current;
-        // m_Current += count * element_size;
-        m_Current += data_size_to_set;
+        m_Current += data_size_to_add;
         assert(m_DryRun || m_Current <= m_End);
         return (void*) b;
     }
@@ -135,16 +134,9 @@ namespace dmDDF
         }
     }
 
-    static void IterateCallback(uint32_t* total_size, const uint32_t* key, LoadContext::ArrayInfo* value)
-    {
-        *total_size += value->m_ElementSizesTotal;
-    }
-
     uint32_t LoadContext::CalculateDynamicTypeMemorySize()
     {
-        uint32_t total = m_DynamicOffsetsTotal;
-        //m_ArrayInfo.Iterate(IterateCallback, &total);
-        return total;
+        return m_DynamicOffsetsTotal;
     }
 
     int LoadContext::GetMemoryUsage()
@@ -179,15 +171,6 @@ namespace dmDDF
         return hash;
     }
 
-    static inline void AddDynamicTypeOffset(LoadContext* load_context, uint32_t offset)
-    {
-        if (load_context->m_DynamicOffsets.Full())
-        {
-            load_context->m_DynamicOffsets.OffsetCapacity(32);
-        }
-        load_context->m_DynamicOffsets.Push(offset);
-    }
-
     uint32_t LoadContext::AddDynamicElementSize(uint32_t info_hash, uint32_t size)
     {
         ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
@@ -204,15 +187,10 @@ namespace dmDDF
             info_ptr->m_ElementSizes->OffsetCapacity(4);
         }
 
-        // Automatically add into the running list of data offsets into the dynamic area
-        //AddDynamicTypeOffset(this, info_ptr->m_ElementSizesTotal);
-
         info_ptr->m_ElementSizes->Push(size);
         info_ptr->m_ElementSizesTotal += size;
 
         return AddDynamicMessageSize(size);
-
-        //return info_ptr->m_ElementSizesTotal;
     }
 
     void* LoadContext::GetDynamicTypePointer(uint32_t offset)
@@ -270,7 +248,12 @@ namespace dmDDF
 
     uint32_t LoadContext::AddDynamicMessageSize(uint32_t message_size)
     {
-        AddDynamicTypeOffset(this, m_DynamicOffsetsTotal);
+        if (m_DynamicOffsets.Full())
+        {
+            m_DynamicOffsets.OffsetCapacity(32);
+        }
+        m_DynamicOffsets.Push(m_DynamicOffsetsTotal);
+
         m_DynamicOffsetsTotal += message_size;
 
         return m_DynamicOffsetsTotal;
