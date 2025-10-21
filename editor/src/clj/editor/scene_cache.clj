@@ -152,7 +152,6 @@
 
 (defn request-object! [cache-id request-id context request-data]
   {:pre [(valid-request-id? request-id)]}
-  ;; TODO(instancing): Should we change the argument order?
   (let [cache-meta (get @object-caches-atom cache-id)]
     (if (nil? cache-meta)
       (throw (ex-info (str "Unknown scene cache id: " cache-id)
@@ -163,7 +162,6 @@
       (if-some [[old-object old-request-data]
                 (some-> (get-in cache-meta [:caches context])
                         (cache/lookup request-id))]
-        ; TODO(instancing): Potentially expensive comparison. Can we do better?
         (if (= old-request-data request-data)
           (do
             (swap!

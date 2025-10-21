@@ -248,18 +248,16 @@
                (fn
                  ([result] result)
                  ([[attribute-reflection-infos taken-locations] attribute-reflection-info]
-                  ;; Ensure each attribute maps to a specific shader location. We
-                  ;; will associate the attribute names with these locations as we
-                  ;; link the shader.
+                  ;; Ensure each attribute maps to a specific shader location.
+                  ;; We will associate the attribute names with these locations
+                  ;; as we link the shader.
                   (let [attribute-count (graphics.types/vector-type-attribute-count (:vector-type attribute-reflection-info))
                         reflected-location (:location attribute-reflection-info)
                         base-location (util/first-where
                                         #(not (contains? taken-locations %))
                                         (iterate inc reflected-location))
-                        attribute-reflection-infos (conj attribute-reflection-infos
-                                                         (assoc attribute-reflection-info
-                                                           :location base-location
-                                                           :reflected-location reflected-location)) ; For debugging. TODO(instancing): Remove.
+                        attribute-reflection-info (assoc attribute-reflection-info :location base-location)
+                        attribute-reflection-infos (conj attribute-reflection-infos attribute-reflection-info)
                         location-range (range base-location (+ (long base-location) attribute-count))
                         taken-locations (into taken-locations location-range)]
                     [attribute-reflection-infos taken-locations])))

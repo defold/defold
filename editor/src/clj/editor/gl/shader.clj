@@ -600,14 +600,20 @@ This must be submitted to the driver for compilation before you can use it. See
   (^ShaderLifecycle [request-id vertex-shader-source fragment-shader-source uniforms array-sampler-name->uniform-names]
    (make-shader request-id vertex-shader-source fragment-shader-source uniforms array-sampler-name->uniform-names nil))
   (^ShaderLifecycle [request-id vertex-shader-source fragment-shader-source uniforms array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
-   ;; TODO(instancing): Get rid of this and rename make-shader-lifecycle to make-shader.
-   ;; We want to store the ShaderRequestData in a cached output when possible, so equality comparisons will be quicker.
-   ;; We also want to keep the request-id around so we can benefit from cached structural hashing.
+   ;; TODO(instancing): This is used on the output of the defshader macro, which
+   ;; we'd like to get rid of. Once we do, we can rename make-shader-lifecycle
+   ;; to make-shader.
    ;;
    ;; TODO(instancing): We don't have attribute location information unless we
-   ;; go through the transpiler. This results in the driver choosing whatever
-   ;; locations it likes for the attributes. Maybe we can fake it until we can
-   ;; port over all the inline shaders to be transpiled?
+   ;; go through shader-gen/transpile-shader-source. Trouble is, the transpiler
+   ;; only works on GLSL sources of #version 140 or higher. The defshader macro
+   ;; emits an older syntax that is incompatible with the transpiler. The lack
+   ;; of attribute location information results in the driver choosing whatever
+   ;; locations it likes for the attributes. It also forces us to have a current
+   ;; OpenGL context while looking up the attribute locations. This is still how
+   ;; we do it for the dynamic VertexBuffer class, but it won't work with the
+   ;; newer AttributeBufferBinding class that binds the attributes to locations
+   ;; pre-determined by the shader reflection stage of the transpiler.
    (let [location+attribute-name-pairs []
          attribute-reflection-infos []
 
