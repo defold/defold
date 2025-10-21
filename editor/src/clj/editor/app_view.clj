@@ -96,7 +96,7 @@
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
-           [java.net URL SocketTimeoutException]
+           [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener]
@@ -873,7 +873,7 @@
 (defn- on-service-url-found [prefs target]
   (engine/apply-simulated-resolution! prefs target))
 
-(defn- launch-built-project! [project workspace engine-descriptor project-directory prefs web-server debug?]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
@@ -919,7 +919,7 @@
               (reboot-engine! selected-target web-server debug?))
             (launch-new-engine!))))
       (catch SocketTimeoutException e
-        (debug-view/show-connect-failed-info! e workspace))
+        (debug-view/show-connect-failed-info! e (project/workspace project)))
       (catch Exception e
         (log/warn :exception e)
         (let [localization (g/with-auto-evaluation-context evaluation-context
@@ -1324,7 +1324,7 @@
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
                                    (show-console! main-scene tool-tab-pane)
-                                   (launch-built-project! project workspace engine project-directory prefs web-server false)))))))
+                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
@@ -1375,7 +1375,7 @@
                   :result-fn (fn [{:keys [engine] :as build-results}]
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
-                                   (when-let [target (launch-built-project! project workspace engine project-directory prefs web-server true)]
+                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
                                      (when (nil? (debug-view/current-session debug-view))
                                        (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
