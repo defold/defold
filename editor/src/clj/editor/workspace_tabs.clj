@@ -27,8 +27,9 @@
     :resource))
 
 (defn serialize-open-tabs
-  [app-view evaluation-context]
-  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)]
+  [app-view]
+  (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context ec
+                                       (g/node-value app-view :editor-tabs-split ec))]
     (mapv (fn [^TabPane tab-pane]
             (mapv (fn [tab]
                     [(resource/proj-path (tab->resource tab))
@@ -41,5 +42,5 @@
                   (.getTabs tab-pane)))
           (.getItems editor-tabs-split))))
 
-(defn save-prefs  [prefs app-view evaluation-context]
-  (prefs/set! prefs [:workflow :open-tabs] (serialize-open-tabs app-view evaluation-context)))
+(defn save-prefs  [prefs app-view]
+  (prefs/set! prefs [:workflow :open-tabs] (serialize-open-tabs app-view)))
