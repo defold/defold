@@ -53,7 +53,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListCell ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input KeyEvent MouseEvent]
+           [javafx.scene.input KeyEvent KeyCode MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Text TextFlow]
@@ -413,14 +413,14 @@
           (.setOnMouseClicked (ui/event-handler event
                                 (let [^MouseEvent mouse-event event
                                       ^Node target (.getTarget mouse-event)]
-                                  (when (and (instance? javafx.scene.control.ListCell target)
+                                  (when (and (instance? ListCell target)
                                              (nil? (.getItem ^ListCell target)))
                                     (.clearSelection (.getSelectionModel recent-projects-list)))
                                   (when (and (= 2 (.getClickCount mouse-event))
                                              (not-empty (ui/selection recent-projects-list)))
                                     (open-selected-project!)))))
           (.setOnKeyPressed (ui/event-handler event
-                              (when (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
+                              (when (= KeyCode/ENTER (.getCode ^KeyEvent event))
                                 (open-selected-project!))))
           (when (not-empty (recent-projects prefs))
             (ui/select-index! recent-projects-list 0)
@@ -502,14 +502,14 @@
       (.setOnMouseClicked (ui/event-handler event
                             (let [^MouseEvent mouse-event event
                                   ^Node target (.getTarget mouse-event)]
-                              (when (and (instance? javafx.scene.control.ListCell target)
+                              (when (and (instance? ListCell target)
                                          (nil? (.getItem ^ListCell target)))
                                 (.clearSelection (.getSelectionModel template-list)))
                               (when (and (= 2 (.getClickCount mouse-event))
                                          (not-empty (ui/selection template-list)))
                                 (.fire create-new-project-button)))))
       (.setOnKeyPressed (ui/event-handler event
-                          (when (and (= javafx.scene.input.KeyCode/ENTER (.getCode ^KeyEvent event))
+                          (when (and (= KeyCode/ENTER (.getCode ^KeyEvent event))
                                      (first (ui/selection template-list)))
                             (.fire create-new-project-button)))))
     (when (some? templates)
@@ -840,7 +840,7 @@
                                 (let [key-event ^KeyEvent event
                                       selected-pane-button (.getSelectedToggle pane-buttons-toggle-group)]
                                   (when (and (.isShortcutDown key-event)
-                                             (= javafx.scene.input.KeyCode/R (.getCode key-event)))
+                                             (= KeyCode/R (.getCode key-event)))
                                     (ui/close! stage)
                                     (show-welcome-dialog! prefs localization updater open-project-fn
                                                           {:x (.getX stage)
