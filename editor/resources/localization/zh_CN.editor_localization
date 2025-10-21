@@ -8,8 +8,15 @@
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
 
 # Localizations of the Welcome dialog
+welcome.button.open-from-disk = 从磁盘打开…
+welcome.button.create-new-project = 新建项目
 welcome.button.cancel-download = 取消下载
+welcome.recent-projects = 最近的项目
+welcome.header.open = 打开
+welcome.header.new-project-from = 创建自
+welcome.new-project.default-name = 我的项目
 welcome.new-project.title = 标题
+welcome.open-from-disk.dialog.title = 打开项目
 
 # Welcome -> New Project -> From Template
 
@@ -18,8 +25,16 @@ welcome.new-project.title = 标题
 # Welcome -> New Project -> From Sample
 
 # Updater
+updater.update-failed.title = 更新失败
 
 # Time
+time.vague.just-now = 刚刚
+time.vague.a-minute-ago = 一分钟前
+time.vague.a-few-minutes-ago = 几分钟前
+time.vague.minutes-ago = {count} 分钟前
+time.vague.half-an-hour-ago = 半小时前
+time.vague.an-hour-ago = 一小时前
+time.vague.a-few-hours-ago = 几小时前
 
 # Common dialogs
 
