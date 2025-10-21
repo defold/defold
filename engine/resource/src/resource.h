@@ -127,18 +127,17 @@ namespace dmResource
     struct NewFactoryParams
     {
         /// Maximum number of resource in factory. Default is 1024
-        uint32_t m_MaxResources;
+        uint32_t                m_MaxResources;
 
         /// Factory flags. Default is RESOURCE_FACTORY_FLAGS_EMPTY
-        uint32_t m_Flags;
+        uint32_t                m_Flags;
 
-        EmbeddedResource m_ArchiveIndex;
-        EmbeddedResource m_ArchiveData;
-        EmbeddedResource m_ArchiveManifest;
+        EmbeddedResource        m_ArchiveIndex;
+        EmbeddedResource        m_ArchiveData;
+        EmbeddedResource        m_ArchiveManifest;
+        dmHttpCache::HCache     m_HttpCache;
 
-        dmHttpCache::HCache m_HttpCache;
-
-        uint32_t m_Reserved[5];
+        dmJobThread::HContext   m_JobThreadContext;
 
         NewFactoryParams()
         {

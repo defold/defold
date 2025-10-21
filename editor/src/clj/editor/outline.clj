@@ -23,8 +23,10 @@
             [editor.util :as util]
             [internal.cache :as c]
             [schema.core :as s]
-            [service.log :as log])
-  (:import [internal.graph.types Arc]))
+            [service.log :as log]
+            [util.coll :as coll])
+  (:import [editor.localization MessagePattern]
+           [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -68,7 +70,9 @@
 
 (g/deftype OutlineData {:node-id                              s/Int
                         :node-outline-key                     (s/maybe s/Str)
-                        :label                                s/Str
+                        :label                                (s/conditional
+                                                                string? s/Str
+                                                                localization/message-pattern? MessagePattern)
                         :icon                                 s/Str
                         (s/optional-key :link)                (s/maybe (s/pred valid-link?))
                         (s/optional-key :children)            [s/Any]
@@ -327,9 +331,6 @@
 (defn name-resource-pairs [taken-ids resources]
   (let [names (id/resolve-all (map resource/base-name resources) taken-ids)]
     (map vector names resources)))
-
-(defn natural-sort [items]
-  (->> items (sort-by :label util/natural-order) vec))
 
 (defn gen-node-outline-keys [prefixes]
   (loop [prefixes prefixes

@@ -66,7 +66,7 @@ public:
 
     DynamicTextureContainer m_DynamicTextures;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmPlatform::WindowParams window_params = {};
         window_params.m_Width                  = 2;
@@ -95,7 +95,7 @@ public:
         m_RenderParams.m_RenderNodes = RenderNodesStoreTransform;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);

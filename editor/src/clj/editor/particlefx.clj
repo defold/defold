@@ -408,7 +408,7 @@
       (let [mod-type (mod-types type)]
         {:node-id _node-id
          :node-outline-key node-outline-key
-         :label (:label mod-type)
+         :label (:message mod-type)
          :icon modifier-icon})))
   (output scene g/Any :cached produce-modifier-scene))
 
@@ -997,7 +997,7 @@
                                                       :node-outline-key id
                                                       :label id
                                                       :icon emitter-icon
-                                                      :children (outline/natural-sort child-outlines)
+                                                      :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
                                                                     :tx-attach-fn attach-modifier}]}))
   (output aabb AABB produce-emitter-aabb)
@@ -1152,9 +1152,13 @@
                   emitter-outlines (get outlines false)]
               {:node-id _node-id
                :node-outline-key "ParticleFX"
-               :label "ParticleFX"
+               :label (localization/message "outline.particlefx")
                :icon particle-fx-icon
-               :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
+               :children (localization/annotate-as-sorted
+                           (fn [localization-state _]
+                             (into (localization/natural-sort-by-label localization-state emitter-outlines)
+                                   (localization/natural-sort-by-label localization-state mod-outlines)))
+                           (into emitter-outlines mod-outlines))
                :child-reqs [{:node-type EmitterNode
                              :tx-attach-fn (fn [self-id child-id]
                                              (attach-emitter self-id child-id true))}
@@ -1215,10 +1219,11 @@
       (add-modifier-handler parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (when (not user-data)
-      (mapv (fn [[type data]] {:label (:message data)
-                               :icon modifier-icon
-                               :command :edit.add-secondary-embedded-component
-                               :user-data {:modifier-type type}})
+      (mapv (fn [[type data]]
+              {:label (:message data)
+               :icon modifier-icon
+               :command :edit.add-secondary-embedded-component
+               :user-data {:modifier-type type}})
             mod-types))))
 
 (defn- make-emitter

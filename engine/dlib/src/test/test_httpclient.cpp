@@ -215,7 +215,7 @@ public:
         CreateFile("tmp/http_files/d.txt", "You will find this data in a.txt and d.txt");
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Client = 0;
 
@@ -279,7 +279,7 @@ public:
         m_StatusCode = -1;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Client)
             dmHttpClient::Delete(m_Client);
@@ -338,13 +338,13 @@ public:
         return r;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Major = m_Minor = m_Status = m_ContentOffset = -1;
         m_StatusString = "NOT SET!";
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
     }
 };

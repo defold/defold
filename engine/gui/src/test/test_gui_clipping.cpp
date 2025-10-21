@@ -146,7 +146,7 @@ public:
         m_Renderer.Clear();
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -163,7 +163,7 @@ public:
         Clear();
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGui::DeleteScene(m_Scene);
         dmGui::DeleteContext(m_Context, m_ScriptContext);

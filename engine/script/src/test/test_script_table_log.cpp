@@ -24,7 +24,7 @@
 class PushTableLoggerTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Result[PUSH_TABLE_LOGGER_CAPACITY] = '\0';
     }

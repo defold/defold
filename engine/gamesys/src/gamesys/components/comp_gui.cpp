@@ -2515,9 +2515,8 @@ namespace dmGameSystem
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
 
-            /////////! FIXME: need obtain GraphicsContext somehow
-            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(0, texture_set_res->m_Texture->m_Texture);
-            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(0, texture_set_res->m_Texture->m_Texture);
+            out_data->m_State.m_OriginalTextureWidth = texture_set_res->m_Texture->m_OriginalWidth;
+            out_data->m_State.m_OriginalTextureHeight = texture_set_res->m_Texture->m_OriginalHeight;
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;

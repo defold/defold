@@ -49,21 +49,45 @@ namespace dmResource
     * Get a resource from factory
     * @name Get
     * @param factory [type: dmResource::HFactory] Factory handle
-    * @param name [type: const char*] Resource name
+    * @param path [type: const char*] Resource path
     * @param resource [type: void**] (out) Created resource
     * @return result [type: dmResource::Result]  RESULT_OK on success
     */
-   Result Get(HFactory factory, const char* name, void** resource);
+   Result Get(HFactory factory, const char* path, void** resource);
 
    /*#
-    * Get a resource from factory
+    * Get (load) a resource from factory
+    * @name GetWithExt
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param path [type: const char*] Resource path
+    * @param ext [type: const char*] Resource extension. Must match the extension of the path
+    * @param resource [type: void**] (out) Created resource
+    * @return result [type: dmResource::Result]  RESULT_OK on success.
+    *                                            RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+    */
+   Result GetWithExt(HFactory factory, const char* path, const char* ext, void** resource);
+
+   /*#
+    * Get a loaded resource from factory
     * @name Get
     * @param factory [type: dmResource::HFactory] Factory handle
-    * @param name [type: dmhash_t] Resource name
+    * @param path_hash [type: const char*] Resource path hash
     * @param resource [type: void**] (out) Created resource
     * @return result [type: dmResource::Result]  RESULT_OK on success
     */
-   Result Get(HFactory factory, dmhash_t name, void** resource);
+   Result Get(HFactory factory, dmhash_t path_hash, void** resource);
+
+   /*#
+    * Get a loaded resource from factory
+    * @name GetWithExt
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param path_hash [type: const char*] Resource path hash
+    * @param ext_hash [type: const char*] Resource extension hash. Must match the extension of the path.
+    * @param resource [type: void**] (out) Created resource
+    * @return result [type: dmResource::Result]  RESULT_OK on success.
+    *                                            RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+    */
+   Result GetWithExt(HFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource);
 
     /*#
     * Creates and inserts a resource into the factory

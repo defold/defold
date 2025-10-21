@@ -258,7 +258,7 @@ public:
         m_DeviceName = GetParam().m_DeviceName;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
@@ -271,7 +271,7 @@ public:
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmTime::Sleep(10000); // waiting for sounds to finish playing (to make it less choppy)
         dmSound::Result r = dmSound::Finalize();
@@ -288,7 +288,7 @@ public:
         m_DeviceName = GetParam().m_DeviceName;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
@@ -301,7 +301,7 @@ public:
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);

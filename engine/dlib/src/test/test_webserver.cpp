@@ -81,7 +81,7 @@ public:
         self->m_Quit = true;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Quit = false;
         m_ServerStarted = false;
@@ -103,7 +103,7 @@ public:
         dmWebServer::AddHandler(m_Server, "/header_mul", &handler_params);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Server)
         {

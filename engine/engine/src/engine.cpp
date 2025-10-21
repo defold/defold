@@ -1056,9 +1056,9 @@ namespace dmEngine
         }
 
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "DefoldJobThread1";
-        job_thread_create_param.m_ThreadCount    = 1;
-        engine->m_JobThreadContext               = dmJobThread::Create(job_thread_create_param);
+        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
+        job_thread_create_param.m_ThreadCount       = 1;
+        engine->m_JobThreadContext                  = dmJobThread::Create(job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
@@ -1130,6 +1130,7 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
+        params.m_JobThreadContext = engine->m_JobThreadContext;
 
         if (dLib::IsDebugMode())
         {
