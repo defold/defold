@@ -25,6 +25,7 @@ welcome.open-from-disk.dialog.title = 打开项目
 welcome.new-project.error.no-project-title.title = 无项目标题
 welcome.new-project.error.invalid-project-title.title = 无效的项目标题
 welcome.new-project.error.host-unreachable.header = 防火墙可能正在阻止网络连接
+welcome.new-project.error.ssl-connection-error.title = SSL 连接错误
 
 # Welcome -> New Project -> From Template
 
