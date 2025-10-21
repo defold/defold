@@ -2290,15 +2290,21 @@
 
 (defn restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
   (when-let [open-tab-panes (prefs/get prefs [:workflow :open-tabs])]
-    (doseq [[pane-num pane] (map-indexed vector open-tab-panes)
-            [proj-path view-type-id] pane
-            :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
-            :when (and (resource/openable-resource? resource)
-                       (resource/exists? resource))]
-      (let [view-type (workspace/get-view-type workspace view-type-id)]
-        (open-resource app-view prefs localization workspace project resource
-                   {:selected-view-type view-type
-                    :use-custom-editor false})))))
+    (doseq [[pane-num pane] (map-indexed vector open-tab-panes)]
+      ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
+      ;; need to refactor if we made a more elaborate window tiling system
+      (when (= 1 pane-num)
+        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+              second-split (add-other-tab-pane! editor-tabs-split app-view prefs)]
+          (g/set-property! app-view :active-tab-pane second-split)))
+      (doseq [[proj-path view-type-id] pane
+              :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+              :when (and (resource/openable-resource? resource)
+                         (resource/exists? resource))]
+        (let [view-type (workspace/get-view-type workspace view-type-id)]
+          (open-resource app-view prefs localization workspace project resource
+                         {:selected-view-type view-type
+                          :use-custom-editor false}))))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
