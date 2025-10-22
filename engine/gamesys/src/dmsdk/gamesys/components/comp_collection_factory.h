@@ -27,7 +27,6 @@
  * @document
  * @name Collection factory
  * @namespace dmGameSystem
- * @path engine/gamesys/src/dmsdk/gamesys/components/comp_collection_factory.h
  * @language C++
  */
 

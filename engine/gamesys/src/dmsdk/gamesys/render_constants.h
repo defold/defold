@@ -21,7 +21,6 @@
 #include <dmsdk/render/render.h>
 
 /*# Component render constant API documentation
- * [file:<dmsdk/gamesystem/render_constants.h>]
  *
  * Api for setting and updating component render constants
  *

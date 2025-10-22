@@ -30,12 +30,14 @@
             [editor.compute :as compute]
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
+            [editor.editor-localization :as editor-localization]
             [editor.editor-script :as editor-script]
             [editor.factory :as factory]
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-object-non-editable :as game-object-non-editable]
             [editor.game-project :as game-project]
+            [editor.game-properties :as game-properties]
             [editor.gui :as gui]
             [editor.html :as html]
             [editor.image :as image]
@@ -74,12 +76,14 @@
       (compute/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
+      (editor-localization/register-resource-types workspace)
       (editor-script/register-resource-types workspace)
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-object-non-editable/register-resource-types workspace)
       (game-project/register-resource-types workspace)
+      (game-properties/register-resource-types workspace)
       (gui/register-resource-types workspace)
       (html/register-resource-types workspace)
       (image/register-resource-types workspace)

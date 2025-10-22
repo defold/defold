@@ -23,7 +23,6 @@
  *
  * @document
  * @name DStrings
- * @path engine/dlib/src/dmsdk/dlib/dstrings.h
  * @language C++
  */
 

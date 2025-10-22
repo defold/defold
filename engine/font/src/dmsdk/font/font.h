@@ -24,7 +24,6 @@
  * @document
  * @name Font
  * @namespace dmFont
- * @path engine/font/src/dmsdk/font/font.h
  * @language C++
  */
 

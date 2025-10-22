@@ -167,7 +167,7 @@ protected:
         }
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_BaseLoader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
         ASSERT_NE((ArchiveLoader*)0, m_BaseLoader);
@@ -188,7 +188,7 @@ protected:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result;
 

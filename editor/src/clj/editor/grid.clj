@@ -162,13 +162,6 @@
      :render-fn render-scaled-grids
      :user-render-data {:camera camera
                         :grids grids
-                        :options merged-options}}]
-   pass/transparent ; Grid lines potentially intersecting scene geometry.
-   [{:world-transform geom/Identity4d
-     :tags #{:grid}
-     :render-fn render-scaled-grids
-     :user-render-data {:camera camera
-                        :grids grids
                         :options merged-options}}]})
 
 (defn frustum-plane-projection

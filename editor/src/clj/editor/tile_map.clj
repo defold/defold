@@ -29,6 +29,7 @@
             [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -41,8 +42,7 @@
             [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [internal.graph.types :as gt])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -521,9 +521,13 @@
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
-            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
+            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z))
+            (dynamic label (properties/label-dynamic :tile-map.layer :z))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :z)))
 
-  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
+  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible)))
+            (dynamic label (properties/label-dynamic :tile-map.layer :visible))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :visible)))
 
   (output scene g/Any :cached produce-layer-scene)
   (output node-outline outline/OutlineData :cached produce-layer-outline)
@@ -595,7 +599,7 @@
   [_node-id child-outlines]
   {:node-id          _node-id
    :node-outline-key "Tile Map"
-   :label            "Tile Map"
+   :label            (localization/message "outline.tile-map")
    :icon             tile-map-icon
    :children         (vec (sort-by :z child-outlines))})
 
@@ -674,7 +678,9 @@
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
                              (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"}))
+            (dynamic label (properties/label-dynamic :tile-map :tile-source))
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map :tile-source)))
 
   ;; material
   (property material resource/Resource ; Default assigned in load-fn.
@@ -1445,11 +1451,11 @@
   (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
     (g/transact
      (concat
-      (g/operation-label "Add layer")
+      (g/operation-label (localization/message "operation.tile-map.add-layer"))
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [user-data] "Add layer")
+  (label [user-data] (localization/message "command.edit.add-embedded-component.variant.tile-map"))
   (active? [selection] (selection->tile-map selection))
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
@@ -1476,7 +1482,6 @@
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
 (handler/defhandler :scene.select-erase-tool :workbench
-  (label [user-data] "Select Eraser")
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1536,15 +1541,15 @@
   (run [app-view] (transform-brush! app-view rotate-brush-90-degrees)))
 
 (handler/register-menu! ::menubar :editor.app-view/edit-end
-  [{:label "Select Tile..."
+  [{:label (localization/message "command.scene.toggle-tile-palette")
     :command :scene.toggle-tile-palette}
-   {:label "Select Eraser"
+   {:label (localization/message "command.scene.select-erase-tool")
     :command :scene.select-erase-tool}
-   {:label "Flip Brush Horizontally"
+   {:label (localization/message "command.scene.flip-brush-horizontally")
     :command :scene.flip-brush-horizontally}
-   {:label "Flip Brush Vertically"
+   {:label (localization/message "command.scene.flip-brush-vertically")
     :command :scene.flip-brush-vertically}
-   {:label "Rotate Brush 90 Degrees"
+   {:label (localization/message "command.scene.rotate-brush-90-degrees")
     :command :scene.rotate-brush-90-degrees}])
 
 (g/defnode TileMapGrid

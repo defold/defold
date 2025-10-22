@@ -93,14 +93,20 @@ function init(self)
     assert(properties.max_length == 5)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
-    physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
+    if PHYSICS=="box2dv3" then
+        physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 0.95 * 3.1415927410126, enable_limit = true })
+    else
+        physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
+    end
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
 
+    if PHYSICS=="box2dv3" then
+        assert_near(properties.upper_angle, 3.1415927410126, 0.2)
+    else
+        assert(properties.upper_angle == 10)
+    end
     assert(properties.lower_angle == 0)
-    -- box2d v2
-    assert(properties.upper_angle == 10)
-    -- box2d v3: upper_angle is clamped to PI
-    -- assert_near(properties.upper_angle, 3.1415927410126)
+
     assert(properties.enable_limit)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
@@ -199,7 +205,11 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5, 0.1)
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 5, 0.25)
+            else
+                assert_near(length, 5, 0.1)
+            end
 
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
@@ -238,7 +248,11 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5, 0.05)
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 5, 0.3)
+            else
+                assert_near(length, 5, 0.05)
+            end
 
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
@@ -264,7 +278,11 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(0, length, 0.005)
+            if PHYSICS=="box2dv3" then
+                assert_near(0, length)
+            else
+                assert_near(0, length, 0.005)
+            end
             assert_near(0, p_b.x)
 
             -- Verify that B obj has rotated (due to motor)
@@ -334,7 +352,12 @@ local joint_tests = {
 
             -- box2d v3: upper limit seems to be slightly surpassed here regardless of how many updates we do,
             --           hence the "large" epsilon value
-            assert_near(10, length, 0.1)
+
+            if PHYSICS=="box2dv3" then
+                assert_near(10, length, 0.3)
+            else
+                assert_near(10, length, 0.1)
+            end
             assert_near(0, p_b.x)
 
             -- Move obj A on x-axis, make sure that obj B follows along.
@@ -349,7 +372,11 @@ local joint_tests = {
 
             -- box2d v3: upper limit seems to be slightly surpassed here regardless of how many updates we do,
             --           hence the "large" epsilon value
-            assert_near(10, length, 0.1)
+            if PHYSICS=="box2dv3" then
+                assert_near(10, length, 0.3)
+            else
+                assert_near(10, length, 0.1)
+            end
             assert_near(10, p_b.x)
 
             -- Cleanup, for next test
@@ -377,8 +404,13 @@ local joint_tests = {
 
             -- box2d v3: upper limit seems to be slightly surpassed here regardless of how many updates we do,
             --           hence the "large" epsilon value
-            assert_near(length, 10, 0.025)
-            assert_near(p_b.x, 9.511, 0.1)
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 10, 0.03)
+                assert_near(p_b.x, 9.511, 0.6)
+            else
+                assert_near(length, 10, 0.025)
+                assert_near(p_b.x, 9.511, 0.1)
+            end
 
             -- Move A
             go.set_position(vmath.vector3(5,0,0), self.a)
@@ -442,12 +474,14 @@ local joint_tests = {
         local p_c = go.get_position(self.c)
         local p_b = go.get_position(self.b)
         local length = vmath.length(p_c - p_b)
-        -- Box2d v2
-        assert_near(70.472, length, 0.01)
-        assert_near(54.736, p_b.x)
-        -- Box2d v3
-        --assert_near(71.472, length, 0.01)
-        --assert_near(55.335, p_b.x)
+
+        if PHYSICS=="box2dv3" then
+            assert_near(71.472, length, 0.01)
+            assert_near(55.335, p_b.x)
+        else
+            assert_near(70.472, length, 0.01)
+            assert_near(54.736, p_b.x)
+        end
 
         -- Cleanup, for next test
         physics.destroy_joint(self.b_coll, self.joint_id)

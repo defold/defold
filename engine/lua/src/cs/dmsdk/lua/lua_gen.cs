@@ -24,7 +24,6 @@
  * @language C#
  * @name Lua_gen
  * @namespace Lua
- * @path engine/lua/src/cs/dmsdk/lua/lua_gen.cs
  */
 
 using System.Runtime.InteropServices;

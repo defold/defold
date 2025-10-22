@@ -30,6 +30,7 @@ namespace dmSound
         SOUND_DATA_TYPE_WAV        = 0,
         SOUND_DATA_TYPE_OGG_VORBIS = 1,
         SOUND_DATA_TYPE_OPUS = 2,
+        SOUND_DATA_TYPE_MAX = 3
     };
 
     enum Parameter
@@ -160,9 +161,19 @@ namespace dmSound
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const dmVMath::Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, dmVMath::Vector4& value);
 
+    // Set initial playback offset before playing; only applied to the initial playback
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame);
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds);
+
     // Platform dependent
     bool IsMusicPlaying();
     bool IsAudioInterrupted();
+
+    struct DecoderOutputSettings {
+        bool m_UseNormalizedFloatRange;     //!< if true, decoders must deliver any float data in [-1..1] range, otherwise: [-32768, 32767]
+        bool m_UseInterleaved;              //!< if true, decoders must deliver data with interleaved channels, otherwise: they can choose
+    };
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings);
 
     void OnWindowFocus(bool focus);
 }

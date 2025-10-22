@@ -23,7 +23,6 @@
  * @document
  * @name Sys
  * @namespace dmSys
- * @path engine/dlib/src/dmsdk/dlib/sys.h
  * @language C++
  */
 

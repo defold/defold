@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.bit-set
-  (:refer-clojure :exclude [bit-set empty? into seq])
+  (:refer-clojure :exclude [bit-set empty? into not-empty reduce seq transduce])
   (:require [util.coll :as coll])
   (:import [clojure.lang LazilyPersistentVector]
            [java.util BitSet]))
@@ -32,6 +32,12 @@
      (or (nil? bit-set#)
          (.isEmpty bit-set#))))
 
+(defmacro not-empty [bit-set]
+  `(let [^BitSet bit-set# ~bit-set]
+     (when (and bit-set#
+                (not (.isEmpty bit-set#)))
+       bit-set#)))
+
 (defmacro ^:private ensure-counted [items]
   `(let [items# ~items]
      (if (counted? items#)
@@ -45,7 +51,7 @@
 
 (defn- with-set-indices!
   ^BitSet [^BitSet bit-set indices]
-  (reduce
+  (clojure.core/reduce
     (fn [_ ^long index]
       (.set bit-set index))
     nil
@@ -104,8 +110,16 @@
   ([^long length indices]
    (with-set-indices! (of-capacity length) indices)))
 
+(defmacro assign! [target-bit-set source-bit-set]
+  `(doto (hinted ~target-bit-set)
+     (.clear)
+     (.or (hinted ~source-bit-set))))
+
 (defmacro cardinality [bit-set]
   `(.cardinality (hinted ~bit-set)))
+
+(defmacro bit [bit-set index]
+  `(.get (hinted ~bit-set) (int ~index)))
 
 (defmacro set-bit [bit-set index]
   `(let [^BitSet bit-set# ~bit-set
@@ -160,6 +174,18 @@
      (when-not (empty? bit-set#)
        (stream-seq! (.stream bit-set#)))))
 
+(defmacro reduce
+  ([f bit-set]
+   `(stream-reduce! ~f (.stream (hinted ~bit-set))))
+  ([f init bit-set]
+   `(stream-reduce! ~f ~init (.stream (hinted ~bit-set)))))
+
+(defmacro transduce
+  ([xform f bit-set]
+   `(stream-transduce! ~xform ~f (.stream (hinted ~bit-set))))
+  ([xform f init bit-set]
+   `(stream-transduce! ~xform ~f ~init (.stream (hinted ~bit-set)))))
+
 (defn into
   ([to] to)
   ([to from]
@@ -192,8 +218,8 @@
                        ([_ index]
                         (.set result (int index))))]
        (if (bit-set? from)
-         (stream-transduce! xform reduce-fn nil (.stream ^BitSet from))
-         (transduce xform reduce-fn nil from))
+         (transduce xform reduce-fn nil from)
+         (clojure.core/transduce xform reduce-fn nil from))
        result)
 
      (bit-set? from)

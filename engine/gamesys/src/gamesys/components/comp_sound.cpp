@@ -378,6 +378,25 @@ namespace dmGameSystem
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(speed, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
+                    // Apply start offset before playback (initial-only; not re-applied on loops)
+                    // If both are provided via message, start_frame wins
+                    if (play_sound->m_StartFrame != 0)
+                    {
+                        dmSound::Result rskip = dmSound::SetStartFrame(entry.m_SoundInstance, play_sound->m_StartFrame);
+                        if (rskip != dmSound::RESULT_OK)
+                        {
+                            dmLogWarning("Failed to set start_frame offset (%d)", rskip);
+                        }
+                    }
+                    else if (play_sound->m_StartTime > 0.0f)
+                    {
+                        dmSound::Result rskip = dmSound::SetStartTime(entry.m_SoundInstance, play_sound->m_StartTime);
+                        if (rskip != dmSound::RESULT_OK)
+                        {
+                            dmLogWarning("Failed to set start_time offset (%d)", rskip);
+                        }
+                    }
+
                     entry.m_Listener = params.m_Message->m_Sender;
                     uintptr_t callback = params.m_Message->m_UserData2;
                     if (callback == UINTPTR_MAX)

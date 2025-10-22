@@ -170,7 +170,7 @@ namespace dmGameSystem
 
             // check that the path is a .collectionc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (!ext || strcmp(ext, ".collectionc") != 0)
+            if (!ext || strcmp(ext, "collectionc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as collection to '%s:%s#%s'. Only .collectionc resources are allowed",
                                         path,

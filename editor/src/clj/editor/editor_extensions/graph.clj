@@ -24,6 +24,7 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.tile-map :as tile-map]
+            [editor.form :as form]
             [editor.game-project :as game-project]
             [editor.gui-attachment :as gui-attachment]
             [editor.id :as id]
@@ -31,6 +32,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [editor.types :as types]
             [editor.util :as util]
             [editor.workspace :as workspace]
@@ -40,6 +42,7 @@
   (:import [com.dynamo.particle.proto Particle$ModifierType]
            [editor.editor_extensions.tile_map Tiles]
            [editor.properties Curve CurveSpread]
+           [java.net URI URISyntaxException]
            [java.util ArrayDeque HashSet]
            [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils]
@@ -327,10 +330,12 @@
       "type" #(g/node-value node-id :type evaluation-context)
       nil)))
 
+(def ^:private game-project-setting-path-regex #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$")
+
 (register-property-getter!
   :editor.game-project/GameProjectNode
   (fn GameProjectNode-getter [node-id property evaluation-context]
-    (when (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$" property)
+    (when (re-matches game-project-setting-path-regex property)
       (let [path (string/split property #"\." 2)]
         #(game-project/get-setting node-id path evaluation-context)))))
 
@@ -468,6 +473,61 @@
         (g/set-property node-id :type (rt/->clj rt modifier-type-coercer lua-value)))
 
       nil)))
+
+(defn- coercing-meta-setting-converter [coercer]
+  (fn converter [lua-value rt _project _evaluation-context]
+    (rt/->clj rt coercer lua-value)))
+
+(defn meta-setting-converter [meta-setting]
+  (if (not meta-setting)
+    nil
+    (if-let [options (:options meta-setting)]
+      (coercing-meta-setting-converter (apply coerce/enum (mapv first options)))
+      (case (:type meta-setting)
+        :string
+        (coercing-meta-setting-converter coerce/string)
+
+        :number
+        (coercing-meta-setting-converter (coerce/wrap-transform coerce/number double))
+
+        :integer
+        (coercing-meta-setting-converter coerce/integer)
+
+        :boolean
+        (coercing-meta-setting-converter coerce/boolean)
+
+        :url
+        (coercing-meta-setting-converter
+          (-> coerce/string
+              (coerce/wrap-transform #(try (URI. %) (catch URISyntaxException _)))
+              (coerce/wrap-with-pred some? "is not a valid URL")))
+
+        :resource
+        (fn [lua-value rt project evaluation-context]
+          (resource-converter lua-value rt {:ext (:filter meta-setting)} project evaluation-context))
+
+        (:list :comma-separated-list)
+        (when-let [element-converter (meta-setting-converter (:element meta-setting))]
+          (fn list-converter [lua-value rt project evaluation-context]
+            (rt/->clj
+              rt
+              (coerce/vector-of
+                (-> coerce/untouched
+                    (coerce/wrap-transform
+                      (fn [lua-element]
+                        (element-converter lua-element rt project evaluation-context)))))
+              lua-value)))
+
+        nil))))
+
+(register-property-setter!
+  :editor.game-project/GameProjectNode
+  (fn GameProjectNode-setter [node-id property rt project evaluation-context]
+    (when (re-matches game-project-setting-path-regex property)
+      (when-let [path (string/split property #"\." 2)]
+        (let [{:keys [meta-settings form-ops]} (g/node-value node-id :form-data evaluation-context)]
+          (when-let [converter (meta-setting-converter (settings-core/get-meta-setting meta-settings path))]
+            #(form/set-value form-ops path (converter % rt project evaluation-context))))))))
 
 (register-property-setter!
   ::outline/OutlineNode

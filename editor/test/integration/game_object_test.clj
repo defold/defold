@@ -48,7 +48,7 @@
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
                  (game-object/add-embedded-component! go-id r-type nil)
-                 (let [factory (:node-id (test-util/outline go-id [0]))]
+                 (let [factory (:node-id (test-util/outline go-id [1]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
                      (is (g/error? (test-util/prop-error comp-id :id)))

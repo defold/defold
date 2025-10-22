@@ -27,6 +27,16 @@
 
 namespace dmGameSystem
 {
+    /*# Font API documentation
+     *
+     * Functions, messages and properties used to manipulate font resources.
+     *
+     * @document
+     * @name Font
+     * @namespace font
+     * @language Lua
+     */
+
     //////////////////////////////////////////////////////////////////////////////
 
 dmResource::HFactory g_ResourceFactory = 0;

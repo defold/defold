@@ -440,6 +440,12 @@ namespace dmGameSystem
      *
      * `speed`
      * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. The final speed of the sound will be a multiplication of this speed and the sound speed.
+
+     * `start_time`
+     * : [type:number] start playback offset (seconds). Optional, mutually exclusive with `start_frame`.
+
+     * `start_frame`
+     * : [type:number] start playback offset (frames/samples). Optional, mutually exclusive with `start_time`. If both are provided, `start_frame` is used.
      *
      * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
@@ -493,6 +499,8 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
+        float start_time = 0.0f;
+        uint32_t start_frame = 0u;
 
         if (top > 1 && !lua_isnil(L,2)) // table with args
         {
@@ -513,6 +521,23 @@ namespace dmGameSystem
 
             lua_getfield(L, -1, "speed");
             speed = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "start_time");
+            if (!lua_isnil(L, -1))
+            {
+                start_time = (float)luaL_checknumber(L, -1);
+                if (start_time < 0.0f) start_time = 0.0f;
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "start_frame");
+            if (!lua_isnil(L, -1))
+            {
+                double v = luaL_checknumber(L, -1);
+                if (v < 0.0) v = 0.0;
+                start_frame = (uint32_t)v;
+            }
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -539,6 +564,9 @@ namespace dmGameSystem
         msg.m_Pan    = pan;
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
+        // If both are set, start_frame wins
+        msg.m_StartFrame = start_frame;
+        msg.m_StartTime  = (start_frame != 0) ? 0.0f : start_time;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, 0, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
@@ -752,6 +780,8 @@ namespace dmGameSystem
      * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
      * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
      * @param [play_id] [type:number] the identifier of the sound, can be used to distinguish between consecutive plays from the same component.
+     * @param [start_time] [type:number] optional start offset (seconds). Mutually exclusive with `start_frame`.
+     * @param [start_frame] [type:number] optional start offset (frames). If both are provided, `start_frame` is used.
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:

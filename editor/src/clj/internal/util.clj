@@ -155,9 +155,9 @@
   [f m]
   (reduce-kv (fn [m k v] (assoc m (f k) v)) (empty m) m))
 
-(defn map-vals
-  [f m]
-  (reduce-kv (fn [m k v] (assoc m k (f v))) m m))
+(defmacro map-vals [f m]
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/map-vals ~f ~m))
 
 (defn map-first
   [f pairs]
@@ -413,14 +413,20 @@
     (map? coll)
     (if (sorted? coll)
       coll
-      (with-meta (into (sorted-map) coll)
-                 (meta coll)))
+      (try
+        (with-meta (into (sorted-map) coll)
+                   (meta coll))
+        (catch ClassCastException _
+          coll)))
 
     (set? coll)
     (if (sorted? coll)
       coll
-      (with-meta (into (sorted-set) coll)
-                 (meta coll)))
+      (try
+        (with-meta (into (sorted-set) coll)
+                   (meta coll))
+        (catch ClassCastException _
+          coll)))
 
     :else
     coll))

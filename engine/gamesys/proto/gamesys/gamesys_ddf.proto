@@ -91,6 +91,10 @@ message PlaySound
     optional float pan      = 3 [default=0.0];
     optional float speed    = 4 [default=1.0];
     optional uint32 play_id = 5 [default=0xffffffff]; // Must be same as dmSound::INVALID_PLAY_ID
+    // Start playback from an offset. Only one of these should be set.
+    // If both are set (e.g. via manual message), start_frame takes precedence.
+    optional float  start_time  = 6 [default=0.0]; // seconds
+    optional uint32 start_frame = 7 [default=0];   // frames (samples per channel)
 }
 
 message StopSound

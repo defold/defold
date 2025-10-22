@@ -32,7 +32,6 @@ namespace dmMessage {
 namespace dmGameObject
 {
     /*# SDK GameObject script API documentation
-     * [file:<dmsdk/gameobject/script.h>]
      *
      * @document
      * @name Script

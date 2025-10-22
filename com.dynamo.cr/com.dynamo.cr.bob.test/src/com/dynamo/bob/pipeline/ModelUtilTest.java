@@ -16,6 +16,8 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 import java.io.File;
@@ -23,7 +25,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.vecmath.Point4i;
 import javax.vecmath.Quat4d;
@@ -481,5 +485,36 @@ public class ModelUtilTest {
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         Modelimporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertTrue(scene == null);
+    }
+
+    @Test
+    public void testVehicleGltfHierarchy() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene("vehicle.glb", meshSetBuilder);
+        
+        // Validate scene loaded successfully
+        assertNotNull("Vehicle scene should load", scene);
+        
+        // Get all models from the meshset
+        List<Rig.Model> models = meshSetBuilder.getModelsList();
+        
+        // Check for duplicate models by collecting IDs
+        Set<Long> modelIds = new HashSet<>();
+        
+        for (Rig.Model model : models) {
+            long id = model.getId();
+            String name = "Model_" + id; // Since we hash the node name
+            
+            assertFalse("Model ID " + id + " should be unique (no duplicates)", 
+                       modelIds.contains(id));
+            modelIds.add(id);
+            
+            // Validate model has meshes
+            assertTrue("Model should have at least one mesh", 
+                      model.getMeshesCount() > 0);
+        }
+        
+        // Validate we have a reasonable number of models (not duplicated)
+        assertTrue("Should have at least 1 model", models.size() >= 1);
     }
 }

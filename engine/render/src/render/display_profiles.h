@@ -93,7 +93,13 @@ namespace dmRender
      */
     dmhash_t GetDisplayProfilesName(HDisplayProfiles profiles);
 
+    /**
+     * Get whether automatic layout selection is enabled
+     * @param profiles Display profiles handle
+     * @return true if auto layout selection is enabled
+     */
+    bool GetAutoLayoutSelection(HDisplayProfiles profiles);
+
 }
 
 #endif // DISPLAY_PROFILES_H
-

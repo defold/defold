@@ -21,10 +21,10 @@
            [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.dynamo.render.proto Font$FontDesc]
            [com.google.protobuf ByteString]
-           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
+           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
            [java.awt.font FontRenderContext GlyphVector]
-           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator Rectangle2D]
+           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator Rectangle2D Area]
            [java.awt.image BufferedImage ComponentColorModel ConvolveOp DataBuffer DataBufferByte Kernel Raster WritableRaster]
            [java.io FileNotFoundException IOException InputStream]
            [java.nio.file Paths]
@@ -614,7 +614,10 @@
         ^int channel-count channel-count
         ^int shadow-blur shadow-blur
         {^int width :width ^int height :height} (pad-wh padding (glyph-wh glyph))
-        ^Shape glyph-outline (.getGlyphOutline glyph-vector 0)
+        ;; Normalize the outline by boolean-unioning overlapping contours to avoid
+        ;; internal edges contributing to the distance field (fixes artifacts for
+        ;; glyphs composed of multiple vector shapes; see issue #6577)
+        ^Shape glyph-outline (let [area (Area. (.getGlyphOutline glyph-vector 0))] area)
         ^PathIterator outline-iterator (FlatteningPathIterator. (.getPathIterator glyph-outline identity-transform) 0.1)
         segment-points (double-array 6 0.0)]
 

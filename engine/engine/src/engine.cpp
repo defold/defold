@@ -712,6 +712,9 @@ namespace dmEngine
         physics->m_MaxContactPointCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         physics->m_UseFixedTimestep = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
         physics->m_MaxFixedTimesteps = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
+        physics->m_Box2DVelocityIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_VELOCITY_ITERATIONS, 10);
+        physics->m_Box2DPositionIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_POSITION_ITERATIONS, 10);
+        physics->m_Box2DSubStepCount = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_SUB_STEP_COUNT, 4);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
@@ -927,8 +930,13 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
 #endif
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
-        if (write_log) {
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0); // Deprecated
+        int write_log_file = dmConfigFile::GetInt(engine->m_Config, "project.write_log_file", 0);
+        // for backward compatibility if write_log_file is 0, but write_log is 1
+        write_log_file = write_log_file == 0 ? write_log : write_log_file;
+        // 0 - no logs, 1 - debug only, 2 - always
+        if ((write_log_file == 2) || (write_log_file == 1 && dLib::IsDebugMode()))
+        {
             uint32_t count = 0;
             char* log_paths[3];
 
@@ -1048,9 +1056,9 @@ namespace dmEngine
         }
 
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "DefoldJobThread1";
-        job_thread_create_param.m_ThreadCount    = 1;
-        engine->m_JobThreadContext               = dmJobThread::Create(job_thread_create_param);
+        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
+        job_thread_create_param.m_ThreadCount       = 1;
+        engine->m_JobThreadContext                  = dmJobThread::Create(job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
@@ -1122,6 +1130,7 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
+        params.m_JobThreadContext = engine->m_JobThreadContext;
 
         if (dLib::IsDebugMode())
         {
@@ -1451,12 +1460,18 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         {
             const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
-            if (init_script) {
+            if (init_script && init_script[0] != 0)
+            {
+                dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
                 char* tmp = strdup(init_script);
                 char* iter = 0;
                 char* filename = dmStrTok(tmp, ",", &iter);
                 do
                 {
+                    if (!filename || strlen(filename) == 0) {
+                        continue;
+                    }
+                    
                     // We need the size, in order to send it as a proper LuaModule message
                     void* data;
                     uint32_t datasize;
@@ -1679,8 +1694,8 @@ bail:
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
 
-        input_action.m_TouchCount = action->m_TouchCount;
-        int tc = action->m_TouchCount;
+        input_action.m_TouchCount = action->m_Count;
+        int tc = action->m_Count;
         for (int i = 0; i < tc; ++i) {
             dmHID::Touch& a = action->m_Touch[i];
             dmHID::Touch& ia = input_action.m_Touch[i];
@@ -1696,9 +1711,9 @@ bail:
             ia.m_ScreenDY = -a.m_DY;
         }
 
-        input_action.m_TextCount = action->m_TextCount;
+        input_action.m_TextCount = action->m_Count;
         input_action.m_HasText = action->m_HasText;
-        tc = action->m_TextCount;
+        tc = action->m_Count;
         for (int i = 0; i < tc; ++i) {
             input_action.m_Text[i] = action->m_Text[i];
         }
@@ -1870,8 +1885,6 @@ bail:
                     }
                 }
 
-                dmSound::Update();
-
                 bool esc_pressed = false;
                 if (engine->m_QuitOnEsc)
                 {
@@ -1915,6 +1928,8 @@ bail:
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
+                dmSound::Update();
+
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
                     && !dmRender::IsRenderPaused(engine->m_RenderContext))
@@ -1953,7 +1968,7 @@ bail:
                                             (float)((engine->m_ClearColor>>16)&0xFF),
                                             (float)((engine->m_ClearColor>>24)&0xFF),
                                             1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
                     }
                 }
 

@@ -316,7 +316,8 @@ message ShaderDesc
         LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
         LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
         LANGUAGE_WGSL       = 8;  // WebGPU
-        LANGUAGE_HLSL       = 9;  // Windows / XBox compatible
+        LANGUAGE_HLSL_50    = 9;  // Windows / XBox compatible (also used for cross compiling)
+        LANGUAGE_HLSL_51    = 10; // Windows / XBox compatible (also used for cross compiling)
     }
 
     enum ShaderType
@@ -431,12 +432,20 @@ message ShaderDesc
         repeated ResourceTypeInfo types           = 6;
     }
 
+    message HLSLResourceMapping
+    {
+        optional uint64 name_hash = 1;
+        optional uint32 binding   = 2;
+        optional uint32 set       = 3;
+    }
+
     message Shader
     {
-        required bytes      source                = 1;
-        required ShaderType shader_type           = 2;
-        required Language   language              = 3;
-        optional bool       variant_texture_array = 4 [default = false];
+        required bytes               source                 = 1;
+        required ShaderType          shader_type            = 2;
+        required Language            language               = 3;
+        optional bool                variant_texture_array  = 4 [default = false];
+        repeated HLSLResourceMapping hlsl_resource_mapping  = 5;
     }
 
     repeated Shader shaders              = 1;

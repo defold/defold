@@ -25,4 +25,46 @@ function init(self)
 	-- test camera paths
 	assert_url(cams[1], msg.url("collection:/go#camera_1"))
 	assert_url(cams[2], msg.url("collection:/go#camera_2"))
+
+	-- Test new auto aspect ratio APIs
+	local cam = cams[1]
+	
+	-- Test 1: Get initial auto aspect ratio state (should be false by default)
+	local auto_enabled = camera.get_auto_aspect_ratio(cam)
+	assert(auto_enabled == false, "Auto aspect ratio should be false by default")
+	
+	-- Test 2: Get aspect ratio when auto is disabled (should return stored value)
+	local initial_ratio = camera.get_aspect_ratio(cam)
+	print("Initial aspect ratio:", initial_ratio)
+	
+	-- Test 3: Set a specific aspect ratio and verify it
+	camera.set_aspect_ratio(cam, 2.5)
+	local manual_ratio = camera.get_aspect_ratio(cam)
+	assert(math.abs(manual_ratio - 2.5) < 0.001, "Manual aspect ratio should be 2.5")
+	
+	-- Test 4: Enable auto aspect ratio
+	camera.set_auto_aspect_ratio(cam, true)
+	auto_enabled = camera.get_auto_aspect_ratio(cam)
+	assert(auto_enabled == true, "Auto aspect ratio should be enabled")
+	
+	-- Test 5: Get aspect ratio when auto is enabled (should be calculated from window)
+	local auto_ratio = camera.get_aspect_ratio(cam)
+	print("Auto aspect ratio:", auto_ratio)
+	-- Note: The exact value depends on window dimensions, just verify it's different from stored
+	assert(math.abs(auto_ratio - 2.5) > 0.001, "Auto aspect ratio should differ from stored value")
+	
+	-- Test 6: Change stored aspect ratio while auto is on (should not affect get_aspect_ratio)
+	camera.set_aspect_ratio(cam, 10.0)
+	local still_auto_ratio = camera.get_aspect_ratio(cam)
+	assert(math.abs(still_auto_ratio - auto_ratio) < 0.001, "Auto aspect ratio should ignore stored changes")
+	
+	-- Test 7: Disable auto aspect ratio and verify it uses stored value
+	camera.set_auto_aspect_ratio(cam, false)
+	auto_enabled = camera.get_auto_aspect_ratio(cam)
+	assert(auto_enabled == false, "Auto aspect ratio should be disabled")
+	
+	local final_ratio = camera.get_aspect_ratio(cam)
+	assert(math.abs(final_ratio - 10.0) < 0.001, "Should now use stored aspect ratio of 10.0")
+	
+	print("All auto aspect ratio tests passed!")
 end

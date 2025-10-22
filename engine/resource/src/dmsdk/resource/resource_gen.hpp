@@ -31,7 +31,6 @@
  * @language C++
  * @name Resource
  * @namespace dmResource
- * @path engine/resource/src/dmsdk/resource/resource_gen.hpp
  */
 
 #include <stdint.h>

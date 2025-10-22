@@ -23,7 +23,6 @@
  *
  * @document
  * @name ObjectPool
- * @path engine/dlib/src/dmsdk/dlib/object_pool.h
  * @language C++
  */
 
@@ -81,6 +80,17 @@ public:
 
         m_ToLogical.SetCapacity(capacity);
         m_ToLogical.SetSize(capacity);
+    }
+
+    /*#
+     * Grow by an amount.
+     * @name OffsetCapacity
+     * @param grow [type: uint32_t] number of items to grow
+     */
+    void OffsetCapacity(uint32_t grow)
+    {
+        assert(grow > 0);
+        SetCapacity(Capacity() + grow);
     }
 
     /*#

@@ -18,6 +18,7 @@
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -55,7 +56,8 @@
           resource (partial test-util/resource workspace)
           resource-node (partial test-util/resource-node project)
           outline-node (fn [resource-path labels] (find-outline-node (resource-node resource-path) labels))
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          nodes-label (localization/message "outline.gui.nodes")]
 
       (testing "Build error links to source node"
         (are [component-resource-path error-resource-path error-outline-path]
@@ -79,22 +81,22 @@
           "/errors/syntax_error.script" []
 
           "/errors/button_break_self.gui"
-          "/errors/button_break_self.gui" ["Nodes" "box"]
+          "/errors/button_break_self.gui" [nodes-label "box"]
 
           "/errors/panel_using_button_break_self.gui"
-          "/errors/button_break_self.gui" ["Nodes" "box"]
+          "/errors/button_break_self.gui" [nodes-label "box"]
 
           "/errors/panel_break_button.gui"
-          "/errors/panel_break_button.gui" ["Nodes" "button" "button/box"]
+          "/errors/panel_break_button.gui" [nodes-label "button" "button/box"]
 
           "/errors/window_using_panel_break_button.gui"
-          "/errors/panel_break_button.gui" ["Nodes" "button" "button/box"]
+          "/errors/panel_break_button.gui" [nodes-label "button" "button/box"]
 
           "/errors/window_break_panel.gui"
-          "/errors/window_break_panel.gui" ["Nodes" "panel" "panel/button"]
+          "/errors/window_break_panel.gui" [nodes-label "panel" "panel/button"]
 
           "/errors/window_break_button.gui"
-          "/errors/window_break_button.gui" ["Nodes" "panel" "panel/button" "panel/button/box"]))
+          "/errors/window_break_button.gui" [nodes-label "panel" "panel/button" "panel/button/box"]))
 
       (testing "Build errors from missing files link to referencing files, not referenced"
         (are [resource-path error-resource-path error-outline-path add-fn]

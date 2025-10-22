@@ -39,7 +39,6 @@
  * @document
  * @name Set
  * @namespace dmSet
- * @path engine/dlib/src/dlib/set.h
  * @language C++
  */
 

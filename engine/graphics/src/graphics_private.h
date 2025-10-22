@@ -246,7 +246,6 @@ namespace dmGraphics
         }
     };
 
-    HContext             GetInstalledContext();
     uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t             GetGraphicsTypeDataSize(Type type);
     void                 InstallAdapterVendor();
@@ -256,7 +255,6 @@ namespace dmGraphics
     void                 SetForceVertexReloadFail(bool should_fail);
     void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                 IsTextureFormatCompressed(TextureFormat format);
-    void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     bool                 IsTextureFormatASTC(TextureFormat format);
     const char*          TextureFormatToString(TextureFormat format);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);

@@ -11,6 +11,10 @@
 }
 
 @font-face {
+  src: url("SourceSansPro-SemiBoldItalic.ttf");
+}
+
+@font-face {
   src: url("SourceSansPro-Italic.ttf");
 }
 
@@ -68,6 +72,11 @@ Label.emphasis {
     .df-header {
         -fx-font-family: $default-font-light;
         -fx-font-size: 150%;
+        -fx-font-smoothing-type: lcd;
+    }
+    .df-sub-header {
+        -fx-font-family: $default-font;
+        -fx-font-size: 125%;
         -fx-font-smoothing-type: lcd;
     }
 }

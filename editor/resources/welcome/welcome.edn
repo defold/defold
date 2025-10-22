@@ -1,7 +1,7 @@
 {:new-project
- {:categories [{:label "From Template"
-                :templates [{:name "Empty project"
-                             :description "Choose this template if you want to start from a completely blank slate."
+ {:categories [{:label "welcome.tab.templates"
+                :templates [{:name "welcome.new-project.empty-project.title"
+                             :description "welcome.new-project.empty-project.description"
                              :image "empty.svg"
                              :duration "Short"
                              :user-level "Beginner"
@@ -9,73 +9,73 @@
                              :bundle true
                              :skip-root? true}
 
-                            {:name "Mobile game"
-                             :description "This template contains useful settings and assets if you want to start building a game for mobile devices."
+                            {:name "welcome.new-project.mobile-game.title"
+                             :description "welcome.new-project.mobile-game.description"
                              :image "mobile.svg"
                              :duration "Medium"
                              :user-level "Advanced"
                              :zip-url "https://github.com/defold/template-mobile/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Desktop game"
-                             :description "This template contains useful settings and assets if you want to start building a game for desktop."
+                            {:name "welcome.new-project.desktop-game.title"
+                             :description "welcome.new-project.desktop-game.description"
                              :image "desktop.svg"
                              :duration "Long"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Poki HTML5 game"
-                             :description "This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform."
+                            {:name "welcome.new-project.poki-html5-game.title"
+                             :description "welcome.new-project.poki-html5-game.description"
                              :image "poki.svg"
                              :duration "Medium"
                              :user-level "Advanced"
                              :zip-url "https://github.com/defold/template-html5-poki/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Native Extension"
-                             :description "This template contains the basic setup if you want to start creating a native extension."
+                            {:name "welcome.new-project.native-extension.title"
+                             :description "welcome.new-project.native-extension.description"
                              :image "extension.svg"
                              :duration "Long"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-native-extension/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Basic 3D project"
-                             :description "This template contains a basic setup for doing 3D rendering."
+                            {:name "welcome.new-project.basic-3d-project.title"
+                             :description "welcome.new-project.basic-3d-project.description"
                              :image "3d.svg"
                              :duration "Short"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-basic-3d/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Platformer game"
-                             :description "This template contains a basic setup if you want to start building a platformer game."
+                            {:name "welcome.new-project.platformer-game.title"
+                             :description "welcome.new-project.platformer-game.description"
                              :image "platformer.svg"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-platformer/archive/main.zip"
                              :skip-root? true}
 
-                             {:name "Rive project"
-                             :description "This template uses the rive extension to get you started."
+                            {:name "welcome.new-project.rive-project.title"
+                             :description "welcome.new-project.rive-project.description"
                              :image "rive.svg"
                              :duration "Medium"
                              :user-level "Advanced"
                              :zip-url "https://github.com/defold/template-rive/archive/master.zip"
                              :skip-root? true}]}
 
-               {:label "From Tutorial"
-                :templates [{:name "Side scroller tutorial"
-                             :description "In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game."
+               {:label "welcome.tab.tutorials"
+                :templates [{:name "welcome.new-project.side-scroller-tutorial.title"
+                             :description "welcome.new-project.side-scroller-tutorial.description"
                              :image "side-scroller.png"
                              :duration "Short"
                              :user-level "Beginner"
                              :zip-url "https://github.com/defold/tutorial-side-scroller/archive/master.zip"
                              :skip-root? true}
 
-                             {:name "Walking astronaut tutorial"
-                             :description "In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components and collections."
+                            {:name "welcome.new-project.walking-astronaut-tutorial.title"
+                             :description "welcome.new-project.walking-astronaut-tutorial.description"
                              :image "astronaut.png"
                              :duration "Medium"
                              :user-level "Beginner"
@@ -83,121 +83,121 @@
                              :skip-root? true}
 
 
-                             {:name "Movement tutorial"
-                             :description "In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra."
+                            {:name "welcome.new-project.movement-tutorial.title"
+                             :description "welcome.new-project.movement-tutorial.description"
                              :image "movement.png"
                              :duration "Medium"
                              :user-level "Beginner"
                              :zip-url "https://github.com/defold/tutorial-movement/archive/master.zip"
                              :skip-root? true}
 
-                             {:name "War battles tutorial"
-                             :description "In this medium difficulty tutorial you build the foundation for a top down shooter game based on the \"War Battles\" RTS asset pack."
+                            {:name "welcome.new-project.war-battles-tutorial.title"
+                             :description "welcome.new-project.war-battles-tutorial.description"
                              :image "war-battles.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/tutorial-war-battles/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Colorslide tutorial"
-                             :description "In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game."
+                            {:name "welcome.new-project.colorslide-tutorial.title"
+                             :description "welcome.new-project.colorslide-tutorial.description"
                              :image "colorslide.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/tutorial-colorslide/archive/master.zip"
                              :skip-root? true}]}
 
-               {:label "From Sample"
-                :templates [{:name "Linker sample game"
-                             :description "This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters."
+               {:label "welcome.tab.samples"
+                :templates [{:name "welcome.new-project.linker-sample-game.title"
+                             :description "welcome.new-project.linker-sample-game.description"
                              :image "linker.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-linker/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Roids sample game"
-                             :description "This is a complete sample game where you steer a space ship and fire your way through a storm of meteors."
+                            {:name "welcome.new-project.roids-sample-game.title"
+                             :description "welcome.new-project.roids-sample-game.description"
                              :image "roids.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Pixel line platformer"
-                             :description "This is a complete platformer game where with a modern pixel art style created by Kenney."
+                            {:name "welcome.new-project.pixel-line-platformer.title"
+                             :description "welcome.new-project.pixel-line-platformer.description"
                              :image "pixelline.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-pixel-line-platformer/archive/refs/heads/main.zip"
                              :skip-root? true}
 
-                            {:name "Main menu animation"
-                             :description "In this sample, we demonstrate effects to present a main menu."
+                            {:name "welcome.new-project.main-menu-animation.title"
+                             :description "welcome.new-project.main-menu-animation.description"
                              :image "screen_menu_animation.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-main-menu-animation/archive/refs/heads/master.zip"
                              :skip-root? true}
 
-                            {:name "Parallax"
-                             :description "In this sample, we demonstrate how to use a parallax effect to simulate depth in the game world."
+                            {:name "welcome.new-project.parallax.title"
+                             :description "welcome.new-project.parallax.description"
                              :image "screen_parallax.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-parallax/archive/refs/heads/master.zip"
                              :skip-root? true}
 
-                            {:name "HUD"
-                             :description "In this sample, we demonstrate effects for score counting."
+                            {:name "welcome.new-project.hud.title"
+                             :description "welcome.new-project.hud.description"
                              :image "screen_hud.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-hud/archive/refs/heads/master.zip"
                              :skip-root? true}
 
-                            {:name "Level complete"
-                             :description "In this sample, we demonstrate effects to show the score counting that could occur when a level has been completed."
+                            {:name "welcome.new-project.level-complete.title"
+                             :description "welcome.new-project.level-complete.description"
                              :image "screen_lvlcomplete.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-levelcomplete/archive/refs/heads/master.zip"
                              :skip-root? true}
 
-                            {:name "RPG map sample"
-                             :description "This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses."
+                            {:name "welcome.new-project.rpg-map-sample.title"
+                             :description "welcome.new-project.rpg-map-sample.description"
                              :image "rpg-map.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Shadertoy sample"
-                             :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
+                            {:name "welcome.new-project.shadertoy-sample.title"
+                             :description "welcome.new-project.shadertoy-sample.description"
                              :image "shadertoy.png"
                              :duration "Short"
                              :user-level "Advanced"
                              :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "3d treasure scene"
-                             :description "This sample shows a stylized 3d scene with animation."
+                            {:name "welcome.new-project.3d-treasure-scene.title"
+                             :description "welcome.new-project.3d-treasure-scene.description"
                              :image "treasurescene.png"
                              :duration "Short"
                              :user-level "Advanced"
                              :zip-url "https://github.com/FlexYourBrain/Basic3d_TreasureScene/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Perspective Parallax"
-                             :description "This sample shows a perspective camera parallax effect"
+                            {:name "welcome.new-project.perspective-parallax.title"
+                             :description "welcome.new-project.perspective-parallax.description"
                              :image "perspectiveparallax.png"
                              :duration "Short"
                              :user-level "Advanced"
                              :zip-url "https://github.com/FlexYourBrain/sample-perspective_parallax/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Lightning VFX"
-                             :description "Sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay."
+                            {:name "welcome.new-project.lightning-vfx.title"
+                             :description "welcome.new-project.lightning-vfx.description"
                              :image "sample_lightningvfx.png"
                              :duration "Long"
                              :user-level "Advanced"

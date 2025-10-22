@@ -14,4 +14,5 @@
 
 {code/range editor.code.data/read-cursor-range
  code/cursor editor.code.data/read-cursor
+ g/arc internal.graph.types/read-arc
  g/endpoint internal.graph.types/read-endpoint}

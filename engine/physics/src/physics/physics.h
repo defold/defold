@@ -361,6 +361,9 @@ namespace dmPhysics
         float                   m_DT;
         bool                    m_FixedTimeStep;
         uint32_t                m_MaxFixedTimeSteps;
+        uint32_t                m_Box2DVelocityIterations;
+        uint32_t                m_Box2DPositionIterations;
+        uint32_t                m_Box2DSubStepCount;
         /// Collision callback function
         CollisionCallback       m_CollisionCallback;
         /// Collision callback user data

@@ -106,6 +106,7 @@
           <entry key="util.debug-util/metrics-time" value="-1" />
           <entry key="util.profiler/profile" value="-1" />
           <entry key="vlaaad.reveal/defaction" value="-1" />
+          <entry key="vlaaad.reveal/defstream" value="-1" />
         </map>
       </option>
     </ClojureCodeStyleSettings>

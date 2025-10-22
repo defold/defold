@@ -1493,13 +1493,7 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
-        }
-
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             char buffer[128];
             luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
@@ -1586,13 +1580,13 @@ namespace dmGui
         return 0;
     }
 
-    /*# cancels an ongoing animation
+    /*# cancels a single animation or all animations
      *
-     * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
+     * If one or more animations of the specified node is currently running (started by <code>gui.animate</code>), they will immediately be canceled.
      *
-     * @name gui.cancel_animation
+     * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
-     * @param property [type:string|constant] property for which the animation should be canceled
+     * @param [property] [type:nil|string|constant] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -1620,10 +1614,22 @@ namespace dmGui
      * gui.animate(node, "position", pos, go.EASING_LINEAR, 2)
      * ...
      * -- cancel animation of the x component.
-     * gui.cancel_animation(node, "position.x")
+     * gui.cancel_animations(node, "position.x")
+     * ```
+     * 
+     * Cancels all property animations on a node in a single call:
+     * 
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * -- animate to new position and scale
+     * gui.animate(node, "position", vmath.vector3(100, 100, 0), go.EASING_LINEAR, 5)
+     * gui.animate(node, "scale", vmath.vector3(0.5), go.EASING_LINEAR, 5)
+     * ...
+     * -- cancel positioning and scaling at once
+     * gui.cancel_animations(node)
      * ```
      */
-    static int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimations(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -1634,14 +1640,13 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
+        dmhash_t property_hash = 0;
+        if (top >= 2 && !lua_isnil(L, 2))
+        {
+            property_hash = dmScript::CheckHashOrString(L, 2);
         }
 
-        if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
+        if (property_hash != 0 && !dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             luaL_error(L, "property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
@@ -2606,6 +2611,93 @@ namespace dmGui
 
         dmScript::PushHash(L, dmGui::GetLayout(scene));
         assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the scene layout
+     *
+     * Applies a named layout on the GUI scene. This re-applies per-layout node descriptors
+     * and, if a matching Display Profile exists, updates the scene resolution. Emits
+     * the "layout_changed" message to the scene script when the layout actually changes.
+     *
+     * @name gui.set_layout
+     * @param layout [type:string|hash] the layout id to apply
+     * @return [type:boolean] true if the layout exists in the scene and was applied, false otherwise
+     */
+    static int LuaSetLayout(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmhash_t layout_id = dmScript::CheckHashOrString(L, 1);
+
+        // Verify existence
+        bool has_layout = false;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) == dmGui::RESULT_OK && id == layout_id)
+            {
+                has_layout = true;
+                break;
+            }
+        }
+
+        if (!has_layout)
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        if (!scene->m_ApplyLayoutCallback)
+        {
+            return DM_LUA_ERROR("gui.set_layout is unavailable in this context");
+        }
+
+        scene->m_ApplyLayoutCallback(scene, layout_id);
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    /*# returns available layouts with sizes
+     *
+     * Returns a table mapping each layout id hash to a vector3(width, height, 0). For the default layout,
+     * the current scene resolution is returned. If a layout name is not present in the Display Profiles (or when
+     * no display profiles are assigned), the width/height pair is 0.
+     *
+     * @name gui.get_layouts
+     * @return [type:table] layout_id_hash -> vmath.vector3(width, height, 0)
+     */
+    static int LuaGetLayouts(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        lua_newtable(L);
+
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) != dmGui::RESULT_OK)
+                continue;
+
+            uint32_t w = 0, h = 0;
+            if (id == dmGui::DEFAULT_LAYOUT)
+            {
+                dmGui::GetSceneResolution(scene, w, h);
+            }
+            else if (scene->m_GetDisplayProfileDescCallback)
+            {
+                scene->m_GetDisplayProfileDescCallback(scene, id, &w, &h);
+            }
+
+            dmScript::PushHash(L, id);
+            dmScript::PushVector3(L, dmVMath::Vector3((float)w, (float)h, 0.0f));
+            lua_settable(L, -3);
+        }
+
         return 1;
     }
 
@@ -4911,7 +5003,8 @@ namespace dmGui
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
-        {"cancel_animation",LuaCancelAnimation},
+        {"cancel_animation",    LuaCancelAnimations}, // deprecated Lua function name
+        {"cancel_animations",   LuaCancelAnimations},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},
@@ -4944,6 +5037,8 @@ namespace dmGui
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},
         {"get_layout",        LuaGetLayout},
+        {"set_layout",        LuaSetLayout},
+        {"get_layouts",       LuaGetLayouts},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},

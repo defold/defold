@@ -138,7 +138,7 @@ jobs:
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

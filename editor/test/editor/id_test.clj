@@ -26,7 +26,7 @@
           (is (= [expected-id] (id/resolve-all [candidate-id] taken-ids))))
 
       "sprite" "sprite" #{""}
-      "sprite1" "sprite2" #{"sprite"}
+      "sprite2" "sprite2" #{"sprite"}
       "sprite1" "sprite" #{"sprite"}
       "sprite2" "sprite" #{"sprite" "sprite1"}
       "sprite2" "sprite1" #{"sprite" "sprite1"}
@@ -54,11 +54,11 @@
     (is (= expected (id/gen basename taken-ids))))
   (doseq [[wanted-id taken-ids expected]
           [["go" ["go"] #_=> "go1"]
-           ["go2" ["go"] #_=> "go1"]
+           ["go2" ["go"] #_=> "go2"]
            ["a1" #{"a" "a1"} #_=> "a2"]]]
     (is (= expected (id/resolve wanted-id taken-ids))))
   (doseq [[wanted-ids taken-ids expected]
           [[["go" "go" "go"] ["go" "go2"] #_=> ["go1" "go3" "go4"]]
            [["go" "go1" "go2"] ["go1"] #_=> ["go" "go2" "go3"]]
-           [["a" "b" "b" "c2"] ["a" "a1" "b1"] #_=> ["a2" "b" "b2" "c"]]]]
+           [["a" "b" "b" "c2"] ["a" "a1" "b1"] #_=> ["a2" "b" "b2" "c2"]]]]
     (is (= expected (id/resolve-all wanted-ids taken-ids)))))

@@ -162,7 +162,7 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results)))
-      (asset-browser/rename [main-dir] "blahonga")
+      (asset-browser/rename [main-dir] "blahonga" test-util/localization)
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)

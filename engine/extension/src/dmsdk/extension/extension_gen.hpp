@@ -31,7 +31,6 @@
  * @language C++
  * @name Extension
  * @namespace dmExtension
- * @path engine/extension/src/dmsdk/extension/extension_gen.hpp
  */
 
 #include <dmsdk/resource/resource.h>

@@ -27,7 +27,6 @@
  * @document
  * @name Static Assert
  * @namespace dmStaticAssert
- * @path engine/dlib/src/dmsdk/dlib/static_assert.h
  * @language C++
  */
 

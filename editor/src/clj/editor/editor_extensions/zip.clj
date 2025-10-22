@@ -18,9 +18,14 @@
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
             [editor.fs :as fs]
-            [editor.future :as future])
-  (:import [java.nio.file Path]
-           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveOutputStream]
+            [editor.future :as future]
+            [editor.os :as os]
+            [util.coll :as coll])
+  (:import [java.nio.file Files Path]
+           [java.nio.file.attribute PosixFilePermission]
+           [java.util EnumSet]
+           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipArchiveOutputStream ZipFile ZipArchiveInputStream]
+           [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError LuaValue]))
 
 (set! *warn-on-reflection* true)
@@ -51,22 +56,50 @@
   (when-not (fs/path-exists? p)
     (throw (LuaError. (str "Source path does not exist: " p)))))
 
+(defn- absolute-path? [^Path p]
+  ;; on Windows, a path starting with "/" is not absolute, but we don't want
+  ;; to support such paths since we use unix-style paths in the archive.
+  ;; Additionally, a path that does not start with "/" might still be
+  ;; absolute, e.g. "C:\Users"
+  (or (.startsWith p "/")
+      (.isAbsolute p)))
+
 (defn- validate-entry-target-path! [^Path p]
-  (when (or (.startsWith p "/")
-            (.isAbsolute p))
-    ;; on Windows, a path starting with "/" is not absolute, but we don't want
-    ;; to support such paths since we use unix-style paths in the archive.
-    ;; Additionally, a path that does not start with "/" might still be
-    ;; absolute, e.g. "C:\Users"
+  (when (absolute-path? p)
     (throw (LuaError. (str "Target path must be relative: " p))))
   (when (.startsWith p "..")
     (throw (LuaError. (str "Target path is above archive root: " p)))))
+
+(def ^:private permission-bits
+  [(coll/pair PosixFilePermission/OWNER_READ     0400)
+   (coll/pair PosixFilePermission/OWNER_WRITE    0200)
+   (coll/pair PosixFilePermission/OWNER_EXECUTE  0100)
+   (coll/pair PosixFilePermission/GROUP_READ     0040)
+   (coll/pair PosixFilePermission/GROUP_WRITE    0020)
+   (coll/pair PosixFilePermission/GROUP_EXECUTE  0010)
+   (coll/pair PosixFilePermission/OTHERS_READ    0004)
+   (coll/pair PosixFilePermission/OTHERS_WRITE   0002)
+   (coll/pair PosixFilePermission/OTHERS_EXECUTE 0001)])
+
+(defn- get-unix-mode [^Path source]
+  (let [permissions (Files/getPosixFilePermissions source fs/empty-link-option-array)]
+    (transduce (map #(if (.contains permissions (key %)) (val %) 0)) + 0 permission-bits)))
+
+(defn- get-permissions [unix-mode]
+  (reduce
+    (fn [^EnumSet acc e]
+      (if (zero? (bit-and unix-mode (val e)))
+        acc
+        (doto acc (.add (key e)))))
+    (EnumSet/noneOf PosixFilePermission)
+    permission-bits))
 
 (defn- write-file! [^ZipArchiveOutputStream zos ^Path source ^Path target]
   (let [entry-name (string/replace target \\ \/)]
     (.putArchiveEntry
       zos
       (doto (ZipArchiveEntry. entry-name)
+        (cond-> (not (os/is-win32?)) (.setUnixMode (get-unix-mode source)))
         (.setSize (fs/path-size source))
         (.setTime (fs/path-last-modified-time source))))
     (with-open [is (io/input-stream source)]
@@ -110,7 +143,80 @@
            (future/then (fn [_] (reload-resources!)))
            (future/then rt/and-refresh-context))))))
 
+(def ^:private unpack-args-coercer
+  (coerce/regex :archive-path coerce/string
+                :target-path :? coerce/string
+                :opts :? (coerce/wrap-with-pred
+                           (coerce/hash-map :opt {:on_conflict (coerce/enum :error :skip :overwrite)}
+                                            :extra-keys false)
+                           #(pos? (count %)) "at least one option is required")
+                :paths :? (coerce/vector-of
+                            (-> coerce/string
+                                (coerce/wrap-transform #(.normalize (fs/path %)))
+                                (coerce/wrap-with-pred #(not (.startsWith ^Path % "..")) "is above root")
+                                (coerce/wrap-with-pred #(not (absolute-path? %)) "is absolute")
+                                (coerce/wrap-transform #(FilenameUtils/separatorsToUnix (str %)))
+                                (coerce/wrap-with-pred #(not (coll/empty? %)) "is empty"))
+                            :min-count 1)))
+
+(def ^:private default-unpack-opts {:on_conflict :error})
+
+(defn- make-ext-unpack-fn [^Path project-path reload-resources!]
+  (rt/suspendable-varargs-lua-fn ext-unpack [{:keys [rt]} varargs]
+    (let [{:keys [^String archive-path ^String target-path opts paths]
+           :or {opts default-unpack-opts}} (rt/->clj rt unpack-args-coercer varargs)]
+      (-> (future/io
+            (let [archive-path (.resolve project-path archive-path)
+                  ^Path target-path (if target-path
+                                      (.resolve project-path target-path)
+                                      (.getParent archive-path))]
+              (cond
+                (not (fs/path-exists? archive-path)) (throw (LuaError. (str "Archive path does not exist: " archive-path)))
+                (fs/path-is-directory? archive-path) (throw (LuaError. (str "Archive path is a directory: " archive-path))))
+              (with-open [zip (ZipFile. (.toFile archive-path))]
+                (let [entries (.getEntries zip)]
+                  (while (.hasMoreElements entries)
+                    (let [^ZipArchiveEntry e (.nextElement entries)]
+                      (when-not (.isDirectory e)
+                        (let [entry-path-str (FilenameUtils/separatorsToUnix (.getName e))]
+                          (when (or (nil? paths)
+                                    (coll/some (fn [^String s]
+                                                 (or (= s entry-path-str)
+                                                     (and (< (.length s) (.length entry-path-str))
+                                                          (= \/ (.charAt entry-path-str (.length s)))
+                                                          (.startsWith entry-path-str s))))
+                                               paths))
+                            (let [target-relative-path (.normalize (fs/path entry-path-str))]
+                              (when-not paths
+                                ;; when we have paths, we only allow the valid
+                                ;; ones already; if we don't have paths, we need
+                                ;; to validate them separately
+                                (validate-entry-target-path! target-relative-path))
+                              (let [target (.resolve target-path target-relative-path)]
+                                (when (or (not (fs/path-exists? target))
+                                          (case (:on_conflict opts)
+                                            :skip false
+                                            :overwrite (if (fs/path-is-directory? target)
+                                                         (throw (LuaError. (str "Can't overwrite directory: " target)))
+                                                         true)
+                                            :error (throw (LuaError. (str "Path already exists: " target)))))
+                                  (fs/create-path-parent-directories! target)
+                                  (with-open [in (.getInputStream zip e)
+                                              out (io/output-stream target)]
+                                    (io/copy in out))
+                                  (some->> (.getLastModifiedTime e) (Files/setLastModifiedTime target))
+                                  (when-not (os/is-win32?)
+                                    (let [unix-mode (.getUnixMode e)]
+                                      (when-not (zero? unix-mode)
+                                        (Files/setPosixFilePermissions target (get-permissions unix-mode)))))))))))))))))
+          (future/then (fn [_] (reload-resources!)))
+          (future/then rt/and-refresh-context)))))
+
 (defn env [project-path reload-resources!]
   {"pack" (make-ext-pack-fn project-path reload-resources!)
+   "unpack" (make-ext-unpack-fn project-path reload-resources!)
+   "ON_CONFLICT" {"ERROR" (coerce/enum-lua-value-cache :error)
+                  "SKIP" (coerce/enum-lua-value-cache :skip)
+                  "OVERWRITE" (coerce/enum-lua-value-cache :overwrite)}
    "METHOD" {"DEFLATED" (coerce/enum-lua-value-cache :deflated)
              "STORED" (coerce/enum-lua-value-cache :stored)}})

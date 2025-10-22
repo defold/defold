@@ -30,7 +30,9 @@
             [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.input :as i]
+            [editor.localization :as localization]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -65,7 +67,7 @@
            [java.nio IntBuffer]
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
-           [javafx.scene Node Parent]
+           [javafx.scene Cursor Node Parent]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -624,6 +626,7 @@
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
+  (input cursor-type g/Keyword)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -939,6 +942,16 @@
       component (do (fx/delete-component component) (g/user-data! view-node key nil))
       desc (g/user-data! view-node key (fx/create-component desc)))))
 
+(defn cursor
+  "Maps inconsistent cursor types across platforms.
+  See https://bugs.openjdk.org/browse/JDK-8101062"
+  [cursor-type]
+  (case cursor-type
+    ;; `CLOSED_HAND ``OPEN_HAND_HAND ``HAND `all render a pointer cursor on Linux and Windows.
+    ;; `MOVE `renders the default cursor on macOS.
+    :pan (if (os/is-mac-os?) Cursor/CLOSED_HAND Cursor/MOVE)
+    Cursor/DEFAULT))
+
 (defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
@@ -946,7 +959,9 @@
         (let [drawable (g/node-value node-id :drawable evaluation-context)
               async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
           (when (and (some? drawable) (some? async-copy-state-atom))
-            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)))
+            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)
+            (when-let [cursor-type (g/maybe-node-value node-id :cursor-type evaluation-context)]
+              (ui/set-cursor image-view (cursor cursor-type)))))
         (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
           (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props evaluation-context)]
             (advance-user-data-component!
@@ -1189,9 +1204,10 @@
   (label [user-data]
     (if user-data
       (case (:camera-type user-data)
-        :orthographic "Orthographic Camera"
-        :perspective "Perspective Camera")
-      "Set Camera Type"))
+        :orthographic (localization/message "command.scene.set-camera-type.option.orthographic")
+        :perspective (localization/message "command.scene.set-camera-type.option.perspective")
+        (localization/message "command.scene.set-camera-type"))
+      (localization/message "command.scene.set-camera-type")))
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (run [app-view user-data]
@@ -1199,10 +1215,10 @@
          (set-camera-type! view (:camera-type user-data))))
   (options [user-data]
     (when-not user-data
-      [{:label "Orthographic"
+      [{:label (localization/message "command.scene.set-camera-type.option.orthographic")
         :command :scene.set-camera-type
         :user-data {:camera-type :orthographic}}
-       {:label "Perspective"
+       {:label (localization/message "command.scene.set-camera-type.option.perspective")
         :command :scene.set-camera-type
         :user-data {:camera-type :perspective}}]))
   (state [app-view user-data]
@@ -1243,9 +1259,9 @@
   (label [user-data]
     (if user-data
       (case (:manip-space user-data)
-        :world "World Space"
-        :local "Local Space")
-      "Set Manipulator Space"))
+        :world (localization/message "command.scene.set-manipulator-space.option.world")
+        :local (localization/message "command.scene.set-manipulator-space.option.local"))
+      (localization/message "command.scene.set-manipulator-space")))
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view user-data evaluation-context]
@@ -1254,10 +1270,10 @@
                          (:manip-space user-data))))
   (options [user-data]
     (when-not user-data
-      [{:label "World"
+      [{:label (localization/message "command.scene.set-manipulator-space.option.world")
         :command :scene.set-manipulator-space
         :user-data {:manip-space :world}}
-       {:label "Local"
+       {:label (localization/message "command.scene.set-manipulator-space.option.local")
         :command :scene.set-manipulator-space
         :user-data {:manip-space :local}}]))
   (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
@@ -1270,37 +1286,39 @@
 
 (handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:label :separator}
-   {:command :scene.set-manipulator-space
+   {:label (localization/message "command.scene.set-manipulator-space.option.world")
+    :command :scene.set-manipulator-space
     :user-data {:manip-space :world}
     :check true}
-   {:command :scene.set-manipulator-space
+   {:label (localization/message "command.scene.set-manipulator-space.option.local")
+    :command :scene.set-manipulator-space
     :user-data {:manip-space :local}
     :check true}
    {:label :separator}
-   {:label "Move Whole Pixels"
+   {:label (localization/message "command.scene.toggle-move-whole-pixels")
     :command :scene.toggle-move-whole-pixels
     :check true}])
 
 (handler/register-menu! ::menubar-view :editor.app-view/view-end
-  [{:label "Toggle Visibility Filters"
+  [{:label (localization/message "command.scene.visibility.toggle-filters")
     :command :scene.visibility.toggle-filters}
-   {:label "Toggle Component Guides"
+   {:label (localization/message "command.scene.visibility.toggle-component-guides")
     :command :scene.visibility.toggle-component-guides}
-   {:label "Toggle Grid"
+   {:label (localization/message "command.scene.visibility.toggle-grid")
     :command :scene.visibility.toggle-grid}
    {:label :separator}
-   {:label "Show/Hide Selected Objects"
+   {:label (localization/message "command.scene.visibility.toggle-selection")
     :command :scene.visibility.toggle-selection}
-   {:label "Hide Unselected Objects"
+   {:label (localization/message "command.scene.visibility.hide-unselected")
     :command :scene.visibility.hide-unselected}
-   {:label "Show Last Hidden Objects"
+   {:label (localization/message "command.scene.visibility.show-last-hidden")
     :command :scene.visibility.show-last-hidden}
-   {:label "Show All Hidden Objects"
+   {:label (localization/message "command.scene.visibility.show-all")
     :command :scene.visibility.show-all}
    {:label :separator}
-   {:label "Play"
+   {:label (localization/message "command.scene.play")
     :command :scene.play}
-   {:label "Stop"
+   {:label (localization/message "command.scene.stop")
     :command :scene.stop}
    {:label :separator}
    {:command :scene.set-camera-type
@@ -1310,9 +1328,9 @@
     :user-data {:camera-type :perspective}
     :check true}
    {:label :separator}
-   {:label "Frame Selection"
+   {:label (localization/message "command.scene.frame-selection")
     :command :scene.frame-selection}
-   {:label "Realign Camera"
+   {:label (localization/message "command.scene.realign-camera")
     :command :scene.realign-camera}])
 
 (defn dispatch-input [input-handlers action user-data]
@@ -1645,7 +1663,7 @@
                                                                                (g/transact
                                                                                  (concat
                                                                                    (g/operation-sequence op-seq)
-                                                                                   (g/operation-label "Select")
+                                                                                   (g/operation-label (localization/message "operation.select"))
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                    grid            (grid-type :prefs prefs)
@@ -1658,6 +1676,7 @@
 
                   (g/connect camera          :camera                        view-id         :camera)
                   (g/connect camera          :input-handler                 view-id         :input-handlers)
+                  (g/connect camera          :cursor-type                   view-id         :cursor-type)
                   (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                   (g/connect view-id         :viewport                      camera          :viewport)
 
@@ -1728,7 +1747,7 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
-                                :label "Scene"
+                                :label (localization/message "resource.view.scene")
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview
                                 :dispose-preview-fn dispose-preview

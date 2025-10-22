@@ -17,6 +17,8 @@
             [cljfx.fx.region :as fx.region]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.fxui :as fxui]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -60,9 +62,10 @@
   (let [items (ordered-resource+view-types prefs workspace evaluation-context)]
     (dialogs/make-select-list-dialog
       items
-      {:title "Recent Files"
-       :ok-label "Open"
-       :cell-fn (fn [[resource view-type :as item]]
+      (workspace/localization workspace evaluation-context)
+      {:title (localization/message "dialog.recent-files.title")
+       :ok-label (localization/message "dialog.recent-files.button.ok")
+       :cell-fn (fn [[resource view-type :as item] localization]
                   {:style-class (into ["list-cell"] (resource/style-classes resource))
                    :graphic {:fx/type resource-dialog/matched-list-item-view
                              :icon (workspace/resource-icon resource)
@@ -70,9 +73,12 @@
                              :matching-indices (:matching-indices (meta item))
                              :children [{:fx/type fx.region/lifecycle
                                          :h-box/hgrow :always}
-                                        {:fx/type fx.label/lifecycle
-                                         :style {:-fx-text-fill :-df-text-dark}
-                                         :text (str (:label view-type) " view")}]}})
+                                        {:fx/type fxui/ext-localize
+                                         :localization localization
+                                         :message (:label view-type)
+                                         :desc
+                                         {:fx/type fx.label/lifecycle
+                                          :style {:-fx-text-fill :-df-text-dark}}}]}})
        :selection :multiple
        :filter-fn #(fuzzy-choices/filter-options (comp resource/proj-path first) (comp resource/proj-path first) %1 %2)})))
 

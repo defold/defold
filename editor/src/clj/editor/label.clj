@@ -25,6 +25,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -142,10 +143,10 @@
               blend-mode (get user-data :blend-mode)
               shader (or material-shader shader)
               vertex-binding (vtx/use-with ::tris vb shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          (gl/set-blend-mode gl blend-mode)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
+          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+            (gl/set-blend-mode gl blend-mode)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
         pass/selection
         (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
@@ -255,19 +256,37 @@
             (dynamic visible (g/constantly false)))
 
   (property text g/Str (default (protobuf/default Label$LabelDesc :text))
-            (dynamic edit-type (g/constantly {:type :multi-line-text})))
-  (property size types/Vec3) ; Required protobuf field.
-  (property color types/Color (default (protobuf/default Label$LabelDesc :color)))
-  (property outline types/Color (default (protobuf/default Label$LabelDesc :outline)))
-  (property shadow types/Color (default (protobuf/default Label$LabelDesc :shadow)))
-  (property leading g/Num (default (protobuf/default Label$LabelDesc :leading)))
-  (property tracking g/Num (default (protobuf/default Label$LabelDesc :tracking)))
+            (dynamic edit-type (g/constantly {:type :multi-line-text}))
+            (dynamic label (properties/label-dynamic :label :text))
+            (dynamic tooltip (properties/tooltip-dynamic :label :text)))
+  (property size types/Vec3 ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :label :size))
+            (dynamic tooltip (properties/tooltip-dynamic :label :size)))
+  (property color types/Color (default (protobuf/default Label$LabelDesc :color))
+            (dynamic label (properties/label-dynamic :label :color))
+            (dynamic tooltip (properties/tooltip-dynamic :label :color)))
+  (property outline types/Color (default (protobuf/default Label$LabelDesc :outline))
+            (dynamic label (properties/label-dynamic :label :outline))
+            (dynamic tooltip (properties/tooltip-dynamic :label :outline)))
+  (property shadow types/Color (default (protobuf/default Label$LabelDesc :shadow))
+            (dynamic label (properties/label-dynamic :label :shadow))
+            (dynamic tooltip (properties/tooltip-dynamic :label :shadow)))
+  (property leading g/Num (default (protobuf/default Label$LabelDesc :leading))
+            (dynamic label (properties/label-dynamic :label :leading))
+            (dynamic tooltip (properties/tooltip-dynamic :label :leading)))
+  (property tracking g/Num (default (protobuf/default Label$LabelDesc :tracking))
+            (dynamic label (properties/label-dynamic :label :tracking))
+            (dynamic tooltip (properties/tooltip-dynamic :label :tracking)))
   (property pivot g/Keyword (default (protobuf/default Label$LabelDesc :pivot))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$Pivot))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$Pivot)))
+            (dynamic label (properties/label-dynamic :label :pivot))
+            (dynamic tooltip (properties/tooltip-dynamic :label :pivot)))
   (property blend-mode g/Any (default (protobuf/default Label$LabelDesc :blend-mode))
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
-  (property line-break g/Bool (default (protobuf/default Label$LabelDesc :line-break)))
+  (property line-break g/Bool (default (protobuf/default Label$LabelDesc :line-break))
+            (dynamic label (properties/label-dynamic :label :line-break))
+            (dynamic tooltip (properties/tooltip-dynamic :label :line-break)))
 
   (property font resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough font-resource))
@@ -283,7 +302,9 @@
                                       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? font "Font"))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
-                                  :ext ["font"]})))
+                                  :ext ["font"]}))
+            (dynamic label (properties/label-dynamic :label :font))
+            (dynamic tooltip (properties/tooltip-dynamic :label :font)))
   (property material resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]

@@ -23,7 +23,6 @@
 namespace dmDDF
 {
     /*# SDK DDF (Defold Data Format) API documentation
-     * [file:<dmsdk/ddf/ddf.h>]
      *
      * @document
      * @name Ddf

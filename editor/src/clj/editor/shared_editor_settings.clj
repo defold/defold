@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
+            [editor.localization :as localization]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [editor.ui :as ui]
@@ -88,34 +89,38 @@
     :icon shared-editor-settings-icon
     :meta-info meta-info))
 
-(defn- report-load-error! [^File shared-editor-settings-file ^Throwable exception]
-  (let [header-message "Failed to load Shared Editor Settings file."
-        sub-header-message "Falling back to defaults. Your user experience might suffer."
-        file-info-message (str "File: " (.getAbsolutePath shared-editor-settings-file))
-        exception-message (ex-message exception)]
-    (log/warn :msg (str header-message " " sub-header-message " " file-info-message)
+(defn- report-load-error! [^File shared-editor-settings-file ^Throwable exception localization]
+  (let [header-pattern (localization/message "dialog.shared-editor-settings.load-error.header")
+        detail-pattern (localization/message "dialog.shared-editor-settings.load-error.detail")
+        content-pattern (localization/message "dialog.shared-editor-settings.load-error.content"
+                                              {"file" (.getAbsolutePath shared-editor-settings-file)
+                                               "error" (str (ex-message exception))})
+        header-text (localization header-pattern)
+        detail-text (localization detail-pattern)]
+    (log/warn :msg (str header-text " " detail-text " " (localization content-pattern))
               :exception exception)
     (ui/run-later
       (dialogs/make-info-dialog
-        {:title "Error Loading Shared Editor Settings"
+        localization
+        {:title (localization/message "dialog.shared-editor-settings.load-error.title")
          :icon :icon/triangle-error
          :always-on-top true
          :header {:fx/type fx.v-box/lifecycle
                   :children [{:fx/type fxui/legacy-label
                               :variant :header
-                              :text header-message}
+                              :text header-text}
                              {:fx/type fxui/legacy-label
-                              :text sub-header-message}]}
-         :content (str file-info-message "\n\n" exception-message)}))))
+                              :text detail-text}]}
+         :content content-pattern}))))
 
-(defn- load-config [^File shared-editor-settings-file parse-config-fn]
+(defn- load-config [^File shared-editor-settings-file parse-config-fn localization]
   (let [raw-settings-or-exception (try
                                     (with-open [reader (io/reader shared-editor-settings-file)]
                                       (settings-core/parse-settings reader))
                                     (catch Exception exception
                                       exception))]
     (if (ex-message raw-settings-or-exception)
-      (report-load-error! shared-editor-settings-file raw-settings-or-exception)
+      (report-load-error! shared-editor-settings-file raw-settings-or-exception localization)
       (let [meta-settings (:settings meta-info)
             config-or-exception (try
                                   (let [settings (settings-core/sanitize-settings meta-settings raw-settings-or-exception)]
@@ -123,17 +128,17 @@
                                   (catch Exception exception
                                     exception))]
         (if (ex-message config-or-exception)
-          (report-load-error! shared-editor-settings-file config-or-exception)
+          (report-load-error! shared-editor-settings-file config-or-exception localization)
           (when (not-empty config-or-exception)
             config-or-exception))))))
 
-(defn- load-project-config [project-directory config-type parse-config-fn]
+(defn- load-project-config [project-directory config-type parse-config-fn localization]
   {:pre [(keyword? config-type)
          (ifn? parse-config-fn)]}
   (let [shared-editor-settings-file (shared-editor-settings-file project-directory)]
     (when (.isFile shared-editor-settings-file)
       (log/info :message (str "Loading " (name config-type) " from Shared Editor Settings file."))
-      (when-some [config (not-empty (load-config shared-editor-settings-file parse-config-fn))]
+      (when-some [config (not-empty (load-config shared-editor-settings-file parse-config-fn localization))]
         (log/info :message (str "Using " (name config-type) " from Shared Editor Settings file.") config-type config)
         config))))
 
@@ -163,12 +168,12 @@
 (def ^:private default-workspace-config {})
 
 ;; Called through reflection.
-(defn load-project-system-config [project-directory]
-  (or (load-project-config project-directory :system-config parse-system-config)
+(defn load-project-system-config [project-directory localization]
+  (or (load-project-config project-directory :system-config parse-system-config localization)
       default-system-config))
 
-(defn load-project-workspace-config [project-directory]
-  (or (load-project-config project-directory :workspace-config parse-workspace-config)
+(defn load-project-workspace-config [project-directory localization]
+  (or (load-project-config project-directory :workspace-config parse-workspace-config localization)
       default-workspace-config))
 
 ;; Used by tests.

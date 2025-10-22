@@ -38,7 +38,6 @@ namespace dmScript
      * @document
      * @name Script
      * @namespace dmScript
-     * @path engine/dlib/src/dmsdk/script/script.h
      * @language C++
      */
 

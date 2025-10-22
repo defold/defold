@@ -250,7 +250,7 @@ namespace dmSound
         params->m_UseThread = true;
         params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
         params->m_UseLinearGain = true;
-}
+    }
 
     Result RegisterDevice(struct DeviceType* device)
     {
@@ -353,8 +353,11 @@ namespace dmSound
         HDevice device = 0;
         OpenDeviceParams device_params;
 
+        bool use_thread = params->m_UseThread;
+
+        // Configure number of buffers lower if we are running on a thread (we can guarantee more frequent and more reliable updates)
         // TODO: m_BufferCount configurable?
-        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
+        const uint16_t num_outbuffers = use_thread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
         assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
 
         device_params.m_BufferCount = num_outbuffers;
@@ -467,7 +470,7 @@ namespace dmSound
 
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
-        if (params->m_UseThread)
+        if (use_thread)
         {
             sound->m_Mutex = dmMutex::New();
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
@@ -475,6 +478,7 @@ namespace dmSound
 
         dmLogInfo("Sound");
         dmLogInfo("  nSamplesPerSec:   %d", device_info.m_MixRate);
+        dmLogInfo("       useThread:   %d", use_thread);
 
         return r;
     }
@@ -746,7 +750,13 @@ namespace dmSound
 
             dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
-                dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                if (r == dmSoundCodec::RESULT_UNSUPPORTED) {
+                    const char* name = dmHashReverseSafe64(sound_data->m_NameHash);
+                    const char* format_str = dmSoundCodec::FormatToString(codec_format);
+                    dmLogError("Sound '%s' uses %s, but no decoder was found. Ensure the codec is included in your App Manifest.", name, format_str);
+                } else {
+                    dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                }
                 return RESULT_INVALID_STREAM_DATA;
             }
 
@@ -1086,6 +1096,66 @@ namespace dmSound
                 return RESULT_INVALID_PROPERTY;
         }
         return RESULT_OK;
+    }
+
+    static inline uint32_t GetSkipStrideBytes(const dmSoundCodec::Info& info)
+    {
+        // Match stride logic used in mixing when calling Decode/Skip
+        // If decoder delivers float non-interleaved (or mono), use sizeof(float) per frame
+        // Otherwise use interleaved stride: channels * (bits/8)
+        if (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1))
+            return (uint32_t)sizeof(float);
+        return (uint32_t)(info.m_Channels * (info.m_BitsPerSample / 8));
+    }
+
+    static Result SkipToStartFrameNoLock(HSoundInstance sound_instance, uint64_t start_frame)
+    {
+        DM_PROFILE(__FUNCTION__);
+        dmSoundCodec::Info info;
+        dmSoundCodec::GetInfo(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, &info);
+
+        uint64_t total_bytes = start_frame * (uint64_t)GetSkipStrideBytes(info);
+        while (total_bytes > 0)
+        {
+            uint32_t skipped = 0;
+            dmSoundCodec::Result r = dmSoundCodec::Skip(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, total_bytes, &skipped);
+            if (r == dmSoundCodec::RESULT_END_OF_STREAM)
+            {
+                break;
+            }
+            if (r != dmSoundCodec::RESULT_OK)
+            {
+                return RESULT_INVALID_STREAM_DATA;
+            }
+            if (skipped == 0)
+            {
+                break;
+            }
+            total_bytes -= skipped;
+        }
+        return RESULT_OK;
+    }
+
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        return SkipToStartFrameNoLock(sound_instance, (uint64_t)start_frame);
+    }
+
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+        if (start_time_seconds <= 0.0f)
+            return RESULT_OK;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+
+        dmSoundCodec::Info info;
+        dmSoundCodec::GetInfo(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, &info);
+        uint64_t start_frame = (uint64_t)((double)start_time_seconds * (double)info.m_Rate);
+        return SkipToStartFrameNoLock(sound_instance, start_frame);
     }
 
     static inline void PrepTempBufferState(SoundInstance* instance, uint32_t channels)
@@ -1688,44 +1758,66 @@ namespace dmSound
             sound->m_IsDeviceStarted = true;
         }
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-        if (free_slots > 0) {
+        if (free_slots > 0)
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
             StepGroupValues();
             StepInstanceValues();
         }
 
         uint32_t current_buffer = 0;
         uint32_t total_buffers = free_slots;
-        while (free_slots > 0) {
-
-            // Get the number of frames available
+        while (free_slots > 0)
+        {
+            // Get the number of frames available (can block, so avoid holding the sound mutex here)
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
             {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+                if (frame_count == 0)
+                {
+                    break;
+                }
             }
 
-            sound->m_FrameCount = frame_count;
+            uint32_t buffer_index = 0;
 
-            if (frame_count < SOUND_MAX_HISTORY)
-                continue;
+            {
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
-            MixContext mix_context(current_buffer, total_buffers, frame_count);
-            MixInstances(&mix_context);
+                sound->m_FrameCount = frame_count;
 
-            Master(&mix_context);
+                if (frame_count < SOUND_MAX_HISTORY)
+                {
+                    continue;
+                }
+
+                MixContext mix_context(current_buffer, total_buffers, frame_count);
+                MixInstances(&mix_context);
+
+                Master(&mix_context);
+
+                buffer_index = sound->m_NextOutBuffer;
+                sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
+            }
+
+            dmSound::Result queue_result;
 
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
                 DM_PROFILE("QueueBuffer");
-                sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+                queue_result = sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[buffer_index], frame_count);
             }
 
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
+            if (queue_result == dmSound::RESULT_INIT_ERROR)
+            {
+                sound->m_IsDeviceStarted = false;
+                return queue_result;
+            }
+
             current_buffer++;
             free_slots--;
         }
@@ -1769,6 +1861,14 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings)
+    {
+        memset(settings, 0, sizeof(DecoderOutputSettings));
+        // We need non-normallized float output
+        settings->m_UseNormalizedFloatRange = false;
+        // Decoder data can also be non-interleaved (for 'direct delivery')
+        settings->m_UseInterleaved = false;
+    }
 
     bool IsMusicPlaying()
     {

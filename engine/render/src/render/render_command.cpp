@@ -177,9 +177,11 @@ namespace dmRender
                 case COMMAND_TYPE_DRAW:
                 {
                     FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[2];
+                    dmRender::SortOrder sort_order = (dmRender::SortOrder)c->m_Operands[3];
                     dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
                                                              (dmRender::HNamedConstantBuffer)c->m_Operands[1],
-                                                             frustum_options);
+                                                             frustum_options,
+                                                             sort_order);
                     delete frustum_options;
                     break;
                 }

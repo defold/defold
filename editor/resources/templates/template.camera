@@ -5,3 +5,4 @@ far_z: 1000.0
 auto_aspect_ratio: 0
 orthographic_projection: 0
 orthographic_zoom: 1
+orthographic_mode: ORTHO_MODE_FIXED

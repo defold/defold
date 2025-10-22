@@ -21,6 +21,7 @@
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -32,7 +33,7 @@
             [util.coll :as coll]
             [util.fn :as fn]
             [util.http-server :as http-server])
-  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress TaskResult]
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress IProgress$Task TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -57,10 +58,24 @@
      (setCanceled [_this _canceled])
      (subProgress [_this _work-claimed-from-this]
        (->progress render-progress! task-cancelled? msg-stack-atom))
-     (beginTask [_this name _steps]
+     (beginTask [_this task _steps]
        (error-reporting/catch-all!
-         (swap! msg-stack-atom conj name)
-         (render-progress! (progress/make-cancellable-indeterminate name))))
+         (let [message (condp identical? task
+                         IProgress$Task/BUNDLING (localization/message "progress.bundling")
+                         IProgress$Task/BUILDING_ENGINE (localization/message "progress.building-engine")
+                         IProgress$Task/CLEANING_ENGINE (localization/message "progress.cleaning-engine")
+                         IProgress$Task/DOWNLOADING_SYMBOLS (localization/message "progress.downloading-symbols")
+                         IProgress$Task/TRANSPILING_TO_LUA (localization/message "progress.transpiling-to-lua")
+                         IProgress$Task/READING_TASKS (localization/message "progress.reading-tasks")
+                         IProgress$Task/BUILDING (localization/message "progress.building")
+                         IProgress$Task/CLEANING (localization/message "progress.cleaning")
+                         IProgress$Task/GENERATING_REPORT (localization/message "progress.generating-report")
+                         IProgress$Task/WORKING (localization/message "progress.working")
+                         IProgress$Task/READING_CLASSES (localization/message "progress.reading-classes")
+                         IProgress$Task/DOWNLOADING_ARCHIVES (localization/message "progress.downloading-archives")
+                         localization/empty-message)]
+           (swap! msg-stack-atom conj message)
+           (render-progress! (progress/make-cancellable-indeterminate message)))))
      (worked [_this _amount]
        ;; Bob reports misleading progress amounts.
        ;; We report only "busy" and the name of the task.

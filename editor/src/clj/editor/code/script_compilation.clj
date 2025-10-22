@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script-compilation
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.data :as data]
             [editor.code.preprocessors :as preprocessors]
@@ -31,9 +30,11 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [com.google.protobuf ByteString]))
+           [com.google.protobuf ByteString]
+           [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -119,14 +120,11 @@
         (:script-properties lua-info)))
 
 (defn lua-info->modules [lua-info]
-  (into []
-        (comp (map second)
-              (remove lua/preinstalled-modules))
-        (:requires lua-info)))
+  (into [] (remove lua/preinstalled-modules) (:modules lua-info)))
 
-(defn- script->bytecode [lines proj-path]
+(defn- script->bytecode [code proj-path]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path)
+    (luajit/bytecode code proj-path)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/map->error
@@ -136,87 +134,20 @@
            :user-data (assoc (r/make-code-error-user-data filename line)
                         :message message)})))))
 
-(defn- line->whitespace [line]
-  (string/join (repeat (count line) \space)))
-
-(defn- go-property-declaration-cursor-ranges
-  "Find the CursorRanges that encompass each `go.property('name', ...)`
-  declaration among the specified lines. These will be replaced with whitespace
-  before the script is compiled for the engine."
-  [lines]
-  (loop [cursor-ranges (transient [])
-         tokens (lua-parser/tokens (data/lines-reader lines))
-         paren-count 0
-         consumed []
-         skipped nil]
-    (if-some [[text :as token] (first tokens)]
-      (case (count consumed)
-        0 (recur cursor-ranges (next tokens) 0 (case text "go" (conj consumed token) []) skipped)
-        1 (recur cursor-ranges (next tokens) 0 (case text "." (conj consumed token) []) skipped)
-        2 (recur cursor-ranges (next tokens) 0 (case text "property" (conj consumed token) []) skipped)
-        3 (case text
-            "(" (recur cursor-ranges (next tokens) (inc paren-count) consumed skipped)
-            ")" (let [paren-count (dec paren-count)]
-                  (assert (not (neg? paren-count)))
-                  (if (pos? paren-count)
-                    (recur cursor-ranges (next tokens) paren-count consumed skipped)
-                    (let [next-tokens (next tokens)
-                          [next-text :as next-token] (first next-tokens)
-                          [_ start-row start-col] (first consumed)
-                          [end-text end-row end-col] (if (= ";" next-text) next-token token)
-                          end-col (+ ^long end-col (count end-text))
-                          end-cursor (data/->Cursor end-row end-col)
-                          start-cursor (data/->Cursor start-row start-col)]
-                      (if (nil? skipped)
-                        (let [cursor-range (data/->CursorRange start-cursor end-cursor)]
-                          (recur (conj! cursor-ranges cursor-range)
-                                 next-tokens
-                                 0
-                                 []
-                                 nil))
-                        (let [[_ end-row-skipped end-col-skipped] skipped
-                              end-cursor-before-skipped (data/->Cursor end-row-skipped end-col-skipped)
-                              cursor-range-before-skipped (data/->CursorRange start-cursor end-cursor-before-skipped)
-                              new-cursor-ranges (conj! cursor-ranges cursor-range-before-skipped)
-                              [_ start-row-after-skipped start-col-after-skipped] token
-                              start-cursor-after-skipped (data/->Cursor start-row-after-skipped start-col-after-skipped)
-                              cursor-range (data/->CursorRange start-cursor-after-skipped end-cursor)]
-                          (recur (conj! new-cursor-ranges cursor-range)
-                                 next-tokens
-                                 0
-                                 []
-                                 nil))))))
-            "hash" (recur cursor-ranges (next tokens) paren-count consumed token)
-            (recur cursor-ranges (next tokens) paren-count consumed skipped)))
-      (persistent! cursor-ranges))))
-
-(defn- cursor-range->whitespace-lines [lines cursor-range]
-  (let [{:keys [first-line middle-lines last-line]} (data/cursor-range-subsequence lines cursor-range)]
-    (cond-> (into [(line->whitespace first-line)]
-                  (map line->whitespace)
-                  middle-lines)
-            (some? last-line) (conj (line->whitespace last-line)))))
-
-(defn- strip-go-property-declarations [lines]
-  (data/splice-lines lines (map (juxt identity (partial cursor-range->whitespace-lines lines))
-                                (go-property-declaration-cursor-ranges lines))))
-
 (defn- build-script [resource dep-resources user-data]
   ;; We always compile the full source code in order to find syntax errors.
   ;; We then strip go.property() declarations and recompile if needed.
-  (let [lines (:lines user-data)
+  (let [code (:code user-data)
         proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path)]
+        bytecode-or-error (script->bytecode code proj-path)]
     (g/precluding-errors
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
-            modules (:modules user-data)
-            cleaned-lines (strip-go-property-declarations lines)]
+            modules (:modules user-data)]
         {:resource resource
          :content (protobuf/map->bytes
                     Lua$LuaModule
-                    {:source {:script (ByteString/copyFromUtf8
-                                        (slurp (data/lines-reader cleaned-lines)))
+                    {:source {:script (ByteString/copyFromUtf8 code)
                               :filename (str "@" (luajit/luajit-path-to-chunk-name (resource/proj-path (:resource resource))))}
                      :modules modules
                      :resources (mapv lua/lua-module->build-path modules)
@@ -231,6 +162,13 @@
   (when-some [[_ proj-path line-number-string] (re-find file-line-pattern message)]
     (let [line-number (some-> line-number-string Long/parseLong)]
       (pair proj-path line-number))))
+
+(defn- lua-info-errors [_node-id resource lua-info]
+  (->> lua-info
+       :errors
+       (e/map
+         (fn [{:keys [message cursor-range]}]
+           (g/->error _node-id :modified-lines :fatal resource message {:cursor-range cursor-range})))))
 
 (defn build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node]
   (let [workspace (resource/workspace resource)]
@@ -262,36 +200,36 @@
               (g/->error _node-id :modified-lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
-                  (lua-parser/lua-info workspace valid-resource-kind? reader))
+                  (lua-parser/lua-info workspace valid-resource-kind? reader))]
+            (g/precluding-errors (lua-info-errors _node-id resource preprocessed-lua-info)
+              (let [preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
+                    preprocessed-modules (lua-info->modules preprocessed-lua-info)
+                    preprocessed-go-props-with-source-resources
+                    (map (fn [{:keys [name type value]}]
+                           (let [go-prop-type (script-property-type->go-prop-type type)
+                                 go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                             {:id name
+                              :type go-prop-type
+                              :value go-prop-value
+                              :clj-value value}))
+                         preprocessed-script-properties)
 
-                preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
-                preprocessed-modules (lua-info->modules preprocessed-lua-info)
-                preprocessed-go-props-with-source-resources
-                (map (fn [{:keys [name type value]}]
-                       (let [go-prop-type (script-property-type->go-prop-type type)
-                             go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
-                         {:id name
-                          :type go-prop-type
-                          :value go-prop-value
-                          :clj-value value}))
-                     preprocessed-script-properties)
+                    proj-path->resource-property-build-target
+                    (bt/make-proj-path->build-target original-resource-property-build-targets)
 
-                proj-path->resource-property-build-target
-                (bt/make-proj-path->build-target original-resource-property-build-targets)
-
-                [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
-                (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
-            ;; NOTE: The :user-data must not contain any overridden data. If it does,
-            ;; the build targets won't be fused and the script will be recompiled
-            ;; for every instance of the script component. The :go-props here describe
-            ;; the original property values from the script, never overridden values.
-            [(bt/with-content-hash
-               {:node-id _node-id
-                :resource (workspace/make-build-resource resource)
-                :build-fn build-script
-                :user-data {:lines preprocessed-lines
-                            :go-props preprocessed-go-props
-                            :modules preprocessed-modules
-                            :proj-path (resource/proj-path resource)}
-                :deps preprocessed-go-prop-dep-build-targets
-                :dynamic-deps (mapv lua/lua-module->path preprocessed-modules)})]))))))
+                    [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
+                    (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
+                ;; NOTE: The :user-data must not contain any overridden data. If it does,
+                ;; the build targets won't be fused and the script will be recompiled
+                ;; for every instance of the script component. The :go-props here describe
+                ;; the original property values from the script, never overridden values.
+                [(bt/with-content-hash
+                   {:node-id _node-id
+                    :resource (workspace/make-build-resource resource)
+                    :build-fn build-script
+                    :user-data {:code (:code preprocessed-lua-info)
+                                :go-props preprocessed-go-props
+                                :modules preprocessed-modules
+                                :proj-path (resource/proj-path resource)}
+                    :deps preprocessed-go-prop-dep-build-targets
+                    :dynamic-deps (mapv lua/lua-module->path preprocessed-modules)})]))))))))

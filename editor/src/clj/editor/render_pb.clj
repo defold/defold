@@ -48,8 +48,8 @@
 
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output named-render-resource g/Any (g/fnk [_node-id name render-resource]
-                                 {:name name
-                                  :path render-resource})))
+                                        {:name name
+                                         :path render-resource})))
 
 (defn- make-named-render-resource-node
   [graph-id render-node name render-resource-resource]
@@ -83,14 +83,13 @@
 
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
-    [:script]          (g/set-property! node-id :script value)
+    [:script] (g/set-property node-id :script value)
     [:named-render-resources] (let [graph-id (g/node-id->graph-id node-id)]
-                                (g/transact
-                                  (concat
-                                    (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
-                                      (g/delete-node named-render-resource-id))
-                                    (for [{:keys [name path]} value]
-                                      (make-named-render-resource-node graph-id node-id name path)))))))
+                                (concat
+                                  (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
+                                    (g/delete-node named-render-resource-id))
+                                  (for [{:keys [name path]} value]
+                                    (make-named-render-resource-node graph-id node-id name path))))))
 
 (g/defnk produce-form-data [_node-id script-resource named-render-resources]
   (-> form-sections

@@ -517,7 +517,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order)
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -587,6 +587,14 @@ namespace dmRender
         if (maxZW > minZW)
             rc = 1.0f / (maxZW - minZW);
 
+        const uint32_t ORDER_SCALE_MASK = 0xfffff0;
+        const uint32_t ORDER_BASE_FRONT = 0x000008;
+        const uint32_t ORDER_BASE_BACK = 0xfffff8;
+        const uint32_t ftb  = (sort_order == SORT_FRONT_TO_BACK);
+        const float    base = (float)(ORDER_BASE_FRONT + ((uint32_t)!ftb) * ORDER_SCALE_MASK);
+        const float    sign = ftb * 2.0f - 1.0f;
+        const float    order_multiplier = sign * ORDER_SCALE_MASK * rc;
+
         for( uint32_t i = 0; i < num_ranges; ++i)
         {
             const RenderListRange& range = ranges[i];
@@ -607,7 +615,7 @@ namespace dmRender
                 if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
                 {
                     const float z = sort_values[idx].m_ZW;
-                    sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+                    sort_values[idx].m_Order = (uint32_t)(base + order_multiplier * (z - minZW));
                 }
                 else
                 {
@@ -855,7 +863,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -921,16 +929,21 @@ namespace dmRender
             }
         }
 
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);
+        SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
+
+        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, effective_sort_order);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
 
         {
-            DM_PROFILE("DrawRenderList_SORT");
-            RenderListSorter sort;
-            sort.values = context->m_RenderListSortValues.Begin();
-            std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            if (effective_sort_order != SORT_NONE)
+            {
+                DM_PROFILE("DrawRenderList_SORT");
+                RenderListSorter sort;
+                sort.values = context->m_RenderListSortValues.Begin();
+                std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            }
         }
 
         // Construct render objects
@@ -969,12 +982,13 @@ namespace dmRender
             {
                 uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
                 const RenderListEntry *last_entry = &base[*last];
-                const RenderListEntry *current_entry = &base[*idx];
-
                 // continue batch on match, or dispatch
-                if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
-                    continue;
-
+                if (i < count)
+                {
+                    const RenderListEntry *current_entry = &base[*idx];                
+                    if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
+                        continue;
+                }
                 if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
                 {
                     assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
@@ -1031,7 +1045,7 @@ namespace dmRender
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
 
-                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
@@ -1059,7 +1073,7 @@ namespace dmRender
             if (render_context_textures[i])
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
-                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::DisableTexture(context, next_texture_unit, texture);
@@ -1145,7 +1159,7 @@ namespace dmRender
 
                 if (texture)
                 {
-                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
                         HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
@@ -1197,7 +1211,7 @@ namespace dmRender
                     texture = render_context_textures[i];
                 if (texture)
                 {
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
                     {
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
                         next_texture_unit++;
@@ -1218,7 +1232,7 @@ namespace dmRender
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options, SORT_BACK_TO_FRONT);
     }
 
     Result DrawDebug2d(HRenderContext context) // Deprecated
@@ -1226,7 +1240,7 @@ namespace dmRender
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0, SORT_BACK_TO_FRONT);
     }
 
     HPredicate NewPredicate()

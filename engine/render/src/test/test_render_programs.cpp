@@ -45,7 +45,7 @@ public:
     dmRender::HRenderContext      m_RenderContext;
     dmRender::RenderContextParams m_Params;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmGraphics::InstallAdapter();
 
@@ -69,7 +69,7 @@ public:
         m_Params.m_MaxBatches    = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         dmRender::DeleteRenderContext(m_RenderContext, 0);
         dmGraphics::DeleteContext(m_GraphicsContext);

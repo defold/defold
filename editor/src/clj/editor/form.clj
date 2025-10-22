@@ -13,19 +13,33 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.form
-  (:require [editor.util :as util])
+  (:require [dynamo.graph :as g]
+            [editor.util :as util])
   (:import [java.net URI]))
 
 (set! *warn-on-reflection* true)
 
-(defn set-value! [{:keys [user-data set]} path value]
-  (set user-data path value))
+(defn- ensure-does-not-transact [ret f]
+  (when (g/tx-result? ret)
+    (throw
+      (IllegalStateException.
+        (str "Invalid implementation of form-ops\nFunction: "
+             (Compiler/demunge (.getName (class f)))
+             "\nIt should return transaction steps instead of performing a transaction. Use, e.g.:\n- `g/set-property` instead of `g/set-property!`\n- `g/clear-property` instead of `g/clear-property!`"))))
+  ret)
+
+(defn set-value
+  "Returns transaction steps for setting the value"
+  [{:keys [user-data set]} path value]
+  (ensure-does-not-transact (set user-data path value) set))
 
 (defn can-clear? [{:keys [clear]}]
   (not (nil? clear)))
 
-(defn clear-value! [{:keys [user-data clear]} path]
-  (clear user-data path))
+(defn clear-value
+  "Returns transaction steps for clearing the value"
+  [{:keys [user-data clear]} path]
+  (ensure-does-not-transact (clear user-data path) clear))
 
 (def ^:private type-defaults
   {:table []

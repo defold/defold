@@ -16,7 +16,8 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.editor-extensions.docs :as ext-docs]
-            [editor.util :as util])
+            [editor.util :as util]
+            [util.fn :as fn])
   (:import [java.io Writer]))
 
 (defn- script-doc-group [script-doc]
@@ -65,7 +66,7 @@
                              (update :returnvalues (fn [returnvalues]
                                                      (mapv
                                                        (fn [m]
-                                                         (update m :doc #(or % "")))
+                                                         (update m :doc fn/or ""))
                                                        returnvalues))))))
                   functions)])]
     (with-open [w (io/writer (doto (io/file output-dir "editor.apidoc") io/make-parents))]

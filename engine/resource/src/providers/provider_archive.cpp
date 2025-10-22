@@ -62,12 +62,12 @@ namespace dmResourceProviderArchive
         char mount_archive_data_path[DMPATH_MAX_PATH];
         if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_archive_index_path, sizeof(mount_archive_index_path), archive_index_path))
         {
-            dmLogError("Path to small to fit into buffer: %s", archive_index_path);
+            dmLogError("File doesn’t exist or can’t be read: %s", archive_index_path);
             return dmResourceProvider::RESULT_ERROR_UNKNOWN;
         }
         if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_archive_data_path, sizeof(mount_archive_data_path), archive_data_path))
         {
-            dmLogError("Path to small to fit into buffer: %s", mount_archive_data_path);
+            dmLogError("File doesn’t exist or can’t be read: %s", mount_archive_data_path);
             return dmResourceProvider::RESULT_ERROR_UNKNOWN;
         }
 

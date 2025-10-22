@@ -27,7 +27,6 @@
  * @document
  * @name SSLSocket
  * @namespace dmSSLSocket
- * @path engine/dlib/src/dmsdk/dlib/sslsocket.h
  * @language C++
  */
 

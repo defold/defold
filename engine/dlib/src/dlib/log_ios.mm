@@ -15,13 +15,14 @@
 #include "log.h"
 
 #import <Foundation/Foundation.h>
+#import <os/log.h>
 
 namespace dmLog
 {
 
 void __ios_log_print(LogSeverity severity, const char* str_buf)
 {
-    NSLog(@"%@", @(str_buf));
+    os_log_with_type(OS_LOG_DEFAULT, OS_LOG_TYPE_DEFAULT, "%{public}s", str_buf);
 }
 
 } //namespace dmLog

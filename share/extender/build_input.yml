@@ -35,22 +35,134 @@ context:
                 "ScriptImageExt",
                 "ScriptModelExt",
                 "ScriptTypesExt"]
-    allowedLibs: ["engine","engine_release","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","gamesys_model","gamesys_rig","gamesys_model_null","gamesys_rig_null","rig_null","graphics","graphics_opengles","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_2d_defold","physics_3d","physics_null", "platform", "platform_vulkan", "platform_null", "BulletDynamics","BulletCollision","LinearMath","box2d","box2d_defold","render","render_font_default","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","image","image_null","dmglfw","glfw3","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate", "MoltenVK",
-                  "libengine.lib","libengine_release.lib","libcrashext","libcrashext_null","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgamesys_model.lib","libgamesys_rig.lib","librig.lib","libgamesys_model_null.lib","libgamesys_rig_null.lib","librig_null.lib","libgraphics.lib","libgraphics_null.lib","libgraphics_transcoder_null.lib","libgraphics_transcoder_basisu.lib","libbasis_transcoder.lib","libphysics_2d.lib","libphysics_2d_defold.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libplatform.lib","libplatform_null.lib","libLinearMath.lib","libbox2d.lib","librender.lib","librender_font_default.lib",
-                  "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libimage.lib","libimage_null.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
-                  "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib",
-                  "script_box2d", "script_box2d_defold", "script_box2d_null", "libscript_box2d.lib", "libscript_box2d_defold.lib", "libscript_box2d_null.lib",
-                  "font", "libfont.lib",
-                  "opus", "libopus.lib",
-                  "profile", "libprofile.lib",
-                  "profile_null", "libprofile_null.lib",
-                  "profiler_remotery", "libprofiler_remotery.lib",
-                  "profiler_js", "libprofiler_js.lib",
-                  "profilerext", "libprofilerext.lib",
-                  "profilerext_null", "libprofilerext_null.lib",
-                  "decoder_wav", "libdecoder_wav.lib",
-                  "decoder_ogg", "libdecoder_ogg.lib",
-                  "decoder_opus", "libdecoder_opus.lib"]
+    allowedLibs: [
+                "engine",
+                "engine_release",
+                "crashext",
+                "crashext_null",
+                "record",
+                "record_null",
+                "gameobject",
+                "ddf",
+                "resource",
+                "gamesys",
+                "gamesys_model",
+                "gamesys_rig",
+                "gamesys_model_null",
+                "gamesys_rig_null",
+                "rig_null",
+                "graphics",
+                "graphics_opengles",
+                "graphics_webgpu",
+                "graphics_webgpu_wagyu",
+                "graphics_null",
+                "graphics_transcoder_null",
+                "graphics_transcoder_basisu",
+                "basis_transcoder",
+                "physics_2d",
+                "physics_2d_defold",
+                "physics_3d",
+                "physics_null",
+                "platform",
+                "platform_vulkan",
+                "platform_null",
+                "BulletDynamics",
+                "BulletCollision",
+                "LinearMath",
+                "box2d",
+                "box2d_defold",
+                "render",
+                "render_font_default",
+                "script",
+                "luajit-5.1",
+                "extension",
+                "hid",
+                "hid_null",
+                "input",
+                "particle",
+                "rig",
+                "dlib",
+                "image",
+                "image_null",
+                "dmglfw",
+                "glfw3",
+                "gui",
+                "crashext",
+                "sound",
+                "sound_null",
+                "tremolo",
+                "vpx",
+                "liveupdate",
+                "MoltenVK",
+                "libengine.lib",
+                "libengine_release.lib",
+                "libcrashext",
+                "libcrashext_null",
+                "librecord.lib",
+                "librecord_null.lib",
+                "libgameobject.lib",
+                "libddf.lib",
+                "libresource.lib",
+                "libgamesys.lib",
+                "libgamesys_model.lib",
+                "libgamesys_rig.lib",
+                "librig.lib",
+                "libgamesys_model_null.lib",
+                "libgamesys_rig_null.lib",
+                "librig_null.lib",
+                "libgraphics.lib",
+                "libgraphics_null.lib",
+                "libgraphics_opengl.lib",
+                "libgraphics_transcoder_null.lib",
+                "libgraphics_transcoder_basisu.lib",
+                "libbasis_transcoder.lib",
+                "libphysics_2d.lib",
+                "libphysics_2d_defold.lib",
+                "libphysics_3d.lib",
+                "libphysics_null.lib",
+                "libBulletDynamics.lib",
+                "libBulletCollision.lib",
+                "libplatform.lib",
+                "libplatform_null.lib",
+                "libLinearMath.lib",
+                "libbox2d.lib",
+                "librender.lib",
+                "librender_font_default.lib",
+                "libscript.lib",
+                "libluajit.lib-5.1",
+                "libextension.lib",
+                "libhid.lib",
+                "libhid_null.lib",
+                "libinput.lib",
+                "libparticle.lib",
+                "librig.lib",
+                "libdlib.lib",
+                "libimage.lib",
+                "libimage_null.lib",
+                "libdmglfw.lib",
+                "libgui.lib",
+                "libcrashext.lib",
+                "libsound.lib",
+                "libsound_null.lib",
+                "libtremolo.lib",
+                "libvpx.lib",
+                "libliveupdate.lib",
+                "engine_service", "libengine_service.lib",
+                "engine_service_null", "libengine_service_null.lib",
+                "script_box2d", "libscript_box2d.lib",
+                "script_box2d_defold", "libscript_box2d_defold.lib",
+                "script_box2d_null", "libscript_box2d_null.lib",
+                "font", "libfont.lib",
+                "opus", "libopus.lib",
+                "profile", "libprofile.lib",
+                "profile_null", "libprofile_null.lib",
+                "profiler_remotery", "libprofiler_remotery.lib",
+                "profiler_js", "libprofiler_js.lib",
+                "profilerext", "libprofilerext.lib",
+                "profilerext_null", "libprofilerext_null.lib",
+                "decoder_wav", "libdecoder_wav.lib",
+                "decoder_ogg", "libdecoder_ogg.lib",
+                "decoder_opus", "libdecoder_opus.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
                     "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
@@ -175,7 +287,7 @@ platforms:
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_15_VERSION}}.sdk"
     context:
-        frameworks:     ["Foundation", "AppKit", "Cocoa", "Metal", "IOSurface", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
+        frameworks:     ["Foundation", "AppKit", "Cocoa", "Metal", "IOSurface", "OpenAL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
         engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "MoltenVK", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform_vulkan", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate", "decoder_wav", "decoder_ogg"]
         libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
@@ -185,7 +297,7 @@ platforms:
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
-        symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan"]
+        symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan", "ProfilerRemotery"]
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
@@ -211,9 +323,9 @@ platforms:
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
-    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
-    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
-    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -parse-as-library -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -parse-as-library -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
     bitcodeStripCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/bitcode_strip {{source}} -r -o {{target}}'
 
   arm64-osx:
@@ -272,9 +384,9 @@ platforms:
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     symbolsPattern: '.*dSYM'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
-    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
-    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -parse-as-library -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         -j{{parallelJobs}} {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#defines}}-D{{{.}}} {{/defines}} -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -parse-as-library -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
     bitcodeStripCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/bitcode_strip {{source}} -r -o {{target}}'
     manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'

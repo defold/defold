@@ -29,7 +29,6 @@ namespace dmBuffer
      * @document
      * @name Buffer
      * @namespace dmBuffer
-     * @path engine/dlib/src/dmsdk/dlib/buffer.h
      * @language C++
      */
 

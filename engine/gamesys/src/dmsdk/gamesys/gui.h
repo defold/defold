@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/script/script.h>
 #include <gamesys/gui_ddf.h>
@@ -34,7 +35,6 @@ namespace dmBuffer
  * @document
  * @name GameSystem Gui
  * @namespace dmGameSystem
- * @path engine/gamesys/src/dmsdk/gamesys/gui.h
  * @language C++
  */
 
@@ -146,6 +146,7 @@ namespace dmGameSystem
      * Get the vertices in local space
      */
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);
+
 
 }
 

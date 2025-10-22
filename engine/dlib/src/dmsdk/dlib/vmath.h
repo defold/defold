@@ -23,7 +23,6 @@
  * @document
  * @name Vector Math
  * @namespace dmVMath
- * @path engine/dlib/src/dmsdk/dlib/vmath.h
  * @language C++
  */
 namespace dmVMath

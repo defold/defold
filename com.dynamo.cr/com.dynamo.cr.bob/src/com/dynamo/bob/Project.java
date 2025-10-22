@@ -94,7 +94,6 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
-import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
@@ -638,6 +637,7 @@ public class Project {
         try {
             // load meta.properties embeded in bob.jar
             properties.loadDefaultMetaFile();
+            properties.cleanupEmptyProperties();
             if (scanExtensions) {
                 // load property files from extensions
                 List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
@@ -899,7 +899,7 @@ public class Project {
 
     private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
         IProgress m = monitor.subProgress(1);
-        m.beginTask("Bundling...", 1);
+        m.beginTask(IProgress.Task.BUNDLING, 1);
 
         Platform platform = getPlatform();
         IBundler bundler = createBundler(platform);
@@ -1169,7 +1169,7 @@ public class Project {
         cacheDir.mkdirs();
 
         IProgress m = monitor.subProgress(architectures.length);
-        m.beginTask("Building engine...", 0);
+        m.beginTask(IProgress.Task.BUILDING_ENGINE, 0);
 
         // Build all skews of platform
         String outputDir = getBinaryOutputDirectory();
@@ -1250,7 +1250,7 @@ public class Project {
 
     private void cleanEngines(IProgress monitor, String[] platformStrings) throws IOException, CompileExceptionError {
         IProgress m = monitor.subProgress(platformStrings.length);
-        m.beginTask("Cleaning engine...", 0);
+        m.beginTask(IProgress.Task.CLEANING_ENGINE, 0);
 
         String outputDir = getBinaryOutputDirectory();
         for (int i = 0; i < platformStrings.length; ++i) {
@@ -1260,71 +1260,6 @@ public class Project {
         }
 
         m.done();
-    }
-
-    private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
-        String archs = this.option("architectures", null);
-        String[] platforms;
-        if (archs != null) {
-            platforms = archs.split(",");
-        }
-        else {
-            platforms = getPlatformStrings();
-        }
-
-        progress.beginTask(String.format("Downloading %s symbols...", platforms.length), platforms.length);
-
-        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-        String variantSuffix = "";
-        switch(variant) {
-            case Bob.VARIANT_RELEASE:
-                variantSuffix = "_release";
-                break;
-            case Bob.VARIANT_HEADLESS:
-                variantSuffix = "_headless";
-                break;
-        }
-
-        for(String platform : platforms) {
-            String symbolsFilename = null;
-            Platform p = Platform.get(platform);
-            switch(platform) {
-                case "arm64-ios":
-                case "x86_64-ios":
-                case "x86_64-macos":
-                case "arm64-macos":
-                    symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
-                    break;
-                case "js-web":
-                    symbolsFilename = String.format("dmengine%s.js.symbols", variantSuffix);
-                    break;
-                case "win32":
-                case "x86_64-win32":
-                    symbolsFilename = String.format("dmengine%s.pdb", variantSuffix);
-                    break;
-                case "arm64-android":
-                case "armv7-android":
-                    symbolsFilename = String.format("libdmengine%s.so", variantSuffix);
-                    break;
-            }
-
-            if (symbolsFilename != null) {
-                try {
-                    URL url = new URL(String.format(Bob.ARTIFACTS_URL + "%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
-                    File targetFolder = new File(getBinaryOutputDirectory(), p.getExtenderPair());
-                    File file = new File(targetFolder, symbolsFilename);
-                    HttpUtil http = new HttpUtil();
-                    http.downloadToFile(url, file);
-                    if (symbolsFilename.endsWith(".zip")){
-                        BundleHelper.unzip(new FileInputStream(file), targetFolder.toPath());
-                    }
-                }
-                catch (Exception e) {
-                    throw new CompileExceptionError(e);
-                }
-            }
-            progress.worked(1);
-        }
     }
 
     static void addToPath(String variable, String path) {
@@ -1587,15 +1522,20 @@ public class Project {
         List<ILuaTranspiler> transpilers = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaTranspiler.class);
         if (transpilers != null) {
             IProgress transpilerProgress = monitor.subProgress(1);
-            transpilerProgress.beginTask("Transpiling to Lua", 1);
+            transpilerProgress.beginTask(IProgress.Task.TRANSPILING_TO_LUA, 1);
             for (ILuaTranspiler transpiler : transpilers) {
                 IResource buildFileResource = getResource(transpiler.getBuildFileResourcePath());
                 if (buildFileResource.exists()) {
                     String ext = "." + transpiler.getSourceExt();
-                    List<IResource> sources = inputs.stream()
-                            .filter(s -> s.endsWith(ext))
-                            .map(this::getResource)
-                            .collect(Collectors.toList());
+                    ArrayList<IResource> sources = new ArrayList<>();
+                    fileSystem.walk("", new FileSystemWalker() {
+                        @Override
+                        public void handleFile(String path, Collection<String> results) {
+                            if (path.endsWith(ext)) {
+                                sources.add(fileSystem.get(path));
+                            }
+                        }
+                    }, new ArrayList<>());
                     if (!sources.isEmpty()) {
                         // We transpile to lua from the project dir only if all the source code files exist on disc. Since
                         // some source file may come as dependencies in zip archives, the transpiler will not be able to
@@ -1629,17 +1569,11 @@ public class Project {
                                 throw exception;
                             } else {
                                 issues.forEach(issue -> {
-                                    Level level;
-                                    switch (issue.severity) {
-                                        case INFO:
-                                            level = Level.INFO;
-                                            break;
-                                        case WARNING:
-                                            level = Level.WARNING;
-                                            break;
-                                        default:
-                                            throw new IllegalStateException();
-                                    }
+                                    Level level = switch (issue.severity) {
+                                        case INFO -> Level.INFO;
+                                        case WARNING -> Level.WARNING;
+                                        default -> throw new IllegalStateException();
+                                    };
                                     logger.log(level, issue.resourcePath + ":" + issue.lineNumber + ": " + issue.message);
                                 });
                             }
@@ -1654,7 +1588,6 @@ public class Project {
                                     }
                                 }
                             }, results);
-                            inputs.addAll(results);
                             fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, fs));
                         } catch (Exception e) {
                             throw new CompileExceptionError(buildFileResource, 1, "Transpilation failed", e);
@@ -1716,7 +1649,7 @@ public class Project {
         IProgress m = monitor.subProgress(99);
 
         IProgress mrep = m.subProgress(1);
-        mrep.beginTask("Reading tasks...", 1);
+        mrep.beginTask(IProgress.Task.READING_TASKS, 1);
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
         createTasks();
@@ -1726,7 +1659,7 @@ public class Project {
         mrep.done();
 
         BundleHelper.throwIfCanceled(monitor);
-        m.beginTask("Building...", tasks.size());
+        m.beginTask(IProgress.Task.BUILDING, tasks.size());
         BundleHelper.throwIfCanceled(monitor);
         List<TaskResult> result = runTasks(m);
         BundleHelper.throwIfCanceled(monitor);
@@ -1736,7 +1669,7 @@ public class Project {
         TimeProfiler.start("Generating build size report");
         if (generateReport && !anyFailing(result)) {
             mrep = monitor.subProgress(1);
-            mrep.beginTask("Generating report...", 1);
+            mrep.beginTask(IProgress.Task.GENERATING_REPORT, 1);
             ReportGenerator rg = new ReportGenerator(this);
             String resourceReportJSON = rg.generateResourceReportJSON();
             String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
@@ -1768,7 +1701,7 @@ public class Project {
     private void clean(IProgress monitor, State state) {
         IProgress m = monitor.subProgress(1);
         List<String> paths = state.getPaths();
-        m.beginTask("Cleaning...", paths.size());
+        m.beginTask(IProgress.Task.CLEANING, paths.size());
         for (String path : paths) {
             File f = new File(path);
             if (f.exists()) {
@@ -1783,7 +1716,7 @@ public class Project {
 
     private void distClean(IProgress monitor) throws IOException {
         IProgress m = monitor.subProgress(1);
-        m.beginTask("Cleaning...", 1);
+        m.beginTask(IProgress.Task.CLEANING, 1);
         BundleHelper.throwIfCanceled(monitor);
         FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
         m.worked(1);
@@ -1802,13 +1735,13 @@ public class Project {
 
         BundleHelper.throwIfCanceled(monitor);
 
-        monitor.beginTask("Working...", 100);
+        monitor.beginTask(IProgress.Task.WORKING, 100);
         // it should be done before scanJavaClasses to have updated options
         configurePreBuildProjectOptions();
         {
             TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
-            mrep.beginTask("Reading classes...", 1);
+            mrep.beginTask(IProgress.Task.READING_CLASSES, 1);
             scanJavaClasses();
             mrep.done();
             TimeProfiler.stop();
@@ -1865,7 +1798,7 @@ public class Project {
                         cleanEngines(monitor, platforms);
                         if (hasOption("with-symbols")) {
                             IProgress progress = monitor.subProgress(1);
-                            downloadSymbols(progress);
+                            EngineArtifactsProvider.downloadSymbols(this, progress);
                             progress.done();
                         }
                     }
@@ -2021,7 +1954,7 @@ public class Project {
             Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(libPath, libUrls);
             int count = this.libUrls.size();
             IProgress subProgress = progress.subProgress(count);
-            subProgress.beginTask("Download archive(s)", count);
+            subProgress.beginTask(IProgress.Task.DOWNLOADING_ARCHIVES, count);
             logInfo("Downloading %d archive(s)", count);
 
             // Use a fixed thread pool with 2 threads for parallel downloads

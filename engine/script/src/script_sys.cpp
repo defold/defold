@@ -359,8 +359,8 @@ union SaveLoadBuffer
      * -- Android package name: com.foobar.packagename
      * print(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file
      *
-     * -- iOS: /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
-     * print(my_file_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     * -- iOS: my_game.app
+     * print(my_file_path) --> /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
      *
      * -- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file
      * print(my_file_path) --> /data/.my_game/my_file

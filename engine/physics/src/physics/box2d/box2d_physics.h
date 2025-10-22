@@ -68,6 +68,7 @@ namespace dmPhysics
     {
         ShapeData m_ShapeDataBase;
         b2Vec2    m_VerticesOriginal[B2_MAX_POLYGON_VERTICES];
+        b2Vec2    m_CentroidOriginal;
         b2Polygon m_Polygon;
     };
 

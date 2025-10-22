@@ -160,17 +160,20 @@
   {:pre [(some? *execution-context*)]}
   *execution-context*)
 
+(defn- suspend! [f args]
+  (let [ctx (current-execution-context)]
+    (if (= :immediate (:mode ctx))
+      (throw (LuaError. "Cannot use long-running editor function in immediate context")))
+    (let [^EditorExtensionsRuntime runtime (:rt ctx)
+          vm (.-lua-vm runtime)
+          suspend (Suspend. f args)]
+      (deliver-result (vm/unwrap-userdata (vm/invoke-1 vm (.-yield runtime) (->lua suspend)))))))
+
 (defn wrap-suspendable-function
   ^LuaFunction [f]
   (DefoldLuaFn.
     (fn suspendable-function-wrapper [& args]
-      (let [ctx (current-execution-context)]
-        (if (= :immediate (:mode ctx))
-          (throw (LuaError. "Cannot use long-running editor function in immediate context")))
-        (let [^EditorExtensionsRuntime runtime (:rt ctx)
-              vm (.-lua-vm runtime)
-              suspend (Suspend. f args)]
-          (deliver-result (vm/unwrap-userdata (vm/invoke-1 vm (.-yield runtime) (->lua suspend)))))))))
+      (suspend! f args))))
 
 (defmacro suspendable-lua-fn
   "Defines a suspendable Lua function
@@ -192,6 +195,35 @@
     :mode                  :suspendable or :immediate"
   [& fn-tail]
   `(wrap-suspendable-function (fn ~@fn-tail)))
+
+(defn wrap-suspendable-varargs-function
+  ^LuaFunction [f]
+  (DefoldVarargsLuaFn.
+    (fn suspendable-varargs-function-wrapper [varargs]
+      (suspend! f [varargs]))))
+
+(defmacro suspendable-varargs-lua-fn
+  "Defines a suspendable Lua function
+
+  The function will receive 2 args:
+    - an execution context
+    - varargs arguments that were passed by the editor script.
+
+  The function should either:
+  - throw Exception to signal a script error
+  - return any value - if Exception, it will be signaled as an error to the
+    script, otherwise it will be coerced to LuaValue and delivered as a result
+  - return a value as above, additionally wrapped using and-refresh-context to
+    instruct the runtime to refresh the execution (evaluation) context of the
+    running script
+  - any of the above, but delivered asynchronously using a CompletableFuture
+
+  Execution context is a map with the following keys:
+    :evaluation-context    the evaluation context for the current execution
+    :rt                    the runtime used for execution
+    :mode                  :suspendable or :immediate"
+  [& fn-tail]
+  `(wrap-suspendable-varargs-function (fn ~@fn-tail)))
 
 (defn wrap-immediate-function ^LuaFunction [f]
   (DefoldLuaFn.

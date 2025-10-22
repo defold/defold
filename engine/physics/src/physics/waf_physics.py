@@ -19,7 +19,20 @@ from waf_dynamo import platform_supports_feature
 
 def configure(conf):
     if 'physics' in waflib.Options.options.disable_features:
-        Logs.info("physics disabled")
+        waflib.Logs.info("physics disabled")
         conf.env['STLIB_PHYSICS'] = ['physics_null']
     else:
-        conf.env['STLIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'box2d_defold']
+        box2d_lib = 'box2d_defold'
+        physics_lib = 'physics'
+        if 'box2dv3' in waflib.Options.options.enable_features:
+            physics_lib = 'physics_2d'
+            if 'simd' in waflib.Options.options.enable_features:
+                waflib.Logs.info("box2dv3 selected, simd enabled")
+                box2d_lib = 'box2d'
+            else:
+                waflib.Logs.info("box2dv3 selected, simd disabled")
+                box2d_lib = 'box2d_nosimd'
+        else:
+            waflib.Logs.info("box2dv2 selected")
+
+        conf.env['STLIB_PHYSICS'] = [physics_lib, 'BulletDynamics', 'BulletCollision', 'LinearMath', box2d_lib]

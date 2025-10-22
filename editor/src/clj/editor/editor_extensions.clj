@@ -21,6 +21,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
+            [editor.code.script-annotations :as script-annotations]
             [editor.console :as console]
             [editor.defold-project :as project]
             [editor.editor-extensions.actions :as actions]
@@ -34,6 +35,7 @@
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
+            [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -598,12 +600,16 @@
 
 ;; region language servers
 
-(defn- built-in-language-servers []
+(defn- built-in-lua-language-server [annotations-sync-hash]
   (let [lua-lsp-root (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua")]
-    #{{:languages #{"lua"}
-       :watched-files [{:pattern "**/.luacheckrc"}]
-       :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (os/is-win32?) ".exe"))
-                            (str "--configpath=" lua-lsp-root "/config.json")]}}}))
+    {:languages #{"lua"}
+     :watched-files [{:pattern "**/.luacheckrc"}]
+     ;; We want to restart the language server every time annotations from
+     ;; dependencies change because lua language server does not watch
+     ;; `workspace.library` folder. Changing the map triggers the server restart
+     ::sync-hash (if (g/error-value? annotations-sync-hash) 0 annotations-sync-hash)
+     :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (os/is-win32?) ".exe"))
+                          (str "--configpath=" lua-lsp-root "/config.json")]}}))
 
 (def language-servers-coercer
   (coerce/vector-of
@@ -614,26 +620,33 @@
 
 (defn- reload-language-servers! [project state evaluation-context]
   (let [{:keys [display-output! rt]} state
-        lsp (lsp/get-node-lsp project)]
-    (lsp/set-servers!
-      lsp
-      (into
-        (built-in-language-servers)
-        (comp
-          (mapcat
-            (fn [[path lua-language-servers]]
-              (error-handling/try-with-extension-exceptions
-                :display-output! display-output!
-                :label (str "Reloading language servers in " path)
-                :catch []
-                (rt/->clj rt language-servers-coercer lua-language-servers))))
-          (map (fn [language-server]
-                 (-> language-server
-                     (set/rename-keys {:watched_files :watched-files})
-                     (update :languages set)
-                     (dissoc :command)
-                     (assoc :launcher (select-keys language-server [:command]))))))
-        (execute-all-top-level-functions state :get_language_servers {} evaluation-context)))))
+        lsp (lsp/get-node-lsp project)
+        ext-language-servers (into
+                               #{}
+                               (comp
+                                 (mapcat
+                                   (fn [[path lua-language-servers]]
+                                     (error-handling/try-with-extension-exceptions
+                                       :display-output! display-output!
+                                       :label (str "Reloading language servers in " path)
+                                       :catch []
+                                       (rt/->clj rt language-servers-coercer lua-language-servers))))
+                                 (map (fn [language-server]
+                                        (-> language-server
+                                            (set/rename-keys {:watched_files :watched-files})
+                                            (update :languages set)
+                                            (dissoc :command)
+                                            (assoc :launcher (select-keys language-server [:command]))))))
+                               (execute-all-top-level-functions state :get_language_servers {} evaluation-context))]
+    (future
+      ;; perform annotation sync asynchronously since it potentially involves writing a lot
+      ;; of lua annotation files
+      (error-reporting/catch-all!
+        (g/with-auto-evaluation-context evaluation-context
+          (let [script-annotations (project/script-annotations project evaluation-context)
+                sync-hash (script-annotations/sync-hash script-annotations evaluation-context)]
+            (lsp/set-servers! lsp (conj ext-language-servers (built-in-lua-language-server sync-hash)))))))))
+
 
 ;; endregion
 

@@ -796,8 +796,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
-            boolean async = true;
-            extender.build(platform, sdkVersion, allSource, zipFile, logFile, async);
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile);
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
                 throw (ConnectException)e.getCause();

@@ -23,7 +23,8 @@
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [util.fn :as fn])
   (:import [editor.types AABB]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
@@ -76,7 +77,7 @@
              (let [path          "/sprite/small_atlas.sprite"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    renderables   (g/node-value view :all-renderables)]
-               (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
+               (is (reduce fn/and (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
   (testing "Scene selection"
@@ -87,7 +88,7 @@
                (is (test-util/selected? app-view resource-node))
                ;; Press
                (test-util/mouse-press! view 32 32)
-               (is (test-util/selected? app-view go-node))
+               (is (test-util/selected? app-view resource-node))
                ;; Click
                (test-util/mouse-release! view 32 32)
                (is (test-util/selected? app-view go-node))
@@ -95,7 +96,7 @@
                (test-util/mouse-drag! view 32 32 32 36)
                (is (test-util/selected? app-view go-node))
                ;; Deselect - default to "root" node
-               (test-util/mouse-press! view 0 0)
+               (test-util/mouse-click! view 0 0)
                (is (test-util/selected? app-view resource-node))
                ;; Toggling
                (let [modifiers (if system/mac? [:meta] [:shift])]

@@ -24,7 +24,6 @@
  * @language C#
  * @name Hash
  * @namespace Dlib
- * @path engine/dlib/src/cs/dmsdk/dlib/hash_gen.cs
  */
 
 using System.Runtime.InteropServices;

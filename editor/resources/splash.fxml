@@ -34,7 +34,7 @@
              <Label id="sponsors" text="Corporate Partners:" />
              <HBox id="sponsor-icons">
                 <ImageView fitHeight="30.0" preserveRatio="true">
-                    <Image url="@/sponsors/melsoft.png" />
+                    <Image url="@/sponsors/moonactive.png" />
                 </ImageView>
                 <ImageView fitHeight="30.0" preserveRatio="true">
                     <Image url="@/sponsors/rive.png" />

@@ -1,0 +1,5 @@
+name: "cross_collection_target"
+instances {
+  id: "target_object"
+  prototype: "/collection_proxy/cross_collection_target.go"
+}

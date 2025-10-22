@@ -1,0 +1,1219 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+
+# Localizations of the Welcome dialog
+welcome.button.open-from-disk = Open From Disk…
+welcome.button.open-selected = Open Selected
+welcome.button.create-new-project = Create New Project
+welcome.button.cancel-download = Cancel Download
+welcome.recent-projects = Recent Projects
+welcome.tab.new-project = NEW PROJECT
+welcome.tab.home = MY PROJECTS
+welcome.greeting = Welcome! As soon as you start working with Defold, all your recent projects will appear here.
+welcome.downloading-project = Downloading {template}…
+welcome.header.open = Open
+welcome.header.new-project-from = Create From
+welcome.tab.templates = TEMPLATES
+welcome.tab.tutorials = TUTORIALS
+welcome.tab.samples = SAMPLES
+welcome.new-project.default-name = My Project
+welcome.new-project.title = Title
+welcome.new-project.location = Location
+welcome.open-from-disk.dialog.title = Open Project
+welcome.open-from-disk.dialog.filter.defold = Defold Project Files
+welcome.new-project.location.dialog.title = Select New Project Location
+welcome.new-project.error.no-project-title.title = No Project Title
+welcome.new-project.error.no-project-title.header = You must specify a title for the project
+welcome.new-project.error.invalid-project-title.title = Invalid Project Title
+welcome.new-project.error.invalid-project-title.header = Whitespace is not allowed around the project title
+welcome.new-project.error.conflicting-project-location.title = Conflicting Project Location
+welcome.new-project.error.conflicting-project-location.header = A non-empty folder already exists at the chosen location
+welcome.new-project.error.no-internet-connection.title = No Internet Connection
+welcome.new-project.error.no-internet-connection.header = You must be connected to the internet to download project content
+welcome.new-project.error.host-unreachable.title = Host Unreachable
+welcome.new-project.error.host-unreachable.header = A firewall might be blocking network connections
+welcome.new-project.error.host-not-responding.title = Host Not Responding
+welcome.new-project.error.host-not-responding.header = The connection timed out
+welcome.new-project.error.ssl-connection-error.title = SSL Connection Error
+welcome.new-project.error.ssl-connection-error.header = Could not establish an SSL connection
+welcome.new-project.error.ssl-connection-error.common-causes = Common causes are:\n\u00A0\u00A0\u2022\u00A0Antivirus software configured to scan encrypted connections\n\u00A0\u00A0\u2022\u00A0Expired or misconfigured server certificate\n\u00A0\u00A0\u2022\u00A0Untrusted server certificate\n\nThe following FAQ may apply: 
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
+
+# Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = Empty Project
+welcome.new-project.empty-project.description = Choose this template if you want to start from a completely blank slate.
+welcome.new-project.mobile-game.title = Mobile Game
+welcome.new-project.mobile-game.description = This template contains useful settings and assets if you want to start building a game for mobile devices.
+welcome.new-project.desktop-game.title = Desktop Game
+welcome.new-project.desktop-game.description = This template contains useful settings and assets if you want to start building a game for desktop.
+welcome.new-project.poki-html5-game.title = Poki HTML5 Game
+welcome.new-project.poki-html5-game.description = This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform.
+welcome.new-project.native-extension.title = Native Extension
+welcome.new-project.native-extension.description = This template contains the basic setup if you want to start creating a native extension.
+welcome.new-project.basic-3d-project.title = Basic 3D Project
+welcome.new-project.basic-3d-project.description = This template contains a basic setup for doing 3D rendering.
+welcome.new-project.platformer-game.title = Platformer Game
+welcome.new-project.platformer-game.description = This template contains a basic setup if you want to start building a platformer game.
+welcome.new-project.rive-project.title = Rive Project
+welcome.new-project.rive-project.description = This template uses the rive extension to get you started.
+
+# Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
+welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
+welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components, and collections.
+welcome.new-project.movement-tutorial.title = Movement Tutorial
+welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
+welcome.new-project.war-battles-tutorial.title = War Battles Tutorial
+welcome.new-project.war-battles-tutorial.description = In this medium difficulty tutorial you build the foundation for a top-down shooter game based on the "War Battles" RTS asset pack.
+welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
+welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
+
+# Welcome -> New Project -> From Sample
+welcome.new-project.linker-sample-game.title = Linker Sample Game
+welcome.new-project.linker-sample-game.description = This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters.
+welcome.new-project.roids-sample-game.title = Roids Sample Game
+welcome.new-project.roids-sample-game.description = This is a complete sample game where you steer a space ship and fire your way through a storm of meteors.
+welcome.new-project.pixel-line-platformer.title = Pixel Line Platformer
+welcome.new-project.pixel-line-platformer.description = This is a complete platformer game with a modern pixel art style created by Kenney.
+welcome.new-project.main-menu-animation.title = Main Menu Animation
+welcome.new-project.main-menu-animation.description = In this sample, we demonstrate effects to present a main menu.
+welcome.new-project.parallax.title = Parallax
+welcome.new-project.parallax.description = In this sample, we demonstrate how to use a parallax effect to simulate depth in the game world.
+welcome.new-project.hud.title = HUD
+welcome.new-project.hud.description = In this sample, we demonstrate effects for score counting.
+welcome.new-project.level-complete.title = Level Complete
+welcome.new-project.level-complete.description = In this sample, we demonstrate effects to show the score counting that could occur when a level has been completed.
+welcome.new-project.rpg-map-sample.title = RPG Map Sample
+welcome.new-project.rpg-map-sample.description = This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses.
+welcome.new-project.shadertoy-sample.title = Shadertoy Sample
+welcome.new-project.shadertoy-sample.description = This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold.
+welcome.new-project.3d-treasure-scene.title = 3D Treasure Scene
+welcome.new-project.3d-treasure-scene.description = This sample shows a stylized 3D scene with animation.
+welcome.new-project.perspective-parallax.title = Perspective Parallax
+welcome.new-project.perspective-parallax.description = This sample shows a perspective camera parallax effect.
+welcome.new-project.lightning-vfx.title = Lightning VFX
+welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
+
+# Updater
+updater.button.update-available = Update Available
+updater.button.restart-to-update = Restart to Update
+updater.download-or-restart-dialog.title = Install Update?
+updater.download-or-restart-dialog.header = Update is ready, but there is even newer version available
+updater.download-or-restart-dialog.detail = You can install downloaded update or download newer one
+updater.platform-not-supported-dialog.title = Platform Not Supported
+updater.platform-not-supported-dialog.header = Updates are no longer provided for this platform
+updater.platform-not-supported-dialog.detail = Supported platforms are 64-bit Linux, macOS and Windows
+updater.download-dialog.title = Download Update?
+updater.download-dialog.header = A newer version of Defold is available!
+updater.update-failed.title = Update Failed
+updater.update-failed.header = An error occurred during update installation
+updater.update-failed.detail = You probably should perform a fresh install
+updater.dialog.title = Install Update and Restart?
+updater.dialog.header = Install downloaded update and restart?
+updater.dialog.button.not-now = Not Now
+updater.dialog.button.download = Download Update
+updater.dialog.button.install-and-restart = Install and Restart
+updater.dialog.button.download-newer-version = Download Newer Version
+
+# Time
+time.vague.unknown = Unknown
+time.vague.just-now = Just now
+time.vague.a-minute-ago = A minute ago
+time.vague.a-few-minutes-ago = A few minutes ago
+time.vague.minutes-ago = {count} minutes ago
+time.vague.half-an-hour-ago = Half an hour ago
+time.vague.an-hour-ago = An hour ago
+time.vague.a-few-hours-ago = A few hours ago
+time.vague.hours-ago = {count} hours ago
+time.vague.a-day-ago = A day ago
+
+# Common dialogs
+
+dialog.button.close = Close
+dialog.button.quit = Quit
+dialog.button.open-defold-website = Open defold.com
+dialog.button.dismiss = Dismiss
+dialog.button.report = Report
+dialog.button.disable-scene-editor = Disable Scene Editor
+dialog.button.cancel = Cancel
+dialog.button.delete = Delete
+
+# Error Dialog
+
+dialog.error.title = Error
+dialog.error.header = An error occurred
+dialog.error.footer = You can help us fix this problem by reporting it and providing more information about what you were doing when it happened.
+
+# Build Error Dialog
+
+dialog.build-error.title = Build Error
+dialog.build-error.cycle.header = Cyclic resource dependency detected
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = This is caused by two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is: {resource}.
+dialog.build-error.cycle.detail.game-object = This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is: {resource}.
+dialog.build-error.cycle.detail.script = This is caused by two or more Lua modules required in a loop. One of the resources is: {resource}.
+dialog.build-error.cycle.detail.generic = This is caused by two or more resources referenced in a loop. One of the resources is: {resource}.
+
+# Clean Build Dialog
+
+dialog.clean-build.title = Perform Clean Project Build?
+dialog.clean-build.header = Are you sure you want to perform a clean project build?
+dialog.clean-build.button.clean = Clean Build
+
+# Debugging Not Supported Dialog
+
+dialog.debugging-not-supported.title = Debugging Not Supported
+dialog.debugging-not-supported.header = This project cannot be used with the debugger
+dialog.debugging-not-supported.content = It is configured to disable shared script state.\n\nIf you do not specifically require different script states, consider changing the script.shared_state property in game.project.
+
+# Defunload Issues Dialog
+
+dialog.defunload-issues.title = Revise .defunload Patterns
+dialog.defunload-issues.header = Found unsafe references to unloaded resources.
+dialog.defunload-issues.summary = One or more resources have unsafe references to resources unloaded by `.defunload` patterns.
+dialog.defunload-issues.advice = Please fix the patterns in the `.defunload` file to avoid loading unwanted resources.
+dialog.defunload-issues.report-path = The full report has been written to:
+dialog.defunload-issues.button.ignore = Ignore
+dialog.defunload-issues.button.open-report = Open Report
+dialog.defunload-issues.report-line = {resource} - refers to unloaded resources:
+dialog.defunload-issues.report.section-loading-resources = ### Loading Resources ###
+dialog.defunload-issues.report.loaded-undesired = The following resources matching `.defunload` patterns were loaded out of necessity:
+
+notification.defunload-issues.action.show-details = Show Details…
+
+# Launch Failed Dialog
+
+dialog.launch-failed.title = Launch Failed
+dialog.launch-failed.header = Launching {engine} failed
+dialog.launch-failed.detail = If the engine is already running, shut down the process manually and retry
+dialog.launch-failed.target.new-local-engine = New Local Engine
+
+# Hot Reload Failed Dialog
+
+dialog.hot-reload-failed.title = Hot Reload Failed
+dialog.hot-reload-failed.header = Failed to reload resources on engine "{engine}"
+
+# GL support error dialog
+
+dialog.gl-support.title = Insufficient OpenGL Support
+dialog.gl-support.header = This is a very common issue. See if any of these instructions help:
+dialog.gl-support.linux = OpenGL on linux
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = You can continue with scene editing disabled.
+
+# New folder
+
+dialog.new-folder.title = New Folder
+dialog.new-folder.header = Enter New Folder Name
+dialog.new-folder.label.name = Name
+dialog.new-folder.label.preview = Preview
+dialog.new-folder.button.create-folder = Create Folder
+
+# Target IP dialog
+
+dialog.target-ip.title = Enter Target IP
+dialog.target-ip.header = Enter Target IP Address
+dialog.target-ip.label.ip = Target IP Address
+dialog.target-ip.button.add = Add Target IP
+
+# Search in Files Dialogs
+
+dialog.search-in-files.title = Search in Files
+dialog.search-in-files.label.search = Search pattern (* to match any string)
+dialog.search-in-files.label.types = File types to search in (comma separated)
+dialog.search-in-files.label.include-libraries = Search Inside Libraries
+dialog.search-in-files.button.keep-results = Keep Results
+
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = Target Discovery Log
+dialog.target-discovery-log.header = Target Discovery Log
+dialog.target-discovery-log.button.clear-log = Clear Log
+dialog.target-discovery-log.button.restart-discovery = Restart Discovery
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = Set Path
+dialog.directory.title.select = Select Directory
+dialog.file.title.select = Select File
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = Set Custom Resolution
+dialog.custom-resolution.header = Set custom game resolution
+dialog.custom-resolution.detail = Game window will be resized to this size
+dialog.custom-resolution.label.width = Width
+dialog.custom-resolution.label.height = Height
+dialog.custom-resolution.button.set-resolution = Set Resolution
+
+# Tracked internal files dialog
+
+dialog.tracked-internal-files.title = Internal Files Under Version Control
+dialog.tracked-internal-files.header = Internal files were placed under version control
+dialog.tracked-internal-files.content = It looks like internal files such as downloaded dependencies or build output were placed under version control.\nThis can happen if a commit was made when the .gitignore file was not properly configured.\n\nTo fix this, make a commit where you delete the .internal and build directories, then reopen the project.
+
+# Quit Defold dialog
+
+dialog.quit-defold.title = Quit Defold?
+dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit?
+dialog.quit-defold.button.cancel = Cancel and Keep Working
+dialog.quit-defold.button.quit = Quit Without Saving
+
+# Save and upgrade file formats dialogs
+
+dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
+dialog.save-and-upgrade.version-control.header = Version Control Recommended
+dialog.save-and-upgrade.version-control.preamble = Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.
+dialog.save-and-upgrade.version-control.info.before-manual = A project under Version Control keeps a history of changes and enables you to collaborate with others by pushing changes to a server.\n\nYou can read about how to configure Version Control in the 
+dialog.save-and-upgrade.version-control.info.manual-link = Defold Manual
+dialog.save-and-upgrade.version-control.info.after-manual = .
+dialog.save-and-upgrade.uncommitted.header = Uncommitted changes detected
+dialog.save-and-upgrade.uncommitted.content = Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation.
+dialog.save-and-upgrade.confirm.title = Save and Upgrade File Formats?
+dialog.save-and-upgrade.confirm.header = Re-save all files in the latest file format?
+dialog.save-and-upgrade.confirm.content = Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this.
+dialog.save-and-upgrade.button.abort = Abort
+dialog.save-and-upgrade.button.proceed-anyway = Proceed Anyway
+dialog.save-and-upgrade.button.upgrade-editable-files = Upgrade Editable Files
+dialog.save-and-upgrade.button.upgrade-project-files = Upgrade Project Files
+dialog.save-and-upgrade.button.upgrade-all-files = Upgrade All Files
+
+# Plugin load error dialog
+
+dialog.plugin-load-error.title = Unable to Load Plugin
+dialog.plugin-load-error.header = The editor plugin "{plugin}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
+
+# Desktop entry dialogs
+
+dialog.desktop-entry.created.title = Desktop Entry Created
+dialog.desktop-entry.created.header = Desktop entry has been created!
+dialog.desktop-entry.created.content = You may now launch the Defold editor from the system menu.
+dialog.desktop-entry.creation-failed.title = Desktop Entry Creation Failed
+dialog.desktop-entry.creation-failed.header = Desktop entry couldn't be created!
+dialog.desktop-entry.creation-failed.content = An error occurred while creating the desktop entry:\n{error}
+
+# Texture compressor error dialog
+
+dialog.texture-compressor-error.title = Unable to Load Plugin
+dialog.texture-compressor-error.header = Failed to initialize texture compressors
+dialog.texture-compressor-error.content = The following classes from editor plugins are not compatible with this version of the editor:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+
+# Lua preprocessors error dialog
+
+dialog.lua-preprocessors-error.title = Unable to Load Plugin
+dialog.lua-preprocessors-error.content = The following classes from editor plugins are not compatible with this version of the editor:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+dialog.lua-preprocessors-error.construct.header = Failed to construct Lua preprocessors
+dialog.lua-preprocessors-error.initialize.header = Failed to initialize Lua preprocessors
+
+# Lua transpilers error dialog
+
+dialog.lua-transpilers-error.title = Unable to Load Plugin
+dialog.lua-transpilers-error.content = The following classes from editor plugins are not compatible with this version of the editor:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+dialog.lua-transpilers-error.construct.header = Failed to construct Lua transpilers
+dialog.lua-transpilers-error.initialize.header = Failed to initialize Lua transpilers
+dialog.lua-transpilers-error.generic.header = Failed to load Lua transpilers
+
+# Diff view dialogs
+
+dialog.diff-view.unchanged.title = The File Is Unchanged
+dialog.diff-view.unchanged.header = The file is unchanged
+dialog.diff-view.binary.title = Unable to Diff Binary Files
+dialog.diff-view.binary.header = Unable to diff binary files
+
+# Fetch libraries dialog
+
+dialog.fetch-libraries.host-unreachable.title = Fetch Failed
+dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
+dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPlease verify your internet connection and try again.
+
+# Fetch libraries notification
+
+notification.fetch-libraries.dependencies-changed.prompt = Project dependencies have changed. Do you want to fetch the libraries now?
+notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
+notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
+notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
+notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
+
+# Language server notification
+
+notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
+notification.lsp.language-server-missing.action.about = About LSP in Defold
+
+# Asset browser notifications
+
+notification.asset-browser.circular-paste.error = Cannot paste folder {source} into its subfolder {target}.
+
+# Workspace notifications
+
+notification.resource-collision.directory.warning = Folder "{resource}" is shadowing a folder with the same name.
+notification.resource-collision.builtins.warning = Folder "{resource}" is shadowing a folder with the same name in builtins.
+notification.resource-collision.library.warning = Folder "{resource}" is shadowing a folder with the same name in a project dependency: {library}
+
+# Web server notifications
+
+notification.web-server.port-fallback.warning = Failed to start a server on the requested port {requested} ({reason}). Using fallback port {fallback} instead.
+
+# Changes view notifications
+
+notification.changes-view.git-error = Due to a Git error, Git features are not available for this project.
+
+# Debug view notifications
+
+notification.debug-view.connect-failed.error = {error}\n\nCheck that the game is running and is reachable over the network.
+
+# Target notifications
+
+notification.targets.selected-target-unavailable.error = {error}\n\nThe target you have chosen isn't available.
+
+# Form view dialogs
+
+dialog.form-view.directory-not-in-project.title = Invalid Directory
+dialog.form-view.directory-not-in-project.header = The directory must reside within the project.
+dialog.form-view.file-not-in-project.title = Invalid File
+dialog.form-view.file-not-in-project.header = The file must reside within the project.
+
+# Shared editor settings load error dialog
+
+dialog.shared-editor-settings.load-error.title = Error Loading Shared Editor Settings
+dialog.shared-editor-settings.load-error.header = Failed to load Shared Editor Settings file.
+dialog.shared-editor-settings.load-error.detail = Falling back to defaults. Your user experience might suffer.
+dialog.shared-editor-settings.load-error.content = File: {file}\n\n{error}
+
+# Updated gitignore dialog
+
+dialog.gitignore-updated.title = Updated .gitignore File
+dialog.gitignore-updated.header = Updated .gitignore file
+dialog.gitignore-updated.content = The .gitignore file was automatically updated to ignore build output and metadata files.\nYou should include it along with your changes the next time you synchronize.
+
+# Asset browser reserved targets dialog
+
+dialog.asset-paste-reserved.title = Cannot Paste
+dialog.asset-paste-reserved.header = Some target directories are reserved
+dialog.asset-paste-reserved.content = The following target directories are reserved:\n{directories}
+
+# Asset deletion dialogs
+
+dialog.asset-delete-single.title = Delete File?
+dialog.asset-delete-single.header = Are you sure you want to delete {name}?
+dialog.asset-delete-multiple.title = Delete Files?
+dialog.asset-delete-multiple.header = Are you sure you want to delete these files?
+dialog.asset-delete-multiple.content = You are about to delete:{items}
+dialog.asset-delete-multiple.content.item = \n\u00A0\u00A0\u2022\u00A0{name}
+
+# Rename dialog
+
+dialog.rename.title = Rename {name}
+dialog.rename.preview = Preview
+dialog.rename.button.rename = Rename
+dialog.rename.label.folder = New Folder Name
+dialog.rename.label.file = New File Name
+dialog.rename.header.folder = Rename Folder
+dialog.rename.header.files = Rename {n, plural, one {File} other {# Files}}
+dialog.rename.error.reserved-name = The name {name} is reserved
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = Name Conflict
+dialog.name-conflict.header = The destination has {count, plural, one {an entry with the same name} other {# entries with conflicting names}}.
+dialog.name-conflict.button.name-differently = Name Differently
+dialog.name-conflict.button.overwrite-files = Overwrite Files
+
+# New file dialog
+
+dialog.new-file.title.file = New File
+dialog.new-file.title.resource = New {type}
+dialog.new-file.header.file = Enter the File Name
+dialog.new-file.header.resource = Enter {type} File Name
+dialog.new-file.label.name = Name
+dialog.new-file.label.location = Location
+dialog.new-file.label.preview = Preview
+dialog.new-file.button.create.file = Create
+dialog.new-file.button.create.resource = Create {type}
+
+# List dialogs
+
+dialog.select-item.title = Select Item
+dialog.select-item.prompt = Type to filter
+dialog.select-item.button.ok = OK
+dialog.open-assets.title = Open Asset
+dialog.open-assets.button.ok = Open
+dialog.referencing-files.title = Referencing Files
+dialog.referencing-files.button.ok = Open
+dialog.dependencies.title = Dependencies
+dialog.dependencies.button.ok = Open
+dialog.add-atlas-images.title = Select Images
+dialog.select-game-object-file.title = Select Game Object File
+dialog.select-collection-file.title = Select Collection File
+dialog.select-component-file.title = Select Component File
+dialog.select-gui-component.title = Select {component}
+dialog.select-resource.title = Select Resource
+dialog.recent-files.title = Recent Files
+dialog.recent-files.button.ok = Open
+
+# Open resource dialogs
+
+dialog.open-resource.excluded.title = Resource Excluded from Loading
+dialog.open-resource.excluded.header = Unable to open "{resource}", since it was excluded from loading by the ".defunload" file.
+dialog.open-resource.unrecognized.title = Unable to Open Resource
+dialog.open-resource.unrecognized.header = Unable to open "{resource}", since it contains unrecognizable data. Could the project be missing a required extension?
+dialog.open-resource.open-file-failed.title = Could Not Open File
+dialog.open-resource.open-file-failed.header = Could not open "{resource}"
+dialog.open-resource.open-file-failed.detail = This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n{error}
+
+# Loading project dialog
+
+dialog.loading-project.header = Loading project
+
+# Editor panes
+
+pane.assets = Assets
+pane.changed-files = Changed Files
+pane.outline = Outline
+pane.properties = Properties
+pane.console = Console
+pane.curve-editor = Curve Editor
+pane.build-errors = Build Errors
+pane.search-results = Search Results
+
+# Console
+
+console.button.clear = Clear
+console.button.filter = Filter
+console.filter.enable-filtering = Enable filtering
+console.filter.add-filter = Add filter (e.g. text, !exclude)
+console.search = Search
+
+# Changes view
+
+changes-view.button.diff = Diff
+changes-view.button.revert = Revert
+dialog.changes-revert.title = Revert Changes?
+dialog.changes-revert.header = Are you sure you want to revert changes on selected files?
+dialog.changes-revert.button.revert-changes = Revert Changes
+
+# Prefs
+
+prefs.dialog.title = Preferences
+
+prefs.tab.general = General
+prefs.tab.code = Code
+prefs.tab.extensions = Extensions
+prefs.tab.tools = Tools
+prefs.tab.dev = Dev
+prefs.tab.keymap = Keymap
+
+# General tab
+prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
+prefs.label.workflow.save-on-app-focus-lost = Save All on App Focus Lost
+prefs.label.bundle.open-output-directory = Open Bundle Target Folder
+prefs.label.build.open-html5-build = Open Browser After "Build HTML5"
+prefs.label.build.texture-compression = Enable Texture Compression
+prefs.label.run.quit-on-escape = Escape Quits Game
+prefs.label.asset-browser.track-active-tab = Track Active Tab in Asset Browser
+prefs.label.build.lint-code = Lint Code on Build
+prefs.label.window.locale = Editor Language
+prefs.label.run.engine-arguments = Engine Arguments
+prefs.prompt.run.engine-arguments = One argument per line
+prefs.help.run.engine-arguments = Arguments that will be passed to the dmengine executables when the editor builds and runs.\nUse one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+
+# Code tab
+prefs.label.code.custom-editor = Custom Editor
+prefs.label.code.open-file = Open File
+prefs.label.code.open-file-at-line = Open File at Line
+prefs.label.code.font.name = Code Editor Font (Requires Restart)
+prefs.label.code.zoom-on-scroll = Zoom on Scroll
+prefs.label.code.hover = Hover popup
+prefs.help.code.hover = Show code documentation popup on hover
+prefs.label.code.auto-closing-parens = Auto-insert closing parens
+
+# Extensions tab
+prefs.label.extensions.build-server = Build Server
+prefs.label.extensions.build-server-username = Build Server Username
+prefs.label.extensions.build-server-password = Build Server Password
+prefs.label.extensions.build-server-headers = Build Server Headers
+
+# Tools
+prefs.label.tools.adb-path = ADB path
+prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
+prefs.label.tools.ios-deploy-path = ios-deploy path
+prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
+
+# Dev tab
+prefs.label.dev.custom-engine = Custom Engine
+
+# Keymap tab
+prefs.keymap.filter.prompt = Filter keymap…
+prefs.keymap.command = Command
+prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.context-menu.new-shortcut = New Shortcut…
+prefs.keymap.context-menu.reset-to-default = Reset to Default
+prefs.keymap.context-menu.remove = Remove {shortcut}
+prefs.keymap.context-menu.add = Add {shortcut}
+prefs.keymap.new-shortcut = New "{shortcut}" Shortcut
+prefs.keymap.new-shortcut.press-desired-combination = Press the desired key combination
+prefs.keymap.new-shortcut.commit = Press {enter} to commit
+prefs.keymap.new-shortcut.commit-or-cancel = Press {enter} to commit, {escape} again to cancel
+prefs.keymap.warnings = Warnings:{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = Typable (may interfere with text inputs)
+prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+
+# Progress
+
+progress.ready = Ready
+progress.writing = Writing {resource}
+progress.linting = Linting code…
+progress.fetching-engine = Fetching engine…
+progress.executing-pre-build-hooks = Executing pre-build hooks…
+progress.executing-post-build-hooks = Executing post-build hooks…
+progress.executing-bundle-hook = Executing bundle hook…
+progress.building-project = Building project…
+progress.installing-updated-libraries = Installing updated libraries…
+progress.initializing-editor = Initializing editor {lib}
+progress.loading-editor = Loading editor
+progress.loading = Loading
+progress.loading-resource = Loading {resource}
+progress.resolving-resource = Resolving {resource}
+progress.reading-resource = Reading {resource}
+progress.finalizing = Finalizing…
+progress.saving = Saving…
+progress.compiling = Compiling…
+progress.compiling-resource = Compiling {resource}…
+progress.updating-dependencies = Updating dependencies…
+progress.syncing-resources = Syncing resources…
+progress.loading-project = Loading project…
+progress.loading-external-changes = Loading external changes…
+progress.writing-files = Writing files…
+progress.caching-save-results = Caching save results…
+progress.reading-timestamps = Reading timestamps…
+progress.building = Building…
+progress.building-resource = Building {resource}
+progress.fetching = Fetching {uri}
+progress.downloading-update = Downloading update
+progress.extracting-update = Extracting update
+progress.waiting = Waiting
+progress.bundling = Bundling…
+progress.building-engine = Building engine…
+progress.cleaning-engine = Cleaning engine…
+progress.downloading-symbols = Downloading symbols…
+progress.transpiling-to-lua = Transpiling to Lua…
+progress.reading-tasks = Reading tasks…
+progress.cleaning = Cleaning…
+progress.generating-report = Generating report…
+progress.working = Working…
+progress.reading-classes = Reading classes…
+progress.downloading-archives = Downloading archives…
+progress.launching-engine = Launching engine…
+progress.launched-engine = Launched {engine}
+progress.engine-launch-failed = Launch failed
+progress.rebooting-engine = Rebooting {engine}…
+progress.rebooted-engine = Rebooted {engine}
+progress.engine-reboot-failed = Reboot failed
+progress.aborting = Aborting…
+progress.percentage = {percentage}%
+
+# Engine targets
+
+engine.url.unavailable = engine service not available
+engine.url.invalid-host = invalid host
+engine.name.local = Local {name}
+engine.name.with-url = {name} — {url}
+engine.name.with-instance = {name} — instance {instance}
+
+# Search results: overrides
+
+search.overrides.title.all = All Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = Specific Property Overrides of{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = Resource
+
+# Menus
+
+menu.file = File
+menu.project = Project
+menu.edit = Edit
+menu.debug = Debug
+menu.view = View
+menu.help = Help
+
+# Commands
+
+command.file.new = New…
+command.file.new.option.any-file = File
+command.file.new.any-file = New File
+command.file.new-folder = New Folder
+command.file.open = Open…
+command.file.open-as = Open As
+command.file.open-as.option.associated-application = Associated Application
+command.file.open-as.option.in-custom-editor = {view} in Custom Editor
+command.file.open-as.option.in-defold-editor = {view} in Defold Editor
+command.file.open-selected = Open
+command.file.load-external-changes = Load External Changes
+command.file.save-all = Save All
+command.file.save-and-upgrade-all = Upgrade File Formats…
+command.file.search = Search in Files…
+command.file.reopen-recent = Re-Open Closed File
+command.private.recent-files.option.entry = {path} • {view}
+command.private.recent-files = Recent Files
+command.private.recent-files.option.more = More…
+command.window.tab.close = Close
+command.window.tab.close-all = Close All
+command.window.tab.close-others = Close Others
+command.window.tab.join-groups = Join Tab Panes
+command.window.tab.move-to-other-group = Move to Other Tab Pane
+command.window.tab.swap-with-other-group = Swap With Other Tab Pane
+command.file.show-in-assets = Show in Asset Browser
+command.file.show-in-desktop = Show in Desktop
+command.file.show-references = Referencing Files…
+command.file.show-dependencies = Dependencies…
+command.run.hot-reload = Hot Reload
+command.run.select-target = Target
+command.run.select-target.option.all-launched-instances = All Launched Instances
+command.run.select-target.option.new-local-engine = New Local Engine
+command.run.stop = Close Engine
+command.run.set-instance-count = Launched Instance Count
+command.run.set-instance-count.option.count = {count, plural, one {# Instance} other {# Instances}}
+command.run.set-target-ip = Enter Target IP
+command.run.show-target-log = Target Discovery Log
+command.run.open-profiler = Open Web Profiler
+command.run.open-resource-profiler = Open Resource Profiler
+command.run.reset-resolution = Reset Simulated Resolution
+command.run.set-resolution = Set Resolution
+command.run.set-resolution.option.android-devices = Android Devices
+command.run.set-resolution.option.apple = Apple
+command.run.set-resolution.option.custom-resolution = Custom Resolution…
+command.run.set-resolution.option.handheld = Handheld
+command.run.set-resolution.option.ipad = iPad
+command.run.set-resolution.option.iphone = iPhone
+command.run.set-resolution.option.native-resolutions = Native Resolutions
+command.run.set-resolution.option.viewport-resolutions = Viewport Resolutions
+command.run.toggle-device-rotated = Rotated Device
+command.file.open-liveupdate-settings = Live Update Settings
+command.file.open-project = Open Project…
+command.file.open-shared-editor-settings = Shared Editor Settings
+command.app.preferences = Preferences…
+command.app.quit = Quit
+command.project.build = Build
+command.project.clean-build = Clean Build
+command.project.build-html5 = Build HTML5
+command.project.clean-build-html5 = Clean Build HTML5
+command.project.bundle = Bundle
+command.project.rebundle = Rebundle
+command.project.fetch-libraries = Fetch Libraries
+command.project.reload-editor-scripts = Reload Editor Scripts
+command.private.clear-override = Clear {property} Override
+command.edit.undo = Undo
+command.edit.redo = Redo
+command.edit.add-embedded-component = Add
+command.edit.add-embedded-component.variant.atlas = Add Animation
+command.edit.add-embedded-component.variant.collection = Add Game Object
+command.edit.add-embedded-component.variant.collision-object = Add Shape
+command.edit.add-embedded-component.variant.collision-object.option.box = Box
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
+command.edit.add-embedded-component.variant.game-object = Add Component
+command.edit.add-embedded-component.variant.particlefx = Add Emitter
+command.edit.add-embedded-component.variant.particlefx.option.circle = Circle
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Sphere
+command.edit.add-embedded-component.variant.particlefx.option.cone = Cone
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D Cone
+command.edit.add-embedded-component.variant.particlefx.option.box = Box
+command.edit.add-embedded-component.variant.tile-map = Add Layer
+command.edit.add-embedded-component.variant.tile-source = Add
+command.edit.add-embedded-component.variant.tile-source.option.animation = Animation
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = Collision Group
+command.edit.add-referenced-component = Add From File
+command.edit.add-referenced-component.variant.atlas = Add Images…
+command.edit.add-referenced-component.variant.collection = Add Game Object File
+command.edit.add-referenced-component.variant.game-object = Add Component File
+command.edit.add-secondary-embedded-component = Add Secondary
+command.edit.add-secondary-embedded-component.variant.collection-game-object = Add Game Object
+command.edit.add-secondary-embedded-component.variant.particlefx = Add Modifier
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Acceleration
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Drag
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Radial
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Vortex
+command.edit.add-secondary-referenced-component = Add Secondary From File
+command.edit.add-secondary-referenced-component.variant.collection = Add Collection File
+command.edit.add-secondary-referenced-component.variant.collection-game-object = Add Game Object File
+command.edit.cut = Cut
+command.edit.copy = Copy
+command.edit.copy-absolute-path = Copy Full Path
+command.edit.copy-require-path = Copy Require Path
+command.edit.copy-resource-path = Copy Resource Path
+command.edit.find = Find…
+command.edit.paste = Paste
+command.code.select-all = Select All
+command.edit.delete = Delete
+command.edit.reorder-up = Move Up
+command.edit.reorder-down = Move Down
+command.edit.rename = Rename
+command.edit.pull-up-overrides = Pull Up Overrides
+command.edit.pull-up-overrides.variant.property = Pull Up {property} Override
+command.edit.pull-up-overrides.option = Pull Up {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Ancestor} other {"{target}"}}} other {{target_count} Ancestors}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.push-down-overrides = Push Down Overrides
+command.edit.push-down-overrides.variant.property = Push Down {property} Override
+command.edit.push-down-overrides.option = Push Down {property_count, select, 1 {"{property}" Override} other {{property_count} Overrides}} to {target_count, select, 1 {{target, select, undefined {Descendant} other {"{target}"}}} other {{target_count} Descendants}} {aspect_count, select, 0 {} 1 {in {aspect} } other {Among {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {in "{resource}"} other {of "{resource}"}}} other {Across {resource_count} Resources}}
+command.edit.show-overrides = Show Overrides…
+command.code.find-next = Find Next
+command.code.find-previous = Find Previous
+command.code.replace = Replace…
+command.code.replace-next = Replace Next
+command.code.toggle-comment = Toggle Comment
+command.code.reindent-lines = Reindent Lines
+command.code.convert-indentation = Convert Indentation
+command.code.convert-indentation.to-tabs = To Tabs
+command.code.convert-indentation.to-two-spaces = To Two Spaces
+command.code.convert-indentation.to-four-spaces = To Four Spaces
+command.code.sort-lines = Sort Lines
+command.code.sort-lines.case-sensitive = Sort Lines (Case Sensitive)
+command.code.sort-lines.option.case-insensitive = Case Insensitive
+command.code.sort-lines.option.case-sensitive = Case Sensitive
+command.code.select-next-occurrence = Select Next Occurrence
+command.code.split-selection-into-lines = Split Selection Into Lines
+command.code.goto-definition = Go to Definition
+command.code.goto-line = Go to Line…
+command.code.show-references = Find References
+command.code.toggle-minimap = Minimap
+command.code.toggle-indentation-guides = Indentation Guides
+command.code.toggle-visible-whitespace = Visible Whitespace
+command.code.zoom.increase = Increase Font Size
+command.code.zoom.decrease = Decrease Font Size
+command.code.zoom.reset = Reset Font Size
+command.debugger.start = Start/Attach
+command.debugger.continue = Continue
+command.debugger.break = Break
+command.debugger.step-over = Step Over
+command.debugger.step-into = Step Into
+command.debugger.step-out = Step Out
+command.debugger.detach = Detach Debugger
+command.debugger.stop = Stop Debugger
+command.debugger.toggle-breakpoint = Toggle Breakpoint
+command.debugger.edit-breakpoint = Edit Breakpoint
+command.scene.set-manipulator-space = Set Manipulator Space
+command.scene.set-manipulator-space.option.world = World Space
+command.scene.set-manipulator-space.option.local = Local Space
+command.scene.set-camera-type = Set Camera Type
+command.scene.set-camera-type.option.orthographic = Orthographic Camera
+command.scene.set-camera-type.option.perspective = Perspective Camera
+command.scene.set-gui-layout = Set GUI Layout
+command.scene.toggle-move-whole-pixels = Move Whole Pixels
+command.scene.visibility.toggle-filters = Toggle Visibility Filters
+command.scene.visibility.toggle-component-guides = Toggle Component Guides
+command.scene.visibility.toggle-grid = Toggle Grid
+command.scene.visibility.toggle-selection = Show/Hide Selected Objects
+command.scene.visibility.hide-unselected = Hide Unselected Objects
+command.scene.visibility.show-last-hidden = Show Last Hidden Objects
+command.scene.visibility.show-all = Show All Hidden Objects
+command.scene.play = Play
+command.scene.stop = Stop
+command.scene.frame-selection = Frame Selection
+command.scene.realign-camera = Realign Camera
+command.scene.toggle-tile-palette = Select Tile…
+command.scene.select-erase-tool = Select Eraser
+command.scene.flip-brush-horizontally = Flip Brush Horizontally
+command.scene.flip-brush-vertically = Flip Brush Vertically
+command.scene.rotate-brush-90-degrees = Rotate Brush 90 Degrees
+command.window.toggle-left-pane = Toggle Assets Pane
+command.window.toggle-changed-files-pane = Toggle Changed Files
+command.window.toggle-bottom-pane = Toggle Tools Pane
+command.window.toggle-right-pane = Toggle Properties Pane
+command.window.show-console = Show Console
+command.window.show-curve-editor = Show Curve Editor
+command.window.show-build-errors = Show Build Errors
+command.window.show-search-results = Show Search Results
+command.dev.reload-css = Reload Stylesheet
+command.help.open-logs = Show Logs
+command.file.create-desktop-entry = Create Desktop Entry
+command.help.open-documentation = Documentation
+command.help.open-forum = Support Forum
+command.help.open-asset-portal = Find Assets
+command.help.report-issue = Report Issue
+command.help.report-suggestion = Report Suggestion
+command.help.open-issues = Search Issues
+command.help.open-donations = Development Fund
+command.app.about = About
+command.vcs.diff = View Diff
+command.vcs.revert = Revert
+
+# Overrides
+
+override.aspect.layout = {layout} Layout
+override.aspect.layout.kind = {count, plural, one {# Layout} other {# Layouts}}
+override.aspect.generic.kind = {count, plural, one {# Aspect} other {# Aspects}}
+
+# GUI
+
+gui.layout.default = Default
+
+# Editing operations
+
+operation.atlas.add-animation = Add Animation
+operation.atlas.add-images = Add Images
+operation.atlas.move-pivot-point = Move Pivot Point
+operation.collision-object.add-shape = Add Shape
+operation.collection.add-collection = Add Collection
+operation.collection.add-game-object = Add Game Object
+operation.game-object.add-component = Add Component
+operation.gui.add-gui-node = Add GUI Node
+operation.gui.add-layer = Add Layer
+operation.gui.add-layout = Add Layout
+operation.gui.add-resources = Add {type}
+operation.particlefx.add-emitter = Add Emitter
+operation.particlefx.add-modifier = Add Modifier
+operation.property.clear = Clear {property}
+operation.property.set = Set {property}
+operation.scene.move = Move
+operation.scene.rotate = Rotate
+operation.scene.scale = Scale
+operation.cut = Cut
+operation.delete = Delete
+operation.drop = Drop
+operation.paste = Paste
+operation.select = Select
+operation.tile-map.add-layer = Add Layer
+
+# Properties
+
+property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}" in editor scripts
+
+# Properties: universal
+
+property.blend-mode = Blend Mode
+property.id = Id
+property.image = Image
+property.material = Material
+property.name = Name
+property.path = Path
+property.position = Position
+property.rotation = Rotation
+property.scale = Scale
+property.size = Size
+property.url = URL
+
+# Properties: appmanifest
+
+property.appmanifest.physics-2d = Physics 2D
+property.appmanifest.physics-2d.tooltip = Box2D version 3 or legacy Defold version
+property.appmanifest.physics-3d = Physics 3D
+property.appmanifest.physics-3d.tooltip = Bullet or none
+property.appmanifest.rig+model = Rig + Model
+property.appmanifest.rig+model.tooltip = Rig, Model or none
+property.appmanifest.exclude-record = Exclude Record
+property.appmanifest.exclude-record.tooltip = Remove the video recording capabilities (desktop platforms)
+property.appmanifest.exclude-profiler = Exclude Profiler
+property.appmanifest.exclude-profiler.tooltip = Remove the on-screen and web profiler
+property.appmanifest.exclude-sound = Exclude Sound
+property.appmanifest.exclude-sound-decoder-wav = Exclude Sound Decoder: WAV
+property.appmanifest.exclude-sound-decoder-ogg = Exclude Sound Decoder: OGG
+property.appmanifest.include-sound-decoder-opus = Include Sound Decoder: Opus
+property.appmanifest.exclude-input = Exclude Input
+property.appmanifest.exclude-liveupdate = Exclude Live Update
+property.appmanifest.exclude-image = Exclude Image
+property.appmanifest.exclude-types = Exclude Types
+property.appmanifest.exclude-basis-transcoder = Exclude Basis Transcoder
+property.appmanifest.use-android-support-lib = Use Android Support Library
+property.appmanifest.use-android-support-lib.tooltip = Use the old Android support libraries instead of AndroidX. Available from Defold 1.2.177.
+property.appmanifest.graphics = Graphics
+property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
+property.appmanifest.graphics-osx = Graphics (macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-web = Graphics (HTML5)
+property.appmanifest.graphics-web.tooltip = WebGPU support is in BETA (web platforms)
+
+# Properties: atlas
+
+property.atlas.animation.fps = FPS
+property.atlas.animation.flip-horizontal = Flip Horizontal
+property.atlas.animation.flip-vertical = Flip Vertical
+property.atlas.animation.playback = Playback
+property.atlas.image.pivot = Pivot
+property.atlas.image.sprite-trim-mode = Sprite Trim Mode
+property.atlas.margin = Margin
+property.atlas.margin.tooltip = Pixels inserted between each image on the atlas
+property.atlas.inner-padding = Inner Padding
+property.atlas.inner-padding.tooltip = Empty pixels padded around each image
+property.atlas.extrude-borders = Extrude Borders
+property.atlas.extrude-borders.tooltip = Copies edge pixels outward to avoid bleeding between images
+property.atlas.max-page-size = Max Page Size
+property.atlas.max-page-size.tooltip = Largest width and height for each page in a multi-page atlas
+property.atlas.rename-patterns = Rename Patterns
+property.atlas.rename-patterns.tooltip = Comma-separated search=replace patterns applied to each image base name; for example "hat=cat,_normal=" renames "hat_normal" to "cat", which helps match animations across atlases
+
+# Properties: camera
+
+property.camera.aspect-ratio = Aspect Ratio
+property.camera.aspect-ratio.tooltip = Perspective cameras only. Ratio between the frustum width and height. 1.0 assumes a square view; 1.33 fits 4:3 (1024x768); 1.78 fits 16:9. Ignored when Auto Aspect Ratio is enabled.
+property.camera.fov = FOV
+property.camera.fov.tooltip = Perspective cameras only. Vertical field of view in radians. Higher values show more of the scene.
+property.camera.near-z = Near Z
+property.camera.near-z.tooltip = Z value of the near clipping plane.
+property.camera.far-z = Far Z
+property.camera.far-z.tooltip = Z value of the far clipping plane.
+property.camera.auto-aspect-ratio = Auto Aspect Ratio
+property.camera.auto-aspect-ratio.tooltip = Perspective cameras only. Automatically computes the aspect ratio.
+property.camera.orthographic-projection = Orthographic Projection
+property.camera.orthographic-projection.tooltip = Switches the camera to orthographic projection.
+property.camera.orthographic-zoom = Orthographic Zoom
+property.camera.orthographic-zoom.tooltip = Orthographic cameras only. Zoom factor (> 1 zooms in; < 1 zooms out).
+property.camera.orthographic-mode = Orthographic Zoom Mode
+
+# Properties: collection proxy
+
+property.collection-proxy.collection = Collection
+property.collection-proxy.exclude = Exclude
+
+# Properties: collision object
+
+property.collision-object.collision-shape = Collision Shape
+property.collision-object.type = Type
+property.collision-object.type.tooltip = Available as "collision_type" in editor scripts. Prefer this identifier over "type", since "type" is used for component types when a component is embedded in game objects, which will shadow this property.
+property.collision-object.mass = Mass
+property.collision-object.friction = Friction
+property.collision-object.restitution = Restitution
+property.collision-object.linear-damping = Linear Damping
+property.collision-object.angular-damping = Angular Damping
+property.collision-object.locked-rotation = Locked Rotation
+property.collision-object.bullet = Bullet
+property.collision-object.event-collision = Generate Collision Events
+property.collision-object.event-collision.tooltip = If disabled, filters out any collision events involving this collision object
+property.collision-object.event-contact = Generate Contact Events
+property.collision-object.event-contact.tooltip = If disabled, filters out any contact events involving this collision object
+property.collision-object.event-trigger = Generate Trigger Events
+property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
+property.collision-object.group = Group
+property.collision-object.mask = Mask
+property.collision-object.shape.diameter = Diameter
+property.collision-object.shape.dimensions = Dimensions
+property.collision-object.shape.height = Height
+
+# Properties: cubemap
+
+property.cubemap.back = Back
+property.cubemap.bottom = Bottom
+property.cubemap.front = Front
+property.cubemap.left = Left
+property.cubemap.right = Right
+property.cubemap.top = Top
+
+# Properties: factory
+
+property.factory.prototype = Prototype
+property.factory.load-dynamically = Load Dynamically
+property.factory.dynamic-prototype = Dynamic Prototype
+
+# Properties: font
+
+property.font.font = Font
+property.font.output-format = Output Format
+property.font.render-mode = Render Mode
+property.font.size = Size
+property.font.antialias = Antialias
+property.font.alpha = Alpha
+property.font.outline-alpha = Outline Alpha
+property.font.outline-width = Outline Width
+property.font.shadow-alpha = Shadow Alpha
+property.font.shadow-blur = Shadow Blur
+property.font.shadow-x = Shadow X
+property.font.shadow-y = Shadow Y
+property.font.cache-width = Cache Width
+property.font.cache-height = Cache Height
+property.font.characters = Characters
+property.font.all-chars = All Chars
+
+# Properties: gui
+
+property.gui.adjust-mode = Adjust Mode
+property.gui.adjust-reference = Adjust Reference
+property.gui.alpha = Alpha
+property.gui.clipping-inverted = Clipping Inverted
+property.gui.clipping-mode = Clipping Mode
+property.gui.clipping-visible = Clipping Visible
+property.gui.color = Color
+property.gui.current-nodes = Current Nodes
+property.gui.enabled = Enabled
+property.gui.font = Font
+property.gui.inherit-alpha = Inherit Alpha
+property.gui.inner-radius = Inner Radius
+property.gui.layer = Layer
+property.gui.line-break = Line Break
+property.gui.max-dynamic-textures = Max Dynamic Textures
+property.gui.max-nodes = Max Nodes
+property.gui.outline = Outline
+property.gui.outline-alpha = Outline Alpha
+property.gui.outer-bounds = Outer Bounds
+property.gui.perimeter-vertices = Perimeter Vertices
+property.gui.particlefx = ParticleFX
+property.gui.pie-fill-angle = Pie Fill Angle
+property.gui.pivot = Pivot
+property.gui.script = Script
+property.gui.shadow = Shadow
+property.gui.shadow-alpha = Shadow Alpha
+property.gui.size-mode = Size Mode
+property.gui.slice9 = Slice 9
+property.gui.texture = Texture
+property.gui.template = Template
+property.gui.text = Text
+property.gui.text-leading = Text Leading
+property.gui.text-tracking = Text Tracking
+property.gui.visible = Visible
+property.gui.x-anchor = X Anchor
+property.gui.y-anchor = Y Anchor
+
+# Properties: label
+
+property.label.color = Color
+property.label.font = Font
+property.label.leading = Leading
+property.label.line-break = Line Break
+property.label.outline = Outline
+property.label.pivot = Pivot
+property.label.shadow = Shadow
+property.label.size = Size
+property.label.text = Text
+property.label.tracking = Tracking
+
+# Properties: mesh
+
+property.mesh.normal-stream = Normal Stream
+property.mesh.position-stream = Position Stream
+property.mesh.primitive-type = Primitive Type
+property.mesh.vertices = Vertices
+
+# Properties: model
+
+property.model.animations = Animations
+property.model.create-go-bones = Create GO Bones
+property.model.default-animation = Default Animation
+property.model.mesh = Mesh
+property.model.skeleton = Skeleton
+
+# Properties: particlefx
+
+property.particlefx.category.particle-life = Particle Life
+
+property.particlefx.animation = Animation
+property.particlefx.duration = Duration
+property.particlefx.inherit-velocity = Inherit Velocity
+property.particlefx.material = Material
+property.particlefx.max-particle-count = Max Particle Count
+property.particlefx.mode = Play Mode
+property.particlefx.particle-orientation = Particle Orientation
+property.particlefx.pivot = Pivot
+property.particlefx.size-mode = Size Mode
+property.particlefx.space = Emission Space
+property.particlefx.start-delay = Start Delay
+property.particlefx.start-offset = Start Offset
+property.particlefx.stretch-with-velocity = Stretch With Velocity
+property.particlefx.tile-source = Image
+property.particlefx.type = Emitter Type
+
+property.particlefx.emitter-key-particle-alpha = Initial Alpha
+property.particlefx.emitter-key-particle-angular-velocity = Initial Angular Velocity
+property.particlefx.emitter-key-particle-blue = Initial Blue
+property.particlefx.emitter-key-particle-green = Initial Green
+property.particlefx.emitter-key-particle-life-time = Particle Life Time
+property.particlefx.emitter-key-particle-red = Initial Red
+property.particlefx.emitter-key-particle-rotation = Initial Rotation
+property.particlefx.emitter-key-particle-size = Initial Size
+property.particlefx.emitter-key-particle-speed = Initial Speed
+property.particlefx.emitter-key-particle-stretch-factor-x = Initial Stretch X
+property.particlefx.emitter-key-particle-stretch-factor-y = Initial Stretch Y
+property.particlefx.emitter-key-size-x = Emitter Size X
+property.particlefx.emitter-key-size-y = Emitter Size Y
+property.particlefx.emitter-key-size-z = Emitter Size Z
+property.particlefx.emitter-key-spawn-rate = Spawn Rate
+property.particlefx.magnitude = Magnitude
+property.particlefx.max-distance = Max Distance
+property.particlefx.particle-key-alpha = Alpha
+property.particlefx.particle-key-angular-velocity = Angular Velocity
+property.particlefx.particle-key-blue = Blue
+property.particlefx.particle-key-green = Green
+property.particlefx.particle-key-red = Red
+property.particlefx.particle-key-rotation = Rotation
+property.particlefx.particle-key-scale = Scale
+property.particlefx.particle-key-stretch-factor-x = Stretch X
+property.particlefx.particle-key-stretch-factor-y = Stretch Y
+
+# Properties: sound
+
+property.sound.sound = Sound
+property.sound.looping = Loop
+property.sound.loopcount = Loop Count
+property.sound.group = Group
+property.sound.gain = Gain
+property.sound.pan = Pan
+property.sound.speed = Speed
+
+# Properties: sprite
+
+property.sprite.default-animation = Default Animation
+property.sprite.offset = Offset
+property.sprite.playback-rate = Playback Rate
+property.sprite.size-mode = Size Mode
+property.sprite.slice9 = Slice 9
+
+# Properties: tile map
+
+property.tile-map.layer.visible = Visible
+property.tile-map.layer.z = Z
+property.tile-map.tile-source = Tile Source
+
+# Properties: tile source
+
+property.tile-source.collision = Collision
+property.tile-source.end-tile = End Tile
+property.tile-source.extrude-borders = Extrude Borders
+property.tile-source.flip-horizontal = Flip Horizontal
+property.tile-source.flip-vertical = Flip Vertical
+property.tile-source.fps = FPS
+property.tile-source.inner-padding = Inner Padding
+property.tile-source.playback = Playback
+property.tile-source.sprite-trim-mode = Sprite Trim Mode
+property.tile-source.start-tile = Start Tile
+property.tile-source.tile-height = Tile Height
+property.tile-source.tile-margin = Tile Margin
+property.tile-source.tile-spacing = Tile Spacing
+property.tile-source.tile-width = Tile Width
+
+# Outline
+
+outline.atlas.no-image = <No Image>
+outline.atlas = Atlas
+outline.camera = Camera
+outline.collection = Collection
+outline.collection-proxy = Collection Proxy
+outline.collision-object = Collision Object
+outline.game-object = Game Object
+outline.gui.fonts = Fonts
+outline.gui.layouts = Layouts
+outline.gui.layers = Layers
+outline.gui.nodes = Nodes
+outline.gui.materials = Materials
+outline.gui.textures = Textures
+outline.non-editable-collection = Non-Editable Collection
+outline.non-editable-game-object = Non-Editable Game Object
+outline.particlefx = ParticleFX
+outline.sound = Sound
+outline.tile-map = Tile Map
+outline.tile-source = Tile Source
+outline.unknown = Unknown
+outline.unnamed-collision-shape = <Unnamed {shape}>
+
+# Resources
+
+resource.view.scene = Scene
+resource.view.html = HTML
+resource.view.form = Form
+resource.view.code = Code
+resource.view.text = Text
+
+resource.readonly.detail = This file is part of a library and cannot be saved.
+resource.readonly.button.read-more = Read more…

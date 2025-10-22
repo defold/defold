@@ -78,7 +78,7 @@ namespace dmGameObject
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-32766).
+     * @param capacity Default capacity of collections in this register (0-65534).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
@@ -351,13 +351,6 @@ namespace dmGameObject
      * Allows for updating transforms an extra time
      */
     void UpdateTransforms(HCollection hcollection);
-
-    /**
-     * Adds a reference to a dynamically created resource into the collection.
-     * If the resource is not released before the collection is being destroyed,
-     * the collection will automatically free the resource.
-     */
-    void AddDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 
     /**
      * Remove the reference to a dynamically created resource. This implies

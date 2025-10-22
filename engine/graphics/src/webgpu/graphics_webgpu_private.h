@@ -28,7 +28,6 @@
 #endif
 
 #ifdef DM_GRAPHICS_WEBGPU_WAGYU
-#include <webgpu/webgpu_compat.h>
 #define DM_GRAPHICS_WEBGPU2
 #endif
 

@@ -161,4 +161,5 @@ message DisplayProfile
 message DisplayProfiles
 {
     repeated DisplayProfile profiles = 1;
+    optional bool auto_layout_selection = 2 [default = true];
 }

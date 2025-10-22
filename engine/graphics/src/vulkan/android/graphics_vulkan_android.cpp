@@ -136,6 +136,7 @@ PFN_vkQueuePresentKHR vkQueuePresentKHR;
 PFN_vkResetCommandBuffer vkResetCommandBuffer;
 PFN_vkResetDescriptorPool vkResetDescriptorPool;
 PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer;
+PFN_vkGetFenceStatus vkGetFenceStatus;
 
 namespace dmGraphics
 {
@@ -286,6 +287,7 @@ namespace dmGraphics
         vkResetCommandBuffer = (PFN_vkResetCommandBuffer) vkGetInstanceProcAddr(vk_instance, "vkResetCommandBuffer");
         vkResetDescriptorPool = (PFN_vkResetDescriptorPool) vkGetInstanceProcAddr(vk_instance, "vkResetDescriptorPool");
         vkCmdCopyImageToBuffer = (PFN_vkCmdCopyImageToBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImageToBuffer");
+        vkGetFenceStatus = (PFN_vkGetFenceStatus) vkGetInstanceProcAddr(vk_instance, "vkGetFenceStatus");
         g_functions_loaded = 1;
     }
 }

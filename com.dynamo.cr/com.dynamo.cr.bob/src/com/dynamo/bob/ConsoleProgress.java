@@ -78,8 +78,21 @@ public class ConsoleProgress implements IProgress {
     }
 
     @Override
-    public void beginTask(String name, int work) {
-        System.out.print(name);
+    public void beginTask(Task name, int work) {
+        System.out.print(switch (name) {
+            case BUNDLING -> "Bundling...";
+            case BUILDING_ENGINE -> "Building engine...";
+            case CLEANING_ENGINE -> "Cleaning engine";
+            case DOWNLOADING_SYMBOLS -> String.format("Downloading %s symbols...", work);
+            case TRANSPILING_TO_LUA -> "Transpiling to Lua...";
+            case READING_TASKS -> "Reading tasks...";
+            case BUILDING -> "Building...";
+            case CLEANING -> "Cleaning...";
+            case GENERATING_REPORT -> "Generating report...";
+            case WORKING -> "Working...";
+            case READING_CLASSES -> "Reading classes...";
+            case DOWNLOADING_ARCHIVES -> "Downloading archives...";
+        });
         if (reportTo != this) {
             this.scale = work / ticks;
         }

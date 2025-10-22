@@ -26,6 +26,10 @@ var LibraryDmProfile = {
     },
     dmProfileJSReset: function(thread_id) {
         const thread = DefoldProfiler.getThread(thread_id);
+        if(DefoldProfiler.enablePerformanceTimeline && performance.endMeasure) {
+            for(let mark = thread.currentMark; mark && mark != thread.rootMark; mark = mark.parent)
+                performance.endMeasure(mark.nameStr);
+        }
         const resetProperties = (p) => {
             if(p.firstChild) {
                 for(let c = p.firstChild; c; c = c.nextSibling)

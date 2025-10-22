@@ -241,6 +241,13 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
+(defn tx-result? [x]
+  (and (map? x)
+       (contains? x :status)
+       (contains? x :basis)
+       (contains? x :graphs-modified)
+       (contains? x :nodes-added)))
+
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]
@@ -328,7 +335,7 @@
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :node-id) s/Int
-     (s/optional-key :display-order) [(s/conditional vector? [(s/one String "category") s/Keyword] keyword? s/Keyword)]})
+     (s/optional-key :display-order) [(s/conditional vector? [(s/one s/Any "category") s/Keyword] keyword? s/Keyword)]})
 (deftype Err ErrorValue)
 
 ;; ---------------------------------------------------------------------------
@@ -475,9 +482,9 @@
   Example:
 
   (make-nodes view [render     AtlasRender
-                   scene      scene/SceneRenderer
-                   background background/Gradient
-                   camera     [c/CameraController :camera (c/make-orthographic)]]
+                    scene      scene/SceneRenderer
+                    background background/Gradient
+                    camera     [c/CameraController :camera (c/make-orthographic)]]
      (g/connect background   :renderable scene :renderables)
      (g/connect atlas-render :renderable scene :renderables))"
   [graph-id binding-expr & body-exprs]
@@ -500,7 +507,7 @@
         ~@body-exprs))))
 
 (defn operation-label
-  "Set a human-readable label to describe the current transaction."
+  "Set a human-readable label (MessagePattern or string) to describe the current transaction."
   [label]
   (it/label label))
 
@@ -605,7 +612,12 @@
 (defn expand-ec
   "Call the specified function when reaching the transaction step with an
   in-transaction evaluation context as a first argument and apply the
-  returned transaction steps in the same transaction"
+  returned transaction steps in the same transaction
+
+  NOTE: When used by outline's :tx-attach-fn, avoid creating g/connect txs in
+  g/expand-ec to connect self to the child node. Outline inspects txs and
+  filters out duplicate connections, but it can't see connection txs if they are
+  created only when transaction is executed, as is the case with g/expand-ec"
   [f & args]
   (it/expand-ec f args))
 

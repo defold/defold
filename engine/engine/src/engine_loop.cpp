@@ -144,6 +144,7 @@ namespace dmEngine
             }
 
             dmLogInfo("Engine exited with code %d", exit_code);
+            exit(exit_code);
         }
 
         if (!dmCrash::IsEnabled()) {

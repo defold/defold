@@ -34,6 +34,12 @@ namespace dmGraphics
     typedef ID3D12PipelineState*          DX12Pipeline;
     typedef dmHashTable64<DX12Pipeline>   DX12PipelineCache;
 
+    enum DX12PipelineType
+    {
+        PIPELINE_TYPE_GRAPHICS,
+        PIPELINE_TYPE_COMPUTE,
+    };
+
     struct DX12Context;
 
     struct DX12Texture
@@ -88,6 +94,7 @@ namespace dmGraphics
     struct DX12ShaderModule
     {
         ID3DBlob* m_ShaderBlob;
+        ID3DBlob* m_RootSignatureBlob;
         uint64_t  m_Hash;
     };
 
@@ -99,21 +106,30 @@ namespace dmGraphics
         uint16_t m_H;
     };
 
+    struct DX12ResourceBinding
+    {
+        dmhash_t m_NameHash;
+        uint8_t  m_Binding;
+        uint8_t  m_Set;
+    };
+
     struct DX12ShaderProgram
     {
-        Program                m_BaseProgram;
-        uint8_t*               m_UniformData;
-        ID3D12RootSignature*   m_RootSignature;
-        DX12ShaderModule*      m_VertexModule;
-        DX12ShaderModule*      m_FragmentModule;
-        DX12ShaderModule*      m_ComputeModule;
-        uint64_t               m_Hash;
-        uint32_t               m_UniformDataSizeAligned;
-        uint16_t               m_UniformBufferCount;
-        uint16_t               m_StorageBufferCount;
-        uint16_t               m_TextureSamplerCount;
-        uint16_t               m_TotalResourcesCount;
-        uint16_t               m_TotalUniformCount;
+        Program                      m_BaseProgram;
+        dmArray<DX12ResourceBinding> m_RootSignatureResources;
+        uint8_t*                     m_UniformData;
+        ID3D12RootSignature*         m_RootSignature;
+        DX12ShaderModule*            m_VertexModule;
+        DX12ShaderModule*            m_FragmentModule;
+        DX12ShaderModule*            m_ComputeModule;
+        uint64_t                     m_Hash;
+        uint32_t                     m_UniformDataSizeAligned;
+        uint16_t                     m_UniformBufferCount;
+        uint16_t                     m_StorageBufferCount;
+        uint16_t                     m_TextureSamplerCount;
+        uint16_t                     m_TotalResourcesCount;
+        uint16_t                     m_TotalUniformCount;
+        uint8_t                      m_NumWorkGroupsResourceIndex;
     };
 
     struct DX12RenderTarget
@@ -165,9 +181,9 @@ namespace dmGraphics
         uint32_t m_FrameIndex;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
-        void* AllocateConstantBuffer(DX12Context* context, uint32_t buffer_index, uint32_t non_aligned_byte_size);
-        void  AllocateSampler(DX12Context* context, const DX12TextureSampler& sampler, uint32_t sampler_index);
-        void  AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index);
+        void* AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size);
+        void  AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index);
+        void  AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index);
         void  Reset(DX12Context* context);
         void  Bind(DX12Context* context);
     };

@@ -34,7 +34,7 @@
   `(g/fnk [~field] ~field))
 
 (defn array-subst-remove-errors [arr]
-  (vec (remove g/error? arr)))
+  (filterv (complement g/error?) arr))
 
 (defn explicit-outputs
   ([node-id]

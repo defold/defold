@@ -55,7 +55,7 @@
 (defn resolve
   "Resolve a wanted id to an id that does not intersect with taken ids
 
-  Returns an id
+  Only performs a rename if there is a conflict. Returns an id
 
   Args:
     wanted-id    wanted id, a string with an optional number suffix that will be
@@ -63,12 +63,16 @@
     taken-ids    a collection of taken ids, either a map with id keys, a set, or
                  another type of id collection that will be coerced to set"
   [wanted-id taken-ids]
-  (gen (trim-digits wanted-id) (ids->lookup taken-ids)))
+  (let [lookup (ids->lookup taken-ids)]
+    (if (contains? lookup wanted-id)
+      (gen (trim-digits wanted-id) lookup)
+      wanted-id)))
 
 (defn resolve-all
   "Resolve all wanted ids to ids that don't intersect with taken ids
 
-  Returns a vector of ids, one for each input wanted ids
+  Only performs renames if there are conflicts. Returns a vector of ids, one for
+  each input wanted ids
 
   Args:
     wanted-ids    a sequential collection of wanted ids, i.e., strings with
@@ -81,7 +85,9 @@
       (reduce
         (fn [e wanted-id]
           (let [lookup (val e)
-                id (gen-impl (trim-digits wanted-id) lookup)]
+                id (if (contains? lookup wanted-id)
+                     (gen-impl (trim-digits wanted-id) lookup)
+                     wanted-id)]
             (coll/pair (conj! (key e) id)
                        (cond
                          (set? lookup) (conj lookup id)

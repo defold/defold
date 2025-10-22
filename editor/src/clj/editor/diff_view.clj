@@ -15,6 +15,7 @@
 (ns editor.diff-view
   (:require [clojure.string :as str]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.ui :as ui]
             [util.diff :as diff]
             [util.text-util :as text-util])
@@ -83,7 +84,7 @@
     (.setMax scroll m)
     (.setVisibleAmount scroll (/ (* m w) total-width))))
 
-(defn make-diff-viewer [left-name raw-str-left right-name raw-str-right]
+(defn make-diff-viewer [left-name raw-str-left right-name raw-str-right localization]
   (let [root ^Parent (ui/load-fxml "diff.fxml")
         stage (doto (ui/make-stage)
                 (.initOwner (ui/main-stage)))
@@ -96,7 +97,7 @@
     (.setOnKeyPressed scene (ui/event-handler event (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE) (.close stage))))
 
     (.setScene stage scene)
-    (ui/show! stage)
+    (ui/show! stage localization)
 
     (let [^Pane left (.lookup root "#left")
           ^Pane right (.lookup root "#right")
@@ -131,20 +132,22 @@
       (.toFront left-group)
       (.toFront right-group))))
 
-(defn present-diff-data [diff-data]
+(defn present-diff-data [diff-data localization]
   (let [{:keys [binary? new new-path old old-path]} diff-data]
     (cond
       (= old new)
       (dialogs/make-info-dialog
-        {:title "The File Is Unchanged"
+        localization
+        {:title (localization/message "dialog.diff-view.unchanged.title")
          :icon :icon/triangle-error
-         :header "The file is unchanged"})
+         :header (localization/message "dialog.diff-view.unchanged.header")})
 
       binary?
       (dialogs/make-info-dialog
-        {:title "Unable to Diff Binary Files"
+        localization
+        {:title (localization/message "dialog.diff-view.binary.title")
          :icon :icon/triangle-error
-         :header "Unable to diff binary files"})
+         :header (localization/message "dialog.diff-view.binary.header")})
 
       :else
-      (make-diff-viewer old-path old new-path new))))
+      (make-diff-viewer old-path old new-path new localization))))

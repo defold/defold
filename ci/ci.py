@@ -149,7 +149,7 @@ def install_linux(args):
         call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
-    clang_version = 16
+    clang_version = 17
     clang_path = "/usr/bin"
     clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
 

@@ -43,6 +43,7 @@
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
+            [editor.localization :as localization]
             [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
@@ -1613,19 +1614,28 @@
     target-row             1-indexed row in the document"
   [resource-node canvas-repaint-info target-row]
   (let [{:keys [grammar lines]} canvas-repaint-info
+        invalidated-rows (:invalidated-rows canvas-repaint-info)
+        ;; Read-only views don't have invalidated rows at all: we detect changes
+        ;; in them by comparing lines hashes. When they change, we refresh the
+        ;; syntax from the start.
+        read-only-view (nil? invalidated-rows)
+        lines-hash (when read-only-view (hash lines))
         syntax-info
-        (vary-meta
-          (if (nil? grammar)
-            []
-            (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
-              (let [invalidated-syntax-info
-                    (if-some [invalidated-row (invalidated-row (:invalidated-rows (meta prev-syntax-info))
-                                                               (:invalidated-rows canvas-repaint-info))]
-                      (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
-                      prev-syntax-info)]
-                (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
-              (data/ensure-syntax-info [] target-row lines grammar)))
-          assoc :invalidated-rows (:invalidated-rows canvas-repaint-info))]
+        (-> (if (nil? grammar)
+              []
+              (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                (let [invalidated-syntax-info
+                      (if-some [invalidated-row (if read-only-view
+                                                  (when-not (= lines-hash (:lines-hash (meta prev-syntax-info)))
+                                                    0)
+                                                  (invalidated-row (:invalidated-rows (meta prev-syntax-info))
+                                                                   invalidated-rows))]
+                        (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                        prev-syntax-info)]
+                  (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
+                (data/ensure-syntax-info [] target-row lines grammar)))
+            (vary-meta assoc :invalidated-rows invalidated-rows)
+            (cond-> read-only-view (vary-meta assoc :lines-hash lines-hash)))]
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
 
@@ -2017,8 +2027,10 @@
                  :children [{:fx/type fx.stack-pane/lifecycle
                              :min-width completion-type-icon-size
                              :max-width completion-type-icon-size
-                             :children [{:fx/type completion-type-icon
-                                         :type (:type completion)}]}
+                             :children (if-let [type (:type completion)]
+                                         [{:fx/type completion-type-icon
+                                           :type type}]
+                                         [])}
                             (fuzzy-choices/make-matched-text-flow-cljfx
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
@@ -2497,17 +2509,13 @@
 
                  :else
                  javafx.scene.Cursor/DEFAULT)]
-    ;; The cursor refresh appears buggy at the moment.
-    ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
-    (when (not= cursor (.getCursor node))
-      (.setCursor node javafx.scene.Cursor/DISAPPEAR)
-      (.setCursor node cursor))))
+    (ui/set-cursor node cursor)))
 
 (handler/register-menu! ::code-context-menu
-  [{:command :edit.cut :label "Cut"}
-   {:command :edit.copy :label "Copy"}
-   {:command :edit.paste :label "Paste"}
-   {:command :code.select-all :label "Select All"}
+  [{:command :edit.cut :label (localization/message "command.edit.cut")}
+   {:command :edit.copy :label (localization/message "command.edit.copy")}
+   {:command :edit.paste :label (localization/message "command.edit.paste")}
+   {:command :code.select-all :label (localization/message "command.code.select-all")}
    (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
@@ -2808,19 +2816,19 @@
 (handler/defhandler :code.convert-indentation :code-view
   (label [user-data]
     (case user-data
-      :tabs "To Tabs"
-      :two-spaces "To Two Spaces"
-      :four-spaces "To Four Spaces"
-      nil "Convert Indentation"))
+      :tabs (localization/message "command.code.convert-indentation.to-tabs")
+      :two-spaces (localization/message "command.code.convert-indentation.to-two-spaces")
+      :four-spaces (localization/message "command.code.convert-indentation.to-four-spaces")
+      nil (localization/message "command.code.convert-indentation")))
   (options [user-data]
     (when-not user-data
-      [{:label "To Tabs"
+      [{:label (localization/message "command.code.convert-indentation.to-tabs")
         :command :code.convert-indentation
         :user-data :tabs}
-       {:label "To Two Spaces"
+       {:label (localization/message "command.code.convert-indentation.to-two-spaces")
         :command :code.convert-indentation
         :user-data :two-spaces}
-       {:label "To Four Spaces"
+       {:label (localization/message "command.code.convert-indentation.to-four-spaces")
         :command :code.convert-indentation
         :user-data :four-spaces}]))
   (active? [editable] editable)
@@ -2882,9 +2890,8 @@
       (workspace/notifications (resource/workspace resource))
       {:type :warning
        :id [::no-lsp language]
-       :text (format "Cannot perform this action because there is no LSP Language Server running for the '%s' language"
-                     language)
-       :actions [{:text "About LSP in Defold"
+       :message (localization/message "notification.lsp.language-server-missing.prompt" {"language" language})
+       :actions [{:message (localization/message "notification.lsp.language-server-missing.action.about")
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
 (handler/defhandler :code.goto-definition :code-view
@@ -2948,15 +2955,15 @@
 (handler/defhandler :code.sort-lines :code-view
   (label [user-data]
     (case user-data
-      :case-insensitive "Sort Lines"
-      :case-sensitive "Sort Lines (Case Sensitive)"
-      nil "Sort Lines"))
+      :case-insensitive (localization/message "command.code.sort-lines")
+      :case-sensitive (localization/message "command.code.sort-lines.case-sensitive")
+      nil (localization/message "command.code.sort-lines")))
   (options [user-data]
     (when-not user-data
-      [{:label "Case Insensitive"
+      [{:label (localization/message "command.code.sort-lines.option.case-insensitive")
         :command :code.sort-lines
         :user-data :case-insensitive}
-       {:label "Case Sensitive"
+       {:label (localization/message "command.code.sort-lines.option.case-sensitive")
         :command :code.sort-lines
         :user-data :case-sensitive}]))
   (active? [editable] editable)
@@ -3083,7 +3090,7 @@
        (when (number? maybe-row)
          maybe-row)))))
 
-(defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
+(defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node localization]
   (b/bind-presence! goto-line-bar (b/= :goto-line bar-ui-type-property))
   (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
     (ui/bind-keys! goto-line-bar {KeyCode/ENTER :private/goto-entered-line})
@@ -3094,7 +3101,7 @@
                   (let [maybe-row (try-parse-goto-line-text view-node line-field-text)
                         error-message (when-not (number? maybe-row) maybe-row)]
                     (assert (or (nil? error-message) (string? error-message)))
-                    (ui/tooltip! line-field error-message)
+                    (ui/tooltip! line-field error-message localization)
                     (if (some? error-message)
                       (ui/add-style! line-field "field-error")
                       (ui/remove-style! line-field "field-error"))))))
@@ -3329,40 +3336,40 @@
 ;; -----------------------------------------------------------------------------
 
 (handler/register-menu! ::menubar-edit :editor.app-view/edit-end
-  [{:command :edit.find :label "Find..."}
-   {:command :code.find-next :label "Find Next"}
-   {:command :code.find-previous :label "Find Previous"}
+  [{:command :edit.find :label (localization/message "command.edit.find")}
+   {:command :code.find-next :label (localization/message "command.code.find-next")}
+   {:command :code.find-previous :label (localization/message "command.code.find-previous")}
    {:label :separator}
-   {:command :code.replace-text :label "Replace..."}
-   {:command :code.replace-next :label "Replace Next"}
+   {:command :code.replace-text :label (localization/message "command.code.replace")}
+   {:command :code.replace-next :label (localization/message "command.code.replace-next")}
    {:label :separator}
-   {:command :code.toggle-comment :label "Toggle Comment"}
-   {:command :code.reindent :label "Reindent Lines"}
+   {:command :code.toggle-comment :label (localization/message "command.code.toggle-comment")}
+   {:command :code.reindent :label (localization/message "command.code.reindent-lines")}
    {:command :code.convert-indentation :expand true}
    {:label :separator}
    {:command :code.sort-lines :user-data :case-insensitive}
    {:command :code.sort-lines :user-data :case-sensitive}
    {:label :separator}
-   {:command :code.select-next-occurrence :label "Select Next Occurrence"}
-   {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
+   {:command :code.select-next-occurrence :label (localization/message "command.code.select-next-occurrence")}
+   {:command :code.split-selection-into-lines :label (localization/message "command.code.split-selection-into-lines")}
    {:label :separator}
-   {:command :edit.rename :label "Rename"}
-   {:command :code.goto-definition :label "Go to Definition"}
-   {:command :code.show-references :label "Find References"}
+   {:command :edit.rename :label (localization/message "command.edit.rename")}
+   {:command :code.goto-definition :label (localization/message "command.code.goto-definition")}
+   {:command :code.show-references :label (localization/message "command.code.show-references")}
    {:label :separator}
-   {:command :debugger.toggle-breakpoint :label "Toggle Breakpoint"}
-   {:command :debugger.edit-breakpoint :label "Edit Breakpoint"}])
+   {:command :debugger.toggle-breakpoint :label (localization/message "command.debugger.toggle-breakpoint")}
+   {:command :debugger.edit-breakpoint :label (localization/message "command.debugger.edit-breakpoint")}])
 
 (handler/register-menu! ::menubar-view :editor.app-view/view-end
-  [{:command :code.toggle-minimap :label "Minimap" :check true}
-   {:command :code.toggle-indentation-guides :label "Indentation Guides" :check true}
-   {:command :code.toggle-visible-whitespace :label "Visible Whitespace" :check true}
+  [{:command :code.toggle-minimap :label (localization/message "command.code.toggle-minimap") :check true}
+   {:command :code.toggle-indentation-guides :label (localization/message "command.code.toggle-indentation-guides") :check true}
+   {:command :code.toggle-visible-whitespace :label (localization/message "command.code.toggle-visible-whitespace") :check true}
    {:label :separator}
-   {:command :code.zoom.increase :label "Increase Font Size"}
-   {:command :code.zoom.decrease :label "Decrease Font Size"}
-   {:command :code.zoom.reset :label "Reset Font Size"}
+   {:command :code.zoom.increase :label (localization/message "command.code.zoom.increase")}
+   {:command :code.zoom.decrease :label (localization/message "command.code.zoom.decrease")}
+   {:command :code.zoom.reset :label (localization/message "command.code.zoom.reset")}
    {:label :separator}
-   {:command :code.goto-line :label "Go to Line..."}])
+   {:command :code.goto-line :label (localization/message "command.code.goto-line")}])
 
 ;; -----------------------------------------------------------------------------
 
@@ -3489,13 +3496,6 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
-(defn- advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
-    (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
-
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -3538,7 +3538,7 @@
     (when editable
       (g/with-auto-evaluation-context evaluation-context
         ;; Show rename popup if appropriate
-        (advance-user-data-component!
+        (fxui/advance-graph-user-data-component!
           view-node :rename-popup
           (when (g/node-value view-node :rename-cursor-range evaluation-context)
             (g/node-value view-node :rename-view evaluation-context)))
@@ -3929,7 +3929,7 @@
       (reset! state nil))))
 
 (defn- make-view! [graph parent resource-node opts]
-  (let [{:keys [^Tab tab app-view grammar open-resource-fn project prefs]} opts
+  (let [{:keys [^Tab tab app-view grammar open-resource-fn project prefs localization]} opts
         basis (g/now)
         resource-node-type (g/node-type* basis resource-node)
         editable (g/has-property? resource-node-type :modified-lines)
@@ -3963,7 +3963,7 @@
               first)
           app-view
           lsp)
-        goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
+        goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable)
         repainter (ui/->timer "repaint-code-editor-view"
@@ -4213,13 +4213,13 @@
   (concat
     (workspace/register-view-type workspace
       :id :code
-      :label "Code"
+      :label (localization/message "resource.view.code")
       :make-view-fn make-view!
       :focus-fn focus-view!
       :text-selection-fn non-empty-single-selection-text)
     (workspace/register-view-type workspace
       :id :text
-      :label "Text"
+      :label (localization/message "resource.view.text")
       :make-view-fn make-view!
       :focus-fn focus-view!
       :text-selection-fn non-empty-single-selection-text)))

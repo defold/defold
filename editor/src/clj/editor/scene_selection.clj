@@ -18,6 +18,7 @@
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.scene-picking :as scene-picking]
@@ -37,23 +38,23 @@
 (set! *warn-on-reflection* true)
 
 (handler/register-menu! ::scene-context-menu
-                        [{:label "Cut"
-                          :command :edit.cut}
-                         {:label "Copy"
-                          :command :edit.copy}
-                         {:label "Paste"
-                          :command :edit.paste}
-                         {:label "Delete"
-                          :icon "icons/32/Icons_M_06_trash.png"
-                          :command :edit.delete}
-                         menu-items/separator
-                         {:label "Show/Hide Objects"
-                          :command :scene.visibility.toggle-selection}
-                         {:label "Hide Unselected Objects"
-                          :command :scene.visibility.hide-unselected}
-                         {:label "Show All Hidden Objects"
-                          :command :scene.visibility.show-all}
-                         (menu-items/separator-with-id ::context-menu-end)])
+  [{:label (localization/message "command.edit.cut")
+    :command :edit.cut}
+   {:label (localization/message "command.edit.copy")
+    :command :edit.copy}
+   {:label (localization/message "command.edit.paste")
+    :command :edit.paste}
+   {:label (localization/message "command.edit.delete")
+    :icon "icons/32/Icons_M_06_trash.png"
+    :command :edit.delete}
+   menu-items/separator
+   {:label (localization/message "command.scene.visibility.toggle-selection")
+    :command :scene.visibility.toggle-selection}
+   {:label (localization/message "command.scene.visibility.hide-unselected")
+    :command :scene.visibility.hide-unselected}
+   {:label (localization/message "command.scene.visibility.show-all")
+    :command :scene.visibility.show-all}
+   (menu-items/separator-with-id ::context-menu-end)])
 
 (defn render-selection-box [^GL2 gl _render-args renderables _count]
   (let [user-data (:user-data (first renderables))
@@ -132,7 +133,7 @@
       (concat
         (drop-fn resources)
         (g/operation-sequence op-seq)
-        (g/operation-label "Drop Resources")))))
+        (g/operation-label (localization/message "operation.drop"))))))
 
 (defn- handle-drag-dropped!
   [drop-fn root-id select-fn action]
@@ -181,14 +182,9 @@
                            (g/set-property self :toggle? toggle?)
                            (g/set-property self :contextual? contextual?)
                            (g/set-property self :prev-selection (g/node-value self :selection))))
-                       (select self op-seq mode toggle?)
-                       (when contextual?
-                         (let [node ^Node (:target action)
-                               scene ^Scene (.getScene node)
-                               context-menu (ui/init-context-menu! ::scene-context-menu scene)]
-                           (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do
+                        (when start (select self op-seq mode toggle?))
                         (g/transact
                           (concat
                             (g/set-property self :start nil)
@@ -198,16 +194,22 @@
                             (g/set-property self :toggle? nil)
                             (g/set-property self :contextual? nil)
                             (g/set-property self :prev-selection nil)))
+                        (when contextual?
+                          (let [node ^Node (:target action)
+                                scene ^Scene (.getScene node)
+                                context-menu (ui/init-context-menu! ::scene-context-menu scene)]
+                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                         nil)
-      :mouse-moved (if (and start (not (g/node-value self :contextual?)))
+      :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
                                       :multi
                                       mode)]
-                       (g/transact
-                         (concat
-                           (when (not= new-mode mode) (g/set-property self :mode new-mode))
-                           (g/set-property self :current cursor-pos)))
-                       (select self op-seq new-mode toggle?)
+                       (when-not (g/node-value self :contextual?)
+                         (g/transact
+                           (concat
+                             (when (not= new-mode mode) (g/set-property self :mode new-mode))
+                             (g/set-property self :current cursor-pos)))
+                         (select self op-seq new-mode toggle?))
                        nil)
                      action)
       action)))

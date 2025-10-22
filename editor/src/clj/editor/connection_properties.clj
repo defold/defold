@@ -28,7 +28,7 @@
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
              :update-url-template "https://%s/editor2/channels/%s/update-v4.json"}})
 
-(def ^:const defold-build-server-url
+(defn defold-build-server-url []
   (or
     (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
     (get-in connection-properties [:native-extensions :build-server-url])))

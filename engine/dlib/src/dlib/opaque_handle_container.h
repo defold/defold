@@ -105,6 +105,21 @@ public:
      */
     T* GetByIndex(uint32_t index);
 
+    /*# container get handle by index
+     *
+     * Constructs an opaque handle from the index itself plus the stored version for that index.
+     * The index must be within a valid range of the backing array,
+     * as denoted by the container capacity ([0...c-1] where c equals capacity).
+     *
+     * Note: this is indented for internal use only and relies on the fact that the backing
+     *       data structure for the container is a continuous array.
+     *
+     * @name IndexToHandle
+     * @param index [type:uint32_t] The index to query the container with
+     * @return [type:HOpaqueHandle] Return the constructed object handle
+     */
+    HOpaqueHandle IndexToHandle(uint32_t index);
+
     /*# container put
      *
      * Adds a reference to an object to the list and returns an opaque handle to that object. If the container
@@ -239,10 +254,17 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
 }
 
 template <typename T>
-T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t i)
+T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t index)
 {
-    assert(i < m_Capacity);
-    return m_Objects[i];
+    assert(index < m_Capacity);
+    return m_Objects[index];
+}
+
+template <typename T>
+HOpaqueHandle dmOpaqueHandleContainer<T>::IndexToHandle(uint32_t index)
+{
+    assert(index < m_Capacity);
+    return m_ObjectVersions[index] << 16 | index;
 }
 
 template <typename T>

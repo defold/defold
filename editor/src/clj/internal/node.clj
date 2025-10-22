@@ -1017,7 +1017,7 @@
 
 (defn- update-fn-maps [tree f]
   (-> tree
-      (update :output (partial util/map-vals f))
+      (update :output (partial coll/map-vals f))
       (update :property (fn [properties]
                           (into {}
                                 (map (fn [[property-label propdef]]
@@ -1029,7 +1029,7 @@
                                                                (update :default f)
 
                                                                (some? (-> propdef :dynamics))
-                                                               (update :dynamics (partial util/map-vals f)))]))
+                                                               (update :dynamics (partial coll/map-vals f)))]))
                                 properties)))))
 
 (defn- wrap-constant-fn? [fn]

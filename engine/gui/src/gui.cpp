@@ -395,6 +395,8 @@ namespace dmGui
         scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
         scene->m_CloneRenderConstantsCallback = params->m_CloneRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_ApplyLayoutCallback    = params->m_ApplyLayoutCallback;
+        scene->m_GetDisplayProfileDescCallback = params->m_GetDisplayProfileDescCallback;
         scene->m_NewTextureResourceCallback = params->m_NewTextureResourceCallback;
         scene->m_DeleteTextureResourceCallback = params->m_DeleteTextureResourceCallback;
         scene->m_SetTextureResourceCallback = params->m_SetTextureResourceCallback;
@@ -3730,6 +3732,20 @@ namespace dmGui
 
         dmArray<Animation>* animations = &scene->m_Animations;
         uint32_t n_animations = animations->Size();
+
+        if (property_hash == 0)
+        { 
+            // if property hash is 0 then cancels all ongoing animation of properties for node
+            for (uint32_t i = 0; i < n_animations; ++i)
+            {
+                Animation* anim = &(*animations)[i];
+                if (anim->m_Node == node)
+                {
+                    anim->m_Cancelled = 1;
+                }
+            }
+            return;
+        }
 
         PropDesc* pd = GetPropertyDesc(property_hash);
         if (pd) {

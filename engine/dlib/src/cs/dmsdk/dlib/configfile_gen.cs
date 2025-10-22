@@ -25,7 +25,6 @@
  * @language C#
  * @name ConfigFile
  * @namespace Dlib
- * @path engine/dlib/src/cs/dmsdk/dlib/configfile_gen.cs
  */
 
 using System.Runtime.InteropServices;

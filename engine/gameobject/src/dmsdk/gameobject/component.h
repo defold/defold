@@ -26,7 +26,6 @@
 namespace dmGameObject
 {
     /*# SDK Component API documentation
-     * [file:<dmsdk/gameobject/component.h>]
      *
      * Api for manipulating game object components (WIP)
      *

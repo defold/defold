@@ -13,13 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.settings-core
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.string :as s]
+  (:require [clojure.string :as string]
             [editor.system :as system]
             [editor.url :as url]
+            [internal.util :as util]
+            [util.coll :as coll]
+            [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [java.io BufferedReader PushbackReader Reader StringReader]))
+  (:import [clojure.lang MultiFn]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,37 +47,21 @@
     (conj settings {:path path :value value})))
 
 (defn- non-blank [vals]
-  (remove s/blank? vals))
+  (remove string/blank? vals))
 
-(defn- trimmed [lines]
-  (map s/trim lines))
-
-(defn- read-setting-lines [setting-reader]
-  (non-blank (trimmed (line-seq setting-reader))))
-
-(defn resource-reader
-  ^Reader [resource-name]
-  (io/reader (io/resource resource-name) :encoding "UTF-8"))
-
-(defn pushback-reader
-  ^PushbackReader [reader]
-  (PushbackReader. reader))
-
-(defn string-reader
-  ^Reader [content]
-  (BufferedReader. (StringReader. content)))
-
-(defn- empty-parse-state []
+(def ^:private empty-parse-state
   {:current-category nil :settings []})
 
-(defn- parse-category-line [{:keys [current-category settings] :as parse-state} line]
+(defn- parse-category-line [parse-state line]
   (when-let [[_ new-category] (re-find #"^\s*\[([^\]]*)\]" line)]
     (assoc parse-state :current-category new-category)))
 
 (defn- parse-setting-line [parse-state line]
-  (when-let [[_ key value] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
-    (let [[cleaned-path index-string] (non-blank (s/split key #"\#"))]
-      (when-let [setting-path (seq (non-blank (s/split cleaned-path #"\.")))]
+  (when-let [[_ key value] (seq (map string/trim (re-find #"([^=]+)=(.*)" line)))]
+    (let [[cleaned-path index-string] (non-blank (string/split key #"\#"))]
+      (when-let [setting-path (seq (non-blank (string/split cleaned-path #"\.")))]
+        (when-not (:current-category parse-state)
+          (throw (Exception. (format "Setting without a category: %s" setting-path))))
         (let [full-path (into [(:current-category parse-state)] setting-path)]
           ;; For non-list values, the value will be a string.
           ;; For list values, we build up a vector of strings that we then join
@@ -102,17 +87,23 @@
         (:settings parse-state)))
 
 (defn parse-settings [reader]
-  (parse-state->settings (reduce
-                          (fn [parse-state line]
-                            (or (parse-category-line parse-state line)
-                                (parse-setting-line parse-state line)
-                                (parse-error line)))
-                          (empty-parse-state)
-                          (read-setting-lines reader))))
+  (transduce
+    (comp
+      (map string/trim)
+      (remove string/blank?))
+    (fn
+      ([parse-state]
+       (parse-state->settings parse-state))
+      ([parse-state line]
+       (or (parse-category-line parse-state line)
+           (parse-setting-line parse-state line)
+           (parse-error line))))
+    empty-parse-state
+    (line-seq reader)))
 
 (defn inject-jvm-properties [^String raw-setting-value]
   ;; Replace patterns such as {{defold.extension.spine.url}} with JVM property values.
-  (s/replace
+  (string/replace
     raw-setting-value
     #"\{\{(.+?)\}\}" ; Match the text inside the an {{...}} expression.
     (fn [[_ jvm-property-key]]
@@ -205,8 +196,8 @@
             (mapv (fn [meta-setting]
                     (if (contains? meta-setting :options)
                       (assoc meta-setting
-                        :from-string #(parse-setting-value meta-setting %)
-                        :to-string #(render-raw-setting-value meta-setting %))
+                        :from-string (fn/partial parse-setting-value meta-setting)
+                        :to-string (fn/partial render-raw-setting-value meta-setting))
                       meta-setting))
                   settings))))
 
@@ -224,13 +215,10 @@
       ensure-type-defaults
       add-to-from-string))
 
-(defn load-meta-info [reader]
-  (finalize-meta-info (edn/read reader)))
-
 (defn label [key]
-  (->> (s/split (name key) #"(_|\s+)")
-       (mapv s/capitalize)
-       (s/join " ")))
+  (->> (string/split (name key) #"(_|\s+)")
+       (mapv string/capitalize)
+       (string/join " ")))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (into #{} (map :path) meta-settings)]
@@ -249,7 +237,24 @@
   (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
 
 (defn make-meta-settings-map [meta-settings]
-  (zipmap (map :path meta-settings) meta-settings))
+  (coll/pair-map-by :path meta-settings))
+
+(def ^:private empty-meta-info
+  {:settings []})
+
+(defn merge-meta-infos
+  ([] empty-meta-info)
+  ([a] a)
+  ([a b]
+   (coll/merge-with-kv
+     (fn [k a b]
+       (case k
+         :settings (into [] (comp cat (util/distinct-by :path)) [a b])
+         :group-order (into [] (comp cat (distinct)) [a b])
+         :categories (coll/merge-with coll/merge a b)
+         b))
+     a
+     b)))
 
 (defn- trim-trailing-c [value]
   (if (= (last value) \c)
@@ -261,6 +266,11 @@
     (trim-trailing-c value)
     value))
 
+(defn- sanitize-help [{:keys [type preserve-extension default]} help]
+  (if (and (= type :resource) (not preserve-extension) default)
+    (string/replace help (str default "c") default)
+    help))
+
 (defn- sanitize-setting [meta-settings-map {:keys [path] :as setting}]
   (when-some [meta-setting (meta-settings-map path)]
     (update setting :value
@@ -268,8 +278,100 @@
                      (parse-setting-value meta-setting)
                      (sanitize-value meta-setting))))))
 
+(defn load-meta-properties [reader]
+  (letfn [(parse-type [s]
+            (case s
+              nil :string
+              "bool" :boolean
+              "string_array" :list
+              (let [k (keyword s)]
+                (if (contains? (.getMethodTable ^MultiFn parse-setting-value) k)
+                  k
+                  :string))))
+          (parse-map [s]
+            (into {}
+                  (map (fn [s]
+                         (let [[k v] (string/split s #"\s*=\s*")]
+                           [(keyword k) v])))
+                  (string/split s #"\s*&\s*")))
+          (parse-options [setting s]
+            (into []
+                  (map (fn [s]
+                         (let [kv (string/split s #"\s*:\s*")
+                               value (kv 0)
+                               label (if (= 1 (count kv)) (kv 0) (kv 1))]
+                           [(sanitize-value setting (parse-setting-value setting value)) label])))
+                  (string/split s #"\s*,\s*")))
+          (parse-filter [setting s]
+            (case (:type setting)
+              :file (mapv #(string/split % #"\s*:\s*") (string/split s #"\s*,\s*"))
+              (let [filters (string/split s #"\s*,\s*")]
+                (if (= 1 (count filters))
+                  (filters 0)
+                  filters))))
+          (parse-int-boolean [s]
+            (parse-setting-value {:type :boolean} s))]
+    (finalize-meta-info
+      (-> (reduce
+            (fn [acc {:keys [path value]}]
+              (case (count path)
+                3 (let [setting-path (pop path)]
+                    (update
+                      acc :settings
+                      (fn [settings]
+                        (let [existing-index (get (:order (meta settings)) setting-path)
+                              index (or existing-index (count settings))]
+                          (-> settings
+                              (update
+                                index
+                                (fn [setting]
+                                  (-> setting
+                                      (assoc (keyword (peek path)) value)
+                                      (cond->
+                                        (not setting)
+                                        (assoc :path setting-path)))))
+
+                              (cond-> (not existing-index)
+                                      (vary-meta update :order assoc setting-path index)))))))
+                2 (if (= "" (path 0))
+                    (let [k (keyword (path 1))]
+                      (assoc acc k (case k
+                                     :group-order (string/split value #",\s*")
+                                     value)))
+                    (assoc-in acc [:categories (path 0) (keyword (path 1))] value))
+                (throw (Exception. (format "Key has more than 3 dot-separated segments: %s" (coll/join-to-string "." path))))))
+            {:settings []}
+            (parse-settings reader))
+          (update
+            :settings
+            (fn [settings]
+              (mapv
+                (fn resolve-setting [setting]
+                  (-> setting
+                      (update :type parse-type)
+                      (cond->
+                        (contains? setting :preserve-extension) (update :preserve-extension parse-int-boolean)
+                        (contains? setting :element) (update :element #(resolve-setting (parse-map %))))
+                      (as-> $
+                            ;; sanitize-value expects valid type, preserve-extension and element
+                            (cond-> $ (contains? $ :default) (update :default #(sanitize-value $ (parse-setting-value $ %))))
+                            (cond-> $ (contains? $ :minimum) (update :minimum #(sanitize-value $ (parse-setting-value $ %))))
+                            (cond-> $ (contains? $ :maximum) (update :maximum #(sanitize-value $ (parse-setting-value $ %))))
+                            (cond-> $ (contains? $ :options) (update :options #(parse-options $ %)))
+                            ;; sanitize help expects valid type, preserve-extension and default
+                            (cond-> $ (contains? $ :help) (update :help #(sanitize-help $ %)))
+                            ;; parse filter expects valid type
+                            (cond-> $ (contains? $ :filter) (update :filter #(parse-filter $ %))))
+                      (cond->
+                        (contains? setting :deprecated) (update :deprecated parse-int-boolean)
+                        (contains? setting :private) (update :private parse-int-boolean)
+                        (contains? setting :hidden) (update :hidden parse-int-boolean)
+                        (contains? setting :severity-override) (update :severity-override keyword)
+                        (contains? setting :severity-default) (update :severity-default keyword))))
+                settings)))))))
+
 (defn sanitize-settings [meta-settings settings]
-  (vec (map (partial sanitize-setting (make-meta-settings-map meta-settings)) settings)))
+  (mapv (partial sanitize-setting (make-meta-settings-map meta-settings)) settings))
 
 (defn make-default-settings [meta-settings]
   (mapv (fn [meta-setting]
@@ -290,11 +392,11 @@
   (group-by setting-category settings))
 
 (defn- setting->str [{:keys [path value]}]
-  (let [key (s/join "." (rest path))]
+  (let [key (string/join "." (rest path))]
     (str key " = " value)))
 
 (defn- category->str [category settings]
-  (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
+  (string/join "\n" (cons (str "[" category "]") (map setting->str settings))))
 
 (defn- split-multi-line-setting-at-path [settings setting-path]
   (let [comma-separated-setting (get-setting settings setting-path)]
@@ -328,9 +430,9 @@
     ;; Here we interleave categories with \n\n rather than join to make sure the file also ends with
     ;; two consecutive newlines. This is purely to avoid whitespace diffs when loading a project
     ;; created in the old editor and saving.
-    (s/join (interleave (map #(category->str % (cat-grouped-settings %))
-                             cat-order)
-                        (repeat "\n\n")))))
+    (string/join (interleave (map #(category->str % (cat-grouped-settings %))
+                                  cat-order)
+                             (repeat "\n\n")))))
 
 (defmulti render-raw-setting-value (fn [meta-setting value] (:type meta-setting)))
 
@@ -341,7 +443,7 @@
   (if value "1" "0"))
 
 (defmethod render-raw-setting-value :resource [{:keys [preserve-extension]} value]
-  (if (and (not (s/blank? value))
+  (if (and (not (string/blank? value))
            (not preserve-extension))
     (str value "c")
     value))
@@ -366,7 +468,7 @@
           string-values (map #(render-raw-setting-value element-meta-setting %) value)]
       (if (quoted-list-element-setting? element-meta-setting)
         (text-util/join-comma-separated-string string-values)
-        (s/join ", " string-values)))))
+        (string/join ", " string-values)))))
 
 (defmethod render-raw-setting-value :list [meta-setting value]
   (render-raw-list-setting-value meta-setting value))

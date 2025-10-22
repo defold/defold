@@ -881,6 +881,50 @@ zip.pack(\"build.zip\", {
   {\"../secrets/auth-key.txt\", \"auth-key.txt\"}
 })
 ```"})
+         {:name "zip.unpack"
+          :type :function
+          :parameters [{:name "archive_path"
+                        :types ["string"]
+                        :doc "zip file path, resolved against project root if relative"}
+                       {:name "[target_path]"
+                        :types ["string"]
+                        :doc "target path for extraction, defaults to parent of <code>archive_path</code> if omitted"}
+                       {:name "[opts]"
+                        :types ["table"]
+                        :doc (str "extraction options, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "on_conflict"
+                                      :types ["string"]
+                                      :doc "conflict resolution strategy, defaults to <code>zip.ON_CONFLICT.ERROR</code>"}]))}
+                       {:name "[paths]"
+                        :types ["table"]
+                        :doc "entries to extract, relative string paths"}]
+          :description "Extract a ZIP archive"
+          :examples "Extract everything to a build dir:
+```lua
+zip.unpack(\"build/dev/resources.zip\")
+```
+Extract to a different directory:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  \"build/dev/tmp\",
+)
+```
+Extract while overwriting existing files on conflict:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  {on_conflict = zip.ON_CONFLICT.OVERWRITE}
+)
+```
+Extract a single file:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  {\"config.json\"}
+)
+```"}
          {:name "zip.METHOD"
           :type :module
           :description "Constants for zip compression methods"}
@@ -889,4 +933,16 @@ zip.pack(\"build.zip\", {
           :description "<code>\"deflated\"</code> compression method"}
          {:name "zip.METHOD.STORED"
           :type :constant
-          :description "<code>\"stored\"</code> compression method, i.e. no compression"}]))))
+          :description "<code>\"stored\"</code> compression method, i.e. no compression"}
+         {:name "zip.ON_CONFLICT"
+          :type :module
+          :description "Constants defining conflict resolution strategies for zip archive extraction"}
+         {:name "zip.ON_CONFLICT.ERROR"
+          :type :constant
+          :description "`\"error\"`, any conflict aborts extraction"}
+         {:name "zip.ON_CONFLICT.SKIP"
+          :type :constant
+          :description "`\"skip\"`, existing file is preserved"}
+         {:name "zip.ON_CONFLICT.OVERWRITE"
+          :type :constant
+          :description "`\"skip\"`, existing file is overwritten"}]))))

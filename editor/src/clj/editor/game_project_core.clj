@@ -13,14 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.game-project-core
-  (:require [editor.settings-core :as settings-core]))
+  (:require [clojure.java.io :as io]
+            [editor.settings-core :as settings-core]))
 
 (set! *warn-on-reflection* true)
 
-(def basic-meta-info (with-open [r (-> "meta.edn"
-                                       settings-core/resource-reader
-                                       settings-core/pushback-reader)]
-                       (settings-core/load-meta-info r)))
+(def basic-meta-info
+  (with-open [rdr (io/reader (io/resource "com/dynamo/bob/meta.properties"))]
+    (settings-core/load-meta-properties rdr)))
 
 (def meta-settings (:settings basic-meta-info))
 

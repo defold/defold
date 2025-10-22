@@ -53,6 +53,7 @@ namespace dmRender
         dmArray<Profile> m_Profiles;
         dmArray<Qualifier> m_Qualifiers;
         dmhash_t m_NameHash;
+        bool     m_AutoLayoutSelection;
     };
 
     /**
@@ -64,4 +65,3 @@ namespace dmRender
 }
 
 #endif // DISPLAY_PROFILES_PRIVATE_H
-

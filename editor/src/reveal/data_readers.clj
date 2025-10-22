@@ -13,4 +13,24 @@
 ;; specific language governing permissions and limitations under the License.
 
 {resource/file editor.reveal/read-file-resource
- resource/zip editor.reveal/read-zip-resource}
+ resource/zip editor.reveal/read-zip-resource
+ v/Color3f editor.reveal/read-color-3f
+ v/Color4f editor.reveal/read-color-4f
+ v/Matrix3d editor.reveal/read-matrix-3d
+ v/Matrix3f editor.reveal/read-matrix-3f
+ v/Matrix4d editor.reveal/read-matrix-4d
+ v/Matrix4f editor.reveal/read-matrix-4f
+ v/Point2d editor.reveal/read-point-2d
+ v/Point2f editor.reveal/read-point-2f
+ v/Point3d editor.reveal/read-point-3d
+ v/Point3f editor.reveal/read-point-3f
+ v/Point4d editor.reveal/read-point-4d
+ v/Point4f editor.reveal/read-point-4f
+ v/Quat4d editor.reveal/read-quat-4d
+ v/Quat4f editor.reveal/read-quat-4f
+ v/Vector2d editor.reveal/read-vector-2d
+ v/Vector2f editor.reveal/read-vector-2f
+ v/Vector3d editor.reveal/read-vector-3d
+ v/Vector3f editor.reveal/read-vector-3f
+ v/Vector4d editor.reveal/read-vector-4d
+ v/Vector4f editor.reveal/read-vector-4f}

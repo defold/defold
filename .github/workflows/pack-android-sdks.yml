@@ -68,7 +68,7 @@ jobs:
           ${{ github.workspace }}/local_sdks/android-sdk-darwin-android-${{ env.ANDROID_TARGET_API_LEVEL }}-${{ env.ANDROID_BUILD_TOOLS_VERSION }}.tar.gz
 
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

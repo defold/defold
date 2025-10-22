@@ -22,7 +22,6 @@
  * @document
  * @name Factory
  * @namespace dmGameSystem
- * @path engine/gamesys/src/dmsdk/gamesys/components/comp_factory.h
  * @language C++
  */
 
@@ -33,17 +32,6 @@
 
 namespace dmGameSystem
 {
-    /*# Factory component functions
-     *
-     * Factory component functions.
-     *
-     * @document
-     * @namespace dmGameSystem
-     * @name Factory
-     * @path engine/gamesys/src/dmsdk/gamesys/component/comp_factory.h
-     * @language C++
-     */
-
     typedef struct FactoryWorld* HFactoryWorld;
     typedef struct FactoryComponent* HFactoryComponent;
     typedef struct FactoryResource* HFactoryResource;

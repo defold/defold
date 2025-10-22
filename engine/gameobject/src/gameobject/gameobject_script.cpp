@@ -1260,6 +1260,7 @@ namespace dmGameObject
 
     /*# gets the game object instance world position
      * The function will return the world position calculated at the end of the previous frame.
+     * To recalculate it within the current frame, use [ref:go.update_world_transform] on the instance before calling this.
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
@@ -1288,6 +1289,7 @@ namespace dmGameObject
 
     /*# gets the game object instance world rotation
      * The function will return the world rotation calculated at the end of the previous frame.
+     * To recalculate it within the current frame, use [ref:go.update_world_transform] on the instance before calling this.
      * Use [ref:go.get_rotation] to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
@@ -1316,6 +1318,7 @@ namespace dmGameObject
 
     /*# gets the game object instance world 3D scale factor
      * The function will return the world 3D scale factor calculated at the end of the previous frame.
+     * To recalculate it within the current frame, use [ref:go.update_world_transform] on the instance before calling this.
      * Use [ref:go.get_scale] to retrieve the 3D scale factor relative to the parent.
      * This vector is derived by decomposing the transformation matrix and should be used with care.
      * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
@@ -1346,6 +1349,7 @@ namespace dmGameObject
 
     /*# gets the uniform game object instance world scale factor
      * The function will return the world scale factor calculated at the end of the previous frame.
+     * To recalculate it within the current frame, use [ref:go.update_world_transform] on the instance before calling this.
      * Use [ref:go.get_scale_uniform] to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale_uniform
@@ -1374,6 +1378,7 @@ namespace dmGameObject
 
     /*# gets the game object instance world transform matrix
      * The function will return the world transform matrix calculated at the end of the previous frame.
+     * To recalculate it within the current frame, use [ref:go.update_world_transform] on the instance before calling this.
      *
      * @name go.get_world_transform
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script
@@ -1397,6 +1402,40 @@ namespace dmGameObject
         Instance* instance = ResolveInstance(L,1);
         dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(instance));
         return 1;
+    }
+
+    /*# updates the world transform for a game object instance
+     * Recalculates and updates the cached world transform immediately for the target instance
+     * and its ancestors (parent chain up to the collection root). Descendants (children) are
+     * not updated by this function.
+     * If no id is provided, the instance of the calling script is used.
+     *
+     * [icon:attention] Use this after changing local transform mid-frame when you need the
+     * new world transform right away (e.g. before end-of-frame updates). Note that child
+     * instances will still have last-frame world transforms until the regular update.
+     *
+     * @name go.update_world_transform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to update
+     * @examples
+     *
+     * Update this game object's world transform:
+     *
+     * ```lua
+     * go.update_world_transform()
+     * ```
+     *
+     * Update another game object's world transform:
+     *
+     * ```lua
+     * go.update_world_transform("/other")
+     * ```
+     */
+    static int Script_UpdateWorldTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        Instance* instance = ResolveInstance(L, 1);
+        dmGameObject::UpdateTransformsForInstance(instance->m_Collection, instance);
+        return 0;
     }
 
     /*# gets the id of an instance
@@ -2046,18 +2085,24 @@ namespace dmGameObject
 
 
     /*# check if the specified game object exists
-     * A lua-error will be raised if the game object belongs to another
-     * collection than the collection from which the function was called.
+     * This function can check for game objects in any collection by specifying
+     * the collection name in the URL.
      * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
      * @return exists [type:boolean] true if the game object exists
      *
      * @examples
-     * Check if game object "my_game_object" exists
+     * Check if game object "my_game_object" exists in the current collection
      *
      * ```lua
      * go.exists("/my_game_object")
+     * ```
+     *
+     * Check if game object exists in another collection
+     *
+     * ```lua
+     * go.exists("other_collection:/my_game_object")
      * ```
      */
     int Script_Exists(lua_State* L)
@@ -2072,20 +2117,38 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
 
-        // resolve instance provided as argument and make sure it is the same as "this"
+        // resolve target URL
         dmMessage::URL receiver;
         dmScript::ResolveURL(L, 1, &receiver, 0x0);
-        if (receiver.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
-        {
-            luaL_error(L, "function called can only access instances within the same collection.");
-        }
 
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
 
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        dmGameObject::HInstance target_instance = 0;
+        
+        // Check if target is in the same collection
+        if (receiver.m_Socket == dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            // Same collection - use current collection
+            target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        }
+        else
+        {
+            // Different collection - find target collection by socket
+            dmhash_t target_socket_hash = dmMessage::GetSocketNameHash(receiver.m_Socket);
+            if (target_socket_hash != 0)
+            {
+                dmGameObject::HRegister regist = dmGameObject::GetRegister(instance->m_Collection->m_HCollection);
+                dmGameObject::HCollection target_collection = dmGameObject::GetCollectionByHash(regist, target_socket_hash);
+                if (target_collection != 0)
+                {
+                    target_instance = dmGameObject::GetInstanceFromIdentifier(target_collection, target.m_Path);
+                }
+            }
+        }
+
         lua_pushboolean(L, target_instance != 0);
         return 1;
     }
@@ -2170,6 +2233,7 @@ namespace dmGameObject
         {"get_world_scale",         Script_GetWorldScale},
         {"get_world_scale_uniform", Script_GetWorldScaleUniform},
         {"get_world_transform",     Script_GetWorldTransform},
+        {"update_world_transform",  Script_UpdateWorldTransform},
         {"get_id",                  Script_GetId},
         {"animate",                 Script_Animate},
         {"cancel_animations",       Script_CancelAnimations},

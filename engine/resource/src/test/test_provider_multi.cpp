@@ -74,7 +74,7 @@ TEST(ArchiveProviderBasic, Registered)
 class ArchiveProvidersMulti : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmResourceProvider::ArchiveLoader* loader_file = dmResourceProvider::FindLoaderByName(dmHashString64("file"));
         dmResourceProvider::ArchiveLoader* loader_zip = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
@@ -126,7 +126,7 @@ protected:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Archives); ++i)
         {

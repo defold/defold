@@ -21,6 +21,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.resource :as resource]
@@ -70,32 +71,32 @@
   [menu-items/open-selected
    menu-items/open-as
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Asset Browser"
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
    menu-items/separator
-   {:label "View Diff"
+   {:label (localization/message "command.vcs.diff")
     :icon "icons/32/Icons_S_06_arrowup.png"
     :command :vcs.diff}
-   {:label "Revert"
+   {:label (localization/message "command.vcs.revert")
     :icon "icons/32/Icons_S_02_Reset.png"
     :command :vcs.revert}])
 
@@ -107,17 +108,18 @@
   (enabled? [selection]
             (and (disk-availability/available?)
                  (pos? (count selection))))
-  (run [async-reload! selection git changes-view workspace]
+  (run [async-reload! selection git changes-view workspace localization]
     (when (dialogs/make-confirmation-dialog
-            {:title "Revert Changes?"
+            localization
+            {:title (localization/message "dialog.changes-revert.title")
              :size :large
              :icon :icon/circle-question
-             :header "Are you sure you want to revert changes on selected files?"
-             :buttons [{:text "Cancel"
+             :header (localization/message "dialog.changes-revert.header")
+             :buttons [{:text (localization/message "dialog.button.cancel")
                         :cancel-button true
                         :default-button true
                         :result false}
-                       {:text "Revert Changes"
+                       {:text (localization/message "dialog.changes-revert.button.revert-changes")
                         :variant :danger
                         :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
@@ -126,9 +128,9 @@
 
 (handler/defhandler :vcs.diff :changes-view
   (enabled? [selection]
-            (git/selection-diffable? selection))
-  (run [selection ^Git git]
-       (diff-view/present-diff-data (git/selection-diff-data git selection))))
+    (git/selection-diffable? selection))
+  (run [selection ^Git git localization]
+    (diff-view/present-diff-data (git/selection-diff-data git selection) localization)))
 
 (g/defnode ChangesView
   (inherits core/Scope)
@@ -157,10 +159,10 @@
         (notifications/show!
           (workspace/notifications workspace)
           {:type :warning
-           :text "Due to a Git error, Git features are not available for this project."})
+           :message (localization/message "notification.changes-view.git-error")})
         nil))))
 
-(defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
+(defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]
   (assert (fn? async-reload!))
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")
@@ -171,9 +173,16 @@
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (ui/refresh-bound-action-enabled! revert-button)))]
+    (localization/localize! diff-button localization (localization/message "changes-view.button.diff"))
+    (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-    (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+    (ui/context! parent :changes-view
+                 {:async-reload! async-reload!
+                  :changes-view view-id
+                  :workspace workspace
+                  :localization localization}
+                 (ui/->selection-provider list-view)
                  {:git [:changes-view :git]}
                  {resource/Resource (fn [status] (status->resource workspace status))})
     (ui/register-context-menu list-view ::changes-menu)

@@ -15,8 +15,11 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
@@ -24,6 +27,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.Task;
+import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
@@ -38,6 +42,37 @@ import com.google.protobuf.TextFormat;
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
+
+    // This is the uniform name we are looking for in the reflection:
+    private static final String PBR_MATERIAL_NAME = "PbrMaterial";
+
+    public static enum PbrParameterType
+    {
+        PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS,
+        PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS,
+        PBR_PARAMETER_TYPE_CLEARCOAT,
+        PBR_PARAMETER_TYPE_TRANSMISSION,
+        PBR_PARAMETER_TYPE_IOR,
+        PBR_PARAMETER_TYPE_SPECULAR,
+        PBR_PARAMETER_TYPE_VOLUME,
+        PBR_PARAMETER_TYPE_SHEEN,
+        PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH,
+        PBR_PARAMETER_TYPE_IRIDESCENCE,
+    }
+
+    private static final HashMap<String, PbrParameterType> pbrStructNameToParameterType = new HashMap<>();
+    static {
+        pbrStructNameToParameterType.put("PbrMetallicRoughness", PbrParameterType.PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS);
+        pbrStructNameToParameterType.put("PbrSpecularGlossiness", PbrParameterType.PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS);
+        pbrStructNameToParameterType.put("PbrClearCoat", PbrParameterType.PBR_PARAMETER_TYPE_CLEARCOAT);
+        pbrStructNameToParameterType.put("PbrTransmission", PbrParameterType.PBR_PARAMETER_TYPE_TRANSMISSION);
+        pbrStructNameToParameterType.put("PbrIor", PbrParameterType.PBR_PARAMETER_TYPE_IOR);
+        pbrStructNameToParameterType.put("PbrSpecular", PbrParameterType.PBR_PARAMETER_TYPE_SPECULAR);
+        pbrStructNameToParameterType.put("PbrVolume", PbrParameterType.PBR_PARAMETER_TYPE_VOLUME);
+        pbrStructNameToParameterType.put("PbrSheen", PbrParameterType.PBR_PARAMETER_TYPE_SHEEN);
+        pbrStructNameToParameterType.put("PbrEmissiveStrength", PbrParameterType.PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH);
+        pbrStructNameToParameterType.put("PbrIridescence", PbrParameterType.PBR_PARAMETER_TYPE_IRIDESCENCE);
+    }
 
     private static void migrateTexturesToSamplers(MaterialDesc.Builder materialBuilder) {
         List<MaterialDesc.Sampler> samplers = materialBuilder.getSamplersList();
@@ -117,7 +152,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return materialTaskBuilder.build();
     }
 
-    private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+    private static void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
         for (ShaderDesc.Shader shader : shaderBuilder.getShadersList()) {
             if (shader.getVariantTextureArray()) {
                 for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getTexturesList()) {
@@ -138,6 +173,77 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
+    private static void addPbrParameter(MaterialDesc.PbrParameters.Builder pbrParametersBuilder, PbrParameterType type) {
+        switch(type) {
+            case PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS -> pbrParametersBuilder.setHasMetallicRoughness(true);
+            case PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS -> pbrParametersBuilder.setHasSpecularGlossiness(true);
+            case PBR_PARAMETER_TYPE_CLEARCOAT -> pbrParametersBuilder.setHasClearcoat(true);
+            case PBR_PARAMETER_TYPE_TRANSMISSION -> pbrParametersBuilder.setHasTransmission(true);
+            case PBR_PARAMETER_TYPE_IOR -> pbrParametersBuilder.setHasIor(true);
+            case PBR_PARAMETER_TYPE_SPECULAR -> pbrParametersBuilder.setHasSpecular(true);
+            case PBR_PARAMETER_TYPE_VOLUME -> pbrParametersBuilder.setHasVolume(true);
+            case PBR_PARAMETER_TYPE_SHEEN -> pbrParametersBuilder.setHasSheen(true);
+            case PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH -> pbrParametersBuilder.setHasEmissiveStrength(true);
+            case PBR_PARAMETER_TYPE_IRIDESCENCE -> pbrParametersBuilder.setHasIridescence(true);
+        }
+    }
+
+    private static PbrParameterType[] getPbrParameters(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
+        ArrayList<PbrParameterType> params = new ArrayList<>();
+        if (shaderReflection != null) {
+            for (ShaderDesc.ResourceBinding resourceBinding : shaderReflection.getUniformBuffersList()) {
+                ShaderDesc.ResourceType resourceType = resourceBinding.getType();
+                ShaderDesc.ResourceTypeInfo resourceTypeInfo = shaderReflection.getTypes(resourceType.getTypeIndex());
+
+                if (resourceTypeInfo.getName().equals(PBR_MATERIAL_NAME)) {
+                    for (ShaderDesc.ResourceMember resourceMember : resourceTypeInfo.getMembersList()) {
+                        ShaderDesc.ResourceTypeInfo resourceMemberTypeInfo = shaderReflection.getTypes(resourceMember.getType().getTypeIndex());
+                        String resourceMemberTypeName = resourceMemberTypeInfo.getName();
+                        if (pbrStructNameToParameterType.containsKey(resourceMemberTypeName)) {
+                            params.add(pbrStructNameToParameterType.get(resourceMemberTypeName));
+                        }
+                    }
+                }
+            }
+
+        }
+        return params.toArray(new PbrParameterType[0]);
+    }
+
+    public static MaterialDesc.PbrParameters makePbrParametersProtoMessage(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
+        MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
+        PbrParameterType[] parameters = getPbrParameters(shaderReflection);
+        for (PbrParameterType parameter : parameters) {
+            addPbrParameter(pbrParametersBuilder, parameter);
+        }
+
+        if (parameters.length > 0) {
+            pbrParametersBuilder.setHasParameters(true);
+            return pbrParametersBuilder.build();
+        }
+        return null;
+    }
+
+    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+        MaterialDesc.PbrParameters builtPbrParameters = makePbrParametersProtoMessage(shaderBuilder.getReflection());
+        if (builtPbrParameters != null) {
+            materialBuilder.setPbrParameters(builtPbrParameters);
+        }
+    }
+
+    // Auxiliary data is constructed here for the materialBuilder.
+    // It is used for both the stand-alone invocation and during project building.
+    private static MaterialDesc finalizeMaterial(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) throws CompileExceptionError {
+        migrateTexturesToSamplers(materialBuilder);
+        buildVertexAttributes(materialBuilder);
+        buildSamplers(materialBuilder);
+        if (shaderBuilder != null) {
+            applyVariantTextureArray(materialBuilder, shaderBuilder);
+            buildPbrParameters(materialBuilder, shaderBuilder);
+        }
+        return materialBuilder.build();
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
@@ -147,10 +253,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         BuilderUtil.checkResource(this.project, res, "vertex program", materialBuilder.getVertexProgram());
         BuilderUtil.checkResource(this.project, res, "fragment program", materialBuilder.getFragmentProgram());
-
-        migrateTexturesToSamplers(materialBuilder);
-        buildVertexAttributes(materialBuilder);
-        buildSamplers(materialBuilder);
 
         getShaderProgram(materialBuilder);
         IResource shaderResource = getShaderProgram(materialBuilder);
@@ -162,13 +264,12 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         ShaderDesc.Builder shaderBuilder = ShaderDesc.newBuilder();
         shaderBuilder.mergeFrom(resShader.getContent());
 
-        applyVariantTextureArray(materialBuilder, shaderBuilder);
+        MaterialDesc materialDesc = finalizeMaterial(materialBuilder, shaderBuilder);
 
-        MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
     }
 
-    private MaterialDesc.Sampler.Builder getSamplerBuilder(List<MaterialDesc.Sampler.Builder> samplerBuilders, String samplerName) {
+    private static MaterialDesc.Sampler.Builder getSamplerBuilder(List<MaterialDesc.Sampler.Builder> samplerBuilders, String samplerName) {
         for (MaterialDesc.Sampler.Builder builder : samplerBuilders) {
             if (builder.getName().equals(samplerName)) {
                 return builder;
@@ -177,35 +278,45 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return null;
     }
 
+    private static ShaderDesc.Builder getShaderBuilderFromResource(String path) {
+        try {
+            byte[] data = Files.readAllBytes(Paths.get(path));
+            ShaderDesc.Builder shaderBuilder = ShaderDesc.newBuilder();
+            shaderBuilder.mergeFrom(data);
+            return shaderBuilder;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-out.materialc> <content-root>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-in.spc> <path-out.materialc> <shader-name> <content-root>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
 
         String basedir = ".";
         String pathIn = args[0];
-        String pathOut = args[1];
+        // The .spc path is automatically passed in from waf, but it's currently not used since we derive the path from the material
+        // String pathSpc = args[1];
+        String pathOut = args[2];
         String shaderName = null;
         File fileIn = new File(pathIn);
-
-        if (args.length >= 3) {
-            shaderName = args[2];
-        }
+        File fileOut = new File(pathOut);
 
         if (args.length >= 4) {
-            basedir = args[3];
+            shaderName = args[3];
         }
 
+        if (args.length >= 5) {
+            basedir = args[4];
+        }
 
         try (Reader reader = new BufferedReader(new FileReader(pathIn));
              OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
 
             MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
             TextFormat.merge(reader, materialBuilder);
-
-            // TODO: We should probably add the other things that materialbuilder does, but for now this is the minimal
-            //       amount of work to get the tests working.
 
             if (shaderName == null) {
                 shaderName = getShaderName(materialBuilder, ".spc");
@@ -215,16 +326,14 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
             Path shaderProgramProjectPath = Paths.get(fileIn.getAbsolutePath().replace(fileIn.getName(), shaderName));
             Path shaderProgramRelativePath = basedirAbsolutePath.relativize(shaderProgramProjectPath);
+            Path shaderProgramBuildPath = Paths.get(fileOut.getAbsolutePath()).getParent().resolve(shaderName);
             String shaderProgramProjectStr = "/" + shaderProgramRelativePath.toString().replace("\\", "/");
 
             materialBuilder.setProgram(shaderProgramProjectStr);
 
-            migrateTexturesToSamplers(materialBuilder);
+            ShaderDesc.Builder shaderBuilder = getShaderBuilderFromResource(shaderProgramBuildPath.toString());
 
-            buildVertexAttributes(materialBuilder);
-            buildSamplers(materialBuilder);
-
-            MaterialDesc materialDesc = materialBuilder.build();
+            MaterialDesc materialDesc = finalizeMaterial(materialBuilder, shaderBuilder);
             materialDesc.writeTo(output);
         }
     }

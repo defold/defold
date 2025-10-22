@@ -37,12 +37,12 @@
 (defn- set-form-op [{:keys [node-id]} path value]
   {:pre [(= 1 (count path))]}
   (let [prop-kw (first path)]
-    (g/set-property! node-id prop-kw value)))
+    (g/set-property node-id prop-kw value)))
 
 (defn- clear-form-op [{:keys [node-id]} path]
   {:pre [(= 1 (count path))]}
   (let [prop-kw (first path)]
-    (g/clear-property! node-id prop-kw)))
+    (g/clear-property node-id prop-kw)))
 
 (g/defnk produce-form-data [_node-id integer number vec4]
   (let [fields
@@ -177,7 +177,7 @@
           project-graph (g/make-graph! :history true :volatility 1)
           view-graph (g/make-graph! :history false :volatility 2)
           resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
-          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil)
+          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)
           fields (->> form-data
                       (:sections)

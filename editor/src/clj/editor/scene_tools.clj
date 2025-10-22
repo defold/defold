@@ -22,6 +22,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking])
@@ -358,15 +359,15 @@
 (def transform-tools
   {:move {:manips-fn manip-move-manips
           :manip-spaces #{:local :world}
-          :label "Move"
+          :label (localization/message "operation.scene.move")
           :filter-fn manip-movable?}
    :rotate {:manips-fn manip-rotate-manips
             :manip-spaces #{:local :world}
-            :label "Rotate"
+            :label (localization/message "operation.scene.rotate")
             :filter-fn manip-rotatable?}
    :scale {:manips-fn manip-scale-manips
            :manip-spaces #{:local}
-           :label "Scale"
+           :label (localization/message "operation.scene.scale")
            :filter-fn manip-scalable?}})
 
 (defn- supported-manips
@@ -512,7 +513,8 @@
                            original-values (->> selected-renderables
                                                 scene-picking/top-nodes
                                                 (mapv original-values))]
-                       (when (not (empty? original-values))
+                       (when (and (not (empty? original-values))
+                                  (= (:button action) :primary))
                          (g/transact
                             (concat
                               (g/set-property self :start-action action)

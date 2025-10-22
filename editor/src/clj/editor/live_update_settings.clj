@@ -94,10 +94,9 @@
   (output save-value g/Any (gu/passthrough save-value))
   (output build-targets g/Any :cached (g/constantly [])))
 
-(def ^:private basic-meta-info (with-open [r (-> "live-update-meta.edn"
-                                                 settings-core/resource-reader
-                                                 settings-core/pushback-reader)]
-                                 (settings-core/load-meta-info r)))
+(def ^:private basic-meta-info
+  (with-open [rdr (io/reader (io/resource "liveupdate-meta.properties"))]
+    (settings-core/load-meta-properties rdr)))
 
 (defn- load-live-update-settings [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)]
@@ -107,7 +106,7 @@
                     (g/connect settings-node :settings-map self :settings-map)
                     (g/connect settings-node :save-value self :save-value)
                     (g/connect settings-node :form-data self :form-data)
-                    (settings/load-settings-node settings-node resource source-value basic-meta-info nil)))))
+                    (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace

@@ -21,7 +21,6 @@
  * @document
  * @name Memory
  * @namespace dmMemory
- * @path engine/dlib/src/dmsdk/dlib/memory.h
  * @language C++
  */
 
