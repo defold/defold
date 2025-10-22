@@ -21,7 +21,6 @@ welcome.header.open = Abrir
 welcome.header.new-project-from = Criar De
 welcome.tab.templates = MODELOS
 welcome.tab.tutorials = TUTORIAIS
-welcome.tab.samples = AMOSTRAS
 welcome.new-project.default-name = Meu Projeto
 welcome.new-project.title = Título
 welcome.new-project.location = Localização
