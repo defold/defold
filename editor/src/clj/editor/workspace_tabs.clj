@@ -17,7 +17,7 @@
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui])
-  (:import [javafx.scene.control Tab TabPane SplitPane]))
+  (:import [javafx.scene.control SplitPane Tab TabPane]))
 
 (defn- tab->resource [^Tab tab]
   (some-> tab
@@ -26,8 +26,7 @@
     second
     :resource))
 
-(defn serialize-open-tabs
-  [app-view]
+(defn- serialize-open-tabs [app-view]
   (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context ec
                                        (g/node-value app-view :editor-tabs-split ec))]
     (mapv (fn [^TabPane tab-pane]
@@ -42,5 +41,28 @@
                   (.getTabs tab-pane)))
           (.getItems editor-tabs-split))))
 
-(defn save-prefs  [prefs app-view]
+(defn- serialize-tab-selections [app-view]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)
+          active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)
+          tab-panes (.getItems editor-tabs-split)]
+      {:selected-pane (.indexOf tab-panes active-tab-pane)
+       :selected-tabs-idx (mapv (fn [^TabPane pane]
+                                  (-> pane .getSelectionModel .getSelectedIndex))
+                                tab-panes)})))
+
+(defn save-open-tabs [prefs app-view]
   (prefs/set! prefs [:workflow :open-tabs] (serialize-open-tabs app-view)))
+
+(defn save-tab-selections [prefs app-view]
+  (prefs/set! prefs [:workflow :last-selected-tabs] (serialize-tab-selections app-view)))
+
+(comment
+  (defn save-open-tabs [prefs app-view] nil)
+  (defn save-tab-selections [prefs app-view] nil)
+  (g/with-auto-evaluation-context ec
+    (let [editor-tabs-split ^SplitPane (g/node-value (dev/app-view) :editor-tabs-split ec)
+          active-tab-pane (g/node-value (dev/app-view) :active-tab-pane ec)
+          tab-panes (.getItems editor-tabs-split)]
+      (-> (second tab-panes) .getSelectionModel .getSelectedIndex)))
+  ,)

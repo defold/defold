@@ -174,6 +174,11 @@
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
+                :last-selected-tabs {:type :object
+                                     :properties {:selected-pane {:type :integer}
+                                                  ;; The tab index for each pane
+                                                  :selected-tabs-idx {:type :array
+                                                                      :item {:type :integer}}}}
                 :open-tabs {:type :array
                             :item {:type :array
                                    :item {:type :tuple

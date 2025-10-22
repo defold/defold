@@ -2011,6 +2011,7 @@
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
+            (workspace-tabs/save-tab-selections prefs app-view)
             (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
   (-> tab-pane
       (.getTabs)
@@ -2021,7 +2022,7 @@
              (when (compare-and-set! save-scheduled false true)
                (ui/run-later
                  (reset! save-scheduled false)
-                 (workspace-tabs/save-prefs prefs app-view)))
+                 (workspace-tabs/save-open-tabs prefs app-view)))
              ;; Check if we've ended up with an empty TabPane.
              ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
              (when (empty? (.getTabs tab-pane))
@@ -2038,7 +2039,7 @@
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
-(defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
+(defn- handle-focus-owner-change! [prefs app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
     (when (and (some? new-editor-tab-pane)
@@ -2049,6 +2050,7 @@
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
+        (workspace-tabs/save-tab-selections prefs app-view)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
@@ -2072,7 +2074,7 @@
 
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
-                    (handle-focus-owner-change! app-view app-scene new-focus-owner)))
+                    (handle-focus-owner-change! prefs app-view app-scene new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
@@ -2289,22 +2291,29 @@
              false)))))))
 
 (defn restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
-  (when-let [open-tab-panes (prefs/get prefs [:workflow :open-tabs])]
-    (doseq [[pane-num pane] (map-indexed vector open-tab-panes)]
-      ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
-      ;; need to refactor if we made a more elaborate window tiling system
-      (when (= 1 pane-num)
-        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
-              second-split (add-other-tab-pane! editor-tabs-split app-view prefs)]
-          (g/set-property! app-view :active-tab-pane second-split)))
-      (doseq [[proj-path view-type-id] pane
-              :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
-              :when (and (resource/openable-resource? resource)
-                         (resource/exists? resource))]
-        (let [view-type (workspace/get-view-type workspace view-type-id)]
-          (open-resource app-view prefs localization workspace project resource
-                         {:selected-view-type view-type
-                          :use-custom-editor false}))))))
+  (when-let [tab-panes-to-restore (prefs/get prefs [:workflow :open-tabs])]
+    (let [{:keys [selected-pane selected-tabs-idx]} (prefs/get prefs [:workflow :last-selected-tabs])
+          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+      (doseq [[pane-num pane] (map-indexed vector tab-panes-to-restore)]
+        (ui/add-style! (g/node-value app-view :active-tab-pane) "inactive")
+        ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
+        ;; need to change if we made a more elaborate window tiling system.
+        (when (= 1 pane-num)
+          (let [second-split (add-other-tab-pane! editor-tabs-split app-view prefs)]
+            ;; NOTE: Set the second-split active so `open-resource` opens the tabs there
+            (g/set-property! app-view :active-tab-pane second-split)))
+        (doseq [[proj-path view-type-id] pane
+                :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+                :when (and (resource/openable-resource? resource)
+                           (resource/exists? resource))]
+          (let [view-type (workspace/get-view-type workspace view-type-id)]
+            (open-resource app-view prefs localization workspace project resource
+                           {:selected-view-type view-type
+                            :use-custom-editor false})))
+        (when-let [saved-tab-idx (get selected-tabs-idx pane-num)]
+          (.select (.getSelectionModel (g/node-value app-view :active-tab-pane)) saved-tab-idx)))
+      (let [tab-panes (.getItems editor-tabs-split)]
+        (.requestFocus (.get tab-panes selected-pane))))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
@@ -3064,3 +3073,11 @@
              :icon :icon/triangle-error
              :content {:wrap-text true
                        :text (localization/message "dialog.desktop-entry.creation-failed.content" {"error" (.getMessage e)})}}))))))
+
+(comment
+  (ui/run-later
+   (g/with-auto-evaluation-context ec
+     (restore-project-tabs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec)))
+  (ui/run-later
+    (ui/run-command (ui/main-root) :window.tab.close-all))
+  ,)
