@@ -15,26 +15,45 @@ welcome.button.cancel-download = 取消下载
 welcome.recent-projects = 最近的项目
 welcome.tab.new-project = 新建项目
 welcome.tab.home = 我的项目
+welcome.greeting = 欢迎！当你开始使用 Defold 时，所有最近的项目都会显示在这里。
+welcome.downloading-project = 下载中{template}…
 welcome.header.open = 打开
 welcome.header.new-project-from = 创建自
 welcome.tab.templates = 模板
 welcome.tab.tutorials = 教程
+welcome.tab.samples = 示例
 welcome.new-project.default-name = 我的项目
 welcome.new-project.title = 标题
+welcome.new-project.location = 位置
 welcome.open-from-disk.dialog.title = 打开项目
+welcome.open-from-disk.dialog.filter.defold = Defold 项目文件
+welcome.new-project.location.dialog.title = 选择新建项目位置
 welcome.new-project.error.no-project-title.title = 无项目标题
+welcome.new-project.error.no-project-title.header = 您必须为项目指定一个标题
 welcome.new-project.error.invalid-project-title.title = 无效的项目标题
 welcome.new-project.error.host-unreachable.header = 防火墙可能正在阻止网络连接
+welcome.new-project.error.host-not-responding.title = 主机未响应
+welcome.new-project.error.host-not-responding.header = 连接已超时
 welcome.new-project.error.ssl-connection-error.title = SSL 连接错误
+welcome.new-project.error.ssl-connection-error.header = 无法建立SSL连接
 
 # Welcome -> New Project -> From Template
+welcome.new-project.mobile-game.description = 如果您想开始为移动设备开发游戏，此模板包含了实用的设置和资源。
+welcome.new-project.platformer-game.description = 如果你想开始制作平台跳跃游戏，此模板包含了一些基础设置。
+welcome.new-project.rive-project.title = Rive 项目
+welcome.new-project.rive-project.description = 此模板使用 rive 扩展来帮助你快速入门。
 
 # Welcome -> New Project -> From Tutorial
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.shadertoy-sample.description = 本示例包含一个从 Shadertoy 获取并转换为 Defold 格式的 GLSL 着色器。它展示了如何在 Defold 中处理材质和着色器。
 
 # Updater
+updater.download-or-restart-dialog.detail = 您可以安装已下载的更新包，或下载其它新版本
 updater.update-failed.title = 更新失败
+updater.dialog.button.download = 下载更新
+updater.dialog.button.install-and-restart = 安装并重启
+updater.dialog.button.download-newer-version = 下载新版本
 
 # Time
 time.vague.just-now = 刚刚
@@ -44,15 +63,21 @@ time.vague.minutes-ago = {count} 分钟前
 time.vague.half-an-hour-ago = 半小时前
 time.vague.an-hour-ago = 一小时前
 time.vague.a-few-hours-ago = 几小时前
+time.vague.hours-ago = {count} 小时前
+time.vague.a-day-ago = 1 天前
 
 # Common dialogs
 
+dialog.button.close = 关闭
+dialog.button.quit = 退出
 
 # Error Dialog
 
 
 # Build Error Dialog
 
+dialog.build-error.title = 构建错误
+dialog.build-error.cycle.header = 检测到资源循环依赖
 
 # Clean Build Dialog
 
@@ -63,24 +88,49 @@ time.vague.a-few-hours-ago = 几小时前
 # Defunload Issues Dialog
 
 
+notification.defunload-issues.action.show-details = 查看详情…
 
 # Launch Failed Dialog
 
+dialog.launch-failed.title = 启动失败
+dialog.launch-failed.header = 启动 {engine} 失败
+dialog.launch-failed.detail = 如果引擎已在运行，请手动关闭进程并重试
+dialog.launch-failed.target.new-local-engine = 新建本地引擎
 
 # Hot Reload Failed Dialog
 
+dialog.hot-reload-failed.title = 热重载失败
+dialog.hot-reload-failed.header = 无法在引擎 "{engine}" 上重新加载资源
 
 # GL support error dialog
 
+dialog.gl-support.title = 缺少必要的 OpenGL 支持
+dialog.gl-support.header = 这是一个很常见的问题，看看这些用法是否有帮助：
+dialog.gl-support.linux = Linux上的OpenGL
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = 您可以在场景编辑功能被禁用下继续使用。
 
 # New folder
 
+dialog.new-folder.title = 新建文件夹
+dialog.new-folder.header = 输入新文件夹名称
+dialog.new-folder.label.name = 名称
+dialog.new-folder.label.preview = 预览
+dialog.new-folder.button.create-folder = 创建文件夹
 
 # Target IP dialog
 
+dialog.target-ip.title = 输入目标IP
+dialog.target-ip.header = 输入目标IP地址
+dialog.target-ip.label.ip = 目标IP地址
+dialog.target-ip.button.add = 添加目标IP
 
 # Search in Files Dialogs
 
+dialog.search-in-files.title = 在文件中搜索
+dialog.search-in-files.label.search = 搜索模式（* 可匹配任意字符串）
+dialog.search-in-files.label.types = 搜索的文件类型（用英文逗号分隔）
+dialog.search-in-files.label.include-libraries = 在库内搜索
 
 # Target Discovery Log Dialog
 
@@ -174,9 +224,12 @@ time.vague.a-few-hours-ago = 几小时前
 
 # Open resource dialogs
 
+dialog.open-resource.excluded.title = 资源已从加载中排除
+dialog.open-resource.excluded.header = 由于 "{resource}" 被 ".defunload" 文件排除在加载范围之外，因此无法打开。
 
 # Loading project dialog
 
+dialog.loading-project.header = 正在加载项目
 
 # Editor panes
 
@@ -205,6 +258,10 @@ time.vague.a-few-hours-ago = 几小时前
 
 # Progress
 
+progress.loading-editor = 正在加载编辑器
+progress.loading = 正在加载
+progress.loading-resource = 正在加载 {resource}
+progress.loading-project = 正在加载项目…
 progress.downloading-update = 正在下载更新
 
 # Engine targets
