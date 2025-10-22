@@ -8,35 +8,131 @@
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
 
 # Localizations of the Welcome dialog
+welcome.button.open-from-disk = Abrir do Disco…
+welcome.button.open-selected = Abrir Selecionado
+welcome.button.create-new-project = Criar Novo Projeto
+welcome.button.cancel-download = Cancelar Download
+welcome.recent-projects = Projetos Recentes
+welcome.tab.new-project = NOVO PROJETO
+welcome.tab.home = MEUS PROJETOS
+welcome.greeting = Bem-vindo\! Assim que você começar a trabalhar com o Defold, todos os seus projetos recentes aparecerão aqui.
+welcome.downloading-project = Baixando {template}…
+welcome.header.open = Abrir
+welcome.header.new-project-from = Criar De
+welcome.tab.templates = MODELOS
+welcome.tab.tutorials = TUTORIAIS
+welcome.tab.samples = AMOSTRAS
+welcome.new-project.default-name = Meu Projeto
+welcome.new-project.title = Título
+welcome.new-project.location = Localização
+welcome.open-from-disk.dialog.title = Abrir Projeto
+welcome.open-from-disk.dialog.filter.defold = Arquivos de Projeto Defold
+welcome.new-project.location.dialog.title = Selecione um Local para o Novo Projeto
+welcome.new-project.error.no-project-title.title = Sem Título de Projeto
+welcome.new-project.error.no-project-title.header = Você deve especificar um título para o projeto
+welcome.new-project.error.invalid-project-title.title = Título de Projeto Inválido
+welcome.new-project.error.invalid-project-title.header = Espaços em branco não são permitidos no título do projeto
+welcome.new-project.error.conflicting-project-location.title = Conflito da Localização do Projeto
+welcome.new-project.error.conflicting-project-location.header = Uma pasta não vazia já existe no local escolhido
+welcome.new-project.error.no-internet-connection.title = Sem Conexão com a Internet
+welcome.new-project.error.no-internet-connection.header = Você deve estar conectado à internet para baixar o conteúdo do projeto
+welcome.new-project.error.host-unreachable.title = Servidor Inacessível
+welcome.new-project.error.host-unreachable.header = Um firewall pode estar bloqueando conexões de rede
+welcome.new-project.error.host-not-responding.title = Servidor Não Responde
+welcome.new-project.error.host-not-responding.header = Tempo limite atingido
+welcome.new-project.error.ssl-connection-error.title = Erro de conexão SSL
+welcome.new-project.error.ssl-connection-error.header = Não foi possível estabelecer uma conexão SSL
+welcome.new-project.error.ssl-connection-error.common-causes = As causas comuns são\:\n  • Software antivírus configurado para escanear conexões criptografadas\n  • Certificado de servidor expirado ou mal configurado\n  • Certificado de servidor não confiável\n\nA seguinte FAQ pode se aplicar\: 
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Falha na construção do caminho PKIX
 
 # Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = Projeto Vazio
+welcome.new-project.empty-project.description = Escolha este modelo se você quiser começar de forma completamente em branco.
+welcome.new-project.mobile-game.title = Jogo para Celular
+welcome.new-project.mobile-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para dispositivos móveis.
+welcome.new-project.poki-html5-game.title = Jogo Poki HTML5
+welcome.new-project.native-extension.title = Extensão Nativa
+welcome.new-project.native-extension.description = Este modelo contém a configuração básica para começar a criação de uma extensão nativa.
+welcome.new-project.basic-3d-project.title = Projeto 3D Básico
+welcome.new-project.basic-3d-project.description = Este modelo contém a configuração básica para renderização 3D.
+welcome.new-project.platformer-game.title = Jogo de Plataforma
 
 # Welcome -> New Project -> From Tutorial
 
 # Welcome -> New Project -> From Sample
 
 # Updater
+updater.dialog.header = Instalar a atualização baixada e reiniciar?
+updater.dialog.button.not-now = Agora Não
+updater.dialog.button.download = Baixar Atualização
+updater.dialog.button.install-and-restart = Instalar e Reiniciar
+updater.dialog.button.download-newer-version = Baixar Versão Mais Recente
 
 # Time
+time.vague.unknown = Desconhecido
+time.vague.just-now = Agora
+time.vague.a-minute-ago = Um minuto atrás
+time.vague.a-few-minutes-ago = Alguns minutos atrás
+time.vague.minutes-ago = {count} minutos atrás
+time.vague.half-an-hour-ago = Meia hora atrás
+time.vague.an-hour-ago = Uma hora atrás
+time.vague.a-few-hours-ago = Algumas horas atrás
+time.vague.hours-ago = {count} horas atrás
+time.vague.a-day-ago = Um dia atrás
 
 # Common dialogs
 
+dialog.button.close = Fechar
+dialog.button.quit = Sair
+dialog.button.open-defold-website = Abrir defold.com
+dialog.button.dismiss = Fechar
+dialog.button.report = Reportar
+dialog.button.disable-scene-editor = Desativar Editor de Cena
+dialog.button.cancel = Cancelar
+dialog.button.delete = Deletar
 
 # Error Dialog
 
+dialog.error.title = Erro
+dialog.error.header = Um erro ocorreu
+dialog.error.footer = Você pode nos ajudar a corrigir esse problema reportando-o e fornecendo mais informações sobre o que você estava fazendo quando aconteceu.
 
 # Build Error Dialog
 
+dialog.build-error.title = Erro de Compilação
+dialog.build-error.cycle.header = Dependência cíclica de recursos detectada
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = Isso é causado quando duas ou mais coleções se referencia em um loop de proxies ou fábricas de coleção. Um dos recursos é\: {resource}.
+dialog.build-error.cycle.detail.game-object = Isso é causado quando dois ou mais objetos de jogo se referenciam em um loop de fábricas de objetos. Um dos recursos é\: {resource}.
+dialog.build-error.cycle.detail.script = Isso é causado quando dois ou mais módulos Lua são carregados em um loop. Um dos recursos é\: {resource}.
+dialog.build-error.cycle.detail.generic = Isso é causado por dois ou mais recursos referenciados em um loop. Um dos recursos é\: {resource}.
 
 # Clean Build Dialog
 
+dialog.clean-build.title = Executar Construção Limpa de Projeto?
+dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
+dialog.clean-build.button.clean = Construção Limpa
 
 # Debugging Not Supported Dialog
 
+dialog.debugging-not-supported.title = Depuração Não Suportada
+dialog.debugging-not-supported.header = Este projeto não pode ser usado com o depurador
+dialog.debugging-not-supported.content = Está configurado para desabilitar o compartilhamento de estado de scripts.\n\nSe você não precisa de estados de script diferentes, considere mudar a propriedade script.share_state no game.project.
 
 # Defunload Issues Dialog
 
+dialog.defunload-issues.title = Revise Padrões .defunload
+dialog.defunload-issues.header = Foi encontrado referências inseguras a recursos não carregados.
+dialog.defunload-issues.summary = Um ou mais recursos tem referências inseguras a recursos não carregados pelos padrões `.defunload`.
+dialog.defunload-issues.advice = Por favor corrija os padrões no arquivo `.defunload` para evitar carregar recursos indesejados.
+dialog.defunload-issues.report-path = O relatório completo foi criado em\:
+dialog.defunload-issues.button.ignore = Ignorar
+dialog.defunload-issues.button.open-report = Abrir Relatório
+dialog.defunload-issues.report-line = {resource} - chama recursos não carregados\:
+dialog.defunload-issues.report.section-loading-resources = \#\#\# Carregando Recursos \#\#\#
+dialog.defunload-issues.report.loaded-undesired = Os seguintes recursos que correspondem aos padrões `.defunload` foram carregados por necessidade\:
 
+notification.defunload-issues.action.show-details = Mostrar detalhes…
 
 # Launch Failed Dialog
 
@@ -73,6 +169,8 @@
 
 # Save and upgrade file formats dialogs
 
+dialog.save-and-upgrade.version-control.info.after-manual = .
+dialog.save-and-upgrade.uncommitted.header = Alterações não salvas detectadas
 
 # Plugin load error dialog
 
