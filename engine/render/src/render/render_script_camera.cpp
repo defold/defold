@@ -126,6 +126,21 @@ namespace dmRender
      * @param y [type:number] Y coordinate on screen.
      * @param [camera] [type:url|number|nil] optional camera id
      * @return world_pos [type:vector3] the world coordinate on the camera near plane
+     *
+     * @examples
+     * Place objects at the touch point.
+     *
+     * ```lua
+     *  function on_input(self, action_id, action)
+     *      if action_id == hash("touch") then
+     *          if action.pressed then
+     *              local world_position = camera.screen_xy_to_world(action.screen_x, action.screen_y)
+     *              go.set_position(world_position, "/go1")
+     *          end
+     *      end
+     *  end
+     * ```
+     *
      */
     static int RenderScriptCamera_ScreenXYToWorld(lua_State* L)
     {
@@ -158,6 +173,23 @@ namespace dmRender
      * @param pos [type:vector3] Screen-space position (x, y) with z as view depth in world units
      * @param [camera] [type:url|number|nil] optional camera id
      * @return world_pos [type:vector3] the world coordinate
+     *
+     * @examples
+     * Place objects at the touch point with a random Z position, keeping them within the visible view zone.
+     *
+     * ```lua
+     *  function on_input(self, action_id, action)
+     *      if action_id == hash("touch") then
+     *          if action.pressed then
+     *              local percpective_camera = msg.url("#perspective_camera")
+     *              local random_z = math.random(camera.get_near_z(percpective_camera) + 0.01, camera.get_far_z(percpective_camera) - 0.01)
+     *              local world_position = camera.screen_to_world(vmath.vector3(action.screen_x, action.screen_y, random_z), percpective_camera)
+     *              go.set_position(world_position, "/go1")
+     *          end
+     *      end
+     *  end
+     * ```
+     *
      */
     static int RenderScriptCamera_ScreenToWorld(lua_State* L)
     {
@@ -187,6 +219,16 @@ namespace dmRender
      * @param world_pos [type:vector3] World-space position
      * @param [camera] [type:url|number|nil] optional camera id
      * @return screen_pos [type:vector3] Screen position (x,y in pixels, z is view depth)
+     *
+     * @examples
+     * Convert go position into screen pisition
+     *
+     * ```lua
+     *  go.update_world_transform("/go1")
+     *  local world_pos = go.get_world_position("/go1")
+     *  local screen_pos = camera.world_to_screen(world_pos)
+     * ```
+     *
      */
     static int RenderScriptCamera_WorldToScreen(lua_State* L)
     {
