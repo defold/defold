@@ -629,6 +629,9 @@ engine.name.with-instance = {name} — 实例 {instance}
 
 # Search results: overrides
 
+search.overrides.title.all = {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other {在}}}}{resource, select, none {} other { "{resource}"}}所有属性覆盖
+search.overrides.title.list = {list} 属性覆盖 {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other {在}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other {在}}}}{resource, select, none {} other { "{resource}"}}特定属性覆盖
 search.column.resource = 资源
 
 # Menus
@@ -754,8 +757,10 @@ command.edit.reorder-down = 下移
 command.edit.rename = 重命名
 command.edit.pull-up-overrides = 拉取覆盖
 command.edit.pull-up-overrides.variant.property = 拉取{property}覆盖
+command.edit.pull-up-overrides.option = 拉取 {property_count, select, 1 {"{property}" 覆盖} other {{property_count} Overrides}} 至 {target_count, select, 1 {{target, select, undefined {祖先} other {"{target}"}}} other {{target_count} 祖先们}} {aspect_count, select, 0 {} 1 {in {aspect} } other {之中{aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {在 "{resource}"} other {的 "{resource}"}}} other {跨越{resource_count} 资源}}
 command.edit.push-down-overrides = 推送覆盖
 command.edit.push-down-overrides.variant.property = 下推 {property} 覆盖
+command.edit.push-down-overrides.option = 推送 {property_count, select, 1 {"{property}" 覆盖} other {{property_count} 覆盖}} 至 {target_count, select, 1 {{target, select, undefined {后代} other {"{target}"}}} other {{target_count} 后代们}} {aspect_count, select, 0 {} 1 {在 {aspect} } other {之中 {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {在 "{resource}"} other {的 "{resource}"}}} other {跨越{resource_count} 资源}}
 command.edit.show-overrides = 显示覆盖…
 command.code.find-next = 查找下一个
 command.code.find-previous = 查找上一项
