@@ -161,7 +161,22 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
-      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
+      {
+        name: 'Setup dotnet',
+        shell: bash,
+        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
+              chmod +x ./dotnet-install.sh &&
+              export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
+              export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
+              echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $GITHUB_ENV &&
+              echo "DOTNET_CLI_HOME=${DOTNET_ROOT}" >> $GITHUB_ENV &&
+              echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV &&
+              mkdir -p ${DOTNET_ROOT} &&
+              mkdir -p ${NUGET_PACKAGES} &&
+              ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} &&
+              echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
+              echo "dotnet version: $(dotnet --version)"'
+      },
       { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '4.0.6'}},
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'

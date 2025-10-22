@@ -436,13 +436,16 @@ def default_flags(self):
     # Common for all platforms
     flags = []
     if target_os not in (TargetOS.WINDOWS, TargetOS.XBONE):
-        build_script_path = self.path.abspath()
-        parts = build_script_path.split(os.sep)
-        index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
-        if index != -1 and (index + 1) < len(parts):
-            flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
-        flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
         flags += ["-Werror=return-type"]
+
+        # if we're building on CI, we want to setup special debug paths, as it makes it easier to use with extension builds
+        if os.environ.get('GITHUB_WORKFLOW', None) is not None:
+            build_script_path = self.path.abspath()
+            parts = build_script_path.split(os.sep)
+            index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
+            if index != -1 and (index + 1) < len(parts):
+                flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
+            flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
         flags += [self.env.DEFINES_ST % 'NDEBUG']

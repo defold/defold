@@ -1955,13 +1955,14 @@ namespace dmGameSystem
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         for (uint32_t i = 0; i < num_entries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
 
             float radius_sq = radiuses[entry->m_UserData];
 
-            SpriteComponent* component = &sprite_world->m_Components.Get(entry->m_UserData);
+            SpriteComponent* component = &components[entry->m_UserData];
             const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
             float pivot_x = 0.f, pivot_y = 0.f;
             GetPivot(anim_data, &pivot_x, &pivot_y);

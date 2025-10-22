@@ -538,7 +538,7 @@ namespace dmDeviceWasapi
                 return;
             }
 
-            uint32_t frames_available = buffer_size;// buffer_size - buffer_pos;
+            uint32_t frames_available = buffer_size - buffer_pos;
             hr = device->m_AudioRenderClient->GetBuffer(frames_available, &out);
             if (FAILED(hr))
             {
