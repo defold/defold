@@ -48,16 +48,24 @@ welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Falha na constru
 # Welcome -> New Project -> From Template
 welcome.new-project.empty-project.title = Projeto Vazio
 welcome.new-project.empty-project.description = Escolha este modelo se você quiser começar de forma completamente em branco.
-welcome.new-project.mobile-game.title = Jogo para Celular
 welcome.new-project.mobile-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para dispositivos móveis.
+welcome.new-project.desktop-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para computador.
 welcome.new-project.poki-html5-game.title = Jogo Poki HTML5
+welcome.new-project.poki-html5-game.description = Este modelo inclui o SDK do Poki, projetado tanto para computadores quanto para dispositivos móveis. Oferece também uma opção de exportação rápida para a plataforma Poki para Desenvolvedores.
 welcome.new-project.native-extension.title = Extensão Nativa
 welcome.new-project.native-extension.description = Este modelo contém a configuração básica para começar a criação de uma extensão nativa.
 welcome.new-project.basic-3d-project.title = Projeto 3D Básico
 welcome.new-project.basic-3d-project.description = Este modelo contém a configuração básica para renderização 3D.
 welcome.new-project.platformer-game.title = Jogo de Plataforma
+welcome.new-project.rive-project.title = Projeto Rive
+welcome.new-project.rive-project.description = Este modelo usa a extensão rive para começar.
 
 # Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = Tutorial de Rolagem Lateral
+welcome.new-project.side-scroller-tutorial.description = Neste tutorial para iniciantes, você experimenta como é criar um jogo em Defold modificando um jogo de rolagem lateral muito simples.
+welcome.new-project.walking-astronaut-tutorial.title = Tutorial do Astronauta
+welcome.new-project.walking-astronaut-tutorial.description = Neste tutorial para iniciantes, você aprende como capturar os comandos do jogador e fazer um personagem se mover e animar. Você também aprenderá sobre os blocos de construção centrais em Defold\: objetos de jogo, componentes e coleções.
+welcome.new-project.movement-tutorial.title = Tutorial de Movimento
 
 # Welcome -> New Project -> From Sample
 
@@ -171,33 +179,76 @@ notification.defunload-issues.action.show-details = Mostrar detalhes…
 
 dialog.save-and-upgrade.version-control.info.after-manual = .
 dialog.save-and-upgrade.uncommitted.header = Alterações não salvas detectadas
+dialog.save-and-upgrade.uncommitted.content = Devido ao potencial de perda de dados, as alterações de formato de arquivo devem começar a partir de um diretório de trabalho limpo.\n\nRecomendamos que você salve suas alterações locais antes de tentar a operação novamente.
+dialog.save-and-upgrade.confirm.title = Salvar e Atualizar Formatos de Arquivo?
+dialog.save-and-upgrade.confirm.header = Salvar novamente todos os arquivos no formato mais recente?
+dialog.save-and-upgrade.confirm.content = Arquivos no projeto serão salvos novamente no formato mais recente. Esta operação não pode ser desfeita.\nDevido ao grande número de arquivos afetados, você deve conversar com sua equipe neste projeto antes de fazer isso.
+dialog.save-and-upgrade.button.abort = Abortar
+dialog.save-and-upgrade.button.proceed-anyway = Continuar Mesmo Assim
+dialog.save-and-upgrade.button.upgrade-editable-files = Atualizar Arquivos Editáveis
+dialog.save-and-upgrade.button.upgrade-project-files = Atualizar Arquivos de Projeto
+dialog.save-and-upgrade.button.upgrade-all-files = Atualizar Todos os Arquivos
 
 # Plugin load error dialog
 
+dialog.plugin-load-error.title = Não Foi Possível Carregar Plugin
+dialog.plugin-load-error.header = O plugin de editor "{plugin}" não é compatível com esta versão do editor. Por favor, edite as dependências de projeto para utilizar uma versão adequada.
 
 # Desktop entry dialogs
 
+dialog.desktop-entry.created.title = Atalho na Área de Trabalho Criado
+dialog.desktop-entry.created.header = O atalho na área de trabalho foi criado\!
+dialog.desktop-entry.created.content = Agora você pode iniciar o editor Defold a partir do menu do sistema.
+dialog.desktop-entry.creation-failed.title = Criação de Atalho na Área de Trabalho Falhou
+dialog.desktop-entry.creation-failed.header = Não foi possível criar um atalho na área de trabalho\!
+dialog.desktop-entry.creation-failed.content = Ocorreu um erro ao criar um atalho na área de trabalho\:\n{error}
 
 # Texture compressor error dialog
 
+dialog.texture-compressor-error.title = Não Foi Possível Carregar Plugin
+dialog.texture-compressor-error.header = Falha ao inicializar compressores de textura
+dialog.texture-compressor-error.content = As seguintes classes dos plugins de editor não são compatíveis com esta versão do editor\:\n\n{classes}\n\nO projeto pode não funcionar sem eles.\nPor favor edite as dependências do seu projeto para utilizar uma versão adequada.
 
 # Lua preprocessors error dialog
 
+dialog.lua-preprocessors-error.title = Não Foi Possível Carregar Plugin
+dialog.lua-preprocessors-error.content = As seguintes classes dos plugins de editor não são compatíveis com esta versão do editor\:\n\n{classes}\n\nO projeto pode não funcionar sem eles.\nPor favor edite as dependências do seu projeto para utilizar uma versão adequada.
+dialog.lua-preprocessors-error.construct.header = Falha ao construir os pré-processadores Lua
+dialog.lua-preprocessors-error.initialize.header = Falha ao inicializar os pré-processadores de Lua
 
 # Lua transpilers error dialog
 
+dialog.lua-transpilers-error.title = Não Foi Possível Carregar Plugin
+dialog.lua-transpilers-error.content = As seguintes classes dos plugins de editor não são compatíveis com esta versão do editor\:\n\n{classes}\n\nO projeto pode não funcionar sem eles.\nPor favor edite as dependências do seu projeto para utilizar uma versão adequada.
+dialog.lua-transpilers-error.construct.header = Falha ao construir transpiladores Lua
+dialog.lua-transpilers-error.initialize.header = Falha ao inicializar transpiladores Lua
+dialog.lua-transpilers-error.generic.header = Falha ao carregar transpiladores Lua
 
 # Diff view dialogs
 
+dialog.diff-view.unchanged.title = Arquivo Não Alterado
+dialog.diff-view.unchanged.header = Arquivo não alterado
+dialog.diff-view.binary.title = Não Foi Possível Fazer Diff de Arquivos Binários
+dialog.diff-view.binary.header = Não foi possível fazer diff de arquivos binários
 
 # Fetch libraries dialog
 
+dialog.fetch-libraries.host-unreachable.title = Falha na Busca
+dialog.fetch-libraries.host-unreachable.header = A busca foi cancelada porque um servidor não pôde ser alcançado
+dialog.fetch-libraries.host-unreachable.content = Servidor inacessível\: {host}\n\nPor favor verifique sua conexão com a internet e tente novamente.
 
 # Fetch libraries notification
 
+notification.fetch-libraries.dependencies-changed.prompt = Dependências do projeto mudaram. Você deseja obter as bibliotecas agora?
+notification.fetch-libraries.dependencies-changed.action.fetch = Buscar Bibliotecas
+notification.fetch-libraries.dependencies-missing.warning = Estão faltando as seguintes dependências\:\n{dependencies}\nO projeto pode não funcionar sem elas.\nPara baixar, conecte-se à internet e busque as bibliotecas.
+notification.fetch-libraries.dependencies-error.error = Não foi possível instalar as seguintes dependências\:\n{dependencies}
+notification.fetch-libraries.dependencies-error.action.open-game-project = Abrir game.project
 
 # Language server notification
 
+notification.lsp.language-server-missing.prompt = Não é possível executar esta ação porque não há nenhum Servidor de Linguagem em execução para {language}.
+notification.lsp.language-server-missing.action.about = Sobre LSP em Defold
 
 # Asset browser notifications
 
@@ -289,6 +340,8 @@ dialog.save-and-upgrade.uncommitted.header = Alterações não salvas detectadas
 
 # Commands
 
+command.file.show-in-desktop = Mostrar na Área de Trabalho
+command.file.create-desktop-entry = Criar Atalho na Área de Trabalho
 
 # Overrides
 
@@ -307,6 +360,7 @@ dialog.save-and-upgrade.uncommitted.header = Alterações não salvas detectadas
 
 # Properties: appmanifest
 
+property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dispositivos móveis
 
 # Properties: atlas
 
