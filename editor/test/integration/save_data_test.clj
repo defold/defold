@@ -402,6 +402,11 @@
     {"background_color" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
+   'dmGraphics.TextureFormatAlternative
+   {:default
+    {"compression_level" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "compression_type" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
     {"hat_mask" :unused
@@ -505,7 +510,12 @@
 
    'dmRigDDF.AnimationSetDesc
    {:default
-    {"skeleton" :deprecated}}}) ; Non-default depth/stencil format not supported yet.
+    {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
+
+   'dmRiveDDF.RiveModelDesc
+   {:default
+    {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.
+     "blit_material" :non-editable}}}) ; Not currently editable, but perhaps will be in the future.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -751,7 +761,7 @@
             legacy-texture-profiles-save-value (g/node-value legacy-texture-profiles :save-value)
             legacy-texture-profiles-formats (set (get-in legacy-texture-profiles-save-value [:profiles 0 :platforms 0 :formats]))
             all-format-combinations (set texture-profile-format-combinations)]
-        (is (= legacy-texture-profiles-formats all-format-combinations))))))
+        (is (= all-format-combinations legacy-texture-profiles-formats))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

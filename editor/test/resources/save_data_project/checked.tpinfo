@@ -41,13 +41,13 @@ pages {
       x: 47.0
       y: 25.0
     }
-    pivot {
-      x: 32
-      y: 32
-    }
     indices: 0
     indices: 1
     indices: 2
+    pivot {
+      x: 32.0
+      y: 32.0
+    }
   }
 }
 version: "1.0"
