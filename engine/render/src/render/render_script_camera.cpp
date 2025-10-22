@@ -95,7 +95,7 @@ namespace dmRender
 
     // Resolve a camera from an optional argument. If no argument is given (or nil),
     // prefer the last enabled camera (matching default render script behavior).
-    static RenderCamera* ResolveRenderCameraOrDefault(lua_State* L, int index, HRenderContext render_context)
+    static RenderCamera* CheckRenderCameraOrDefault(lua_State* L, int index, HRenderContext render_context)
     {
         int top = lua_gettop(L);
 
@@ -135,7 +135,7 @@ namespace dmRender
         float sy = (float) luaL_checknumber(L, 2);
 
         HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
-        RenderCamera* camera = ResolveRenderCameraOrDefault(L, 3, render_context);
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 3, render_context);
 
         dmVMath::Vector3 world;
         float near_z = camera->m_Data.m_NearZ;
@@ -143,13 +143,13 @@ namespace dmRender
         dmRender::Result r = dmRender::CameraScreenToWorld(render_context, camera->m_Handle, sx, sy, near_z + eps, &world);
         if (r != dmRender::RESULT_OK)
         {
-            return DM_LUA_ERROR("camera.screen_xy_to_world failed (%d)", r);
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
         }
         dmScript::PushVector3(L, world);
         return 1;
     }
 
-    /*# Convert screen vector3 to world
+    /*# Convert screen vector3 position to world
      * Converts a screen-space 2D point with view depth to a 3D world point.
      * z is the view depth in world units measured from the camera plane along the camera forward axis.
      * If a camera isn't specified, the last enabled camera is used.
@@ -165,14 +165,44 @@ namespace dmRender
 
         dmVMath::Vector3* pos = dmScript::CheckVector3(L, 1);
         HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
-        RenderCamera* camera = ResolveRenderCameraOrDefault(L, 2, render_context);
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 2, render_context);
         dmVMath::Vector3 world;
         dmRender::Result r = dmRender::CameraScreenToWorld(render_context, camera->m_Handle, pos->getX(), pos->getY(), pos->getZ(), &world);
         if (r != dmRender::RESULT_OK)
         {
-            return DM_LUA_ERROR("camera.screen_to_world failed (%d)", r);
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
         }
         dmScript::PushVector3(L, world);
+        return 1;
+    }
+
+    /*# Convert world vector3 position to screen
+     * Converts a 3D world position to screen-space coordinates with view depth.
+     * Returns a vector3 where x and y are in screen pixels and z is the view depth in world units
+     * measured from the camera plane along the camera forward axis. The returned z can be used with
+     * camera.screen_to_world to reconstruct the world position on the same pixel ray.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.world_to_screen
+     * @param world_pos [type:vector3] World-space position
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return screen_pos [type:vector3] Screen position (x,y in pixels, z is view depth)
+     */
+    static int RenderScriptCamera_WorldToScreen(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmVMath::Vector3* world = dmScript::CheckVector3(L, 1);
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 2, render_context);
+
+        dmVMath::Vector3 screen;
+        dmRender::Result r = dmRender::CameraWorldToScreen(render_context, camera->m_Handle, *world, &screen);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, screen);
         return 1;
     }
 
@@ -451,6 +481,7 @@ namespace dmRender
         // CONVERSIONS
         {"screen_xy_to_world",      RenderScriptCamera_ScreenXYToWorld},
         {"screen_to_world",         RenderScriptCamera_ScreenToWorld},
+        {"world_to_screen",         RenderScriptCamera_WorldToScreen},
 
         // READ-WRITE
         {"get_aspect_ratio",        RenderScriptCamera_GetAspectRatio},

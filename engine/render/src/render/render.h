@@ -259,6 +259,22 @@ namespace dmRender
     Result CameraScreenToWorld(HRenderContext render_context, HRenderCamera camera, float screen_x, float screen_y, float z, dmVMath::Vector3* out_world);
 
     /**
+     * Maps a world-space position to screen coordinates.
+     * The mapping is viewport-aware and works for both perspective and orthographic cameras.
+     *
+     * Returns screen-space X and Y in window pixels and Z as the view depth in world units
+     * measured from the camera plane along the camera forward axis. The value of Z can be
+     * used with CameraScreenToWorld to reconstruct the world position on the same pixel ray.
+     *
+     * @param render_context Render context handle
+     * @param camera         Camera handle
+     * @param world          World-space position
+     * @param out_screen     Output screen-space position (x,y in pixels, z is view depth)
+     * @return Result        RESULT_OK on success, error otherwise
+     */
+    Result CameraWorldToScreen(HRenderContext render_context, HRenderCamera camera, const dmVMath::Vector3& world, dmVMath::Vector3* out_screen);
+
+    /**
      * Render debug triangle in world space.
      * @param context Render context handle
      * @param vertices Vertices of the triangle, CW winding
