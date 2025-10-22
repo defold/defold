@@ -60,9 +60,6 @@
 (comment
   (defn save-open-tabs [prefs app-view] nil)
   (defn save-tab-selections [prefs app-view] nil)
-  (g/with-auto-evaluation-context ec
-    (let [editor-tabs-split ^SplitPane (g/node-value (dev/app-view) :editor-tabs-split ec)
-          active-tab-pane (g/node-value (dev/app-view) :active-tab-pane ec)
-          tab-panes (.getItems editor-tabs-split)]
-      (-> (second tab-panes) .getSelectionModel .getSelectedIndex)))
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
+                                                  [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
   ,)

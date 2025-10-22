@@ -2290,30 +2290,48 @@
                                                                           {"error" msg})}}))))
              false)))))))
 
+(defn- open-tabs-from-prefs [app-view prefs localization workspace project evaluation-context tab-panes-to-restore]
+  (into []
+        (for [[pane-num pane] (map-indexed vector tab-panes-to-restore)
+              [proj-path view-type-id] pane
+              :let [tab-pane (g/node-value app-view :active-tab-pane)
+                    resource (workspace/find-resource workspace proj-path evaluation-context)
+                    view-type (workspace/get-view-type workspace view-type-id)]
+              :when (and (resource/openable-resource? resource)
+                         (resource/exists? resource))
+              :let [opened? (open-resource app-view prefs localization workspace project resource
+                                           {:selected-view-type view-type
+                                            :use-custom-editor false})]
+              :when opened?]
+          {:pane-num pane-num
+           :tab (ui/selected-tab tab-pane)})))
+
 (defn restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
-  (when-let [tab-panes-to-restore (prefs/get prefs [:workflow :open-tabs])]
+  (when-let [tab-panes-to-restore (seq (prefs/get prefs [:workflow :open-tabs]))]
     (let [{:keys [selected-pane selected-tabs-idx]} (prefs/get prefs [:workflow :last-selected-tabs])
-          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
-      (doseq [[pane-num pane] (map-indexed vector tab-panes-to-restore)]
-        (ui/add-style! (g/node-value app-view :active-tab-pane) "inactive")
-        ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
-        ;; need to change if we made a more elaborate window tiling system.
-        (when (= 1 pane-num)
-          (let [second-split (add-other-tab-pane! editor-tabs-split app-view prefs)]
-            ;; NOTE: Set the second-split active so `open-resource` opens the tabs there
-            (g/set-property! app-view :active-tab-pane second-split)))
-        (doseq [[proj-path view-type-id] pane
-                :let [resource (workspace/find-resource workspace proj-path evaluation-context)]
-                :when (and (resource/openable-resource? resource)
-                           (resource/exists? resource))]
-          (let [view-type (workspace/get-view-type workspace view-type-id)]
-            (open-resource app-view prefs localization workspace project resource
-                           {:selected-view-type view-type
-                            :use-custom-editor false})))
-        (when-let [saved-tab-idx (get selected-tabs-idx pane-num)]
-          (.select (.getSelectionModel (g/node-value app-view :active-tab-pane)) saved-tab-idx)))
+          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+          opened-tabs (open-tabs-from-prefs app-view prefs localization workspace
+                                            project evaluation-context tab-panes-to-restore)
+          ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
+          ;; need to change if we made a more elaborate window tiling system.
+          second-pane-tabs (map :tab (filter #(= 1 (:pane-num %)) opened-tabs))]
+      (when (seq second-pane-tabs)
+        (let [first-tab-pane (g/node-value app-view :active-tab-pane)
+              second-tab-pane (add-other-tab-pane! editor-tabs-split app-view prefs)]
+          (doseq [tab second-pane-tabs]
+            (.remove (.getTabs first-tab-pane) tab)
+            (.add (.getTabs second-tab-pane) tab))))
       (let [tab-panes (.getItems editor-tabs-split)]
-        (.requestFocus (.get tab-panes selected-pane))))))
+        (when-let [saved-tab-idx (get selected-tabs-idx 0)]
+          (.select (.getSelectionModel (.get tab-panes 0)) saved-tab-idx))
+        (when (and (= 2 (count tab-panes))
+                   (some? (get selected-tabs-idx 1)))
+          (.select (.getSelectionModel (.get tab-panes 1)) (get selected-tabs-idx 1)))
+        (doseq [^TabPane pane tab-panes]
+          (ui/add-style! pane "inactive"))
+        (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
+          (ui/remove-style! selected-tab-pane "inactive")
+          (.requestFocus selected-tab-pane))))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
@@ -3076,8 +3094,20 @@
 
 (comment
   (ui/run-later
-   (g/with-auto-evaluation-context ec
-     (restore-project-tabs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec)))
+    (let [editor-tabs-split ^SplitPane (g/node-value (dev/app-view) :editor-tabs-split)]
+      (g/set-property! (dev/app-view) :active-tab-pane (second (.getItems editor-tabs-split)))))
+  (ui/run-later
+    (g/with-auto-evaluation-context ec
+      (restore-project-tabs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec)))
   (ui/run-later
     (ui/run-command (ui/main-root) :window.tab.close-all))
+  (g/with-auto-evaluation-context ec
+    (let [resource (workspace/find-resource (dev/workspace) "/scripts/knight_copy.script" ec)]
+      (resource/openable-resource? resource)))
+  (ui/run-later
+    (g/with-auto-evaluation-context ec
+      (clojure.pprint/pprint
+       (open-tabs-from-prefs (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec
+                             '([["/scripts/game.script" :code] ["/scripts/knight.script" :code]]
+                               [["/scripts/utils.lua" :code]])))))
   ,)
