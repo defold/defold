@@ -48,6 +48,7 @@ welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Falha na constru
 # Welcome -> New Project -> From Template
 welcome.new-project.empty-project.title = Projeto Vazio
 welcome.new-project.empty-project.description = Escolha este modelo se você quiser começar de forma completamente em branco.
+welcome.new-project.mobile-game.title = Jogo Mobile
 welcome.new-project.mobile-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para dispositivos móveis.
 welcome.new-project.desktop-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para computador.
 welcome.new-project.poki-html5-game.title = Jogo Poki HTML5
@@ -66,10 +67,25 @@ welcome.new-project.side-scroller-tutorial.description = Neste tutorial para ini
 welcome.new-project.walking-astronaut-tutorial.title = Tutorial do Astronauta
 welcome.new-project.walking-astronaut-tutorial.description = Neste tutorial para iniciantes, você aprende como capturar os comandos do jogador e fazer um personagem se mover e animar. Você também aprenderá sobre os blocos de construção centrais em Defold\: objetos de jogo, componentes e coleções.
 welcome.new-project.movement-tutorial.title = Tutorial de Movimento
+welcome.new-project.movement-tutorial.description = Neste tutorial para iniciantes, você aprende como fazer um movimento realista usando vetores e álgebra de vetores simples.
+welcome.new-project.war-battles-tutorial.title = Tutorial de Batalha de Guerra
 
 # Welcome -> New Project -> From Sample
 
 # Updater
+updater.button.update-available = Atualização Disponível
+updater.button.restart-to-update = Reiniciar para Atualizar
+updater.download-or-restart-dialog.title = Instalar Atualização?
+updater.download-or-restart-dialog.header = A atualização está pronta, mas existe uma versão mais recente disponível
+updater.download-or-restart-dialog.detail = Você pode instalar a atualização baixada ou baixar a mais recente
+updater.platform-not-supported-dialog.title = Plataforma Não Suportada
+updater.platform-not-supported-dialog.header = Atualizações não são mais fornecidas para esta plataforma
+updater.platform-not-supported-dialog.detail = Plataformas suportadas são Linux, macOS e Windows em 64 bits
+updater.download-dialog.title = Baixar Atualização?
+updater.download-dialog.header = Uma nova versão do Defold está disponível\!
+updater.update-failed.title = Falha na Atualização
+updater.update-failed.header = Ocorreu um erro durante a instalação da atualização
+updater.dialog.title = Instalar Atualização e Reiniciar?
 updater.dialog.header = Instalar a atualização baixada e reiniciar?
 updater.dialog.button.not-now = Agora Não
 updater.dialog.button.download = Baixar Atualização
@@ -150,6 +166,7 @@ notification.defunload-issues.action.show-details = Mostrar detalhes…
 
 # GL support error dialog
 
+dialog.gl-support.title = Suporte a OpenGL Insuficiente
 
 # New folder
 
