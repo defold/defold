@@ -54,7 +54,6 @@ enum FontType
 {
     FONT_TYPE_STBTTF,
     FONT_TYPE_STBOTF,
-    // Custom types may 4 chars
 
     FONT_TYPE_UNKNOWN = 0xFFFFFFFF // used to make it 4 bytes size
 };
