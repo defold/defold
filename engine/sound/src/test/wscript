@@ -180,7 +180,7 @@ def build(bld):
             test.env.append_value(f, ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM'])
 
     # making sure we test link the openal backend
-    if target_os in [TargetOS.MACOS, TargetOS.LINUX]:
+    if target_os in [TargetOS.LINUX]:
         test_sound_libs = [x for x in test.use if x != 'sound'] # keep the libraries in sync
         bld.program(features = 'cxx embed test skip_test',
                         includes = '../../src .',

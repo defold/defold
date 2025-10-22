@@ -85,10 +85,18 @@ namespace dmDeviceAVAudio
 
     static void DeviceAVAudioReconfigureIfNeeded(AVAudioDevice* device)
     {
-        if (!device->m_PendingReconfigure)
+        // Check and clear the pending reconfigure flag under the device mutex
+        bool do_reconfigure = false;
+        {
+            DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
+            if (device->m_PendingReconfigure)
+            {
+                device->m_PendingReconfigure = false;
+                do_reconfigure = true;
+            }
+        }
+        if (!do_reconfigure)
             return;
-
-        device->m_PendingReconfigure = false;
 
         float prevVol = device->m_Engine.mainMixerNode.outputVolume;
         device->m_Engine.mainMixerNode.outputVolume = 0.0f; // avoid pops
@@ -100,7 +108,7 @@ namespace dmDeviceAVAudio
         //GetSystemSampleRate();
 
         {
-            dmMutex::ScopedLock lk(device->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
             device->m_FreeBuffers.SetSize(0);
             for (uint32_t i = 0; i < device->m_AllBuffers.Size(); ++i)
             {
@@ -124,7 +132,7 @@ namespace dmDeviceAVAudio
 
     static void ReturnBufferToPool(AVAudioDevice* device, AVAudioPCMBuffer* buffer)
     {
-        dmMutex::ScopedLock lock(device->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
         // Avoid overfilling in case of late completion callbacks during resets/route changes
         if (device->m_FreeBuffers.Size() < device->m_FreeBuffers.Capacity())
         {
@@ -172,6 +180,7 @@ namespace dmDeviceAVAudio
             object:device->m_Engine
             queue:nil
             usingBlock:^(NSNotification* n){
+                DM_MUTEX_SCOPED_LOCK(bdev_cfg->m_Mutex);
                 bdev_cfg->m_PendingReconfigure = true;
             }];
 
@@ -183,6 +192,7 @@ namespace dmDeviceAVAudio
             object:[AVAudioSession sharedInstance]
             queue:nil
             usingBlock:^(NSNotification* n){
+                DM_MUTEX_SCOPED_LOCK(bdev_route->m_Mutex);
                 bdev_route->m_PendingReconfigure = true;
             }];
 #endif
@@ -263,7 +273,7 @@ namespace dmDeviceAVAudio
 
         AVAudioPCMBuffer* buffer = 0;
         {
-            dmMutex::ScopedLock lock(device->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
             if (device->m_FreeBuffers.Empty())
                 return dmSound::RESULT_OUT_OF_BUFFERS;
             buffer = device->m_FreeBuffers[device->m_FreeBuffers.Size() - 1];
@@ -304,7 +314,7 @@ namespace dmDeviceAVAudio
         AVAudioDevice* device = (AVAudioDevice*)_device;
         // Apply pending reconfigure here as well, so the engine can resume pushing buffers
         DeviceAVAudioReconfigureIfNeeded(device);
-        dmMutex::ScopedLock lock(device->m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
         return device->m_FreeBuffers.Size();
     }
 
@@ -361,7 +371,7 @@ namespace dmDeviceAVAudio
             device->m_Started = false;
 
             // After reset, callbacks won't fire; restore pool to full
-            dmMutex::ScopedLock lock(device->m_Mutex);
+            DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
             device->m_FreeBuffers.SetSize(0);
             for (uint32_t i = 0; i < device->m_AllBuffers.Size(); ++i)
             {
@@ -380,4 +390,3 @@ namespace dmDeviceAVAudio
                             DeviceAVAudioStart,
                             DeviceAVAudioStop);
 }
-
