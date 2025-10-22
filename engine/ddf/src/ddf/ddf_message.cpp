@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,9 +26,6 @@ namespace dmDDF
         m_Start = (uintptr_t)buffer;
         m_End = (uintptr_t)buffer + buffer_size;
         m_DryRun = dry_run;
-
-        //if (!dry_run)
-        //    dmLogInfo("Message::Message: start %lu end %lu (%lu)", m_Start, m_End, m_End - m_Start);
     }
 
     #define READSCALARFIELD_CASE(DDF_TYPE, CPP_TYPE, READ_METHOD) \
@@ -205,70 +202,6 @@ namespace dmDDF
         return DoLoadMessage(load_context, &sub_buffer, field->m_MessageDescriptor, &message);
     }
 
-    /*
-    Result Message::ReadMessageField(LoadContext* load_context,
-                                           WireType wire_type,
-                                           const FieldDescriptor* field,
-                                           InputBuffer* input_buffer)
-    {
-        assert(field->m_MessageDescriptor);
-
-        dmLogInfo("ReadMessageField: field %s\n", field->m_Name);
-
-        if (wire_type != WIRETYPE_LENGTH_DELIMITED)
-        {
-            return RESULT_WIRE_FORMAT_ERROR;
-        }
-
-        uint32_t length;
-        if (!input_buffer->ReadVarInt32(&length))
-        {
-            return RESULT_WIRE_FORMAT_ERROR;
-        }
-
-        char* msg_buf = 0;
-        if (field->m_Label == LABEL_REPEATED)
-        {
-            msg_buf = (char*) AddMessage(load_context, field);
-        }
-        else
-        {
-            msg_buf = GetBuffer(field->m_Offset);
-            // assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
-
-            if (!field->m_FullyDefinedType)
-            {
-
-                dmLogInfo("  Field is not fully defined!");
-                uint32_t dynamic_offset       = load_context->NextDynamicTypeOffset();
-                //uintptr_t dynamic_offset_addr = (uintptr_t) msg_buf + dynamic_offset;
-                uintptr_t dynamic_offset_addr = (uintptr_t) GetBuffer(dynamic_offset);
-
-                dmLogInfo("  Not defined field at %lu has offset %d, writing pointer %p", (uintptr_t) msg_buf, dynamic_offset, (void*) dynamic_offset_addr);
-
-                if (!load_context->GetIsDryRun())
-                {
-                    //memset(msg_buf, 0xFF, sizeof(uintptr_t));
-                    memcpy(msg_buf, &dynamic_offset_addr, sizeof(uintptr_t));
-                    msg_buf += sizeof(uintptr_t);
-                }
-            }
-        }
-
-        Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
-
-        dmLogInfo("  Message offset = %lu", (uintptr_t) (msg_buf - load_context->m_Start));
-
-        InputBuffer sub_buffer;
-        if (!input_buffer->SubBuffer(length, &sub_buffer))
-        {
-            return RESULT_WIRE_FORMAT_ERROR;
-        }
-
-        return DoLoadMessage(load_context, &sub_buffer, field->m_MessageDescriptor, &message);
-    }
-    */
-
     Message Message::SubMessage(const FieldDescriptor* field)
     {
         assert(field->m_MessageDescriptor != 0);
@@ -370,7 +303,6 @@ namespace dmDDF
             RepeatedField* repeated_field = (RepeatedField*) GetBuffer(field->m_Offset);
             repeated_field->m_Array = (uintptr_t) buffer;
             repeated_field->m_ArrayCount = 0;
-            // repeated_field->m_Hash = hash;
         }
     }
 

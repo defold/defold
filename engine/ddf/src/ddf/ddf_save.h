@@ -19,7 +19,8 @@
 
 namespace dmDDF
 {
-    Result DoSaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function);
+    bool DDFCountSaveFunction(void* context, const void* buffer, uint32_t buffer_size);
+    Result DoSaveMessage(const void* message_begin, const void* message, const Descriptor* desc, void* context, SaveFunction save_function, int level = 0);
 }
 
 #endif // DDF_SAVE_H

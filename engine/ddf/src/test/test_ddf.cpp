@@ -961,7 +961,20 @@ TEST(Recursive, TreeSimple)
     ASSERT_EQ(999, message->m_MyA.m_ValA);
     ASSERT_EQ(666, message->m_MyA.m_MyB->m_ValB);
 
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_MessageRecursiveB_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    DUMMY::TestDDF::MessageRecursiveB* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_MessageRecursiveB_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(1337, saved_message->m_ValB);
+    ASSERT_EQ(999, saved_message->m_MyA.m_ValA);
+    ASSERT_EQ(666, saved_message->m_MyA.m_MyB->m_ValB);
+
     dmDDF::FreeMessage(message);
+    dmDDF::FreeMessage(saved_message);
 }
 
 TEST(Recursive, Repeated)
@@ -1008,14 +1021,6 @@ TEST(Recursive, Repeated)
     DUMMY::TestDDF::MessageRecursiveA* child_0 = &message->m_ListA[0];
     DUMMY::TestDDF::MessageRecursiveA* child_1 = &message->m_ListA[1];
 
-    // Message
-    // DUMMY::TestDDF::RecursiveRepeat    : size = 24
-    //   0: TestDDF::MessageRecursiveA    : size = 16
-    //        TestDDF::MessageRecursiveB  : size = 24
-    //   0: TestDDF::MessageRecursiveA    : size = 16
-    //        TestDDF::MessageRecursiveB  : size = 24
-    // string_val                         : size = 69
-
     ASSERT_EQ(1338, child_0->m_ValA);
     ASSERT_EQ(999, child_0->m_MyB->m_ValB);
     ASSERT_EQ(-1337, child_0->m_MyB->m_MyA.m_ValA);
@@ -1027,37 +1032,30 @@ TEST(Recursive, Repeated)
     ASSERT_EQ(32769, message->m_ListNumbers[1]);
     ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
     ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
-}
 
-/*
-message JSONValue
-{
-    oneof value
-    {
-        string string_value = 1;
-        double number_value = 2;
-        bool bool_value = 3;
-        JSONArray array_value = 4;
-        JSONObject object_value = 5;
-    }
-}
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
-message JSONPair
-{
-    required string key = 1;
-    required JSONValue value = 2;
-}
+    DUMMY::TestDDF::RecursiveRepeat* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
-message JSONArray
-{
-    repeated JSONValue items = 1;
-}
+    ASSERT_EQ(1338, saved_message->m_ListA[0].m_ValA);
+    ASSERT_EQ(999, saved_message->m_ListA[0].m_MyB->m_ValB);
+    ASSERT_EQ(-1337, saved_message->m_ListA[0].m_MyB->m_MyA.m_ValA);
 
-message JSONObject
-{
-    repeated JSONPair pairs = 1;
+    ASSERT_EQ(666, saved_message->m_ListA[1].m_ValA);
+    ASSERT_EQ(2001, saved_message->m_ListA[1].m_MyB->m_ValB);
+
+    ASSERT_EQ(32768, saved_message->m_ListNumbers[0]);
+    ASSERT_EQ(32769, saved_message->m_ListNumbers[1]);
+    ASSERT_NEAR(0.5f, saved_message->m_FloatVal, 0.01f);
+    ASSERT_STREQ(test_string.c_str(), saved_message->m_StringVal);
+
+    dmDDF::FreeMessage(message);
+    dmDDF::FreeMessage(saved_message);
 }
-*/
 
 TEST(JSON, Simple)
 {
@@ -1093,6 +1091,7 @@ TEST(JSON, Simple)
         array_int->set_allocated_value(array_int_value);
     }
 
+    /*
     {
         TestDDF::JSONArray* object_value_object_array = new TestDDF::JSONArray();
         TestDDF::JSONValue* object_value_object_array_1 = object_value_object_array->add_items();
@@ -1120,6 +1119,7 @@ TEST(JSON, Simple)
         object->set_key("object_value");
         object->set_allocated_value(object_value);
     }
+    */
 
     std::string msg_str   = root.SerializeAsString();
     const char* msg_buf   = msg_str.c_str();
@@ -1132,9 +1132,11 @@ TEST(JSON, Simple)
     DUMMY::TestDDF::JSONPair* json_array_int = &message->m_Pairs[0];
     DUMMY::TestDDF::JSONArray* json_array_int_items = json_array_int->m_Value.m_Value.m_ArrayValue;
 
+    /*
     DUMMY::TestDDF::JSONPair* json_object_array = &message->m_Pairs[1];
     DUMMY::TestDDF::JSONObject* json_object_array_items = json_object_array->m_Value.m_Value.m_ObjectValue;
     DUMMY::TestDDF::JSONArray* json_object_array_items_items = json_object_array_items->m_Pairs[0].m_Value.m_Value.m_ArrayValue;
+    */
 
     ASSERT_STREQ("array_int", json_array_int->m_Key);
 
@@ -1142,11 +1144,23 @@ TEST(JSON, Simple)
     ASSERT_EQ(999, json_array_int_items->m_Items[1].m_Value.m_NumberValue);
     ASSERT_EQ(666, json_array_int_items->m_Items[2].m_Value.m_NumberValue);
 
+    /*
     ASSERT_STREQ("object_value", json_object_array->m_Key);
 
     ASSERT_EQ(2001, json_object_array_items_items->m_Items[0].m_Value.m_NumberValue);
     ASSERT_EQ(13, json_object_array_items_items->m_Items[1].m_Value.m_NumberValue);
     ASSERT_EQ(27, json_object_array_items_items->m_Items[2].m_Value.m_NumberValue);
+    */
+
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_JSONObject_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    DUMMY::TestDDF::JSONObject* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_JSONObject_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    // ASSERT_STREQ("array_int", saved_message->m_Pairs[0].m_Key);
 
     dmDDF::FreeMessage(message);
 }

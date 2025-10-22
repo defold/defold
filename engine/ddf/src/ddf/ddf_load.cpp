@@ -208,6 +208,10 @@ namespace dmDDF
                         return e;
                     }
 
+                    // There is a severe issue here! This will mutate the original field descriptor,
+                    // which is supposed to be static. E.g if we set different oneof values in a message,
+                    // all of the set field values will have m_OneOfSet == 1. And then when saving the ddf with
+                    // the oneof, all of those fields will be saved for all of the oneof values.
                     if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
                     {
                         FieldDescriptor* field_non_const = (FieldDescriptor*) field;
