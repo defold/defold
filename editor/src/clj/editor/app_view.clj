@@ -336,7 +336,7 @@
                                                       :let [view (ui/user-data tab ::view)
                                                             resource (:resource (get open-views view))
                                                             dirty (contains? open-dirty-views view)
-                                                            title (workspace-tabs/tab-title resource dirty)]]
+                                                            title (editor-tabs/tab-title resource dirty)]]
                                                 (ui/text! tab title)))))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
@@ -1995,7 +1995,7 @@
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (workspace-tabs/save-tab-selections prefs app-view)
+            (editor-tabs/save-tab-selections prefs app-view)
             (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
   (-> tab-pane
       (.getTabs)
@@ -2006,7 +2006,7 @@
              (when (compare-and-set! save-scheduled false true)
                (ui/run-later
                  (reset! save-scheduled false)
-                 (workspace-tabs/save-open-tabs prefs app-view)))
+                 (editor-tabs/save-open-tabs prefs app-view)))
              ;; Check if we've ended up with an empty TabPane.
              ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
              (when (empty? (.getTabs tab-pane))
@@ -2034,7 +2034,7 @@
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (workspace-tabs/save-tab-selections prefs app-view)
+        (editor-tabs/save-tab-selections prefs app-view)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
@@ -2170,9 +2170,9 @@
                  ^Tab tab (or existing-tab
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
-                                (log/spy (workspace-tabs/make-tab! app-view prefs localization workspace project resource resource-node
-                                           resource-type view-type active-tab-pane-tabs make-view-fn
-                                           open-resource select opts))))]
+                                (editor-tabs/make-tab! app-view prefs localization workspace project resource resource-node
+                                                       resource-type view-type active-tab-pane-tabs make-view-fn
+                                                       open-resource select opts)))]
              (when (or (nil? existing-tab) (:select-node opts))
                (g/transact
                  (select app-view resource-node [(:select-node opts resource-node)])))

@@ -31,6 +31,7 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
+            [editor.editor-tabs :as editor-tabs]
             [editor.engine-profiler :as engine-profiler]
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
