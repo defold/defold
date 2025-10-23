@@ -80,7 +80,6 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [editor.editor-tabs :as editor-tabs]
             [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
@@ -237,6 +236,22 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
+(defn- tab-title
+  ^String [resource dirty]
+  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
+  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
+  ;; control is internal. We also cannot replace them with double underscores to
+  ;; escape them, as they will show up in the Tab labels and there appears to be
+  ;; no way to enable mnemonic parsing for them. Attempts were made to call
+  ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
+  ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
+  ;; underscores with the a unicode character that looks somewhat similar.
+  (let [resource-name (resource/resource-name resource)
+        escaped-resource-name (string/replace resource-name "_" "\u02CD")]
+    (if dirty
+      (str "*" escaped-resource-name)
+      escaped-resource-name)))
+
 (defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
   (let [tab-panes (.getItems editor-tabs-split)
         is-empty (not-any? #(-> ^TabPane % .getTabs count pos?) tab-panes)
@@ -336,7 +351,7 @@
                                                       :let [view (ui/user-data tab ::view)
                                                             resource (:resource (get open-views view))
                                                             dirty (contains? open-dirty-views view)
-                                                            title (editor-tabs/tab-title resource dirty)]]
+                                                            title (tab-title resource dirty)]]
                                                 (ui/text! tab title)))))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
@@ -1995,7 +2010,7 @@
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (editor-tabs/save-tab-selections prefs app-view)
+            (recent-files/save-tab-selections prefs app-view)
             (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
   (-> tab-pane
       (.getTabs)
@@ -2006,7 +2021,7 @@
              (when (compare-and-set! save-scheduled false true)
                (ui/run-later
                  (reset! save-scheduled false)
-                 (editor-tabs/save-open-tabs prefs app-view)))
+                 (recent-files/save-open-tabs prefs app-view)))
              ;; Check if we've ended up with an empty TabPane.
              ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
              (when (empty? (.getTabs tab-pane))
@@ -2034,7 +2049,7 @@
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (editor-tabs/save-tab-selections prefs app-view)
+        (recent-files/save-tab-selections prefs app-view)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
@@ -2085,6 +2100,77 @@
         (ui/timer-start! refresh-timer))
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
       app-view)))
+
+(defn- make-info-box! [localization]
+  (let [info-panel (HBox.)
+        left-label (doto (Label.) (localization/localize! localization (localization/message "resource.readonly.detail")))
+        right-link (doto (Hyperlink.) (localization/localize! localization (localization/message "resource.readonly.button.read-more")))
+        spacer (Region.)]
+    (HBox/setHgrow spacer Priority/ALWAYS)
+    (.getStyleClass info-panel)
+    (ui/set-style! info-panel "info-panel" true)
+    (ui/set-style! left-label "info-panel-label" true)
+    (ui/set-style! right-link "info-panel-link" true)
+    (.setOnAction right-link (ui/event-handler _ (ui/open-url "https://defold.com/manuals/libraries/#editing-files-in-library-dependencies")))
+    (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
+    info-panel))
+
+(defn- make-tab! [app-view prefs localization workspace project resource resource-node
+                  resource-type view-type make-view-fn ^ObservableList tabs
+                  open-resource opts]
+  (let [parent (AnchorPane.)
+        tab-content (if (resource/read-only? resource)
+                      (doto (VBox.)
+                        (ui/children! [(make-info-box! localization)
+                                       (doto parent (VBox/setVgrow Priority/ALWAYS))]))
+                      parent)
+        tab (doto (Tab. (tab-title resource false))
+              (.setContent tab-content)
+              (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
+              (ui/user-data! ::view-type view-type))
+        view-graph (g/make-graph! :history false :volatility 2)
+        select-fn (partial select app-view)
+        opts (merge opts
+                    (get (:view-opts resource-type) (:id view-type))
+                    {:app-view app-view
+                     :select-fn select-fn
+                     :open-resource-fn (partial open-resource app-view prefs localization workspace project)
+                     :prefs prefs
+                     :project project
+                     :workspace workspace
+                     :localization localization
+                     :tab tab})
+        view (make-view-fn view-graph parent resource-node opts)]
+    (assert (g/node-instance? view/WorkbenchView view))
+    (recent-files/add! prefs resource view-type)
+    (g/transact
+      (concat
+        (view/connect-resource-node view resource-node)
+        (g/connect view :view-data app-view :open-views)
+        (g/connect view :view-dirty app-view :open-dirty-views)))
+    (ui/user-data! tab ::view view)
+    (.add tabs tab)
+    (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
+    (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
+    (ui/register-tab-toolbar tab "#toolbar" :toolbar)
+    (.setOnSelectionChanged tab (ui/event-handler event
+                                  (when (.isSelected tab)
+                                    (recent-files/add! prefs resource view-type))))
+    (let [close-handler (.getOnClosed tab)]
+      (.setOnClosed tab (ui/event-handler event
+                          (recent-files/add! prefs resource view-type)
+                          ;; The menu refresh can occur after the view graph is
+                          ;; deleted but before the tab controls lose input
+                          ;; focus, causing handlers to evaluate against deleted
+                          ;; graph nodes. Using run-later here prevents this.
+                          (ui/run-later
+                            (doto tab
+                              (ui/user-data! ::view-type nil)
+                              (ui/user-data! ::view nil))
+                            (g/delete-graph! view-graph))
+                          (when close-handler
+                            (.handle close-handler event)))))
+    tab))
 
 (defn- substitute-args [tmpl args]
   (reduce (fn [tmpl [key val]]
@@ -2170,9 +2256,9 @@
                  ^Tab tab (or existing-tab
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
-                                (editor-tabs/make-tab! app-view prefs localization workspace project resource resource-node
-                                                       resource-type view-type active-tab-pane-tabs make-view-fn
-                                                       open-resource select opts)))]
+                                (make-tab! app-view prefs localization workspace project resource resource-node
+                                           resource-type view-type make-view-fn active-tab-pane-tabs
+                                           open-resource opts)))]
              (when (or (nil? existing-tab) (:select-node opts))
                (g/transact
                  (select app-view resource-node [(:select-node opts resource-node)])))

@@ -25,7 +25,7 @@
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.workspace :as workspace])
-  (:import [javafx.scene.control TabPane]))
+  (:import [javafx.scene.control SplitPane Tab TabPane]))
 
 (def ^:private history-size 32)
 
@@ -107,3 +107,52 @@
 (defn some-recent [prefs workspace evaluation-context]
   (->> (ordered-resource+view-types prefs workspace evaluation-context)
        (take 10)))
+
+(defn- tab->resource [^Tab tab]
+  (some-> tab
+    (ui/user-data :editor.app-view/view)
+    (g/node-value :view-data)
+    second
+    :resource))
+
+(defn- serialize-open-tabs [app-view]
+  (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context ec
+                                       (g/node-value app-view :editor-tabs-split ec))]
+    (mapv (fn [^TabPane tab-pane]
+            (mapv (fn [tab]
+                    [(resource/proj-path (tab->resource tab))
+                     (-> tab
+                         tab->resource
+                         resource/resource-type
+                         :view-types
+                         first
+                         :id)])
+                  (.getTabs tab-pane)))
+          (.getItems editor-tabs-split))))
+
+(defn- serialize-tab-selections [app-view]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)
+          active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)
+          tab-panes (.getItems editor-tabs-split)]
+      {:selected-pane (.indexOf tab-panes active-tab-pane)
+       :tab-selection-by-pane (mapv (fn [^TabPane pane]
+                                  (-> pane .getSelectionModel .getSelectedIndex))
+                                tab-panes)})))
+
+(defn save-open-tabs [prefs app-view]
+  (prefs/set! prefs [:workflow :open-tabs] (serialize-open-tabs app-view)))
+
+(defn save-tab-selections [prefs app-view]
+  (prefs/set! prefs [:workflow :last-selected-tabs] (serialize-tab-selections app-view)))
+
+(comment
+  (defn save-open-tabs [prefs app-view] nil)
+  (defn save-tab-selections [prefs app-view] nil)
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
+                                                  [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/scripts/utils.lua" :code]["/scripts/knight.script" :code]]])
+  (prefs/set! (dev/prefs) [:workflow :last-selected-tabs] {:selected-pane 1, :tab-selection-by-pane [0 0]})
+  (prefs/get (dev/prefs) [:workflow :open-tabs])
+  (prefs/get (dev/prefs) [:workflow :last-selected-tabs])
+  ,)
