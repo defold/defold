@@ -837,11 +837,17 @@ command.help.open-forum = Fórum de Suporte
 command.help.open-asset-portal = Encontrar Recursos
 command.help.report-issue = Reportar Problema
 command.help.report-suggestion = Reportar Sugestão
+command.help.open-issues = Buscar Problemas
+command.help.open-donations = Fundo de Desenvolvimento
 command.app.about = Sobre
+command.vcs.diff = Ver Diff
 command.vcs.revert = Desfazer
 
 # Overrides
 
+override.aspect.layout = Layout {layout}
+override.aspect.layout.kind = {count, plural, one {\# Layout} other {\# Layouts}}
+override.aspect.generic.kind = {count, plural, one {\# Aspecto} other {\# Aspectos}}
 
 # GUI
 
@@ -851,10 +857,12 @@ gui.layout.default = Padrão
 
 operation.atlas.add-animation = Adicionar Animação
 operation.atlas.add-images = Adicionar Imagens
+operation.atlas.move-pivot-point = Mover Ponto Pivô
 operation.collision-object.add-shape = Adicionar Forma
 operation.collection.add-collection = Adicionar Coleção
 operation.collection.add-game-object = Adicionar Objeto de Jogo
 operation.game-object.add-component = Adicionar Componente
+operation.gui.add-gui-node = Adicionar Nó GUI
 operation.gui.add-layer = Adicionar Camada
 operation.gui.add-layout = Adicionar Layout
 operation.gui.add-resources = Adicionar {type}
@@ -874,9 +882,11 @@ operation.tile-map.add-layer = Adicionar Camada
 
 # Properties
 
+property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como "{id}" nos scripts de editor
 
 # Properties: universal
 
+property.blend-mode = Modo de Mesclagem
 property.id = Id
 property.image = Imagem
 property.material = Material
@@ -891,21 +901,43 @@ property.url = URL
 # Properties: appmanifest
 
 property.appmanifest.physics-2d = Física 2D
+property.appmanifest.physics-2d.tooltip = Box2D versão 3 ou versão antiga do Defold
 property.appmanifest.physics-3d = Física 3D
+property.appmanifest.physics-3d.tooltip = Bala ou nenhum
+property.appmanifest.exclude-record = Excluir Registro
 property.appmanifest.exclude-record.tooltip = Remover os recursos de gravação de vídeo (plataformas desktop)
+property.appmanifest.exclude-profiler = Excluir Perfilador
 property.appmanifest.exclude-profiler.tooltip = Remover o profilador da tela e web
+property.appmanifest.exclude-sound = Excluir Som
 property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de som\: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de som\: OGG
 property.appmanifest.include-sound-decoder-opus = Incluir Decodificador de Som\: Opus
 property.appmanifest.exclude-input = Excluir Entrada
+property.appmanifest.exclude-liveupdate = Excluir Atualização ao Vivo
 property.appmanifest.exclude-image = Excluir Imagem
+property.appmanifest.exclude-types = Excluir Tipos
+property.appmanifest.exclude-basis-transcoder = Excluir o Transcodificador de Base
+property.appmanifest.use-android-support-lib = Usar Biblioteca de Suporte Android
+property.appmanifest.use-android-support-lib.tooltip = Usar as bibliotecas antigas do Android em vez de AndroidX. Disponível a partir do Defold 1.2.177.
 property.appmanifest.graphics = Gráficos
 property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dispositivos móveis
+property.appmanifest.graphics-osx = Gráficos (macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan é o renderizador padrão para o macOS
+property.appmanifest.graphics-web = Gráficos (HTML5)
+property.appmanifest.graphics-web.tooltip = O suporte para WebGPU está em BETA (plataformas web)
 
 # Properties: atlas
 
 property.atlas.animation.fps = FPS
+property.atlas.animation.flip-horizontal = Inverter Horizontal
+property.atlas.animation.flip-vertical = Inverter Vertical
+property.atlas.animation.playback = Reprodução
+property.atlas.image.pivot = Pivô
+property.atlas.image.sprite-trim-mode = Modo Aparar Sprite
 property.atlas.margin = Margem
+property.atlas.margin.tooltip = Pixels inseridos entre cada imagem no atlas
+property.atlas.inner-padding = Estofamento Interno
+property.atlas.inner-padding.tooltip = Pixels vazios ao redor de cada imagem
 property.atlas.rename-patterns.tooltip = Pesquisa separada por vírgulas\=substituir padrões aplicados a cada nome base da imagem; por exemplo "hat\=cat,_normal\=" renomeia "hat_normal" para "cat", o que ajuda a combinar animações entre conjuntos
 
 # Properties: camera
@@ -913,10 +945,12 @@ property.atlas.rename-patterns.tooltip = Pesquisa separada por vírgulas\=substi
 property.camera.aspect-ratio = Taxa de Proporção
 property.camera.fov = FOV
 property.camera.auto-aspect-ratio = Taxa de Proporção Automática
+property.camera.orthographic-projection = Projeção Ortográfica
 
 # Properties: collection proxy
 
 property.collection-proxy.collection = Coleção
+property.collection-proxy.exclude = Excluir
 
 # Properties: collision object
 
@@ -957,12 +991,17 @@ property.font.shadow-x = Sombra X
 property.font.shadow-y = Sombra Y
 property.font.cache-width = Largura de Cache
 property.font.cache-height = Altura de Cache
+property.font.characters = Caracteres
+property.font.all-chars = Todos Caracteres
 
 # Properties: gui
 
+property.gui.adjust-mode = Ajustar Modo
+property.gui.adjust-reference = Ajustar Referência
 property.gui.alpha = Alfa
 property.gui.color = Cor
 property.gui.font = Fonte
+property.gui.layer = Camada
 property.gui.outline-alpha = Alfa do Contorno
 property.gui.shadow = Sombra
 property.gui.texture = Textura
