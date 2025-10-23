@@ -1880,7 +1880,6 @@
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))
     (du/log-time "Initial resource sync"
       (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
-    (workspace/update-dependencies-min-version-from-cache! workspace-id)
     (render-progress! (swap! progress progress/advance 1 (localization/message "progress.loading-project")))
     (let [project (make-project graph workspace-id extensions)
           populated-project (du/log-time "Project loading"

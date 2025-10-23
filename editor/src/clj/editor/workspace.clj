@@ -45,8 +45,6 @@ ordinary paths."
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [com.dynamo.bob Platform]
-           [com.dynamo.bob.util LibraryUtil]
-           [com.dynamo.bob.archive EngineVersion]
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
            [java.net URI]
@@ -920,29 +918,6 @@ ordinary paths."
 (defn install-validated-libraries! [workspace lib-states]
   (let [new-lib-states (library/install-validated-libraries! (project-directory workspace) lib-states)]
     (set-project-dependencies! workspace new-lib-states)))
-
-(defn update-dependencies-min-version-from-cache!
-  "Annotate installed libraries with :defold-min-version errors based on the
-  latest library snapshots in the workspace snapshot cache."
-  [workspace]
-  (let [cache (snapshot-cache workspace)
-        lib-states (g/node-value workspace :dependencies)
-        annotated (mapv (fn [lib-state]
-                          (let [^File file (:file lib-state)]
-                            (if (and file (.isFile file))
-                              (let [snapshot (get cache (.getPath file))
-                                    defold-min-version (:defold-min-version snapshot)]
-                                (if (LibraryUtil/isCurrentEngineOlderThan defold-min-version)
-                                  (assoc lib-state
-                                    :status :error
-                                    :reason :defold-min-version
-                                    :required defold-min-version
-                                    :current (str EngineVersion/version))
-                                  lib-state))
-                              lib-state)))
-                        lib-states)]
-    (when (not= lib-states annotated)
-      (set-project-dependencies! workspace annotated))))
 
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
