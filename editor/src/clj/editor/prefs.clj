@@ -176,9 +176,8 @@
                                :scope :project}
                 :last-selected-tabs {:type :object
                                      :properties {:selected-pane {:type :integer}
-                                                  ;; The tab index for each pane
-                                                  :selected-tabs-idx {:type :array
-                                                                      :item {:type :integer}}}}
+                                                  :tab-selection-by-pane {:type :array
+                                                                          :item {:type :integer}}}}
                 :open-tabs {:type :array
                             :item {:type :array
                                    :item {:type :tuple

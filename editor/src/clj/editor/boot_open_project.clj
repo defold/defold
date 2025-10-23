@@ -287,7 +287,7 @@
         (app-view/restore-split-positions! scene prefs)
         (app-view/restore-hidden-panes! scene prefs)
         (g/with-auto-evaluation-context evaluation-context
-          (app-view/restore-project-tabs! app-view prefs localization workspace project evaluation-context)))
+          (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
 
       (ui/on-closing! stage (fn [_]
                               (let [dirty-save-data (project/dirty-save-data project)

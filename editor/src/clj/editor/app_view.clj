@@ -2306,32 +2306,34 @@
           {:pane-num pane-num
            :tab (ui/selected-tab tab-pane)})))
 
-(defn restore-project-tabs! [app-view prefs localization workspace project evaluation-context]
+(defn restore-tabs-from-prefs! [app-view prefs localization workspace project evaluation-context]
   (when-let [tab-panes-to-restore (seq (prefs/get prefs [:workflow :open-tabs]))]
-    (let [{:keys [selected-pane selected-tabs-idx]} (prefs/get prefs [:workflow :last-selected-tabs])
+    (let [{:keys [selected-pane tab-selection-by-pane]} (prefs/get prefs [:workflow :last-selected-tabs])
           editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
           opened-tabs (open-tabs-from-prefs app-view prefs localization workspace
                                             project evaluation-context tab-panes-to-restore)
+          tab-panes (.getItems editor-tabs-split)
+          first-tab-pane (.get tab-panes 0)
+          tabs-to-move (map :tab (filter #(= 1 (:pane-num %)) opened-tabs))
           ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
           ;; need to change if we made a more elaborate window tiling system.
-          second-pane-tabs (map :tab (filter #(= 1 (:pane-num %)) opened-tabs))]
-      (when (seq second-pane-tabs)
-        (let [first-tab-pane (g/node-value app-view :active-tab-pane)
-              second-tab-pane (add-other-tab-pane! editor-tabs-split app-view prefs)]
-          (doseq [tab second-pane-tabs]
-            (.remove (.getTabs ^TabPane first-tab-pane) tab)
-            (.add (.getTabs second-tab-pane) tab))))
-      (let [tab-panes (.getItems editor-tabs-split)]
-        (when-let [saved-tab-idx (get selected-tabs-idx 0)]
-          (.select (.getSelectionModel ^TabPane (.get tab-panes 0)) saved-tab-idx))
-        (when (and (= 2 (count tab-panes))
-                   (some? (get selected-tabs-idx 1)))
-          (.select (.getSelectionModel ^TabPane (.get tab-panes 1)) (get selected-tabs-idx 1)))
-        (doseq [^TabPane pane tab-panes]
-          (ui/add-style! pane "inactive"))
-        (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
-          (ui/remove-style! selected-tab-pane "inactive")
-          (.requestFocus selected-tab-pane))))))
+          second-tab-pane (when (seq tabs-to-move)
+                            (add-other-tab-pane! editor-tabs-split app-view prefs))
+          select-tab-fn (fn [pane-idx ^TabPane pane]
+                          (when-let [selected-tab-idx (get tab-selection-by-pane pane-idx)]
+                            (when (< -1 selected-tab-idx (.size (.getTabs pane)))
+                              (.select (.getSelectionModel pane) (int selected-tab-idx)))))]
+      (when second-tab-pane
+        (doseq [tab tabs-to-move]
+          (.remove (.getTabs ^TabPane first-tab-pane) tab)
+          (.add (.getTabs second-tab-pane) tab))
+        (select-tab-fn 1 second-tab-pane))
+      (select-tab-fn 0 first-tab-pane)
+      (doseq [^TabPane pane tab-panes]
+        (ui/add-style! pane "inactive"))
+      (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
+        (ui/remove-style! selected-tab-pane "inactive")
+        (.requestFocus selected-tab-pane)))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
@@ -3098,7 +3100,7 @@
       (g/set-property! (dev/app-view) :active-tab-pane (second (.getItems editor-tabs-split)))))
   (ui/run-later
     (g/with-auto-evaluation-context ec
-      (restore-project-tabs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec)))
+      (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec)))
   (ui/run-later
     (ui/run-command (ui/main-root) :window.tab.close-all))
   (g/with-auto-evaluation-context ec

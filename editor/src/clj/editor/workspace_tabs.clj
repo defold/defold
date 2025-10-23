@@ -47,7 +47,7 @@
           active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)
           tab-panes (.getItems editor-tabs-split)]
       {:selected-pane (.indexOf tab-panes active-tab-pane)
-       :selected-tabs-idx (mapv (fn [^TabPane pane]
+       :tab-selection-by-pane (mapv (fn [^TabPane pane]
                                   (-> pane .getSelectionModel .getSelectedIndex))
                                 tab-panes)})))
 
@@ -62,6 +62,8 @@
   (defn save-tab-selections [prefs app-view] nil)
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
                                                   [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/scripts/utils.lua" :code]["/scripts/knight.script" :code]]])
+  (prefs/set! (dev/prefs) [:workflow :last-selected-tabs] {:selected-pane 1, :tab-selection-by-pane [0 -1]})
   (prefs/get (dev/prefs) [:workflow :open-tabs])
   (prefs/get (dev/prefs) [:workflow :last-selected-tabs])
   ,)
