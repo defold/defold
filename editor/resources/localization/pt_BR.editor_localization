@@ -134,7 +134,6 @@ dialog.build-error.cycle.detail.generic = Isso é causado por dois ou mais recur
 
 dialog.clean-build.title = Executar Construção Limpa de Projeto?
 dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
-dialog.clean-build.button.clean = Construção Limpa
 
 # Debugging Not Supported Dialog
 
