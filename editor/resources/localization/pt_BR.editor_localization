@@ -799,80 +799,225 @@ command.debugger.toggle-breakpoint = Alternar Breakpoint
 command.debugger.edit-breakpoint = Editar Breakpoint
 command.scene.set-camera-type = Definir Tipo de Câmera
 command.scene.set-gui-layout = Definir Layout da GUI
+command.scene.visibility.toggle-filters = Alternar Filtros de Visibilidade
+command.scene.visibility.toggle-grid = Alternar Grade
+command.scene.visibility.toggle-selection = Mostrar/Ocultar Objetos Selecionados
+command.scene.visibility.hide-unselected = Ocultar Objetos Não Selecionados
+command.scene.visibility.show-last-hidden = Exibir Últimos Objetos Ocultos
+command.scene.visibility.show-all = Exibir Todos Objetos Ocultos
+command.scene.play = Reproduzir
+command.scene.stop = Parar
+command.scene.realign-camera = Realinhar a Câmera
+command.scene.select-erase-tool = Selecionar Borracha
+command.window.show-console = Exibir Console
+command.window.show-build-errors = Exibir Erros de Compilação
+command.window.show-search-results = Exibir Resultados da Pesquisa
+command.help.open-logs = Mostrar Logs
 command.file.create-desktop-entry = Criar Atalho na Área de Trabalho
+command.help.open-documentation = Documentação
+command.help.open-forum = Fórum de Suporte
+command.help.open-asset-portal = Encontrar Recursos
+command.help.report-issue = Reportar Problema
+command.app.about = Sobre
+command.vcs.revert = Desfazer
 
 # Overrides
 
 
 # GUI
 
+gui.layout.default = Padrão
 
 # Editing operations
 
+operation.atlas.add-animation = Adicionar Animação
+operation.atlas.add-images = Adicionar Imagens
+operation.collision-object.add-shape = Adicionar Forma
+operation.collection.add-collection = Adicionar Coleção
+operation.collection.add-game-object = Adicionar Objeto de Jogo
+operation.game-object.add-component = Adicionar Componente
+operation.gui.add-layer = Adicionar Camada
+operation.gui.add-layout = Adicionar Layout
+operation.gui.add-resources = Adicionar {type}
+operation.particlefx.add-emitter = Adicionar Emissor
+operation.particlefx.add-modifier = Adicionar Modificador
+operation.property.clear = Limpar {property}
+operation.property.set = Definir {property}
+operation.scene.move = Mover
+operation.scene.rotate = Girar
+operation.scene.scale = Escala
+operation.cut = Recortar
+operation.delete = Excluir
+operation.drop = Descartar
+operation.paste = Colar
+operation.select = Selecionar
+operation.tile-map.add-layer = Adicionar Camada
 
 # Properties
 
 
 # Properties: universal
 
+property.id = Id
+property.image = Imagem
+property.material = Material
+property.name = Nome
+property.path = Caminho
+property.position = Posição
+property.rotation = Rotação
+property.scale = Escala
+property.size = Tamanho
+property.url = URL
 
 # Properties: appmanifest
 
+property.appmanifest.physics-2d = Física 2D
+property.appmanifest.physics-3d = Física 3D
+property.appmanifest.exclude-record.tooltip = Remover os recursos de gravação de vídeo (plataformas desktop)
+property.appmanifest.exclude-profiler.tooltip = Remover o profilador da tela e web
+property.appmanifest.exclude-image = Excluir Imagem
+property.appmanifest.graphics = Gráficos
 property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dispositivos móveis
 
 # Properties: atlas
 
+property.atlas.animation.fps = FPS
+property.atlas.margin = Margem
 
 # Properties: camera
 
+property.camera.aspect-ratio = Taxa de Proporção
+property.camera.fov = FOV
+property.camera.auto-aspect-ratio = Taxa de Proporção Automática
 
 # Properties: collection proxy
 
+property.collection-proxy.collection = Coleção
 
 # Properties: collision object
 
+property.collision-object.type = Tipo
+property.collision-object.mass = Massa
+property.collision-object.friction = Atrito
+property.collision-object.locked-rotation = Rotação Travada
+property.collision-object.event-collision.tooltip = Se desativado, filtra quaisquer eventos de colisão envolvendo este objeto de colisão
+property.collision-object.event-contact = Gerar Eventos de Contato
+property.collision-object.event-contact.tooltip = Se desativado, filtra quaisquer eventos de contato envolvendo este objeto de colisão
+property.collision-object.group = Grupo
+property.collision-object.mask = Máscara
+property.collision-object.shape.diameter = Diâmetro
+property.collision-object.shape.dimensions = Dimensões
+property.collision-object.shape.height = Altura
 
 # Properties: cubemap
 
+property.cubemap.back = Parte Traseira
+property.cubemap.bottom = Inferior
+property.cubemap.front = Frente
+property.cubemap.left = Esquerda
+property.cubemap.right = Direita
 
 # Properties: factory
 
+property.factory.load-dynamically = Carregar Dinamicamente
 
 # Properties: font
 
+property.font.font = Fonte
+property.font.output-format = Formato de Saída
+property.font.render-mode = Modo de Renderização
+property.font.size = Tamanho
+property.font.antialias = Suavização
+property.font.alpha = Alfa
+property.font.shadow-x = Sombra X
+property.font.shadow-y = Sombra Y
+property.font.cache-width = Largura de Cache
+property.font.cache-height = Altura de Cache
 
 # Properties: gui
 
+property.gui.alpha = Alfa
+property.gui.color = Cor
+property.gui.font = Fonte
+property.gui.outline-alpha = Alfa do Contorno
+property.gui.shadow = Sombra
+property.gui.texture = Textura
+property.gui.text = Texto
+property.gui.visible = Visível
 
 # Properties: label
 
+property.label.color = Cor
+property.label.font = Fonte
+property.label.shadow = Sombra
+property.label.size = Tamanho
+property.label.text = Texto
 
 # Properties: mesh
 
 
 # Properties: model
 
+property.model.skeleton = Esqueleto
 
 # Properties: particlefx
 
 
+property.particlefx.duration = Duração
+property.particlefx.material = Material
+property.particlefx.tile-source = Imagem
 
+property.particlefx.emitter-key-particle-rotation = Rotação Inicial
+property.particlefx.magnitude = Magnitude
+property.particlefx.max-distance = Distância Máxima
+property.particlefx.particle-key-alpha = Alfa
+property.particlefx.particle-key-blue = Azul
+property.particlefx.particle-key-green = Verde
+property.particlefx.particle-key-red = Vermelho
+property.particlefx.particle-key-rotation = Rotação
+property.particlefx.particle-key-scale = Escala
 
 # Properties: sound
 
+property.sound.sound = Som
+property.sound.group = Grupo
+property.sound.speed = Velocidade
 
 # Properties: sprite
 
 
 # Properties: tile map
 
+property.tile-map.layer.visible = Visível
+property.tile-map.layer.z = Z
 
 # Properties: tile source
 
+property.tile-source.collision = Colisão
+property.tile-source.flip-horizontal = Inverter Horizontalmente
+property.tile-source.flip-vertical = Inverter Verticalmente
 
 # Outline
 
+outline.atlas.no-image = <Sem Imagem>
+outline.atlas = Atlas
+outline.collection = Coleção
+outline.gui.fonts = Fontes
+outline.gui.layers = Camadas
+outline.gui.nodes = Nós
+outline.gui.materials = Materiais
+outline.gui.textures = Texturas
+outline.sound = Som
+outline.unknown = Desconhecido
+outline.unnamed-collision-shape = <{shape} sem nome>
 
 # Resources
 
+resource.view.scene = Cena
+resource.view.html = HTML
+resource.view.form = Formulário
+resource.view.code = Código
+resource.view.text = Texto
 
+resource.readonly.detail = Este arquivo é parte de uma biblioteca e não pode ser salvo.
+resource.readonly.button.read-more = Ler mais…
