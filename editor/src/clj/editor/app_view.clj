@@ -55,6 +55,7 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -95,7 +96,7 @@
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
-           [java.net URL]
+           [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener]
@@ -917,6 +918,8 @@
               ;; not consumed.
               (reboot-engine! selected-target web-server debug?))
             (launch-new-engine!))))
+      (catch SocketTimeoutException e
+        (debug-view/show-connect-failed-info! e (project/workspace project)))
       (catch Exception e
         (log/warn :exception e)
         (let [localization (g/with-auto-evaluation-context evaluation-context
@@ -1405,9 +1408,12 @@
       (let [main-scene (.getScene ^Stage main-stage)
             render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
         (build-errors-view/clear-build-errors build-errors-view)
-        (if (debug-view/can-attach? prefs)
-          (attach-debugger! workspace project prefs debug-view render-build-error!)
-          (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
+        (try
+          (if (debug-view/can-attach? prefs)
+            (attach-debugger! workspace project prefs debug-view render-build-error!)
+            (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
+          (catch SocketTimeoutException e
+            (debug-view/show-connect-failed-info! e workspace)))))))
 
 (def ^:private clean-build-dialog-info
   {:title (localization/message "dialog.clean-build.title")
