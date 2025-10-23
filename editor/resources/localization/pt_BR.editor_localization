@@ -21,6 +21,7 @@ welcome.header.open = Abrir
 welcome.header.new-project-from = Criar De
 welcome.tab.templates = MODELOS
 welcome.tab.tutorials = TUTORIAIS
+welcome.tab.samples = EXEMPLOS
 welcome.new-project.default-name = Meu Projeto
 welcome.new-project.title = Título
 welcome.new-project.location = Localização
@@ -49,6 +50,7 @@ welcome.new-project.empty-project.title = Projeto Vazio
 welcome.new-project.empty-project.description = Escolha este modelo se você quiser começar de forma completamente em branco.
 welcome.new-project.mobile-game.title = Jogo Mobile
 welcome.new-project.mobile-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para dispositivos móveis.
+welcome.new-project.desktop-game.title = Jogo Desktop
 welcome.new-project.desktop-game.description = Este modelo contém configurações e recursos úteis se você quiser começar a construir um jogo para computador.
 welcome.new-project.poki-html5-game.title = Jogo Poki HTML5
 welcome.new-project.poki-html5-game.description = Este modelo inclui o SDK do Poki, projetado tanto para computadores quanto para dispositivos móveis. Oferece também uma opção de exportação rápida para a plataforma Poki para Desenvolvedores.
@@ -57,6 +59,7 @@ welcome.new-project.native-extension.description = Este modelo contém a configu
 welcome.new-project.basic-3d-project.title = Projeto 3D Básico
 welcome.new-project.basic-3d-project.description = Este modelo contém a configuração básica para renderização 3D.
 welcome.new-project.platformer-game.title = Jogo de Plataforma
+welcome.new-project.platformer-game.description = Este modelo contém uma configuração básica para construir um jogo de plataforma.
 welcome.new-project.rive-project.title = Projeto Rive
 welcome.new-project.rive-project.description = Este modelo usa a extensão rive para começar.
 
@@ -68,8 +71,35 @@ welcome.new-project.walking-astronaut-tutorial.description = Neste tutorial para
 welcome.new-project.movement-tutorial.title = Tutorial de Movimento
 welcome.new-project.movement-tutorial.description = Neste tutorial para iniciantes, você aprende como fazer um movimento realista usando vetores e álgebra de vetores simples.
 welcome.new-project.war-battles-tutorial.title = Tutorial de Batalha de Guerra
+welcome.new-project.war-battles-tutorial.description = Neste tutorial de dificuldade média, você constrói a base para um jogo top-down com base no pacote de Estratégia em Tempo Real "Batalhas de Guerra".
+welcome.new-project.colorslide-tutorial.title = Tutorial de Colorslide
+welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuldade média, você cria uma interface dentro do jogo, uma tela de GUI para seleção de nível e uma tela inicial para um jogo móvel com vários níveis.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
+welcome.new-project.linker-sample-game.description = Este é um jogo de exemplo completo onde você clica e arraste para ligar peixes da mesma cor para removê-los do tabuleiro. Grandes correntes de peixes geram bônus.
+welcome.new-project.roids-sample-game.title = 
+welcome.new-project.roids-sample-game.description = Este é um jogo de exemplo completo onde você dirige um navio espacial e avance através de uma tempestade de meteoros.
+welcome.new-project.pixel-line-platformer.title = Plataforma Pixel em Linha
+welcome.new-project.pixel-line-platformer.description = Este é um jogo de plataforma completo com um estilo de arte de pixel moderno criado por Kenney.
+welcome.new-project.main-menu-animation.title = Animação do Menu Principal
+welcome.new-project.main-menu-animation.description = Neste exemplo, demonstramos efeitos para apresentar um menu principal.
+welcome.new-project.parallax.title = Paralaxe
+welcome.new-project.parallax.description = Neste exemplo, demonstramos como usar um efeito paralaxe para simular a profundidade do mundo do jogo.
+welcome.new-project.hud.title = Interface
+welcome.new-project.hud.description = Neste exemplo, demonstramos efeitos para a contagem de pontos.
+welcome.new-project.level-complete.title = Nível Concluído
+welcome.new-project.level-complete.description = Neste exemplo, demonstramos efeitos para mostrar a contagem de pontuação que pode ocorrer quando um nível foi concluído.
+welcome.new-project.rpg-map-sample.title = Exemplo de Mapa de RPG
+welcome.new-project.rpg-map-sample.description = Este exemplo mostra como você pode criar um grande mapa de RPG que rola uma tela de cada vez quando o herói progride.
+welcome.new-project.shadertoy-sample.title = Exemplo Shadertoy
+welcome.new-project.shadertoy-sample.description = Este exemplo contém um sombreamento GLSL que foi tirado da Shadertoy e convertido para Defold. Mostra como trabalhar com materiais e sombras no Defold.
+welcome.new-project.3d-treasure-scene.title = Cena de Tesouro 3D
+welcome.new-project.3d-treasure-scene.description = Este exemplo mostra uma cena 3D estilizada com animação.
+welcome.new-project.perspective-parallax.title = Paralaxe Perspectiva
+welcome.new-project.perspective-parallax.description = Este exemplo mostra um efeito paralaxe da câmera de perspectiva.
+welcome.new-project.lightning-vfx.title = Efeitos Visuais de Relâmpago
+welcome.new-project.lightning-vfx.description = Este exemplo mostra um efeito de relâmpago em um tiro de rolagem 2d e como o componente de malha está configurado para ser manipulado durante o gameplay.
 
 # Updater
 updater.button.update-available = Atualização Disponível
@@ -84,6 +114,7 @@ updater.download-dialog.title = Baixar Atualização?
 updater.download-dialog.header = Uma nova versão do Defold está disponível\!
 updater.update-failed.title = Falha na Atualização
 updater.update-failed.header = Ocorreu um erro durante a instalação da atualização
+updater.update-failed.detail = Você provavelmente deveria fazer uma instalação limpa
 updater.dialog.title = Instalar Atualização e Reiniciar?
 updater.dialog.header = Instalar a atualização baixada e reiniciar?
 updater.dialog.button.not-now = Agora Não
@@ -134,6 +165,7 @@ dialog.build-error.cycle.detail.generic = Isso é causado por dois ou mais recur
 
 dialog.clean-build.title = Executar Construção Limpa de Projeto?
 dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
+dialog.clean-build.button.clean = Compilação Limpa
 
 # Debugging Not Supported Dialog
 
@@ -158,40 +190,89 @@ notification.defunload-issues.action.show-details = Mostrar detalhes…
 
 # Launch Failed Dialog
 
+dialog.launch-failed.title = Lançamento Falhou
+dialog.launch-failed.header = Lançar {engine} falhou
+dialog.launch-failed.detail = Se o motor já estiver em execução, encerre o processo manualmente e tente novamente
+dialog.launch-failed.target.new-local-engine = Novo Motor Local
 
 # Hot Reload Failed Dialog
 
+dialog.hot-reload-failed.title = Recarregamento Falhou
+dialog.hot-reload-failed.header = Falha ao recarregar recursos no motor "{engine}"
 
 # GL support error dialog
 
 dialog.gl-support.title = Suporte a OpenGL Insuficiente
+dialog.gl-support.header = Este é um problema muito comum. Veja se alguma dessas instruções ajudam\:
+dialog.gl-support.linux = OpenGL no Linux
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = Você pode continuar com a edição de cenas desabilitada.
 
 # New folder
 
+dialog.new-folder.title = Nova Pasta
+dialog.new-folder.header = Digite o Nome da Nova Pasta
+dialog.new-folder.label.name = Nome
+dialog.new-folder.label.preview = Visualização
+dialog.new-folder.button.create-folder = Criar Pasta
 
 # Target IP dialog
 
+dialog.target-ip.title = Digite o IP Alvo
+dialog.target-ip.header = Digite o Endereço do IP Alvo
+dialog.target-ip.label.ip = Endereço de IP do Alvo
+dialog.target-ip.button.add = Adicionar IP Alvo
 
 # Search in Files Dialogs
 
+dialog.search-in-files.title = Buscar em Arquivos
+dialog.search-in-files.label.search = Padrão de busca (* para buscar qualquer texto)
+dialog.search-in-files.label.types = Tipos de arquivos para pesquisar (separados por vírgula)
+dialog.search-in-files.label.include-libraries = Buscar em Bibliotecas
+dialog.search-in-files.button.keep-results = Manter Resultados
 
 # Target Discovery Log Dialog
 
+dialog.target-discovery-log.title = Log de Descoberta de Alvos
+dialog.target-discovery-log.header = Log de Descoberta de Alvos
+dialog.target-discovery-log.button.clear-log = Limpar Log
+dialog.target-discovery-log.button.restart-discovery = Reiniciar Descoberta
 
 # Generic file/directory dialog titles
 
+dialog.directory.title.set-path = Definir Caminho
+dialog.directory.title.select = Selecionar Diretório
+dialog.file.title.select = Selecionar Arquivo
 
 # Set Custom Resolution dialog
 
+dialog.custom-resolution.title = Definir Resolução Personalizada
+dialog.custom-resolution.header = Definir resolução do jogo personalizada
+dialog.custom-resolution.detail = A janela do jogo será redimensionada para esse tamanho
+dialog.custom-resolution.label.width = Largura
+dialog.custom-resolution.label.height = Altura
+dialog.custom-resolution.button.set-resolution = Definir Resolução
 
 # Tracked internal files dialog
 
+dialog.tracked-internal-files.title = Arquivos Internos Sob Controle de Versão
+dialog.tracked-internal-files.header = Arquivos internos foram colocados no controle de versão
+dialog.tracked-internal-files.content = Parece que arquivos internos como dependências baixadas ou arquivos exportados foram colocados em controle de versão.\nIsso pode acontecer se um commit foi feito quando o arquivo .gitignore não foi propriamente configurado.\n\nPara consertar isso, faça um commit onde você deleta as pastas .internal e de exportação, então reabra o projeto.
 
 # Quit Defold dialog
 
+dialog.quit-defold.title = Sair do Defold?
+dialog.quit-defold.header = Existem alterações não salvas, tem certeza que deseja sair?
+dialog.quit-defold.button.cancel = Cancelar e Continuar Trabalhando
+dialog.quit-defold.button.quit = Sair Sem Salvar
 
 # Save and upgrade file formats dialogs
 
+dialog.save-and-upgrade.title.not-safe = Não é Seguro Atualizar Formatos de Arquivo
+dialog.save-and-upgrade.version-control.header = Controle de Versão Recomendado
+dialog.save-and-upgrade.version-control.preamble = Devido a potenciais problemas de perda de dados, as atualizações de formato de arquivo só devem ser executadas em projetos sob Controle de Versão.
+dialog.save-and-upgrade.version-control.info.before-manual = Um projeto sob Controle de Versão mantém um histórico de mudanças e permite que você colabore com outros ao enviar mudanças para um servidor.\n\nVocê pode ler sobre como configurar o Controle de Versão no 
+dialog.save-and-upgrade.version-control.info.manual-link = Manual Defold
 dialog.save-and-upgrade.version-control.info.after-manual = .
 dialog.save-and-upgrade.uncommitted.header = Alterações não salvas detectadas
 dialog.save-and-upgrade.uncommitted.content = Devido ao potencial de perda de dados, as alterações de formato de arquivo devem começar a partir de um diretório de trabalho limpo.\n\nRecomendamos que você salve suas alterações locais antes de tentar a operação novamente.
@@ -267,95 +348,457 @@ notification.lsp.language-server-missing.action.about = Sobre LSP em Defold
 
 # Asset browser notifications
 
+notification.asset-browser.circular-paste.error = Não é possível colar a pasta {source} em sua subpasta {target}.
 
 # Workspace notifications
 
+notification.resource-collision.directory.warning = Pasta "{resource}" está ocultando uma pasta com o mesmo nome.
+notification.resource-collision.builtins.warning = Pasta "{resource}" está ocultando uma pasta com o mesmo nome em builtins.
+notification.resource-collision.library.warning = Pasta "{resource}" está ocultando uma pasta com o mesmo nome em uma dependência de projeto\: {library}
 
 # Web server notifications
 
+notification.web-server.port-fallback.warning = Falha ao iniciar um servidor na porta solicitada {requested} ({reason}). Em vez disso, usando a porta {fallback}.
 
 # Changes view notifications
 
+notification.changes-view.git-error = Devido a um erro do Git, recursos Git não estão disponíveis para esse projeto.
 
 # Debug view notifications
 
+notification.debug-view.connect-failed.error = {error}\n\nVerifique se o jogo está rodando e pode ser acessado pela rede.
 
 # Target notifications
 
+notification.targets.selected-target-unavailable.error = {error}\n\nO alvo escolhido não está disponível.
 
 # Form view dialogs
 
+dialog.form-view.directory-not-in-project.title = Pasta Inválida
+dialog.form-view.directory-not-in-project.header = O diretório deve estar dentro do projeto.
+dialog.form-view.file-not-in-project.title = Arquivo Inválido
+dialog.form-view.file-not-in-project.header = O arquivo deve estar dentro do projeto.
 
 # Shared editor settings load error dialog
 
+dialog.shared-editor-settings.load-error.title = Erro ao Carregar Configurações Compartilhadas de Editor
+dialog.shared-editor-settings.load-error.header = Falha ao carregar o arquivo de Configurações Compartilhadas de Editor.
+dialog.shared-editor-settings.load-error.detail = Voltando ao padrão. Sua experiência de usuário pode sofrer.
+dialog.shared-editor-settings.load-error.content = Arquivo\: {file}\n\n{error}
 
 # Updated gitignore dialog
 
+dialog.gitignore-updated.title = Arquivo .gitignore Atualizado
+dialog.gitignore-updated.header = Arquivo .gitignore atualizado
+dialog.gitignore-updated.content = O Arquivo .ignore foi automaticamente atualizado para ignorar saída de arquivos e metadados.\nVocê deve incluir ele com as suas mudanças na próxima vez que sincronizar.
 
 # Asset browser reserved targets dialog
 
+dialog.asset-paste-reserved.title = Não é possível Colar
+dialog.asset-paste-reserved.header = Alguns diretórios alvo estão reservados
+dialog.asset-paste-reserved.content = Os seguintes diretórios de destino são reservados\:\n{directories}
 
 # Asset deletion dialogs
 
+dialog.asset-delete-single.title = Excluir Arquivo?
+dialog.asset-delete-single.header = Tem certeza que deseja excluir {name}?
+dialog.asset-delete-multiple.title = Excluir Arquivos?
+dialog.asset-delete-multiple.header = Tem certeza que deseja excluir estes arquivos?
+dialog.asset-delete-multiple.content = Você está prestes a excluir\:{items}
+dialog.asset-delete-multiple.content.item = \n  • {name}
 
 # Rename dialog
 
+dialog.rename.title = Renomear {name}
+dialog.rename.preview = Prévia
+dialog.rename.button.rename = Renomear
+dialog.rename.label.folder = Novo Nome da Pasta
+dialog.rename.label.file = Novo Nome do Arquivo
+dialog.rename.header.folder = Renomear Pasta
+dialog.rename.header.files = Renomear {n, plural, one {Arquivo} other {\# Arquivos}}
+dialog.rename.error.reserved-name = O nome {name} está reservado
 
 # Name conflict dialog (appears on conflict during rename)
 
+dialog.name-conflict.title = Conflito de Nome
+dialog.name-conflict.header = O destino possui {count, plural, one {uma entrada com nome igual} other {\# entradas com nomes conflitantes}}.
+dialog.name-conflict.button.name-differently = Trocar Nome
+dialog.name-conflict.button.overwrite-files = Sobrescrever Arquivos
 
 # New file dialog
 
+dialog.new-file.title.file = Novo Arquivo
+dialog.new-file.title.resource = Novo {type}
+dialog.new-file.header.file = Insira o Nome do Arquivo
+dialog.new-file.header.resource = Insira {type} Nome do Arquivo
+dialog.new-file.label.name = Nome
+dialog.new-file.label.location = Localização
+dialog.new-file.label.preview = Prévia
+dialog.new-file.button.create.file = Criar
+dialog.new-file.button.create.resource = Criar {type}
 
 # List dialogs
 
+dialog.select-item.title = Selecionar Item
+dialog.select-item.prompt = Digite para filtrar
+dialog.select-item.button.ok = OK
+dialog.open-assets.title = Abrir Conteúdo
+dialog.open-assets.button.ok = Abrir
+dialog.referencing-files.title = Referência de Arquivos
+dialog.referencing-files.button.ok = Abrir
+dialog.dependencies.title = Dependências
+dialog.dependencies.button.ok = Abrir
+dialog.add-atlas-images.title = Selecionar Imagens
+dialog.select-game-object-file.title = Selecionar Arquivo de Objeto do Jogo
+dialog.select-collection-file.title = Selecionar Arquivo de Coleção
+dialog.select-component-file.title = Selecionar Arquivo de Componente
+dialog.select-gui-component.title = Selecionar {component}
+dialog.select-resource.title = Selecionar Recurso
+dialog.recent-files.title = Arquivos Recentes
+dialog.recent-files.button.ok = Abrir
 
 # Open resource dialogs
 
+dialog.open-resource.excluded.title = Recurso Excluído do Carregando
+dialog.open-resource.excluded.header = Não foi possível abrir "{resource}", pois foi excluído do carregamento pelo arquivo ".defunload".
+dialog.open-resource.unrecognized.title = Não Foi Possível Abrir Recurso
+dialog.open-resource.unrecognized.header = Não foi possível abrir "{resource}", pois contém dados não reconhecidos. Estaria faltando uma extensão necessária no projeto?
+dialog.open-resource.open-file-failed.title = Não Foi Possível Abrir Arquivo
+dialog.open-resource.open-file-failed.header = Não foi possível abrir "{resource}"
+dialog.open-resource.open-file-failed.detail = Isso pode acontecer se o tipo de arquivo não for mapeado para um aplicativo no seu sistema operacional.\n\nErro subjacente do sistema operacional\:\n{error}
 
 # Loading project dialog
 
+dialog.loading-project.header = Carregando projeto
 
 # Editor panes
 
+pane.assets = Conteúdo
+pane.changed-files = Arquivos Modificados
+pane.outline = Estrutura
+pane.properties = Propriedades
+pane.console = Console
+pane.curve-editor = Editor de Curvas
+pane.build-errors = Erros de Compilação
+pane.search-results = Resultados da Busca
 
 # Console
 
+console.button.clear = Limpar
+console.button.filter = Filtro
+console.filter.enable-filtering = Ativar filtro
+console.filter.add-filter = Adicionar filtro (ex\: texto, \!excluir)
+console.search = Buscar
 
 # Changes view
 
+changes-view.button.diff = Diff
+changes-view.button.revert = Desfazer
+dialog.changes-revert.title = Desfazer Mudanças?
+dialog.changes-revert.header = Tem certeza que deseja reverter as alterações nos arquivos selecionados?
+dialog.changes-revert.button.revert-changes = Desfazer Mudanças
 
 # Prefs
 
+prefs.dialog.title = Preferências
 
+prefs.tab.general = Geral
+prefs.tab.code = Código
+prefs.tab.extensions = Extensões
+prefs.tab.tools = Ferramentas
+prefs.tab.dev = Dev
+prefs.tab.keymap = Atalhos
 
 # General tab
+prefs.label.workflow.load-external-changes-on-app-focus = Carregar Mudanças Externas ao Obter Foco na Janela
+prefs.label.workflow.save-on-app-focus-lost = Salvar Tudo ao Perder Foco
+prefs.label.bundle.open-output-directory = Abrir Pasta de Destino do Pacote
+prefs.label.build.open-html5-build = Abrir navegador após "Construir HTML5"
+prefs.label.build.texture-compression = Habilitar Compressão de Textura
+prefs.label.run.quit-on-escape = Esc Sai do Jogo
+prefs.label.asset-browser.track-active-tab = Acompanhar Aba Ativa no Navegador de Conteúdo
+prefs.label.build.lint-code = Verificar Código ao Compilar
+prefs.label.window.locale = Idioma do Editor
+prefs.label.run.engine-arguments = Argumentos do Motor
+prefs.prompt.run.engine-arguments = Um argumento por linha
+prefs.help.run.engine-arguments = Argumentos que serão passados para os executáveis dmengine quando o editor for compilado e executado.\nUse um argumento por linha. Por exemplo\:\n--config\=bootstrap.main_collection\=/my dir/1.collectionc\n--verbose\n--graphics-adapter\=vulkan
 
 # Code tab
+prefs.label.code.custom-editor = Editor Personalizado
+prefs.label.code.open-file = Abrir Arquivo
+prefs.label.code.open-file-at-line = Abrir Arquivo na Linha
+prefs.label.code.font.name = Fonte do Código (Requer Reinicialização)
+prefs.label.code.zoom-on-scroll = Zoom ao Rolar
+prefs.label.code.hover = Popup ao passar o mouse
+prefs.help.code.hover = Mostrar popup com documentação do código ao passar o mouse
+prefs.label.code.auto-closing-parens = Auto-inserir fecha parentese
 
 # Extensions tab
+prefs.label.extensions.build-server = Servidor de Compilação
+prefs.label.extensions.build-server-username = Usuário do Servidor de Compilação
+prefs.label.extensions.build-server-password = Senha do Servidor de Compilação
+prefs.label.extensions.build-server-headers = Cabeçalhos do Servidor de Compilação
 
 # Tools
+prefs.label.tools.adb-path = Caminho ADB
+prefs.help.tools.adb-path = Caminho para o comando ADB que pode ser usado para instalar e iniciar o aplicativo Android quando ele estiver empacotado
+prefs.label.tools.ios-deploy-path = Caminho ios-deploy
+prefs.help.tools.ios-deploy-path = Caminho para o comando ios-deploy que pode ser usado para instalar e iniciar o aplicativo iOS quando ele estiver empacotado
 
 # Dev tab
+prefs.label.dev.custom-engine = Motor Personalizado
 
 # Keymap tab
+prefs.keymap.filter.prompt = Filtrar atalho…
+prefs.keymap.command = Comando
+prefs.keymap.shortcuts = Atalhos
+prefs.keymap.context-menu.new-shortcut = Novo Atalho…
+prefs.keymap.context-menu.reset-to-default = Restaurar Padrões
+prefs.keymap.context-menu.remove = Remover {shortcut}
+prefs.keymap.context-menu.add = Adicionar {shortcut}
+prefs.keymap.new-shortcut = Novo atalho "{shortcut}"
+prefs.keymap.new-shortcut.press-desired-combination = Pressione a combinação de teclas desejada
+prefs.keymap.new-shortcut.commit = Pressione {enter} para confirmar
+prefs.keymap.new-shortcut.commit-or-cancel = Pressione {enter} para confirmar, {escape} novamente para cancelar
+prefs.keymap.warnings = Avisos\:{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = Digitável (pode interferir com entradas de texto)
+prefs.keymap.warning.conflicts = Conflitos com {shortcuts}
 
 # Progress
 
+progress.ready = Pronto
+progress.writing = Escrevendo {resource}
+progress.linting = Verificando código…
+progress.fetching-engine = Buscando motor…
+progress.executing-pre-build-hooks = Executando hooks pré-compilação…
+progress.executing-post-build-hooks = Executando hooks pós-compilação…
+progress.executing-bundle-hook = Executando hooks de pacote…
+progress.building-project = Compilando projeto…
+progress.installing-updated-libraries = Instalando bibliotecas atualizadas…
+progress.initializing-editor = Inicializando editor {lib}
+progress.loading-editor = Carregando editor
+progress.loading = Carregando
+progress.loading-resource = Carregando {resource}
+progress.resolving-resource = Resolvendo {resource}
+progress.reading-resource = Lendo {resource}
+progress.finalizing = Finalizando…
+progress.saving = Salvando…
+progress.compiling = Compilando…
+progress.compiling-resource = Compilando {resource}…
+progress.updating-dependencies = Atualizando dependências…
+progress.syncing-resources = Sincronizando recursos…
+progress.loading-project = Carregando projeto…
+progress.loading-external-changes = Carregando mudanças externas…
+progress.writing-files = Gravando arquivos…
+progress.caching-save-results = Salvando resultados em cache…
+progress.reading-timestamps = Lendo timestamps…
+progress.building = Compilando…
+progress.building-resource = Compilando {resource}
+progress.fetching = Buscando {uri}
+progress.downloading-update = Baixando atualização
+progress.extracting-update = Extraindo atualização
+progress.waiting = Esperando
+progress.bundling = Empacotando…
+progress.building-engine = Compilando motor…
+progress.cleaning-engine = Limpando o motor…
+progress.downloading-symbols = Baixando símbolos…
+progress.transpiling-to-lua = Transpilando para Lua…
+progress.reading-tasks = Lendo tarefas…
+progress.cleaning = Limpando…
+progress.generating-report = Gerando relatório…
+progress.working = Trabalhando…
+progress.reading-classes = Lendo classes…
+progress.downloading-archives = Baixando arquivos…
+progress.launching-engine = Lançando motor…
+progress.launched-engine = Lançado {engine}
+progress.engine-launch-failed = Lançamento falhou
+progress.rebooting-engine = Reiniciando {engine}…
+progress.rebooted-engine = Reiniciado {engine}
+progress.engine-reboot-failed = Reinicialização falhou
+progress.aborting = Abortando…
+progress.percentage = {percentage}%
 
 # Engine targets
 
+engine.url.unavailable = serviço do motor não disponível
+engine.url.invalid-host = servidor inválido
+engine.name.local = {name} Local
+engine.name.with-url = {name} — {url}
+engine.name.with-instance = {name} — instância {instance}
 
 # Search results: overrides
 
+search.overrides.title.all = Todas as Propriedades Substituidas de{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { em}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} Propriedades Sobrescritas de{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { em}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = Substituições de Propriedades Específicas de{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { em}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = Recurso
 
 # Menus
 
+menu.file = Arquivo
+menu.project = Projeto
+menu.edit = Editar
+menu.debug = Depuração
+menu.view = Visualizar
+menu.help = Ajuda
 
 # Commands
 
+command.file.new = Novo…
+command.file.new.option.any-file = Arquivo
+command.file.new.any-file = Novo Arquivo
+command.file.new-folder = Nova Pasta
+command.file.open = Abrir…
+command.file.open-as = Abrir como
+command.file.open-as.option.associated-application = Aplicação Associada
+command.file.open-as.option.in-custom-editor = {view} no Editor Personalizado
+command.file.open-as.option.in-defold-editor = {view} no Editor Defold
+command.file.open-selected = Abrir
+command.file.load-external-changes = Carregar Alterações Externas
+command.file.save-all = Salvar Tudo
+command.file.save-and-upgrade-all = Atualizar Formatos do Arquivo…
+command.file.search = Buscar em Arquivos…
+command.file.reopen-recent = Reabrir Arquivo Fechado
+command.private.recent-files.option.entry = {path} • {view}
+command.private.recent-files = Arquivos Recentes
+command.private.recent-files.option.more = Mais…
+command.window.tab.close = Fechar
+command.window.tab.close-all = Fechar Tudo
+command.window.tab.close-others = Fechar Outros
+command.window.tab.join-groups = Juntar Grupos de Abas
+command.window.tab.move-to-other-group = Mover para Outro Grupo de Abas
+command.window.tab.swap-with-other-group = Trocar Com Outro Grupo de Abas
+command.file.show-in-assets = Mostrar no Navegador de Conteúdo
 command.file.show-in-desktop = Mostrar na Área de Trabalho
+command.file.show-references = Referência de Arquivos…
+command.file.show-dependencies = Dependências…
+command.run.hot-reload = Recarregar
+command.run.select-target = Alvo
+command.run.select-target.option.all-launched-instances = Todas as Instâncias Lançadas
+command.run.select-target.option.new-local-engine = Novo Motor Local
+command.run.stop = Fechar Motor
+command.run.set-instance-count = Contagem de Instâncias Lançadas
+command.run.set-instance-count.option.count = {count, plural, one {\# Instância} other {\# Instâncias}}
+command.run.set-target-ip = Digite o IP Alvo
+command.run.show-target-log = Log de Descoberta de Alvos
+command.run.open-profiler = Abrir Perfilador Web
+command.run.open-resource-profiler = Abrir Perfilador de Recursos
+command.run.reset-resolution = Remover Resolução Simulada
+command.run.set-resolution = Definir Resolução
+command.run.set-resolution.option.android-devices = Dispositivos Android
+command.run.set-resolution.option.apple = Apple
+command.run.set-resolution.option.custom-resolution = Resolução Personalizada…
+command.run.set-resolution.option.handheld = Portátil
+command.run.set-resolution.option.ipad = iPad
+command.run.set-resolution.option.iphone = iPhone
+command.run.set-resolution.option.native-resolutions = Resoluções Nativas
+command.run.set-resolution.option.viewport-resolutions = Resoluções de Janela
+command.run.toggle-device-rotated = Dispositivo Rotacionado
+command.file.open-liveupdate-settings = Configurações de Atualização Ao Vivo
+command.file.open-project = Abrir Projeto…
+command.file.open-shared-editor-settings = Configurações Compartilhadas de Editor
+command.app.preferences = Preferências…
+command.app.quit = Sair
+command.project.build = Compilar
+command.project.clean-build = Compilação Limpa
+command.project.build-html5 = Compilar HTML5
+command.project.clean-build-html5 = Compilação Limpa HTML5
+command.project.bundle = Empacotar
+command.project.rebundle = Reempacotar
+command.project.fetch-libraries = Buscar Bibliotecas
+command.project.reload-editor-scripts = Recarregar Scripts do Editor
+command.private.clear-override = Limpar Sobreescrição de {property}
+command.edit.undo = Desfazer
+command.edit.redo = Refazer
+command.edit.add-embedded-component = Adicionar
+command.edit.add-embedded-component.variant.atlas = Adicionar Animação
+command.edit.add-embedded-component.variant.collection = Adicionar Objeto de Jogo
+command.edit.add-embedded-component.variant.collision-object = Adicionar Forma
+command.edit.add-embedded-component.variant.collision-object.option.box = Caixa
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Cápsula
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Esfera
+command.edit.add-embedded-component.variant.game-object = Adicionar Componente
+command.edit.add-embedded-component.variant.particlefx = Adicionar Emissor
+command.edit.add-embedded-component.variant.particlefx.option.circle = Círculo
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Esfera
+command.edit.add-embedded-component.variant.particlefx.option.cone = Cone
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = Cone 2D
+command.edit.add-embedded-component.variant.particlefx.option.box = Caixa
+command.edit.add-embedded-component.variant.tile-map = Adicionar Camada
+command.edit.add-embedded-component.variant.tile-source = Adicionar
+command.edit.add-embedded-component.variant.tile-source.option.animation = Animação
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = Grupo de Colisão
+command.edit.add-referenced-component = Adicionar De Arquivo
+command.edit.add-referenced-component.variant.atlas = Adicionar Imagens…
+command.edit.add-referenced-component.variant.collection = Adicionar Arquivo de Objeto do Jogo
+command.edit.add-referenced-component.variant.game-object = Adicionar Arquivo de Componente
+command.edit.add-secondary-embedded-component = Adicionar Secundário
+command.edit.add-secondary-embedded-component.variant.collection-game-object = Adicionar Objeto de Jogo
+command.edit.add-secondary-embedded-component.variant.particlefx = Adicionar Modificador
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Aceleração
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Arrastar
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Radial
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Vórtice
+command.edit.add-secondary-referenced-component = Adicionar Secundário de Arquivo
+command.edit.add-secondary-referenced-component.variant.collection = Adicionar Arquivo de Coleção
+command.edit.add-secondary-referenced-component.variant.collection-game-object = Adicionar Arquivo de Objeto de Jogo
+command.edit.cut = Recortar
+command.edit.copy = Copiar
+command.edit.copy-absolute-path = Copiar o Caminho Completo
+command.edit.copy-require-path = Copiar Caminho de Requisição
+command.edit.copy-resource-path = Copiar Caminho de Recurso
+command.edit.find = Procurar…
+command.edit.paste = Colar
+command.code.select-all = Selecionar Tudo
+command.edit.delete = Excluir
+command.edit.reorder-up = Mover para Cima
+command.edit.reorder-down = Mover para Baixo
+command.edit.rename = Renomear
+command.edit.pull-up-overrides = Puxar Substituições
+command.edit.pull-up-overrides.variant.property = Puxar Substituição de {property}
+command.edit.pull-up-overrides.option = Puxar {property_count, select, 1 {"{property}" Substituição} other {{property_count} Substituições}} para {target_count, select, 1 {{target, select, undefined {Ancestral} other {"{target}"}}} other {{target_count} Ancestrais}} {aspect_count, select, 0 {} 1 {em {aspect} } other {Entre {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {em "{resource}"} other {de "{resource}"}}} other {Para {resource_count} Recursos}}
+command.edit.push-down-overrides = Empurrar Substituições
+command.edit.push-down-overrides.variant.property = Empurrar Substituição de {property}
+command.edit.push-down-overrides.option = Empurrar {property_count, select, 1 {"{property}" Substituição} other {{property_count} Substituições}} para {target_count, select, 1 {{target, select, undefined {Descendente} other {"{target}"}}} other {{target_count} Descendentes}} {aspect_count, select, 0 {} 1 {em {aspect} } other {Entre {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {em "{resource}"} other {de "{resource}"}}} other {Sobre {resource_count} Recursos}}
+command.edit.show-overrides = Mostrar Substituições…
+command.code.find-next = Localizar Próximo
+command.code.find-previous = Localizar Anterior
+command.code.replace = Substituir…
+command.code.replace-next = Substituir Próximo
+command.code.toggle-comment = Alternar Comentário
+command.code.reindent-lines = Reindentar Linhas
+command.code.convert-indentation = Converter Indentação
+command.code.convert-indentation.to-tabs = Para Tabs
+command.code.convert-indentation.to-two-spaces = Para Dois Espaços
+command.code.convert-indentation.to-four-spaces = Para Quatro Espaços
+command.code.sort-lines = Ordenar Linhas
+command.code.sort-lines.case-sensitive = Ordenar Linhas (Maiúscula e Minúscula)
+command.code.sort-lines.option.case-insensitive = Ignorar Maíusculas e Minúsculas
+command.code.sort-lines.option.case-sensitive = Considerar Maíusculas e Minúsculas
+command.code.select-next-occurrence = Selecionar Próxima Ocorrência
+command.code.split-selection-into-lines = Dividir Seleção em Linhas
+command.code.goto-definition = Ir para Definição
+command.code.goto-line = Ir para a Linha…
+command.code.show-references = Encontrar Referências
+command.code.toggle-minimap = Minimapa
+command.code.toggle-indentation-guides = Guias de Indentação
+command.code.toggle-visible-whitespace = Espaço em Branco Visível
+command.code.zoom.increase = Aumentar o Tamanho da Fonte
+command.code.zoom.decrease = Diminuir Tamanho da Fonte
+command.code.zoom.reset = Restaurar o Tamanho da Fonte
+command.debugger.start = Iniciar/Conectar
+command.debugger.continue = Continuar
+command.debugger.break = Quebrar
+command.debugger.step-over = Step Over
+command.debugger.step-into = Step Into
+command.debugger.step-out = Step Out
+command.debugger.detach = Desconectar Depurador
+command.debugger.stop = Parar Depurador
+command.debugger.toggle-breakpoint = Alternar Breakpoint
+command.debugger.edit-breakpoint = Editar Breakpoint
+command.scene.set-camera-type = Definir Tipo de Câmera
+command.scene.set-gui-layout = Definir Layout da GUI
 command.file.create-desktop-entry = Criar Atalho na Área de Trabalho
 
 # Overrides
