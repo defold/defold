@@ -1217,3 +1217,11 @@ resource.view.text = Text
 
 resource.readonly.detail = This file is part of a library and cannot be saved.
 resource.readonly.button.read-more = Read more…
+
+# Quick Help
+
+quick-help.open-asset = Open Asset
+quick-help.reopen-closed-file = Reopen Closed File
+quick-help.search-in-files = Search in Files
+quick-help.build-and-run-project = Build and Run Project
+quick-help.start-or-attach-debugger = Start or Attach Debugger

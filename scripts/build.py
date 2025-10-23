@@ -1941,36 +1941,20 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = self.get_python() + ['./scripts/bundle.py',
-               '--engine-artifacts=%s' % self.engine_artifacts,
-               '--archive-domain=%s' % self.archive_domain,
-               'build']
-
-        if self.skip_tests:
-            cmd.append("--skip-tests")
-
-        self.run_editor_script(cmd)
-
-    def bundle_editor2(self):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
         cmd = self.get_python() + ['./scripts/bundle.py',
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               '--archive-domain=%s' % self.archive_domain,
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts,
-               '--archive-domain=%s' % self.archive_domain,
-               'bundle']
-        self.run_editor_script(cmd)
+               'build']
 
-    def sign_editor2(self):
-        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = self.get_python() + ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--bundle-dir=%s' % editor_bundle_dir,
-               '--archive-domain=%s' % self.archive_domain,
-               'sign']
+        if self.skip_tests:
+            cmd.append("--skip-tests")
+            
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:
@@ -1986,36 +1970,19 @@ class Configuration(object):
                 cmd.append("--gcloud-projectid=%s" % self.gcloud_projectid)
             if self.gcloud_keyringname:
                 cmd.append("--gcloud-keyringname=%s" % self.gcloud_keyringname)
+
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
+
+            if self.notarization_username:
+                cmd.append('--notarization-username=%s' % self.notarization_username)
+            if self.notarization_password:
+                cmd.append('--notarization-password=%s' % self.notarization_password)
+            if self.notarization_itc_provider:
+                cmd.append('--notarization-itc-provider=%s' % self.notarization_itc_provider)
+
         self.run_editor_script(cmd)
 
-    def notarize_editor2(self):
-        if self.target_platform not in ('x86_64-macos', 'arm64-macos'):
-            return
-
-        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        # create dmg installer
-        cmd = ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--bundle-dir=%s' % editor_bundle_dir,
-               '--archive-domain=%s' % self.archive_domain,
-               'installer']
-        if self.skip_codesign:
-            cmd.append('--skip-codesign')
-        else:
-            if self.codesigning_identity:
-                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
-        self.run_editor_script(cmd)
-
-        # notarize dmg
-        editor_dmg = join(editor_bundle_dir, 'Defold-%s.dmg' % self.target_platform)
-        cmd = ['./scripts/notarize.py',
-               editor_dmg,
-               self.notarization_username,
-               self.notarization_password,
-               self.notarization_itc_provider]
-        self.run_editor_script(cmd)
 #
 # END: EDITOR 2
 # ------------------------------------------------------------
@@ -2517,7 +2484,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-21.0.5+11'
+        jdk = 'jdk-25+36'
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -2814,11 +2781,8 @@ sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
-sign_editor2     - Sign editor
-bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
-notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path

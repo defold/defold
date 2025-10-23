@@ -13,12 +13,12 @@ time =
 channel =
 archive_domain =
 [launcher]
-jdk = ${bootstrap.resourcespath}/packages/jdk-21.0.5+11
+jdk = ${bootstrap.resourcespath}/packages/jdk-25+36
 java = ${launcher.jdk}/bin/java
 jar = ${bootstrap.resourcespath}/packages/defold-${build.editor_sha1}.jar
 main = com.defold.editor.Main
 debug = 1
-vmargs = -Dfile.encoding=UTF-8,-Djna.nosys=true,-Ddefold.launcherpath=${bootstrap.launcherpath},-Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.version=${build.version},-Ddefold.editor.sha1=${build.editor_sha1},-Ddefold.engine.sha1=${build.engine_sha1},-Ddefold.buildtime=${build.time},-Ddefold.channel=${build.channel},-Ddefold.archive.domain=${build.archive_domain},-Djava.net.preferIPv4Stack=true,-Dsun.net.client.defaultConnectTimeout=30000,-Dsun.net.client.defaultReadTimeout=30000,-Djogl.texture.notexrect=true,-Dglass.accessible.force=false,-Ddefold.schema.check.disable=true,--add-opens=java.base/java.lang=ALL-UNNAMED,--add-opens=java.desktop/sun.awt=ALL-UNNAMED,--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED,--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED,--add-opens=java.base/sun.nio.fs=ALL-UNNAMED,--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED
+vmargs = -Dfile.encoding=UTF-8,-Djna.nosys=true,-Ddefold.launcherpath=${bootstrap.launcherpath},-Ddefold.resourcespath=${bootstrap.resourcespath},-Ddefold.version=${build.version},-Ddefold.editor.sha1=${build.editor_sha1},-Ddefold.engine.sha1=${build.engine_sha1},-Ddefold.buildtime=${build.time},-Ddefold.channel=${build.channel},-Ddefold.archive.domain=${build.archive_domain},-Djava.net.preferIPv4Stack=true,-Dsun.net.client.defaultConnectTimeout=30000,-Dsun.net.client.defaultReadTimeout=30000,-Djogl.texture.notexrect=true,-Dglass.accessible.force=false,-Ddefold.schema.check.disable=true,--add-opens=java.base/java.lang=ALL-UNNAMED,--add-opens=java.desktop/sun.awt=ALL-UNNAMED,--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED,--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED,--add-opens=java.base/sun.nio.fs=ALL-UNNAMED,--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED,--enable-native-access=ALL-UNNAMED,-XX:+UseCompactObjectHeaders
 [platform]
 osx = -Xdock:icon=${bootstrap.resourcespath}/logo.icns,-Xdock:name=Defold
 windows =

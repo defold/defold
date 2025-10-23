@@ -280,50 +280,20 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     call(cmd)
 
 
-def build_editor2(channel, engine_artifacts = None, skip_tests = False):
-    host_platform = platform_from_host()
-    if not host_platform in PLATFORMS_DESKTOP:
-        return
+def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False, notarization_username = None, notarization_password = None, notarization_itc_provider = None, gcloud_keyfile = None, gcloud_certfile = None):
+    if not platform in PLATFORMS_DESKTOP:
+        raise Exception("Unsupported platform for editor build: %s" % platform)
 
     opts = []
 
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    opts.append('--channel=%s' % channel)
-
-    if skip_tests:
-        opts.append('--skip-tests')
-
-    opts_string = ' '.join(opts)
-
-    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (host_platform, opts_string))
-    for platform in PLATFORMS_DESKTOP:
-        call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
-
-def download_editor2(channel, platform = None):
-    host_platform = platform_from_host()
-    if platform is None:
-        platforms = PLATFORMS_DESKTOP
-    else:
-        platforms = [platform]
-
-    opts = []
-    opts.append('--channel=%s' % channel)
-
-    install_sdk = ''
-    if 'win32' in host_platform: # until we can find the signtool in a faster way on CI
-        install_sdk ='install_sdk'
-
-    for platform in platforms:
-        call('python scripts/build.py %s install_ext download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
-
-
-def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
-    args = 'python scripts/build.py sign_editor2'.split()
-    opts = []
-
-    opts.append('--platform=%s' % platform)
+    if notarization_username:
+        opts.append('--notarization-username="%s"' % notarization_username)
+    if notarization_password:
+        opts.append('--notarization-password="%s"' % notarization_password)
+    if notarization_itc_provider:
+        opts.append('--notarization-itc-provider="%s"' % notarization_itc_provider)
 
     # windows EV Code Signing with key in Google Cloud KMS
     if gcloud_keyfile and gcloud_certfile:
@@ -346,30 +316,14 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
         print("Using Google Cloud certificate ", gcloud_certfile)
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
 
-    cmd = ' '.join(args + opts)
-    call(cmd)
+    opts.append('--channel=%s' % channel)
 
+    if skip_tests:
+        opts.append('--skip-tests')
 
-def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None, platform = None):
-    if not notarization_username or not notarization_password:
-        print("No notarization username or password")
-        exit(1)
+    opts_string = ' '.join(opts)
 
-    # args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
-    args = 'python scripts/build.py notarize_editor2'.split()
-    opts = []
-
-    opts.append('--platform=%s' % platform)
-
-    opts.append('--notarization-username="%s"' % notarization_username)
-    opts.append('--notarization-password="%s"' % notarization_password)
-
-    if notarization_itc_provider:
-        opts.append('--notarization-itc-provider="%s"' % notarization_itc_provider)
-
-    cmd = ' '.join(args + opts)
-    call(cmd)
-
+    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
 
 def archive_editor2(channel, engine_artifacts = None, platform = None):
     if platform is None:
@@ -454,7 +408,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -502,7 +456,6 @@ def main(argv):
 
     # configure build flags based on the branch
     release_channel = None
-    skip_editor_tests = False
     make_release = False
     if branch == "master":
         engine_channel = "stable"
@@ -558,16 +511,6 @@ def main(argv):
                 skip_builtins = args.skip_builtins,
                 skip_docs = args.skip_docs)
         elif command == "build-editor":
-            build_editor2(editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
-        elif command == "download-editor":
-            download_editor2(editor_channel, platform = platform)
-        elif command == "notarize-editor":
-            notarize_editor2(
-                notarization_username = args.notarization_username,
-                notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider,
-                platform = platform)
-        elif command == "sign-editor":
             if not platform:
                 raise Exception("No --platform specified.")
             gcloud_certfile = None
@@ -576,7 +519,16 @@ def main(argv):
                 gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
                 gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
-            sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
+            build_editor2(
+                editor_channel, 
+                platform,
+                engine_artifacts = engine_artifacts, 
+                skip_tests = args.skip_tests,
+                notarization_username = args.notarization_username,
+                notarization_password = args.notarization_password,
+                notarization_itc_provider = args.notarization_itc_provider,
+                gcloud_keyfile = gcloud_keyfile, 
+                gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":

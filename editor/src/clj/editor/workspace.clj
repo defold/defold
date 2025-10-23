@@ -608,12 +608,14 @@ ordinary paths."
   (= "clj" (resource/ext resource)))
 
 (defn- load-clojure-plugin! [workspace resource]
-  (log/info :message (str "Loading plugin " (resource/path resource)))
+  (when-not (Boolean/getBoolean "defold.tests")
+    (log/info :message (str "Loading plugin " (resource/path resource))))
   (try
     (if-let [plugin-fn (load-string (slurp resource))]
       (do
         (plugin-fn workspace)
-        (log/info :message (str "Loaded plugin " (resource/path resource))))
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/info :message (str "Loaded plugin " (resource/path resource)))))
       (log/error :message (str "Unable to load plugin " (resource/path resource))))
     (catch Exception e
       (log/error :message (str "Exception while loading plugin: " (.getMessage e))

@@ -38,7 +38,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
@@ -81,7 +81,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd, with: { xcode-version: '16.2' } },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
@@ -121,7 +121,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '4.0.6'}},
       { name: 'Verify emsdk',
@@ -151,7 +151,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -176,7 +176,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
@@ -217,7 +217,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -242,7 +242,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -268,7 +268,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -294,7 +294,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       {
         name: 'Build bob',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
@@ -340,7 +340,7 @@ jobs:
 
   # ---- BUILD EDITOR ------------------
 
-  build-editor:
+  build-editor-linux:
     needs: [build-bob]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -354,18 +354,17 @@ jobs:
         }
       },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
-      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed, with: { lein: 2.8.3 } },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
-        run: 'ci/ci.sh build-editor'
+        run: 'ci/ci.sh build-editor --platform=x86_64-linux'
       },
       {
         name: 'Archive editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
-        run: 'ci/ci.sh archive-editor'
+        run: 'ci/ci.sh archive-editor --platform=x86_64-linux'
       },
       {
         name: 'Notify if build status changed',
@@ -373,38 +372,36 @@ jobs:
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
         with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
-      }]
+      }
+    ]
 
-  sign-editor-darwin:
-    needs: [build-editor]
+  build-editor-macos:
+    needs: [build-bob]
     runs-on: macOS-14
     timeout-minutes: 60
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
-        name: 'Download editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
       },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       {
         name: 'Install dependencies',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
-        name: 'Sign editor',
+        name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh sign-editor --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Notarize editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+        run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
       },
       {
         name: 'Archive editor',
@@ -417,26 +414,28 @@ jobs:
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
         with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
-      }]
+      }
+    ]
 
-
-  sign-editor-windows:
-    needs: [build-editor]
-    runs-on: ubuntu-22.04
-    timeout-minutes: 15
+  build-editor-windows:
+    needs: [build-bob]
+    runs-on: windows-2025
+    timeout-minutes: 60
     strategy:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
-        name: 'Download editor',
-        shell: bash,
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
       },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
+      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } },
       {
         name: 'Install dependencies',
         shell: bash,
@@ -444,16 +443,10 @@ jobs:
         run: 'ci/ci.sh install'
       },
       {
-        name: 'Install ext dependencies',
+        name: 'Build editor',
         shell: bash,
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh install_ext --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Sign editor',
-        shell: bash,
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh sign-editor --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}" --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Archive editor',
@@ -467,12 +460,13 @@ jobs:
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
         with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
-      }]
+      }
+    ]
 
   # ---- RELEASE ------------------
 
   release:
-    needs: [sign-editor-darwin, sign-editor-windows]
+    needs: [build-editor-macos, build-editor-windows, build-editor-linux]
     runs-on: ubuntu-22.04
     steps: [
       {
