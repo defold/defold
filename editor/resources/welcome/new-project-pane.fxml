@@ -18,7 +18,7 @@
             <HBox id="new-project-location-field" HBox.hgrow="ALWAYS" />
         </HBox>
         <HBox HBox.hgrow="NEVER">
-            <Button id="create-new-project-button" styleClass="df-button, submit-button" text="Create New Project" HBox.hgrow="NEVER" />
+            <Button id="create-new-project-button" styleClass="df-button, submit-button" text="Create New Project" HBox.hgrow="NEVER" defaultButton="true" />
         </HBox>
     </HBox>
 </VBox>

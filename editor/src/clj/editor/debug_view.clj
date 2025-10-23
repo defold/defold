@@ -472,7 +472,7 @@
 
 (def ^:private mobdebug-port 8172)
 
-(defn- show-connect-failed-info! [^Exception exception workspace]
+(defn show-connect-failed-info! [^Exception exception workspace]
   (ui/run-later
     (let [error-text (or (.getMessage exception) (.getSimpleName (class exception)))
           log-text (str error-text "\n\nCheck that the game is running and is reachable over the network.")]

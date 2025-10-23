@@ -869,7 +869,6 @@ namespace dmGameSystem
         #undef UNPACK_ATTRIBUTE_PTR
 
             vertex_write_ptr = dmGraphics::WriteAttributes(vertex_write_ptr, 0, vertex_count, params);
-
             rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
             free(attribute_data);

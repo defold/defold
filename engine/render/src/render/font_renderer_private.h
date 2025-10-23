@@ -54,7 +54,8 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
-            dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+            if (m_Texture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
         }
 
         dmMutex::HMutex         m_Mutex;
@@ -108,7 +109,7 @@ namespace dmRender
         uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
         uint8_t                 m_DynamicCacheSize:1;
         uint8_t                 m_IsCacheSizeTooSmall:1;
-        uint8_t                 m_CacheChannels:2;      // Number of channels
+        uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
     };
 
     ///////////////////////////////////////////////////////////////////////////////

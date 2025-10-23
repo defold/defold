@@ -101,9 +101,8 @@ public:
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, params);
 
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
-        job_thread_create_param.m_ThreadCount    = 1;
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount = 1;
 
         if (dmGraphicsTestT::s_Asynchronous)
             m_JobThread = dmJobThread::Create(job_thread_create_param);
