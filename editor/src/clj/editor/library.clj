@@ -298,15 +298,19 @@
     render-progress!))
 
 (defn validate-updated-libraries
-  "Validate newly downloaded libraries (:status is :stale).
+  "Validate libraries after fetching updates.
 
   Will update:
-  :status to :error (with :reason, :exception) if the library is invalid"
+  - :status to :error (with :reason, :exception) for invalid zips"
   [lib-states]
   (mapv
     (fn [lib-state]
-      (if (= (:status lib-state) :stale)
-        (validate-updated-library lib-state)
+      (cond
+        (= (:status lib-state) :stale)
+        (let [validated (validate-updated-library lib-state)]
+          validated)
+
+        :else
         lib-state))
     lib-states))
 
