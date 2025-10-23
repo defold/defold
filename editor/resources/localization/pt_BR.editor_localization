@@ -797,9 +797,16 @@ command.debugger.detach = Desconectar Depurador
 command.debugger.stop = Parar Depurador
 command.debugger.toggle-breakpoint = Alternar Breakpoint
 command.debugger.edit-breakpoint = Editar Breakpoint
+command.scene.set-manipulator-space = Definir Espaço de Manipulação
+command.scene.set-manipulator-space.option.world = Espaço Global
+command.scene.set-manipulator-space.option.local = Espaço Local
 command.scene.set-camera-type = Definir Tipo de Câmera
+command.scene.set-camera-type.option.orthographic = Câmera Ortográfica
+command.scene.set-camera-type.option.perspective = Câmera Perspectiva
 command.scene.set-gui-layout = Definir Layout da GUI
+command.scene.toggle-move-whole-pixels = Mover Pixels Inteiros
 command.scene.visibility.toggle-filters = Alternar Filtros de Visibilidade
+command.scene.visibility.toggle-component-guides = Alternar Guias de Componente
 command.scene.visibility.toggle-grid = Alternar Grade
 command.scene.visibility.toggle-selection = Mostrar/Ocultar Objetos Selecionados
 command.scene.visibility.hide-unselected = Ocultar Objetos Não Selecionados
@@ -807,17 +814,29 @@ command.scene.visibility.show-last-hidden = Exibir Últimos Objetos Ocultos
 command.scene.visibility.show-all = Exibir Todos Objetos Ocultos
 command.scene.play = Reproduzir
 command.scene.stop = Parar
+command.scene.frame-selection = Seleção de Quadro
 command.scene.realign-camera = Realinhar a Câmera
+command.scene.toggle-tile-palette = Selecionar Tile…
 command.scene.select-erase-tool = Selecionar Borracha
+command.scene.flip-brush-horizontally = Inverter Pincel Horizontalmente
+command.scene.flip-brush-vertically = Inverter Pincel Verticalmente
+command.scene.rotate-brush-90-degrees = Girar Pincel 90 Graus
+command.window.toggle-left-pane = Alternar Painel de Conteúdo
+command.window.toggle-changed-files-pane = Alternar Arquivos Modificados
+command.window.toggle-bottom-pane = Alternar Painel de Ferramentas
+command.window.toggle-right-pane = Alternar Painel de Propriedades
 command.window.show-console = Exibir Console
+command.window.show-curve-editor = Mostrar Editor de Curvas
 command.window.show-build-errors = Exibir Erros de Compilação
 command.window.show-search-results = Exibir Resultados da Pesquisa
+command.dev.reload-css = Recarregar Estilo
 command.help.open-logs = Mostrar Logs
 command.file.create-desktop-entry = Criar Atalho na Área de Trabalho
 command.help.open-documentation = Documentação
 command.help.open-forum = Fórum de Suporte
 command.help.open-asset-portal = Encontrar Recursos
 command.help.report-issue = Reportar Problema
+command.help.report-suggestion = Reportar Sugestão
 command.app.about = Sobre
 command.vcs.revert = Desfazer
 
@@ -875,6 +894,10 @@ property.appmanifest.physics-2d = Física 2D
 property.appmanifest.physics-3d = Física 3D
 property.appmanifest.exclude-record.tooltip = Remover os recursos de gravação de vídeo (plataformas desktop)
 property.appmanifest.exclude-profiler.tooltip = Remover o profilador da tela e web
+property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de som\: WAV
+property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de som\: OGG
+property.appmanifest.include-sound-decoder-opus = Incluir Decodificador de Som\: Opus
+property.appmanifest.exclude-input = Excluir Entrada
 property.appmanifest.exclude-image = Excluir Imagem
 property.appmanifest.graphics = Gráficos
 property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dispositivos móveis
@@ -883,6 +906,7 @@ property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dis
 
 property.atlas.animation.fps = FPS
 property.atlas.margin = Margem
+property.atlas.rename-patterns.tooltip = Pesquisa separada por vírgulas\=substituir padrões aplicados a cada nome base da imagem; por exemplo "hat\=cat,_normal\=" renomeia "hat_normal" para "cat", o que ajuda a combinar animações entre conjuntos
 
 # Properties: camera
 
@@ -990,12 +1014,24 @@ property.sound.speed = Velocidade
 
 property.tile-map.layer.visible = Visível
 property.tile-map.layer.z = Z
+property.tile-map.tile-source = Tile Source
 
 # Properties: tile source
 
 property.tile-source.collision = Colisão
+property.tile-source.end-tile = Tile Final
+property.tile-source.extrude-borders = Extrudar bordas
 property.tile-source.flip-horizontal = Inverter Horizontalmente
 property.tile-source.flip-vertical = Inverter Verticalmente
+property.tile-source.fps = FPS
+property.tile-source.inner-padding = Estofamento Interno
+property.tile-source.playback = Reprodução
+property.tile-source.sprite-trim-mode = Modo Aparar Sprite
+property.tile-source.start-tile = Tile Inicial
+property.tile-source.tile-height = Altura do Tile
+property.tile-source.tile-margin = Margem do Tile
+property.tile-source.tile-spacing = Espaçamento do Tile
+property.tile-source.tile-width = Largura do Tile
 
 # Outline
 
@@ -1008,6 +1044,8 @@ outline.gui.nodes = Nós
 outline.gui.materials = Materiais
 outline.gui.textures = Texturas
 outline.sound = Som
+outline.tile-map = Tile Map
+outline.tile-source = Tile Source
 outline.unknown = Desconhecido
 outline.unnamed-collision-shape = <{shape} sem nome>
 
