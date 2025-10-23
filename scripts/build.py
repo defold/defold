@@ -836,6 +836,14 @@ class Configuration(object):
     def has_sdk(self, sdkfolder, target_platform):
         return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
 
+    def _find_program(self, platform, name, paths):
+        name = format_exes(name, platform)[0]
+        for path in paths:
+            fullpath = os.path.join(path, name)
+            if os.path.isfile(fullpath):
+                return fullpath
+        return None
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -862,6 +870,12 @@ class Configuration(object):
         result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
         if not result:
             self.fatal("Failed sdk check")
+
+        paths = os.environ['PATH'].split(os.path.pathsep)
+        cmake = self._find_program(get_host_platform(), 'cmake', paths)
+        if not cmake:
+            self.fatal("CMake not found in PATH")
+        self._log(f"Found CMake: {cmake}")
 
         args = ["cmake", f"-DTARGET_PLATFORM={target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
         if self.verbose:
