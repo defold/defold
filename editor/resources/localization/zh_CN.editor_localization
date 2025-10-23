@@ -149,7 +149,7 @@ dialog.button.delete = 刪除
 
 dialog.error.title = 错误
 dialog.error.header = 发生错误
-dialog.error.footer = 您可以通过报告此问题，并提供问题发生时您正在进行的操作相关的更多信息，来帮助我们解决该问题。
+dialog.error.footer = 您可以通过报告和提供更多信息来帮助我们解决这个问题。
 
 # Build Error Dialog
 
@@ -171,7 +171,7 @@ dialog.clean-build.button.clean = 纯净构建
 
 dialog.debugging-not-supported.title = 不支持调试
 dialog.debugging-not-supported.header = 此项目无法与调试器一起使用
-dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n如果非特别需要不同的脚本状态，建议修改 game.project 中的 script.shared_state 属性。
+dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n除非特别需要不同的脚本状态，否则建议修改 game.project 中的 script.shared_state 属性。
 
 # Defunload Issues Dialog
 
