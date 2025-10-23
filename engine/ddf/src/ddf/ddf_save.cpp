@@ -40,9 +40,16 @@ namespace dmDDF
             FieldDescriptor* field_desc = &desc->m_Fields[i];
             Type type = (Type) field_desc->m_Type;
 
-            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX) // && field_desc->m_OneOfSet == 0)
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
             {
-                continue;
+                // Resolve the oneof member for this field
+                assert(field_desc->m_OneOfIndex > 0);
+                uint32_t oneof_offset = desc->m_OneOfDataOffsets[field_desc->m_OneOfIndex-1];
+                uint8_t oneof_member  = message[oneof_offset];
+                if (oneof_member != field_desc->m_Number)
+                {
+                    continue;
+                }
             }
 
     #define DDF_SAVEMESSAGE_CASE(t, wt, func) \
@@ -83,11 +90,12 @@ namespace dmDDF
             {
                 const uint8_t* data = data_start + j * element_size;
 
+            #if 0
                 char prefix_levels[32];
                 memset(prefix_levels, ' ', level);
                 prefix_levels[level] = 0;
-
                 dmLogInfo("%sSaving field %s[%d]", prefix_levels, field_desc->m_Name, j);
+            #endif
 
                 switch (field_desc->m_Type)
                 {

@@ -386,11 +386,6 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     else:
         pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
 
-    # uint32_t TestDDF_OneOfMessageSave_FIELDS_ONEOF_OFFSETS[] = {
-    #     (uint32_t)DDF_OFFSET_OF(TestDDF::OneOfMessageSave, m_OneOfField),
-    #     (uint32_t)DDF_OFFSET_OF(TestDDF::OneOfMessageSave, m_OneOfFieldString),
-    # };
-
     if len(oneof_scope_names) > 0:
         pp_cpp.p('uint32_t %s_%s_ONEOF_OFFSETS[] = {', namespace, message_type.name)
         for name in oneof_scope_names:
