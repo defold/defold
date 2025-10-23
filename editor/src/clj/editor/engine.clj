@@ -277,11 +277,12 @@
       engine-file)))
 
 (defn- validate-service-port [port-str]
-  (try
-    (let [port (Integer/parseInt port-str)]
-      (when (<= 0 port 65535)
-        (str port)))
-    (catch Exception _ false)))
+  (when port-str
+    (try
+      (let [port (Integer/parseInt port-str)]
+        (when (<= 0 port 65535)
+          (str port)))
+      (catch Exception _))))
 
 (defn launch! [^File engine project-directory prefs debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
