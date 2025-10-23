@@ -2319,14 +2319,14 @@
         (let [first-tab-pane (g/node-value app-view :active-tab-pane)
               second-tab-pane (add-other-tab-pane! editor-tabs-split app-view prefs)]
           (doseq [tab second-pane-tabs]
-            (.remove (.getTabs first-tab-pane) tab)
+            (.remove (.getTabs ^TabPane first-tab-pane) tab)
             (.add (.getTabs second-tab-pane) tab))))
       (let [tab-panes (.getItems editor-tabs-split)]
         (when-let [saved-tab-idx (get selected-tabs-idx 0)]
-          (.select (.getSelectionModel (.get tab-panes 0)) saved-tab-idx))
+          (.select (.getSelectionModel ^TabPane (.get tab-panes 0)) saved-tab-idx))
         (when (and (= 2 (count tab-panes))
                    (some? (get selected-tabs-idx 1)))
-          (.select (.getSelectionModel (.get tab-panes 1)) (get selected-tabs-idx 1)))
+          (.select (.getSelectionModel ^TabPane (.get tab-panes 1)) (get selected-tabs-idx 1)))
         (doseq [^TabPane pane tab-panes]
           (ui/add-style! pane "inactive"))
         (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]

@@ -62,4 +62,6 @@
   (defn save-tab-selections [prefs app-view] nil)
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
                                                   [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
+  (prefs/get (dev/prefs) [:workflow :open-tabs])
+  (prefs/get (dev/prefs) [:workflow :last-selected-tabs])
   ,)
