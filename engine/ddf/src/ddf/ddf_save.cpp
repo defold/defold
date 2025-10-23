@@ -17,6 +17,8 @@
 #include "ddf_save.h"
 #include "ddf_outputstream.h"
 
+#include <dlib/log.h>
+
 namespace dmDDF
 {
 
@@ -27,7 +29,7 @@ namespace dmDDF
         return true;
     }
 
-    Result DoSaveMessage(const void* message_, const Descriptor* desc, void* context, SaveFunction save_function)
+    Result DoSaveMessage(const void* message_, const Descriptor* desc, void* context, SaveFunction save_function, int level)
     {
         OutputStream output_stream(save_function, context);
         const uint8_t* message = (const uint8_t*) message_;
@@ -38,7 +40,7 @@ namespace dmDDF
             FieldDescriptor* field_desc = &desc->m_Fields[i];
             Type type = (Type) field_desc->m_Type;
 
-            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX && field_desc->m_OneOfSet == 0)
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX) // && field_desc->m_OneOfSet == 0)
             {
                 continue;
             }
@@ -81,6 +83,12 @@ namespace dmDDF
             {
                 const uint8_t* data = data_start + j * element_size;
 
+                char prefix_levels[32];
+                memset(prefix_levels, ' ', level);
+                prefix_levels[level] = 0;
+
+                dmLogInfo("%sSaving field %s[%d]", prefix_levels, field_desc->m_Name, j);
+
                 switch (field_desc->m_Type)
                 {
                     case TYPE_DOUBLE:
@@ -119,7 +127,7 @@ namespace dmDDF
                     case TYPE_MESSAGE:
                     {
                         uint32_t len = 0;
-                        Result e = SaveMessage(data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction);
+                        Result e = DoSaveMessage(data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction, level + 1);
                         if (e != RESULT_OK)
                             return e;
 
@@ -127,7 +135,7 @@ namespace dmDDF
                         if (!write_result)
                             return RESULT_IO_ERROR;
 
-                        e = SaveMessage(data, field_desc->m_MessageDescriptor, context, save_function);
+                        e = DoSaveMessage(data, field_desc->m_MessageDescriptor, context, save_function, level + 1);
                         if (e != RESULT_OK)
                             return e;
                     }

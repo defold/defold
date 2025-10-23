@@ -52,8 +52,7 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
-        uint8_t     m_OneOfIndex : 7;
-        uint8_t     m_OneOfSet   : 1;
+        uint8_t     m_OneOfIndex;
     };
 
     struct Descriptor
@@ -65,6 +64,8 @@ namespace dmDDF
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?
+        uint32_t*        m_OneOfDataOffsets;
+        uint8_t          m_OneOfCount;
         void*            m_NextDescriptor;
     };
 

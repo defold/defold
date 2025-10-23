@@ -179,7 +179,7 @@ namespace dmDDF
                     if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
                     {
                         FieldDescriptor* field_non_const = (FieldDescriptor*) field;
-                        field_non_const->m_OneOfSet = 1;
+                        //field_non_const->m_OneOfSet = 1;
                     }
                 }
             }
