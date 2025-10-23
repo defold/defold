@@ -52,6 +52,7 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
+        // Index of which oneof block inside this field is in
         uint8_t     m_OneOfIndex;
     };
 
@@ -64,8 +65,9 @@ namespace dmDDF
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?
+        // Offset of a uint8_t value that indicates which oneof member has been set
         uint32_t*        m_OneOfDataOffsets;
-        uint8_t          m_OneOfCount;
+        uint8_t          m_OneOfDataOffsetsCount;
         void*            m_NextDescriptor;
     };
 

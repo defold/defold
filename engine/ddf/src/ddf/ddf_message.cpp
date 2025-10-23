@@ -228,7 +228,7 @@ namespace dmDDF
         // Note: The -1 is because we offset it by 1 in ddfc.py
         assert(field->m_OneOfIndex > 0);
         int32_t oneof_index_from_zero = field->m_OneOfIndex-1;
-        assert(oneof_index_from_zero < desc->m_OneOfCount);
+        assert(oneof_index_from_zero < desc->m_OneOfDataOffsetsCount);
 
         if (!m_DryRun)
         {
