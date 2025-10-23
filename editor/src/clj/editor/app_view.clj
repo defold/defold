@@ -80,7 +80,7 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [editor.workspace-tabs :as workspace-tabs]
+            [editor.editor-tabs :as editor-tabs]
             [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
