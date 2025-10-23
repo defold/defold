@@ -578,7 +578,6 @@ namespace dmRender
         uint32_t glyph_image_width      = g->m_Bitmap.m_Width;
         uint32_t glyph_image_height     = g->m_Bitmap.m_Height;
         uint32_t glyph_image_channels   = g->m_Bitmap.m_Channels;
-        //uint8_t* glyph_data = (uint8_t*)font_map->m_GetGlyphData(g->m_Character, font_map->m_UserData, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height, &glyph_image_channels);
         uint8_t* glyph_data             = g->m_Bitmap.m_Data;
         uint32_t glyph_data_compression = g->m_Bitmap.m_Flags; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size        = g->m_Bitmap.m_DataSize;
