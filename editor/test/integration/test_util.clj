@@ -16,7 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
-            clojure.test.check.clojure-test
+            [clojure.test.check.clojure-test]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]

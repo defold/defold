@@ -647,4 +647,4 @@
 ;;  - editor scripts localization
 ;;  - form views
 ;;  - missed things...
-;;  - contribution doc / crowdin setup / link in drop-down
+;;  - link in drop-down

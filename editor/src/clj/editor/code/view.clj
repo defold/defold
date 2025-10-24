@@ -3793,7 +3793,7 @@
       (insert-text! view-node prefs ({"≃" "~="} x x)))))
 
 (defn- setup-input-method-requests! [^Canvas canvas view-node prefs]
-  (when (os/is-linux?)
+  (when-not (os/is-win32?)
     (doto canvas
       (.setInputMethodRequests
         (reify InputMethodRequests
