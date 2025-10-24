@@ -1220,3 +1220,8 @@ resource.readonly.button.read-more = Ler mais…
 
 # Quick Help
 
+quick-help.open-asset = Abrir Conteúdo
+quick-help.reopen-closed-file = Reabrir Arquivo Fechado
+quick-help.search-in-files = Buscar em Arquivos
+quick-help.build-and-run-project = Compilar e Executar Projeto
+quick-help.start-or-attach-debugger = Iniciar ou Conectar Depurador
