@@ -843,6 +843,12 @@ command.app.about = 关于
 command.vcs.diff = 查看差异
 command.vcs.revert = 还原
 
+# Code editor – find bar
+
+
+# About dialog
+
+
 # Overrides
 
 override.aspect.layout = {layout} 布局
