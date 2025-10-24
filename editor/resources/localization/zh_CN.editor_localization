@@ -1217,3 +1217,6 @@ resource.view.text = 文本
 
 resource.readonly.detail = 此文件是库的一部分，无法保存。
 resource.readonly.button.read-more = 阅读更多…
+
+# Quick Help
+
