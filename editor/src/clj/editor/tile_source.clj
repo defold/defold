@@ -27,7 +27,6 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
-            [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
@@ -43,6 +42,7 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -72,51 +72,19 @@
    :wrap-t     gl/clamp})
 
 (vtx/defvertex pos-uv-vtx
-  (vec4 position)
-  (vec2 texcoord0)
+  (vec3 position)
+  (vec2 texcoord)
   (vec1 page_index))
 
-(vtx2/defvertex pos-uv-vtx2
-  (vec4 position)
-  (vec2 texcoord0)
-  (vec1 page_index))
-
-(shader/defshader pos-uv-vert
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
-
-(def tile-shader (shader/make-shader ::tile-shader pos-uv-vert pos-uv-frag))
+(def ^:private tile-shader shaders/basic-texture-local-space)
 
 (vtx/defvertex pos-color-vtx
   (vec3 position)
   (vec4 color))
 
-(shader/defshader pos-color-vert
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
+(def ^:private color-shader shaders/basic-color-local-space)
 
-(shader/defshader pos-color-frag
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
-
-(def tile-border-size 3.0)
+(def ^:private tile-border-size 3.0)
 
 (defn- tile-coords
   [tile-index tile-source-attributes [scale-x scale-y]]
@@ -244,7 +212,7 @@
               (.glEnd gl)))))
 
       pass/overlay
-      (texture-set/render-animation-overlay gl render-args renderables n ->pos-uv-vtx2 tile-shader))))
+      (texture-set/render-animation-overlay gl render-args renderables))))
 
 (g/defnk produce-animation-updatable
   [_node-id id anim-data]
@@ -377,10 +345,10 @@
                      [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
                  (-> vbuf
-                     (conj! [x0 y0 0 1 u0 v1 page-index])
-                     (conj! [x0 y1 0 1 u0 v0 page-index])
-                     (conj! [x1 y1 0 1 u1 v0 page-index])
-                     (conj! [x1 y0 0 1 u1 v1 page-index]))))
+                     (conj! [x0 y0 0.0 u0 v1 page-index])
+                     (conj! [x0 y1 0.0 u0 v0 page-index])
+                     (conj! [x1 y1 0.0 u1 v0 page-index])
+                     (conj! [x1 y0 0.0 u1 v1 page-index]))))
              (->pos-uv-vtx (* 4 rows cols))
              (range (* rows cols))))))
 
@@ -407,10 +375,10 @@
                                        [1.0 1.0 1.0 1.0])
                                      [0.15 0.15 0.15 0.15])]
                  (-> vbuf
-                     (conj! [x0 y0 0 cr cg cb ca])
-                     (conj! [x0 y1 0 cr cg cb ca])
-                     (conj! [x1 y1 0 cr cg cb ca])
-                     (conj! [x1 y0 0 cr cg cb ca]))))
+                     (conj! [x0 y0 0.0 cr cg cb ca])
+                     (conj! [x0 y1 0.0 cr cg cb ca])
+                     (conj! [x1 y1 0.0 cr cg cb ca])
+                     (conj! [x1 y0 0.0 cr cg cb ca]))))
              (->pos-color-vtx (* 4 rows cols))
              (range (* rows cols))))))
 

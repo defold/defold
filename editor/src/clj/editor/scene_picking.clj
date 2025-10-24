@@ -13,23 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-picking
-  (:require [editor.gl.shader :as shader]
-            [util.coll :as coll]
+  (:require [util.coll :as coll]
             [util.eduction :as e]))
-
-(def local-space-selection-shader
-  (shader/classpath-shader
-    {:coordinate-space :coordinate-space-local
-     :uniforms {"mtx_view_proj" :view-proj}}
-    "shaders/selection-local-space.vp"
-    "shaders/selection.fp"))
-
-(def world-space-selection-shader
-  (shader/classpath-shader
-    {:coordinate-space :coordinate-space-world
-     :uniforms {"mtx_view_proj" :view-proj}}
-    "shaders/selection-world-space.vp"
-    "shaders/selection.fp"))
 
 (defn picking-id->color [^long picking-id]
   (assert (<= picking-id 0xffffff))

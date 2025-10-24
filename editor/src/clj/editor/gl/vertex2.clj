@@ -214,6 +214,12 @@
         attribute-name   (name nm)
         attribute-key    (graphics.types/attribute-name-key attribute-name)
         semantic-type    (graphics.types/infer-semantic-type attribute-key)
+
+        ;; TODO: You can't define a local-space attribute using defvertex.
+        coordinate-space (case semantic-type
+                           (:semantic-type-position :semantic-type-normal :semantic-type-tangent) :coordinate-space-world
+                           :coordinate-space-local)
+
         vector-type      (case num-components
                            1 :vector-type-scalar
                            2 :vector-type-vec2
@@ -226,7 +232,7 @@
      :type suffix
      :components num-components
      :normalize (true? normalize)
-     :coordinate-space :coordinate-space-world
+     :coordinate-space coordinate-space
      :vector-type vector-type
      :semantic-type semantic-type}))
 

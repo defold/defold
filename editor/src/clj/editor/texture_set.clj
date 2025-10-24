@@ -19,6 +19,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
+            [editor.shaders :as shaders]
             [editor.slice9 :as slice9]
             [util.coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
@@ -152,11 +153,16 @@
 
 ;; vertex data
 
+(vtx/defvertex animation-overlay-vertex
+  (vec3 position)
+  (vec2 texcoord)
+  (vec1 page_index))
+
 (defn- gen-vertex
   [^Matrix4d world-transform x y u v page-index]
   (let [p (Point3d. x y 0.0)]
     (.transform world-transform p)
-    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v page-index)))
+    (vector-of :double (.x p) (.y p) (.z p) u v page-index)))
 
 (defn- corner-points [[^double width ^double height :as size] pivot]
   (let [[^double offset-x ^double offset-y] (geom/gui-pivot-offset pivot size)
@@ -305,7 +311,7 @@
 
 (def ^:const animation-preview-offset 40.0)
 
-(defn- animation-frame->vertex-pos-uv
+(defn- animation-frame->vertex-floats
   [animation-frame world-transform]
   (let [size [(:width animation-frame)
               (:height animation-frame)]
@@ -321,10 +327,10 @@
           (:uv-data frame-vertex-data))))
 
 (defn- anim-data->vbuf
-  [anim-data frame-index world-transform make-vbuf-fn]
+  [anim-data frame-index world-transform]
   (let [animation-data (get-in anim-data [:frames frame-index])
-        animation-vertices (animation-frame->vertex-pos-uv animation-data world-transform)
-        ^VertexBuffer vbuf (make-vbuf-fn (count animation-vertices))
+        animation-vertices (animation-frame->vertex-floats animation-data world-transform)
+        ^VertexBuffer vbuf (->animation-overlay-vertex (count animation-vertices))
         ^ByteBuffer buf (.buf vbuf)]
     (doseq [vertex animation-vertices]
       (vtx/buf-push-floats! buf vertex))
@@ -338,7 +344,7 @@
       6)))
 
 (defn render-animation-overlay
-  [^GL2 gl render-args renderables _renderable-count make-vbuf-fn shader]
+  [^GL2 gl render-args renderables]
   (let [{:keys [camera viewport]} render-args
         [^double sx ^double sy ^double sz] (camera/scale-factor camera viewport)
         scale-m (doto (Matrix4d.)
@@ -347,7 +353,8 @@
                   (.setM11 (- (/ 1.0 sy))) ; flip
                   (.setM22 (/ 1.0 sz))
                   (.setM33 1.0))
-        world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
+        world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)
+        shader shaders/basic-texture-paged-local-space]
     (doseq [renderable renderables]
       (let [state (-> renderable :updatable :state)]
         (when-let [frame (:frame state)]
@@ -362,7 +369,7 @@
                                                               0.0))
                                   (.mul scale-m))
                 vertex-count (anim-data->vertex-count anim-data frame)
-                vbuf (anim-data->vbuf anim-data frame world-transform make-vbuf-fn)]
+                vbuf (anim-data->vbuf anim-data frame world-transform)]
             (when vbuf
               (let [vertex-binding (vtx/use-with ::animation vbuf shader)
                     gpu-texture (:gpu-texture user-data)

@@ -109,7 +109,8 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [util.array :as array]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.dynamo.bob.pipeline ShaderUtil$Common]
+           [com.jogamp.opengl GL2]
            [java.io FileNotFoundException]
            [java.nio ByteBuffer FloatBuffer IntBuffer]
            [java.nio.charset StandardCharsets]
@@ -290,6 +291,8 @@ These forms should be quoted, as if they came from a macro."
 
 ;; ======================================================================
 ;; Public API
+
+(def max-array-samplers ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
 
 (defmacro defshader
   "Macro to define the fragment shader program. Defines a new var whose contents will
