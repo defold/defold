@@ -502,7 +502,7 @@ def default_flags(self):
         if TargetOS.IOS == target_os:
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFoundation'])
         else:
-            self.env.append_value('LINKFLAGS', ['-framework', 'AppKit', '-framework', 'AVFoundation'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
     if TargetOS.LINUX == target_os:
         clang_arch = 'x86_64-unknown-linux-gnu'
@@ -2049,8 +2049,10 @@ def detect(conf):
 
     if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.IOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif TargetOS.LINUX == target_os:
