@@ -2052,7 +2052,7 @@
         (recent-files/save-tab-selections prefs app-view)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
@@ -2291,19 +2291,19 @@
 
 (defn- open-tabs-from-prefs [app-view prefs localization workspace project evaluation-context tab-panes-to-restore]
   (into []
-        (for [[pane-num pane] (map-indexed vector tab-panes-to-restore)
-              [proj-path view-type-id] pane
-              :let [tab-pane (g/node-value app-view :active-tab-pane)
-                    resource (workspace/find-resource workspace proj-path evaluation-context)
-                    view-type (workspace/get-view-type workspace view-type-id)]
-              :when (and (resource/openable-resource? resource)
-                         (resource/exists? resource))
-              :let [opened? (open-resource app-view prefs localization workspace project resource
-                                           {:selected-view-type view-type
-                                            :use-custom-editor false})]
-              :when opened?]
-          {:pane-num pane-num
-           :tab (ui/selected-tab tab-pane)})))
+        (let [tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
+          (for [[pane-num pane] (map-indexed vector tab-panes-to-restore)
+                [proj-path view-type-id] pane
+                :let [resource (workspace/find-resource workspace proj-path evaluation-context)
+                      view-type (workspace/get-view-type workspace view-type-id)]
+                :when (and (resource/openable-resource? resource)
+                           (resource/exists? resource))
+                :let [opened? (open-resource app-view prefs localization workspace project resource
+                                             {:selected-view-type view-type
+                                              :use-custom-editor false})]
+                :when opened?]
+            {:pane-num pane-num
+             :tab (ui/selected-tab tab-pane)}))))
 
 (defn restore-tabs-from-prefs! [app-view prefs localization workspace project evaluation-context]
   (when-let [tab-panes-to-restore (seq (prefs/get prefs [:workflow :open-tabs]))]
@@ -2313,10 +2313,12 @@
                                             project evaluation-context tab-panes-to-restore)
           tab-panes (.getItems editor-tabs-split)
           first-tab-pane (.get tab-panes 0)
-          tabs-to-move (map :tab (filter #(= 1 (:pane-num %)) opened-tabs))
+          tabs-to-move (coll/transfer opened-tabs []
+                                      (filter #(= 1 (:pane-num %)))
+                                      (map :tab))
           ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
           ;; need to change if we made a more elaborate window tiling system.
-          second-tab-pane (when (seq tabs-to-move)
+          second-tab-pane (when (coll/not-empty tabs-to-move)
                             (add-other-tab-pane! editor-tabs-split app-view prefs))
           select-tab-fn (fn [pane-idx ^TabPane pane]
                           (when-let [selected-tab-idx (get tab-selection-by-pane pane-idx)]

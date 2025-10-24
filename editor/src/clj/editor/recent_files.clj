@@ -27,6 +27,8 @@
             [editor.workspace :as workspace])
   (:import [javafx.scene.control SplitPane Tab TabPane]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private history-size 32)
 
 (defn- conj-history-item [items x]
@@ -116,17 +118,18 @@
     :resource))
 
 (defn- serialize-open-tabs [app-view]
-  (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context ec
-                                       (g/node-value app-view :editor-tabs-split ec))]
+  (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context evaluation-context
+                                       (g/node-value app-view :editor-tabs-split evaluation-context))]
     (mapv (fn [^TabPane tab-pane]
             (mapv (fn [tab]
-                    [(resource/proj-path (tab->resource tab))
-                     (-> tab
-                         tab->resource
-                         resource/resource-type
-                         :view-types
-                         first
-                         :id)])
+                    (let [tab-resource (tab->resource tab)]
+                      [(resource/proj-path tab-resource)
+                       (-> tab
+                           tab-resource
+                           resource/resource-type
+                           :view-types
+                           first
+                           :id)]))
                   (.getTabs tab-pane)))
           (.getItems editor-tabs-split))))
 

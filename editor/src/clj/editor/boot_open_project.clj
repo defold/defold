@@ -173,7 +173,7 @@
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs-split tool-tabs prefs localization)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
