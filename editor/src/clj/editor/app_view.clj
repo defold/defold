@@ -55,7 +55,6 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
-            [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -92,7 +91,6 @@
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
-           [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
@@ -106,9 +104,8 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Hyperlink Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
+           [javafx.scene.input Clipboard ClipboardContent KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane HBox Priority Region StackPane VBox]
-           [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
@@ -1685,17 +1682,33 @@
 (defn make-about-dialog [localization]
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time", "sponsor-push"])]
-    (ui/text! (:version controls) (System/getProperty "defold.version" "No version"))
-    (ui/text! (:channel controls) (or (system/defold-channel) "No channel"))
-    (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
-    (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
-    (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
-    (UIUtil/stringToTextFlowNodes (:sponsor-push controls) "[Defold Foundation Development Fund](https://www.defold.com/community-donations)")
-    (ui/title! stage "About")
-    (.setScene stage scene)
-    (ui/show! stage localization)))
+        scene (Scene. root)]
+    (ui/with-controls root [version channel editor-sha1 engine-sha1 time sponsor-push
+                            version-label channel-label build-time-label editor-sha1-label engine-sha1-label
+                            copyright-label foundation-label]
+      (let [missing-text (localization (localization/message "dialog.about.value.unavailable"))]
+        (ui/text! version-label (localization (localization/message "dialog.about.label.version")))
+        (ui/text! channel-label (localization (localization/message "dialog.about.label.channel")))
+        (ui/text! build-time-label (localization (localization/message "dialog.about.label.build-time")))
+        (ui/text! editor-sha1-label (localization (localization/message "dialog.about.label.editor-sha1")))
+        (ui/text! engine-sha1-label (localization (localization/message "dialog.about.label.engine-sha1")))
+        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright")))
+        (ui/text! foundation-label (localization (localization/message "dialog.about.footer.foundation")))
+        (ui/title! stage (localization (localization/message "command.app.about")))
+        (ui/text! version (or (system/defold-version) missing-text))
+        (ui/text! channel (or (system/defold-channel) missing-text))
+        (ui/text! editor-sha1 (or (system/defold-editor-sha1) missing-text))
+        (ui/text! engine-sha1 (or (system/defold-engine-sha1) missing-text))
+        (ui/text! time (or (system/defold-build-time) missing-text))
+        (ui/children! sponsor-push [(doto (Hyperlink. (localization (localization/message "dialog.about.sponsor")))
+                                      (ui/on-action! (fn [_] (ui/open-url "https://www.defold.com/community-donations")))
+                                      (.setFocusTraversable false))])
+        (.setOnKeyPressed scene (ui/event-handler event
+                                  (when (= KeyCode/ESCAPE (.getCode ^KeyEvent event))
+                                    (.consume event)
+                                    (.close stage))))
+        (.setScene stage scene)
+        (ui/show! stage localization)))))
 
 (handler/defhandler :help.open-documentation :global
   (run [] (ui/open-url "https://www.defold.com/learn/")))

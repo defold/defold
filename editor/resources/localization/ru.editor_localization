@@ -322,6 +322,7 @@ dialog.lua-transpilers-error.generic.header = Не удалось загрузи
 
 # Diff view dialogs
 
+dialog.diff-view.title = Сравнение
 dialog.diff-view.unchanged.title = Файл не изменён
 dialog.diff-view.unchanged.header = Файл не изменён
 dialog.diff-view.binary.title = Невозможно сравнить двоичные файлы
@@ -842,6 +843,28 @@ command.help.open-donations = Фонд разработки
 command.app.about = О программе
 command.vcs.diff = Сравнить
 command.vcs.revert = Откатить
+
+# Code editor – find bar
+
+code.find.word = Слово
+code.find.case = Регистр
+code.find.wrap = По кругу
+code.find.prev = Назад
+code.find.next = Вперёд
+code.replace.next = Заменить
+code.replace.all = Заменить все
+
+# About dialog
+
+dialog.about.label.version = Версия:
+dialog.about.label.channel = Канал:
+dialog.about.label.build-time = Время сборки:
+dialog.about.label.editor-sha1 = SHA1 редактора:
+dialog.about.label.engine-sha1 = SHA1 движка:
+dialog.about.value.unavailable = Нет данных
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Фонд Defold
+dialog.about.sponsor = Фонд разработки Defold
 
 # Overrides
 

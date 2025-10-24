@@ -645,6 +645,7 @@
 ;; TODO:
 ;;  - resource type label (requires outline!)
 ;;  - editor scripts localization
+;;  - build errors view
 ;;  - form views
 ;;  - missed things...
 ;;  - contribution doc / crowdin setup / link in drop-down
