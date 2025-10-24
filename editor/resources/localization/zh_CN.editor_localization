@@ -322,6 +322,7 @@ dialog.lua-transpilers-error.generic.header = Lua 转译器加载失败
 
 # Diff view dialogs
 
+dialog.diff-view.title = 差异对比
 dialog.diff-view.unchanged.title = 文件未更改
 dialog.diff-view.unchanged.header = 文件未更改
 dialog.diff-view.binary.title = 无法比较二进制文件
@@ -845,9 +846,25 @@ command.vcs.revert = 还原
 
 # Code editor – find bar
 
+code.find.word = 全词匹配
+code.find.case = 区分大小
+code.find.wrap = 循环查找
+code.find.prev = 查找上一个
+code.find.next = 查找下一个
+code.replace.next = 替换下一个
+code.replace.all = 替换全部
 
 # About dialog
 
+dialog.about.label.version = 版本：
+dialog.about.label.channel = 渠道：
+dialog.about.label.build-time = 构建时间：
+dialog.about.label.editor-sha1 = 编辑器 SHA1：
+dialog.about.label.engine-sha1 = 引擎 SHA1：
+dialog.about.value.unavailable = 不可用
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Defold 基金会
+dialog.about.sponsor = Defold Foundation 开发基金
 
 # Overrides
 
@@ -1226,3 +1243,8 @@ resource.readonly.button.read-more = 阅读更多…
 
 # Quick Help
 
+quick-help.open-asset = 打开资产
+quick-help.reopen-closed-file = 重新打开已关闭的文件
+quick-help.search-in-files = 在文件中搜素
+quick-help.build-and-run-project = 构建并运行项目
+quick-help.start-or-attach-debugger = 启动或附加调试器
