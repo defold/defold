@@ -166,8 +166,6 @@ namespace dmDDF
             }
         }
 
-        dmLogInfo("DoLoadMessage desc: %s", desc->m_Name);
-
         while (!input_buffer->Eof())
         {
             uint32_t tag;
@@ -199,8 +197,6 @@ namespace dmDDF
                     assert(field_index < DDF_MAX_FIELDS);
                     read_fields[field_index] = 1;
 
-                    // dmLogInfo("  %s: %d", field->m_Name, field->m_Number);
-
                     Result e;
                     e = message->ReadField(load_context, (WireType) type, field, input_buffer);
                     if (e != RESULT_OK)
@@ -208,10 +204,6 @@ namespace dmDDF
                         return e;
                     }
 
-                    // There is a severe issue here! This will mutate the original field descriptor,
-                    // which is supposed to be static. E.g if we set different oneof values in a message,
-                    // all of the set field values will have m_OneOfSet == 1. And then when saving the ddf with
-                    // the oneof, all of those fields will be saved for all of the oneof values.
                     if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
                     {
                         message->SetOneOf(desc, field);

@@ -18,8 +18,6 @@
 #include "ddf_loadcontext.h"
 #include "ddf_util.h"
 
-#include <dlib/log.h> // REMOVE
-
 namespace dmDDF
 {
     LoadContext::LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options)
@@ -93,8 +91,6 @@ namespace dmDDF
     char* LoadContext::AllocString(int length)
     {
         uintptr_t b = m_Current;
-
-        dmLogInfo("AllocString: length=%d, m_Current=%d, m_End=%d\n", length, (uint32_t) m_Current, (uint32_t) m_End);
 
         m_Current += length;
 
@@ -232,8 +228,6 @@ namespace dmDDF
         info_ptr->m_DataSize += data_size;
 
         info_ptr->m_ElementSizes->Push(data_size);
-
-        dmLogInfo("IncreaseArrayDataSize: %d has size: %d", info_hash, info_ptr->m_DataSize);
 
         return current_size;
     }

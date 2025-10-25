@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
-#include <dlib/log.h>
 #include "ddf_message.h"
 #include "ddf_load.h"
 #include "ddf_util.h"
@@ -96,8 +95,6 @@ namespace dmDDF
         const char* str_buf;
         if (input_buffer->Read(length, &str_buf))
         {
-            dmLogInfo("ReadStringField: field %s length=%u\n", field->m_Name, length);
-
             if (field->m_Label == LABEL_REPEATED)
             {
                 AddString(load_context, field, str_buf, length);
@@ -150,8 +147,6 @@ namespace dmDDF
     {
         assert(field->m_MessageDescriptor);
 
-        dmLogInfo("ReadMessageField: field %s\n", field->m_Name);
-
         if (wire_type != WIRETYPE_LENGTH_DELIMITED)
         {
             return RESULT_WIRE_FORMAT_ERROR;
@@ -177,8 +172,6 @@ namespace dmDDF
                 uint32_t dynamic_offset = load_context->NextDynamicTypeOffset();
                 void* dynamic_ptr = load_context->GetDynamicTypePointer(dynamic_offset);
 
-                dmLogInfo("  Field is not fully defined! Dyamic offset = %d", dynamic_offset);
-
                 if (!m_DryRun)
                 {
                     // Resolve the pointer in the dynamic area
@@ -190,8 +183,6 @@ namespace dmDDF
         }
 
         Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
-
-        dmLogInfo("  Message offset = %lu", (uintptr_t) (msg_buf - load_context->m_Start));
 
         InputBuffer sub_buffer;
         if (!input_buffer->SubBuffer(length, &sub_buffer))
@@ -334,8 +325,6 @@ namespace dmDDF
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
-            dmLogInfo("SetString: %s", str_buf);
-
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
             {
                 *string_field = (char*)(uintptr_t) load_context->GetOffset(str_buf);
@@ -369,8 +358,6 @@ namespace dmDDF
 
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
-
-            dmLogInfo("AddString: %s", str_buf);
 
             uintptr_t dest = array + repeated_field->m_ArrayCount * sizeof(const char*);
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)

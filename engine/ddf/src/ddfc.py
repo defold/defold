@@ -274,7 +274,6 @@ def to_cxx_struct(context, pp, message_type, namespace):
             field_ptr_str = ""
 
             if f.type == FieldDescriptor.TYPE_MESSAGE and not context.get_is_message_type_defined(f):
-                #print("Message type %s IS NOT DEFINED!" % f.type_name)
                 field_ptr_str = "*"
 
             p(align_str + context.get_field_type_name(f) + field_ptr_str, field_name)
@@ -860,11 +859,8 @@ class CompilerContext(object):
 
     def get_is_message_type_defined(self, f):
         type_name = dot_to_cxx_namespace(f.type_name)
-        #print("CHECKING " + type_name)
         if type_name in self.defined_message_types:
-            #print("FOUND " + type_name)
             return True
-        #print("NOT FOUND " + type_name)
         return False
 
     def reset_defined_message_types(self):

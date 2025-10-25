@@ -125,8 +125,7 @@ namespace dmDDF
                 is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                 if (is_dynamic_type)
                 {
-                    uint32_t current_size = load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
-                    dmLogInfo("  !! Dynamic type %s.%s is not fully defined: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
+                    load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
                 }
 
                 // Recurse into the submessage descriptor
@@ -175,7 +174,6 @@ namespace dmDDF
     {
         if (NeedsSizeResolve(desc))
         {
-            dmLogInfo("%s needs resolve!", desc->m_Name);
             Result e = CalculateDynamicDescriptorSize(load_context, ib, desc, false);
             DDF_CHECK_RESULT(e);
         }
@@ -212,8 +210,6 @@ namespace dmDDF
                 }
                 else
                 {
-                    dmLogInfo("Array member desc: %s.%s, offset: %d", desc->m_Name, field->m_Name, field->m_Offset);
-
                     if (field->m_Label == LABEL_REPEATED)
                     {
                         *array_info_hash = load_context->IncreaseArrayCount(start, field->m_Number);
@@ -242,8 +238,7 @@ namespace dmDDF
                         is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                         if (is_dynamic_type && *array_info_hash != 0)
                         {
-                            uint32_t current_size = load_context->AddDynamicElementSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
-                            dmLogInfo("  !! Dynamic type %s.%s: adding data size %d, total size is now %d", desc->m_Name, field->m_Name, field->m_MessageDescriptor->m_Size, current_size);
+                            load_context->AddDynamicElementSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
                         }
 
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash, is_dynamic_type);
@@ -268,21 +263,6 @@ namespace dmDDF
         return LoadMessage(buffer, buffer_size, desc, out_message, 0, 0);
     }
 
-    static void DumpHex(const void* data, size_t size, const char* label)
-    {
-        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
-        fprintf(stderr, "%s (%zu bytes):\n", label, size);
-
-        for (size_t i = 0; i < size; i++)
-        {
-            if (i % 16 == 0)
-                fprintf(stderr, "%04zx: ", i);
-            fprintf(stderr, "%02X ", bytes[i]);
-            if ((i+1) % 16 == 0 || i == size-1)
-                fprintf(stderr, "\n");
-        }
-    }
-
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message, uint32_t options, uint32_t* size)
     {
         DM_PROFILE("DdfLoadMessage");
@@ -295,8 +275,6 @@ namespace dmDDF
 
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
-
-        //DumpHex(buffer, buffer_size, "Serialized msg");
 
         LoadContext load_context(0, 0, true, options);
         InputBuffer input_buffer((const char*) buffer, buffer_size);
@@ -321,21 +299,12 @@ namespace dmDDF
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
         load_context.SetDynamicTypeBase(aligned_base_memory);
 
-        dmLogInfo("------------------------");
-        dmLogInfo("DO LOAD REAL");
-        dmLogInfo("AllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
-        dmLogInfo("------------------------");
-
         Message message = load_context.AllocMessage(desc);
 
         load_context.ResetDynamicOffsetCursor();
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
-
-        char* buffer_start = message.GetBuffer(0);
-
-        DumpHex(buffer_start, message_buffer_size, "DDF message buffer");
 
         if ( e == RESULT_OK )
         {
