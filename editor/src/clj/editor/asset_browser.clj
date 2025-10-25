@@ -23,15 +23,16 @@
             [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.defold.control TreeCell]
            [editor.resource FileResource]
            [java.io File]
@@ -89,48 +90,48 @@
   [menu-items/open-selected
    menu-items/open-as
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
    menu-items/separator
-   {:label "New"
+   {:label (localization/message "command.file.new")
     :command :file.new
     :expand true
     :icon "icons/64/Icons_29-AT-Unknown.png"}
-   {:label "New File"
+   {:label (localization/message "command.file.new.any-file")
     :command :file.new
     :user-data {:any-file true}
     :icon "icons/64/Icons_29-AT-Unknown.png"}
-   {:label "New Folder"
+   {:label (localization/message "command.file.new-folder")
     :command :file.new-folder
     :icon "icons/32/Icons_01-Folder-closed.png"}
    menu-items/separator
-   {:label "Cut"
+   {:label (localization/message "command.edit.cut")
     :command :edit.cut}
-   {:label "Copy"
+   {:label (localization/message "command.edit.copy")
     :command :edit.copy}
-   {:label "Paste"
+   {:label (localization/message "command.edit.paste")
     :command :edit.paste}
-   {:label "Delete"
+   {:label (localization/message "command.edit.delete")
     :command :edit.delete
     :icon "icons/32/Icons_M_06_trash.png"}
    menu-items/separator
-   {:label "Rename..."
+   {:label (localization/message "command.edit.rename")
     :command :edit.rename}
    (menu-items/separator-with-id ::context-menu-end)])
 
@@ -269,12 +270,12 @@
   (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
 
 (defn- resolve-any-conflicts
-  [src-dest-pairs]
+  [localization src-dest-pairs]
   (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
         conflicts (get files-by-existence true)
         non-conflicts (get files-by-existence false [])]
     (if (seq conflicts)
-      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
+      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts localization)]
         (into non-conflicts (resolve-conflicts strategy conflicts)))
       non-conflicts)))
 
@@ -320,7 +321,7 @@
          (and (resource/editable? target-resource)
               (not (resource/read-only? target-resource))))))
 
-(defn paste! [workspace target-resource src-files select-files!]
+(defn paste! [workspace target-resource src-files select-files! localization]
   (let [^File tgt-dir (reduce (fn [^File tgt ^File src]
                                 (if (= tgt src)
                                   (.getParentFile ^File tgt)
@@ -330,11 +331,12 @@
         project-directory (workspace/project-directory workspace)]
     (if-let [illegal (illegal-copy-move-pairs project-directory prospect-pairs)]
       (dialogs/make-info-dialog
-        {:title "Cannot Paste"
+        localization
+        {:title (localization/message "dialog.asset-paste-reserved.title")
          :icon :icon/triangle-error
-         :header "There are reserved target directories"
-         :content (str "Following target directories are reserved:\n"
-                       (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal)))})
+         :header (localization/message "dialog.asset-paste-reserved.header")
+         :content (localization/message "dialog.asset-paste-reserved.content"
+                                        {"directories" (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal))})})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
         (doseq [[^File src-file ^File tgt-file] pairs]
           (fs/copy! src-file tgt-file {:target :merge}))
@@ -343,7 +345,7 @@
 
 (handler/defhandler :edit.paste :asset-browser
   (enabled? [selection] (paste? (.hasFiles (Clipboard/getSystemClipboard)) selection))
-  (run [selection workspace asset-browser]
+  (run [selection workspace asset-browser localization]
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
              src-files (.getFiles (Clipboard/getSystemClipboard))
@@ -359,8 +361,11 @@
                (workspace/notifications workspace)
                {:type :error
                 :id ::asset-circular-paste
-                :text (str "Cannot paste folder '" dest-proj-path "' into its subfolder '" res-proj-path "'")}))
-           (paste! workspace resource src-files (partial select-files! workspace tree-view))))))
+                :message (localization/message
+                           "notification.asset-browser.circular-paste.error"
+                           {"source" dest-proj-path
+                            "target" res-proj-path})}))
+           (paste! workspace resource src-files (partial select-files! workspace tree-view) localization)))))
 
 (defn- moved-files
   [^File src-file ^File dest-file files]
@@ -389,7 +394,7 @@
                     (= (count resources) (count (into #{} (map resource/ext) resources))))
          false)))
 
-(defn rename [resources new-base-name]
+(defn rename [resources new-base-name localization]
   {:pre [(string? new-base-name) (rename? resources)]}
   (let [workspace (resource/workspace (first resources))
         project-directory (workspace/project-directory workspace)
@@ -412,7 +417,7 @@
       ;; fs/move! handles this, no need to resolve
       (let [{case-changes true possible-conflicts false}
             (group-by #(fs/same-file? (key %) (val %)) rename-pairs)]
-        (when-let [resolved-conflicts (resolve-any-conflicts possible-conflicts)]
+        (when-let [resolved-conflicts (resolve-any-conflicts localization possible-conflicts)]
           (let [resolved-rename-pairs (into resolved-conflicts case-changes)]
             (when (seq resolved-rename-pairs)
               (workspace/resource-sync!
@@ -427,11 +432,11 @@
 (defn validate-new-resource-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
     (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
-      (format "The name %s is reserved" new-name))))
+      (localization/message "dialog.rename.error.reserved-name" {"name" new-name}))))
 
 (handler/defhandler :edit.rename :asset-browser
   (enabled? [selection] (rename? selection))
-  (run [selection workspace]
+  (run [selection workspace localization]
     (let [first-resource (first selection)
           dir (= :folder (resource/source-type first-resource))
           name (if dir
@@ -442,48 +447,55 @@
           project-directory (workspace/project-directory workspace)]
       (when-let [new-name (dialogs/make-rename-dialog
                             name
-                            :title (cond
-                                     dir "Rename Folder"
-                                     (= 1 (count selection)) "Rename File"
-                                     :else "Rename Files")
-                            :label (if dir "New Folder Name" "New File Name")
+                            :localization localization
+                            :title (if dir
+                                     (localization/message "dialog.rename.header.folder")
+                                     (localization/message "dialog.rename.header.files" {"n" (count selection)}))
+                            :label (if dir
+                                     (localization/message "dialog.rename.label.folder")
+                                     (localization/message "dialog.rename.label.file"))
                             :extensions extensions
                             :validate (fn [file-name]
                                         (some #(validate-new-resource-name project-directory % file-name) parent-paths)))]
-        (rename selection new-name)))))
+        (rename selection new-name localization)))))
 
 (handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
-  (run [selection asset-browser selection-provider]
+  (run [selection asset-browser selection-provider localization]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))]
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
-                {:title "Delete File?"
+                localization
+                {:title (localization/message "dialog.asset-delete-single.title")
                  :icon :icon/circle-question
-                 :header (format "Are you sure you want to delete %s?"
-                                 (resource/resource-name (first selection)))
-                 :buttons [{:text "Cancel"
+                 :header (localization/message "dialog.asset-delete-single.header"
+                                               {"name" (resource/resource-name (first selection))})
+                 :buttons [{:text (localization/message "dialog.button.cancel")
                             :cancel-button true
                             :default-button true
                             :result false}
-                           {:text "Delete"
+                           {:text (localization/message "dialog.button.delete")
                             :variant :danger
                             :result true}]})
               (dialogs/make-info-dialog
-                {:title "Delete Files?"
+                localization
+                {:title (localization/message "dialog.asset-delete-multiple.title")
                  :icon :icon/circle-question
-                 :header "Are you sure you want to delete these files?"
-                 :content {:text (str "You are about to delete:\n"
-                                      (->> selection
-                                           (map #(str "\u00A0\u00A0\u2022\u00A0"
-                                                      (resource/resource-name %)))
-                                           (string/join "\n")))}
-                 :buttons [{:text "Cancel"
+                 :header (localization/message "dialog.asset-delete-multiple.header")
+                 :content {:text (localization/message
+                                   "dialog.asset-delete-multiple.content"
+                                   {"items" (->> selection
+                                                 (e/map
+                                                   #(localization
+                                                      (localization/message "dialog.asset-delete-multiple.content.item"
+                                                                            {"name" (resource/resource-name %)})))
+                                                 (coll/join-to-string))})}
+                 :buttons [{:text (localization/message "dialog.button.cancel")
                             :cancel-button true
                             :default-button true
                             :result false}
-                           {:text "Delete"
+                           {:text (localization/message "dialog.button.delete")
                             :variant :danger
                             :result true}]}))
         (when (and (delete selection) next)
@@ -496,7 +508,7 @@
 
 (handler/defhandler :file.new :global
   (label [user-data] (if-not user-data
-                       "New..."
+                       (localization/message "command.file.new")
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
   (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
@@ -504,7 +516,7 @@
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
-  (run [selection user-data asset-browser app-view prefs workspace project]
+  (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
           base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
                                 first
@@ -519,8 +531,9 @@
                                 base-folder
                                 (when-not any-file
                                   (or (:label rt) (:ext rt)))
-                                (:ext rt))]
-        (when-let [[[_ ^File new-file]] (resolve-any-conflicts [[nil desired-file]])]
+                                (:ext rt)
+                                localization)]
+        (when-let [[[_ ^File new-file]] (resolve-any-conflicts localization [[nil desired-file]])]
           (let [rt (if (and any-file (not rt))
                      (when-let [ext (second (re-find #"\.(.+)$" (.getName new-file)))]
                        (workspace/get-resource-type workspace ext))
@@ -532,12 +545,12 @@
                 new-resource-path (resource/file->proj-path project-directory new-file)
                 resource (resource-map new-resource-path)]
             (when (resource/loaded? resource)
-              (app-view/open-resource app-view prefs workspace project resource))
+              (app-view/open-resource app-view prefs localization workspace project resource))
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
     (when (not user-data)
       (sort-by (comp string/lower-case :label)
-               (into [{:label "File"
+               (into [{:label (localization/message "command.file.new.option.any-file")
                        :icon "icons/64/Icons_29-AT-Unknown.png"
                        :command :file.new
                        :user-data {:any-file true}}]
@@ -568,14 +581,15 @@
 
 (handler/defhandler :file.new-folder :asset-browser
   (enabled? [selection] (new-folder? selection))
-  (run [selection workspace asset-browser]
+  (run [selection workspace asset-browser localization]
     (let [parent-resource (first selection)
           parent-path (resource/proj-path parent-resource)
           parent-path (if (= parent-path "/") "" parent-path) ; special case because the project root dir ends in /
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
           project-directory (workspace/project-directory workspace)
-          options {:validate (partial validate-new-folder-name project-directory parent-path)}]
-      (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
+          options {:validate (partial validate-new-folder-name project-directory parent-path)
+                   :localization localization}]
+      (when-let [new-folder-name (dialogs/make-new-folder-dialog options)]
         (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
           (do (fs/create-directories! folder)
               (workspace/resource-sync! workspace)
@@ -772,7 +786,7 @@
                     (drag-copy-files dragged-pairs))]
         moved))))
 
-(defn- drag-dropped [^DragEvent e]
+(defn- drag-dropped [^DragEvent e localization]
   (let [db (.getDragboard e)]
     (when (.hasFiles db)
       (let [target (-> e (.getTarget) ^TreeCell (target))
@@ -783,7 +797,7 @@
                        (= (.getTransferMode e) TransferMode/MOVE))
             pairs (->> (.getFiles db)
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
-                       (resolve-any-conflicts)
+                       (resolve-any-conflicts localization)
                        (vec))
             workspace (resource/workspace resource)]
         (when (seq pairs)
@@ -804,11 +818,11 @@
         (ui/succeeding-selection tree-view))))
   (alt-selection [this] []))
 
-(defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view]
+(defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view localization]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
         over-handler (ui/event-handler e (drag-over e))
-        dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e)))
+        dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e localization)))
         detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))
@@ -843,7 +857,7 @@
                              :entered-handler entered-handler
                              :exited-handler exited-handler})))
       (ui/register-context-menu ::resource-menu)
-      (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser} selection-provider))))
+      (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser :localization localization} selection-provider))))
 
 (g/defnode AssetBrowser
   (property raw-tree-view TreeView)
@@ -855,12 +869,12 @@
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view prefs]
+(defn make-asset-browser [graph workspace tree-view prefs localization]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (setup-asset-browser asset-browser workspace tree-view)
+    (setup-asset-browser asset-browser workspace tree-view localization)
     asset-browser))

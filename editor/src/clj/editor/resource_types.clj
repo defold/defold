@@ -30,6 +30,7 @@
             [editor.compute :as compute]
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
+            [editor.editor-localization :as editor-localization]
             [editor.editor-script :as editor-script]
             [editor.factory :as factory]
             [editor.font :as font]
@@ -75,6 +76,7 @@
       (compute/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
+      (editor-localization/register-resource-types workspace)
       (editor-script/register-resource-types workspace)
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)

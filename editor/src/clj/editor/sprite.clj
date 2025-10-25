@@ -24,6 +24,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -396,7 +397,7 @@
              (mapv
                (fn [[sampler-name order :as name+order]]
                  (let [property-key (keyword (str "__sampler__" sampler-name "__" order))
-                       label (if (= 1 (count combined-name+indices)) "Image" sampler-name)]
+                       label (if (= 1 (count combined-name+indices)) (localization/message "property.image") sampler-name)]
                    (if-let [i (texture-binding-index name+order)]
                      ;; texture binding exists
                      (let [{:keys [anim-data sampler texture texture-page-count]
@@ -499,6 +500,8 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str ; Required protobuf field.
+            (dynamic label (properties/label-dynamic :sprite :default-animation))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
                                (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
@@ -523,6 +526,8 @@
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))
+            (dynamic label (properties/label-dynamic :sprite :size-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :size-mode))
             (set (fn [evaluation-context self old-value new-value]
                    ;; Use the texture size for the :manual-size when the user switches
                    ;; from :size-mode-auto to :size-mode-manual.
@@ -548,10 +553,16 @@
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default (protobuf/default Sprite$SpriteDesc :slice9))
+            (dynamic label (properties/label-dynamic :sprite :slice9))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :slice9))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
-  (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate)))
+  (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate))
+            (dynamic label (properties/label-dynamic :sprite :playback-rate))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :playback-rate)))
   (property offset g/Num (default (protobuf/default Sprite$SpriteDesc :offset))
+            (dynamic label (properties/label-dynamic :sprite :offset))
+            (dynamic tooltip (properties/tooltip-dynamic :sprite :offset))
             (dynamic edit-type (g/constantly {:type :slider
                                               :min 0.0
                                               :max 1.0

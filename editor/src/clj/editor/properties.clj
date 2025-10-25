@@ -20,6 +20,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -384,7 +385,10 @@
 (def ^:private links #{:link :override})
 
 (defn category? [v]
-  (and (sequential? v) (string? (first v))))
+  (and (sequential? v)
+       (let [v (first v)]
+         (or (string? v)
+             (localization/message-pattern? v)))))
 
 (defn- inject-display-order [display-order key injected-display-order]
   (let [injected-display-order (loop [keys injected-display-order
@@ -588,15 +592,70 @@
 
 (def keyword->name (fn/memoize keyword->name-raw))
 
+(def ^:private memoized-label-message
+  (fn/memoize
+    (fn create-label-message [domain k]
+      {:pre [(or (nil? domain) (keyword? domain)) (keyword? k)]}
+      (localization/message
+        (str "property."
+             (when domain (str (name domain) "."))
+             (name k))
+        {}
+        (keyword->name k)))))
+
+(defn label-dynamic
+  "Create a fnk that returns a memoized property label MessagePattern
+
+  Args:
+    domain    optional \"domain\" of property, e.g. :gui; used for semantical
+              localization grouping
+    k         property key, e.g. :position
+
+  Examples:
+    (label-dynamic :position) => property.position
+    (label-dynamic :particlefx :type) => property.particlefx.type"
+  ([k]
+   (label-dynamic nil k))
+  ([domain k]
+   (g/constantly (memoized-label-message domain k))))
+
 (defn label
   [property]
   (or (:label property)
       (let [k (:key property)
-            k (if (vector? k) (last k) k)]
-        (keyword->name k))))
+            k (if (vector? k) (peek k) k)]
+        (memoized-label-message nil k))))
+
+(def ^:private memoized-tooltip-message
+  (fn/memoize
+    (fn create-tooltip-message [domain k]
+      {:pre [(or (nil? domain) (keyword? domain)) (keyword? k)]}
+      (localization/message
+        (str "property." (when domain (str (name domain) ".")) (name k) ".tooltip")
+        {}
+        "none"))))
+
+(defn tooltip-dynamic
+  "Create a fnk that returns a memoized property tooltip MessagePattern
+
+  Args:
+    domain    optional \"domain\" of property, e.g. :gui; used for semantical
+              localization grouping
+    k         property key, e.g. :position
+
+  Examples:
+    (tooltip-dynamic :position) => property.position.tooltip
+    (tooltip-dynamic :particlefx :type) => property.particlefx.type.tooltip"
+  ([k]
+   (tooltip-dynamic nil k))
+  ([domain k]
+   (g/constantly (memoized-tooltip-message domain k))))
 
 (defn tooltip [property]
-  (:tooltip property))
+  (or (:tooltip property)
+      (let [k (:key property)
+            k (if (vector? k) (peek k) k)]
+        (memoized-tooltip-message nil k))))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -627,7 +686,7 @@
        (g/transact
          {:tx-data-context-map {:edited-endpoints edited-endpoints}}
          (concat
-           (g/operation-label (str "Set " (label property)))
+           (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
            (g/operation-sequence op-seq)
            (set-values evaluation-context property set-operations)))))))
 
@@ -665,7 +724,7 @@
   (when (overridden? property)
     (g/transact
       (concat
-        (g/operation-label (str "Clear " (label property)))
+        (g/operation-label (localization/message "operation.property.clear" {"property" (label property)}))
         (let [clear-fn (get-in property [:edit-type :clear-fn])]
           (map (fn [node-id prop-kw]
                  (if clear-fn
@@ -1015,9 +1074,9 @@
   [value]
   (and (vector? value)
        (= 2 (count value))
-       (let [[aspect-name aspect-kind] value]
-         (and (string? aspect-name)
-              (string? aspect-kind)))))
+       (let [[aspect-name-message aspect-kind-message] value]
+         (and (localization/message-pattern? aspect-name-message)
+              (localization/message-pattern? aspect-kind-message)))))
 
 (defn- property-transfer-target?
   "Returns true if the supplied value is a property-transfer-target."
@@ -1034,7 +1093,8 @@
   [{:keys [source-node-id source-prop-kw source-prop-label source-clear-fn targets] :as value}]
   (and (g/node-id? source-node-id)
        (keyword? source-prop-kw)
-       (string? source-prop-label)
+       (or (string? source-prop-label)
+           (localization/message-pattern? source-prop-label))
        (ifn? source-clear-fn)
        (contains? value :source-value)
        (vector? targets)
@@ -1198,78 +1258,43 @@
   (= :ok (transfer-overrides-status transfer-overrides-plan)))
 
 (defn transfer-overrides-description
-  "Given a transfer-overrides-plan, return a user-friendly textual description
-  of its effects if executed. The resulting string is suitable for use with
-  user-interface elements such as menu items or tooltips."
-  ^String [transfer-overrides-plan evaluation-context]
+  "Given a transfer-overrides-plan, return a user-friendly localizable
+  description of its effects if executed. The resulting MessagePattern is
+  suitable for use with user-interface elements such as menu items or tooltips."
+  [transfer-overrides-plan evaluation-context]
   {:pre [(transfer-overrides-plan? transfer-overrides-plan)]
-   :post [(string? %)]}
+   :post [(localization/message-pattern? %)]}
   (let [{:keys [property-transfers override-transfer-type]} transfer-overrides-plan
-        property-transfer-count (count property-transfers)
-
-        [action-text target-node-singular]
-        (case override-transfer-type
-          :pull-up-overrides (pair "Pull Up" "Ancestor")
-          :push-down-overrides (pair "Push Down" "Descendant"))
-
-        overrides-qualifier
-        (or (when (= 1 property-transfer-count)
-              (let [property-transfer (first property-transfers)
-                    property-label (:source-prop-label property-transfer)]
-                (str \' property-label "' Override")))
-            (text-util/amount-text text-util/count->number property-transfer-count "Override"))
-
-        property-transfer-targets
-        (coll/transfer property-transfers []
-          (mapcat :targets))
-
-        target-nodes-qualifier
-        (let [target-node-ids (coll/transfer property-transfer-targets #{}
-                                (keep :target-node-id))
-              target-node-count (count target-node-ids)]
-          (if (= 1 target-node-count)
-            (let [target-node-id (first target-node-ids)
-                  node-qualifier-label (gu/node-qualifier-label target-node-id evaluation-context)]
-              (if node-qualifier-label
-                (str \' node-qualifier-label \')
-                target-node-singular))
-            (text-util/amount-text text-util/count->number target-node-count target-node-singular)))
-
-        target-aspect-qualifier
-        (let [target-aspects (coll/transfer property-transfer-targets #{}
-                               (keep :target-aspect))
-              target-aspect-count (count target-aspects)]
-          (when-not (zero? target-aspect-count)
-            (if (= 1 target-aspect-count)
-              (let [[target-aspect-name target-aspect-kind] (first target-aspects)]
-                (str "in " target-aspect-name " " target-aspect-kind))
-              (let [target-aspect-kinds (coll/transfer target-aspects #{}
-                                          (keep second))
-                    target-aspect-kind-count (count target-aspect-kinds)
-                    target-aspect-kind (if (= 1 target-aspect-kind-count)
-                                         (first target-aspect-kinds)
-                                         "Aspect")]
-                (str "Among " (text-util/amount-text text-util/count->number target-aspect-count target-aspect-kind))))))
-
-        target-resources-qualifier
-        (let [target-proj-paths (coll/transfer property-transfer-targets #{}
-                                  (keep :target-owner-resource)
-                                  (map resource/proj-path))
-              target-proj-path-count (count target-proj-paths)]
-          (if (= 1 target-proj-path-count)
-            (if target-aspect-qualifier
-              (str target-aspect-qualifier " of '" (first target-proj-paths) \')
-              (str "in '" (first target-proj-paths) \'))
-            (if target-aspect-qualifier
-              (str target-aspect-qualifier " Across " (text-util/amount-text text-util/count->number target-proj-path-count "Resource"))
-              (str "Across " (text-util/amount-text text-util/count->number target-proj-path-count "Resource")))))]
-
-    (-> (format "%s %s to %s %s"
-                action-text
-                overrides-qualifier
-                target-nodes-qualifier
-                target-resources-qualifier)
-        (string/replace "_" "__"))))
+        property-transfer-targets (coll/transfer property-transfers []
+                                    (mapcat :targets))
+        target-node-ids (coll/transfer property-transfer-targets #{}
+                          (keep :target-node-id))
+        target-aspects (coll/transfer property-transfer-targets #{}
+                         (keep :target-aspect))
+        target-aspect-count (count target-aspects)
+        target-proj-paths (coll/transfer property-transfer-targets #{}
+                            (keep :target-owner-resource)
+                            (map resource/proj-path))]
+    (-> (case override-transfer-type
+          :pull-up-overrides "command.edit.pull-up-overrides.option"
+          :push-down-overrides "command.edit.push-down-overrides.option")
+        (localization/message
+          {"property_count" (count property-transfers)
+           "property" (:source-prop-label (first property-transfers))
+           "target_count" (count target-node-ids)
+           "target" (or (gu/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
+           "aspect_count" target-aspect-count
+           "aspect" (if (= 1 target-aspect-count)
+                      (first (first target-aspects))
+                      (localization/vary-message-variables
+                        (let [target-kinds (into #{} (map second) target-aspects)]
+                          (if (= 1 (count target-kinds))
+                            (first target-kinds)
+                            (localization/message "override.aspect.generic.kind")))
+                        assoc "count" target-aspect-count))
+           "resource_count" (count target-proj-paths)
+           "resource" (first target-proj-paths)})
+        (localization/transform string/replace "_" "__"))))
 
 (defn- set-property-tx-data
   [property-transfer-target new-value evaluation-context]

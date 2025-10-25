@@ -18,6 +18,8 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/extension/extension.h>
 
+#include <dlib/job_thread.h>
+
 namespace dmGameSystem
 {
     struct FontResource;

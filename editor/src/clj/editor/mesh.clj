@@ -25,6 +25,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.image :as image]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.properties :as properties]
@@ -405,7 +406,9 @@
                                             [:stream-ids :stream-ids]
                                             [:streams :streams])))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext "buffer"})))
+                                              :ext "buffer"}))
+            (dynamic label (properties/label-dynamic :mesh :vertices))
+            (dynamic tooltip (properties/tooltip-dynamic :mesh :vertices)))
 
   (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
@@ -426,17 +429,23 @@
             (dynamic visible (g/constantly false)))
 
   (property primitive-type g/Any (default (protobuf/default MeshProto$MeshDesc :primitive-type))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType)))
+            (dynamic label (properties/label-dynamic :mesh :primitive-type))
+            (dynamic tooltip (properties/tooltip-dynamic :mesh :primitive-type)))
 
   (property position-stream g/Str (default (protobuf/default MeshProto$MeshDesc :position-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids position-stream]
                              (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)))
-            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
+            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids ""))))
+            (dynamic label (properties/label-dynamic :mesh :position-stream))
+            (dynamic tooltip (properties/tooltip-dynamic :mesh :position-stream)))
 
   (property normal-stream g/Str (default (protobuf/default MeshProto$MeshDesc :normal-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids normal-stream]
                              (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)))
-            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
+            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids ""))))
+            (dynamic label (properties/label-dynamic :mesh :normal-stream))
+            (dynamic tooltip (properties/tooltip-dynamic :mesh :normal-stream)))
 
   (input stream-ids g/Any)
   (input material-resource resource/Resource)

@@ -17,21 +17,17 @@
 #include "ddf_save.h"
 #include "ddf_outputstream.h"
 
-#include <dlib/log.h> // TEMP
-
-#include <stdio.h>
-
 namespace dmDDF
 {
 
-    bool DDFCountSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
+    static bool DDFCountSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
     {
         uint32_t* count = (uint32_t*) context;
         *count = *count + buffer_size;
         return true;
     }
 
-    Result DoSaveMessage(const void* message_begin, const void* message_, const Descriptor* desc, void* context, SaveFunction save_function, int level)
+    Result DoSaveMessage(const void* message_, const Descriptor* desc, void* context, SaveFunction save_function)
     {
         OutputStream output_stream(save_function, context);
         const uint8_t* message = (const uint8_t*) message_;
@@ -42,9 +38,16 @@ namespace dmDDF
             FieldDescriptor* field_desc = &desc->m_Fields[i];
             Type type = (Type) field_desc->m_Type;
 
-            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX && field_desc->m_OneOfSet == 0)
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
             {
-                continue;
+                // Resolve the oneof member for this field
+                assert(field_desc->m_OneOfIndex > 0);
+                uint32_t oneof_offset = desc->m_OneOfDataOffsets[field_desc->m_OneOfIndex-1];
+                uint8_t oneof_member  = message[oneof_offset];
+                if (oneof_member != field_desc->m_Number)
+                {
+                    continue;
+                }
             }
 
     #define DDF_SAVEMESSAGE_CASE(t, wt, func) \
@@ -84,12 +87,6 @@ namespace dmDDF
             for (uint32_t j = 0; j < count; ++j)
             {
                 const uint8_t* data = data_start + j * element_size;
-
-                char prefix_levels[32];
-                memset(prefix_levels, ' ', level);
-                prefix_levels[level] = 0;
-
-                dmLogInfo("%sSaving field %s[%d]", prefix_levels, field_desc->m_Name, j);
 
                 switch (field_desc->m_Type)
                 {
@@ -141,7 +138,7 @@ namespace dmDDF
                         }
 
                         uint32_t len = 0;
-                        Result e = DoSaveMessage(message_begin, data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction, level + 1);
+                        Result e = DoSaveMessage(data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction);
                         if (e != RESULT_OK)
                             return e;
 
@@ -149,7 +146,8 @@ namespace dmDDF
                         if (!write_result)
                             return RESULT_IO_ERROR;
 
-                        e = DoSaveMessage(message_begin, data, field_desc->m_MessageDescriptor, context, save_function, level + 1);
+                        e = DoSaveMessage(data, field_desc->m_MessageDescriptor, context, save_function);
+
                         if (e != RESULT_OK)
                             return e;
 

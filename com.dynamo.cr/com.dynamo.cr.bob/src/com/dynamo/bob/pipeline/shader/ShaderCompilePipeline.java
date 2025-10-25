@@ -93,7 +93,8 @@ public class ShaderCompilePipeline {
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
             case LANGUAGE_GLSL_SM430 -> 430;
-            case LANGUAGE_HLSL       -> 51;
+            case LANGUAGE_HLSL_50    -> 50;
+            case LANGUAGE_HLSL_51    -> 51;
             default -> 0;
         };
     }
@@ -117,7 +118,8 @@ public class ShaderCompilePipeline {
     protected static boolean CanBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
         return ShaderLanguageIsGLSL(shaderLanguage) ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
     }
 
     private static byte[] RemapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
@@ -168,17 +170,6 @@ public class ShaderCompilePipeline {
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
-        checkResult(resourcePath, result);
-    }
-
-    protected static void generateHLSL(String resourcePath, String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
-        spirvCrossExe = Bob.getHostExeOnce("spirv-cross", spirvCrossExe);
-        Result result = Exec.execResult(
-            spirvCrossExe,
-            pathFileInSpv,
-            "--output", pathFileOutHLSL,
-            "--hlsl",
-            "--shader-model", ShaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
         checkResult(resourcePath, result);
     }
 
@@ -233,7 +224,8 @@ public class ShaderCompilePipeline {
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
 
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+            shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50) {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_HLSL.getValue());
         } else {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());

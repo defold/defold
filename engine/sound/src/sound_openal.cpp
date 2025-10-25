@@ -1180,6 +1180,28 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    // private function. Currently part of the test_sound.cpp
+    void GetPanScale(float pan, float* left_scale, float* right_scale)
+    {
+    }
+
+    // private function. Currently part of the test_sound.cpp
+    Result GetScaleFromGain(float gain, float* scale)
+    {
+        //*scale = GainToScale(gain);
+        return RESULT_UNSUPPORTED;
+    }
+
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame)
+    {
+        return RESULT_UNSUPPORTED;
+    }
+
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds)
+    {
+        return RESULT_UNSUPPORTED;
+    }
+
     static Result UpdateInternal(SoundSystem* sound)
     {
         DM_PROFILE(__FUNCTION__);

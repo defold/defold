@@ -2,6 +2,7 @@
 import os, re
 from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature, platform_graphics_libs_and_symbols
 import waflib.Options
+import waf_dynamo
 
 def options(opt):
     pass
@@ -134,9 +135,7 @@ def build(bld):
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')
 
-    platform_lib = ['PLATFORM']
-    if not (platform_supports_feature(bld.env.PLATFORM, "opengl", None) or platform_supports_feature(bld.env.PLATFORM, "vulkan", None)):
-        platform_lib = ['PLATFORM_NULL']
+    platform_lib = [waf_dynamo.platform_get_platform_lib(bld.env.PLATFORM)]
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',

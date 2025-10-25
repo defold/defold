@@ -32,7 +32,7 @@
 class ComponentTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateCount = 0;
         m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -135,7 +135,7 @@ protected:
         m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1000000;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);

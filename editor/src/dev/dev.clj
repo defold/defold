@@ -35,6 +35,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -228,6 +229,9 @@
 (defn prefs []
   (prefs/project (workspace/project-directory (workspace))))
 
+(defn localization []
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene))))
+
 (declare ^:private exclude-keys-deep-helper)
 
 (defn- exclude-keys-deep-value-helper [excluded-map-entry? value]
@@ -280,13 +284,17 @@
   (letfn [(wrapped-value-fn [key value]
             (if-not (record? value)
               (value-fn key value)
-              (deep-keep-finalize-coll-value-fn
-                (into (with-meta (sorted-map)
-                                 (meta value))
-                      (keep (fn [[k v]]
-                              (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
-                                (pair k v'))))
-                      value))))]
+              (letfn [(finalize-into [target-map value]
+                        (into (with-meta target-map
+                                         (meta value))
+                              (keep (fn [[k v]]
+                                      (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
+                                        (pair k v'))))
+                              value))]
+                (try
+                  (finalize-into (sorted-map) value)
+                  (catch ClassCastException _
+                    (finalize-into {} value))))))]
     wrapped-value-fn))
 
 (defn deep-keep [value-fn value]
@@ -1427,10 +1435,10 @@
                           (pair pb-class))))
          (resource-pb-classes workspace))))
 
-(defn- progress-dialog-ui [{:keys [header-text progress] :as props}]
+(defn- progress-dialog-ui [{:keys [header-text progress localization] :as props}]
   {:pre [(string? header-text)
          (map? progress)
-         (string? (:message progress))]}
+         (localization/message-pattern? (progress/message progress))]}
   {:fx/type dialogs/dialog-stage
    :on-close-request {:event-type :cancel}
    :showing (fxui/dialog-showing? props)
@@ -1444,7 +1452,7 @@
              :style-class ["dialog-content-padding" "spacing-smaller"]
              :children [{:fx/type fxui/legacy-label
                          :wrap-text false
-                         :text (:message progress)}
+                         :text (localization (progress/message progress))}
                         {:fx/type fx.progress-bar/lifecycle
                          :max-width Double/MAX_VALUE
                          :progress (or (progress/fraction progress)
@@ -1460,8 +1468,10 @@
    (run-with-progress header-text nil worker-fn))
   ([^String header-text cancel-result worker-fn]
    (ui/run-now
-     (let [state-atom (atom {:progress (progress/make "Waiting" 0 0)})
-           middleware (fx/wrap-map-desc assoc :fx/type progress-dialog-ui :header-text header-text)
+     (let [state-atom (atom {:progress (progress/make (localization/message "progress.waiting") 0 0)})
+           localization (g/with-auto-evaluation-context evaluation-context
+                          (workspace/localization (workspace) evaluation-context))
+           middleware (fx/wrap-map-desc assoc :fx/type progress-dialog-ui :header-text header-text :localization localization)
            opts {:fx.opt/map-event-handler
                  (fn [event]
                    (case (:event-type event)
@@ -1583,3 +1593,47 @@
        (sort-by #(tree-depth (val %))
                 coll/descending-order)
        (take 30)))
+
+(defn scene-view-batches
+  ([scene-view pass]
+   (scene-view-batches scene-view pass :batch-key))
+  ([scene-view pass key-fn]
+   {:pre [(g/node-id? scene-view)
+          (instance? RenderPass pass)
+          (ifn? key-fn)]}
+   ;; Based on the scene/batch-render function.
+   (let [flat-renderables (g/node-value scene-view :all-renderables)]
+     (loop [renderables (get flat-renderables pass)
+            offset 0
+            batch-index 0
+            batches (transient [])]
+       (if-let [renderable (first renderables)]
+         (let [first-key (key-fn renderable)
+               first-render-fn (:render-fn renderable)
+               batch-count (long
+                             (loop [renderables (rest renderables)
+                                    batch-count 1]
+                               (let [renderable (first renderables)
+                                     key (key-fn renderable)
+                                     render-fn (:render-fn renderable)
+                                     break (or (not= first-render-fn render-fn)
+                                               (nil? first-key)
+                                               (nil? key)
+                                               (not= first-key key))]
+                                 (if break
+                                   batch-count
+                                   (recur (rest renderables) (inc batch-count))))))]
+           (when (> batch-count 0)
+             (let [batch (subvec renderables 0 batch-count)]
+               (recur (subvec renderables batch-count)
+                      (+ offset batch-count)
+                      (inc batch-index)
+                      (conj! batches batch)))))
+         (persistent! batches))))))
+
+(defn clear-enable-all! []
+  (clear-caches!)
+  (handler/enable-disabled-handlers!)
+  (ui/enable-stopped-timers!)
+  (println "Re-enabled all disabled handlers and timers")
+  nil)

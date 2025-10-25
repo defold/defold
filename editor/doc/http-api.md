@@ -3,9 +3,8 @@ Editor HTTP API
 
 External tools can connect to the running editor and interact with it using a REST API.
 
-### Caveats
-* This HTTP API is currently in an experimental state. It might change drastically or even be removed completely if we deem it necessary. But hopefully it shouldn't come to that.
-* Currently, the port is assigned randomly from a broad subrange. The editor will log the local endpoint url if started from a terminal.
+> [!IMPORTANT]  
+> This HTTP API is currently in an experimental state. It might change drastically or even be removed completely if we deem it necessary. But hopefully, it shouldn't come to that.
 
 ### Overview
 The editor can be interacted with by performing GET requests to the following URLs:
@@ -14,8 +13,23 @@ http://localhost:[port]/command
 http://localhost:[port]/console
 ```
 
+#### Port Configuration
+Currently, the port is assigned randomly from a broad subrange. Since 1.11.0, the port is written to the `.internal/editor.port` file.
+
+Additionally, since 1.11.0, the editor executable has a command line option `--port` (or `-p`), which allows specifying the port during launch, e.g.:
+```bash
+# on Windows
+.\Defold.exe --port 8181
+
+# on Linux:
+./Defold --port 8181
+
+# on macOS:
+./Defold.app/Contents/MacOS/Defold --port 8181
+```
+
 ### The Command Endpoint
-The command endpoint exposes a subset of the commands available from the editor menu bar. To trigger a command, perform an empty POST request to an URL in the format:
+The command endpoint exposes a subset of the commands available from the editor menu bar. To trigger a command, perform an empty POST request to a URL in the format:
 ```
 http://localhost:[port]/command/[command]
 ```

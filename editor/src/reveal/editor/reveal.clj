@@ -44,8 +44,12 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn workspace []
+(defn- workspace []
   0)
+
+(defn- make-evaluation-context
+  ([] (is/default-evaluation-context (or @g/*the-system* g/fake-system)))
+  ([options] (is/custom-evaluation-context (or @g/*the-system* g/fake-system) options)))
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -129,7 +133,7 @@
 
 (r/defaction ::defold:node-tree [x ann]
   (when (g/node-id? x)
-    (let [ec (or (::evaluation-context ann) (g/make-evaluation-context))]
+    (let [ec (or (::evaluation-context ann) (make-evaluation-context))]
       (when (g/node-by-id (:basis ec) x)
         (fn []
           {:fx/type r/tree-view
@@ -156,7 +160,7 @@
 
 (r/defaction ::defold:successors [x]
   (when (instance? Endpoint x)
-    (let [ec (g/make-evaluation-context)
+    (let [ec (make-evaluation-context)
           basis (:basis ec)]
       (when (endpoint-successors basis x)
         (fn []
@@ -168,7 +172,7 @@
 
 (defn node-id-in-context
   ([node-id]
-   (node-id-in-context node-id (g/make-evaluation-context)))
+   (node-id-in-context node-id (make-evaluation-context)))
   ([node-id evaluation-context]
    (r/stream node-id {::evaluation-context evaluation-context})))
 
@@ -192,7 +196,7 @@
             (g/node-value node-id label (is/default-evaluation-context sys))))})
 
 (r/defaction ::defold:watch [_ {::keys [node-id+label]}]
-  (when node-id+label
+  (when (and node-id+label @g/*the-system*)
     #(apply watch-all node-id+label)))
 
 (defn- stream-arc-contents [arc]

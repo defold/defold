@@ -19,6 +19,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
@@ -146,7 +147,9 @@
                      (into children))})
 
 (defn make [workspace project options]
-  (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+  (let [evaluation-context (g/make-evaluation-context)
+        localization (workspace/localization workspace evaluation-context)
+        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) fn/constantly-true)
         accept-fn    (or (:accept-fn options) fn/constantly-true)
         items        (into []
@@ -155,12 +158,12 @@
                                          (resource/loaded? %)
                                          (not (resource/internal? %))
                                          (accept-fn %)))
-                           (g/node-value workspace :resource-list))
+                           (g/node-value workspace :resource-list evaluation-context))
         tooltip-gen (:tooltip-gen options)
         special-filter-fns {"refs" (partial refs-filter-fn project)
                             "deps" (partial deps-filter-fn project)}
-        options (-> {:title "Select Resource"
-                     :cell-fn (fn cell-fn [r]
+        options (-> {:title (localization/message "dialog.select-resource.title")
+                     :cell-fn (fn cell-fn [r _localization]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
                                       tooltip (when tooltip-gen (tooltip-gen r))
@@ -180,4 +183,5 @@
                                         f (get special-filter-fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                     (merge options))]
-    (dialogs/make-select-list-dialog items options)))
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    (dialogs/make-select-list-dialog items localization options)))

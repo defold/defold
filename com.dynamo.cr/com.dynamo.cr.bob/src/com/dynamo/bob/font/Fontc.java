@@ -357,8 +357,9 @@ public class Fontc {
                 }
 
                 glyph.vector = glyphVector;
-
-                glyphs.add(glyph);
+                if (!(glyph.width == 0 && glyph.advance == 0 && codePoint >= 65000)) {
+                    glyphs.add(glyph);
+                }
             }
         }
 

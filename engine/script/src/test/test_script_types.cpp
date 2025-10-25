@@ -24,7 +24,7 @@ class ScriptTypesTest : public dmScriptTest::ScriptTest
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         dmScriptTest::ScriptTest::SetUp();
 
@@ -36,7 +36,7 @@ class ScriptTypesTest : public dmScriptTest::ScriptTest
         dmExtension::Initialize(&m_Params);
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         dmExtension::Finalize(&m_Params);
         dmExtension::AppFinalize(&m_AppParams);

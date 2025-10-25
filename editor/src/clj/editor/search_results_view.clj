@@ -23,8 +23,6 @@
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.menu :as fx.menu]
-            [cljfx.fx.menu-button :as fx.menu-button]
-            [cljfx.fx.menu-button :as fx.menu-button]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.progress-indicator :as fx.progress-indicator]
             [cljfx.fx.region :as fx.region]
@@ -44,6 +42,7 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.prefs :as prefs]
@@ -278,14 +277,14 @@
   (assert (string? term))
   (prefs/set! prefs search-in-files-term-prefs-key term))
 
-(defn- start-search-in-files! [project prefs results-tab-tree-view results-tab-progress-indicator open-fn show-find-results-fn]
+(defn- start-search-in-files! [project prefs localization results-tab-tree-view results-tab-progress-indicator open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         scene     (Scene. root)
         stage     (doto (ui/make-stage)
                     (.initStyle StageStyle/DECORATED)
                     (.initOwner (ui/main-stage))
                     (.setResizable false))]
-    (ui/with-controls root [^TextField search ^TextField types ^CheckBox include-libraries-check-box ^TreeView resources-tree ok search-in-progress]
+    (ui/with-controls root [search-label types-label ^TextField search ^TextField types ^CheckBox include-libraries-check-box ^TreeView resources-tree ok search-in-progress]
       (ui/visible! search-in-progress false)
       (let [start-consumer! #(start-tree-update-timer!
                                [resources-tree results-tab-tree-view]
@@ -314,7 +313,11 @@
                              (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
                                (open-fn resource opts))
                              (dismiss-and-abort-search!))]
-        (ui/title! stage "Search in Files")
+        (localization/localize! (.titleProperty stage) localization (localization/message "dialog.search-in-files.title"))
+        (localization/localize! search-label localization (localization/message "dialog.search-in-files.label.search"))
+        (localization/localize! types-label localization (localization/message "dialog.search-in-files.label.types"))
+        (localization/localize! include-libraries-check-box localization (localization/message "dialog.search-in-files.label.include-libraries"))
+        (localization/localize! ok localization (localization/message "dialog.search-in-files.button.keep-results"))
         (init-search-in-files-tree-view! resources-tree)
 
         (ui/on-action! ok (fn on-ok! [_] (dismiss-and-show-find-results!)))
@@ -354,7 +357,7 @@
         (ui/observe (.textProperty types) on-input-changed!)
         (ui/observe (.selectedProperty include-libraries-check-box) on-input-changed!)
         (.setScene stage scene)
-        (ui/show! stage)))))
+        (ui/show! stage localization)))))
 
 (g/defnode SearchResultsView
   (inherits core/Scope)
@@ -385,14 +388,14 @@
                 :open-resource-fn open-resource-fn
                 :search-results-container search-results-container))
 
-(defn show-search-in-files-dialog! [search-results-view project prefs show-search-results-tab-fn]
+(defn show-search-in-files-dialog! [search-results-view project prefs localization show-search-results-tab-fn]
   (let [results-tab-tree-view (make-search-in-files-tree-view)
         progress-indicator (make-search-in-files-progress-indicator)
         open-fn (partial open-resource! search-results-view)
         show-matches-fn (fn []
                           (update-search-results! search-results-view results-tab-tree-view progress-indicator)
                           (show-search-results-tab-fn))]
-    (start-search-in-files! project prefs results-tab-tree-view progress-indicator open-fn show-matches-fn)))
+    (start-search-in-files! project prefs localization results-tab-tree-view progress-indicator open-fn show-matches-fn)))
 
 (defn- resource-cell-view [proj-path qualifier]
   {:fx/type fx.h-box/lifecycle
@@ -572,43 +575,38 @@
      :items push-down-overrides-menu-items}]})
 
 (defn- override-inspector-query-label [state]
-  (let [{:keys [proj-path qualifier prop-kws]} state
-
-        header-prefix-text
-        (case (count prop-kws)
-          0 "All Property Overrides of"
-          1 (str (properties/keyword->name (first prop-kws))
-                 " Overrides of")
-          (2 3 4) (str (util/join-words
-                         ", " " and "
-                         (map properties/keyword->name
-                              prop-kws))
-                       " Overrides of")
-          "Specific Property Overrides of")
-
-        header-text
-        (cond-> header-prefix-text
-                qualifier (str " '" qualifier \')
-                (and qualifier proj-path) (str " in")
-                proj-path (str " '" proj-path \'))]
-
-    {:fx/type fxui/legacy-label
-     :text header-text
-     :wrap-text false
-     :style {:-fx-min-height 26.0}}))
+  (let [{:keys [proj-path qualifier prop-kws localization]} state
+        qualifier (or qualifier "none")
+        proj-path (or proj-path "none")]
+    {:fx/type fxui/ext-localize
+     :localization localization
+     :message (case (count prop-kws)
+                0 (localization/message "search.overrides.title.all" {"qualifier" qualifier "resource" proj-path})
+                (1 2 3 4) (localization/message "search.overrides.title.list"
+                                                {"count" (count prop-kws)
+                                                 "list" (localization/and-list (mapv properties/keyword->name prop-kws))
+                                                 "qualifier" qualifier
+                                                 "resource" proj-path})
+                (localization/message "search.overrides.title.specific" {"qualifier" qualifier "resource" proj-path}))
+     :desc {:fx/type fxui/legacy-label
+            :wrap-text false
+            :style {:-fx-min-height 26.0}}}))
 
 (defn- override-inspector-tree-table-view
   [{:keys [display-order
            pull-up-overrides-menu-items
            push-down-overrides-menu-items
-           tree]}]
+           tree
+           localization]}]
   (let [tree-table-columns
-        (into [{:fx/type fx.tree-table-column/lifecycle
-                :text "Resource"
-                :reorderable false
-                :cell-value-factory identity
-                :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
-                               :describe #'resource-cell}}]
+        (into [{:fx/type fxui/ext-localize
+                :localization localization
+                :message (localization/message "search.column.resource")
+                :desc {:fx/type fx.tree-table-column/lifecycle
+                       :reorderable false
+                       :cell-value-factory identity
+                       :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                      :describe #'resource-cell}}}]
               (map (fn [property-keyword]
                      {:fx/type fx.tree-table-column/lifecycle
                       :text (str (properties/keyword->name property-keyword)
@@ -623,14 +621,18 @@
         (cond-> []
 
                 (coll/not-empty pull-up-overrides-menu-items)
-                (conj {:fx/type fx.menu/lifecycle
-                       :text menu-items/pull-up-overrides-text
-                       :items pull-up-overrides-menu-items})
+                (conj {:fx/type fxui/ext-localize
+                       :localization localization
+                       :message menu-items/pull-up-overrides-message
+                       :desc {:fx/type fx.menu/lifecycle
+                              :items pull-up-overrides-menu-items}})
 
                 (coll/not-empty push-down-overrides-menu-items)
-                (conj {:fx/type fx.menu/lifecycle
-                       :text menu-items/push-down-overrides-text
-                       :items push-down-overrides-menu-items}))
+                (conj {:fx/type fxui/ext-localize
+                       :localization localization
+                       :message menu-items/push-down-overrides-message
+                       :desc {:fx/type fx.menu/lifecycle
+                              :items push-down-overrides-menu-items}}))
 
         context-menu
         (when (coll/not-empty transfer-overrides-context-menu-items)
@@ -650,14 +652,16 @@
              context-menu
              (assoc :context-menu context-menu))}))
 
-(defn- transfer-overrides-plan-menu-item [transfer-overrides-plan evaluation-context]
-  {:fx/type fx.menu-item/lifecycle
-   :text (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-   :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
-   :on-action {:event-type :on-transfer-overrides
-               :transfer-overrides-plan transfer-overrides-plan}})
+(defn- transfer-overrides-plan-menu-item [transfer-overrides-plan localization evaluation-context]
+  {:fx/type fxui/ext-localize
+   :localization localization
+   :message (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+   :desc {:fx/type fx.menu-item/lifecycle
+          :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
+          :on-action {:event-type :on-transfer-overrides
+                      :transfer-overrides-plan transfer-overrides-plan}}})
 
-(defn- override-inspector-view [state parent]
+(defn- override-inspector-view [state parent localization]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
           :value parent}
@@ -686,9 +690,9 @@
                (when (and source-node-id (coll/not-empty overridden-prop-kws))
                  (g/with-auto-evaluation-context evaluation-context
                    (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties source-node-id overridden-prop-kws evaluation-context)]
-                     (pair (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
+                     (pair (mapv #(transfer-overrides-plan-menu-item % localization evaluation-context)
                                  (properties/pull-up-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))
-                           (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
+                           (mapv #(transfer-overrides-plan-menu-item % localization evaluation-context)
                                  (properties/push-down-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))))))]
 
            {:fx/type fx.h-box/lifecycle
@@ -709,13 +713,15 @@
                 :v-box/vgrow :never
                 :proj-path queried-proj-path
                 :qualifier queried-qualifier
-                :prop-kws queried-properties}
+                :prop-kws queried-properties
+                :localization localization}
                {:fx/type override-inspector-tree-table-view
                 :v-box/vgrow :always
                 :display-order display-order
                 :pull-up-overrides-menu-items pull-up-overrides-menu-items
                 :push-down-overrides-menu-items push-down-overrides-menu-items
-                :tree tree}]}]}))]}]}})
+                :tree tree
+                :localization localization}]}]}))]}]}})
 
 (defn- make-override-tree [node-id property-pred {:keys [basis] :as evaluation-context}]
   (letfn [(make-tree
@@ -768,8 +774,9 @@
     search-results-view    node id of a search result view
     node-id                root node id whose overrides are inspected
     properties             either :all or a coll of property keywords to include
-                           in the override inspector output"
-  [search-results-view node-id properties]
+                           in the override inspector output
+    localization           the Localization instance"
+  [search-results-view node-id properties localization]
   (let [[parent property-keyword->display-order]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value search-results-view :search-results-container evaluation-context)
@@ -840,7 +847,7 @@
           :error-handler error-reporting/report-exception!
           :middleware (comp
                         fxui/wrap-dedupe-desc
-                        (fx/wrap-map-desc #'override-inspector-view parent))
+                        (fx/wrap-map-desc #'override-inspector-view parent localization))
           :opts {:fx.opt/map-event-handler event-handler})]
 
     (refresh-view!)

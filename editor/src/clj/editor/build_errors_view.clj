@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -267,7 +268,7 @@
       (.setContent clipboard content))))
 
 (handler/register-menu! ::build-errors-menu
-  [{:label "Copy"
+  [{:label (localization/message "command.edit.copy")
     :command :edit.copy}])
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]

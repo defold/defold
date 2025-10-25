@@ -4,6 +4,8 @@ import os, re, wave, io, math, struct
 import waflib.Task, waflib.TaskGen, waflib.Options
 from waf_dynamo import copy_file_task
 from waflib.TaskGen import extension, extension
+from BuildUtility import create_build_utility
+from build_constants import TargetOS
 
 def gen_tone(task):
     tone_freq = int(task.generator.tone)
@@ -59,6 +61,9 @@ def gen_dc(task):
 def build(bld):
     if waflib.Options.options.skip_build_tests:
         return
+
+    build_util = create_build_utility(bld.env)
+    target_os = build_util.get_target_os()
 
     platform = bld.env['PLATFORM']
 
@@ -173,6 +178,16 @@ def build(bld):
         for f in ['CFLAGS', 'CXXFLAGS']:
             test.env.append_value(f, ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM'])
 
+    # making sure we test link the openal backend
+    if target_os in [TargetOS.MACOS, TargetOS.LINUX]:
+        test_sound_libs = [x for x in test.use if x != 'sound'] # keep the libraries in sync
+        bld.program(features = 'cxx embed test skip_test',
+                        includes = '../../src .',
+                        use = ['sound_openal'] + test_sound_libs,
+                        defines = ['DM_TEST_SOUND_USE_OPENAL'],
+                        exported_symbols = exported_symbols,
+                        target = 'test_sound_openal',
+                        source = 'test_sound.cpp')
 
     # test that the linkage doesn't break again
     exported_symbols = 'NullSoundDevice TestNullDevice'

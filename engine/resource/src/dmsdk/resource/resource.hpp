@@ -49,22 +49,59 @@ namespace dmResource
     * Get a resource from factory
     * @name Get
     * @param factory [type: dmResource::HFactory] Factory handle
-    * @param name [type: const char*] Resource name
-    * @param resource [type: void**] Created resource
+    * @param path [type: const char*] Resource path
+    * @param resource [type: void**] (out) Created resource
     * @return result [type: dmResource::Result]  RESULT_OK on success
     */
-   Result Get(HFactory factory, const char* name, void** resource);
+   Result Get(HFactory factory, const char* path, void** resource);
 
    /*#
-    * Get a resource from factory
+    * Get (load) a resource from factory
+    * @name GetWithExt
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param path [type: const char*] Resource path
+    * @param ext [type: const char*] Resource extension. Must match the extension of the path
+    * @param resource [type: void**] (out) Created resource
+    * @return result [type: dmResource::Result]  RESULT_OK on success.
+    *                                            RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+    */
+   Result GetWithExt(HFactory factory, const char* path, const char* ext, void** resource);
+
+   /*#
+    * Get a loaded resource from factory
     * @name Get
     * @param factory [type: dmResource::HFactory] Factory handle
-    * @param name [type: dmhash_t] Resource name
-    * @param resource [type: void**] Created resource
+    * @param path_hash [type: const char*] Resource path hash
+    * @param resource [type: void**] (out) Created resource
     * @return result [type: dmResource::Result]  RESULT_OK on success
     */
-   Result Get(HFactory factory, dmhash_t name, void** resource);
+   Result Get(HFactory factory, dmhash_t path_hash, void** resource);
 
+   /*#
+    * Get a loaded resource from factory
+    * @name GetWithExt
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param path_hash [type: const char*] Resource path hash
+    * @param ext_hash [type: const char*] Resource extension hash. Must match the extension of the path.
+    * @param resource [type: void**] (out) Created resource
+    * @return result [type: dmResource::Result]  RESULT_OK on success.
+    *                                            RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+    */
+   Result GetWithExt(HFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource);
+
+    /*#
+    * Creates and inserts a resource into the factory
+    * @note The input data pointer is not stored
+    * @note The reference count is 1, so make sure it's destruction is handled
+    * @name CreateResource
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param name [type: dmhash_t] Resource name
+    * @param data Resource data
+    * @param data_size Resource data size
+    * @param resource [type: void**] (out) Created resource
+    * @return result [type: dmResource::Result]  RESULT_OK on success
+    */
+    Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
 
    /*#
     * Release resource
@@ -94,6 +131,24 @@ namespace dmResource
     * @return RESULT_OK on success
     */
    Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    /**
+    * Get a resource extension from a path, i.e "resource.ext" will return "ext".
+    * @name GetExtFromPath
+    * @param path [type: const char*] The path to the resource
+    * @return [type: const char*] Pointer to extension string if success (same as buffer), 0 otherwise
+    */
+    const char* GetExtFromPath(const char* path);
+
+   /*#
+    * Gets the normalized resource path: "/my//icon.texturec" -> "/my/icon.texturec". "my/icon.texturec" -> "/my/icon.texturec".
+    * @name GetCanonicalPath
+    * @param path [type: const char*] the relative dir of the resource
+    * @param buf [type: char*] (out) the output of the normalization
+    * @param buf_len [type: uint32_t] the size of the output buffer
+    * @return length [type: uint32_t] the length of the output string
+    */
+   uint32_t GetCanonicalPath(const char* path, char* buf, uint32_t buf_len);
 
    /*#
     * Decrypts a file
@@ -157,6 +212,23 @@ namespace dmResource
     */
    Result RemoveFile(HFactory factory, const char* path);
 
+   /**
+    * Increase resource reference count by 1.
+    * @name IncRef
+    * @param factory [type: HFactory] Factory handle
+    * @param resource [type: void*] The resource
+    */
+   void IncRef(HFactory factory, void* resource);
+
+   /**
+    * Increase resource reference count by 1.
+    * @name IncRef
+    * @param factory [type: HFactory] Factory handle
+    * @param rd [type: HResourceDescriptor] The resource handle
+    */
+   void IncRef(HFactory factory, HResourceDescriptor rd);
+
+
    static const uint32_t s_ResourceTypeCreatorDescBufferSize = ResourceTypeCreatorDescBufferSize;
 
    /*#
@@ -196,6 +268,26 @@ namespace dmResource
                         dmResource::FResourcePostCreate post_create_function,
                         dmResource::FResourceDestroy destroy_function,
                         dmResource::FResourceRecreate recreate_function);
+
+   /*#
+    * Get type from extension
+    * @name GetTypeFromExtension
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param extension [type: const char*] File extension, without leading "." character. E.g. "ttf"
+    * @param type [type: HResourceType*] returned type is successful
+    * @return result [type: dmResult::Result] RESULT_OK on success
+    */
+   Result GetTypeFromExtension(HFactory factory, const char* extension, HResourceType* type);
+
+   /*#
+    * Get type from extension hash
+    * @name GetTypeFromExtensionHash
+    * @param factory [type: dmResource::HFactory] Factory handle
+    * @param extension_hash [type: const char*] Hash of file extension, without leading "." character. E.g. hash("ttf")
+    * @param type [type: HResourceType*] returned type is successful
+    * @return result [type: dmResult::Result] RESULT_OK on success
+    */
+   Result GetTypeFromExtensionHash(HFactory factory, dmhash_t extension_hash, HResourceType* type);
 
    /*#
     * Setup function pointers and context for a resource type

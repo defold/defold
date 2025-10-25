@@ -2496,12 +2496,12 @@ namespace dmGraphics
 
     static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return language == ShaderDesc::LANGUAGE_HLSL;
+        return language == ShaderDesc::LANGUAGE_HLSL_51 || language == ShaderDesc::LANGUAGE_HLSL_50;
     }
 
     static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
     {
-        return ShaderDesc::LANGUAGE_HLSL;
+        return ShaderDesc::LANGUAGE_HLSL_51;
     }
 
     static void DX12EnableProgram(HContext context, HProgram program)

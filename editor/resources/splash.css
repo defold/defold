@@ -56,6 +56,11 @@ Label.emphasis {
   -fx-font-size: 150%;
   -fx-font-smoothing-type: lcd;
 }
+#welcome-dialog .df-sub-header {
+  -fx-font-family: "Source Sans Pro";
+  -fx-font-size: 125%;
+  -fx-font-smoothing-type: lcd;
+}
 
 #welcome-dialog #left-pane .pane-button {
   -fx-font-family: "Source Sans Pro Semibold";

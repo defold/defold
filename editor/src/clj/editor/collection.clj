@@ -31,6 +31,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -189,7 +190,11 @@
        :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) game-object-common/game-object-icon)
-       :children (into (outline/natural-sort child-outlines) (:children source-outline))
+       :children (localization/annotate-as-sorted
+                   (fn [localization-state _]
+                     (into (localization/natural-sort-by-label localization-state child-outlines)
+                           (localization/sort-if-annotated localization-state (:children source-outline))))
+                   (into child-outlines (:children source-outline)))
        :child-reqs [{:node-type ReferencedGOInstanceNode
                      :tx-attach-fn tx-attach-go-referenced-go}
                     {:node-type EmbeddedGOInstanceNode
@@ -479,13 +484,16 @@
     (tx-attach-coll-coll self-id child-id)))
 
 (g/defnk produce-coll-outline [_node-id child-outlines]
-  (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
-                                      [(get outlines false) (get outlines true)])]
+  (let [{go-outlines false coll-outlines true} (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Collection"
-     :label "Collection"
+     :label (localization/message "outline.collection")
      :icon collection-common/collection-icon
-     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort go-outlines))
+     :children (localization/annotate-as-sorted
+                 (fn [localization-state _]
+                   (into (localization/natural-sort-by-label localization-state coll-outlines)
+                         (localization/natural-sort-by-label localization-state go-outlines)))
+                 (into (or coll-outlines []) go-outlines))
      :child-reqs [{:node-type ReferencedGOInstanceNode
                    :tx-attach-fn outline-tx-attach-coll-referenced-go}
                   {:node-type EmbeddedGOInstanceNode
@@ -498,7 +506,7 @@
 
   (property name g/Str
             (dynamic error (g/fnk [_node-id name]
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
+                             (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
 
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
@@ -701,18 +709,18 @@
         id (gen-instance-id coll-node base)]
     (g/transact
       (concat
-        (g/operation-label "Add Game Object")
+        (g/operation-label (localization/message "operation.collection.add-game-object"))
         (make-ref-go coll-node resource id nil parent nil select-fn)))))
 
 (defn- select-go-file [workspace project]
-  (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
+  (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")})))
 
 (handler/defhandler :edit.add-referenced-component :workbench
+  :label (localization/message "command.edit.add-referenced-component.variant.collection")
   (active? [selection] (selection->collection selection))
-  (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
        (let [collection (selection->collection selection)]
-         (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
+         (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")}))]
            (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- connect-embedded-go [node-type resource-node go-node]
@@ -755,12 +763,12 @@
         id (gen-instance-id coll-node ext)]
     (g/transact
       (concat
-        (g/operation-label "Add Game Object")
+        (g/operation-label (localization/message "operation.collection.add-game-object"))
         (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
+  :label (localization/message "command.edit.add-embedded-component.variant.collection")
   (active? [selection] (selection->collection selection))
-  (label [selection user-data] "Add Game Object")
   (run [selection workspace project user-data app-view]
        (let [collection (selection->collection selection)]
          (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
@@ -783,12 +791,12 @@
 (defn add-referenced-collection! [self source-resource id transform-properties overrides select-fn]
   (g/transact
     (concat
-      (g/operation-label "Add Collection")
+      (g/operation-label (localization/message "operation.collection.add-collection"))
       (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench
+  :label (localization/message "command.edit.add-secondary-embedded-component.variant.collection-game-object")
   (active? [selection] (selection->game-object-instance selection))
-  (label [] "Add Game Object")
   (run [selection project workspace app-view]
        (let [go-node (selection->game-object-instance selection)
              collection (core/scope-of-type go-node CollectionNode)]
@@ -803,8 +811,8 @@
   (active? [selection] (or (selection->collection selection)
                          (selection->game-object-instance selection)))
   (label [selection] (if (selection->collection selection)
-                       "Add Collection File"
-                       "Add Game Object File"))
+                       (localization/message "command.edit.add-secondary-referenced-component.variant.collection")
+                       (localization/message "command.edit.add-secondary-referenced-component.variant.collection-game-object")))
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext "collection"]
@@ -813,7 +821,7 @@
                                    (resource-dialog/make
                                      workspace project
                                      {:ext ext
-                                      :title "Select Collection File"
+                                      :title (localization/message "dialog.select-collection-file.title")
                                       :accept-fn #(not (contains-resource? project coll-node % evaluation-context))})))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)

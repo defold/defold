@@ -23,6 +23,7 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
             [editor.progress :as progress]
@@ -33,7 +34,6 @@
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
            [com.defold.control DefoldStringConverter TreeCell]
-           [com.sun.javafx.application PlatformImpl]
            [com.sun.javafx.event DirectEvent]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
@@ -63,14 +63,6 @@
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
 
-;; Next line of code makes sure JavaFX is initialized, which is required during
-;; compilation even when we are not actually running the editor. To properly
-;; generate reflection-less code, clojure compiler loads classes and searches
-;; for fitting methods while compiling it. Loading javafx.scene.control.Control
-;; class requires application to be running, because it sets default platform
-;; stylesheet, and this requires Application to be running.
-(PlatformImpl/startup (fn []))
-
 (defonce ^:dynamic *main-stage* (atom nil))
 
 ;; Slight hack to work around the fact that we have not yet found a
@@ -80,6 +72,28 @@
 ;; threshold, we consider the application to have lost focus.
 (defonce ^:private ^:const application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
+(defonce ^:private application-unfocused-tasks (atom {}))
+(defonce ^:private stopped-timers (atom #{}))
+
+(declare ->future)
+
+(defn- cancel-application-unfocused-task! [key]
+  (when-let [{:keys [timer]} (get @application-unfocused-tasks key)]
+    (.stop ^Timeline timer)
+    (swap! application-unfocused-tasks dissoc key))
+  nil)
+
+(defn- schedule-application-unfocused-task! [key timestamp application-unfocused! args]
+  (cancel-application-unfocused-task! key)
+  (let [delay (/ (double application-unfocused-threshold-ms) 1000.0)
+        timer (->future delay
+                        (fn []
+                          (let [{stored-timestamp :timestamp} (get @application-unfocused-tasks key)]
+                            (when (= stored-timestamp timestamp)
+                              (swap! application-unfocused-tasks dissoc key)
+                              (apply application-unfocused! args)))))]
+    (swap! application-unfocused-tasks assoc key {:timer timer :timestamp timestamp})
+    nil))
 
 (defn node? [value]
   (instance? Node value))
@@ -130,6 +144,22 @@
   nil)
 
 (defn remove-application-focused-callback! [key]
+  (remove-watch focus-state key)
+  nil)
+
+(defn add-application-unfocused-callback! [key application-unfocused! & args]
+  (add-watch focus-state key
+             (fn [_key _ref old new]
+               (when (:focused new)
+                 (cancel-application-unfocused-task! key))
+               (when (and old
+                          (:focused old)
+                          (not (:focused new)))
+                 (schedule-application-unfocused-task! key (:t new) application-unfocused! args))))
+  nil)
+
+(defn remove-application-unfocused-callback! [key]
+  (cancel-application-unfocused-task! key)
   (remove-watch focus-state key)
   nil)
 
@@ -493,8 +523,8 @@
 (defn title! [^Stage window t]
   (.setTitle window t))
 
-(defn tooltip! [^Control ctrl tip]
-  (.setTooltip ctrl (when tip (Tooltip. tip))))
+(defn tooltip! [^Control ctrl tip localization]
+  (.setTooltip ctrl (when tip (localization/localize! (Tooltip.) localization tip))))
 
 (defn request-focus! [^Node node]
   (.requestFocus node))
@@ -1295,9 +1325,10 @@
        (when-let [user-data (some-> (select-items
                                       options
                                       {:title (handler/label handler-ctx)
-                                       :filter-on :label
-                                       :cell-fn (fn [{:keys [label icon]}]
-                                                  (cond-> {:text label}
+                                       :filter-on (fn [{:keys [label]} localization]
+                                                    (localization label))
+                                       :cell-fn (fn [{:keys [label icon]} localization]
+                                                  (cond-> {:text (localization label)}
                                                           icon
                                                           (assoc :graphic {:fx/type image-icon
                                                                            :path icon
@@ -1331,9 +1362,10 @@
   {:control control
    :menu-id menu-id})
 
-(defn- make-submenu [id label icon ^Collection style-classes menu-items on-open]
+(defn- make-submenu [id label localization icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
-    (let [menu (Menu. label)]
+    (let [menu (Menu.)]
+      (localization/localize! menu localization label)
       (user-data! menu ::menu-item-id id)
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
@@ -1359,10 +1391,9 @@
         (finally
           (set! suppress? false))))))
 
-(defn- make-menu-command [^Scene scene id label icon ^Collection style-classes key-combo user-data command enabled? check]
-  (let [^MenuItem menu-item (if check
-                              (CheckMenuItem. label)
-                              (MenuItem. label))]
+(defn- make-menu-command [^Scene scene id label localization icon ^Collection style-classes key-combo user-data command enabled? check]
+  (let [^MenuItem menu-item (if check (CheckMenuItem.) (MenuItem.))]
+    (localization/localize! menu-item localization label)
     (user-data! menu-item ::menu-item-id id)
     (when command
       (user-data! menu-item ::command command))
@@ -1400,7 +1431,7 @@
 
 (declare make-menu-items)
 
-(defn- make-menu-item [^Scene scene item command-contexts keymap evaluation-context]
+(defn- make-menu-item [^Scene scene item command-contexts keymap localization evaluation-context]
   (let [id (:id item)
         icon (:icon item)
         style-classes (:style item)
@@ -1409,9 +1440,10 @@
     (if-let [children (:children item)]
       (make-submenu id
                     item-label
+                    localization
                     icon
                     style-classes
-                    (make-menu-items scene children command-contexts keymap evaluation-context)
+                    (make-menu-items scene children command-contexts keymap localization evaluation-context)
                     on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
@@ -1424,18 +1456,19 @@
                   key-combo (first (keymap/shortcuts keymap command))]
               (if-let [options (handler/options handler-ctx)]
                 (if (and key-combo (not (:expand item)))
-                  (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)
+                  (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)
                   (make-submenu id
                                 label
+                                localization
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts keymap evaluation-context)
+                                (make-menu-items scene (localization/sort-if-annotated @localization options) command-contexts keymap localization evaluation-context)
                                 on-open))
-                (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)))))))))
+                (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)))))))))
 
-(defn- make-menu-items [^Scene scene menu command-contexts keymap evaluation-context]
+(defn- make-menu-items [^Scene scene menu command-contexts keymap localization evaluation-context]
   (into []
-        (keep #(make-menu-item scene % command-contexts keymap evaluation-context))
+        (keep #(make-menu-item scene % command-contexts keymap localization evaluation-context))
         menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
@@ -1456,7 +1489,7 @@
 
 (defn init-context-menu! ^ContextMenu [menu-location ^Scene scene]
   (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :keymap) keymap/empty) evaluation-context))
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :keymap) keymap/empty) (user-data scene :localization) evaluation-context))
         cm (make-context-menu menu-items)]
     (doto (.getItems cm)
       (refresh-separator-visibility)
@@ -1506,10 +1539,12 @@
             menu (handler/realize-menu menu-location)
             command-contexts (contexts scene false)
             keymap (or (user-data scene :keymap) keymap/empty)
+            localization (user-data scene :localization)
+            _ (assert (some? localization))
 
             menu-items
             (g/with-auto-or-fake-evaluation-context evaluation-context
-              (make-menu-items scene menu command-contexts keymap evaluation-context))]
+              (make-menu-items scene menu command-contexts keymap localization evaluation-context))]
 
         (refresh-separator-visibility menu-items)
         (refresh-menu-item-styles menu-items)
@@ -1675,7 +1710,7 @@
       (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts))
       (not= keymap (user-data menu-bar ::keymap))))
 
-(defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts keymap evaluation-context]
+(defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts keymap localization evaluation-context]
   (.clear (.getMenus menu-bar))
   ;; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
   (.addAll (.getMenus menu-bar)
@@ -1683,6 +1718,7 @@
                                         menu
                                         visible-command-contexts
                                         keymap
+                                        localization
                                         evaluation-context))
   (user-data! menu-bar ::menu menu)
   (user-data! menu-bar ::visible-command-contexts visible-command-contexts)
@@ -1719,7 +1755,7 @@
     menu-data))
 
 (defn- refresh-menubar-items!
-  [^MenuBar menu-bar menu-data visible-command-contexts keymap evaluation-context]
+  [^MenuBar menu-bar menu-data visible-command-contexts keymap localization evaluation-context]
   (let [id->menu-item (menu->id-map menu-bar)
         id->menu-data (menu-data->id-map menu-data)]
     (doseq [id @invalid-menubar-items]
@@ -1730,6 +1766,7 @@
                                               menu-item-data
                                               visible-command-contexts
                                               keymap
+                                              localization
                                               evaluation-context)]
             (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
@@ -1830,7 +1867,7 @@
 (declare refresh)
 
 (defn- toolbar-control
-  [scene menu-item handler-ctx]
+  [scene menu-item handler-ctx localization]
   (let [separator? (= :separator (:label menu-item))
         opts (handler/options handler-ctx)]
     (cond
@@ -1842,7 +1879,7 @@
       (let [hbox (doto (HBox.)
                    (add-style! "cell"))
             cb (doto (ChoiceBox.)
-                 (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
+                 (.setConverter (DefoldStringConverter. (comp localization :label))))]
         (.setAll (.getItems cb) ^Collection opts)
         (observe (.valueProperty cb) (fn [_this _old new]
                                        (when (and new (not *programmatic-selection*))
@@ -1854,8 +1891,10 @@
 
       :else
       (let [{:keys [graphic-fn label icon tooltip more]} menu-item
-            button (doto (ToggleButton. (or (handler/label handler-ctx) label))
-                     (tooltip! tooltip))]
+            label (or (handler/label handler-ctx) label)
+            button (doto (ToggleButton.)
+                     (localization/localize! localization label)
+                     (tooltip! tooltip localization))]
         (cond
           graphic-fn
           ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
@@ -1892,7 +1931,7 @@
             group)
           button)))))
 
-(defn- refresh-toolbar [td command-contexts evaluation-context]
+(defn- refresh-toolbar [td command-contexts localization evaluation-context]
  (let [menu (handler/realize-menu (:menu-id td))
        ^Pane control (:control td)
        scene (.getScene control)]
@@ -1909,7 +1948,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (toolbar-control scene menu-item handler-ctx)]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
@@ -1981,7 +2020,7 @@
   (contexts scene))
 
 (defn- refresh-menus!
-  [^Scene scene keymap evaluation-context]
+  [^Scene scene keymap localization evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)]
@@ -1992,15 +2031,15 @@
                          (menu-data-without-icons))]
         (cond
           (refresh-menubar? menu-bar menu visible-command-contexts keymap)
-          (refresh-menubar! menu-bar menu visible-command-contexts keymap evaluation-context)
+          (refresh-menubar! menu-bar menu visible-command-contexts keymap localization evaluation-context)
 
           (refresh-menubar-items?)
-          (refresh-menubar-items! menu-bar menu visible-command-contexts keymap evaluation-context))
+          (refresh-menubar-items! menu-bar menu visible-command-contexts keymap localization evaluation-context))
 
         (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
 
 (defn- refresh-toolbars!
-  [^Scene scene evaluation-context]
+  [^Scene scene localization evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)
@@ -2010,7 +2049,7 @@
       (let [control (:control td)]
         (when active-tab
           (visible! control (nodes-along-path? control (.getContent ^Tab active-tab) root)))
-        (refresh-toolbar td visible-command-contexts evaluation-context)
+        (refresh-toolbar td visible-command-contexts localization evaluation-context)
         (refresh-toolbar-state (:control td) current-command-contexts evaluation-context)))))
 
 (defn- refresh-accelerators! [scene keymap]
@@ -2021,10 +2060,12 @@
 (defn refresh
   [^Scene scene]
   (g/with-auto-or-fake-evaluation-context evaluation-context
-    (let [keymap (or (user-data scene :keymap) keymap/empty)]
+    (let [keymap (or (user-data scene :keymap) keymap/empty)
+          localization (user-data scene :localization)]
+      (assert (some? localization))
       (refresh-accelerators! scene keymap)
-      (refresh-menus! scene keymap evaluation-context)
-      (refresh-toolbars! scene evaluation-context))))
+      (refresh-menus! scene keymap localization evaluation-context)
+      (refresh-toolbars! scene localization evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (.setProgress
@@ -2034,21 +2075,18 @@
       (double fraction)
       -1.0)))
 
-(defn render-progress-message! [progress ^Label label]
-  (text! label (progress/message progress)))
+(defn render-progress-message! [progress ^Label label localization]
+  (localization/localize! label localization (progress/message progress)))
 
-(defn render-progress-percentage! [progress ^Label label]
-  (text!
+(defn render-progress-percentage! [progress ^Label label localization]
+  (localization/localize!
     label
+    localization
     (if (progress/cancelled? progress)
-      "Aborting..."
+      (localization/message "progress.aborting")
       (if-some [percentage (progress/percentage progress)]
-        (str percentage "%")
-        ""))))
-
-(defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
-  (when bar (render-progress-bar! progress bar))
-  (when label (render-progress-message! progress label)))
+        (localization/message "progress.percentage" {"percentage" percentage})
+        localization/empty-message))))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings
@@ -2141,6 +2179,7 @@
                                           (- now (- delta interval))))
                            (catch Throwable t
                              (.stop ^AnimationTimer this)
+                             (swap! stopped-timers conj this)
                              (error-reporting/report-exception! t)))))))))})))
 
 (defn timer-start! [timer]
@@ -2148,6 +2187,14 @@
 
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
+
+(defn enable-stopped-timers!
+  "Re-enables any AnimationTimers that were stopped due to exceptions."
+  []
+  (doseq [timer @stopped-timers]
+    (.start ^AnimationTimer timer))
+  (reset! stopped-timers #{})
+  nil)
 
 (defn anim! [^double duration anim-fn end-fn]
   (let [duration (long (* 1e9 duration))
@@ -2162,6 +2209,7 @@
                       (anim-fn t)
                       (catch Throwable t
                         (.stop ^AnimationTimer this)
+                        (swap! stopped-timers conj this)
                         (error-reporting/report-exception! t))))
                   (try
                     (end-fn)
@@ -2211,8 +2259,9 @@
   [closeable timer]
   (on-closed! closeable (fn [_] (timer-stop! timer))))
 
-(defn- show-dialog-stage [^Stage stage show-fn]
+(defn- show-dialog-stage [^Stage stage localization show-fn]
   (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
+  (user-data! (.getScene stage) :localization localization)
   (if (and (os/is-mac-os?)
            (= (.getOwner stage) (main-stage)))
     (let [scene (.getScene stage)
@@ -2228,36 +2277,10 @@
       (show-fn stage))
     (show-fn stage)))
 
-(defn show-and-wait! [^Stage stage] (show-dialog-stage stage (fn [^Stage stage] (.showAndWait stage))))
-
-(defn show! [^Stage stage] (show-dialog-stage stage (fn [^Stage stage] (.show stage))))
-
-(defn show-and-wait-throwing!
-  "Like show-and wait!, but will immediately close the stage if an
-  exception is thrown from the nested event loop. The exception can
-  then be caught at the call site."
-  [^Stage stage]
-  (when (nil? stage)
-    (throw (IllegalArgumentException. "stage cannot be nil")))
-  (let [prev-exception-handler (Thread/getDefaultUncaughtExceptionHandler)
-        thrown-exception (volatile! nil)]
-    (Thread/setDefaultUncaughtExceptionHandler
-      (fn close-and-store-exception-handler [_ exception]
-        (vreset! thrown-exception exception)
-        (close! stage)))
-    (let [result (try
-                   (show-and-wait! stage)
-                   (finally
-                     (Thread/setDefaultUncaughtExceptionHandler prev-exception-handler)))]
-      (if-let [exception @thrown-exception]
-        (throw exception)
-        result))))
+(defn show! [^Stage stage localization] (show-dialog-stage stage localization (fn [^Stage stage] (.show stage))))
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
-
-(defn parent->stage ^Stage [^Parent parent]
-  (.. parent getScene getWindow))
 
 (defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
   (let [scene (-> tab .getTabPane .getScene)

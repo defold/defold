@@ -70,3 +70,18 @@
   (is (= original-type-defs [Type ->Type]))
   (is (= "Original Value" (.original (->Type "Original Value"))))
   (is (= "Original Result" (protocol-method (->Type "Original Value")))))
+
+;; -----------------------------------------------------------------------------
+;; defonce/interface
+;; -----------------------------------------------------------------------------
+
+(defonce/interface Interface
+  (interfaceMethod []))
+
+(defonce ^:private original-interface-defs [Interface])
+
+(defonce/interface Interface
+  (interfaceMethod []))
+
+(deftest interface-test
+  (= (identical? original-interface-defs [Interface])))

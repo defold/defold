@@ -13,186 +13,270 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.outline-view
-  (:require [dynamo.graph :as g]
+  (:require [cljfx.api :as fx]
+            [cljfx.ext.tree-view :as fx.ext.tree-view]
+            [cljfx.fx.tree-item :as fx.tree-item]
+            [cljfx.fx.tree-view :as fx.tree-view]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
+            [cljfx.prop :as fx.prop]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
             [editor.ui :as ui]
-            [util.fn :as fn])
+            [internal.util :as util]
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [com.defold.control TreeCell]
            [java.awt Toolkit]
-           [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
            [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
-           [javafx.scene.layout AnchorPane HBox Priority]
-           [javafx.util Callback]))
+           [javafx.scene.layout AnchorPane HBox Priority]))
 
 (set! *warn-on-reflection* true)
 
-(declare tree-item)
-
-(def ^:private ^:dynamic *programmatic-selection* nil)
 (def ^:private ^:dynamic *paste-into-parent* nil)
 
-;; TreeItem creator
-(defn- list-children ^ObservableList [parent]
-  (let [children (:children parent)
-        items (into-array TreeItem (map tree-item children))]
-    (if (empty? children)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
-
-;; NOTE: Without caching stack-overflow... WHY?
-(defn tree-item [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-      (isLeaf []
-        (empty? (:children parent)))
-      (getChildren []
-        (let [this ^TreeItem this
-              ^ObservableList children (proxy-super getChildren)]
-          (when-not @cached
-            (reset! cached true)
-            (.setAll children (list-children parent)))
-          children))
-      (outline/value [^TreeItem this]
-        (.getValue this))
-      (outline/parent [^TreeItem this]
-        (.getParent this)))))
-
-(defrecord TreeItemIterator [^TreeItem tree-item]
-  outline/ItemIterator
-  (value [this] (.getValue tree-item))
-  (parent [this] (when (.getParent tree-item)
-                   (TreeItemIterator. (.getParent tree-item)))))
-
-(defn- ->iterator [^TreeItem tree-item]
-  (TreeItemIterator. tree-item))
-
-(defn- map-filter [filter-fn m]
-  (into {} (filter filter-fn m)))
+(extend-protocol outline/ItemIterator
+  TreeItem
+  (value [this] (.getValue this))
+  (parent [this] (.getParent this)))
 
 (defn- item->node-id [^TreeItem item]
   (:node-id (.getValue item)))
 
-(defn- sync-tree [old-root new-root]
-  (let [item-seq (ui/tree-item-seq old-root)
-        expanded (zipmap (map item->node-id item-seq)
-                         (map #(.isExpanded ^TreeItem %) item-seq))]
-    (doseq [^TreeItem item (ui/tree-item-seq new-root)]
-      (when (get expanded (item->node-id item))
-        (.setExpanded item true))))
-  new-root)
+(defn- auto-expand [selected-node-id->node-id-paths]
+  (->> selected-node-id->node-id-paths
+       (e/mapcat val)
+       (e/mapcat #(e/take-while coll/not-empty (iterate pop (pop %))))
+       (reduce
+         (fn [acc node-id-path]
+           (assoc! acc node-id-path true))
+         (transient {}))
+       persistent!))
 
-(defn- auto-expand [items selected-ids]
-  (transduce
-    (map (fn [^TreeItem item]
-           (let [id (item->node-id item)
-                 selected (boolean (selected-ids id))
-                 expanded (auto-expand (.getChildren item) selected-ids)]
-             (when expanded (.setExpanded item expanded))
-             (or selected expanded))))
-    fn/or
-    false
-    items))
+(defn decorate-outline [outline hidden-node-outline-key-paths outline-name-paths localization-state selection]
+  (letfn [(decorate [{:keys [node-id children] :as outline} node-id-path node-outline-key-path parent-reference?]
+            (let [node-id-path (conj node-id-path node-id)
+                  node-outline-key-path (if (empty? node-outline-key-path)
+                                          [node-id]
+                                          (if-some [node-outline-key (:node-outline-key outline)]
+                                            (conj node-outline-key-path node-outline-key)
+                                            node-outline-key-path))
+                  data (->> children
+                            (localization/sort-if-annotated localization-state)
+                            (mapv #(decorate %
+                                             node-id-path
+                                             node-outline-key-path
+                                             (or parent-reference? (:outline-reference? outline)))))
+                  outline (assoc outline
+                            :node-id-path node-id-path
+                            :node-outline-key-path node-outline-key-path
+                            :parent-reference? parent-reference?
+                            :children (mapv :outline data)
+                            :child-error (boolean (coll/some :child-error data))
+                            :child-overridden (boolean (coll/some :child-overridden data))
+                            :hideable (contains? outline-name-paths (rest node-outline-key-path))
+                            :hidden-parent (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
+                            :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
+                                                :hidden
+                                                :visible))]
+              {:outline outline
+               :child-error (or (:child-error outline) (:outline-error? outline))
+               :child-overridden (or (:child-overridden outline) (:outline-overridden? outline))}))]
+    (let [outline (:outline (decorate outline [] [] (:outline-reference? outline)))
+          node-id->node-id-paths (util/group-into {} [] key val
+                                                  (coll/transfer [outline] :eduction
+                                                    (coll/tree-xf :children :children)
+                                                    (map (coll/pair-fn :node-id :node-id-path))))
+          default-selection (coll/transfer selection {}
+                              (keep #(when-let [node-id-paths (node-id->node-id-paths %)]
+                                       (coll/pair % #{(first node-id-paths)}))))
+          full-expanded (->> node-id->node-id-paths
+                             (e/mapcat val)
+                             (e/mapcat #(e/take-while coll/not-empty (iterate pop %)))
+                             (reduce #(assoc! %1 %2 false) (transient {}))
+                             persistent!)
+          default-expanded (coll/merge
+                             full-expanded
+                             (-> default-selection
+                                 auto-expand
+                                 (assoc (:node-id-path outline) true)))]
+      {:outline outline
+       :default-selected-node-id->node-id-paths default-selection
+       :default-node-id-path->expanded default-expanded})))
 
-(defn- sync-selection [^TreeView tree-view selection old-selected-ids]
-  (let [root (.getRoot tree-view)
-        selection-model (.getSelectionModel tree-view)]
-    (.clearSelection selection-model)
-    (when (and root (not (empty? selection)))
-      (let [selected-ids (set selection)]
-        (when (auto-expand (.getChildren root) selected-ids)
-          (.setExpanded root true))
-        (let [count (.getExpandedItemCount tree-view)
-              selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
-          (when (not (empty? selected-indices))
-            (ui/select-indices! tree-view selected-indices))
-          (when-not (= old-selected-ids selected-ids)
-            (when-some [first-item (first (.getSelectedItems selection-model))]
-              (ui/scroll-to-item! tree-view first-item))))))))
+(def ^:private ext-with-tree-view-props
+  (fx/make-ext-with-props
+    (assoc fx.tree-view/props
+      :selected-node-id-paths
+      (fx.prop/make
+        (fx.mutator/setter
+          (fn set-selected-node-id-paths [^TreeView tree-view new-selected-node-id-paths]
+            (let [selection-model (.getSelectionModel tree-view)
+                  old-selected-node-id-paths (coll/transfer (.getSelectedItems selection-model) #{}
+                                               (keep #(:node-id-path (.getValue ^TreeItem %))))]
+              (when-not (= old-selected-node-id-paths new-selected-node-id-paths)
+                (let [new-selected-indices (coll/transfer (range (.getExpandedItemCount tree-view)) []
+                                             (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
+                  (.clearSelection selection-model)
+                  (when-not (coll/empty? new-selected-indices)
+                    (let [first-index (new-selected-indices 0)
+                          focus-model (.getFocusModel tree-view)]
+                      (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
+                      (ui/scroll-to-item! tree-view (.getTreeItem tree-view first-index))
+                      (ui/run-later (.focus focus-model first-index)))))))))
 
-(defn- decorate
-  ([hidden-node-outline-key-paths root outline-name-paths]
-   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root) outline-name-paths)))
-  ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference? outline-name-paths]
-   (let [node-id-path (conj node-id-path node-id)
-         node-outline-key-path (if (empty? node-outline-key-path)
-                                 [node-id]
-                                 (if-some [node-outline-key (:node-outline-key item)]
-                                   (conj node-outline-key-path node-outline-key)
-                                   node-outline-key-path))
-         data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item)) outline-name-paths) (:children item))
-         item (assoc item
-                :node-id-path node-id-path
-                :node-outline-key-path node-outline-key-path
-                :parent-reference? parent-reference?
-                :children (mapv :item data)
-                :child-error? (boolean (some :child-error? data))
-                :child-overridden? (boolean (some :child-overridden? data))
-                :hideable? (contains? outline-name-paths (rest node-outline-key-path))
-                :hidden-parent? (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
-                :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
-                                    :hidden
-                                    :visible))]
-     {:item item
-      :child-error? (or (:child-error? item) (:outline-error? item))
-      :child-overridden? (or (:child-overridden? item) (:outline-overridden? item))})))
+        fx.lifecycle/scalar))))
 
-(g/defnk produce-tree-root
-  [active-outline active-resource-node open-resource-nodes raw-tree-view hidden-node-outline-key-paths outline-name-paths]
-  (let [resource-node-set (set open-resource-nodes)
-        root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
-        [root outline old-hidden-node-outline-key-paths] (get root-cache active-resource-node)
-        new-root (if (or (not= outline active-outline)
-                         (not= old-hidden-node-outline-key-paths hidden-node-outline-key-paths)
-                         (and (nil? root) (nil? outline)))
-                   (sync-tree root (tree-item (decorate hidden-node-outline-key-paths active-outline outline-name-paths)))
-                   root)
-        new-cache (assoc (map-filter (fn [[resource-node _]]
-                                       (contains? resource-node-set resource-node))
-                                     root-cache)
-                    active-resource-node [new-root active-outline hidden-node-outline-key-paths])]
-    (ui/user-data! raw-tree-view ::root-cache new-cache)
-    new-root))
+;; Iff every item-iterator has the same parent, return that parent, else nil
+(defn- single-parent-it [item-iterators]
+  (when (not-empty item-iterators)
+    (let [parents (map outline/parent item-iterators)]
+      (when (apply = parents)
+        (first parents)))))
 
-(defn- update-tree-view-selection!
-  [^TreeView tree-view selection old-selected-ids]
-  (binding [*programmatic-selection* true]
-    (sync-selection tree-view selection old-selected-ids)
-    tree-view))
+(defn- set-paste-parent! [root-its]
+  (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
 
-(defn- update-tree-view-root!
-  [^TreeView tree-view ^TreeItem root selection old-selected-ids]
-  (binding [*programmatic-selection* true]
-    (when (not (identical? (.getRoot tree-view) root))
-      (when root
-        (.setExpanded root true)
-        (.setRoot tree-view root)))
-    (sync-selection tree-view selection old-selected-ids)
-    tree-view))
+(defn- update-selection! [app-view swap-state active-resource-node tree-items]
+  (set-paste-parent! nil)
+  ;; TODO - handle selection order
+  (swap-state update :active-node-id->selected-node-id->node-id-paths
+              assoc active-resource-node
+              (->> tree-items
+                   (e/keep #(-> ^TreeItem % .getValue))
+                   (util/group-into {} #{} :node-id :node-id-path)))
+  (app-view/select! app-view (coll/transfer tree-items []
+                               (keep #(-> ^TreeItem % .getValue :node-id))
+                               (distinct))))
 
-(g/defnk update-tree-view [^TreeView raw-tree-view ^TreeItem root selection]
-  (let [tree-view-ids (into #{}
-                            (map item->node-id)
-                            (.getSelectedItems (.getSelectionModel raw-tree-view)))]
-    (if (identical? (.getRoot raw-tree-view) root)
-      (if (= (set selection) (set (map :node-id (ui/selection raw-tree-view))))
-        raw-tree-view
-        (update-tree-view-selection! raw-tree-view selection tree-view-ids))
-      (update-tree-view-root! raw-tree-view root selection tree-view-ids))))
+(defn- outline->tree-item [{:keys [node-id-path] :as outline} node-id-path->expanded swap-state active-resource-node]
+  {:fx/type fx.tree-item/lifecycle
+   :value outline
+   :expanded (node-id-path->expanded node-id-path)
+   :on-expanded-changed #(swap-state update :active-node-id->node-id-path->expanded
+                                     update active-resource-node
+                                     assoc node-id-path %)
+   :children (->> outline
+                  :children
+                  (mapv #(outline->tree-item % node-id-path->expanded swap-state active-resource-node)))})
+
+(defn- reset-tree-view-state [old {:keys [active-resource-node selection open-resource-nodes active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]}]
+  (let [ret (-> old
+                (update :active-node-id->selected-node-id->node-id-paths
+                        (fn [old-active-node-id->selected-node-id->node-id-paths]
+                          (let [old-active-node-id->selected-node-id->node-id-paths (select-keys old-active-node-id->selected-node-id->node-id-paths open-resource-nodes)]
+                            (coll/merge-with
+                              (fn [old-selected-node-id->node-id-paths new-selected-node-id->node-id-paths]
+                                (persistent!
+                                  (reduce-kv
+                                    (fn [acc new-selected-node-id _]
+                                      (if-let [old-node-id-paths (old-selected-node-id->node-id-paths new-selected-node-id)]
+                                        (assoc! acc new-selected-node-id old-node-id-paths)
+                                        acc))
+                                    (transient new-selected-node-id->node-id-paths)
+                                    new-selected-node-id->node-id-paths)))
+                              old-active-node-id->selected-node-id->node-id-paths
+                              active-node-id->selected-node-id->node-id-paths))))
+                (assoc :selection selection
+                       :active-resource-node active-resource-node
+                       :open-resource-nodes open-resource-nodes))
+        ret (update ret :active-node-id->node-id-path->expanded
+                    (fn [old-active-node-id->node-id-path->expanded]
+                      (let [old-active-node-id->node-id-path->expanded (select-keys old-active-node-id->node-id-path->expanded open-resource-nodes)
+                            auto-expanded (-> ret
+                                              :active-node-id->selected-node-id->node-id-paths
+                                              (get active-resource-node)
+                                              auto-expand)]
+                        (coll/merge-with
+                          (fn [old-node-id-path->expanded new-node-id-path->expanded]
+                            (persistent!
+                              (reduce-kv
+                                (fn [acc new-node-id-path _]
+                                  (assoc! acc new-node-id-path (boolean (or (old-node-id-path->expanded new-node-id-path)
+                                                                            (auto-expanded new-node-id-path)))))
+                                (transient old-node-id-path->expanded)
+                                new-node-id-path->expanded)))
+                          old-active-node-id->node-id-path->expanded
+                          active-node-id->node-id-path->expanded))))]
+    ret))
+
+(fxui/defc cljfx-tree-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}
+             {:fx/type fxui/ext-memo
+              :fn decorate-outline
+              :args [(:active-outline props)
+                     (:hidden-node-outline-key-paths props)
+                     (:outline-name-paths props)
+                     (:localization-state props)
+                     (set (:selection props))]
+              :key :decorated-outline}
+             {:fx/type fx/ext-state
+              :reset reset-tree-view-state
+              :initial-state
+              (let [{:keys [active-resource-node selection open-resource-nodes decorated-outline]} props
+                    {:keys [default-selected-node-id->node-id-paths default-node-id-path->expanded]} decorated-outline]
+                {:active-node-id->selected-node-id->node-id-paths {active-resource-node default-selected-node-id->node-id-paths}
+                 :active-node-id->node-id-path->expanded {active-resource-node default-node-id-path->expanded}
+                 :active-resource-node active-resource-node
+                 :selection (set selection)
+                 :open-resource-nodes (set open-resource-nodes)})}
+             {:fx/type fx/ext-recreate-on-key-changed
+              :key (:active-resource-node props)}]}
+  [{:keys [tree-view app-view active-resource-node state swap-state decorated-outline]}]
+  (let [{:keys [active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]} state
+        {:keys [outline]} decorated-outline
+        selected-node-id->node-id-paths (get active-node-id->selected-node-id->node-id-paths active-resource-node)
+        node-id-path->expanded (get active-node-id->node-id-path->expanded active-resource-node)]
+    {:fx/type fx.ext.tree-view/with-selection-props
+     :props {:on-selected-items-changed #(update-selection! app-view swap-state active-resource-node %)}
+     :desc
+     {:fx/type ext-with-tree-view-props
+      :props {:root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)
+              :selected-node-id-paths (coll/transfer selected-node-id->node-id-paths #{}
+                                        (mapcat val))}
+      :desc
+      {:fx/type fxui/ext-value :value tree-view}}}))
+
+(g/defnk update-tree-view [raw-tree-view
+                           selection
+                           active-outline
+                           hidden-node-outline-key-paths
+                           outline-name-paths
+                           localization
+                           app-view
+                           active-resource-node
+                           open-resource-nodes]
+  (doto raw-tree-view
+    (fxui/advance-ui-user-data-component!
+      ::tree
+      {:fx/type cljfx-tree-view
+       :tree-view raw-tree-view
+       :selection selection
+       :active-outline active-outline
+       :hidden-node-outline-key-paths hidden-node-outline-key-paths
+       :outline-name-paths outline-name-paths
+       :localization localization
+       :app-view app-view
+       :active-resource-node active-resource-node
+       :open-resource-nodes open-resource-nodes})))
 
 (defn- item->value [^TreeItem item]
   (.getValue item))
@@ -207,7 +291,9 @@
 
 (g/defnode OutlineView
   (property raw-tree-view TreeView)
+  (property localization g/Any)
 
+  (input app-view g/NodeID)
   (input active-outline g/Any :substitute {})
   (input active-resource-node g/NodeID :substitute nil)
   (input open-resource-nodes g/Any :substitute [])
@@ -215,14 +301,11 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input outline-name-paths scene-visibility/OutlineNamePaths)
 
-  (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view)
   (output tree-selection g/Any :cached (g/fnk [tree-view] (ui/selection tree-view)))
-  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (mapv ->iterator (ui/selection-root-items tree-view (comp :node-id-path item->value) (comp :node-id item->value)))))
+  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (vec (ui/selection-root-items tree-view (comp :node-id-path item->value) (comp :node-id item->value)))))
   (output succeeding-tree-selection g/Any :cached (g/fnk [tree-view tree-selection-root-its]
-                                                         (->> tree-selection-root-its
-                                                           (mapv :tree-item)
-                                                           (ui/succeeding-selection tree-view))))
+                                                    (ui/succeeding-selection tree-view tree-selection-root-its)))
   (output alt-tree-selection g/Any :cached (g/fnk [tree-selection]
                                                   (alt-selection tree-selection))))
 
@@ -230,72 +313,69 @@
   [menu-items/open-selected
    menu-items/open-as
    menu-items/separator
-   {:label "Copy Resource Path"
+   {:label (localization/message "command.edit.copy-resource-path")
     :command :edit.copy-resource-path}
-   {:label "Copy Full Path"
+   {:label (localization/message "command.edit.copy-absolute-path")
     :command :edit.copy-absolute-path}
-   {:label "Copy Require Path"
+   {:label (localization/message "command.edit.copy-require-path")
     :command :edit.copy-require-path}
    menu-items/separator
-   {:label "Show in Asset Browser"
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
-   {:label "Show in Desktop"
+   {:label (localization/message "command.file.show-in-desktop")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
-   {:label "Referencing Files..."
+   {:label (localization/message "command.file.show-references")
     :command :file.show-references}
-   {:label "Dependencies..."
+   {:label (localization/message "command.file.show-dependencies")
     :command :file.show-dependencies}
    menu-items/separator
    menu-items/show-overrides
    menu-items/pull-up-overrides
    menu-items/push-down-overrides
    menu-items/separator
-   {:label "Add"
+   {:label (localization/message "command.edit.add-embedded-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-embedded-component
     :expand true}
-   {:label "Add From File"
+   {:label (localization/message "command.edit.add-referenced-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-referenced-component}
-   {:label "Add Secondary"
+   {:label (localization/message "command.edit.add-secondary-embedded-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-secondary-embedded-component}
-   {:label "Add Secondary From File"
+   {:label (localization/message "command.edit.add-secondary-referenced-component")
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-secondary-referenced-component}
    menu-items/separator
-   {:label "Cut"
+   {:label (localization/message "command.edit.cut")
     :command :edit.cut}
-   {:label "Copy"
+   {:label (localization/message "command.edit.copy")
     :command :edit.copy}
-   {:label "Paste"
+   {:label (localization/message "command.edit.paste")
     :command :edit.paste}
-   {:label "Delete"
+   {:label (localization/message "command.edit.delete")
     :icon "icons/32/Icons_M_06_trash.png"
     :command :edit.delete}
    menu-items/separator
-   {:label "Rename..."
+   {:label (localization/message "command.edit.rename")
     :command :edit.rename}
    menu-items/separator
-   {:label "Move Up"
+   {:label (localization/message "command.edit.reorder-up")
     :command :edit.reorder-up}
-   {:label "Move Down"
+   {:label (localization/message "command.edit.reorder-down")
     :command :edit.reorder-down}
    menu-items/separator
-   {:label "Show/Hide Objects"
+   {:label (localization/message "command.scene.visibility.toggle-selection")
     :command :scene.visibility.toggle-selection}
-   {:label "Hide Unselected Objects"
+   {:label (localization/message "command.scene.visibility.hide-unselected")
     :command :scene.visibility.hide-unselected}
-   {:label "Show Last Hidden Objects"
+   {:label (localization/message "command.scene.visibility.show-last-hidden")
     :command :scene.visibility.show-last-hidden}
-   {:label "Show All Hidden Objects"
+   {:label (localization/message "command.scene.visibility.show-all")
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
-
-(defn- selection->nodes [selection]
-  (handler/adapt-every selection Long))
 
 (defn- root-iterators
   ([outline-view]
@@ -315,10 +395,9 @@
                     handler/selection->node-ids)]
          (g/transact
            (concat
-             (g/operation-label "Delete")
+             (g/operation-label (localization/message "operation.delete"))
              (for [node-id (handler/selection->node-ids selection)]
-               (do
-                 (g/delete-node (g/override-root node-id))))
+               (g/delete-node (g/override-root node-id)))
              (when (seq next)
                (app-view/select app-view next)))))))
 
@@ -326,16 +405,6 @@
                       (let [json "application/json"]
                         (or (DataFormat/lookupMimeType json)
                             (DataFormat. (into-array String [json]))))))
-
-;; Iff every item-iterator has the same parent, return that parent, else nil
-(defn- single-parent-it [item-iterators]
-  (when (not-empty item-iterators)
-    (let [parents (map outline/parent item-iterators)]
-      (when (apply = parents)
-        (first parents)))))
-
-(defn- set-paste-parent! [root-its]
-  (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
 
 (handler/defhandler :edit.copy :workbench
   (active? [selection] (handler/selection->node-ids selection))
@@ -383,16 +452,6 @@
                     handler/selection->node-ids)]
          (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
 
-(defn- dump-mouse-event [^MouseEvent e]
-  (prn "src" (.getSource e))
-  (prn "tgt" (.getTarget e)))
-
-(defn- dump-drag-event [^DragEvent e]
-  (prn "src" (.getSource e))
-  (prn "tgt" (.getTarget e))
-  (prn "ges-src" (.getGestureSource e))
-  (prn "ges-tgt" (.getGestureTarget e)))
-
 (defn- drag-detected [project outline-view ^MouseEvent e]
   (let [item-iterators (root-iterators outline-view)]
     (when (outline/drag? item-iterators)
@@ -430,7 +489,7 @@
           (let [item-iterators (if (ui/drag-internal? e)
                                  (root-iterators outline-view)
                                  [])]
-            (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
+            (when (outline/drop? project item-iterators (.getTreeItem cell)
                                  (.getContent db (data-format-fn)))
               (let [modes (if (ui/drag-internal? e)
                             [TransferMode/MOVE]
@@ -444,7 +503,7 @@
     (let [item-iterators (if (ui/drag-internal? e)
                            (root-iterators outline-view)
                            [])]
-      (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
+      (when (outline/drop! project item-iterators (.getTreeItem cell)
                            (.getContent db (data-format-fn)) (partial app-view/select app-view))
         (.setDropCompleted e true)
         (.consume e)))))
@@ -458,7 +517,7 @@
       (let [item-iterators (if (ui/drag-internal? e)
                              (root-iterators outline-view)
                              [])]
-        (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
+        (when (outline/drop? project item-iterators (.getTreeItem cell)
                              (.getContent db (data-format-fn)))
           (ui/add-style! cell "drop-target")))
 
@@ -581,7 +640,7 @@
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
 
 (defn make-tree-cell
-  [^TreeView tree-view drag-entered-handler drag-exited-handler]
+  [^TreeView tree-view drag-entered-handler drag-exited-handler localization]
   (let [eye-icon-open (icons/make-svg-icon-graphic eye-open-path)
         eye-icon-closed (icons/make-svg-icon-graphic eye-closed-path)
         image-view-icon (ImageView.)
@@ -622,24 +681,25 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [node-id label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
+                     (let [{:keys [node-id label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error child-overridden scene-visibility hideable node-outline-key-path hidden-parent]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
-                           show-link? (and (some? link)
-                                           (or outline-reference? outline-show-link?))
-                           text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
+                           show-link (and (some? link)
+                                          (or outline-reference? outline-show-link?))
+                           message (if show-link (localization/join " - " [label (resource/resource->proj-path link)]) label)
                            hidden? (= :hidden scene-visibility)
                            visibility-icon (if hidden? eye-icon-closed eye-icon-open)
                            editing? (= node-id (ui/user-data tree-view ::editing-id))]
                        (.setImage image-view-icon (icons/get-image icon))
-                       (.setText text-label text)
+                       (localization/localize! text-label localization message)
                        (ui/user-data! text-field ::node-id node-id)
                        (ui/user-data! text-label ::node-id node-id)
                        (doto visibility-button
                          (.setGraphic visibility-icon)
                          (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
                        (proxy-super setGraphic pane)
-                       (when-let [[r g b a] color]
-                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
+                       (.setStyle text-label
+                                  (when-let [[r g b a] color]
+                                    (format "-fx-text-fill: rgba(%d, %d, %d %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)) (int (* 255 a)))))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))
@@ -652,16 +712,16 @@
                        (if outline-overridden?
                          (ui/add-style! this "overridden")
                          (ui/remove-style! this "overridden"))
-                       (if child-error?
+                       (if child-error
                          (ui/add-style! this "child-error")
                          (ui/remove-style! this "child-error"))
-                       (if child-overridden?
+                       (if child-overridden
                          (ui/add-style! this "child-overridden")
                          (ui/remove-style! this "child-overridden"))
-                       (if hideable?
+                       (if hideable
                          (ui/add-style! this "hideable")
                          (ui/remove-style! this "hideable"))
-                       (if hidden-parent?
+                       (if hidden-parent
                          (ui/add-style! this "hidden-parent")
                          (ui/remove-style! this "hidden-parent"))
                        (if hidden?
@@ -682,13 +742,6 @@
     (g/node-value outline-view :succeeding-tree-selection))
   (alt-selection [this]
     (g/node-value outline-view :alt-tree-selection)))
-
-(defn- propagate-selection [selected-items app-view]
-  (when-not *programmatic-selection*
-    (set-paste-parent! nil)
-    (when-let [selection (into [] (keep :node-id) selected-items)]
-      ;; TODO - handle selection order
-      (app-view/select! app-view selection))))
 
 (defn key-pressed-handler!
   [app-view ^TreeView tree-view ^KeyEvent event]
@@ -712,7 +765,7 @@
 
       nil)))
 
-(defn- setup-tree-view [project ^TreeView tree-view outline-view app-view]
+(defn- setup-tree-view [project ^TreeView tree-view outline-view app-view localization]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
@@ -723,15 +776,20 @@
                             (cancel-rename! tree-view)))
       (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
-      (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
-      (ui/observe-selection #(propagate-selection %2 app-view))
+      (.setCellFactory #(make-tree-cell % drag-entered-handler drag-exited-handler localization))
       (ui/register-context-menu ::outline-menu)
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
 
-(defn make-outline-view [view-graph project tree-view app-view]
-  (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]
-    (setup-tree-view project tree-view outline-view app-view)
+(defn make-outline-view [view-graph project tree-view app-view localization]
+  (let [outline-view (first
+                       (g/tx-nodes-added
+                         (g/transact
+                           (g/make-nodes view-graph [outline-view [OutlineView
+                                                                   :raw-tree-view tree-view
+                                                                   :localization localization]]
+                             (g/connect app-view :_node-id outline-view :app-view)))))]
+    (setup-tree-view project tree-view outline-view app-view localization)
     outline-view))

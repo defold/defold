@@ -23,97 +23,101 @@ env:
 
 
 jobs:
-  build-editor:
+  build-editor-linux:
     runs-on: ubuntu-22.04
+    timeout-minutes: 60
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
       },
-      { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
-        run: 'ci/ci.sh build-editor'
+        run: 'ci/ci.sh build-editor --platform=x86_64-linux'
       },
       {
         name: 'Archive editor',
-        run: 'ci/ci.sh archive-editor'
-      }]
-
-  sign-editor-macos:
-    needs: [build-editor]
+        run: 'ci/ci.sh archive-editor --platform=x86_64-linux'
+      }
+    ]
+  
+  build-editor-macos:
     runs-on: macOS-14
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
-        name: 'Download editor',
-        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
       },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
       {
         name: 'Install dependencies',
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
-        name: 'Sign editor',
-        run: 'ci/ci.sh sign-editor --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Notarize editor',
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+        name: 'Build editor',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
       },
       {
         name: 'Archive editor',
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
-      }]
+      }
+    ]
 
-  sign-editor-windows:
-    needs: [build-editor]
-    runs-on: ubuntu-22.04
+  build-editor-windows:
+    runs-on: windows-2025
+    timeout-minutes: 60
     strategy:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       {
-        name: 'Download editor',
-        shell: bash,
-        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          fetch-tags: true
+        }
       },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
+      { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } },
       {
         name: 'Install dependencies',
         shell: bash,
         run: 'ci/ci.sh install'
       },
       {
-        name: 'Install ext dependencies',
+        name: 'Build editor',
         shell: bash,
-        run: 'ci/ci.sh install_ext --platform=${{ matrix.platform }}'
-      },
-      {
-        name: 'Sign editor',
-        shell: bash,
-        run: 'ci/ci.sh sign-editor --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}" --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Archive editor',
         shell: bash,
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
-      }]
+      }
+    ]
 
 # ---- RELEASE ------------------
 
   release:
-    needs: [sign-editor-macos, sign-editor-windows]
+    needs: [build-editor-macos, build-editor-windows, build-editor-linux]
     runs-on: ubuntu-22.04
     steps: [
       {

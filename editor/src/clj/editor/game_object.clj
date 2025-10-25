@@ -14,7 +14,6 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.attachment :as attachment]
@@ -28,6 +27,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -89,10 +89,11 @@
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
     (let [rt (resource/resource-type resource)
-          label (or (:label rt) (:ext rt) "unknown")
+          outline-key (or (:label rt) (:ext rt) "unknown")
+          label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
           icon (or (:icon rt) unknown-icon)]
       {:node-id (:node-id err)
-       :node-outline-key label
+       :node-outline-key outline-key
        :label label
        :icon icon})
     {:node-id -1
@@ -441,9 +442,9 @@
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :node-outline-key "Game Object"
-   :label "Game Object"
+   :label (localization/message "outline.game-object")
    :icon game-object-common/game-object-icon
-   :children (outline/natural-sort child-outlines)
+   :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn outline-attach-ref-component}
                 {:node-type EmbeddedComponent
@@ -502,11 +503,15 @@
   (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
-        (g/operation-label "Add Component")
+        (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-component go-id resource id nil nil select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
-  (when-let [resources (resource-dialog/make workspace project {:ext (get-all-comp-exts workspace) :title "Select Component File" :selection :multiple})]
+  (when-let [resources (resource-dialog/make
+                         workspace project
+                         {:ext (get-all-comp-exts workspace)
+                          :title (localization/message "dialog.select-component-file.title")
+                          :selection :multiple})]
     (doseq [resource resources]
       (add-referenced-component! go-id resource select-fn))))
 
@@ -514,8 +519,8 @@
   (g/override-root (handler/adapt-single selection GameObjectNode)))
 
 (handler/defhandler :edit.add-referenced-component :workbench
+  :label (localization/message "command.edit.add-referenced-component.variant.game-object")
   (active? [selection] (selection->game-object selection))
-  (label [] "Add Component File")
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
@@ -553,19 +558,13 @@
         id (gen-component-id go-id (:ext resource-type))]
     (g/transact
       (concat
-        (g/operation-label "Add Component")
+        (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-embedded-component go-id project (:ext resource-type) pb-map id nil select-fn)))))
 
 (defn- add-embedded-component-handler [user-data select-fn]
   (let [go-id (:_node-id user-data)
         resource-type (:resource-type user-data)]
     (add-embedded-component! go-id resource-type select-fn)))
-
-(defn add-embedded-component-label [user-data]
-  (if-not user-data
-    "Add Component"
-    (let [rt (:resource-type user-data)]
-      (or (:label rt) (:ext rt)))))
 
 (defn- embeddable-component-resource-type? [resource-type workspace evaluation-context]
   (let [{:keys [tags] :as resource-type} resource-type]
@@ -586,15 +585,19 @@
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
     (->> (embeddable-component-resource-types workspace)
-         (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                              :icon (:icon res-type)
-                              :command :edit.add-embedded-component
-                              :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
-         (sort-by :label)
-         vec)))
+         (mapv (fn [res-type]
+                 {:label (or (:label res-type) (:ext res-type))
+                  :icon (:icon res-type)
+                  :command :edit.add-embedded-component
+                  :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
+         (localization/annotate-as-sorted localization/natural-sort-by-label))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [user-data] (add-embedded-component-label user-data))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.game-object")
+      (let [rt (:resource-type user-data)]
+        (or (:label rt) (:ext rt)))))
   (active? [selection] (selection->game-object selection))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]

@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.data.json :as json]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
@@ -276,6 +276,14 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
+(defn- validate-service-port [port-str]
+  (when port-str
+    (try
+      (let [port (Integer/parseInt port-str)]
+        (when (<= 0 port 65535)
+          (str port)))
+      (catch Exception _))))
+
 (defn launch! [^File engine project-directory prefs debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
@@ -295,7 +303,8 @@
 
                      (not (str/blank? engine-arguments))
                      (into (remove str/blank?) (split-lines engine-arguments)))
-        env {"DM_SERVICE_PORT" "dynamic"
+        env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
+                                   "dynamic")
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)

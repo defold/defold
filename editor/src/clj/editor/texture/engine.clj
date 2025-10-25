@@ -13,15 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.texture.engine
-  (:require [clojure.string :as string]
-            [editor.buffers :as buffers]
+  (:require [editor.buffers :as buffers]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.image-util :refer [image-pixels]]
             [editor.ui :as ui]
             [internal.java :as java]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.defold.extension.pipeline.texture TextureCompression ITextureCompressor]
            [com.dynamo.bob ClassLoaderScanner]
            [com.dynamo.bob.pipeline Texc$PixelFormat TexcLibraryJni]
@@ -102,9 +102,11 @@
         compressed-buffer (TexcLibraryJni/CompressBuffer uncompressed-bytes) ; Texc.Buffer from Texc.java
         compressed-data (.data compressed-buffer)
         data-with-header (doto (ByteBuffer/allocateDirect (+ 1 (alength compressed-data)))
-                                                  (.put (byte 1)) ; First byte is the header, where 0 = uncompressed, and 1 = compressed
-                                                  (.put compressed-data) ; the payload
-                                                  (.flip))]
+                           ;; First byte is the header, where 0 = uncompressed, and 1 = compressed
+                           (.put (byte 1))
+                           ;; the payload
+                           (.put compressed-data)
+                           (.flip))]
     data-with-header))
 
 (defn- try-initialize-texture-compressors [^ClassLoader class-loader]
@@ -129,28 +131,24 @@
             (TextureCompression/registerCompressor texture-compressor-instance)))
         texture-compressor-classes))
 
-(defn- report-error! [error-message faulty-class-names]
+(defn- report-error! [faulty-class-names localization]
   (ui/run-later
     (dialogs/make-info-dialog
-      {:title "Unable to Load Plugin"
+      localization
+      {:title (localization/message "dialog.texture-compressor-error.title")
        :size :large
        :icon :icon/triangle-error
        :always-on-top true
-       :header error-message
-       :content (string/join
-                  "\n"
-                  (concat
-                    ["The following classes from editor plugins are not compatible with this version of the editor:"
-                     ""]
-                    (map dialogs/indent-with-bullet
-                         (sort faulty-class-names))
-                    [""
-                     "The project might not build without them."
-                     "Please edit your project dependencies to refer to a suitable version."]))})))
+       :header (localization/message "dialog.texture-compressor-error.header")
+       :content (localization/message "dialog.texture-compressor-error.content"
+                                      {"classes" (->> faulty-class-names
+                                                      sort
+                                                      (map dialogs/indent-with-bullet)
+                                                      (coll/join-to-string "\n"))})})))
 
-(defn reload-texture-compressors! [^ClassLoader class-loader]
+(defn reload-texture-compressors! [^ClassLoader class-loader localization]
   (let [{:keys [texture-compressor-classes faulty-class-names]}
         (try-initialize-texture-compressors class-loader)]
     (if (seq faulty-class-names)
-      (report-error! "Failed to initialize texture compressors" faulty-class-names)
+      (report-error! faulty-class-names localization)
       (set-texture-compressors! texture-compressor-classes))))

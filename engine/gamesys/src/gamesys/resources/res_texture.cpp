@@ -486,6 +486,8 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
         TextureResource* texture_res = new TextureResource();
+        texture_res->m_OriginalWidth = 0;
+        texture_res->m_OriginalHeight = 0;
 
         if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
@@ -494,6 +496,9 @@ namespace dmGameSystem
             if (r == dmResource::RESULT_OK)
             {
                 dmResource::SetResource(params->m_Resource, texture_res);
+
+                texture_res->m_OriginalWidth = dmGraphics::GetOriginalTextureWidth(graphics_context, texture_res->m_Texture);
+                texture_res->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(graphics_context, texture_res->m_Texture);
             }
             else
             {

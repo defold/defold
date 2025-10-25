@@ -20,6 +20,7 @@
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -323,13 +324,13 @@
 
 (defn- show-error-message [exception workspace]
   (ui/run-later
-    (let [msg (str (ex-message exception) "\n\n"
-                   "The target you have chosen isn't available")]
-      (notifications/show!
-        (workspace/notifications workspace)
-        {:type :error
-         :id ::target-connection-error
-         :text msg}))))
+    (notifications/show!
+      (workspace/notifications workspace)
+      {:type :error
+       :id ::target-connection-error
+       :message (localization/message
+                  "notification.targets.selected-target-unavailable.error"
+                  {"error" (or (ex-message exception) (.getSimpleName (class exception)))})})))
 
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
@@ -339,33 +340,41 @@
       (console/set-log-service-stream log-stream)))
   target)
 
-(defn- url-string [url-string]
+(defn- url-message
+  "Returns localization MessagePattern (or string)"
+  [url-string]
   (try
     (if (nil? url-string)
-      "engine service not available"
+      (localization/message "engine.url.unavailable")
       (let [url (URL. url-string)
             host (.getHost url)
             port (.getPort url)]
         (str host (when (not= port -1) (str ":" port)))))
     (catch Exception _
-      "invalid host")))
+      (localization/message "engine.url.invalid-host"))))
 
-(defn target-menu-label [target]
-  (let [instance-index (:instance-index target)]
-    (format "%s - %s %s"
-           (str (if (local-target? target) "Local " "") (:name target))
-           (url-string (:url target))
-           (if (or (nil? instance-index) (= instance-index 0))
-             ""
-             (format "- instance %d" instance-index)))))
+(defn target-message
+  "Returns localization MessagePattern (or string)"
+  [target]
+  (let [{:keys [url name]} target
+        name-message (if (local-target? target)
+                       (localization/message "engine.name.local" {"name" name})
+                       name)]
+    (if (some? url)
+      (localization/message "engine.name.with-url" {"name" name-message "url" (url-message url)})
+      name-message)))
 
-(defn target-message-label [target]
-  (let [url (:url target)]
-    (str (when (local-target? target) "Local ") (:name target)
-         (when (some? url) (str " - " (url-string url))))))
+(defn target-menu-item-message
+  "Returns localization MessagePattern (or string)"
+  [target]
+  (let [instance-index (:instance-index target)
+        target-message (target-message target)]
+    (if (or (nil? instance-index) (= instance-index 0))
+      target-message
+      (localization/message "engine.name.with-instance" {"name" target-message "instance" instance-index}))))
 
 (defn- target-option [target]
-  {:label     (target-menu-label target)
+  {:label     (target-menu-item-message target)
    :command   :run.select-target
    :check     true
    :user-data target})
@@ -392,11 +401,22 @@
         (cond
           (seq launched-options)
           (if (> (count launched-options) 1)
-            (into [{:label "All Launched Instances" :check true :command :run.select-target :user-data {:id :all-launched-targets}}] (concat launched-options [separator] ssdp-options))
+            (into [{:label (localization/message "command.run.select-target.option.all-launched-instances")
+                    :check true
+                    :command :run.select-target
+                    :user-data {:id :all-launched-targets}}]
+                  (concat launched-options
+                          [separator]
+                          ssdp-options))
             (into launched-options (concat [separator] ssdp-options)))
 
           :else
-          (into [{:label "New Local Engine" :check true :command :run.select-target :user-data :new-local-engine} separator] ssdp-options))))))
+          (into [{:label (localization/message "command.run.select-target.option.new-local-engine")
+                  :check true
+                  :command :run.select-target
+                  :user-data :new-local-engine}
+                 separator]
+                ssdp-options))))))
 
 (defn- locate-device [ip port]
   (when (not-empty ip)
@@ -413,9 +433,9 @@
         (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
 
 (handler/defhandler :run.set-target-ip :global
-  (run [prefs]
+  (run [prefs localization]
     (ui/run-later
-      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil)]
+      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil localization)]
         (when (some? manual-ip+port)
           (prefs/set! prefs [:run :manual-target-ip+port] manual-ip+port)
           (let [[manual-ip port] (str/split manual-ip+port #":")
@@ -427,15 +447,15 @@
                 error-msg (or (and (string? target) target)
                               (and (string? device) device))]
             (if error-msg
-              (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
+              (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg localization))
               (do
                 (reset! manual-device device)
                 (select-target! prefs target)
                 (invalidate-target-menu!)))))))))
 
 (handler/defhandler :run.show-target-log :global
-  (run []
-    (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
+  (run [localization]
+    (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart localization)))
 
 (handler/defhandler :run.stop :global
   (enabled? [app-view] (launched-targets?))
@@ -444,17 +464,17 @@
        (kill-launched-targets!)))
 
 (handler/register-menu! ::menubar :editor.defold-project/targets
-  [{:label "Target"
+  [{:label (localization/message "command.run.select-target")
     :id ::target
     :on-submenu-open update!
     :command :run.select-target
     :expand true}
-   {:label "Close Engine"
+   {:label (localization/message "command.run.stop")
     :command :run.stop}
-   {:label "Launched Instance Count"
+   {:label (localization/message "command.run.set-instance-count")
     :command :run.set-instance-count
     :expand true}
-   {:label "Enter Target IP"
+   {:label (localization/message "command.run.set-target-ip")
     :command :run.set-target-ip}
-   {:label "Target Discovery Log"
+   {:label (localization/message "command.run.show-target-log")
     :command :run.show-target-log}])

@@ -88,20 +88,12 @@ namespace dmResource
     Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
-     * Gets the normalized resource path: "/my//icon.texturec" -> "/my/icon.texturec". "my/icon.texturec" -> "/my/icon.texturec".
-     * @param relative_dir the relative dir of the resource
-     * @param buf the result of the operation
-     * @return the length of the buffer
-     */
-    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
-
-    /**
      * Gets the actual resource path e.g. "base_dir/my/icon.texturec".
      * @param relative_dir the relative dir of the resource
      * @param buf the result of the operation
      * @return the length of the buffer
      */
-    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
+    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf, uint32_t buf_len);
 
     // For debugging
     void PrintHash(const uint8_t* hash, uint32_t len);

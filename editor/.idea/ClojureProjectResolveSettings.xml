@@ -8,6 +8,7 @@
     <item key="util.defonce/protocol" resolves-as="clojure.core/defprotocol" />
     <item key="dynamo.graph/defnk" resolves-as="clojure.core/defn" />
     <item key="editor.editor-extensions.runtime/varargs-lua-fn" resolves-as="clojure.core/fn" />
+    <item key="util.defonce/interface" resolves-as="clojure.core/definterface" />
     <item key="editor.git-test/with-git" resolves-as="clojure.core/let" />
     <item key="util.defonce/record" resolves-as="clojure.core/defrecord" />
     <item key="editor.git-test/with-new-git" resolves-as="clojure.core/def" />

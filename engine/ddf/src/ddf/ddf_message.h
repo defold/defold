@@ -42,6 +42,7 @@ namespace dmDDF
         void     SetString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     AddString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     SetBytes(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
+        void     SetOneOf(const Descriptor* desc, const FieldDescriptor* field);
 
         Message  SubMessage(const FieldDescriptor* field);
 

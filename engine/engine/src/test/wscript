@@ -92,9 +92,11 @@ def build(bld):
         bob_flags.append("--use-vanilla-lua")
     bob_flags = ' '.join(bob_flags)
 
+    classpath = os.pathsep.join(['./build/content/bob-engine.jar'] + bld.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR'])
+
     # Clean folder
     bld(rule = run_bob,
-        run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test clean',
+        run_args = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test clean',
         source = 'wscript',
         always = True)
 
@@ -103,12 +105,12 @@ def build(bld):
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,
-            run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
+            run_args = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
             source = 'wscript',
             always = True)
 
     # Build main setup
-    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test build %s' % bob_flags
+    bob_command = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s' % bob_flags
     bld.add_group()
     bld(rule = run_bob,
         run_args = bob_command,

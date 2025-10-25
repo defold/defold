@@ -86,18 +86,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
-    static private String compileSPIRVToHLSL(String resourcePath, byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
-        File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-        FileUtil.deleteOnExit(file_in_spv);
-        FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
-
-        File file_out_hlsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".hlsl");
-        FileUtil.deleteOnExit(file_out_hlsl);
-        generateHLSL(resourcePath, file_in_spv.getAbsolutePath(), file_out_hlsl.getAbsolutePath());
-        return FileUtils.readFileToString(file_out_hlsl);
-    }
-
-
     private SPIRVCompileResult compileGLSLToSPIRV(ShaderModuleLegacy moduleLegacy, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
 
         SPIRVCompileResult res = new SPIRVCompileResult();
@@ -264,8 +252,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();
             return result;
-        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
-            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(shaderType, shaderLanguage, this.ShaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL));
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+                  shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50) {
+            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(shaderType, shaderLanguage, this.ShaderLanguageToVersion(shaderLanguage));
             if (result.data == null) {
                 throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
             }

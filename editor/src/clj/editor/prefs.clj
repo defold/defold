@@ -41,11 +41,10 @@
     :default    explicit default value to use instead of a type default
     :scope      either :global or :project
     :ui         the ui configuration, a map with the following keys:
-                  :label          short description of the schema, a string
-                  :description    longer description of the schema, a string
                   :multiline      for string inputs: whether to show a multiline
                                   text-area, a boolean
-                  :prompt         for string inputs: prompt text
+                  :prompt         for string inputs: unlocalizable prompt text
+                                  (e.g., a URL)
                   :type           different schema type, the input should
                                   support the value
 
@@ -54,11 +53,9 @@
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
   (:refer-clojure :exclude [get set?])
-  (:require [camel-snake-kebab :as camel]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [clojure.string :as string]
             [cognitect.transit :as transit]
             [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
@@ -78,36 +75,30 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple]
+#_[:any :boolean :string :password :locale :keyword :integer :number :array :set :object :object-of :enum :tuple]
 
 (def default-schema
   {:type :object
    :properties
    {:asset-browser {:type :object
                     :properties
-                    {:track-active-tab {:type :boolean
-                                        :ui {:label "Track Active Tab in Asset Browser"}}}}
+                    {:track-active-tab {:type :boolean}}}
     :input {:type :object
             :properties
-            {:keymap-path {:type :string
-                           :ui {:label "Path to Custom Keymap"}}}}
+            {:keymap-path {:type :string}}}
     :code {:type :object
            :properties
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
             :open-file-at-line {:type :string
-                                :default "{file}:{line}"
-                                :ui {:label "Open File at Line"}}
-            :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
+                                :default "{file}:{line}"}
+            :zoom-on-scroll {:type :boolean}
             :hover {:type :boolean
-                    :default true
-                    :ui {:label "Hover popup"
-                         :description "Show code documentation popup on hover"}}
+                    :default true}
             :font {:type :object
                    :properties
                    {:name {:type :string
-                           :default "Dejavu Sans Mono"
-                           :ui {:label "Code Editor Font (Requires Restart)"}}
+                           :default "Dejavu Sans Mono"}
                     :size {:type :number :default 12.0}}}
             :find {:type :object
                    :scope :project
@@ -118,8 +109,7 @@
                     :case-sensitive {:type :boolean}
                     :wrap {:type :boolean :default true}}}
             :auto-closing-parens {:type :boolean
-                                  :default true
-                                  :ui {:label "Auto-insert closing parens"}}
+                                  :default true}
             :visibility {:type :object
                          :properties
                          {:indentation-guides {:type :boolean :default true}
@@ -127,12 +117,8 @@
                           :whitespace {:type :boolean :default true}}}}}
     :tools {:type :object
             :properties
-            {:adb-path {:type :string
-                        :ui {:label "ADB path"
-                             :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}}
-             :ios-deploy-path {:type :string
-                               :ui {:label "ios-deploy path"
-                                    :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}}
+            {:adb-path {:type :string}
+             :ios-deploy-path {:type :string}}}
     :extensions {:type :object
                  :properties
                  {:build-server {:type :string
@@ -155,26 +141,23 @@
             :scope :project
             :properties
             {:lint-code {:type :boolean
-                         :default true
-                         :ui {:label "Lint Code on Build"}}
-             :texture-compression {:type :boolean
-                                   :ui {:label "Enable Texture Compression"}}
+                         :default true}
+             :texture-compression {:type :boolean}
              :open-html5-build {:type :boolean
-                                :default true
-                                :ui {:label "Open Browser After `Build HTML5`"}}}}
+                                :default true}}}
     :bundle {:type :object
              :scope :project
              :properties
              {:last-bundle-command {:type :any}
               :output-directory {:type :string}
               :open-output-directory {:type :boolean
-                                      :default true
-                                      :ui {:label "Open Bundle Target Folder"}}}}
+                                      :default true}}}
     :window {:type :object
              :properties
              {:dimensions {:type :any}
               :split-positions {:type :any}
               :hidden-panes {:type :set :item {:type :keyword}}
+              :locale {:type :locale}
               :keymap {:type :object-of
                        :key {:type :keyword} ;; command
                        :val {:type :object
@@ -185,8 +168,9 @@
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
-                                                     :default true
-                                                     :ui {:label "Load External Changes on App Focus"}}
+                                                     :default true}
+                :save-on-app-focus-lost {:type :boolean
+                                         :default false}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
@@ -203,15 +187,12 @@
           {:instance-count {:type :integer :default 1 :scope :project}
            :selected-target-id {:type :any}
            :manual-target-ip+port {:type :string}
-           :quit-on-escape {:type :boolean
-                            :ui {:label "Escape Quits Game"}}
+           :quit-on-escape {:type :boolean}
            :simulate-rotated-device {:type :boolean :scope :project}
            :simulated-resolution {:type :any :scope :project}
            :engine-arguments {:type :string
                               :scope :project
-                              :ui {:multiline true
-                                   :prompt "One argument per line"
-                                   :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
+                              :ui {:multiline true}}}}
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
@@ -250,6 +231,7 @@
     :boolean (boolean? value)
     :string (string? value)
     :password (string? value)
+    :locale (string? value)
     :keyword (keyword? value)
     :integer (int? value)
     :number (number? value)
@@ -285,6 +267,7 @@
         :boolean false
         :string ""
         :password ""
+        :locale "en"
         :keyword nil
         :integer 0
         :number 0.0
@@ -335,15 +318,13 @@
 (defn- default-valid? [schema]
   (let [v (:default schema ::not-found)]
     (or (identical? v ::not-found) (valid? schema v))))
-(s/def ::label string?)
-(s/def ::description string?)
 (s/def ::multiline boolean?) ;; for string schemas
 (s/def ::prompt string?) ;; for textual inputs
 (s/def ::ui
-  (s/keys :opt-un [::label ::description ::multiline ::prompt ::type]))
+  (s/keys :opt-un [::multiline ::prompt ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(s/def ::type #{:any :boolean :string :password :locale :keyword :integer :number :array :set :object :object-of :enum :tuple})
 (defmulti type-spec :type)
 (s/def ::schema
   (s/and
@@ -751,16 +732,6 @@
    (schema @global-state prefs path))
   ([current-state prefs path]
    (combined-schema-at-path (:registry current-state) prefs path)))
-
-(defn label
-  ([prefs path]
-   (label @global-state prefs path))
-  ([current-state prefs path]
-   {:pre [(vector? path)]}
-   (or (:label (:ui (schema current-state prefs path)))
-       (if-let [path-keyword (peek path)]
-         (string/trim (camel/->TitleCase (name path-keyword)))
-         "Value"))))
 
 (defn register-schema!
   "Register a new schema, e.g. a project-specific one"

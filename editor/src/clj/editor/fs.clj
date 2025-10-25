@@ -19,11 +19,12 @@
   (:import [clojure.lang IReduceInit]
            [java.awt Desktop Desktop$Action]
            [java.io BufferedInputStream BufferedOutputStream File FileNotFoundException IOException RandomAccessFile]
+           [java.net URI URL URLDecoder]
            [java.nio.channels OverlappingFileLockException]
            [java.nio.charset Charset StandardCharsets]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileSystems FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
-           [java.util UUID]))
+           [java.util Map UUID]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,6 +48,12 @@
 
   Path
   (as-path [this] this)
+
+  URI
+  (as-path [this] (Path/of this))
+
+  URL
+  (as-path [this] (as-path (.toURI this)))
 
   String
   (as-path [this] (Path/of this empty-string-array)))
@@ -699,6 +706,31 @@
                  FileVisitResult/CONTINUE))))
 
          (unreduced @acc-vol))))))
+
+(defn class-path-walker [^ClassLoader class-loader dir-path]
+  (reify IReduceInit
+    (reduce [_ f init]
+      (let [enumeration (.getResources class-loader dir-path)]
+        (loop [acc init]
+          (if (.hasMoreElements enumeration)
+            (let [^URL url (.nextElement enumeration)
+                  url-str (str url)
+                  acc (cond
+                        (.startsWith url-str "file:")
+                        (reduce (coll/preserving-reduced f) acc (path-walker (path url)))
+
+                        (.startsWith url-str "jar:")
+                        (let [[file-uri-str entry-path] (string/split (URLDecoder/decode (.getPath url) StandardCharsets/UTF_8) #"!" 2)
+                              [file-scheme file-path] (string/split file-uri-str #":" 2)]
+                          (with-open [fs (^[Path Map] FileSystems/newFileSystem (path (URI. file-scheme nil file-path nil)) {})]
+                            (reduce (coll/preserving-reduced f) acc (path-walker (.getPath fs entry-path empty-string-array)))))
+
+                        :else
+                        (throw (IllegalArgumentException. (str "Unsupported URL scheme: " url))))]
+              (if (reduced? acc)
+                @acc
+                (recur acc)))
+            acc))))))
 
 (defn file-walker
   "Given a directory File, returns a reducible that walks over all Files in

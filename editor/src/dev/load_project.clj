@@ -17,6 +17,8 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.localization :as localization]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.shared-editor-settings :as shared-editor-settings]
@@ -105,7 +107,9 @@
 (defonce runtime (Runtime/getRuntime))
 (defonce start-allocated-bytes (du/allocated-bytes runtime))
 (defonce start-time-nanos (System/nanoTime))
-(defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path) :cache-retain? project/cache-retain?))
+(defonce prefs (prefs/project project-path))
+(defonce localization (localization/make prefs ::load-project {}))
+(defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
 (defonce workspace-graph-id (g/last-graph-added))
 

@@ -18,6 +18,7 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -36,6 +37,7 @@
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.types :as types]
@@ -229,7 +231,7 @@
                                      :style-class "cross"}
                            :on-action {:event-type :delete :index i}}]}}))
 
-(defn- filter-console-view [^Node filter-console-button {:keys [open enabled filters text]}]
+(defn- filter-console-view [^Node filter-console-button localization {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
         show-counter (and enabled (pos? active-filters-count))
         anchor (.localToScreen filter-console-button
@@ -271,14 +273,15 @@
                                     :style-class "console-filter-popup-background"}
                                    {:fx/type fx.v-box/lifecycle
                                     :children
-                                    [{:fx/type fx.check-box/lifecycle
-                                      :focus-traversable false
-                                      :max-width ##Inf
+                                    [{:fx/type fxui/ext-localize
                                       :v-box/margin 4
-                                      :id "global-console-filtering"
-                                      :selected enabled
-                                      :on-selected-changed {:event-type :toggle-global-filtering}
-                                      :text "Enable filtering"}
+                                      :localization localization
+                                      :message (localization/message "console.filter.enable-filtering")
+                                      :desc {:fx/type fx.check-box/lifecycle
+                                             :focus-traversable false
+                                             :max-width ##Inf
+                                             :selected enabled
+                                             :on-selected-changed {:event-type :toggle-global-filtering}}}
                                      {:fx/type fx.separator/lifecycle
                                       :style-class "console-filter-popup-separator"}
                                      {:fx/type fx.list-view/lifecycle
@@ -287,15 +290,18 @@
                                       :items (into [] (map-indexed coll/pair) filters)
                                       :fixed-cell-size 27
                                       :max-height (* 27 (min 10 (count filters)))
-                                      :cell-factory {:fx/cell-type :list-cell
+                                      :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                      :describe filter-console-list-cell-view}}
                                      {:fx/type fxui/ext-focused-by-default
                                       :v-box/margin 4
-                                      :desc {:fx/type fx.text-field/lifecycle
-                                             :text text
-                                             :on-text-changed {:event-type :type}
-                                             :on-action {:event-type :add}
-                                             :prompt-text "Add filter (e.g. text, !exclude)"}}]}]}]}}))
+                                      :desc {:fx/type fxui/ext-localize
+                                             :localization localization
+                                             :message (localization/message "console.filter.add-filter")
+                                             :object-fn TextField/.promptTextProperty
+                                             :desc {:fx/type fx.text-field/lifecycle
+                                                    :text text
+                                                    :on-text-changed {:event-type :type}
+                                                    :on-action {:event-type :add}}}}]}]}]}}))
 
 (defn- handle-filter-event! [state prefs e]
   (case (:event-type e)
@@ -316,7 +322,7 @@
     :select (let [new-state (swap! state assoc-in [:filters (:index e) 1] (:fx/event e))]
               (save-filters! prefs (:filters new-state)))))
 
-(defn- init-console-filter! [filter-console-button prefs]
+(defn- init-console-filter! [filter-console-button prefs localization]
   (let [filters (prefs/get prefs console-filters-prefs-key)
         filtering (prefs/get prefs console-filtering-key)
         state (atom {:open false :enabled filtering :text "" :filters filters})]
@@ -328,18 +334,21 @@
         :opts {:fx.opt/map-event-handler #(handle-filter-event! state prefs %)}
         :middleware (comp
                       fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(filter-console-view filter-console-button %)))))))
+                      (fx/wrap-map-desc #(filter-console-view filter-console-button localization %)))))))
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
 (defn- setup-tool-bar!
-  ^Parent [^Parent tool-bar view-node prefs]
+  ^Parent [^Parent tool-bar view-node prefs localization]
   (ui/with-controls tool-bar [^TextField search-console
                               ^Button prev-console
                               ^Button next-console
                               ^Button clear-console
                               filter-console]
-    (init-console-filter! filter-console prefs)
+    (localization/localize! clear-console localization (localization/message "console.button.clear"))
+    (localization/localize! filter-console localization (localization/message "console.button.filter"))
+    (localization/localize! (.promptTextProperty search-console) localization (localization/message "console.search"))
+    (init-console-filter! filter-console prefs localization)
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :code.find-next
@@ -714,7 +723,7 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs]
+(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
@@ -728,7 +737,7 @@
                                              :highlighted-find-term (.getValue find-term-property)
                                              :line-height-factor 1.2
                                              :resize-reference :bottom))
-        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs)
+        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)
         on-region-click! (fn on-region-click! [region ^MouseEvent event]
                            (when (= :resource-reference (:type region))
                              (let [open-resource! (fn open-resource! [resource]

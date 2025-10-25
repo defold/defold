@@ -179,25 +179,60 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource);
 
 
 /*#
- * Get a resource from factory
+ * Get (load) a resource from factory
+ * @note if successful, it increments the ref count by one
  * @name ResourceGet
  * @param factory [type: HResourceFactory] Factory handle
- * @param name [type: const char*] Resource name
+ * @param path [type: const char*] Resource path
  * @param resource [type: void**] Created resource
- * @return result [type: ResourceResult]  RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
-ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** resource);
+ResourceResult ResourceGet(HResourceFactory factory, const char* path, void** resource);
 
 /*#
- * Get a resource from factory
+ * Get (load) a resource from factory
+ * @note if successful, it increments the ref count by one
+ * @name ResourceGetWithExt
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path [type: const char*] Resource path
+ * @param ext [type: const char*] Resource extension (e.g. "texturec", "ttf"). Must match the extension of the path.
+ * @param resource [type: void**] Created resource
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success.
+ *                                       RESOURCE_RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+ */
+ResourceResult ResourceGetWithExt(HResourceFactory factory, const char* path, const char* ext, void** resource);
+
+/*#
+ * Get a loaded resource from factory
+ * @note this currently doesn't load a resource
+ * @note if successful, it increments the ref count by one
  * @name ResourceGetByHash
  * @param factory [type: HResourceFactory] Factory handle
- * @param name [type: dmhash_t] Resource name
+ * @param path_hash [type: dmhash_t] Resource path hash
  * @param resource [type: void**] Created resource
- * @return result [type: ResourceResult]  RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
-ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource);
+ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, void** resource);
 
+/*#
+ * Get a loaded resource from factory and also verifying that it's the expected file type
+ * @name ResourceGetByHashAndExt
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path_hash [type: dmhash_t] Resource path hash
+ * @param ext_hash [type: dmhash_t] Resource extension hash (e.g. "texturec", "ttf"). Must match the extension of the path.
+ * @param resource [type: void**] Created resource
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success.
+ *                                       RESOURCE_RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
+ */
+ResourceResult ResourceGetByHashAndExt(HResourceFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource);
+
+/**
+ * Increase resource reference count by 1.
+ * @name ResourceIncRef
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param resource [type: void*] The resource
+ */
+void ResourceIncRef(HResourceFactory factory, void* resource);
 
 /*#
  * Get raw resource data. Unregistered resources can be loaded with this function.
@@ -207,7 +242,7 @@ ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void**
  * @param name [type: dmhash_t] Resource name
  * @param resource [type: void**] Created resource
  * @param resource_size [type: uint32_t*] Resource size
- * @return result [type: ResourceResult]  RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
@@ -217,7 +252,7 @@ ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void**
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: dmhash_t] Resource path
  * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
- * @return result [type: ResourceResult]  RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* descriptor);
 
@@ -227,7 +262,7 @@ ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path,
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
- * @return result [type: ResourceResult]  RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor);
 
@@ -257,9 +292,41 @@ bool ResourcePreloadHint(HResourcePreloadHintInfo preloader, const char* path);
  * @param factory [type: HResourceFactory] Factory handle
  * @param resource [type: void*] The resource pointer
  * @param hash [type: dmhash_t*] (out) The path hash of the resource
- * @return result [type: ResourceResult] RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, dmhash_t* hash);
+
+/*#
+ * Get a resource extension from a path, i.e "resource.ext" will return "ext".
+ * @name ResourceGetExtFromPath
+ * @param path [type: const char*] The path to the resource
+ * @return extension [type: const char*] Pointer to extension string if an extension was found, 0 otherwise
+ */
+const char* ResourceGetExtFromPath(const char* path);
+
+/*#
+ * Gets the normalized resource path: "/my//icon.texturec" -> "/my/icon.texturec". "my/icon.texturec" -> "/my/icon.texturec".
+ * @name ResourceGetCanonicalPath
+ * @param path [type: const char*] the relative dir of the resource
+ * @param buf [type: const char*] the output of the normalization
+ * @param buf_len [type: uint32_t] the size of the output buffer
+ * @return length [type: uint32_t] the length of the output string
+ */
+uint32_t ResourceGetCanonicalPath(const char* path, char* buf, uint32_t buf_len);
+
+/*#
+* Creates and inserts a resource into the factory
+* @note The input data pointer is not stored
+* @note The reference count is 1, so make sure it's destruction is handled
+* @name ResourceCreateResource
+* @param factory [type: HResourceFactory] Factory handle
+* @param name [type: const char*] Resource name
+* @param data [type: void*] Resource data
+* @param data_size [type: uint32_t] Resource data size
+* @param resource [type: void**] (out) Stores the created resource
+* @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
+*/
+ResourceResult ResourceCreateResource(HResourceFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
 
 /*#
  * Adds a file to the resource system
@@ -272,7 +339,7 @@ ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, d
  * @param path [type: const char*] The path of the resource
  * @param size [type: uint32_t] The size of the resource (in bytes)
  * @param resource [type: const void*] The resource payload
- * @return result [type: ResourceResult] RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint32_t size, const void* resource);
 
@@ -281,9 +348,29 @@ ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint3
  * @name ResourceRemoveFile
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: const char*] The path of the resource
- * @return result [type: ResourceResult] RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path);
+
+/*#
+* Get type from extension
+* @name ResourceGetTypeFromExtension
+* @param factory [type: HResourceFactory] Factory handle
+* @param extension [type: const char*] File extension, without leading "." character. E.g. "ttf"
+* @param type [type: HResourceType*] (out) returned type if successful
+* @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
+*/
+ResourceResult ResourceGetTypeFromExtension(HResourceFactory factory, const char* extension, HResourceType* type);
+
+/*#
+* Get type from extension hash
+* @name ResourceGetTypeFromExtensionHash
+* @param factory [type: HResourceFactory] Factory handle
+* @param extension_hash [type: dmhash_t] Hash of file extension, without leading "." character. E.g. hash("ttf")
+* @param type [type: HResourceType*] (out) returned type if successful
+* @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
+*/
+ResourceResult ResourceGetTypeFromExtensionHash(HResourceFactory factory, dmhash_t extension_hash, HResourceType* type);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -347,6 +434,13 @@ uint32_t        ResourceDescriptorGetResourceSize(HResourceDescriptor rd);
  */
 HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
 
+/**
+ * Increase resource reference count by 1.
+ * @name ResourceDescriptorIncRef
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param rd [type: HResourceDescriptor] The resource handle
+ */
+void            ResourceDescriptorIncRef(HResourceFactory factory, HResourceDescriptor rd);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Type functions
@@ -450,7 +544,7 @@ const char* ResourceTypeGetName(HResourceType type);
 /*# get registered extension name hash of the type
  * @name ResourceTypeGetNameHash
  * @param type [type: HResourceType] The type
- * @return hash [type: dmhash_t] The name hash
+ * @return hash [type: dmhash_t] The name hash of the type (e.g. "collectionc")
  */
 dmhash_t ResourceTypeGetNameHash(HResourceType type);
 

@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [internal.java :as java]
@@ -61,31 +62,20 @@ return m
             (default [])
             (dynamic visible (g/constantly false))))
 
-(defn- report-error! [error-message faulty-class-names]
+(defn- report-error! [header-key faulty-class-names localization]
   (ui/run-later
     (dialogs/make-info-dialog
-      {:title "Unable to Load Plugin"
+      localization
+      {:title (localization/message "dialog.lua-preprocessors-error.title")
        :size :large
        :icon :icon/triangle-error
        :always-on-top true
-       :header error-message
-       :content (string/join
-                  "\n"
-                  (concat
-                    ["The following classes from editor plugins are not compatible with this version of the editor:"
-                     ""]
-                    (map dialogs/indent-with-bullet
-                         (sort faulty-class-names))
-                    [""
-                     "The project might not build without them."
-                     "Please edit your project dependencies to refer to a suitable version."]))})))
-
-(defn- success-values [coll]
-  (into []
-        (keep (fn [item]
-                (when (= :success (:type item))
-                  (:value item))))
-        coll))
+       :header (localization/message header-key)
+       :content (localization/message "dialog.lua-preprocessors-error.content"
+                                      {"classes" (->> faulty-class-names
+                                                      sort
+                                                      (map dialogs/indent-with-bullet)
+                                                      (string/join "\n"))})})))
 
 (defn- run-lua-preprocessor
   ^String [^ILuaPreprocessor lua-preprocessor ^String lua-source ^String lua-source-proj-path ^String build-variant-string]
@@ -136,7 +126,7 @@ return m
                  (pair :faulty-class-names class-name)))))
          lua-preprocessor-classes)))
 
-(defn- set-lua-preprocessor-classes! [code-preprocessors lua-preprocessor-classes]
+(defn- set-lua-preprocessor-classes! [code-preprocessors lua-preprocessor-classes localization]
   {:pre [(every? #(and (class? %) (isa? % ILuaPreprocessor)) lua-preprocessor-classes)]}
   (let [new-lua-preprocessor-classes (set lua-preprocessor-classes)
         old-lua-preprocessor-classes (into #{}
@@ -146,15 +136,15 @@ return m
       (let [{:keys [created-lua-preprocessors faulty-class-names]}
             (try-create-lua-preprocessors lua-preprocessor-classes)]
         (if (seq faulty-class-names)
-          (report-error! "Failed to construct Lua preprocessors" faulty-class-names)
+          (report-error! "dialog.lua-preprocessors-error.construct.header" faulty-class-names localization)
           (g/set-property! code-preprocessors :lua-preprocessors created-lua-preprocessors))))))
 
-(defn reload-lua-preprocessors! [code-preprocessors ^ClassLoader class-loader]
+(defn reload-lua-preprocessors! [code-preprocessors ^ClassLoader class-loader localization]
   (let [{:keys [lua-preprocessor-classes faulty-class-names]}
         (try-initialize-lua-preprocessors class-loader)]
     (if (seq faulty-class-names)
-      (report-error! "Failed to initialize Lua preprocessors" faulty-class-names)
-      (set-lua-preprocessor-classes! code-preprocessors lua-preprocessor-classes))))
+      (report-error! "dialog.lua-preprocessors-error.initialize.header" faulty-class-names localization)
+      (set-lua-preprocessor-classes! code-preprocessors lua-preprocessor-classes localization))))
 
 (defn preprocess-lua [lua-preprocessors ^String lua-source lua-resource build-variant]
   {:pre [(case build-variant (:debug :headless :release) true false)]}

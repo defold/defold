@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.prefs :as prefs]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
@@ -31,12 +32,11 @@
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
             [editor.engine-profiler :as engine-profiler]
-            [editor.fxui :as fxui]
             [editor.git :as git]
-            [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
@@ -49,7 +49,6 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
-            [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
@@ -73,10 +72,6 @@
 
 (def the-root (atom nil))
 
-;; invoked to control the timing of when the namespaces load
-(defn load-namespaces []
-  (println "loaded namespaces"))
-
 (defn initialize-systems! [prefs]
   (code-view/initialize! prefs))
 
@@ -87,8 +82,8 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn- setup-workspace! [project-path build-settings workspace-config]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config)]
+(defn- setup-workspace! [project-path build-settings workspace-config localization]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
     (g/transact
       (concat
         (code-view/register-view-types workspace)
@@ -110,7 +105,13 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
-(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
+(defn- persist-window-state!
+  [^Stage stage ^Scene scene prefs]
+  (app-view/store-window-dimensions stage prefs)
+  (app-view/store-split-positions! scene prefs)
+  (app-view/store-hidden-panes! scene prefs))
+
+(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
         render-download-progress! (app-view/make-render-task-progress :download-update)
@@ -124,23 +125,21 @@
                                  nil ; Use nil for changes-view to skip refresh.
                                  (fn [successful?]
                                    (if successful?
-                                     (ui.updater/install-and-restart! stage updater)
+                                     (ui.updater/install-and-restart! stage updater localization)
                                      (do (ui/enable-ui!)
                                          (changes-view/refresh! changes-view))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
+    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
 
-(defn- show-tracked-internal-files-warning! []
+(defn- show-tracked-internal-files-warning! [localization]
   (dialogs/make-info-dialog
-    {:title "Internal Files Under Version Control"
+    localization
+    {:title (localization/message "dialog.tracked-internal-files.title")
      :size :large
      :icon :icon/triangle-error
-     :header "Internal files were placed under version control"
+     :header (localization/message "dialog.tracked-internal-files.header")
      :content {:pref-row-count 6
                :wrap-text true
-               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under version control.\n"
-                          "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
-                          "\n"
-                          "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}}))
+               :text (localization/message "dialog.tracked-internal-files.content")}}))
 
 (def ^:private interaction-event-types
   #{DragEvent/DRAG_DONE
@@ -149,7 +148,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage! [workspace project prefs project-path cli-options updater newly-created?]
+(defn- load-stage! [workspace project prefs localization project-path cli-options updater newly-created?]
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
@@ -160,7 +159,7 @@
     (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
-    (ui/show! stage)
+    (ui/show! stage localization)
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
@@ -174,13 +173,13 @@
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
-          open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
+          open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
-          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
+          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
@@ -189,19 +188,22 @@
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
           properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
+          curve-tab            (find-tab tool-tabs "curve-editor-tab")
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
-                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})
+                                                      localization
+                                                      {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs)
+                                                      localization)
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
@@ -218,15 +220,26 @@
                            (notifications/show!
                              (workspace/notifications workspace)
                              {:type :warning
-                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
-                                            server-port
-                                            (.getMessage e)
-                                            (http-server/port server))})
+                              :message (localization/message
+                                         "notification.web-server.port-fallback.warning"
+                                         {"requested" server-port
+                                          "reason" (.getMessage e)
+                                          "fallback" (http-server/port server)})})
                            server)))
           port-file-content (str (http-server/port web-server))
           port-file (doto (io/file project-path ".internal" "editor.port")
                       (io/make-parents)
                       (spit port-file-content))]
+      (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
+      (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
+      (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
+      (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
+      (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
+      (localization/localize! console-tab localization (localization/message "pane.console"))
+      (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
+      (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
+      (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
+
       (.addShutdownHook
         (Runtime/getRuntime)
         (Thread.
@@ -237,11 +250,12 @@
               (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
-      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
+      (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
+      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
-          (init-pending-update-indicator! stage update-link project changes-view updater)))
+          (init-pending-update-indicator! stage update-link project changes-view updater localization)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)
@@ -274,28 +288,49 @@
         (app-view/restore-hidden-panes! scene prefs))
 
       (ui/on-closing! stage (fn [_]
-                              (let [result (or (empty? (project/dirty-save-data project))
-                                               (dialogs/make-confirmation-dialog
-                                                 {:title "Quit Defold?"
-                                                  :icon :icon/circle-question
-                                                  :size :large
-                                                  :header "Unsaved changes exist, are you sure you want to quit?"
-                                                  :buttons [{:text "Cancel and Keep Working"
-                                                             :default-button true
-                                                             :cancel-button true
-                                                             :result false}
-                                                            {:text "Quit Without Saving"
-                                                             :variant :danger
-                                                             :result true}]}))]
-                                (when result
-                                  (app-view/store-window-dimensions stage prefs)
-                                  (app-view/store-split-positions! scene prefs)
-                                  (app-view/store-hidden-panes! scene prefs))
-                                result)))
+                              (let [dirty-save-data (project/dirty-save-data project)
+                                    auto-save-on-quit? (prefs/get prefs [:workflow :save-on-app-focus-lost])]
+                                (if (and auto-save-on-quit? (seq dirty-save-data))
+                                  (do
+                                    ;; Auto-save is enabled: save changes and then close without prompting.
+                                    (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+                                          render-save-progress! (app-view/make-render-task-progress :save-all)]
+                                      (ui/disable-ui!)
+                                      (disk/async-save!
+                                        render-reload-progress!
+                                        render-save-progress!
+                                        project/dirty-save-data
+                                        project
+                                        changes-view
+                                        (fn [successful?]
+                                          (if successful?
+                                            (do
+                                              (persist-window-state! stage scene prefs)
+                                              (ui/close! stage))
+                                            (ui/enable-ui!)))))
+                                    false)
+                                  (let [result (or (empty? dirty-save-data)
+                                                   (dialogs/make-confirmation-dialog
+                                                     localization
+                                                     {:title (localization/message "dialog.quit-defold.title")
+                                                      :icon :icon/circle-question
+                                                      :size :large
+                                                      :header (localization/message "dialog.quit-defold.header")
+                                                      :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
+                                                                 :default-button true
+                                                                 :cancel-button true
+                                                                 :result false}
+                                                                {:text (localization/message "dialog.quit-defold.button.quit")
+                                                                 :variant :danger
+                                                                 :result true}]}))]
+                                    (when result
+                                      (persist-window-state! stage scene prefs))
+                                    result)))))
 
       (ui/on-closed! stage (fn [_]
                              (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
+                             (ui/remove-application-unfocused-callback! :main-stage-unfocused)
 
                              ;; TODO: This takes a long time in large projects.
                              ;; Disabled for now since we don't really need to
@@ -307,6 +342,7 @@
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
+                         :localization        localization
                          :workspace           (g/node-value project :workspace)
                          :outline-view        outline-view
                          :web-server          web-server
@@ -346,9 +382,6 @@
                             [debug-view :update-available-controls]
                             [debug-view :update-call-stack]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
-      (if (system/defold-dev?)
-        (graph-view/setup-graph-view root)
-        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]
@@ -365,34 +398,33 @@
             (do (changes-view/refresh! changes-view)
                 (ui/run-later
                   (dialogs/make-info-dialog
-                    {:title "Updated .gitignore File"
+                    localization
+                    {:title (localization/message "dialog.gitignore-updated.title")
                      :icon :icon/circle-info
-                     :header "Updated .gitignore file"
-                     :content {:fx/type fxui/legacy-label
-                               :style-class "dialog-content-padding"
-                               :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                          "You should include it along with your changes the next time you synchronize.")}})
+                     :header (localization/message "dialog.gitignore-updated.header")
+                     :content {:wrap-text true
+                               :text (localization/message "dialog.gitignore-updated.content")}})
                   (when internal-files-are-tracked?
-                    (show-tracked-internal-files-warning!))))
+                    (show-tracked-internal-files-warning! localization))))
             (when internal-files-are-tracked?
               (ui/run-later
-                (show-tracked-internal-files-warning!)))))))
+                (show-tracked-internal-files-warning! localization)))))))
 
     (reset! the-root root)
     (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
 (defn open-project!
-  [^File game-project-file prefs cli-options render-progress! updater newly-created?]
+  [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace-config (shared-editor-settings/load-project-workspace-config project-path)
-        workspace (setup-workspace! project-path build-settings workspace-config)
+        workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+        workspace (setup-workspace! project-path build-settings workspace-config localization)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage! workspace project prefs project-path cli-options updater newly-created?))
+      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))

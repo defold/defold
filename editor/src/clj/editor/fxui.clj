@@ -41,6 +41,7 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
+            [editor.localization :as localization]
             [editor.os :as os]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -1170,9 +1171,53 @@
       resolve-label-color
       resolve-tooltip))
 
-(defn advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
+(def ext-localize
+  "Localization extension lifecycle
+
+  Expected props:
+    :localization    required, localization instance
+    :message         required, localization MessagePattern
+    :desc            required, wrapped node lifecycle
+    :object-fn       optional, fn from wrapped component instance to localizable
+                     object, defaults to identity"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [localization message desc object-fn]} opts]
+      (let [component (fx.lifecycle/create fx.lifecycle/dynamic desc opts)
+            object (cond-> (fx.component/instance component) object-fn object-fn)]
+        (localization/localize! object localization message)
+        (with-meta {:localization localization
+                    :message message
+                    :child component
+                    :object object}
+                   child-instance-meta)))
+    (advance [_ component {:keys [localization message desc object-fn]} opts]
+      (let [component (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
+            object (cond-> (fx.component/instance component) object-fn object-fn)
+            old-localization (:localization component)]
+        (if (or (not (identical? localization old-localization))
+                (not (identical? object (:object component)))
+                (not= message (:message component)))
+          (do
+            (localization/unlocalize! (:object component) old-localization)
+            (localization/localize! object localization message)
+            (-> component
+                (assoc :object object)
+                (assoc :localization localization)
+                (assoc :message message)))
+          component)))
+    (delete [_ component opts]
+      (localization/unlocalize! (fx/instance component) (:localization component))
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
+(defn- advance-user-data-component! [target user-data user-data! key desc]
+  (let [component (user-data target key)]
     (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
+      (and component desc) (user-data! target key (fx/advance-component component desc))
+      component (do (fx/delete-component component) (user-data! target key nil))
+      desc (user-data! target key (fx/create-component desc)))))
+
+(defn advance-graph-user-data-component! [view-node key desc]
+  (advance-user-data-component! view-node g/user-data g/user-data! key desc))
+
+(defn advance-ui-user-data-component! [javafx-node key desc]
+  (advance-user-data-component! javafx-node ui/user-data ui/user-data! key desc))

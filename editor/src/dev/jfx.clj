@@ -234,11 +234,17 @@
 
 (defn- styleable-props [^Styleable styleable]
   {:id (.getId styleable)
-   :style-classes (not-empty (vec (sort (.getStyleClass styleable))))})
+   :style (not-empty (.getStyle styleable))
+   :style-classes (not-empty (vec (sort (.getStyleClass styleable))))
+   :pseudo-classes (not-empty (into (sorted-set) (map str) (.getPseudoClassStates styleable)))})
 
 (defn- node-props [^Node node]
   (let [layout-bounds (.getLayoutBounds node)]
-    {:layout-size [(.getWidth layout-bounds) (.getHeight layout-bounds)]}))
+    (cond-> {:layout-size [(.getWidth layout-bounds) (.getHeight layout-bounds)]}
+            (.isDisable node) (assoc :disable true)
+            (.isMouseTransparent node) (assoc :mouse-transparent true)
+            (not (.isManaged node)) (assoc :managed false)
+            (not (.isVisible node)) (assoc :visible false))))
 
 (defn- to-coll [items]
   (cond

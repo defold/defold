@@ -690,7 +690,7 @@
             (empty path-map)
             path-map)))
 
-(defn- preserving-reduced [rf]
+(defn preserving-reduced [rf]
   #(let [result (rf %1 %2)]
      (cond-> result (reduced? result) reduced)))
 

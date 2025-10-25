@@ -217,7 +217,7 @@ namespace dmRender
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
                                 cell_width, cell_height, params.m_CacheCellMaxAscent);
 
-        switch (params.m_GlyphChannels)
+        switch (font_map->m_CacheChannels)
         {
             case 1:
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_LUMINANCE;

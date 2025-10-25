@@ -295,24 +295,27 @@ namespace dmShaderc
         return true;
     }
 
-    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, ShaderCompileResult* raw_hlsl)
+    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions* options, ShaderCompileResult* raw_hlsl)
     {
         ID3DBlob* shader_blob = NULL;
         ID3DBlob* error_blob = NULL;
 
-        const char* profile = "";
+        int version = options->m_Version;
+        int version_major = version / 10;
+        int version_minor = version % 10;
+        assert(version == 50 || version == 51);
 
-        // TODO: correct versions here
+        char profile[32];
         switch(context->m_Stage)
         {
         case SHADER_STAGE_VERTEX:
-            profile = "vs_5_1";
+            dmSnPrintf(profile, sizeof(profile), "vs_%d_%d", version_major, version_minor);
             break;
         case SHADER_STAGE_FRAGMENT:
-            profile = "ps_5_1";
+            dmSnPrintf(profile, sizeof(profile), "ps_%d_%d", version_major, version_minor);
             break;
         case SHADER_STAGE_COMPUTE:
-            profile = "cs_5_1";
+            dmSnPrintf(profile, sizeof(profile), "cs_%d_%d", version_major, version_minor);
             break;
         }
 
@@ -358,28 +361,34 @@ namespace dmShaderc
         memcpy((void*) src_data, raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size());
         src_data[raw_hlsl->m_Data.Size()] = '\0';
 
-        dmArray<char> root_signature_buffer;
-        GenerateRootSignatureFromReflection(reflection, &shaderDesc, root_signature_buffer);
-
-        dmArray<char> injected_source_buffer;
-        InjectRootSignatureIntoSource((const char*) src_data, root_signature_buffer.Begin(), injected_source_buffer);
-
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
         memset(result, 0, sizeof(ShaderCompileResult));
 
-        uint32_t data_size = injected_source_buffer.Size();
+        if (version > 50)
+        {
+            dmArray<char> root_signature_buffer;
+            GenerateRootSignatureFromReflection(reflection, &shaderDesc, root_signature_buffer);
 
-        result->m_Data.SetCapacity(data_size);
-        result->m_Data.SetSize(data_size);
+            dmArray<char> injected_source_buffer;
+            InjectRootSignatureIntoSource((const char*) src_data, root_signature_buffer.Begin(), injected_source_buffer);
+
+            uint32_t data_size = injected_source_buffer.Size();
+            result->m_Data.SetCapacity(data_size);
+            result->m_Data.SetSize(data_size);
+            memcpy(result->m_Data.Begin(), injected_source_buffer.Begin(), data_size);
+        }
+        else
+        {
+            uint32_t data_size = raw_hlsl->m_Data.Size();
+            result->m_Data.SetCapacity(data_size);
+            result->m_Data.SetSize(data_size);
+            memcpy(result->m_Data.Begin(), raw_hlsl->m_Data.Begin(), data_size);
+        }
 
         result->m_LastError = "";
         result->m_HLSLNumWorkGroupsId = raw_hlsl->m_HLSLNumWorkGroupsId;
         result->m_HLSLResourceMappings.SetCapacity(shaderDesc.BoundResources);
         result->m_HLSLResourceMappings.SetSize(shaderDesc.BoundResources);
-
-        char* write_str = (char*) result->m_Data.Begin();
-        memset(write_str, 0, data_size);
-        memcpy(write_str, injected_source_buffer.Begin(), data_size);
 
         dmArray<CombinedSampler> combined_samplers;
         GetCombinedSamplerMapSPIRV(context, (ShaderCompilerSPVC*) compiler, combined_samplers);

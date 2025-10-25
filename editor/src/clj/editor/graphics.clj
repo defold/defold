@@ -1044,36 +1044,65 @@
           (if (nil? renderable-data)
             fn/constantly-false
             (fn mesh-data-exists? [semantic-type ^long channel]
+              ;; Each time we see a specific semantic type on an attribute, we
+              ;; increase the channel number. The idea is to supply the first
+              ;; set of texture coordinates in the mesh to the first attribute
+              ;; of :semantic-type-texcoord, the second set of texture
+              ;; coordinates to the next attribute of :semantic-type-texcoord,
+              ;; and so on. The channel is only considered for certain semantic
+              ;; types where it makes sense to do so. For some semantic types,
+              ;; the same mesh data will be supplied to all attributes of that
+              ;; semantic type.
               (case semantic-type
                 :semantic-type-position
-                (and (zero? channel)
-                     (some? (:position-data renderable-data)))
+                ;; We only support one set of positions. The same mesh data will
+                ;; be used for all position attributes. This allows for local
+                ;; space and world space attributes to coexist.
+                (some? (:position-data renderable-data))
 
                 :semantic-type-texcoord
+                ;; We support multiple sets of texture coordinates. The mesh
+                ;; data will apply only to the specific channel.
                 (some? (get-in texcoord-datas [channel :uv-data]))
 
                 :semantic-type-page-index
+                ;; We consider the page index to be associated with a specific
+                ;; set of texture coordinates. The mesh data will apply only to
+                ;; the specific channel.
                 (some? (get-in texcoord-datas [channel :page-index]))
 
                 :semantic-type-color
+                ;; We currently only support one set of vertex colors from the
+                ;; mesh, but may want to support more in the future. The mesh
+                ;; data will apply only to the specific channel.
                 (and (zero? channel)
                      (some? (:color-data renderable-data)))
 
                 :semantic-type-normal
-                (and (zero? channel)
-                     (some? (:normal-data renderable-data)))
+                ;; We only support one set of normals. The same mesh data will
+                ;; be used for all normal attributes. This allows for local
+                ;; space and world space attributes to coexist.
+                (some? (:normal-data renderable-data))
 
                 :semantic-type-tangent
+                ;; We consider the tangent space to be associated with a
+                ;; specific set of texture coordinates. The mesh data will apply
+                ;; only to the specific channel. However, we currently only
+                ;; support one set of tangents from the mesh.
                 (and (zero? channel)
                      (some? (:tangent-data renderable-data)))
 
                 :semantic-type-world-matrix
-                (and (zero? channel)
-                     (boolean (:has-semantic-type-world-matrix renderable-data)))
+                ;; The world-matrix transforms local-space positions in the mesh
+                ;; into world-space. The same matrix will be supplied to all the
+                ;; world-matrix attributes.
+                (boolean (:has-semantic-type-world-matrix renderable-data))
 
                 :semantic-type-normal-matrix
-                (and (zero? channel)
-                     (boolean (:has-semantic-type-normal-matrix renderable-data)))
+                ;; The normal-matrix transforms local-space normals in the mesh
+                ;; into view-space. The same matrix will be supplied to all the
+                ;; normal-matrix attributes.
+                (boolean (:has-semantic-type-normal-matrix renderable-data))
 
                 false))))]
 

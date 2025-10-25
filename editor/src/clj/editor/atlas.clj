@@ -30,6 +30,7 @@
             [editor.handler :as handler]
             [editor.image :as image]
             [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
@@ -47,7 +48,6 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
@@ -285,6 +285,8 @@
             (dynamic read-only? (g/constantly true)))
 
   (property pivot types/Vec2
+            (dynamic label (properties/label-dynamic :atlas.image :pivot))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.image :pivot))
             (value (g/fnk [pivot-x pivot-y] [pivot-x pivot-y]))
             (set (fn [_evaluation-context self old-value new-value]
                    (concat
@@ -301,6 +303,8 @@
             (dynamic visible (g/constantly false)))
 
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
+            (dynamic label (properties/label-dynamic :atlas.image :sprite-trim-mode))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.image :sprite-trim-mode))
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
 
   (property image resource/Resource ; Required protobuf field.
@@ -343,16 +347,15 @@
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
-                                                     (let [label (or id "<No Image>")]
-                                                       (cond-> {:node-id _node-id
-                                                                :node-outline-key label
-                                                                :label label
-                                                                :order order
-                                                                :icon image-icon
-                                                                :outline-error? (g/error-fatal? build-errors)}
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key (or id "<No Image>")
+                                                              :label (or id (localization/message "outline.atlas.no-image"))
+                                                              :order order
+                                                              :icon image-icon
+                                                              :outline-error? (g/error-fatal? build-errors)}
 
-                                                               (resource/resource? maybe-image-resource)
-                                                               (assoc :link maybe-image-resource :outline-show-link? true)))))
+                                                             (resource/resource? maybe-image-resource)
+                                                             (assoc :link maybe-image-resource :outline-show-link? true))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
                                     :image (resource/resource->proj-path maybe-image-resource)
@@ -466,10 +469,18 @@
   (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts] (validate-animation-id _node-id id id-counts))))
   (property fps g/Int (default (protobuf/default AtlasProto$AtlasAnimation :fps))
+            (dynamic label (properties/label-dynamic :atlas.animation :fps))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :fps))
             (dynamic error (g/fnk [_node-id fps] (validate-animation-fps _node-id fps))))
-  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-horizontal))))
-  (property flip-vertical   g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-vertical))))
+  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-horizontal)))
+            (dynamic label (properties/label-dynamic :atlas.animation :flip-horizontal))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :flip-horizontal)))
+  (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-vertical)))
+            (dynamic label (properties/label-dynamic :atlas.animation :flip-vertical))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :flip-vertical)))
   (property playback        types/AnimationPlayback (default (protobuf/default AtlasProto$AtlasAnimation :playback))
+            (dynamic label (properties/label-dynamic :atlas.animation :playback))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :playback))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
@@ -822,15 +833,25 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
   (property margin g/Int (default (protobuf/default AtlasProto$Atlas :margin))
+            (dynamic label (properties/label-dynamic :atlas :margin))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas :margin))
             (dynamic error (g/fnk [_node-id margin] (validate-margin _node-id margin))))
   (property inner-padding g/Int (default (protobuf/default AtlasProto$Atlas :inner-padding))
+            (dynamic label (properties/label-dynamic :atlas :inner-padding))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas :inner-padding))
             (dynamic error (g/fnk [_node-id inner-padding] (validate-inner-padding _node-id inner-padding))))
   (property extrude-borders g/Int (default (protobuf/default AtlasProto$Atlas :extrude-borders))
+            (dynamic label (properties/label-dynamic :atlas :extrude-borders))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas :extrude-borders))
             (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
   (property max-page-size types/Vec2 (default default-max-page-size)
+            (dynamic label (properties/label-dynamic :atlas :max-page-size))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas :max-page-size))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
   (property rename-patterns g/Str (default (protobuf/default AtlasProto$Atlas :rename-patterns))
+            (dynamic label (properties/label-dynamic :atlas :rename-patterns))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas :rename-patterns))
             (dynamic error (g/fnk [_node-id rename-patterns] (validate-rename-patterns _node-id rename-patterns))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
@@ -896,7 +917,7 @@
                                                          ;; We use evaluation context to get child node types that should never change
                                                          {:node-id          _node-id
                                                           :node-outline-key "Atlas"
-                                                          :label            "Atlas"
+                                                          :label            (localization/message "outline.atlas")
                                                           :children         (vec (sort-by (partial atlas-outline-sort-by-fn (:basis _evaluation-context))  child-outlines))
                                                           :icon             atlas-icon
                                                           :outline-error?   (g/error-fatal? own-build-errors)
@@ -1014,19 +1035,19 @@
                            (g/transact
                              (concat
                                (g/operation-sequence op-seq)
-                               (g/operation-label "Add Animation")
+                               (g/operation-label (localization/message "operation.atlas.add-animation"))
                                (make-atlas-animation atlas-node default-animation))))]
     (select! app-view [animation-node] op-seq)))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [] "Add Animation Group")
+  :label (localization/message "command.edit.add-embedded-component.variant.atlas")
   (active? [selection] (selection->atlas selection))
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
   (when-some [image-resources (seq (resource-dialog/make workspace project
                                                          {:ext image/exts
-                                                          :title "Select Images"
+                                                          :title (localization/message "dialog.add-atlas-images.title")
                                                           :selection :multiple
                                                           :accept-fn accept-fn}))]
     (let [op-seq (gensym)
@@ -1035,7 +1056,7 @@
                         (g/transact
                           (concat
                             (g/operation-sequence op-seq)
-                            (g/operation-label "Add Images")
+                            (g/operation-label (localization/message "operation.atlas.add-images"))
                             (cond
                               (g/node-instance? AtlasNode parent)
                               (make-image-nodes-in-atlas parent image-msgs)
@@ -1050,7 +1071,7 @@
       (select! app-view image-nodes op-seq))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
-  (label [] "Add Images...")
+  :label (localization/message "command.edit.add-referenced-component.variant.atlas")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [app-view project selection]
     (let [atlas (selection->atlas selection)]
@@ -1245,7 +1266,7 @@
                             pivot (updated-pivot rect manip-delta snap-enabled snap-threshold)]
                         (g/transact
                           (concat
-                            (g/operation-label "Move pivot point")
+                            (g/operation-label (localization/message "operation.atlas.move-pivot-point"))
                             (g/operation-sequence op-seq)
                             (g/set-property (:node-id reference-renderable) :pivot pivot)))
                         (g/transact
