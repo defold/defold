@@ -805,7 +805,7 @@ command.scene.set-camera-type = 设置相机类型
 command.scene.set-camera-type.option.orthographic = 正交相机
 command.scene.set-camera-type.option.perspective = 透视相机
 command.scene.set-gui-layout = 设置 GUI 布局
-command.scene.toggle-move-whole-pixels = 整像素移动
+command.scene.toggle-move-whole-pixels = 移动整体像素
 command.scene.visibility.toggle-filters = 切换可见性过滤器
 command.scene.visibility.toggle-component-guides = 切换组件向导
 command.scene.visibility.toggle-grid = 切换网格
@@ -862,9 +862,9 @@ dialog.about.label.build-time = 构建时间：
 dialog.about.label.editor-sha1 = 编辑器 SHA1：
 dialog.about.label.engine-sha1 = 引擎 SHA1：
 dialog.about.value.unavailable = 不可用
-dialog.about.footer.copyright = Copyright © 2009-2025
-dialog.about.footer.foundation = Defold Foundation
-dialog.about.sponsor = Defold Foundation 开发基金
+dialog.about.footer.copyright = 版权所有 © 2009-2025
+dialog.about.footer.foundation = Defold 基金会
+dialog.about.sponsor = Defold 基金会 开发基金
 
 # Overrides
 
