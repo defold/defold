@@ -259,6 +259,38 @@ namespace dmDDF
         LoadContext load_context(0, 0, true, options);
         InputBuffer input_buffer((const char*) buffer, buffer_size);
 
+        // --- About DDF loading and message layout ---
+        //
+        // When loading a DDF message, we first compute how much memory is required
+        // *without actually loading or resolving any of the data*. This size calculation
+        // includes space for both static fields and any dynamically sized message fields.
+        //
+        // The final in-memory representation is split into two regions:
+        //   1. A statically sized block for fields whose size is fully known at compile time.
+        //   2. A separate dynamic block for fields whose size depends on other message types.
+        //
+        // A field becomes “dynamic” when its generated C++ type is a pointer rather than an
+        // in-place struct. This happens when message definitions are recursive or mutually
+        // dependent in the .proto file.
+        //
+        // Example:
+        //   message MessageRecursiveA {
+        //       optional int32 val_a = 1;
+        //       optional MessageRecursiveB my_b = 2;
+        //   }
+        //   message MessageRecursiveB {
+        //       optional int32 val_b = 1;
+        //       optional MessageRecursiveA my_a = 2;
+        //   }
+        //
+        // In this example, the field `my_b` in MessageRecursiveA is compiled as a pointer.
+        // The actual data for that field must be allocated and resolved later during loading.
+        //
+        // Because such dynamic fields can form arbitrarily deep or cyclic nesting, we collect
+        // all dynamic subtrees separately. This also ensures that repeated fields can be laid
+        // out contiguously in memory, while still allowing pointer-based references between
+        // dependent message types.
+
         Message dry_message(0, 0, 0, true);
         Result e = CreateMessage(&load_context, &input_buffer, desc, &dry_message);
 
@@ -270,6 +302,8 @@ namespace dmDDF
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
+        // Once the dry run is done, we can calculate the actual size of the message including
+        // the memory for the dynamic messages.
         int aligned_base_memory = DM_ALIGN(load_context.GetMemoryUsage(), 16);
         int message_buffer_size = aligned_base_memory + load_context.GetDynamicTypeMemorySize();
         char* message_buffer = 0;
@@ -281,6 +315,8 @@ namespace dmDDF
 
         Message message = load_context.AllocMessage(desc);
 
+        // The dry-run has prepped the load_context with a list of offsets for all of the dynamic types,
+        // which we will walk over in the same order again when the actual message is loaded.
         load_context.ResetDynamicOffsetCursor();
 
         input_buffer.Seek(0);
