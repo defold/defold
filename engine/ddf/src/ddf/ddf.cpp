@@ -148,30 +148,11 @@ namespace dmDDF
         return RESULT_OK;
     }
 
-    static bool NeedsSizeResolve(const Descriptor* desc)
-    {
-        bool has_message_ptr = false;
-        for (int i = 0; i < desc->m_FieldCount; ++i)
-        {
-            const FieldDescriptor* field = &desc->m_Fields[i];
-            if (field->m_Label != LABEL_REPEATED && field->m_Type == TYPE_MESSAGE)
-            {
-                if (!field->m_FullyDefinedType)
-                {
-                    return true;
-                }
-                else
-                {
-                    has_message_ptr |= NeedsSizeResolve(field->m_MessageDescriptor);
-                }
-            }
-        }
-        return has_message_ptr;
-    }
-
     static Result CreateMessage(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, Message* message_out)
     {
-        if (NeedsSizeResolve(desc))
+        // If the descriptor contains any dynamic fields, we need to step through the input buffer
+        // to pre-warm the load_context with all the dynamic field sizes.
+        if (desc->m_ContainsDynamicFields)
         {
             Result e = CalculateDynamicDescriptorSize(load_context, ib, desc, false);
             DDF_CHECK_RESULT(e);

@@ -335,7 +335,7 @@ def to_cxx_default_value_string(context, f):
             tmp = struct.pack('<' + form, func(f.default_value))
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(chr(x)), tmp))
 
-def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
+def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
     pp_h.p('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
@@ -344,12 +344,14 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     context.set_message_type_defined(dot_to_cxx_namespace(mt_type_name))
 
     for nt in message_type.nested_type:
-        to_cxx_descriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
 
     for f in message_type.field:
         default = to_cxx_default_value_string(context, f)
         if '"' in default:
             pp_cpp.p('char DM_ALIGNED(4) %s_%s_%s_DEFAULT_VALUE[] = %s;', namespace, message_type.name, f.name, default)
+
+    contains_dynamic_fields = needs_size_resolve(context, message_type, cpp_desc_map)
 
     oneof_scope_names = []
     oneof_scope = None
@@ -375,9 +377,6 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         tpl = (f.name, f.number, f.type, f.label, one_of_index)
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:
             fully_defined_type = context.get_is_message_type_defined(f)
-
-            #if not fully_defined_type:
-            #    print("Message type %s IS NOT DEFINED!" % f.type_name)
 
             tmp = f.type_name.replace(".", "_")
             if tmp.startswith("_"):
@@ -439,6 +438,9 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         pp_cpp.p('sizeof(%s_%s_ONEOF_OFFSETS)/sizeof(uint32_t),', namespace, message_type.name)
     else:
         pp_cpp.p('0,')
+
+    # Contains dynamic fields
+    pp_cpp.p('%d,', contains_dynamic_fields and 1 or 0)
 
     pp_cpp.end()
 
@@ -663,6 +665,84 @@ def to_ensure_struct_alias_size(context, file_desc, pp_cpp):
 
     pp_cpp.end()
 
+def needs_size_resolve(context, message_type, cpp_desc_map, visiting=None, cache=None):
+    """
+    Returns True if the message requires dynamic sizing.
+    Conditions:
+    - Contains a non-repeated message field whose type is not fully defined
+    - Contains a recursive reference (cycle)
+    """
+    if visiting is None:
+        visiting = set()
+    if cache is None:
+        cache = {}
+
+    mid = id(message_type)
+
+    # Cached result?
+    if mid in cache:
+        return cache[mid]
+
+    # Cycle detected → dynamic!
+    if mid in visiting:
+        cache[mid] = True
+        return True
+
+    visiting.add(mid)
+
+    for f in message_type.field:
+        if f.label != FieldDescriptorProto.LABEL_REPEATED and f.type == FieldDescriptorProto.TYPE_MESSAGE:
+
+            # Is it fully defined?
+            try:
+                fully_defined = context.get_is_message_type_defined(f)
+            except:
+                fully_defined = False
+
+            if not fully_defined:
+                cache[mid] = True
+                visiting.remove(mid)
+                return True
+
+            # Look up nested type
+            cpp_type = context.get_field_type_name(f)
+            nested_desc = cpp_desc_map.get(cpp_type)
+
+            if nested_desc:
+                if needs_size_resolve(context, nested_desc, cpp_desc_map, visiting, cache):
+                    cache[mid] = True
+                    visiting.remove(mid)
+                    return True
+
+    visiting.remove(mid)
+    cache[mid] = False
+    return False
+
+def build_cpp_desc_map_for_file(file_desc, package):
+    # Build mapping: C++ type name (e.g. "my.pkg::Msg") -> DescriptorProto
+    # We keep it simple and only map top-level / nested types declared in this file.
+    cpp_map = {}
+
+    def walk(mt, ns_lst):
+        cpp_name = ("::".join(ns_lst + [mt.name]))
+        cpp_map[cpp_name] = mt
+        # Recurse nested types
+        if hasattr(mt, "nested_type"):
+            for nested in mt.nested_type:
+                walk(nested, ns_lst + [mt.name])
+
+    base_ns = package
+
+    # If base_ns is something like "pkg.name", split on '.' into "pkg::name".
+    ns_list = []
+    if base_ns:
+        # create namespace as C++ style components: "a.b" -> ["a", "b"]
+        ns_list = base_ns.split(".")
+    for mt in file_desc.message_type:
+        walk(mt, ns_list)
+
+    return cpp_map
+
 def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     base_name = os.path.basename(file_to_generate)
 
@@ -752,8 +832,11 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     for mt in file_desc.enum_type:
         to_cxx_enum_descriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
 
+    # Build mapping of C++ type to descriptor
+    cpp_desc_map = build_cpp_desc_map_for_file(file_desc, file_desc.package)
+
     for mt in file_desc.message_type:
-        to_cxx_descriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, mt, [file_desc.package])
 
     pp_h.p("#endif")
 
@@ -855,7 +938,6 @@ class CompilerContext(object):
 
     def set_message_type_defined(self, type_name):
         self.defined_message_types[type_name] = True
-        #print("ADDING " + type_name)
 
     def get_is_message_type_defined(self, f):
         type_name = dot_to_cxx_namespace(f.type_name)
@@ -898,7 +980,6 @@ if __name__ == '__main__':
                 java_package = x[1]
 
         for mt in pf.message_type:
-            #context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
             context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt, pf.name)
 
         for et in pf.enum_type:

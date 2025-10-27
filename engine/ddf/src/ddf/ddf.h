@@ -68,7 +68,8 @@ namespace dmDDF
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?
         // Offset of a uint8_t value that indicates which oneof member has been set
         uint32_t*        m_OneOfDataOffsets;
-        uint8_t          m_OneOfDataOffsetsCount;
+        uint8_t          m_OneOfDataOffsetsCount : 7;
+        uint8_t          m_ContainsDynamicFields : 1;
         void*            m_NextDescriptor;
     };
 
