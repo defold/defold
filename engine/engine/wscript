@@ -91,7 +91,6 @@ def configure(conf):
 
     sound_lib += ['decoder_wav', 'decoder_ogg']
     glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
-    platform_lib =  waf_dynamo.platform_get_platform_lib(conf.env.PLATFORM)
 
     if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
@@ -142,15 +141,10 @@ def configure(conf):
     conf.env['STLIB_DMGLFW'] = glfw_lib
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_PARTICLE'] = 'particle'
-    conf.env['STLIB_PLATFORM'] = platform_lib
-    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
-    conf.env['STLIB_HID'] = 'hid'
-    conf.env['STLIB_HID_NULL'] = 'hid_null'
-    conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
     if target_os != TargetOS.MACOS:

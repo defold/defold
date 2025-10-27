@@ -1,0 +1,1219 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+
+# Localizations of the Welcome dialog
+welcome.button.open-from-disk = 从磁盘打开…
+welcome.button.open-selected = 打开所选
+welcome.button.create-new-project = 新建项目
+welcome.button.cancel-download = 取消下载
+welcome.recent-projects = 最近的项目
+welcome.tab.new-project = 新建项目
+welcome.tab.home = 我的项目
+welcome.greeting = 欢迎！当您开始使用 Defold 后，您最近的所有项目都将显示在这里。
+welcome.downloading-project = 正在下载 {template}…
+welcome.header.open = 打开
+welcome.header.new-project-from = 创建自
+welcome.tab.templates = 模板
+welcome.tab.tutorials = 教程
+welcome.tab.samples = 示例
+welcome.new-project.default-name = My Project
+welcome.new-project.title = 标题
+welcome.new-project.location = 位置
+welcome.open-from-disk.dialog.title = 打开项目
+welcome.open-from-disk.dialog.filter.defold = Defold 项目文件
+welcome.new-project.location.dialog.title = 选择新建项目位置
+welcome.new-project.error.no-project-title.title = 无项目标题
+welcome.new-project.error.no-project-title.header = 您必须为项目指定一个标题
+welcome.new-project.error.invalid-project-title.title = 无效的项目标题
+welcome.new-project.error.invalid-project-title.header = 项目标题前后不允许有空格
+welcome.new-project.error.conflicting-project-location.title = 项目位置冲突
+welcome.new-project.error.conflicting-project-location.header = 所选位置已存在一个非空文件夹
+welcome.new-project.error.no-internet-connection.title = 无法连接网络
+welcome.new-project.error.no-internet-connection.header = 您必须连接到网络才能下载项目内容
+welcome.new-project.error.host-unreachable.title = 无法连接主机
+welcome.new-project.error.host-unreachable.header = 防火墙可能正在阻止网络连接
+welcome.new-project.error.host-not-responding.title = 主机未响应
+welcome.new-project.error.host-not-responding.header = 连接已超时
+welcome.new-project.error.ssl-connection-error.title = SSL 连接错误
+welcome.new-project.error.ssl-connection-error.header = 无法建立SSL连接
+welcome.new-project.error.ssl-connection-error.common-causes = 常见原因包括：\n • 杀毒软件设置为扫描加密连接\n • 服务器证书过期或配置错误\n • 服务器证书不受信任\n\n以下常见问题解答可能适用： 
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX 路径构建失败
+
+# Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = 空项目
+welcome.new-project.empty-project.description = 如果您想从零开始创建一个空白项目，请选择此模板。
+welcome.new-project.mobile-game.title = 移动端游戏
+welcome.new-project.mobile-game.description = 如果您想开始为移动端设备开发游戏，此模板包含了实用的设置和资源。
+welcome.new-project.desktop-game.title = 电脑端游戏
+welcome.new-project.desktop-game.description = 如果您想开始为电脑端设备开发游戏，此模板提供了实用的设置和资源。
+welcome.new-project.poki-html5-game.title = Poki HTML5 游戏
+welcome.new-project.poki-html5-game.description = 此模板包含 Poki SDK ，是专为桌面和移动网页游戏设计。提供了快速导出到 Poki 开发者平台的选项。
+welcome.new-project.native-extension.title = 原生扩展
+welcome.new-project.native-extension.description = 如果您想开始创建原生扩展，此模板包含基本设置。
+welcome.new-project.basic-3d-project.title = 基本 3D 项目
+welcome.new-project.basic-3d-project.description = 此模板包含用于进行 3D 渲染的基础设置。
+welcome.new-project.platformer-game.title = 平台跳跃游戏
+welcome.new-project.platformer-game.description = 如果您想开始制作平台跳跃游戏，此模板包含了一些基础设置。
+welcome.new-project.rive-project.title = Rive 项目
+welcome.new-project.rive-project.description = 此模板使用 rive 扩展来帮助你快速入门。
+
+# Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = 横向卷轴 教程
+welcome.new-project.side-scroller-tutorial.description = 在这个初学者教程中，您将通过修改一个非常简单的横向卷轴游戏来体验如何在 Defold 中构建游戏。
+welcome.new-project.walking-astronaut-tutorial.title = 行走的宇航员 教程
+welcome.new-project.walking-astronaut-tutorial.description = 在这个初学者教程中，您将学习如何捕获玩家输入并使角色移动和播放动画。您还将了解 Defold 中的核心构建块：游戏对象、组件和集合。
+welcome.new-project.movement-tutorial.title = 角色移动 教程
+welcome.new-project.movement-tutorial.description = 在这个初学者教程中，您将学习如何使用向量和一些简单的向量运算来实现逼真的移动。
+welcome.new-project.war-battles-tutorial.title = 战场对决 教程
+welcome.new-project.war-battles-tutorial.description = 在这个中等难度的教程中，您将基于 “War Battles” 即时战略资源包，构建一款俯视角射击游戏的基础框架。
+welcome.new-project.colorslide-tutorial.title = 颜色拼图 教程
+welcome.new-project.colorslide-tutorial.description = 在这个中等难度的教程中，您将为一款简单的多关卡移动端游戏构建一个游戏内 GUI、一个用于关卡选择的 GUI 屏幕和一个开始屏幕。
+
+# Welcome -> New Project -> From Sample
+welcome.new-project.linker-sample-game.title = 连连看示例游戏
+welcome.new-project.linker-sample-game.description = 这是一款完整的示例游戏，您可以通过点击并拖动来连接相同颜色的鱼，将它们从棋盘上消除。较长的鱼链会产生道具。
+welcome.new-project.roids-sample-game.title = 太空陨石示例游戏
+welcome.new-project.roids-sample-game.description = 这是一款完整的示例游戏，在游戏中，您可以驾驶宇宙飞船，一路开火穿越陨石风暴。
+welcome.new-project.pixel-line-platformer.title = 像素平台跳跃游戏
+welcome.new-project.pixel-line-platformer.description = 这是一款由 Kenney 创作的具有现代像素艺术风格的完整平台游戏。
+welcome.new-project.main-menu-animation.title = 主菜单动画
+welcome.new-project.main-menu-animation.description = 在这个示例中，我们演示了呈现主菜单的效果。
+welcome.new-project.parallax.title = 视差效果
+welcome.new-project.parallax.description = 在这个示例中，我们演示了如何使用视差效果来模拟游戏世界中的深度。
+welcome.new-project.hud.title = HUD
+welcome.new-project.hud.description = 在这个示例中，我们演示了分数计数的效果。
+welcome.new-project.level-complete.title = 通关
+welcome.new-project.level-complete.description = 在这个示例中，我们演示了在关卡达成时可能出现的计分效果。
+welcome.new-project.rpg-map-sample.title = RPG 地图示例
+welcome.new-project.rpg-map-sample.description = 这个示例展示了如何创建一个大型 RPG 地图，随着英雄的前进，地图一次滚动一个屏幕。
+welcome.new-project.shadertoy-sample.title = Shadertoy着色器示例
+welcome.new-project.shadertoy-sample.description = 本示例包含一个从 Shadertoy 获取并转换为 Defold 格式的 GLSL 着色器。它展示了如何在 Defold 中处理材质和着色器。
+welcome.new-project.3d-treasure-scene.title = 3D 宝藏场景
+welcome.new-project.3d-treasure-scene.description = 这个示例展示了一个带有动画效果的风格化 3D 场景。
+welcome.new-project.perspective-parallax.title = 透视视差
+welcome.new-project.perspective-parallax.description = 此示例展示了透视相机视差效果。
+welcome.new-project.lightning-vfx.title = 闪电特效
+welcome.new-project.lightning-vfx.description = 此示例展示了2D滚动射击游戏中的闪电效果以及如何在游戏过程中设置和操作网格组件。
+
+# Updater
+updater.button.update-available = 有可用更新
+updater.button.restart-to-update = 重启以更新
+updater.download-or-restart-dialog.title = 安装更新？
+updater.download-or-restart-dialog.header = 更新已就绪，但有更新的版本可用
+updater.download-or-restart-dialog.detail = 您可以安装已下载的更新包，或下载其它新版本
+updater.platform-not-supported-dialog.title = 平台不支持
+updater.platform-not-supported-dialog.header = 此平台不再提供更新
+updater.platform-not-supported-dialog.detail = 支持的平台有 64 位 Linux、macOS 和 Windows
+updater.download-dialog.title = 下载更新？
+updater.download-dialog.header = 有新版本的 Defold 可用！
+updater.update-failed.title = 更新失败
+updater.update-failed.header = 更新安装期间发生错误
+updater.update-failed.detail = 您可能需要重新安装
+updater.dialog.title = 安装更新并重启？
+updater.dialog.header = 安装已下载的更新并重启？
+updater.dialog.button.not-now = 稍后​​​​​
+updater.dialog.button.download = 下载更新
+updater.dialog.button.install-and-restart = 安装并重启
+updater.dialog.button.download-newer-version = 下载新版本
+
+# Time
+time.vague.unknown = 未知
+time.vague.just-now = 刚刚
+time.vague.a-minute-ago = 1 分钟前
+time.vague.a-few-minutes-ago = 几分钟前
+time.vague.minutes-ago = {count} 分钟前
+time.vague.half-an-hour-ago = 半小时前
+time.vague.an-hour-ago = 1 小时前
+time.vague.a-few-hours-ago = 几小时前
+time.vague.hours-ago = {count} 小时前
+time.vague.a-day-ago = 1 天前
+
+# Common dialogs
+
+dialog.button.close = 关闭
+dialog.button.quit = 退出
+dialog.button.open-defold-website = 打开 defold.com
+dialog.button.dismiss = 忽略
+dialog.button.report = 报告
+dialog.button.disable-scene-editor = 关闭场景编辑器
+dialog.button.cancel = 取消
+dialog.button.delete = 刪除
+
+# Error Dialog
+
+dialog.error.title = 错误
+dialog.error.header = 发生错误
+dialog.error.footer = 您可以通过报告和提供更多信息来帮助我们解决这个问题。
+
+# Build Error Dialog
+
+dialog.build-error.title = 构建错误
+dialog.build-error.cycle.header = 检测到资源循环依赖
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = 这是由于两个或多个集合之间通过集合代理或集合工厂相互循环引用所致。其中一个资源是：\n{resource}。
+dialog.build-error.cycle.detail.game-object = 这是由两个或多个游戏对象通过游戏对象工厂因循环方式引用引起的。其中一个资源是：{resource}。
+dialog.build-error.cycle.detail.script = 这是由两个或多个 Lua 模块因循环方式引用引起的。其中一个资源是：{resource}。
+dialog.build-error.cycle.detail.generic = 这是由两个或多个资源因循环方式引用引起的。其中一个资源是：{resource}。
+
+# Clean Build Dialog
+
+dialog.clean-build.title = 执行纯净构建？
+dialog.clean-build.header = 确定要执行纯净构建吗？
+dialog.clean-build.button.clean = 纯净构建
+
+# Debugging Not Supported Dialog
+
+dialog.debugging-not-supported.title = 不支持调试
+dialog.debugging-not-supported.header = 此项目无法与调试器一起使用
+dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n除非特别需要不同的脚本状态，否则建议修改 game.project 中的 script.shared_state 属性。
+
+# Defunload Issues Dialog
+
+dialog.defunload-issues.title = 修订 .defunload 模式
+dialog.defunload-issues.header = 发现对已卸载资源的不安全引用。
+dialog.defunload-issues.summary = 一个或多个资源对由 `.defunload` 模式卸载的资源有不安全引用。
+dialog.defunload-issues.advice = 请修复 `.defunload` 文件中的模式，以避免加载不需要的资源。
+dialog.defunload-issues.report-path = 完整报告已写入：
+dialog.defunload-issues.button.ignore = 忽略
+dialog.defunload-issues.button.open-report = 打开报告
+dialog.defunload-issues.report-line = {resource} - 引用已卸载资源：
+dialog.defunload-issues.report.section-loading-resources = \#\#\# 加载资源 \#\#\#
+dialog.defunload-issues.report.loaded-undesired = 下列匹配 `.defunload` 模式的资源已经超需加载：
+
+notification.defunload-issues.action.show-details = 查看详情…
+
+# Launch Failed Dialog
+
+dialog.launch-failed.title = 启动失败
+dialog.launch-failed.header = 启动 {engine} 失败
+dialog.launch-failed.detail = 如果引擎已在运行，请手动关闭进程并重试
+dialog.launch-failed.target.new-local-engine = 新建本地引擎
+
+# Hot Reload Failed Dialog
+
+dialog.hot-reload-failed.title = 热重载失败
+dialog.hot-reload-failed.header = 无法在引擎 "{engine}" 上重新加载资源
+
+# GL support error dialog
+
+dialog.gl-support.title = 缺少必要的 OpenGL 支持
+dialog.gl-support.header = 这是一个很常见的问题，看看这些用法是否有帮助：
+dialog.gl-support.linux = Linux上的OpenGL
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = 您可以在场景编辑功能被禁用下继续使用。
+
+# New folder
+
+dialog.new-folder.title = 新建文件夹
+dialog.new-folder.header = 输入新文件夹名称
+dialog.new-folder.label.name = 名称
+dialog.new-folder.label.preview = 预览
+dialog.new-folder.button.create-folder = 创建文件夹
+
+# Target IP dialog
+
+dialog.target-ip.title = 输入目标IP
+dialog.target-ip.header = 输入目标IP地址
+dialog.target-ip.label.ip = 目标IP地址
+dialog.target-ip.button.add = 添加目标IP
+
+# Search in Files Dialogs
+
+dialog.search-in-files.title = 在文件中搜索
+dialog.search-in-files.label.search = 搜索模式（* 可匹配任意字符串）
+dialog.search-in-files.label.types = 搜索的文件类型（用英文逗号分隔）
+dialog.search-in-files.label.include-libraries = 在库内搜索
+dialog.search-in-files.button.keep-results = 保留结果
+
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = 目标发现日志
+dialog.target-discovery-log.header = 目标发现日志
+dialog.target-discovery-log.button.clear-log = 清除日志
+dialog.target-discovery-log.button.restart-discovery = 重启发现
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = 设置路径
+dialog.directory.title.select = 选择目录
+dialog.file.title.select = 选择文件
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = 设置自定义分辨率
+dialog.custom-resolution.header = 设置自定义游戏分辨率
+dialog.custom-resolution.detail = 游戏窗口将调整到此大小
+dialog.custom-resolution.label.width = 宽度
+dialog.custom-resolution.label.height = 高度
+dialog.custom-resolution.button.set-resolution = 设置分辨率
+
+# Tracked internal files dialog
+
+dialog.tracked-internal-files.title = 版本控制下的内部文件
+dialog.tracked-internal-files.header = 内部文件已置于版本控制下
+dialog.tracked-internal-files.content = 看起来内部文件（例如已下载的依赖或构建输出）被放入了版本控制。\n这种情况可能发生在 .gitignore 文件未正确配置时提交了代码。\n\n为解决此问题，请提交一次删除 .internal 和 build 目录的操作，然后重新打开项目。
+
+# Quit Defold dialog
+
+dialog.quit-defold.title = 退出 Defold？
+dialog.quit-defold.header = 存在未保存的更改，您确定要退出吗？
+dialog.quit-defold.button.cancel = 取消并继续工作
+dialog.quit-defold.button.quit = 不保存退出
+
+# Save and upgrade file formats dialogs
+
+dialog.save-and-upgrade.title.not-safe = 无法安全升级文件格式
+dialog.save-and-upgrade.version-control.header = 建议使用版本控制
+dialog.save-and-upgrade.version-control.preamble = 由于可能出现数据丢失问题，只能对版本控制下的项目进行文件格式升级。
+dialog.save-and-upgrade.version-control.info.before-manual = 受版本控制的项目会保留修改历史，并允许您将更改推送到服务器，从而与他人协作。\n\n您可以阅读有关如何配置版本控制的信息 
+dialog.save-and-upgrade.version-control.info.manual-link = Defold 手册
+dialog.save-and-upgrade.version-control.info.after-manual = 。
+dialog.save-and-upgrade.uncommitted.header = 检测到未提交的更改
+dialog.save-and-upgrade.uncommitted.content = 由于潜在的数据丢失问题，文件格式升级应从干净的工作目录开始。\n\n我们建议您在重试操作之前提交本地更改。
+dialog.save-and-upgrade.confirm.title = 保存并升级文件格式？
+dialog.save-and-upgrade.confirm.header = 以最新文件格式重新保存所有文件？
+dialog.save-and-upgrade.confirm.content = 项目中的文件将以最新文件格式重新保存。此操作无法撤销。\n\n由于可能涉及大量文件，在执行此操作前您应与项目负责人协调。
+dialog.save-and-upgrade.button.abort = 中止
+dialog.save-and-upgrade.button.proceed-anyway = 仍然继续
+dialog.save-and-upgrade.button.upgrade-editable-files = 升级可编辑文件
+dialog.save-and-upgrade.button.upgrade-project-files = 升级项目文件
+dialog.save-and-upgrade.button.upgrade-all-files = 升级所有文件
+
+# Plugin load error dialog
+
+dialog.plugin-load-error.title = 无法加载插件
+dialog.plugin-load-error.header = 编辑器插件"{plugin}"与此版本的编辑器不兼容。请编辑您的项目依赖项以引用合适的版本。
+
+# Desktop entry dialogs
+
+dialog.desktop-entry.created.title = 桌面条目已创建
+dialog.desktop-entry.created.header = 桌面条目已创建！
+dialog.desktop-entry.created.content = 您现在可以从系统菜单启动 Defold 编辑器。
+dialog.desktop-entry.creation-failed.title = 桌面项创建失败
+dialog.desktop-entry.creation-failed.header = 无法创建桌面项！
+dialog.desktop-entry.creation-failed.content = 创建桌面项时发生错误：\n{error}
+
+# Texture compressor error dialog
+
+dialog.texture-compressor-error.title = 无法加载插件
+dialog.texture-compressor-error.header = 初始化纹理压缩器失败
+dialog.texture-compressor-error.content = 以下来自编辑器插件的类与此版本的编辑器不兼容：\n \n{classes} \n \n没有它们,项目可能无法构建。\n请编辑您的项目依赖项以引用合适的版本。
+
+# Lua preprocessors error dialog
+
+dialog.lua-preprocessors-error.title = 无法加载插件
+dialog.lua-preprocessors-error.content = 以下来自编辑器插件的类与此版本的编辑器不兼容：\n \n{classes} \n \n没有它们，项目可能无法构建。\n请编辑您的项目依赖项以引用合适的版本。
+dialog.lua-preprocessors-error.construct.header = Lua 转译器构建失败
+dialog.lua-preprocessors-error.initialize.header = Lua 预处理器初始化失败
+
+# Lua transpilers error dialog
+
+dialog.lua-transpilers-error.title = 无法加载插件
+dialog.lua-transpilers-error.content = 以下来自编辑器插件的类与此版本的编辑器不兼容：\n \n{classes} \n \n没有它们,项目可能无法构建。\n请编辑您的项目依赖项以引用合适的版本。
+dialog.lua-transpilers-error.construct.header = Lua 转译器构建失败
+dialog.lua-transpilers-error.initialize.header = Lua 转译器初始化失败
+dialog.lua-transpilers-error.generic.header = Lua 转译器加载失败
+
+# Diff view dialogs
+
+dialog.diff-view.unchanged.title = 文件未更改
+dialog.diff-view.unchanged.header = 文件未更改
+dialog.diff-view.binary.title = 无法比较二进制文件
+dialog.diff-view.binary.header = 无法比较二进制文件
+
+# Fetch libraries dialog
+
+dialog.fetch-libraries.host-unreachable.title = 获取失败
+dialog.fetch-libraries.host-unreachable.header = 由于无法访问主机，获取已中止
+dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}\n\n请检查您的互联网连接并重试。
+
+# Fetch libraries notification
+
+notification.fetch-libraries.dependencies-changed.prompt = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.dependencies-changed.action.fetch = 获取库
+notification.fetch-libraries.dependencies-missing.warning = 以下依赖项缺失：\n{dependencies}\n缺少这些依赖项，项目可能无法正常运行。\n如需下载，请连接互联网并获取相关库。
+notification.fetch-libraries.dependencies-error.error = 无法安装以下依赖：\n{dependencies}
+notification.fetch-libraries.dependencies-error.action.open-game-project = 打开 game.project
+
+# Language server notification
+
+notification.lsp.language-server-missing.prompt = 无法执行此操作，因为没有为 {language} 语言运行的语言服务器。
+notification.lsp.language-server-missing.action.about = Defold 中的 LSP 简介
+
+# Asset browser notifications
+
+notification.asset-browser.circular-paste.error = 无法将文件夹 {source} 粘贴到其子文件夹 {target} 中。
+
+# Workspace notifications
+
+notification.resource-collision.directory.warning = 文件夹“{resource}”正在覆盖一个同名文件夹。
+notification.resource-collision.builtins.warning = 文件夹“{resource}”正在覆盖内置组件 builtins 中一个同名文件夹。
+notification.resource-collision.library.warning = 文件夹“{resource}”正在覆盖项目依赖项中一个同名文件夹：{library}
+
+# Web server notifications
+
+notification.web-server.port-fallback.warning = 无法在请求的端口 {requested} 上启动服务器（原因：{reason}）。改用备用端口 {fallback}。
+
+# Changes view notifications
+
+notification.changes-view.git-error = 由于 Git 错误，此项目无法使用 Git 功能。
+
+# Debug view notifications
+
+notification.debug-view.connect-failed.error = {error}\n\n检查游戏是否正在运行并且可以通过网络访问。
+
+# Target notifications
+
+notification.targets.selected-target-unavailable.error = {error}\n\n您选择的目标不可用。
+
+# Form view dialogs
+
+dialog.form-view.directory-not-in-project.title = 无效的目录
+dialog.form-view.directory-not-in-project.header = 目录必须在项目中存在。
+dialog.form-view.file-not-in-project.title = 无效文件
+dialog.form-view.file-not-in-project.header = 文件必须在项目内存在。
+
+# Shared editor settings load error dialog
+
+dialog.shared-editor-settings.load-error.title = 加载共享编辑器设置时出错
+dialog.shared-editor-settings.load-error.header = 加载共享编辑器设置文件失败。
+dialog.shared-editor-settings.load-error.detail = 回退到默认设置。您的用户体验可能会受到影响。
+dialog.shared-editor-settings.load-error.content = 文件：{file}\n\n{error}
+
+# Updated gitignore dialog
+
+dialog.gitignore-updated.title = 更新 .gitignore 文件
+dialog.gitignore-updated.header = 更新 .gitignore 文件
+dialog.gitignore-updated.content = .gitignore 文件已自动更新，以忽略构建输出文件和元数据文件。\n下次同步时，您应将此文件连同您的更改一同提交。
+
+# Asset browser reserved targets dialog
+
+dialog.asset-paste-reserved.title = 无法粘贴
+dialog.asset-paste-reserved.header = 部分目标目录为预留目录
+dialog.asset-paste-reserved.content = 以下目标目录为预留目录：\n{directories}
+
+# Asset deletion dialogs
+
+dialog.asset-delete-single.title = 删除文件？
+dialog.asset-delete-single.header = 您确定要删除 {name} 吗？
+dialog.asset-delete-multiple.title = 删除文件？
+dialog.asset-delete-multiple.header = 您确定要删除这些文件吗？
+dialog.asset-delete-multiple.content = 您即将删除以下内容：\n{items}
+dialog.asset-delete-multiple.content.item = \n  • {name}
+
+# Rename dialog
+
+dialog.rename.title = 重命名 {name}
+dialog.rename.preview = 预览
+dialog.rename.button.rename = 重命名
+dialog.rename.label.folder = 新文件夹名称
+dialog.rename.label.file = 新建文件名
+dialog.rename.header.folder = 重命名文件夹
+dialog.rename.header.files = 重命名{n, plural, one {文件} other {\# 个文件}}
+dialog.rename.error.reserved-name = 名称 {name} 为预留名称
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = 名称冲突
+dialog.name-conflict.header = 目标文件夹中 {count, plural, one {已存在同名对象} other {\# 个名称冲突的对象}}。
+dialog.name-conflict.button.name-differently = 使用不同名称
+dialog.name-conflict.button.overwrite-files = 覆盖文件
+
+# New file dialog
+
+dialog.new-file.title.file = 新建文件
+dialog.new-file.title.resource = 新建 {type}
+dialog.new-file.header.file = 输入文件名
+dialog.new-file.header.resource = 输入 {type} 文件名
+dialog.new-file.label.name = 名称
+dialog.new-file.label.location = 位置
+dialog.new-file.label.preview = 预览
+dialog.new-file.button.create.file = 创建
+dialog.new-file.button.create.resource = 创建 {type}
+
+# List dialogs
+
+dialog.select-item.title = 选择项目
+dialog.select-item.prompt = 输入内容进行筛选
+dialog.select-item.button.ok = 确定
+dialog.open-assets.title = 打开资产
+dialog.open-assets.button.ok = 打开
+dialog.referencing-files.title = 引用文件
+dialog.referencing-files.button.ok = 打开
+dialog.dependencies.title = 依赖项
+dialog.dependencies.button.ok = 打开
+dialog.add-atlas-images.title = 选择图片
+dialog.select-game-object-file.title = 选择游戏对象文件
+dialog.select-collection-file.title = 选择集合文件
+dialog.select-component-file.title = 选择组件文件
+dialog.select-gui-component.title = 选择 {component}
+dialog.select-resource.title = 选择资源
+dialog.recent-files.title = 最近的文件
+dialog.recent-files.button.ok = 打开
+
+# Open resource dialogs
+
+dialog.open-resource.excluded.title = 资源已从加载中排除
+dialog.open-resource.excluded.header = 由于 "{resource}" 被 ".defunload" 文件排除在加载范围之外，因此无法打开。
+dialog.open-resource.unrecognized.title = 无法打开资源
+dialog.open-resource.unrecognized.header = 无法打开 “{resource}”，因其包含无法识别的数据。项目是否可能缺少必需的扩展程序？
+dialog.open-resource.open-file-failed.title = 无法打开文件
+dialog.open-resource.open-file-failed.header = 不能打开 {resource}
+dialog.open-resource.open-file-failed.detail = 这种情况是文件类型在操作系统中没有映射到应用程序。\n\n来自操作系统的底层错误：\n{error}
+
+# Loading project dialog
+
+dialog.loading-project.header = 正在加载项目
+
+# Editor panes
+
+pane.assets = 资产
+pane.changed-files = 更改的文件
+pane.outline = 大纲
+pane.properties = 属性
+pane.console = 控制台
+pane.curve-editor = 曲线编辑
+pane.build-errors = 构建错误
+pane.search-results = 查找结果
+
+# Console
+
+console.button.clear = 清除
+console.button.filter = 过滤
+console.filter.enable-filtering = 启用过滤
+console.filter.add-filter = 添加过滤器 (例如 text, \!exclude)
+console.search = 搜索
+
+# Changes view
+
+changes-view.button.diff = 差异
+changes-view.button.revert = 恢复
+dialog.changes-revert.title = 恢复更改？
+dialog.changes-revert.header = 您确定要恢复对选定文件的更改吗？
+dialog.changes-revert.button.revert-changes = 恢复更改
+
+# Prefs
+
+prefs.dialog.title = 首选项
+
+prefs.tab.general = 常规
+prefs.tab.code = 代码
+prefs.tab.extensions = 扩展
+prefs.tab.tools = 工具
+prefs.tab.dev = 开发
+prefs.tab.keymap = 按键映射
+
+# General tab
+prefs.label.workflow.load-external-changes-on-app-focus = 应用程序获得焦点时加载外部更改
+prefs.label.workflow.save-on-app-focus-lost = 应用程序失去焦点时保存全部
+prefs.label.bundle.open-output-directory = 打开包体目标文件夹
+prefs.label.build.open-html5-build = 在构建HTML5后打开浏览器
+prefs.label.build.texture-compression = 启用纹理压缩
+prefs.label.run.quit-on-escape = Esc键退出游戏
+prefs.label.asset-browser.track-active-tab = 在资产浏览器中跟踪活动选项卡
+prefs.label.build.lint-code = 构建时检查代码
+prefs.label.window.locale = 编辑器语言
+prefs.label.run.engine-arguments = 引擎参数
+prefs.prompt.run.engine-arguments = 每行一个参数
+prefs.help.run.engine-arguments = 当编辑器构建和运行时，传递给 dmengine 可执行文件的参数。\n每行使用一个参数。例如：\n--config\=bootstrap.main_collection\=/my dir/1.collectionc\n--verbose\n--graphics-adapter\=vulkan
+
+# Code tab
+prefs.label.code.custom-editor = 自定义编辑器
+prefs.label.code.open-file = 打开文件
+prefs.label.code.open-file-at-line = 指定行打开文件
+prefs.label.code.font.name = 代码编辑器字体(需要重启)
+prefs.label.code.zoom-on-scroll = 滚动缩放
+prefs.label.code.hover = 悬停提示
+prefs.help.code.hover = 悬停时显示代码文档弹窗
+prefs.label.code.auto-closing-parens = 自动补全括号
+
+# Extensions tab
+prefs.label.extensions.build-server = 构建服务器
+prefs.label.extensions.build-server-username = 构建服务器用户名
+prefs.label.extensions.build-server-password = 构建服务器密码
+prefs.label.extensions.build-server-headers = 构建服务器头
+
+# Tools
+prefs.label.tools.adb-path = ADB 路径
+prefs.help.tools.adb-path = ADB 命令的路径，在打包 Android 应用时可用于安装和启动
+prefs.label.tools.ios-deploy-path = ios-deploy 路径
+prefs.help.tools.ios-deploy-path = Ios-deploy 命令的路径，在打包 iOS 应用时可用于安装和启动
+
+# Dev tab
+prefs.label.dev.custom-engine = 自定义引擎
+
+# Keymap tab
+prefs.keymap.filter.prompt = 过滤键盘映射…
+prefs.keymap.command = 命令
+prefs.keymap.shortcuts = 快捷键
+prefs.keymap.context-menu.new-shortcut = 新建快捷键…
+prefs.keymap.context-menu.reset-to-default = 重置为默认值
+prefs.keymap.context-menu.remove = 移除 {shortcut}
+prefs.keymap.context-menu.add = 添加 {shortcut}
+prefs.keymap.new-shortcut = 新的 “{shortcut}” 快捷键
+prefs.keymap.new-shortcut.press-desired-combination = 按下所需的组合键
+prefs.keymap.new-shortcut.commit = 按下 {enter} 提交
+prefs.keymap.new-shortcut.commit-or-cancel = 按下 {enter} 提交，{escape} 取消
+prefs.keymap.warnings = 警告：{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = 可输入字符（可能与文本输入冲突）
+prefs.keymap.warning.conflicts = 与{shortcuts}冲突
+
+# Progress
+
+progress.ready = 就绪
+progress.writing = 正在加载 {resource}
+progress.linting = 正在检查代码…
+progress.fetching-engine = 正在获取引擎…
+progress.executing-pre-build-hooks = 正在执行预构建钩子…
+progress.executing-post-build-hooks = 正在执行后构建钩子…
+progress.executing-bundle-hook = 正在执行打包钩子…
+progress.building-project = 构建项目…
+progress.installing-updated-libraries = 正在安装更新库…
+progress.initializing-editor = 正在初始化编辑器{lib}
+progress.loading-editor = 正在加载编辑器
+progress.loading = 正在加载
+progress.loading-resource = 正在加载 {resource}
+progress.resolving-resource = 正在解析 {resource}
+progress.reading-resource = 正在读取 {resource}
+progress.finalizing = 正在完成…
+progress.saving = 正在保存…
+progress.compiling = 正在编译…
+progress.compiling-resource = 正在编译 {resource}…
+progress.updating-dependencies = 正在更新依赖…
+progress.syncing-resources = 同步资源…
+progress.loading-project = 正在加载项目…
+progress.loading-external-changes = 正在加载外部更改…
+progress.writing-files = 正在写入文件…
+progress.caching-save-results = 正在缓存保存结果…
+progress.reading-timestamps = 正在读取时间戳…
+progress.building = 正在构建…
+progress.building-resource = 正在构建 {resource}
+progress.fetching = 正在获取 {uri}
+progress.downloading-update = 正在下载更新
+progress.extracting-update = 正在提取更新
+progress.waiting = 等待
+progress.bundling = 正在打包…
+progress.building-engine = 正在构建引擎…
+progress.cleaning-engine = 正在清理引擎…
+progress.downloading-symbols = 正在下载符号…
+progress.transpiling-to-lua = 正在转译为 Lua…
+progress.reading-tasks = 正在读取任务…
+progress.cleaning = 正在清理…
+progress.generating-report = 正在生成报告…
+progress.working = 正在处理…
+progress.reading-classes = 正在读取类…
+progress.downloading-archives = 正在下载归档文件…
+progress.launching-engine = 正在启动引擎…
+progress.launched-engine = 已启动 {engine}
+progress.engine-launch-failed = 启动失败
+progress.rebooting-engine = 正在重启 {engine}…
+progress.rebooted-engine = 已重启 {engine}
+progress.engine-reboot-failed = 重启失败
+progress.aborting = 正在中止…
+progress.percentage = {percentage}%
+
+# Engine targets
+
+engine.url.unavailable = 引擎服务不可用
+engine.url.invalid-host = 无效主机
+engine.name.local = 本地 {name}
+engine.name.with-url = {name} — {url}
+engine.name.with-instance = {name} — 实例 {instance}
+
+# Search results: overrides
+
+search.overrides.title.all = 所有属性覆盖{qualifier, select, none {} other { "{qualifier}"对象}}{qualifier, select, none {} other {{resource, select, none {} other { 在}}}}{resource, select, none {} other { "{resource}"资源}}
+search.overrides.title.list = {list} 的属性覆盖{qualifier, select, none {} other { "{qualifier}"对象}}{qualifier, select, none {} other {{resource, select, none {} other { 在}}}}{resource, select, none {} other { "{resource}"资源}}
+search.overrides.title.specific = 指定属性覆盖 {qualifier, select, none {} other { "{qualifier}"对象}}{qualifier, select, none {} other {{resource, select, none {} other { 在}}}}{resource, select, none {} other { "{resource}"资源}}
+search.column.resource = 资源
+
+# Menus
+
+menu.file = 文件
+menu.project = 项目
+menu.edit = 编辑
+menu.debug = 调试
+menu.view = 视图
+menu.help = 帮助
+
+# Commands
+
+command.file.new = 新建…
+command.file.new.option.any-file = 文件
+command.file.new.any-file = 新建文件
+command.file.new-folder = 新建文件夹
+command.file.open = 打开…
+command.file.open-as = 打开为
+command.file.open-as.option.associated-application = 关联应用
+command.file.open-as.option.in-custom-editor = 在自定义编辑器中打开 {view}
+command.file.open-as.option.in-defold-editor = 在 Defold 编辑器中打开 {view}
+command.file.open-selected = 打开
+command.file.load-external-changes = 加载外部更改
+command.file.save-all = 保存全部
+command.file.save-and-upgrade-all = 升级文件格式…
+command.file.search = 在文件中搜索…
+command.file.reopen-recent = 重新打开已关闭的文件
+command.private.recent-files.option.entry = {path} • {view}
+command.private.recent-files = 最近的文件
+command.private.recent-files.option.more = 更多…
+command.window.tab.close = 关闭
+command.window.tab.close-all = 关闭全部
+command.window.tab.close-others = 关闭其他
+command.window.tab.join-groups = 合并标签页
+command.window.tab.move-to-other-group = 移动到另一个标签页
+command.window.tab.swap-with-other-group = 与另一个标签页交换
+command.file.show-in-assets = 在资产浏览器中显示
+command.file.show-in-desktop = 在桌面中显示
+command.file.show-references = 正在引用文件…
+command.file.show-dependencies = 依赖项…
+command.run.hot-reload = 热重载
+command.run.select-target = 目标
+command.run.select-target.option.all-launched-instances = 所有已启动的实例
+command.run.select-target.option.new-local-engine = 新建本地引擎
+command.run.stop = 关闭引擎
+command.run.set-instance-count = 启动实例计数
+command.run.set-instance-count.option.count = {count, plural, one {\# 个实例} other {\# 个实例}}
+command.run.set-target-ip = 输入目标IP
+command.run.show-target-log = 目标发现日志
+command.run.open-profiler = 打开 Web 配置
+command.run.open-resource-profiler = 打开资源配置
+command.run.reset-resolution = 重置模拟分辨率
+command.run.set-resolution = 设置分辨率
+command.run.set-resolution.option.android-devices = 安卓设备
+command.run.set-resolution.option.apple = 苹果
+command.run.set-resolution.option.custom-resolution = 自定义分辨率…
+command.run.set-resolution.option.handheld = 手持设备
+command.run.set-resolution.option.ipad = iPad
+command.run.set-resolution.option.iphone = iPhone
+command.run.set-resolution.option.native-resolutions = 原生分辨率
+command.run.set-resolution.option.viewport-resolutions = 视口分辨率
+command.run.toggle-device-rotated = 旋转设备
+command.file.open-liveupdate-settings = 热更新设置
+command.file.open-project = 打开项目…
+command.file.open-shared-editor-settings = 共享编辑器设置
+command.app.preferences = 首选项…
+command.app.quit = 退出
+command.project.build = 构建
+command.project.clean-build = 清理构建
+command.project.build-html5 = 构建 HTML5
+command.project.clean-build-html5 = 清理构建 HTML5
+command.project.bundle = 打包
+command.project.rebundle = 重新打包
+command.project.fetch-libraries = 获取库
+command.project.reload-editor-scripts = 重新加载编辑器脚本
+command.private.clear-override = 清除{property}覆盖
+command.edit.undo = 撤销
+command.edit.redo = 重做
+command.edit.add-embedded-component = 添加
+command.edit.add-embedded-component.variant.atlas = 添加动画
+command.edit.add-embedded-component.variant.collection = 添加游戏对象
+command.edit.add-embedded-component.variant.collision-object = 添加形状
+command.edit.add-embedded-component.variant.collision-object.option.box = 矩形
+command.edit.add-embedded-component.variant.collision-object.option.capsule = 胶囊
+command.edit.add-embedded-component.variant.collision-object.option.sphere = 球形
+command.edit.add-embedded-component.variant.game-object = 添加组件
+command.edit.add-embedded-component.variant.particlefx = 添加触发器
+command.edit.add-embedded-component.variant.particlefx.option.circle = 圆形
+command.edit.add-embedded-component.variant.particlefx.option.sphere = 球形
+command.edit.add-embedded-component.variant.particlefx.option.cone = 锥形
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D 锥形
+command.edit.add-embedded-component.variant.particlefx.option.box = 矩形
+command.edit.add-embedded-component.variant.tile-map = 添加图层
+command.edit.add-embedded-component.variant.tile-source = 添加
+command.edit.add-embedded-component.variant.tile-source.option.animation = 动画
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = 碰撞组
+command.edit.add-referenced-component = 从文件添加
+command.edit.add-referenced-component.variant.atlas = 添加图像…
+command.edit.add-referenced-component.variant.collection = 添加游戏对象文件
+command.edit.add-referenced-component.variant.game-object = 添加组件文件
+command.edit.add-secondary-embedded-component = 添加次级组件
+command.edit.add-secondary-embedded-component.variant.collection-game-object = 添加游戏对象
+command.edit.add-secondary-embedded-component.variant.particlefx = 添加修改器
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = 加速
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = 拖动
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = 径向
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = 漩涡
+command.edit.add-secondary-referenced-component = 从文件添加次级组件
+command.edit.add-secondary-referenced-component.variant.collection = 添加集合文件
+command.edit.add-secondary-referenced-component.variant.collection-game-object = 添加游戏对象文件
+command.edit.cut = 剪切
+command.edit.copy = 拷贝
+command.edit.copy-absolute-path = 复制完整路径
+command.edit.copy-require-path = 复制所需路径
+command.edit.copy-resource-path = 复制资源路径
+command.edit.find = 查找…
+command.edit.paste = 粘贴
+command.code.select-all = 全选
+command.edit.delete = 刪除
+command.edit.reorder-up = 上移
+command.edit.reorder-down = 下移
+command.edit.rename = 重命名
+command.edit.pull-up-overrides = 拉取覆盖
+command.edit.pull-up-overrides.variant.property = 拉取{property}覆盖
+command.edit.pull-up-overrides.option = 提升 {property_count, select, 1 {"{property}" 的属性覆盖} other {{property_count} 个属性覆盖}} 至 {target_count, select, 1 {{target, select, undefined {上级} other {"{target}"}}} other {{target_count} 个上级}} {aspect_count, select, 0 {} 1 {在 {aspect} 中} other {在 {aspect} 中}} {resource_count, select, 1 {{aspect_count, select, 0 {在 "{resource}" 中} other {属于 "{resource}"}}} other {跨 {resource_count} 个资源}}
+command.edit.push-down-overrides = 推送覆盖
+command.edit.push-down-overrides.variant.property = 下推 {property} 覆盖
+command.edit.push-down-overrides.option = 下移 {property_count, select, 1 {"{property}" 的属性覆盖} other {{property_count} 个属性覆盖}} 至 {target_count, select, 1 {{target, select, undefined {下级} other {"{target}"}}} other {{target_count} 个下级}} {aspect_count, select, 0 {} 1 {在 {aspect} 中} other {在 {aspect} 中}} {resource_count, select, 1 {{aspect_count, select, 0 {在 "{resource}" 中} other {属于 "{resource}"}}} other {跨 {resource_count} 个资源}}
+command.edit.show-overrides = 显示覆盖…
+command.code.find-next = 查找下一个
+command.code.find-previous = 查找上一项
+command.code.replace = 替换…
+command.code.replace-next = 替换下一项
+command.code.toggle-comment = 切换注释
+command.code.reindent-lines = 重新缩进行
+command.code.convert-indentation = 转换缩进
+command.code.convert-indentation.to-tabs = 转换为制表符
+command.code.convert-indentation.to-two-spaces = 转换为两个空格
+command.code.convert-indentation.to-four-spaces = 转换为四个空格
+command.code.sort-lines = 行排序
+command.code.sort-lines.case-sensitive = 行排序（区分大小写）
+command.code.sort-lines.option.case-insensitive = 不区分大小写
+command.code.sort-lines.option.case-sensitive = 区分大小写
+command.code.select-next-occurrence = 选择下一个匹配项
+command.code.split-selection-into-lines = 将选中内容拆分为行
+command.code.goto-definition = 转到定义
+command.code.goto-line = 转到行…
+command.code.show-references = 查找引用
+command.code.toggle-minimap = 缩略图
+command.code.toggle-indentation-guides = 缩进参考线
+command.code.toggle-visible-whitespace = 显示空白字符
+command.code.zoom.increase = 增大字体大小
+command.code.zoom.decrease = 减小字体大小
+command.code.zoom.reset = 重置字体大小
+command.debugger.start = 启动/附加
+command.debugger.continue = 继续
+command.debugger.break = 中断
+command.debugger.step-over = 单步跳过
+command.debugger.step-into = 单步进入
+command.debugger.step-out = 单步跳出
+command.debugger.detach = 分离调试器
+command.debugger.stop = 停止调试器
+command.debugger.toggle-breakpoint = 切换断点
+command.debugger.edit-breakpoint = 编辑断点
+command.scene.set-manipulator-space = 设置操纵器间距
+command.scene.set-manipulator-space.option.world = 世界空间
+command.scene.set-manipulator-space.option.local = 本地空间
+command.scene.set-camera-type = 设置相机类型
+command.scene.set-camera-type.option.orthographic = 正交相机
+command.scene.set-camera-type.option.perspective = 透视相机
+command.scene.set-gui-layout = 设置 GUI 布局
+command.scene.toggle-move-whole-pixels = 整像素移动
+command.scene.visibility.toggle-filters = 切换可见性过滤器
+command.scene.visibility.toggle-component-guides = 切换组件向导
+command.scene.visibility.toggle-grid = 切换网格
+command.scene.visibility.toggle-selection = 显示/隐藏选中对象
+command.scene.visibility.hide-unselected = 隐藏未选中对象
+command.scene.visibility.show-last-hidden = 显示最后隐藏对象
+command.scene.visibility.show-all = 显示所有隐藏对象
+command.scene.play = 启动
+command.scene.stop = 停止
+command.scene.frame-selection = 聚焦选中对象
+command.scene.realign-camera = 重新对齐相机
+command.scene.toggle-tile-palette = 选择瓦片…
+command.scene.select-erase-tool = 选择橡皮擦
+command.scene.flip-brush-horizontally = 水平翻转画笔
+command.scene.flip-brush-vertically = 垂直翻转画笔
+command.scene.rotate-brush-90-degrees = 旋转画笔90度
+command.window.toggle-left-pane = 切换资产面板
+command.window.toggle-changed-files-pane = 切换更改的文件
+command.window.toggle-bottom-pane = 切换工具面板
+command.window.toggle-right-pane = 切换属性面板
+command.window.show-console = 显示控制台
+command.window.show-curve-editor = 显示曲线编辑器
+command.window.show-build-errors = 显示构建错误
+command.window.show-search-results = 显示搜索结果
+command.dev.reload-css = 重新加载样式表
+command.help.open-logs = 显示日志
+command.file.create-desktop-entry = 创建桌面项
+command.help.open-documentation = 文档
+command.help.open-forum = 支持论坛
+command.help.open-asset-portal = 查找资产
+command.help.report-issue = 反馈问题
+command.help.report-suggestion = 报告建议
+command.help.open-issues = 搜索问题
+command.help.open-donations = 发展基金
+command.app.about = 关于
+command.vcs.diff = 查看差异
+command.vcs.revert = 还原
+
+# Overrides
+
+override.aspect.layout = {layout} 布局
+override.aspect.layout.kind = {count, plural, one {\# 个布局} other {\# 个布局}}
+override.aspect.generic.kind = {count, plural, one {\# 个方面} other {\# 个方面}}
+
+# GUI
+
+gui.layout.default = 默认
+
+# Editing operations
+
+operation.atlas.add-animation = 添加动画
+operation.atlas.add-images = 添加图像
+operation.atlas.move-pivot-point = 移动轴心点
+operation.collision-object.add-shape = 添加形状
+operation.collection.add-collection = 添加集合
+operation.collection.add-game-object = 添加游戏对象
+operation.game-object.add-component = 添加组件
+operation.gui.add-gui-node = 添加 GUI 节点
+operation.gui.add-layer = 添加图层
+operation.gui.add-layout = 添加布局
+operation.gui.add-resources = 添加 {type}
+operation.particlefx.add-emitter = 添加发射器
+operation.particlefx.add-modifier = 添加修改器
+operation.property.clear = 清除 {property}
+operation.property.set = 设置 {property}
+operation.scene.move = 移动
+operation.scene.rotate = 旋转
+operation.scene.scale = 缩放
+operation.cut = 剪切
+operation.delete = 删除
+operation.drop = 拖放
+operation.paste = 粘贴
+operation.select = 选择
+operation.tile-map.add-layer = 添加图层
+
+# Properties
+
+property.tooltip = {help, select, none {} other {帮助：{help}\n\n}}在编辑器脚本中可作为"{id}"使用
+
+# Properties: universal
+
+property.blend-mode = 混合模式
+property.id = Id
+property.image = 图像
+property.material = 材质
+property.name = 名称
+property.path = 路径
+property.position = 位置
+property.rotation = 旋转
+property.scale = 缩放
+property.size = 尺寸
+property.url = URL
+
+# Properties: appmanifest
+
+property.appmanifest.physics-2d = 2D 物理
+property.appmanifest.physics-2d.tooltip = Box2D 版本 3 或旧版 Defold 版本
+property.appmanifest.physics-3d = 3D 物理
+property.appmanifest.physics-3d.tooltip = Bullet 或 无
+property.appmanifest.rig+model = 骨骼 + 模型
+property.appmanifest.rig+model.tooltip = 骨骼、模型或无
+property.appmanifest.exclude-record = 排除录制
+property.appmanifest.exclude-record.tooltip = 移除视频录制功能（桌面平台）
+property.appmanifest.exclude-profiler = 排除性能分析器
+property.appmanifest.exclude-profiler.tooltip = 移除屏幕上和 Web 性能分析器
+property.appmanifest.exclude-sound = 排除声音
+property.appmanifest.exclude-sound-decoder-wav = 排除声音解码器：WAV
+property.appmanifest.exclude-sound-decoder-ogg = 排除声音解码器：OGG
+property.appmanifest.include-sound-decoder-opus = 包含声音解码器：Opus
+property.appmanifest.exclude-input = 排除输入
+property.appmanifest.exclude-liveupdate = 排除实时更新
+property.appmanifest.exclude-image = 排除图像
+property.appmanifest.exclude-types = 排除类型
+property.appmanifest.exclude-basis-transcoder = 排除Basis转码器
+property.appmanifest.use-android-support-lib = 使用 Android 支持库
+property.appmanifest.use-android-support-lib.tooltip = 使用旧的 Android 支持库而不是 AndroidX。从 Defold 1.2.177 开始可用。
+property.appmanifest.graphics = 绘图
+property.appmanifest.graphics.tooltip = Vulkan 仅支持桌面和移动平台
+property.appmanifest.graphics-osx = 绘图(macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan 是 macOS 的默认渲染器
+property.appmanifest.graphics-web = 绘图(HTML5)
+property.appmanifest.graphics-web.tooltip = WebGPU支持处于测试版(web 平台)
+
+# Properties: atlas
+
+property.atlas.animation.fps = FPS
+property.atlas.animation.flip-horizontal = 水平翻转
+property.atlas.animation.flip-vertical = 垂直翻转
+property.atlas.animation.playback = 回放
+property.atlas.image.pivot = 轴心
+property.atlas.image.sprite-trim-mode = 精灵修剪模式
+property.atlas.margin = 边距
+property.atlas.margin.tooltip = 在图集上每个图像之间插入的像素
+property.atlas.inner-padding = 内边距
+property.atlas.inner-padding.tooltip = 围绕每个图像填充的空白像素
+property.atlas.extrude-borders = 扩边像素
+property.atlas.extrude-borders.tooltip = 复制边缘像素向外扩展以避免图像之间的渗色
+property.atlas.max-page-size = 最大页面尺寸
+property.atlas.max-page-size.tooltip = 多页面图集中每个页面的最大宽度和高度
+property.atlas.rename-patterns = 重命名模式
+property.atlas.rename-patterns.tooltip = 逗号分隔的搜索\=对每个图像基础名称应用替换的模式；例如"hat\=cat,_normal\="重命名"hat_normal"到"cat", 这有助于在地图集中匹配动画
+
+# Properties: camera
+
+property.camera.aspect-ratio = 纵横比
+property.camera.aspect-ratio.tooltip = 仅限透视相机。平截头体宽度和高度之间的比率。1.0 假设为方形视图；1.33 适合 4\:3（1024x768）；1.78 适合16\:9。启用自动纵横比时忽略。
+property.camera.fov = 视野
+property.camera.fov.tooltip = 仅限透视相机。垂直视场，以弧度为单位。值越高显示的场景越多。
+property.camera.near-z = 近 Z
+property.camera.near-z.tooltip = 近裁剪平面的 Z 值。
+property.camera.far-z = 远 Z
+property.camera.far-z.tooltip = 远裁剪平面的 Z 值。
+property.camera.auto-aspect-ratio = 自动纵横比
+property.camera.auto-aspect-ratio.tooltip = 仅限透视相机。自动计算纵横比。
+property.camera.orthographic-projection = 正交投影
+property.camera.orthographic-projection.tooltip = 将相机切换到正交投影。
+property.camera.orthographic-zoom = 正交缩放
+property.camera.orthographic-zoom.tooltip = 仅适用于正交相机。缩放系数(> 1 放大；< 1 缩小)。
+property.camera.orthographic-mode = 正交缩放模式
+
+# Properties: collection proxy
+
+property.collection-proxy.collection = 集合
+property.collection-proxy.exclude = 排除
+
+# Properties: collision object
+
+property.collision-object.collision-shape = 碰撞形状
+property.collision-object.type = 类型
+property.collision-object.type.tooltip = 在编辑器脚本中可用，标识为 “collision_type”。相较于 “type”，建议优先使用此标识符，因为当组件嵌入游戏对象时，“type” 会用于表示组件类型，这会遮蔽该属性。
+property.collision-object.mass = 质量
+property.collision-object.friction = 摩擦力
+property.collision-object.restitution = 弹性
+property.collision-object.linear-damping = 线性阻尼
+property.collision-object.angular-damping = 角阻尼
+property.collision-object.locked-rotation = 锁定旋转
+property.collision-object.bullet = 连续碰撞检测
+property.collision-object.event-collision = 生成碰撞事件
+property.collision-object.event-collision.tooltip = 如果禁用，则过滤掉涉及此碰撞对象的任何碰撞事件
+property.collision-object.event-contact = 生成接触事件
+property.collision-object.event-contact.tooltip = 如果禁用，则过滤掉涉及此碰撞对象的任何接触事件
+property.collision-object.event-trigger = 生成触发事件
+property.collision-object.event-trigger.tooltip = 如果禁用，则过滤掉涉及此碰撞对象的任何触发事件
+property.collision-object.group = 碰撞分组
+property.collision-object.mask = 碰撞掩码
+property.collision-object.shape.diameter = 直径
+property.collision-object.shape.dimensions = 尺寸
+property.collision-object.shape.height = 高度
+
+# Properties: cubemap
+
+property.cubemap.back = 后面
+property.cubemap.bottom = 底部
+property.cubemap.front = 前面
+property.cubemap.left = 左侧
+property.cubemap.right = 右侧
+property.cubemap.top = 顶部
+
+# Properties: factory
+
+property.factory.prototype = 原型
+property.factory.load-dynamically = 动态加载
+property.factory.dynamic-prototype = 动态原型
+
+# Properties: font
+
+property.font.font = 字体
+property.font.output-format = 输出格式
+property.font.render-mode = 渲染模式
+property.font.size = 尺寸
+property.font.antialias = 抗锯齿
+property.font.alpha = 透明度
+property.font.outline-alpha = 轮廓透明度
+property.font.outline-width = 轮廓宽度
+property.font.shadow-alpha = 阴影透明度
+property.font.shadow-blur = 阴影模糊
+property.font.shadow-x = 阴影 X
+property.font.shadow-y = 阴影 Y
+property.font.cache-width = 缓存宽度
+property.font.cache-height = 缓存高度
+property.font.characters = 字符
+property.font.all-chars = 所有字符
+
+# Properties: gui
+
+property.gui.adjust-mode = 调整模式
+property.gui.adjust-reference = 调整引用
+property.gui.alpha = 透明度
+property.gui.clipping-inverted = 反向裁剪
+property.gui.clipping-mode = 裁剪模式
+property.gui.clipping-visible = 裁剪可见
+property.gui.color = 颜色
+property.gui.current-nodes = 当前节点
+property.gui.enabled = 启用
+property.gui.font = 字体
+property.gui.inherit-alpha = 继承透明度
+property.gui.inner-radius = 内半径
+property.gui.layer = 图层
+property.gui.line-break = 换行
+property.gui.max-dynamic-textures = 最大动态纹理
+property.gui.max-nodes = 最大节点数
+property.gui.outline = 轮廓
+property.gui.outline-alpha = 轮廓透明度
+property.gui.outer-bounds = 外边界
+property.gui.perimeter-vertices = 周长顶点数
+property.gui.particlefx = 粒子效果
+property.gui.pie-fill-angle = 饼图填充角度
+property.gui.pivot = 轴心
+property.gui.script = 脚本
+property.gui.shadow = 阴影
+property.gui.shadow-alpha = 阴影透明度
+property.gui.size-mode = 尺寸模式
+property.gui.slice9 = 九宫格
+property.gui.texture = 纹理
+property.gui.template = 模板
+property.gui.text = 文本
+property.gui.text-leading = 文本行距
+property.gui.text-tracking = 文本字距
+property.gui.visible = 可见
+property.gui.x-anchor = X轴锚点
+property.gui.y-anchor = Y轴锚点
+
+# Properties: label
+
+property.label.color = 颜色
+property.label.font = 字体
+property.label.leading = 行间距
+property.label.line-break = 换行
+property.label.outline = 轮廓
+property.label.pivot = 轴心
+property.label.shadow = 阴影
+property.label.size = 大小
+property.label.text = 文本
+property.label.tracking = 字距
+
+# Properties: mesh
+
+property.mesh.normal-stream = 法线流
+property.mesh.position-stream = 位置流
+property.mesh.primitive-type = 基元类型
+property.mesh.vertices = 顶点
+
+# Properties: model
+
+property.model.animations = 动画
+property.model.create-go-bones = 创建游戏对象骨骼
+property.model.default-animation = 默认动画
+property.model.mesh = 网格
+property.model.skeleton = 骨骼
+
+# Properties: particlefx
+
+property.particlefx.category.particle-life = 粒子生命周期
+
+property.particlefx.animation = 动画
+property.particlefx.duration = 持续时间
+property.particlefx.inherit-velocity = 继承速度
+property.particlefx.material = 材质
+property.particlefx.max-particle-count = 最大粒子数
+property.particlefx.mode = 播放模式
+property.particlefx.particle-orientation = 粒子方向
+property.particlefx.pivot = 轴心
+property.particlefx.size-mode = 尺寸模式
+property.particlefx.space = 发射空间
+property.particlefx.start-delay = 开始延迟
+property.particlefx.start-offset = 开始偏移
+property.particlefx.stretch-with-velocity = 速度拉伸
+property.particlefx.tile-source = 图像
+property.particlefx.type = 触发类型
+
+property.particlefx.emitter-key-particle-alpha = 初始透明度
+property.particlefx.emitter-key-particle-angular-velocity = 初始角速度
+property.particlefx.emitter-key-particle-blue = 初始蓝色
+property.particlefx.emitter-key-particle-green = 初始绿色
+property.particlefx.emitter-key-particle-life-time = 粒子生命周期
+property.particlefx.emitter-key-particle-red = 初始红色
+property.particlefx.emitter-key-particle-rotation = 初始旋转
+property.particlefx.emitter-key-particle-size = 初始尺寸
+property.particlefx.emitter-key-particle-speed = 初始速度
+property.particlefx.emitter-key-particle-stretch-factor-x = 初始拉伸X
+property.particlefx.emitter-key-particle-stretch-factor-y = 初始拉伸Y
+property.particlefx.emitter-key-size-x = 发射器尺寸 X
+property.particlefx.emitter-key-size-y = 发射器尺寸 Y
+property.particlefx.emitter-key-size-z = 发射器尺寸 Z
+property.particlefx.emitter-key-spawn-rate = 生成速率
+property.particlefx.magnitude = 幅度
+property.particlefx.max-distance = 最大距离
+property.particlefx.particle-key-alpha = 透明度
+property.particlefx.particle-key-angular-velocity = 角速度
+property.particlefx.particle-key-blue = 蓝色
+property.particlefx.particle-key-green = 绿色
+property.particlefx.particle-key-red = 红色
+property.particlefx.particle-key-rotation = 旋转
+property.particlefx.particle-key-scale = 缩放
+property.particlefx.particle-key-stretch-factor-x = 拉伸 X
+property.particlefx.particle-key-stretch-factor-y = 拉伸 Y
+
+# Properties: sound
+
+property.sound.sound = 音效
+property.sound.looping = 循环
+property.sound.loopcount = 循环次数
+property.sound.group = 分组
+property.sound.gain = 增益
+property.sound.pan = 声像
+property.sound.speed = 速度
+
+# Properties: sprite
+
+property.sprite.default-animation = 默认动画
+property.sprite.offset = 偏移
+property.sprite.playback-rate = 播放速度
+property.sprite.size-mode = 尺寸模式
+property.sprite.slice9 = 九宫格
+
+# Properties: tile map
+
+property.tile-map.layer.visible = 可见
+property.tile-map.layer.z = Z
+property.tile-map.tile-source = 瓦片源
+
+# Properties: tile source
+
+property.tile-source.collision = 碰撞
+property.tile-source.end-tile = 结束瓦片
+property.tile-source.extrude-borders = 挤出边框
+property.tile-source.flip-horizontal = 水平翻转
+property.tile-source.flip-vertical = 垂直翻转
+property.tile-source.fps = FPS
+property.tile-source.inner-padding = 内边距
+property.tile-source.playback = 播放
+property.tile-source.sprite-trim-mode = 精灵修剪模式
+property.tile-source.start-tile = 开始瓦片
+property.tile-source.tile-height = 瓦片高度
+property.tile-source.tile-margin = 瓦片边距
+property.tile-source.tile-spacing = 瓦片间距
+property.tile-source.tile-width = 瓦片宽度
+
+# Outline
+
+outline.atlas.no-image = <无图像>
+outline.atlas = 图集
+outline.camera = 相机
+outline.collection = 集合
+outline.collection-proxy = 集合代理
+outline.collision-object = 碰撞对象
+outline.game-object = 游戏对象
+outline.gui.fonts = 字体
+outline.gui.layouts = 布局
+outline.gui.layers = 图层
+outline.gui.nodes = 节点
+outline.gui.materials = 材质
+outline.gui.textures = 纹理
+outline.non-editable-collection = 不可编辑集合
+outline.non-editable-game-object = 不可编辑游戏对象
+outline.particlefx = 粒子效果
+outline.sound = 音效
+outline.tile-map = 瓦片地图
+outline.tile-source = 瓦片源
+outline.unknown = 未知
+outline.unnamed-collision-shape = <未命名 {shape}>
+
+# Resources
+
+resource.view.scene = 场景
+resource.view.html = HTML
+resource.view.form = 表单
+resource.view.code = 代码
+resource.view.text = 文本
+
+resource.readonly.detail = 此文件是库的一部分，无法保存。
+resource.readonly.button.read-more = 阅读更多…

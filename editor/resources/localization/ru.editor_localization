@@ -1217,3 +1217,11 @@ resource.view.text = Текст
 
 resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
 resource.readonly.button.read-more = Подробнее…
+
+# Quick Help
+
+quick-help.open-asset = Открыть ресурс
+quick-help.reopen-closed-file = Открыть закрытый файл
+quick-help.search-in-files = Поиск в файлах
+quick-help.build-and-run-project = Собрать и запустить проект
+quick-help.start-or-attach-debugger = Запустить отладчик

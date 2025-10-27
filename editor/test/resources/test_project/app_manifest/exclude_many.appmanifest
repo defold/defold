@@ -75,17 +75,17 @@ platforms:
             linkFlags: []
     x86-win32:
         context:
-            excludeLibs: [librecord, vpx, libprofile, libprofilerext, libprofiler_remotery, libsound, libtremolo, libhid, libliveupdate,    libgraphics_transcoder_basisu, libbasis_transcoder]
+            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
             excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
             symbols: []
-            libs: [librecord_null.lib, libprofile_null.lib, libprofilerext_null.lib, libsound_null.lib, libhid_null.lib,    libliveupdate_null.lib, libgraphics_transcoder_null.lib]
+            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
             linkFlags: []
     x86_64-win32:
         context:
-            excludeLibs: [librecord, vpx, libprofile, libprofilerext, libprofiler_remotery, libsound, libtremolo, libhid, libliveupdate,    libgraphics_transcoder_basisu, libbasis_transcoder]
+            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
             excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
             symbols: []
-            libs: [librecord_null.lib, libprofile_null.lib, libprofilerext_null.lib, libsound_null.lib, libhid_null.lib,    libliveupdate_null.lib, libgraphics_transcoder_null.lib]
+            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
             linkFlags: []
     js-web:
         context:

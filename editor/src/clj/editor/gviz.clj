@@ -218,10 +218,10 @@
         [from-value from-color] (first (rsubseq gradient <= value))
         [to-value to-color] (first (subseq gradient >= value))
         offset (- to-value from-value)
-        interpolation (if (zero? offset)
-                        0.0
-                        (/ (- value from-value)
-                           offset))]
+        interpolation (double (if (zero? offset)
+                                0.0
+                                (/ (- value from-value)
+                                   offset)))]
     (str "#" (-> (Color/valueOf ^String from-color)
                  (.interpolate (Color/valueOf ^String to-color) interpolation)
                  (str)

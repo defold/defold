@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
+            clojure.test.check.clojure-test
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -88,6 +89,10 @@
 (set! *warn-on-reflection* true)
 
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
+
+;; Disable defspec logs:
+;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
+(alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
 
 (def project-path "test/resources/test_project")
 

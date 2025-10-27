@@ -252,7 +252,7 @@
       (str "*" escaped-resource-name)
       escaped-resource-name)))
 
-(defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
+(defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap localization]
   (let [tab-panes (.getItems editor-tabs-split)
         is-empty (not-any? #(-> ^TabPane % .getTabs count pos?) tab-panes)
         parent (.getParent editor-tabs-split)
@@ -264,29 +264,28 @@
 
     (when is-empty
       (let [label-font (Font. "Dejavu Sans Mono" 13)
-            key-font (Font. "" 13)
-            color (Color. 1.0 1.0 0.59765625 0.6)]
+            key-font (Font. "" 13)]
         (.clear (.getChildren grid-pane))
-        (->> [[:file.open "Open Asset"]
-              [:file.reopen-recent "Re-Open Closed File"]
-              [:file.search "Search in Files"]
-              [:project.build "Build and Run Project"]
-              [:debugger.start "Start or Attach Debugger"]]
+        (->> [[:file.open (localization/message "quick-help.open-asset")]
+              [:file.reopen-recent (localization/message "quick-help.reopen-closed-file")]
+              [:file.search (localization/message "quick-help.search-in-files")]
+              [:project.build (localization/message "quick-help.build-and-run-project")]
+              [:debugger.start (localization/message "quick-help.start-or-attach-debugger")]]
              (e/keep (fn [[command label]]
                        (when-let [display-text (keymap/display-text keymap command nil)]
                          (coll/pair label display-text))))
              (e/map-indexed coll/pair)
              (run! (fn [[row [label display-text]]]
                      (doto grid-pane
-                       (.add (doto (Label. label)
+                       (.add (doto (Label.)
+                               (localization/localize! localization label)
                                (.setFont label-font)
                                (GridPane/setHalignment HPos/RIGHT)
-                               (.setTextFill color))
+                               (-> .getStyleClass (.add "quick-help-label")))
                              0 row)
                        (.add (doto (Label. display-text)
                                (.setFont key-font)
                                (.setAlignment Pos/CENTER)
-                               (.setTextFill color)
                                (-> .getStyleClass (.add "key-button")))
                              1 row)))))))))
 
@@ -301,6 +300,7 @@
   (property active-tool g/Keyword)
   (property manip-space g/Keyword)
   (property keymap g/Any)
+  (property localization g/Any)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -342,9 +342,9 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views keymap]
+  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views keymap localization]
                                             (let [tab-panes (.getItems editor-tabs-split)]
-                                              (update-quick-help-pane editor-tabs-split keymap)
+                                              (update-quick-help-pane editor-tabs-split keymap localization)
 
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
@@ -2060,7 +2060,8 @@
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
                                                                      :manip-space :world
-                                                                     :keymap keymap))))]
+                                                                     :keymap keymap
+                                                                     :localization localization))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
