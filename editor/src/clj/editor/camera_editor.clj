@@ -22,7 +22,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
@@ -34,6 +33,7 @@
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc Camera$OrthoZoomMode]
@@ -129,7 +129,7 @@
     :orthographic-mode orthographic-mode))
 
 (defn build-camera
-  [resource dep-resources user-data]
+  [resource _dep-resources user-data]
   {:resource resource
    :content (protobuf/map->bytes Camera$CameraDesc (:pb-msg user-data))})
 
@@ -141,20 +141,7 @@
       :build-fn build-camera
       :user-data {:pb-msg save-value}})])
 
-(shader/defshader outline-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader outline-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
+(def ^:private outline-shader shaders/basic-color-world-space)
 
 (defmacro ^:private gen-outline-vertex [x y z w cr cg cb]
   `[(/ ~x ~w) (/ ~y ~w) (/ ~z ~w) ~cr ~cg ~cb 1.0])
@@ -299,7 +286,8 @@
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer render-args renderables renderable-count) outline-shader)]
+  (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
+        outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 

@@ -61,7 +61,6 @@
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
-           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Animation Image]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
@@ -75,15 +74,6 @@
 (def ^:const image-icon "icons/32/Icons_25-AT-Image.png")
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
-
-(vtx/defvertex texture-vtx
-  (vec3 position)
-  (vec2 texcoord)
-  (vec1 page_index))
-
-(vtx/defvertex color-vtx
-  (vec3 position)
-  (vec4 color))
 
 (defn- get-rect-page-offset [layout-width page-index]
   (let [page-margin 32]
@@ -136,8 +126,9 @@
 
 (defn- gen-outline-vertex-buffer [renderables count]
   (let [tmp-point (Point3d.)
-        ^VertexBuffer vbuf (->color-vtx count)
-        ^ByteBuffer buf (.buf vbuf)]
+        vertex-description (shaders/vertex-description shaders/basic-color-local-space)
+        vbuf (vtx/make-vertex-buffer vertex-description :dynamic count)
+        buf (vtx/buf vbuf)]
     (doseq [renderable renderables]
       (let [[cr cg cb] (colors/renderable-outline-color renderable)
             world-transform (:world-transform renderable)
@@ -149,18 +140,19 @@
     (vtx/flip! vbuf)))
 
 (defn- render-image-outlines
-  [^GL2 gl render-args renderables n]
+  [^GL2 gl render-args renderables _renderable-count]
   (condp = (:pass render-args)
     pass/outline
     (let [vertex-count (renderables->outline-vertex-component-count renderables)
-          outline-vertex-binding (vtx/use-with ::atlas-image-outline (gen-outline-vertex-buffer renderables vertex-count) shaders/basic-color-local-space)]
+          vertex-buffer (gen-outline-vertex-buffer renderables vertex-count)
+          outline-vertex-binding (vtx/use-with ::atlas-image-outline vertex-buffer shaders/basic-color-local-space)]
       (gl/with-gl-bindings gl render-args [shaders/basic-color-local-space outline-vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 vertex-count)))))
 
 (defn- render-image-selection
-  [^GL2 gl render-args renderables n]
+  [^GL2 gl render-args renderables renderable-count]
   (assert (= (:pass render-args) pass/selection))
-  (assert (= n 1))
+  (assert (= renderable-count 1))
   (let [renderable (first renderables)
         picking-id (:picking-id renderable)
         id-color (scene-picking/picking-id->color picking-id)
@@ -553,8 +545,9 @@
         v1 (vector-of :float x0 y1 0.0 0.0 1.0 page-index)
         v2 (vector-of :float x1 y1 0.0 1.0 1.0 page-index)
         v3 (vector-of :float x1 y0 0.0 1.0 0.0 page-index)
-        ^VertexBuffer vbuf (->texture-vtx 6)
-        buf (.buf vbuf)]
+        vertex-description (shaders/vertex-description shaders/basic-texture-paged-local-space)
+        vbuf (vtx/make-vertex-buffer vertex-description :dynamic 6)
+        buf (vtx/buf vbuf)]
     (doto buf
       (vtx/buf-push-floats! v0)
       (vtx/buf-push-floats! v1)

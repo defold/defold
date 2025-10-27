@@ -119,6 +119,10 @@
         byte-buffer (make-buf byte-capacity)]
     (wrap-vertex-buffer vertex-description usage byte-buffer)))
 
+(definline buf
+  ^ByteBuffer [^VertexBuffer vertex-buffer]
+  `~(with-meta `(.buf ~(with-meta vertex-buffer {:tag `VertexBuffer})) {:tag `ByteBuffer}))
+
 ;; low-level access
 
 (definline buf-blit! [buffer byte-offset bytes]
