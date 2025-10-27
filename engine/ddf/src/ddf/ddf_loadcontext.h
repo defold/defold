@@ -41,11 +41,10 @@ namespace dmDDF
         uint32_t    IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
         uint32_t    GetArrayCount(uint32_t buffer_pos, uint32_t field_number);
 
-        uint32_t    AddDynamicElementSize(uint32_t info_hash, uint32_t element_size);
         uint32_t    AddDynamicMessageSize(uint32_t message_size);
         uint32_t    NextDynamicTypeOffset();
         void        ResetDynamicOffsetCursor();
-        uint32_t    CalculateDynamicTypeMemorySize();
+        uint32_t    GetDynamicTypeMemorySize();
         void*       GetDynamicTypePointer(uint32_t offset);
         void        SetDynamicTypeBase(uint32_t offset);
 

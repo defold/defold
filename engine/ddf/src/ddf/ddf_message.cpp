@@ -161,7 +161,7 @@ namespace dmDDF
         char* msg_buf = 0;
         if (field->m_Label == LABEL_REPEATED)
         {
-            msg_buf = (char*) AddMessage(load_context, field);
+            msg_buf = (char*) AddMessage(field);
         }
         else
         {
@@ -282,7 +282,7 @@ namespace dmDDF
         return 0;
     }
 
-    void* Message::AddMessage(LoadContext* load_context, const FieldDescriptor* field)
+    void* Message::AddMessage(const FieldDescriptor* field)
     {
         assert((Label) field->m_Label == LABEL_REPEATED);
         assert(field->m_MessageDescriptor);

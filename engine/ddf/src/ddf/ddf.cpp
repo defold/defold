@@ -290,7 +290,7 @@ namespace dmDDF
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
 
         int aligned_base_memory = DM_ALIGN(load_context.GetMemoryUsage(), 16);
-        int message_buffer_size = aligned_base_memory + load_context.CalculateDynamicTypeMemorySize();
+        int message_buffer_size = aligned_base_memory + load_context.GetDynamicTypeMemorySize();
         char* message_buffer = 0;
 
         dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size);

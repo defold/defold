@@ -113,7 +113,7 @@ namespace dmDDF
         }
     }
 
-    uint32_t LoadContext::CalculateDynamicTypeMemorySize()
+    uint32_t LoadContext::GetDynamicTypeMemorySize()
     {
         return m_DynamicTypeMemoryTotal;
     }
