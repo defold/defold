@@ -30,7 +30,7 @@ namespace dmDDF
         LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options);
         Message     AllocMessage(const Descriptor* desc);
         Message     AllocMessageRaw(const Descriptor* desc, uint32_t size);
-        void*       AllocRepeated(const FieldDescriptor* field_desc, int count, int data_size);
+        void*       AllocRepeated(const FieldDescriptor* field_desc, int count);
         char*       AllocString(int length);
         char*       AllocBytes(int length);
         uint32_t    GetOffset(void* memory);
@@ -40,9 +40,7 @@ namespace dmDDF
         int         GetMemoryUsage();
 
         uint32_t    IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
-        void        GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size, uint32_t* hash_out);
-        uint32_t    IncreaseArrayDataSize(uint32_t info_hash, uint32_t data_size);
-        uint32_t    GetArrayElementSize(uint32_t info_hash, uint32_t index);
+        void        GetArrayCount(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* hash_out);
 
         uint32_t    AddDynamicElementSize(uint32_t info_hash, uint32_t element_size);
         uint32_t    AddDynamicMessageSize(uint32_t message_size);
@@ -62,19 +60,10 @@ namespace dmDDF
             return m_DryRun;
         }
 
-    //private:
-        struct ArrayInfo
-        {
-            uint32_t           m_Count;
-            uint32_t           m_DataSize;
-            dmArray<uint32_t>* m_ElementSizes;
-            uint32_t           m_ElementSizesTotal;
-        };
-
-        dmHashTable32<ArrayInfo> m_ArrayInfo;
+    private:
+        dmHashTable32<uint32_t> m_ArrayCount;
 
         dmArray<uint32_t> m_DynamicOffsets;
-        uint32_t m_DynamicOffsetsTotal;
 
         uintptr_t   m_Start;
         uintptr_t   m_End;
@@ -83,6 +72,7 @@ namespace dmDDF
         uint32_t    m_Options;
         uint32_t    m_OffsetCursor;
         uint32_t    m_DynamicTypeOffset;
+        uint32_t    m_DynamicOffsetsTotal;
     };
 }
 

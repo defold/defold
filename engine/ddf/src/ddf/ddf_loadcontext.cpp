@@ -31,7 +31,7 @@ namespace dmDDF
         {
             memset(buffer, 0, buffer_size);
         }
-        m_ArrayInfo.SetCapacity(2048, 2048);
+        m_ArrayCount.SetCapacity(2048, 2048);
 
         m_OffsetCursor = 0;
         m_DynamicOffsetsTotal = 0;
@@ -55,35 +55,27 @@ namespace dmDDF
         return Message(desc, (char*)b, size, m_DryRun);
     }
 
-    void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count, int data_size)
+    void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
     {
         Type type = (Type) field_desc->m_Type;
 
         m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
-        int data_size_to_add = 0;
-
+        int element_size = 0;
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
-            if (data_size)
-            {
-                data_size_to_add = data_size;
-            }
-            else
-            {
-                data_size_to_add = field_desc->m_MessageDescriptor->m_Size * count;
-            }
+            element_size = field_desc->m_MessageDescriptor->m_Size;
         }
         else if ( field_desc->m_Type == TYPE_STRING )
         {
-            data_size_to_add = sizeof(const char*) * count;
+            element_size = sizeof(const char*);
         }
         else
         {
-            data_size_to_add = ScalarTypeSize(type) * count;
+            element_size = ScalarTypeSize(type);
         }
 
         uintptr_t b = m_Current;
-        m_Current += data_size_to_add;
+        m_Current += count * element_size;
         assert(m_DryRun || m_Current <= m_End);
         return (void*) b;
     }
@@ -144,49 +136,40 @@ namespace dmDDF
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
-        if(m_ArrayInfo.Full())
+        if(m_ArrayCount.Full())
         {
-            m_ArrayInfo.SetCapacity(2048, m_ArrayInfo.Capacity() + 1024);
+            m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
         }
 
-        ArrayInfo* info_ptr = m_ArrayInfo.Get(hash);
-        if(info_ptr)
+        uint32_t* value_p = m_ArrayCount.Get(hash);
+        if(value_p)
         {
-            info_ptr->m_Count++;
+            (*value_p)++;
         }
         else
         {
-            ArrayInfo new_info;
-            new_info.m_Count    = 1;
-            new_info.m_DataSize = 0;
-            new_info.m_ElementSizes = 0;
-            new_info.m_ElementSizesTotal = 0;
-            m_ArrayInfo.Put(hash, new_info);
+            m_ArrayCount.Put(hash, 1);
         }
 
         return hash;
     }
 
-    uint32_t LoadContext::AddDynamicElementSize(uint32_t info_hash, uint32_t size)
+    void LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* hash_out)
     {
-        ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
-        assert(info_ptr);
+        uint32_t key[] = {field_number, buffer_pos};
+        uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
+        uint32_t *info_ptr = m_ArrayCount.Get(hash);
 
-        if (info_ptr->m_ElementSizes == 0)
+        if (info_ptr == 0)
         {
-            info_ptr->m_ElementSizes = new dmArray<uint32_t>();
-            info_ptr->m_ElementSizes->SetCapacity(1);
+            *count = 0;
+            *hash_out = 0;
         }
-
-        if (info_ptr->m_ElementSizes->Full())
+        else
         {
-            info_ptr->m_ElementSizes->OffsetCapacity(4);
+            *count = *info_ptr;
+            *hash_out = hash;
         }
-
-        info_ptr->m_ElementSizes->Push(size);
-        info_ptr->m_ElementSizesTotal += size;
-
-        return AddDynamicMessageSize(size);
     }
 
     void* LoadContext::GetDynamicTypePointer(uint32_t offset)
@@ -197,47 +180,6 @@ namespace dmDDF
     void LoadContext::SetDynamicTypeBase(uint32_t offset)
     {
         m_DynamicTypeOffset = offset;
-    }
-
-    void LoadContext::GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size, uint32_t* hash_out)
-    {
-        uint32_t key[] = {field_number, buffer_pos};
-        uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
-        ArrayInfo *info_ptr = m_ArrayInfo.Get(hash);
-
-        if (info_ptr == 0)
-        {
-            *count = 0;
-            *data_size = 0;
-            *hash_out = 0;
-        }
-        else
-        {
-            *count = info_ptr->m_Count;
-            *data_size = info_ptr->m_DataSize;
-            *hash_out = hash;
-        }
-    }
-
-    uint32_t LoadContext::IncreaseArrayDataSize(uint32_t info_hash, uint32_t data_size)
-    {
-        ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
-        assert(info_ptr);
-
-        uint32_t current_size = info_ptr->m_DataSize;
-        info_ptr->m_DataSize += data_size;
-
-        info_ptr->m_ElementSizes->Push(data_size);
-
-        return current_size;
-    }
-
-    uint32_t LoadContext::GetArrayElementSize(uint32_t info_hash, uint32_t index)
-    {
-        ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
-        assert(info_ptr);
-
-        return (*info_ptr->m_ElementSizes)[index];
     }
 
     uint32_t LoadContext::AddDynamicMessageSize(uint32_t message_size)

@@ -399,11 +399,11 @@ namespace dmDDF
         }
     }
 
-    void Message::AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size, uint32_t hash)
+    void Message::AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, uint32_t hash)
     {
         assert((Label) field->m_Label == LABEL_REPEATED);
 
-        void* buf = load_context->AllocRepeated(field, element_count, data_size);
+        void* buf = load_context->AllocRepeated(field, element_count);
         SetRepeatedBuffer(field, buf, hash);
     }
 

@@ -238,7 +238,7 @@ namespace dmDDF
                         is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                         if (is_dynamic_type && *array_info_hash != 0)
                         {
-                            load_context->AddDynamicElementSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
+                            load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
                         }
 
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash, is_dynamic_type);
