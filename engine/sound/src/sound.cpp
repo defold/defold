@@ -308,7 +308,7 @@ namespace dmSound
 
         if (device_info.m_FrameCount && device_info.m_FrameCount != sound->m_DeviceFrameCount)
         {
-            dmLogWarning("Audio device reported frame count %u after reset (previous %u). Clamping to previous allocation.", device_info.m_FrameCount, sound->m_DeviceFrameCount);
+            dmLogWarning("Audio device reported frame count %u after reset (previous %u).", device_info.m_FrameCount, sound->m_DeviceFrameCount);
         }
 
         if (device_info.m_MixRate && device_info.m_MixRate != sound->m_MixRate)
