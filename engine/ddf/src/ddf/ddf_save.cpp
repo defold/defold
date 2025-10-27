@@ -127,6 +127,9 @@ namespace dmDDF
                     {
                         const uint8_t* data_tmp = data;
 
+                        // The data stored in the buffer for "not fully defined" fields is a pointer to a
+                        // separate dynamic memory area, which means that we need to resolve the pointer
+                        // to where the actual data resides.
                         if (!field_desc->m_FullyDefinedType)
                         {
                             uintptr_t dynamic_ptr = *((uintptr_t*) data);
