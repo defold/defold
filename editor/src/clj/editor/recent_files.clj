@@ -124,8 +124,7 @@
             (mapv (fn [tab]
                     (let [tab-resource (tab->resource tab)]
                       [(resource/proj-path tab-resource)
-                       (-> tab
-                           tab-resource
+                       (-> tab-resource
                            resource/resource-type
                            :view-types
                            first
@@ -158,4 +157,5 @@
   (prefs/set! (dev/prefs) [:workflow :last-selected-tabs] {:selected-pane 1, :tab-selection-by-pane [0 0]})
   (prefs/get (dev/prefs) [:workflow :open-tabs])
   (prefs/get (dev/prefs) [:workflow :last-selected-tabs])
+  (prefs/get (dev/prefs) [:window])
   ,)
