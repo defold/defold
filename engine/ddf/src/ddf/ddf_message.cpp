@@ -223,6 +223,21 @@ namespace dmDDF
         }
     }
 
+    void Message::SetOneOf(const Descriptor* desc, const FieldDescriptor* field)
+    {
+        // Note: The -1 is because we offset it by 1 in ddfc.py
+        assert(field->m_OneOfIndex > 0);
+        int32_t oneof_index_from_zero = field->m_OneOfIndex-1;
+        assert(oneof_index_from_zero < desc->m_OneOfDataOffsetsCount);
+
+        if (!m_DryRun)
+        {
+            uint32_t data_offset = desc->m_OneOfDataOffsets[oneof_index_from_zero];
+            uint8_t* oneof_index = (uint8_t*) GetBuffer(data_offset);
+            *oneof_index = field->m_Number;
+        }
+    }
+
     void Message::SetScalar(const FieldDescriptor* field, const void* buffer, int buffer_size)
     {
         assert((Label) field->m_Label != LABEL_REPEATED);

@@ -253,7 +253,7 @@ namespace dmDDF
 
     Result SaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function)
     {
-        return DoSaveMessage(message, desc, context, save_function);
+        return DoSaveMessage(message, desc, context, save_function, 0);
     }
 
     static bool DDFFileSaveFunction(void* context, const void* buffer, uint32_t buffer_size)

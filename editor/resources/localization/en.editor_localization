@@ -322,6 +322,7 @@ dialog.lua-transpilers-error.generic.header = Failed to load Lua transpilers
 
 # Diff view dialogs
 
+dialog.diff-view.title = Diff
 dialog.diff-view.unchanged.title = The File Is Unchanged
 dialog.diff-view.unchanged.header = The file is unchanged
 dialog.diff-view.binary.title = Unable to Diff Binary Files
@@ -843,6 +844,28 @@ command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
 
+# Code editor – find bar
+
+code.find.word = Word
+code.find.case = Case
+code.find.wrap = Wrap
+code.find.prev = Previous
+code.find.next = Next
+code.replace.next = Replace
+code.replace.all = Replace All
+
+# About dialog
+
+dialog.about.label.version = Version:
+dialog.about.label.channel = Channel:
+dialog.about.label.build-time = Build time:
+dialog.about.label.editor-sha1 = Editor SHA1:
+dialog.about.label.engine-sha1 = Engine SHA1:
+dialog.about.value.unavailable = Not available
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Defold Foundation
+dialog.about.sponsor = Defold Foundation Development Fund
+
 # Overrides
 
 override.aspect.layout = {layout} Layout
@@ -1217,3 +1240,11 @@ resource.view.text = Text
 
 resource.readonly.detail = This file is part of a library and cannot be saved.
 resource.readonly.button.read-more = Read more…
+
+# Quick Help
+
+quick-help.open-asset = Open Asset
+quick-help.reopen-closed-file = Reopen Closed File
+quick-help.search-in-files = Search in Files
+quick-help.build-and-run-project = Build and Run Project
+quick-help.start-or-attach-debugger = Start or Attach Debugger

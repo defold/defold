@@ -226,6 +226,11 @@ Links:
     -fx-padding: 2px 7px;
     -fx-border-radius: 3px;
     -fx-background-radius: 3px;
+    -fx-text-fill: -df-text;
+}
+
+.quick-help-label {
+  -fx-text-fill: -df-text;
 }
 
 #quick-help-logo {

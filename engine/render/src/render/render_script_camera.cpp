@@ -93,6 +93,161 @@ namespace dmRender
         return camera;
     }
 
+    // Resolve a camera from an optional argument. If no argument is given (or nil),
+    // prefer the last enabled camera (matching default render script behavior).
+    static RenderCamera* CheckRenderCameraOrDefault(lua_State* L, int index, HRenderContext render_context)
+    {
+        int top = lua_gettop(L);
+
+        if (index <= top && !lua_isnil(L, index))
+        {
+            return CheckRenderCamera(L, index, render_context);
+        }
+
+        // Pick the last enabled camera (iterate from the end)
+        for (int i = render_context->m_RenderCameras.Capacity() - 1; i >= 0; --i)
+        {
+            RenderCamera* camera = render_context->m_RenderCameras.GetByIndex(i);
+            if (camera && camera->m_Enabled)
+            {
+                return camera;
+            }
+        }
+
+        return (RenderCamera*) (uintptr_t) luaL_error(L, "No camera found.");
+    }
+
+    /*# Convert screen XY to world point at near plane
+     * Converts 2D screen coordinates (x,y) to the 3D world-space point on the camera's near plane for that pixel.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.screen_xy_to_world
+     * @param x [type:number] X coordinate on screen.
+     * @param y [type:number] Y coordinate on screen.
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return world_pos [type:vector3] the world coordinate on the camera near plane
+     *
+     * @examples
+     * Place objects at the touch point.
+     *
+     * ```lua
+     *  function on_input(self, action_id, action)
+     *      if action_id == hash("touch") then
+     *          if action.pressed then
+     *              local world_position = camera.screen_xy_to_world(action.screen_x, action.screen_y)
+     *              go.set_position(world_position, "/go1")
+     *          end
+     *      end
+     *  end
+     * ```
+     *
+     */
+    static int RenderScriptCamera_ScreenXYToWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        float sx = (float) luaL_checknumber(L, 1);
+        float sy = (float) luaL_checknumber(L, 2);
+
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 3, render_context);
+
+        dmVMath::Vector3 world;
+        float near_z = camera->m_Data.m_NearZ;
+        const float eps = 0.0001;
+        dmRender::Result r = dmRender::CameraScreenToWorld(render_context, camera->m_Handle, sx, sy, near_z + eps, &world);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, world);
+        return 1;
+    }
+
+    /*# Convert screen vector3 position to world
+     * Converts a screen-space 2D point with view depth to a 3D world point.
+     * z is the view depth in world units measured from the camera plane along the camera forward axis.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.screen_to_world
+     * @param pos [type:vector3] Screen-space position (x, y) with z as view depth in world units
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return world_pos [type:vector3] the world coordinate
+     *
+     * @examples
+     * Place objects at the touch point with a random Z position, keeping them within the visible view zone.
+     *
+     * ```lua
+     *  function on_input(self, action_id, action)
+     *      if action_id == hash("touch") then
+     *          if action.pressed then
+     *              local percpective_camera = msg.url("#perspective_camera")
+     *              local random_z = math.random(camera.get_near_z(percpective_camera) + 0.01, camera.get_far_z(percpective_camera) - 0.01)
+     *              local world_position = camera.screen_to_world(vmath.vector3(action.screen_x, action.screen_y, random_z), percpective_camera)
+     *              go.set_position(world_position, "/go1")
+     *          end
+     *      end
+     *  end
+     * ```
+     *
+     */
+    static int RenderScriptCamera_ScreenToWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmVMath::Vector3* pos = dmScript::CheckVector3(L, 1);
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 2, render_context);
+        dmVMath::Vector3 world;
+        dmRender::Result r = dmRender::CameraScreenToWorld(render_context, camera->m_Handle, pos->getX(), pos->getY(), pos->getZ(), &world);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, world);
+        return 1;
+    }
+
+    /*# Convert world vector3 position to screen
+     * Converts a 3D world position to screen-space coordinates with view depth.
+     * Returns a vector3 where x and y are in screen pixels and z is the view depth in world units
+     * measured from the camera plane along the camera forward axis. The returned z can be used with
+     * camera.screen_to_world to reconstruct the world position on the same pixel ray.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.world_to_screen
+     * @param world_pos [type:vector3] World-space position
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return screen_pos [type:vector3] Screen position (x,y in pixels, z is view depth)
+     *
+     * @examples
+     * Convert go position into screen pisition
+     *
+     * ```lua
+     *  go.update_world_transform("/go1")
+     *  local world_pos = go.get_world_position("/go1")
+     *  local screen_pos = camera.world_to_screen(world_pos)
+     * ```
+     *
+     */
+    static int RenderScriptCamera_WorldToScreen(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmVMath::Vector3* world = dmScript::CheckVector3(L, 1);
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 2, render_context);
+
+        dmVMath::Vector3 screen;
+        dmRender::Result r = dmRender::CameraWorldToScreen(render_context, camera->m_Handle, *world, &screen);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, screen);
+        return 1;
+    }
+
     /*# get all camera URLs
     * This function returns a table with all the camera URLs that have been
     * registered in the render context.
@@ -364,6 +519,11 @@ namespace dmRender
         {"get_projection",          RenderScriptCamera_GetProjection},
         {"get_view",                RenderScriptCamera_GetView},
         {"get_enabled",             RenderScriptCamera_GetEnabled},
+
+        // CONVERSIONS
+        {"screen_xy_to_world",      RenderScriptCamera_ScreenXYToWorld},
+        {"screen_to_world",         RenderScriptCamera_ScreenToWorld},
+        {"world_to_screen",         RenderScriptCamera_WorldToScreen},
 
         // READ-WRITE
         {"get_aspect_ratio",        RenderScriptCamera_GetAspectRatio},

@@ -285,7 +285,10 @@ public class FontTest {
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         // glyph count
-        int expectedCharCount = 6639; // Taken from font information of DroidSansJapanese.ttf
+        // DroidSansJapanese contains 12585 glyphs in total
+        // JDK 21 can display 6639 glyphs
+        // JDK 25 can display 10792 glyphs, but many of them are zero-width, so we filter them out
+        int expectedCharCount = 6662;
         assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
@@ -327,8 +330,8 @@ public class FontTest {
         BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
-        // glyph count
-        int expectedCharCount = 1519; // Taken from font information of Tuffy.ttf
+        // glyph count in font: 1502, but we show a bit more zero-width chars
+        int expectedCharCount = 1541; // Taken from font information of Tuffy.ttf
         assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
