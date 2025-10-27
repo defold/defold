@@ -29,7 +29,6 @@ namespace dmDDF
     public:
         LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options);
         Message     AllocMessage(const Descriptor* desc);
-        Message     AllocMessageRaw(const Descriptor* desc, uint32_t size);
         void*       AllocRepeated(const FieldDescriptor* field_desc, int count);
         char*       AllocString(int length);
         char*       AllocBytes(int length);
@@ -40,7 +39,7 @@ namespace dmDDF
         int         GetMemoryUsage();
 
         uint32_t    IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
-        void        GetArrayCount(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* hash_out);
+        uint32_t    GetArrayCount(uint32_t buffer_pos, uint32_t field_number);
 
         uint32_t    AddDynamicElementSize(uint32_t info_hash, uint32_t element_size);
         uint32_t    AddDynamicMessageSize(uint32_t message_size);
@@ -55,11 +54,6 @@ namespace dmDDF
             return m_Options;
         }
 
-        inline bool GetIsDryRun()
-        {
-            return m_DryRun;
-        }
-
     private:
         dmHashTable32<uint32_t> m_ArrayCount;
 
@@ -70,9 +64,12 @@ namespace dmDDF
         uintptr_t   m_Current;
         bool        m_DryRun;
         uint32_t    m_Options;
-        uint32_t    m_OffsetCursor;
+        // Counter for the next entry in the m_DynamicOffsets table,
+        // which is returned by calling NextDynamicTypeOffset
+        uint32_t    m_DynamicOffsetCursor;
+        uint32_t    m_DynamicTypeMemoryTotal;
+        // Offset in the buffer of where the memory for the dynamic types are stored
         uint32_t    m_DynamicTypeOffset;
-        uint32_t    m_DynamicOffsetsTotal;
     };
 }
 

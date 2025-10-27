@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <dlib/align.h>
 #include <dlib/memory.h>
 #include <dlib/profile.h>
 #include <dlib/hash.h>
@@ -28,8 +29,6 @@
 #include "ddf_save.h"
 #include "ddf_util.h"
 #include "config.h"
-
-#include <dlib/log.h> // TEMP
 
 namespace dmDDF
 {

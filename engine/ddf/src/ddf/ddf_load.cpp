@@ -160,9 +160,7 @@ namespace dmDDF
             {
                 // TODO: Verify buffer_pos!!!! Correct to use Tell()?
                 uint32_t buffer_pos  = input_buffer->Tell();
-                uint32_t array_count, hash;
-                load_context->GetArrayCount(buffer_pos, f->m_Number, &array_count, &hash);
-                message->AllocateRepeatedBuffer(load_context, f, array_count, hash);
+                message->AllocateRepeatedBuffer(load_context, f, load_context->GetArrayCount(buffer_pos, f->m_Number));
             }
         }
 

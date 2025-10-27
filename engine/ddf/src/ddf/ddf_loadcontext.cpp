@@ -33,8 +33,8 @@ namespace dmDDF
         }
         m_ArrayCount.SetCapacity(2048, 2048);
 
-        m_OffsetCursor = 0;
-        m_DynamicOffsetsTotal = 0;
+        m_DynamicOffsetCursor = 0;
+        m_DynamicTypeMemoryTotal = 0;
     }
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
@@ -44,15 +44,6 @@ namespace dmDDF
         m_Current += desc->m_Size;
         assert(m_DryRun || m_Current <= m_End);
         return Message(desc, (char*)b, desc->m_Size, m_DryRun);
-    }
-
-    Message LoadContext::AllocMessageRaw(const Descriptor* desc, uint32_t size)
-    {
-        m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
-        uintptr_t b = m_Current;
-        m_Current += size;
-        assert(m_DryRun || m_Current <= m_End);
-        return Message(desc, (char*)b, size, m_DryRun);
     }
 
     void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
@@ -124,7 +115,7 @@ namespace dmDDF
 
     uint32_t LoadContext::CalculateDynamicTypeMemorySize()
     {
-        return m_DynamicOffsetsTotal;
+        return m_DynamicTypeMemoryTotal;
     }
 
     int LoadContext::GetMemoryUsage()
@@ -154,7 +145,7 @@ namespace dmDDF
         return hash;
     }
 
-    void LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* hash_out)
+    uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
@@ -162,14 +153,9 @@ namespace dmDDF
 
         if (info_ptr == 0)
         {
-            *count = 0;
-            *hash_out = 0;
+            return 0;
         }
-        else
-        {
-            *count = *info_ptr;
-            *hash_out = hash;
-        }
+        return *info_ptr;
     }
 
     void* LoadContext::GetDynamicTypePointer(uint32_t offset)
@@ -188,20 +174,20 @@ namespace dmDDF
         {
             m_DynamicOffsets.OffsetCapacity(32);
         }
-        m_DynamicOffsets.Push(m_DynamicOffsetsTotal);
+        m_DynamicOffsets.Push(m_DynamicTypeMemoryTotal);
 
-        m_DynamicOffsetsTotal += message_size;
+        m_DynamicTypeMemoryTotal += message_size;
 
-        return m_DynamicOffsetsTotal;
+        return m_DynamicTypeMemoryTotal;
     }
 
     uint32_t LoadContext::NextDynamicTypeOffset()
     {
-        return m_DynamicOffsets[m_OffsetCursor++];
+        return m_DynamicOffsets[m_DynamicOffsetCursor++];
     }
 
     void LoadContext::ResetDynamicOffsetCursor()
     {
-        m_OffsetCursor = 0;
+        m_DynamicOffsetCursor = 0;
     }
 }
