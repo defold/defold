@@ -117,22 +117,23 @@
     second
     :resource))
 
-(defn- serialize-open-tabs [app-view]
+(defn- tab->prefs-data [tab]
+  (when-let [tab-resource (tab->resource tab)]
+    [(resource/proj-path tab-resource)
+     (-> tab-resource
+         resource/resource-type
+         :view-types
+         first
+         :id)]))
+
+(defn- collect-open-tabs [app-view]
   (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context evaluation-context
                                        (g/node-value app-view :editor-tabs-split evaluation-context))]
     (mapv (fn [^TabPane tab-pane]
-            (mapv (fn [tab]
-                    (let [tab-resource (tab->resource tab)]
-                      [(resource/proj-path tab-resource)
-                       (-> tab-resource
-                           resource/resource-type
-                           :view-types
-                           first
-                           :id)]))
-                  (.getTabs tab-pane)))
+            (into [] (keep tab->prefs-data) (.getTabs tab-pane)))
           (.getItems editor-tabs-split))))
 
-(defn- serialize-tab-selections [app-view]
+(defn- collect-tab-selections [app-view]
   (g/with-auto-evaluation-context evaluation-context
     (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)
           active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)
@@ -143,10 +144,10 @@
                                 tab-panes)})))
 
 (defn save-open-tabs [prefs app-view]
-  (prefs/set! prefs [:workflow :open-tabs] (serialize-open-tabs app-view)))
+  (prefs/set! prefs [:workflow :open-tabs] (collect-open-tabs app-view)))
 
 (defn save-tab-selections [prefs app-view]
-  (prefs/set! prefs [:workflow :last-selected-tabs] (serialize-tab-selections app-view)))
+  (prefs/set! prefs [:workflow :last-selected-tabs] (collect-tab-selections app-view)))
 
 (comment
   (defn save-open-tabs [prefs app-view] nil)
