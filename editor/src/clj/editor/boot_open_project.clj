@@ -284,10 +284,14 @@
       (ui/user-data! scene ::ui/refresh-requested? true)
 
       (ui/run-later
-        (app-view/restore-split-positions! scene prefs)
         (app-view/restore-hidden-panes! scene prefs)
-        (g/with-auto-evaluation-context evaluation-context
-          (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
+        ;; The nested run-later fixes restore on Linux, by forcing an initial rendering pass.
+        (ui/run-later
+          (app-view/restore-split-positions! scene prefs)
+          ;; NOTE: This nested nested run-later makes sure we've restored all our splits, because if
+          ;; sometimes the splits would be restored after the tabs and that would mess up the layouts
+          #_(g/with-auto-evaluation-context evaluation-context
+            (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context))))
 
       (ui/on-closing! stage (fn [_]
                               (let [dirty-save-data (project/dirty-save-data project)
@@ -429,4 +433,8 @@
       (icons/initialize! workspace)
       (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
     (g/reset-undo! *project-graph*)
+    (ui/run-now
+     (g/with-auto-evaluation-context evaluation-context
+       (let [app-view (ffirst (g/targets-of project :selected-node-ids-by-resource-node))]
+         (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context))))
     (log/info :message "project loaded")))
