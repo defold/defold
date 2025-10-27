@@ -64,18 +64,18 @@ platforms:
 
     x86-win32:
         context:
-            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision","libbox2d","libbox2d_defold","libscript_box2d", "libscript_box2d_defold"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d", "script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
-            libs: ["libphysics_null.lib"]
+            libs: ["physics_null"]
             linkFlags: []
 
     x86_64-win32:
         context:
-            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision","libbox2d","libbox2d_defold","libscript_box2d", "libscript_box2d_defold"]
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","box2d","box2d_defold","script_box2d", "script_box2d_defold"]
             excludeSymbols: ["ScriptBox2DExt"]
             symbols: []
-            libs: ["libphysics_null.lib"]
+            libs: ["physics_null"]
             linkFlags: []
 
     armv7-android:

@@ -18,6 +18,8 @@
 
 namespace dmRender
 {
+    const float EPS = 1e-6f;
+
     HRenderCamera NewRenderCamera(HRenderContext render_context)
     {
         if (render_context->m_RenderCameras.Full())
@@ -200,6 +202,122 @@ namespace dmRender
         {
             c->m_Enabled = value;
         }
+    }
+
+    Result CameraScreenToWorld(HRenderContext render_context, HRenderCamera camera_handle, float screen_x, float screen_y, float z, dmVMath::Vector3* out_world)
+    {
+        RenderCamera* camera = render_context->m_RenderCameras.Get(camera_handle);
+
+        // Window size
+        dmGraphics::HContext gc = GetGraphicsContext(render_context);
+        float win_w = (float) dmGraphics::GetWindowWidth(gc);
+        float win_h = (float) dmGraphics::GetWindowHeight(gc);
+        if (win_w <= 0.0f)
+        {
+            win_w = 1.0f;
+        }
+        if (win_h <= 0.0f)
+        {
+            win_h = 1.0f;
+        }
+
+        // Viewport-aware screen -> Normalized Device Coordinates
+        const dmVMath::Vector4& vp = camera->m_Data.m_Viewport;
+        float vx = vp.getX() * win_w;
+        float vy = vp.getY() * win_h;
+        float vw = vp.getZ() * win_w;
+        float vh = vp.getW() * win_h;
+        if (vw <= 0.0f || vh <= 0.0f)
+        {
+            vx = 0.0f; vy = 0.0f; vw = win_w; vh = win_h;
+        }
+        float x_ndc = 2.0f * ((screen_x - vx) / vw) - 1.0f;
+        float y_ndc = 2.0f * ((screen_y - vy) / vh) - 1.0f;
+
+        dmVMath::Matrix4 inv_vp = dmVMath::Inverse(camera->m_ViewProjection);
+
+        // Unproject near/far points and build pixel ray (world)
+        dmVMath::Vector4 v_near_clip(x_ndc, y_ndc, -1.0f, 1.0f);
+        dmVMath::Vector4 v_far_clip (x_ndc, y_ndc,  1.0f, 1.0f);
+        dmVMath::Vector4 v0 = inv_vp * v_near_clip;
+        dmVMath::Vector4 v1 = inv_vp * v_far_clip;
+        float iw0 = 1.0f / v0.getW();
+        float iw1 = 1.0f / v1.getW();
+        dmVMath::Point3  p_near(v0.getX() * iw0, v0.getY() * iw0, v0.getZ() * iw0);
+        dmVMath::Point3  p_far (v1.getX() * iw1, v1.getY() * iw1, v1.getZ() * iw1);
+        dmVMath::Vector3 dir    = dmVMath::Normalize(p_far - p_near);
+
+        // Camera forward (world)
+        dmVMath::Vector3 forward = dmVMath::Rotate(camera->m_LastRotation, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        forward = dmVMath::Normalize(forward);
+
+        // z is view-depth along forward (world units from camera plane)
+        float denom = dmVMath::Dot(dir, forward);
+        if (denom > -EPS && denom < EPS)
+        {
+            return RESULT_INVALID_PARAMETER;
+        }
+
+        dmVMath::Point3 cam_pos = camera->m_LastPosition;
+        // Intersect the ray r(s) = p_near + s * dir with the view-depth plane at distance z along 'forward'
+        float dot0 = dmVMath::Dot(p_near - cam_pos, forward);
+        float s = (z - dot0) / denom;
+        dmVMath::Point3 p_point = p_near + dir * s;
+        *out_world = dmVMath::Vector3(p_point.getX(), p_point.getY(), p_point.getZ());
+        return RESULT_OK;
+    }
+
+    Result CameraWorldToScreen(HRenderContext render_context, HRenderCamera camera_handle, const dmVMath::Vector3& world, dmVMath::Vector3* out_screen)
+    {
+        RenderCamera* camera = render_context->m_RenderCameras.Get(camera_handle);
+
+        // Project world to clip space
+        dmVMath::Vector4 world4(world.getX(), world.getY(), world.getZ(), 1.0f);
+        dmVMath::Vector4 clip = camera->m_ViewProjection * world4;
+        float w = clip.getW();
+        if (w > -EPS && w < EPS)
+        {
+            return RESULT_INVALID_PARAMETER;
+        }
+        float inv_w = 1.0f / w;
+        float x_ndc = clip.getX() * inv_w;
+        float y_ndc = clip.getY() * inv_w;
+
+        // Window size
+        dmGraphics::HContext gc = GetGraphicsContext(render_context);
+        float win_w = (float) dmGraphics::GetWindowWidth(gc);
+        float win_h = (float) dmGraphics::GetWindowHeight(gc);
+        if (win_w <= 0.0f)
+        {
+            win_w = 1.0f;
+        }
+        if (win_h <= 0.0f)
+        {
+            win_h = 1.0f;
+        }
+
+        // Viewport mapping (Normalized Device Coordinates -> screen pixels)
+        const dmVMath::Vector4& vp = camera->m_Data.m_Viewport;
+        float vx = vp.getX() * win_w;
+        float vy = vp.getY() * win_h;
+        float vw = vp.getZ() * win_w;
+        float vh = vp.getW() * win_h;
+        if (vw <= 0.0f || vh <= 0.0f)
+        {
+            vx = 0.0f; vy = 0.0f; vw = win_w; vh = win_h;
+        }
+
+        float sx = vx + (x_ndc + 1.0f) * 0.5f * vw;
+        float sy = vy + (y_ndc + 1.0f) * 0.5f * vh;
+
+        // View depth along camera forward
+        dmVMath::Vector3 forward = dmVMath::Rotate(camera->m_LastRotation, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        forward = dmVMath::Normalize(forward);
+        dmVMath::Point3 world_p(world.getX(), world.getY(), world.getZ());
+        float z_view = dmVMath::Dot(world_p - camera->m_LastPosition, forward);
+
+        *out_screen = dmVMath::Vector3(sx, sy, z_view);
+        return RESULT_OK;
     }
 
     // render_private.h

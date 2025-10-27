@@ -1629,6 +1629,364 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestCameraScreenToWorldPerspective)
+{
+    // Create a perspective camera with known parameters
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("test_go");
+    cam_url.m_Fragment = dmHashString64("camera");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov                      = 90.0f;
+    data.m_NearZ                    = 1.0f;
+    data.m_FarZ                     = 100.0f;
+    data.m_AspectRatio              = 2.0f; // match window (20/10)
+    data.m_OrthographicZoom         = 1.0f;
+    data.m_OrthographicProjection   = 0;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    // Update camera transform: identity rotation, position at (25, 0, 0)
+    dmVMath::Point3 pos(25.0f, 0.0f, 0.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams == 1)\n"
+        "    local cam = cams[1]\n"
+        "    local cx = render.get_window_width() / 2\n"
+        "    local cy = render.get_window_height() / 2\n"
+        "    local p = camera.screen_to_world(vmath.vector3(cx, cy, 5), cam)\n"
+        "    assert_near(p.x, 25)\n"
+        "    assert_near(p.y, 0)\n"
+        "    assert_near(p.z, -5)\n"
+        "    local pn = camera.screen_xy_to_world(cx, cy, cam)\n"
+        "    assert_near(pn.x, 25)\n"
+        "    assert_near(pn.y, 0)\n"
+        "    assert_near(pn.z, -camera.get_near_z(cam))\n"
+        "end\n";
+
+    dmRender::HRenderScript                  render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance          inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestCameraWorldToScreenPerspective)
+{
+    // Perspective camera
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("test_go");
+    cam_url.m_Fragment = dmHashString64("camera");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov                      = 90.0f;
+    data.m_NearZ                    = 1.0f;
+    data.m_FarZ                     = 100.0f;
+    data.m_AspectRatio              = 2.0f; // 20/10
+    data.m_OrthographicProjection   = 0;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    dmVMath::Point3 pos(25.0f, 0.0f, 0.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams == 1)\n"
+        "    local cam = cams[1]\n"
+        "    local cx = render.get_window_width() / 2\n"
+        "    local cy = render.get_window_height() / 2\n"
+        "    -- world at center pixel with depth 5\n"
+        "    local s = camera.world_to_screen(vmath.vector3(25, 0, -5), cam)\n"
+        "    assert_near(s.x, cx)\n"
+        "    assert_near(s.y, cy)\n"
+        "    assert_near(s.z, 5)\n"
+        "    -- near plane center maps back to (cx,cy,near_z)\n"
+        "    local pn = camera.screen_xy_to_world(cx, cy, cam)\n"
+        "    local sn = camera.world_to_screen(pn, cam)\n"
+        "    assert_near(sn.x, cx)\n"
+        "    assert_near(sn.y, cy)\n"
+        "    assert_near(sn.z, camera.get_near_z(cam))\n"
+        "end\n";
+
+    dmRender::HRenderScript         render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestCameraWorldToScreenOrthographic)
+{
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("test_go");
+    cam_url.m_Fragment = dmHashString64("camera");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_NearZ                    = 1.0f;
+    data.m_FarZ                     = 100.0f;
+    data.m_AspectRatio              = 2.0f;
+    data.m_OrthographicProjection   = 1;
+    data.m_OrthographicZoom         = 1.0f;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    dmVMath::Point3 pos(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams == 1)\n"
+        "    local cam = cams[1]\n"
+        "    local cx = render.get_window_width() / 2\n"
+        "    local cy = render.get_window_height() / 2\n"
+        "    local s = camera.world_to_screen(vmath.vector3(0, 0, -camera.get_near_z(cam)), cam)\n"
+        "    assert_near(s.x, cx)\n"
+        "    assert_near(s.y, cy)\n"
+        "    assert_near(s.z, camera.get_near_z(cam))\n"
+        "end\n";
+
+    dmRender::HRenderScript         render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestCameraScreenWorldRoundtrip)
+{
+    // Perspective camera
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("test_go");
+    cam_url.m_Fragment = dmHashString64("camera");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov                      = 60.0f;
+    data.m_NearZ                    = 0.5f;
+    data.m_FarZ                     = 250.0f;
+    data.m_AspectRatio              = 2.0f;
+    data.m_OrthographicProjection   = 0;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    dmVMath::Point3 pos(4.0f, 3.0f, 2.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cam = camera.get_cameras()[1]\n"
+        "    local x, y, z = 8, 3, 7\n"
+        "    local w = camera.screen_to_world(vmath.vector3(x,y,z), cam)\n"
+        "    local s = camera.world_to_screen(w, cam)\n"
+        "    assert_near(s.x, x)\n"
+        "    assert_near(s.y, y)\n"
+        "    assert_near(s.z, z)\n"
+        "end\n";
+
+    dmRender::HRenderScript         render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+TEST_F(dmRenderScriptTest, TestCameraScreenToWorldOrthographic)
+{
+    // Create an orthographic camera with near=1, far=100
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("test_go");
+    cam_url.m_Fragment = dmHashString64("camera");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov                      = 60.0f; // ignored in ortho
+    data.m_NearZ                    = 1.0f;
+    data.m_FarZ                     = 100.0f;
+    data.m_AspectRatio              = 2.0f;
+    data.m_OrthographicZoom         = 1.0f;
+    data.m_OrthographicProjection   = 1;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    // Update matrices with identity transform at origin
+    dmVMath::Point3 pos(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams == 1)\n"
+        "    local cam = cams[1]\n"
+        "    local cx = render.get_window_width() / 2\n"
+        "    local cy = render.get_window_height() / 2\n"
+        "    local pn = camera.screen_to_world(vmath.vector3(cx, cy, camera.get_near_z(cam)), cam)\n"
+        "    assert_near(pn.x, 0)\n"
+        "    assert_near(pn.y, 0)\n"
+        "    assert_near(pn.z, -camera.get_near_z(cam))\n"
+        "    local pf = camera.screen_to_world(vmath.vector3(cx, cy, camera.get_far_z(cam)), cam)\n"
+        "    assert_near(pf.x, 0)\n"
+        "    assert_near(pf.y, 0)\n"
+        "    assert_near(pf.z, -camera.get_far_z(cam))\n"
+        "    local p0 = camera.screen_xy_to_world(cx, cy, cam)\n"
+        "    assert_near(p0.x, 0)\n"
+        "    assert_near(p0.y, 0)\n"
+        "    assert_near(p0.z, -camera.get_near_z(cam))\n"
+        "end\n";
+
+    dmRender::HRenderScript                  render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance          inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestCameraScreenToWorldViewport)
+{
+    // Orthographic camera with viewport covering left half of the window
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("test_go");
+    cam_url.m_Fragment = dmHashString64("camera");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 0.5f, 1.0f); // left half
+    data.m_Fov                      = 60.0f;
+    data.m_NearZ                    = 1.0f;
+    data.m_FarZ                     = 100.0f;
+    data.m_AspectRatio              = 2.0f;
+    data.m_OrthographicZoom         = 1.0f;
+    data.m_OrthographicProjection   = 1;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    dmVMath::Point3 pos(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    local cam = cams[1]\n"
+        "    local cx = render.get_window_width() * 0.25 -- center of left-half viewport\n"
+        "    local cy = render.get_window_height() * 0.5\n"
+        "    local p = camera.screen_to_world(vmath.vector3(cx, cy, camera.get_near_z(cam)), cam)\n"
+        "    assert_near(p.x, 0)\n"
+        "    assert_near(p.y, 0)\n"
+        "    local p0 = camera.screen_xy_to_world(cx, cy, cam)\n"
+        "    assert_near(p0.x, 0)\n"
+        "    assert_near(p0.y, 0)\n"
+        "    assert_near(p0.z, -camera.get_near_z(cam))\n"
+        "end\n";
+
+    dmRender::HRenderScript                  render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance          inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestCameraScreenToWorld_Ortho_LargeCoords_ExplicitURL)
+{
+    // Orthographic camera with explicit URL and large screen coordinates
+    dmRender::HRenderCamera cam_handle = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL cam_url = {};
+    cam_url.m_Socket   = dmHashString64("main");
+    cam_url.m_Path     = dmHashString64("go");
+    cam_url.m_Fragment = dmHashString64("camera1");
+    dmRender::SetRenderCameraURL(m_Context, cam_handle, &cam_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov                      = 60.0f; // ignored in ortho
+    data.m_NearZ                    = 0.1f;
+    data.m_FarZ                     = 1000.0f;
+    data.m_AspectRatio              = 2.0f;
+    data.m_OrthographicZoom         = 1.0f;
+    data.m_OrthographicProjection   = 1;
+    data.m_AutoAspectRatio          = 0;
+    dmRender::SetRenderCameraData(m_Context, cam_handle, &data);
+
+    dmVMath::Point3 pos(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat   rot(0.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::UpdateRenderCamera(m_Context, cam_handle, &pos, &rot);
+
+    const char* script =
+        "local function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 1e-3, tostring(a)..' ~= '..tostring(b))\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams >= 1)\n"
+        "    local cam = cams[#cams]\n"
+        "    local x, y = 2230, 818\n"
+        "    local p0 = camera.screen_xy_to_world(x, y, cam)\n"
+        "    assert_near(p0.z, -camera.get_near_z(cam))\n"
+        "    local p1 = camera.screen_to_world(vmath.vector3(x, y, camera.get_near_z(cam)), cam)\n"
+        "    assert_near(p1.z, -camera.get_near_z(cam))\n"
+        "end\n";
+
+    dmRender::HRenderScript                  render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance          inst          = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
+    dmRender::DeleteRenderScriptInstance(inst);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestComputeEnableDisable)
 {
     const char* script =

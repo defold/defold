@@ -582,6 +582,46 @@ union SaveLoadBuffer
         return 1;
     }
 
+    /*# get boolean config value with optional default value
+     * Get boolean config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_boolean
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:boolean] (optional) default value to return if the value does not exist
+     * @return value [type:boolean] config value as a boolean. default_value if the config key does not exist. false if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local vsync = sys.get_config_boolean("display.vsync", false)
+     * ```
+     */
+    static int Sys_GetConfigBoolean(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        bool default_value = false;
+        if (!lua_isnone(L, 2))
+        {
+            default_value = lua_toboolean(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int32_t int_value = dmConfigFile::GetInt(config_file, key, default_value ? 1 : 0);
+            bool value = int_value != 0;
+            lua_pushboolean(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
     /*# open url in default application
      * Open URL in default application, typically a browser
      *
@@ -1457,6 +1497,7 @@ union SaveLoadBuffer
         {"get_config_string", Sys_GetConfigString},
         {"get_config_int", Sys_GetConfigInt},
         {"get_config_number", Sys_GetConfigNumber},
+        {"get_config_boolean", Sys_GetConfigBoolean},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
