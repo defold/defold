@@ -669,49 +669,20 @@
      :children (into child-renderables
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
-  (try
-    (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders max-page-size)
-    (catch Exception error
-      (g/->error error-node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-page-images [{:keys [digest-ignored/error-node-id image-resources layout-data-generator]}]
+(defn- generate-packed-page-images [{:keys [digest-ignored/error-node-id image-resources layout-result]}]
   (let [buffered-images (mapv #(resource-io/with-error-translation % error-node-id nil
                                  (image-util/read-image %))
                               image-resources)]
     (g/precluding-errors buffered-images
-      (let [layout-data (call-generator layout-data-generator)]
-        (g/precluding-errors layout-data
-          (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
-            (texture-set-gen/layout-atlas-pages (:layout layout-data) id->image)))))))
-
-(g/defnk produce-layout-data-generator
-  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
-  ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
-  ;; compiles a TextureSetProto$TextureSet including the animation data in
-  ;; addition to generating the layout. This means that modifying a property on
-  ;; an animation will unnecessarily invalidate the layout, which in turn
-  ;; invalidates the packed image texture. For the editor, we're only interested
-  ;; in the layout-related properties of the produced TextureSetResult. To break
-  ;; the dependency on animation properties, we supply a list of fake animations
-  ;; to the TextureSetGenerator.calculateLayout() method that only includes data
-  ;; that can affect the layout.
-  (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [fake-animations (mapv make-animation
-                                  (repeat "")
-                                  animation-images)
-            augmented-args (-> args
-                               (dissoc :_node-id :animation-images)
-                               (assoc :animations fake-animations
-                                      :digest-ignored/error-node-id _node-id))]
-        {:f generate-texture-set-data
-         :args augmented-args})))
+      (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
+        (texture-set-gen/layout-atlas-pages layout-result id->image)))))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
+  [_node-id extrude-borders image-resources inner-padding margin layout-result]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (map (fn [resource]
                            (resource-io/with-error-translation resource _node-id nil
@@ -729,60 +700,15 @@
         {:f generate-packed-page-images
          :sha1 packed-image-sha1
          :args {:digest-ignored/error-node-id _node-id
-                :image-resources flat-image-resources
-                :layout-data-generator layout-data-generator}}))))
-
-(defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
-  (assert (boolean? flip-horizontal))
-  (assert (boolean? flip-vertical))
-  (assert (integer? fps))
-  (assert (string? id))
-  (assert (protobuf/val->pb-enum Tile$Playback playback))
-  (assoc ddf-animation
-    :flip-horizontal (if flip-horizontal 1 0)
-    :flip-vertical (if flip-vertical 1 0)
-    :fps (int fps)
-    :id id
-    :playback playback))
+                :layout-result layout-result
+                :image-resources flat-image-resources}}))))
 
 (g/defnk produce-texture-set-data
-  ;; The TextureSetResult we generated in produce-layout-data-generator does not
-  ;; contain the animation metadata since it was produced from fake animations.
-  ;; In order to produce a valid TextureSetResult, we complete the protobuf
-  ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data all-atlas-images rename-patterns]
-  (let [incomplete-ddf-texture-set (:texture-set layout-data)
-        incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
-        animation-present-in-ddf? (comp coll/not-empty :images)
-        animations-in-ddf (filter animation-present-in-ddf?
-                                  animations)
-        complete-ddf-animations (mapv complete-ddf-animation
-                                      incomplete-ddf-animations
-                                      animations-in-ddf)
-        ;; Texture set must contain hashed references to images:
-        ;; - for stand-alone images: as simple `base-name`
-        ;; - for images in animations: as `animation/base-name`
-        ;; Base name might be affected by rename patterns. Since we don't
-        ;; provide animation names to Bob's layout algorithm, we need to fill
-        ;; them here. The same image (i.e. rect) might be referenced multiple
-        ;; times if it's used in different animations, that's fine and this is
-        ;; how Bob does it in TextureSetGenerator. See also: comments in
-        ;; texture_set_ddf.proto about `image_name_hashes` field
-        fixed-image-name-hashes (-> []
-                                    (into
-                                      (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
-                                      all-atlas-images)
-                                    (into
-                                      (mapcat
-                                        (fn [{:keys [id images]}]
-                                          (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
-                                                 images)))
-                                      animations))
-        complete-ddf-texture-set (assoc incomplete-ddf-texture-set
-                                   :animations complete-ddf-animations
-                                   :image-name-hashes fixed-image-name-hashes)]
-    (assoc layout-data
-      :texture-set complete-ddf-texture-set)))
+  [animations layout-result all-atlas-images]
+  (let [animation-present-in-ddf? (comp coll/not-empty :images)
+        animations-in-ddf (filter animation-present-in-ddf? animations)]
+
+    (texture-set-gen/atlas->texture-set-data layout-result animations-in-ddf all-atlas-images)))
 
 (g/defnk produce-anim-data
   [texture-set uv-transforms]
@@ -873,17 +799,17 @@
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
                                              (into [] (distinct) (flatten animation-images))))
 
-  (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
-  (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (call-generator layout-data-generator)))
-  (output layout-size      g/Any               (g/fnk [layout-data] (:size layout-data)))
+  (output layout-result    g/Any               :cached (g/fnk [all-atlas-images margin inner-padding extrude-borders max-page-size] 
+                                                         (texture-set-gen/atlas->layout-result all-atlas-images margin inner-padding extrude-borders max-page-size)))
+  (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))
   (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
-  (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
-  (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
+  (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
+  (output layout-rects     g/Any               (g/fnk [texture-set-data] (:rects texture-set-data)))
 
-  (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
+  (output texture-page-count g/Int             (g/fnk [layout-result max-page-size]
                                                  (if (every? pos? max-page-size)
-                                                   (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
+                                                   (count (.layouts ^TextureSetGenerator$LayoutResult layout-result))
                                                    texture/non-paged-page-count)))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
