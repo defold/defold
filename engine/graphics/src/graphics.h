@@ -103,6 +103,9 @@ namespace dmGraphics
         CONTEXT_FEATURE_VSYNC                  = 4,
         CONTEXT_FEATURE_INSTANCING             = 5,
         CONTEXT_FEATURE_3D_TEXTURES            = 6,
+        // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
+        // fail array texture ASTC uploads while 2D ASTC works.
+        CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -420,6 +423,9 @@ namespace dmGraphics
     BufferType    GetBufferTypeFromIndex(uint32_t index);
     const char*   GetBufferTypeLiteral(BufferType buffer_type);
     bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
+
+    bool          IsTextureFormatSupportedForType(HContext context, TextureType type, TextureFormat format);
+    TextureFormat GetSupportedCompressionFormatForType(HContext context, TextureFormat format, uint32_t width, uint32_t height, TextureType type);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 

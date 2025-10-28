@@ -456,6 +456,8 @@ namespace dmGraphics
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
         uint32_t                        m_ASTCSupport          : 1;
+        // See OpenGL backend: separate flag for ASTC array textures
+        uint32_t                        m_ASTCArrayTextureSupport : 1;
         uint32_t                        m_AsyncProcessingSupport : 1;
     };
 
