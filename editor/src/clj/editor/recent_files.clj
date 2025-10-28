@@ -129,8 +129,7 @@
          :id)]))
 
 (defn- collect-open-tabs [app-view]
-  (let [editor-tabs-split ^SplitPane (g/with-auto-evaluation-context evaluation-context
-                                       (g/node-value app-view :editor-tabs-split evaluation-context))]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
     (mapv (fn [^TabPane tab-pane]
             (mapv tab->prefs-data (.getTabs tab-pane)))
           (.getItems editor-tabs-split))))

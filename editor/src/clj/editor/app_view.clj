@@ -92,12 +92,11 @@
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
-           [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
            [java.util.concurrent ExecutionException]
-           [javafx.beans.value ChangeListener]
+           [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
@@ -1974,14 +1973,17 @@
       (profiler/profile "view" (:name @(g/node-type* node))
         (g/node-value node label)))))
 
+(defn- refresh-scene-view! [scene-view-id dt]
+  (try
+    (scene/refresh-scene-view! scene-view-id dt)
+    (catch Throwable error
+      (error-reporting/report-exception! error))))
+
 (defn- refresh-scene-views! [app-view dt]
   (profiler/begin-frame)
   (scene-cache/process-pending-deletions! nil)
   (doseq [view-id (g/node-value app-view :scene-view-ids)]
-    (try
-      (scene/refresh-scene-view! view-id dt)
-      (catch Throwable error
-        (error-reporting/report-exception! error))))
+    (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
 (defn- dispose-scene-views! [app-view]
@@ -2018,34 +2020,28 @@
   (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
-      (.addListener
-        (reify ChangeListener
-          (changed [_this _observable _old-val new-val]
-            (recent-files/save-tab-selections prefs app-view)
-            (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
+      (^[ChangeListener] ObservableValue/.addListener
+        (fn [_observable _old-val new-val]
+          (recent-files/save-tab-selections prefs app-view)
+          (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val)))))
   (-> tab-pane
       (.getTabs)
-      (.addListener
-       (let [save-scheduled (atom false)]
-         (reify ListChangeListener
-           (onChanged [_this change]
-             (when (compare-and-set! save-scheduled false true)
-               (ui/run-later
-                 (reset! save-scheduled false)
-                 (recent-files/save-open-tabs prefs app-view)))
-             ;; Check if we've ended up with an empty TabPane.
-             ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
-             (when (empty? (.getTabs tab-pane))
-               (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
-                     tab-panes (.getItems editor-tabs-split)]
-                 (when (< 1 (count tab-panes))
-                   (.remove tab-panes tab-pane)
-                   (let [remaining-tab-pane (.get tab-panes 0)
-                         selected-tab (ui/selected-tab remaining-tab-pane)
-                         resource-node (tab->resource-node selected-tab)
-                         view-type (tab->view-type selected-tab)]
-                     (.requestFocus ^TabPane remaining-tab-pane)
-                     (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type))))))))))
+      (^[ListChangeListener] ObservableList/.addListener
+        (fn [_change]
+          (recent-files/save-open-tabs prefs app-view)
+          ;; Check if we've ended up with an empty TabPane.
+          ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+          (when (empty? (.getTabs tab-pane))
+            (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
+                  tab-panes (.getItems editor-tabs-split)]
+              (when (< 1 (count tab-panes))
+                (.remove tab-panes tab-pane)
+                (let [remaining-tab-pane (.get tab-panes 0)
+                      selected-tab (ui/selected-tab remaining-tab-pane)
+                      resource-node (tab->resource-node selected-tab)
+                      view-type (tab->view-type selected-tab)]
+                  (.requestFocus ^TabPane remaining-tab-pane)
+                  (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
@@ -2088,6 +2084,7 @@
                     (handle-focus-owner-change! prefs app-view app-scene new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
+      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
 
       (let [prev-localization-bundle (volatile! nil)
             refresh-timer (ui/->timer
@@ -2109,9 +2106,7 @@
                                   (refresh-scene-views! app-view dt)
                                   (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
-        (ui/timer-start! refresh-timer))
-      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
-      app-view)))
+        [app-view refresh-timer]))))
 
 (defn- make-info-box! [localization]
   (let [info-panel (HBox.)
@@ -2127,9 +2122,10 @@
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
 
+(declare open-resource)
+
 (defn- make-tab! [app-view prefs localization workspace project resource resource-node
-                  resource-type view-type make-view-fn ^ObservableList tabs
-                  open-resource opts]
+                  resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent (AnchorPane.)
         tab-content (if (resource/read-only? resource)
                       (doto (VBox.)
@@ -2269,21 +2265,23 @@
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
                                 (make-tab! app-view prefs localization workspace project resource resource-node
-                                           resource-type view-type make-view-fn active-tab-pane-tabs
-                                           open-resource opts)))]
+                                           resource-type view-type make-view-fn active-tab-pane-tabs opts)))
+                 view-id (ui/user-data tab ::view)]
              (when (or (nil? existing-tab) (:select-node opts))
                (g/transact
                  (select app-view resource-node [(:select-node opts resource-node)])))
              (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when-let [focus (:focus-fn view-type)]
-               ;; Force layout pass since the focus function of some views
-               ;; needs proper width + height (f.i. code view for
-               ;; scrolling to selected line).
-               (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
-               (focus (ui/user-data tab ::view) opts))
-             ;; Do an initial rendering so it shows up as fast as possible.
-             (ui/run-later (refresh-scene-views! app-view 1/60)
-                           (ui/run-later (slog/smoke-log "opened-resource")))
+               (ui/force-scene-layout! (g/node-value app-view :scene))
+               (focus view-id opts))
+             ;; If we're opening a scene view, do an initial refresh so it
+             ;; shows up as fast as possible.
+             (ui/run-later
+               (if (g/node-instance? scene/SceneView view-id)
+                 (do (refresh-scene-view! view-id 1/60)
+                     (ui/run-later
+                       (slog/smoke-log "opened-resource")))
+                 (slog/smoke-log "opened-resource")))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
