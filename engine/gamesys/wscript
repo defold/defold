@@ -35,7 +35,7 @@ def configure(conf):
     waf_render.configure(conf)
 
     if target_os == TargetOS.MACOS:
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif target_os == TargetOS.IOS:
         pass
     elif target_os == TargetOS.ANDROID:

@@ -2068,8 +2068,10 @@ def detect(conf):
 
     if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.IOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif TargetOS.LINUX == target_os:
