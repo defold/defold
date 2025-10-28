@@ -16,7 +16,7 @@
 #define DM_SCRIPT_ENGINE_H
 
 #include <dmsdk/script/script.h>
-#include <engine/engine.h>
+#include "../engine.h"
 
 namespace dmEngine
 {
