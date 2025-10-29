@@ -2271,7 +2271,7 @@
              (when (not (:ignore-refresh-layout opts))
                (when (or (nil? existing-tab) (:select-node opts))
                  (g/transact
-                  (select app-view resource-node [(:select-node opts resource-node)])))
+                   (select app-view resource-node [(:select-node opts resource-node)])))
                (when-let [focus (:focus-fn view-type)]
                  (ui/force-scene-layout! (g/node-value app-view :scene))
                  (focus view-id opts))
@@ -2300,7 +2300,7 @@
                                                                           {"error" msg})}}))))
              false)))))))
 
-(defn- open-tabs-from-prefs [app-view prefs localization workspace project evaluation-context tab-panes-to-restore]
+(defn- open-tabs-from-prefs [app-view prefs localization workspace project tab-panes-to-restore evaluation-context]
   (into []
         (let [tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
           (for [[pane-num pane] (map-indexed vector tab-panes-to-restore)
@@ -2320,14 +2320,14 @@
 (defn restore-tabs-from-prefs! [app-view prefs localization workspace project evaluation-context]
   (when-let [tab-panes-to-restore (seq (prefs/get prefs [:workflow :open-tabs]))]
     (let [{:keys [selected-pane tab-selection-by-pane]} (prefs/get prefs [:workflow :last-selected-tabs])
-          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)
           opened-tabs (open-tabs-from-prefs app-view prefs localization workspace
-                                            project evaluation-context tab-panes-to-restore)
+                                            project tab-panes-to-restore evaluation-context)
           tab-panes (.getItems editor-tabs-split)
           first-tab-pane (.get tab-panes 0)
           tabs-to-move (coll/transfer opened-tabs []
-                                      (filter #(= 1 (:pane-num %)))
-                                      (map :tab))
+                         (filter #(= 1 (:pane-num %)))
+                         (map :tab))
           ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
           ;; need to change if we made a more elaborate window tiling system.
           second-tab-pane (when (coll/not-empty tabs-to-move)
@@ -3113,8 +3113,8 @@
       (g/set-property! (dev/app-view) :active-tab-pane (second (.getItems editor-tabs-split)))))
   (ui/run-later
     (time
-     (g/with-auto-evaluation-context ec
-       (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec))))
+      (g/with-auto-evaluation-context ec
+        (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec))))
   (ui/run-later
     (ui/run-command (ui/main-root) :window.tab.close-all))
   (g/with-auto-evaluation-context ec
@@ -3123,7 +3123,8 @@
   (ui/run-later
     (g/with-auto-evaluation-context ec
       (clojure.pprint/pprint
-       (open-tabs-from-prefs (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec
-                             '([["/scripts/game.script" :code] ["/scripts/knight.script" :code]]
-                               [["/scripts/utils.lua" :code]])))))
+        (open-tabs-from-prefs (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project)
+                              '([["/scripts/game.script" :code] ["/scripts/knight.script" :code]]
+                                [["/scripts/utils.lua" :code]])
+                              ec))))
   ,)
