@@ -2384,8 +2384,7 @@ void dmEngineInitialize()
     dLib::SetDebugMode(false);
 #endif
 
-    if (dLib::IsDebugMode())
-        ProfileInitialize();
+    ProfileInitialize();
     dmEngine::PlatformInitialize();
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
@@ -2421,8 +2420,7 @@ void dmEngineFinalize()
 
     dmEngine::PlatformFinalize();
 
-    if (dLib::IsDebugMode())
-        ProfileFinalize();
+    ProfileFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
