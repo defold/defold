@@ -8,6 +8,15 @@ on:
         default: ''
         description: 'External package name'
         required: true
+      result_folder_name:
+        type: string
+        default: ''
+        description: 'Folder name where build result is located'
+        required: true
+      result_lib_name:
+        type: string
+        default: ''
+        required: true
       package_version:
         type: string
         default: ''
@@ -121,7 +130,7 @@ jobs:
           waf install
 
           echo "Final package includes:"
-          tar -tzf "build/${{ inputs.package_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz" | grep -E 'lib${{ inputs.package_name }}\\.(a|lib)' || true
+          tar -tzf "build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz" | grep -E '${{ inputs.result_lib_name }}\\.(a|lib)' || true
 
       - name: Archive results (common)
         # archive common package once

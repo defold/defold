@@ -8,6 +8,8 @@ jobs:
     uses: ./.github/workflows/build-external-template.yml
     with:
       package_name: 'harfbuzz'
+      result_folder_name: 'harfbuzz'
+      result_lib_name: 'libharfbuzz'
       package_version: '11.3.2'
     secrets:
       dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}
