@@ -173,7 +173,7 @@
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
+          [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
@@ -191,6 +191,7 @@
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
+          git                  (g/node-value changes-view :git)
           curve-tab            (find-tab tool-tabs "curve-editor-tab")
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
@@ -282,10 +283,6 @@
                       (ui/user-data! scene ::ui/refresh-requested? true))))
 
       (ui/user-data! scene ::ui/refresh-requested? true)
-
-      (ui/run-later
-        (app-view/restore-split-positions! scene prefs)
-        (app-view/restore-hidden-panes! scene prefs))
 
       (ui/on-closing! stage (fn [_]
                               (let [dirty-save-data (project/dirty-save-data project)
@@ -383,35 +380,44 @@
                             [debug-view :update-call-stack]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
 
-      ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
-      (let [git (g/node-value changes-view :git)]
-        ;; If the project was just created, we automatically open the readme resource.
-        (when newly-created?
-          (ui/run-later
+      (reset! the-root root)
+
+      (ui/run-later
+        ;; These functions need a layout pass before they can do their work. The
+        ;; Layout pass ensures we can get the valid dimensions of the controls.
+        (app-view/restore-hidden-panes! scene prefs)
+
+        ;; The nested run-later fixes restore on Linux, by forcing an additional
+        ;; layout pass.
+        (ui/run-later
+          (app-view/restore-split-positions! scene prefs)
+
+          ;; If the project was just created, we automatically open the readme.
+          (if newly-created?
             (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
-              (open-resource readme-resource))))
+              (open-resource readme-resource))
+            (g/with-auto-evaluation-context evaluation-context
+              (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
 
-        ;; Ensure .gitignore is configured to ignore build output and metadata files.
-        (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
-              internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-          (if gitignore-was-modified?
-            (do (changes-view/refresh! changes-view)
-                (ui/run-later
-                  (dialogs/make-info-dialog
-                    localization
-                    {:title (localization/message "dialog.gitignore-updated.title")
-                     :icon :icon/circle-info
-                     :header (localization/message "dialog.gitignore-updated.header")
-                     :content {:wrap-text true
-                               :text (localization/message "dialog.gitignore-updated.content")}})
-                  (when internal-files-are-tracked?
-                    (show-tracked-internal-files-warning! localization))))
-            (when internal-files-are-tracked?
-              (ui/run-later
-                (show-tracked-internal-files-warning! localization)))))))
+          ;; Ensure .gitignore is configured to ignore build output and metadata
+          ;; files.
+          (let [gitignore-was-modified (git/ensure-gitignore-configured! git)]
+            (when gitignore-was-modified
+              (changes-view/refresh! changes-view)
+              (dialogs/make-info-dialog
+                localization
+                {:title (localization/message "dialog.gitignore-updated.title")
+                 :icon :icon/circle-info
+                 :header (localization/message "dialog.gitignore-updated.header")
+                 :content {:wrap-text true
+                           :text (localization/message "dialog.gitignore-updated.content")}})))
 
-    (reset! the-root root)
-    (ui/run-later (slog/smoke-log "stage-loaded"))
+          (when (git/internal-files-are-tracked? git)
+            (show-tracked-internal-files-warning! localization))
+
+          (ui/timer-start! ui-timer)
+          (slog/smoke-log "stage-loaded"))))
+
     root))
 
 (defn open-project!

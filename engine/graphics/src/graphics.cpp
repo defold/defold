@@ -674,6 +674,18 @@ namespace dmGraphics
                format == TEXTURE_FORMAT_RGBA_ASTC_12X12;
     }
 
+    bool IsTextureFormatSupportedForType(HContext context, TextureType type, TextureFormat format)
+    {
+        if ((type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D) && IsTextureFormatASTC(format))
+        {
+            if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
+            {
+                return false;
+            }
+        }
+        return IsTextureFormatSupported(context, format);
+    }
+
     // For estimating resource size
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
     {
@@ -893,14 +905,15 @@ namespace dmGraphics
 
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
-    dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
+    dmGraphics::TextureFormat GetSupportedCompressionFormatForType(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height, TextureType type)
     {
         #define TEST_AND_RETURN(_TYPEN_ENUM) if (dmGraphics::IsTextureFormatSupported(context, (_TYPEN_ENUM))) return (_TYPEN_ENUM);
+        #define TEST_AND_RETURN_FOR_TYPE(_TYPEN_ENUM) if (dmGraphics::IsTextureFormatSupportedForType(context, type, (_TYPEN_ENUM))) return (_TYPEN_ENUM);
 
         if (IsFormatRGBA(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             if (width == height) {
                 TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
@@ -937,7 +950,13 @@ namespace dmGraphics
         }
 
         #undef TEST_AND_RETURN
+        #undef TEST_AND_RETURN_FOR_TYPE
         return format;
+    }
+
+    dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
+    {
+        return GetSupportedCompressionFormatForType(context, format, width, height, TEXTURE_TYPE_2D);
     }
 
     void SetPipelineStateValue(dmGraphics::PipelineState& pipeline_state, State state, uint8_t value)

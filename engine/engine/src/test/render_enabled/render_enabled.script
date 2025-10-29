@@ -1,0 +1,24 @@
+-- Copyright 2025 The Defold Foundation
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+
+local EXIT_FRAME = 10
+local RENDER_RESUME_FRAME = 5
+
+function init(self)
+    self.frame = 0
+    sys.set_render_enabled(true)
+end
+
+function update(self, dt)
+    self.frame = self.frame + 1
+
+    if self.frame == 1 then
+        sys.set_render_enabled(false)
+    elseif self.frame == RENDER_RESUME_FRAME then
+        sys.set_render_enabled(true)
+    elseif self.frame == EXIT_FRAME then
+        msg.post("@system:", "exit", { code = 0 })
+    end
+end
+

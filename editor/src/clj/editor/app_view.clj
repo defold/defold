@@ -92,12 +92,11 @@
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
-           [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
            [java.util.concurrent ExecutionException]
-           [javafx.beans.value ChangeListener]
+           [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
@@ -584,12 +583,10 @@
 (defn restore-split-positions! [^Scene scene prefs]
   (let [split-positions (stored-split-positions prefs)
         split-panes (existing-split-panes scene)]
-    ;; The nested run-later fixes restore on Linux, by forcing an initial rendering pass. 
-    (ui/run-later
-      (doseq [[id positions] split-positions]
-        (when-some [^SplitPane split-pane (get split-panes id)]
-          (.setDividerPositions split-pane (double-array positions))
-          (.layout split-pane))))))
+    (doseq [[id positions] split-positions]
+      (when-some [^SplitPane split-pane (get split-panes id)]
+        (.setDividerPositions split-pane (double-array positions))
+        (.layout split-pane)))))
 
 (defn stored-hidden-panes [prefs]
   (prefs/get prefs prefs-hidden-panes))
@@ -1596,14 +1593,14 @@
                (.getItems editor-tabs-split)))
 
 (defn- add-other-tab-pane!
-  ^TabPane [^SplitPane editor-tabs-split app-view]
+  ^TabPane [^SplitPane editor-tabs-split app-view prefs]
   (let [tab-panes (.getItems editor-tabs-split)
         app-stage ^Stage (g/node-value app-view :stage)
         app-scene (.getScene app-stage)
         new-tab-pane (TabPane.)]
     (assert (= 1 (count tab-panes)))
     (.add tab-panes new-tab-pane)
-    (configure-editor-tab-pane! new-tab-pane app-scene app-view)
+    (configure-editor-tab-pane! new-tab-pane app-scene app-view prefs)
     new-tab-pane))
 
 (defn- open-tab-count
@@ -1624,12 +1621,12 @@
 (handler/defhandler :window.tab.move-to-other-group :global
   (enabled? [app-view evaluation-context]
             (< 1 (open-tab-count app-view evaluation-context)))
-  (run [app-view user-data]
+  (run [app-view user-data prefs]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
              selected-tab (ui/selected-tab source-tab-pane)
              dest-tab-pane (or (find-other-tab-pane editor-tabs-split source-tab-pane)
-                               (add-other-tab-pane! editor-tabs-split app-view))]
+                               (add-other-tab-pane! editor-tabs-split app-view prefs))]
          (.remove (.getTabs source-tab-pane) selected-tab)
          (.add (.getTabs dest-tab-pane) selected-tab)
          (.select (.getSelectionModel dest-tab-pane) selected-tab)
@@ -1976,14 +1973,17 @@
       (profiler/profile "view" (:name @(g/node-type* node))
         (g/node-value node label)))))
 
+(defn- refresh-scene-view! [scene-view-id dt]
+  (try
+    (scene/refresh-scene-view! scene-view-id dt)
+    (catch Throwable error
+      (error-reporting/report-exception! error))))
+
 (defn- refresh-scene-views! [app-view dt]
   (profiler/begin-frame)
   (scene-cache/process-pending-deletions! nil)
   (doseq [view-id (g/node-value app-view :scene-view-ids)]
-    (try
-      (scene/refresh-scene-view! view-id dt)
-      (catch Throwable error
-        (error-reporting/report-exception! error))))
+    (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
 (defn- dispose-scene-views! [app-view]
@@ -2014,38 +2014,38 @@
         (->> (.invoke getTab node (into-array Object []))
              (.select (.getSelectionModel tab-pane)))))))
 
-(defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
+(defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view prefs]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
   (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
-      (.addListener
-        (reify ChangeListener
-          (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
+      (^[ChangeListener] ObservableValue/.addListener
+        (fn [_observable _old-val new-val]
+          (recent-files/save-tab-selections prefs app-view)
+          (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val)))))
   (-> tab-pane
       (.getTabs)
-      (.addListener
-        (reify ListChangeListener
-          (onChanged [_this _change]
-            ;; Check if we've ended up with an empty TabPane.
-            ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
-            (when (empty? (.getTabs tab-pane))
-              (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
-                    tab-panes (.getItems editor-tabs-split)]
-                (when (< 1 (count tab-panes))
-                  (.remove tab-panes tab-pane)
-                  (let [remaining-tab-pane (.get tab-panes 0)
-                        selected-tab (ui/selected-tab remaining-tab-pane)
-                        resource-node (tab->resource-node selected-tab)
-                        view-type (tab->view-type selected-tab)]
-                    (.requestFocus ^TabPane remaining-tab-pane)
-                    (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))))))
+      (^[ListChangeListener] ObservableList/.addListener
+        (fn [_change]
+          (recent-files/save-open-tabs prefs app-view)
+          ;; Check if we've ended up with an empty TabPane.
+          ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+          (when (empty? (.getTabs tab-pane))
+            (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
+                  tab-panes (.getItems editor-tabs-split)]
+              (when (< 1 (count tab-panes))
+                (.remove tab-panes tab-pane)
+                (let [remaining-tab-pane (.get tab-panes 0)
+                      selected-tab (ui/selected-tab remaining-tab-pane)
+                      resource-node (tab->resource-node selected-tab)
+                      view-type (tab->view-type selected-tab)]
+                  (.requestFocus ^TabPane remaining-tab-pane)
+                  (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
-(defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
+(defn- handle-focus-owner-change! [prefs app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
     (when (and (some? new-editor-tab-pane)
@@ -2056,6 +2056,7 @@
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
+        (recent-files/save-tab-selections prefs app-view)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
@@ -2076,12 +2077,14 @@
                                                                      :keymap keymap
                                                                      :localization localization))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
-      (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
+      (configure-editor-tab-pane! editor-tab-pane app-scene app-view prefs)
+
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
-                    (handle-focus-owner-change! app-view app-scene new-focus-owner)))
+                    (handle-focus-owner-change! prefs app-view app-scene new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
+      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
 
       (let [prev-localization-bundle (volatile! nil)
             refresh-timer (ui/->timer
@@ -2103,9 +2106,7 @@
                                   (refresh-scene-views! app-view dt)
                                   (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
-        (ui/timer-start! refresh-timer))
-      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
-      app-view)))
+        [app-view refresh-timer]))))
 
 (defn- make-info-box! [localization]
   (let [info-panel (HBox.)
@@ -2121,9 +2122,10 @@
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
 
+(declare open-resource)
+
 (defn- make-tab! [app-view prefs localization workspace project resource resource-node
-                  resource-type view-type make-view-fn ^ObservableList tabs
-                  open-resource opts]
+                  resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent (AnchorPane.)
         tab-content (if (resource/read-only? resource)
                       (doto (VBox.)
@@ -2263,21 +2265,24 @@
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
                                 (make-tab! app-view prefs localization workspace project resource resource-node
-                                           resource-type view-type make-view-fn active-tab-pane-tabs
-                                           open-resource opts)))]
-             (when (or (nil? existing-tab) (:select-node opts))
-               (g/transact
-                 (select app-view resource-node [(:select-node opts resource-node)])))
+                                           resource-type view-type make-view-fn active-tab-pane-tabs opts)))
+                 view-id (ui/user-data tab ::view)]
              (.select (.getSelectionModel (.getTabPane tab)) tab)
-             (when-let [focus (:focus-fn view-type)]
-               ;; Force layout pass since the focus function of some views
-               ;; needs proper width + height (f.i. code view for
-               ;; scrolling to selected line).
-               (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
-               (focus (ui/user-data tab ::view) opts))
-             ;; Do an initial rendering so it shows up as fast as possible.
-             (ui/run-later (refresh-scene-views! app-view 1/60)
-                           (ui/run-later (slog/smoke-log "opened-resource")))
+             (when (not (:ignore-refresh-layout opts))
+               (when (or (nil? existing-tab) (:select-node opts))
+                 (g/transact
+                   (select app-view resource-node [(:select-node opts resource-node)])))
+               (when-let [focus (:focus-fn view-type)]
+                 (ui/force-scene-layout! (g/node-value app-view :scene))
+                 (focus view-id opts))
+               ;; If we're opening a scene view, do an initial refresh so it
+               ;; shows up as fast as possible.
+               (ui/run-later
+                 (if (g/node-instance? scene/SceneView view-id)
+                   (do (refresh-scene-view! view-id 1/60)
+                       (ui/run-later
+                         (slog/smoke-log "opened-resource")))
+                   (slog/smoke-log "opened-resource"))))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
@@ -2294,6 +2299,54 @@
                                               :text (localization/message "dialog.open-resource.open-file-failed.detail"
                                                                           {"error" msg})}}))))
              false)))))))
+
+(defn- open-tabs-from-prefs [app-view prefs localization workspace project tab-panes-to-restore evaluation-context]
+  (into []
+        (let [tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
+          (for [[pane-num pane] (map-indexed vector tab-panes-to-restore)
+                [proj-path view-type-id] pane
+                :let [resource (workspace/find-resource workspace proj-path evaluation-context)
+                      view-type (workspace/get-view-type workspace view-type-id)]
+                :when (and (resource/openable-resource? resource)
+                           (resource/exists? resource))
+                :let [opened? (open-resource app-view prefs localization workspace project resource
+                                             {:selected-view-type view-type
+                                              :use-custom-editor false
+                                              :ignore-refresh-layout true})]
+                :when opened?]
+            {:pane-num pane-num
+             :tab (ui/selected-tab tab-pane)}))))
+
+(defn restore-tabs-from-prefs! [app-view prefs localization workspace project evaluation-context]
+  (when-let [tab-panes-to-restore (seq (prefs/get prefs [:workflow :open-tabs]))]
+    (let [{:keys [selected-pane tab-selection-by-pane]} (prefs/get prefs [:workflow :last-selected-tabs])
+          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)
+          opened-tabs (open-tabs-from-prefs app-view prefs localization workspace
+                                            project tab-panes-to-restore evaluation-context)
+          tab-panes (.getItems editor-tabs-split)
+          first-tab-pane (.get tab-panes 0)
+          tabs-to-move (coll/transfer opened-tabs []
+                         (filter #(= 1 (:pane-num %)))
+                         (map :tab))
+          ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
+          ;; need to change if we made a more elaborate window tiling system.
+          second-tab-pane (when (coll/not-empty tabs-to-move)
+                            (add-other-tab-pane! editor-tabs-split app-view prefs))
+          select-tab-fn (fn [pane-idx ^TabPane pane]
+                          (when-let [selected-tab-idx (get tab-selection-by-pane pane-idx)]
+                            (when (< -1 selected-tab-idx (.size (.getTabs pane)))
+                              (.select (.getSelectionModel pane) (int selected-tab-idx)))))]
+      (when second-tab-pane
+        (doseq [tab tabs-to-move]
+          (.remove (.getTabs ^TabPane first-tab-pane) tab)
+          (.add (.getTabs second-tab-pane) tab))
+        (select-tab-fn 1 second-tab-pane))
+      (select-tab-fn 0 first-tab-pane)
+      (doseq [^TabPane pane tab-panes]
+        (ui/add-style! pane "inactive"))
+      (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
+        (ui/remove-style! selected-tab-pane "inactive")
+        (.requestFocus selected-tab-pane)))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
@@ -3053,3 +3106,25 @@
              :icon :icon/triangle-error
              :content {:wrap-text true
                        :text (localization/message "dialog.desktop-entry.creation-failed.content" {"error" (.getMessage e)})}}))))))
+
+(comment
+  (ui/run-later
+    (let [editor-tabs-split ^SplitPane (g/node-value (dev/app-view) :editor-tabs-split)]
+      (g/set-property! (dev/app-view) :active-tab-pane (second (.getItems editor-tabs-split)))))
+  (ui/run-later
+    (time
+      (g/with-auto-evaluation-context ec
+        (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec))))
+  (ui/run-later
+    (ui/run-command (ui/main-root) :window.tab.close-all))
+  (g/with-auto-evaluation-context ec
+    (let [resource (workspace/find-resource (dev/workspace) "/scripts/knight_copy.script" ec)]
+      (resource/openable-resource? resource)))
+  (ui/run-later
+    (g/with-auto-evaluation-context ec
+      (clojure.pprint/pprint
+        (open-tabs-from-prefs (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project)
+                              '([["/scripts/game.script" :code] ["/scripts/knight.script" :code]]
+                                [["/scripts/utils.lua" :code]])
+                              ec))))
+  ,)

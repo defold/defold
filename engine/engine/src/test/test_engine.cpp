@@ -129,13 +129,13 @@ static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
 {
     dmEngine::Stats stats;
     dmEngine::GetStats(engine, stats);
-    *((uint32_t*) ctx) = stats.m_FrameCount;
+    *((uint32_t*) ctx) = stats.m_UpdateCount;
 }
 
-// static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
-// {
-//     dmEngine::GetStats(engine, *((dmEngine::Stats*)stats));
-// }
+static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
+{
+    dmEngine::GetStats(engine, *((dmEngine::Stats*)stats));
+}
 
 TEST_F(EngineTest, Project)
 {
@@ -199,6 +199,26 @@ TEST_F(EngineTest, RenderScript)
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_EQ(frame_count, 1u);
+}
+
+TEST_F(EngineTest, SetRenderEnabled)
+{
+    dmEngine::Stats stats;
+    char project_path[256];
+    const char* argv[] = {
+        "test_engine",
+        "--config=bootstrap.main_collection=/render_enabled/render_enabled.collectionc",
+        "--config=dmengine.unload_builtins=0",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
+
+    // The script disables rendering after the first frame and re-enables it later,
+    // yielding four fewer rendered frames than updates.
+    EXPECT_EQ(10u, stats.m_UpdateCount);
+    EXPECT_GT(stats.m_RenderCount, 0u);
+    EXPECT_EQ(stats.m_UpdateCount - stats.m_RenderCount, 4u);
 }
 
 TEST_F(EngineTest, CameraAqcuireFocus)
@@ -509,7 +529,7 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
     "--config=physics.use_fixed_timestep=1",
     "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
-    ASSERT_EQ(stats.m_FrameCount, 12u);
+    ASSERT_EQ(stats.m_UpdateCount, 12u);
     ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.02f);
 }
 */

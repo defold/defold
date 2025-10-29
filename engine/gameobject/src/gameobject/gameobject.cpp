@@ -2618,42 +2618,6 @@ namespace dmGameObject
         }
 
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
-        for (uint32_t i = 0; i < component_types; ++i)
-        {
-            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
-            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-
-            // Avoid to call UpdateTransforms for each/all component types.
-            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
-                UpdateTransforms(collection);
-            }
-
-            if (component_type->m_UpdateFunction)
-            {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
-                ComponentsUpdateParams params;
-                params.m_Collection = collection->m_HCollection;
-                params.m_UpdateContext = &dynamic_update_context;
-                params.m_World = collection->m_ComponentWorlds[update_index];
-                params.m_Context = component_type->m_Context;
-
-                ComponentsUpdateResult update_result;
-                update_result.m_TransformsUpdated = false;
-                UpdateResult res = component_type->m_UpdateFunction(params, update_result);
-                if (res != UPDATE_RESULT_OK)
-                    ret = false;
-
-                // Mark the collections transforms as dirty if this component has updated
-                // them in its update function.
-                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
-            }
-
-            if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
-            {
-                ret = false;
-            }
-        }
-
         if (update_context->m_FixedUpdateFrequency != 0 && update_context->m_TimeScale > 0.001f)
         {
             if (collection->m_FirstUpdate)
@@ -2715,6 +2679,42 @@ namespace dmGameObject
                     }
                 }
 
+            }
+        }
+
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+
+            // Avoid to call UpdateTransforms for each/all component types.
+            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
+                UpdateTransforms(collection);
+            }
+
+            if (component_type->m_UpdateFunction)
+            {
+                DM_PROFILE_DYN(component_type->m_Name, 0);
+                ComponentsUpdateParams params;
+                params.m_Collection = collection->m_HCollection;
+                params.m_UpdateContext = &dynamic_update_context;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+
+                ComponentsUpdateResult update_result;
+                update_result.m_TransformsUpdated = false;
+                UpdateResult res = component_type->m_UpdateFunction(params, update_result);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
+
+                // Mark the collections transforms as dirty if this component has updated
+                // them in its update function.
+                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+            }
+
+            if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+            {
+                ret = false;
             }
         }
 

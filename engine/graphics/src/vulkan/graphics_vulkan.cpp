@@ -1012,6 +1012,7 @@ namespace dmGraphics
         if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
         {
             context->m_ASTCSupport = 1;
+            context->m_ASTCArrayTextureSupport = 1;
         }
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,

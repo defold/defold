@@ -58,6 +58,7 @@ public class AndroidTools {
      * @return The result
      */
     public static Result exec(List<String> args) throws IOException {
+        init();
         logger.info("exec: " + String.join(" ", args));
         Map<String, String> env = new HashMap<String, String>();
         if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.Arm64Linux) {

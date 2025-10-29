@@ -62,6 +62,7 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
+#include "script/script_engine.h"
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -284,7 +285,8 @@ namespace dmEngine
     }
 
     Stats::Stats()
-    : m_FrameCount(0)
+    : m_UpdateCount(0)
+    , m_RenderCount(0)
     , m_TotalTime(0.0f)
     {
 
@@ -317,6 +319,7 @@ namespace dmEngine
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
     , m_UseSwVSync(false)
+    , m_RenderEnabled(true)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -379,11 +382,14 @@ namespace dmEngine
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
         } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -1553,6 +1559,8 @@ namespace dmEngine
             {
                 goto bail;
             }
+
+            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
         }
         else
         {
@@ -1562,12 +1570,15 @@ namespace dmEngine
             {
                 goto bail;
             }
+            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
+
             script_lib_context.m_ScriptContext = engine->m_GuiScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
             {
                 goto bail;
             }
+            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
         }
 
         // setup streaming for resource types, before we load the first collection
@@ -1664,6 +1675,11 @@ namespace dmEngine
 
 bail:
         return false;
+    }
+
+    void SetRenderEnable(HEngine engine, bool enable)
+    {
+        engine->m_RenderEnabled = enable;
     }
 
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -1809,6 +1825,10 @@ bail:
         {
             DM_PROFILE("Frame");
 
+            // We grab the value here (true by default), as the scripts may disable it during the init() function,
+            // and we want to make sure we render it the same frame (if it receives init+enable)
+            bool render_enabled = engine->m_RenderEnabled;
+
             {
                 DM_PROFILE("Sim");
 
@@ -1930,9 +1950,11 @@ bail:
 
                 dmSound::Update();
 
-                // Don't render while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
-                    && !dmRender::IsRenderPaused(engine->m_RenderContext))
+                // Don't render while iconified, or when device is lost, or when manually disabled
+                bool skip_render = dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
+                                || dmRender::IsRenderPaused(engine->m_RenderContext)
+                                || !render_enabled;
+                if (!skip_render)
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -1975,11 +1997,10 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+                if (!skip_render)
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
-
 
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
             } // Sim
@@ -2000,7 +2021,7 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
-            if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+            if (!dmRender::IsRenderPaused(engine->m_RenderContext) && render_enabled)
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2037,6 +2058,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                ++engine->m_Stats.m_RenderCount;
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -2062,7 +2084,7 @@ bail:
         }
         ProfileFrameEnd(profile);
 
-        ++engine->m_Stats.m_FrameCount;
+        ++engine->m_Stats.m_UpdateCount;
         engine->m_Stats.m_TotalTime += dt;
     }
 
@@ -2369,7 +2391,7 @@ bail:
 
     uint32_t GetFrameCount(HEngine engine)
     {
-        return engine->m_Stats.m_FrameCount;
+        return engine->m_Stats.m_UpdateCount;
     }
 
     void GetStats(HEngine engine, Stats& stats)
