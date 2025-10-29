@@ -28,7 +28,7 @@ namespace dmEngine
 
 /*#
  *
- * @name sys.set_render_enable
+ * @name sys.set_render_enabled
  * @param enable [type:bool] true if rendering should be enabled
  *
  * @examples
@@ -36,17 +36,17 @@ namespace dmEngine
  * Disable rendering
  *
  * ```lua
- * sys.set_render_enable(false)
+ * sys.set_render_enabled(false)
  * ```
  *
  * Enable rendering
  *
  * ```lua
- * sys.set_render_enable(true)
+ * sys.set_render_enabled(true)
  * ```
  *
  */
-static int EngineSys_SetRenderEnable(lua_State* L)
+static int EngineSys_SetRenderEnabled(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -66,7 +66,7 @@ static int EngineSys_SetRenderEnable(lua_State* L)
 
 static const luaL_reg EngineSys_methods[] =
 {
-    {"set_render_enable", EngineSys_SetRenderEnable},
+    {"set_render_enabled", EngineSys_SetRenderEnabled},
     {0, 0}
 };
 
