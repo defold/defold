@@ -93,7 +93,7 @@ def configure(conf):
     glfw_lib = waf_dynamo.platform_get_glfw_lib(conf.env.PLATFORM)
 
     if target_os == TargetOS.MACOS:
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore', '-framework', 'AVFoundation'])
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan:
@@ -108,7 +108,7 @@ def configure(conf):
                 conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
 
     elif target_os == TargetOS.IOS:
-        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'AVFoundation'])
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan and architecture == 'arm64':

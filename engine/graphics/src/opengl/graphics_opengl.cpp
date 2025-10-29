@@ -815,6 +815,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
+            case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1280,6 +1281,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
         {
             context->m_ASTCSupport = 1;
+            context->m_ASTCArrayTextureSupport = 1;
         }
 
         // Check if we're using a recent enough OpenGL version
@@ -1353,7 +1355,8 @@ static void LogFrameBufferError(GLenum status)
                 GLint err = glGetError();
                 if (err != 0)
                 {
-                    context->m_ASTCSupport = 0;
+                    // Only disable ASTC for array textures; keep 2D ASTC enabled
+                    context->m_ASTCArrayTextureSupport = 0;
                     isPagedASTCSupported = false;
                 }
                 glDeleteTextures(1, &texture);
@@ -1362,9 +1365,11 @@ static void LogFrameBufferError(GLenum status)
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
                 // If 4x4 is supported, all ASTC formats should be supported.
-                if (isPagedASTCSupported && pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
+                if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
                     context->m_ASTCSupport = 1;
+                    if (isPagedASTCSupported)
+                        context->m_ASTCArrayTextureSupport = 1;
                 }
                 else 
                 {

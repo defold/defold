@@ -322,6 +322,7 @@ dialog.lua-transpilers-error.generic.header = Failed to load Lua transpilers
 
 # Diff view dialogs
 
+dialog.diff-view.title = Diff
 dialog.diff-view.unchanged.title = The File Is Unchanged
 dialog.diff-view.unchanged.header = The file is unchanged
 dialog.diff-view.binary.title = Unable to Diff Binary Files
@@ -842,6 +843,28 @@ command.help.open-donations = Development Fund
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
+
+# Code editor – find bar
+
+code.find.word = Word
+code.find.case = Case
+code.find.wrap = Wrap
+code.find.prev = Previous
+code.find.next = Next
+code.replace.next = Replace
+code.replace.all = Replace All
+
+# About dialog
+
+dialog.about.label.version = Version:
+dialog.about.label.channel = Channel:
+dialog.about.label.build-time = Build time:
+dialog.about.label.editor-sha1 = Editor SHA1:
+dialog.about.label.engine-sha1 = Engine SHA1:
+dialog.about.value.unavailable = Not available
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Defold Foundation
+dialog.about.sponsor = Defold Foundation Development Fund
 
 # Overrides
 

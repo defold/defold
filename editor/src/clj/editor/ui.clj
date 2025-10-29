@@ -35,6 +35,7 @@
            [com.defold.control LongField]
            [com.defold.control DefoldStringConverter TreeCell]
            [com.sun.javafx.event DirectEvent]
+           [com.sun.javafx.scene NodeHelper]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
            [java.net URI]
@@ -2452,3 +2453,11 @@
   (when (not= cursor-type (.getCursor node))
     (.setCursor node Cursor/DISAPPEAR)
     (.setCursor node cursor-type)))
+
+(defn force-layout! [^Node node]
+  ;; Force layout pass to ensure the proper dimensions can be queried from the
+  ;; node. This process is recursive.
+  (NodeHelper/layoutNodeForPrinting node))
+
+(defn force-scene-layout! [^Scene scene]
+  (force-layout! (.getRoot scene)))

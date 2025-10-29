@@ -156,7 +156,7 @@ dialog.error.footer = 您可以通过报告和提供更多信息来帮助我们�
 dialog.build-error.title = 构建错误
 dialog.build-error.cycle.header = 检测到资源循环依赖
 dialog.build-error.cycle.message = {header}. {detail}
-dialog.build-error.cycle.detail.collection = 这是由于两个或多个集合之间通过集合代理或集合工厂相互循环引用所致。其中一个资源是：\n{resource}。
+dialog.build-error.cycle.detail.collection = 这是由两个或多个集合通过集合代理或集合工厂形成循环引用所致。其中一个资源是：{resource} 。
 dialog.build-error.cycle.detail.game-object = 这是由两个或多个游戏对象通过游戏对象工厂因循环方式引用引起的。其中一个资源是：{resource}。
 dialog.build-error.cycle.detail.script = 这是由两个或多个 Lua 模块因循环方式引用引起的。其中一个资源是：{resource}。
 dialog.build-error.cycle.detail.generic = 这是由两个或多个资源因循环方式引用引起的。其中一个资源是：{resource}。
@@ -1217,3 +1217,6 @@ resource.view.text = 文本
 
 resource.readonly.detail = 此文件是库的一部分，无法保存。
 resource.readonly.button.read-more = 阅读更多…
+
+# Quick Help
+

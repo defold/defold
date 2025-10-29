@@ -169,7 +169,7 @@ source ~/.bashrc
 Install [temurin jdk](https://adoptium.net/en-GB/installation/) using `brew`:
 
 ```
-> brew install --cask temurin@21
+> brew install --cask temurin@25
 ```
 
 *after installation, it's installed under /Library/Java/JavaVirtualMachines/temurin-<version>.jdk/Contents/Home`*

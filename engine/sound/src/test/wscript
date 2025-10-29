@@ -148,7 +148,8 @@ def build(bld):
     if bld.env.PLATFORM in ['arm64-nx64', 'x86_64-ps4']:
         pass
     else:
-        soundlibs.append('OPENAL')
+        if bld.env.PLATFORM not in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
+            soundlibs.append('OPENAL')
         soundlibs.append('DMGLFW')
         soundlibs.append('OPENGL')
 
@@ -179,7 +180,7 @@ def build(bld):
             test.env.append_value(f, ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM'])
 
     # making sure we test link the openal backend
-    if target_os in [TargetOS.MACOS, TargetOS.LINUX]:
+    if target_os in [TargetOS.LINUX]:
         test_sound_libs = [x for x in test.use if x != 'sound'] # keep the libraries in sync
         bld.program(features = 'cxx embed test skip_test',
                         includes = '../../src .',

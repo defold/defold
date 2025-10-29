@@ -89,7 +89,7 @@ def build(bld):
         additional_libs.append('UNWIND')
         additional_libs.append('CPP_RUNTIME')
 
-    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64']:
+    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
         sound_lib  = 'SOUND'
     else:
         sound_lib = 'SOUND OPENAL'

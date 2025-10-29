@@ -339,14 +339,15 @@ message OneOfMessageSave
 {
     oneof one_of_field
     {
-        int32 int_val = 1;
-        bool bool_val = 2;
+        bool bool_val     = 1;
+        int32 int_val     = 2;
+        uint64 uint64_val = 3;
     }
 
     oneof one_of_field_string
     {
-        int32 int_val_no_string = 3;
-        string string_val       = 4;
+        int32 int_val_no_string = 4;
+        bool bool_val_no_string = 5;
+        string string_val       = 6;
     }
 }
-

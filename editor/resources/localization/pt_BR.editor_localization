@@ -837,11 +837,17 @@ command.help.open-forum = Fórum de Suporte
 command.help.open-asset-portal = Encontrar Recursos
 command.help.report-issue = Reportar Problema
 command.help.report-suggestion = Reportar Sugestão
+command.help.open-issues = Buscar Problemas
+command.help.open-donations = Fundo de Desenvolvimento
 command.app.about = Sobre
+command.vcs.diff = Ver Diff
 command.vcs.revert = Desfazer
 
 # Overrides
 
+override.aspect.layout = Layout {layout}
+override.aspect.layout.kind = {count, plural, one {\# Layout} other {\# Layouts}}
+override.aspect.generic.kind = {count, plural, one {\# Aspecto} other {\# Aspectos}}
 
 # GUI
 
@@ -851,10 +857,12 @@ gui.layout.default = Padrão
 
 operation.atlas.add-animation = Adicionar Animação
 operation.atlas.add-images = Adicionar Imagens
+operation.atlas.move-pivot-point = Mover Ponto Pivô
 operation.collision-object.add-shape = Adicionar Forma
 operation.collection.add-collection = Adicionar Coleção
 operation.collection.add-game-object = Adicionar Objeto de Jogo
 operation.game-object.add-component = Adicionar Componente
+operation.gui.add-gui-node = Adicionar Nó GUI
 operation.gui.add-layer = Adicionar Camada
 operation.gui.add-layout = Adicionar Layout
 operation.gui.add-resources = Adicionar {type}
@@ -874,9 +882,11 @@ operation.tile-map.add-layer = Adicionar Camada
 
 # Properties
 
+property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como "{id}" nos scripts de editor
 
 # Properties: universal
 
+property.blend-mode = Modo de Mesclagem
 property.id = Id
 property.image = Imagem
 property.material = Material
@@ -891,42 +901,93 @@ property.url = URL
 # Properties: appmanifest
 
 property.appmanifest.physics-2d = Física 2D
+property.appmanifest.physics-2d.tooltip = Box2D versão 3 ou versão antiga do Defold
 property.appmanifest.physics-3d = Física 3D
+property.appmanifest.physics-3d.tooltip = Bala ou nenhum
+property.appmanifest.rig+model = Rig + Modelo
+property.appmanifest.rig+model.tooltip = Rig, Modelo ou nenhum
+property.appmanifest.exclude-record = Excluir Registro
 property.appmanifest.exclude-record.tooltip = Remover os recursos de gravação de vídeo (plataformas desktop)
+property.appmanifest.exclude-profiler = Excluir Perfilador
 property.appmanifest.exclude-profiler.tooltip = Remover o profilador da tela e web
+property.appmanifest.exclude-sound = Excluir Som
 property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de som\: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de som\: OGG
 property.appmanifest.include-sound-decoder-opus = Incluir Decodificador de Som\: Opus
 property.appmanifest.exclude-input = Excluir Entrada
+property.appmanifest.exclude-liveupdate = Excluir Atualização ao Vivo
 property.appmanifest.exclude-image = Excluir Imagem
+property.appmanifest.exclude-types = Excluir Tipos
+property.appmanifest.exclude-basis-transcoder = Excluir o Transcodificador de Base
+property.appmanifest.use-android-support-lib = Usar Biblioteca de Suporte Android
+property.appmanifest.use-android-support-lib.tooltip = Usar as bibliotecas antigas do Android em vez de AndroidX. Disponível a partir do Defold 1.2.177.
 property.appmanifest.graphics = Gráficos
 property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dispositivos móveis
+property.appmanifest.graphics-osx = Gráficos (macOS)
+property.appmanifest.graphics-osx.tooltip = Vulkan é o renderizador padrão para o macOS
+property.appmanifest.graphics-web = Gráficos (HTML5)
+property.appmanifest.graphics-web.tooltip = O suporte para WebGPU está em BETA (plataformas web)
 
 # Properties: atlas
 
 property.atlas.animation.fps = FPS
+property.atlas.animation.flip-horizontal = Inverter Horizontal
+property.atlas.animation.flip-vertical = Inverter Vertical
+property.atlas.animation.playback = Reprodução
+property.atlas.image.pivot = Pivô
+property.atlas.image.sprite-trim-mode = Modo Aparar Sprite
 property.atlas.margin = Margem
+property.atlas.margin.tooltip = Pixels inseridos entre cada imagem no atlas
+property.atlas.inner-padding = Estofamento Interno
+property.atlas.inner-padding.tooltip = Pixels vazios ao redor de cada imagem
+property.atlas.extrude-borders = Extrudar Bordas
+property.atlas.extrude-borders.tooltip = Copia pixels da borda para fora para evitar conflito entre imagens
+property.atlas.max-page-size = Tamanho Máximo da Página
+property.atlas.max-page-size.tooltip = Maior largura e altura para cada página em um atlas de várias páginas
+property.atlas.rename-patterns = Renomear Padrões
 property.atlas.rename-patterns.tooltip = Pesquisa separada por vírgulas\=substituir padrões aplicados a cada nome base da imagem; por exemplo "hat\=cat,_normal\=" renomeia "hat_normal" para "cat", o que ajuda a combinar animações entre conjuntos
 
 # Properties: camera
 
 property.camera.aspect-ratio = Taxa de Proporção
+property.camera.aspect-ratio.tooltip = Somente câmeras de perspectiva. Relação entre a largura do frustum e a altura. 1.0 assume uma visão quadrada; 1.33 se encaixa em 4\:3 (1024x768); 1.78 se encaixa em 16\:9. Ignorado quando Proporção da Tela Automática estiver ativada.
 property.camera.fov = FOV
+property.camera.fov.tooltip = Somente para câmeras de perspectiva. Campo de exibição vertical em radianos. Valores maiores mostram mais da cena.
+property.camera.near-z = Z Próximo
+property.camera.near-z.tooltip = Valor Z do plano de recorte próximo.
+property.camera.far-z = Z Distante
+property.camera.far-z.tooltip = Valor Z do plano de recorte distante.
 property.camera.auto-aspect-ratio = Taxa de Proporção Automática
+property.camera.auto-aspect-ratio.tooltip = Somente para câmaras de perspectiva. Automaticamente calcula a proporção da tela.
+property.camera.orthographic-projection = Projeção Ortográfica
+property.camera.orthographic-projection.tooltip = Muda a câmera para projeção ortográfica.
+property.camera.orthographic-zoom = Zoom Ortográfico
+property.camera.orthographic-zoom.tooltip = Somente para câmeras ortográficas. Fator de zoom (> 1 aproxima; < 1 afasta).
+property.camera.orthographic-mode = Modo de Zoom Ortográfico
 
 # Properties: collection proxy
 
 property.collection-proxy.collection = Coleção
+property.collection-proxy.exclude = Excluir
 
 # Properties: collision object
 
+property.collision-object.collision-shape = Forma de Colisão
 property.collision-object.type = Tipo
+property.collision-object.type.tooltip = Disponível como "collision_type" em scripts do editor. Prefira esse identificador sobre "type", já que "type" é usado para tipos de componentes quando um componente é incorporado em objetos de jogo, o que iria ofuscar essa propriedade.
 property.collision-object.mass = Massa
 property.collision-object.friction = Atrito
+property.collision-object.restitution = Restituição
+property.collision-object.linear-damping = Amortecimento Linear
+property.collision-object.angular-damping = Amortecimento Angular
 property.collision-object.locked-rotation = Rotação Travada
+property.collision-object.bullet = Projétil
+property.collision-object.event-collision = Gerar Eventos de Colisão
 property.collision-object.event-collision.tooltip = Se desativado, filtra quaisquer eventos de colisão envolvendo este objeto de colisão
 property.collision-object.event-contact = Gerar Eventos de Contato
 property.collision-object.event-contact.tooltip = Se desativado, filtra quaisquer eventos de contato envolvendo este objeto de colisão
+property.collision-object.event-trigger = Gerar Eventos de Gatilho
+property.collision-object.event-trigger.tooltip = Se desativado, filtra quaisquer eventos de gatilho envolvendo este objeto de colisão
 property.collision-object.group = Grupo
 property.collision-object.mask = Máscara
 property.collision-object.shape.diameter = Diâmetro
@@ -940,10 +1001,13 @@ property.cubemap.bottom = Inferior
 property.cubemap.front = Frente
 property.cubemap.left = Esquerda
 property.cubemap.right = Direita
+property.cubemap.top = Topo
 
 # Properties: factory
 
+property.factory.prototype = Protótipo
 property.factory.load-dynamically = Carregar Dinamicamente
+property.factory.dynamic-prototype = Protótipo Dinâmico
 
 # Properties: font
 
@@ -953,62 +1017,148 @@ property.font.render-mode = Modo de Renderização
 property.font.size = Tamanho
 property.font.antialias = Suavização
 property.font.alpha = Alfa
+property.font.outline-alpha = Alfa do Contorno
+property.font.outline-width = Largura do Contorno
+property.font.shadow-alpha = Alfa da Sombra
+property.font.shadow-blur = Desfoque da Sombra
 property.font.shadow-x = Sombra X
 property.font.shadow-y = Sombra Y
 property.font.cache-width = Largura de Cache
 property.font.cache-height = Altura de Cache
+property.font.characters = Caracteres
+property.font.all-chars = Todos Caracteres
 
 # Properties: gui
 
+property.gui.adjust-mode = Ajustar Modo
+property.gui.adjust-reference = Ajustar Referência
 property.gui.alpha = Alfa
+property.gui.clipping-inverted = Recorte Invertido
+property.gui.clipping-mode = Modo de Recorte
+property.gui.clipping-visible = Recorte Visível
 property.gui.color = Cor
+property.gui.current-nodes = Nós Atuais
+property.gui.enabled = Ativado
 property.gui.font = Fonte
+property.gui.inherit-alpha = Herdar Alfa
+property.gui.inner-radius = Raio Interno
+property.gui.layer = Camada
+property.gui.line-break = Quebra de Linha
+property.gui.max-dynamic-textures = Máximo de Texturas Dinâmicas
+property.gui.max-nodes = Máximo de Nós
+property.gui.outline = Contorno
 property.gui.outline-alpha = Alfa do Contorno
+property.gui.outer-bounds = Limite Externo
+property.gui.perimeter-vertices = Vértices do Perímetro
+property.gui.particlefx = Efeito de Partículas
+property.gui.pie-fill-angle = Ângulo de Preenchimento
+property.gui.pivot = Pivô
+property.gui.script = Script
 property.gui.shadow = Sombra
+property.gui.shadow-alpha = Alfa da Sombra
+property.gui.size-mode = Modo Tamanho
+property.gui.slice9 = Fatia 9
 property.gui.texture = Textura
+property.gui.template = Modelo
 property.gui.text = Texto
+property.gui.text-leading = Espaçamento do Texto
+property.gui.text-tracking = Espaçamento Entre Letras
 property.gui.visible = Visível
+property.gui.x-anchor = Âncora X
+property.gui.y-anchor = Âncora Y
 
 # Properties: label
 
 property.label.color = Cor
 property.label.font = Fonte
+property.label.leading = Espaçamento
+property.label.line-break = Quebra de Linha
+property.label.outline = Contorno
+property.label.pivot = Pivô
 property.label.shadow = Sombra
 property.label.size = Tamanho
 property.label.text = Texto
+property.label.tracking = Espaçamento Entre Letras
 
 # Properties: mesh
 
+property.mesh.normal-stream = Fluxo de Normais
+property.mesh.position-stream = Fluxo de Posições
+property.mesh.primitive-type = Tipo Primitivo
+property.mesh.vertices = Vértices
 
 # Properties: model
 
+property.model.animations = Animações
+property.model.create-go-bones = Criar Ossos GO
+property.model.default-animation = Animação Padrão
+property.model.mesh = Malha
 property.model.skeleton = Esqueleto
 
 # Properties: particlefx
 
+property.particlefx.category.particle-life = Vida da Partícula
 
+property.particlefx.animation = Animação
 property.particlefx.duration = Duração
+property.particlefx.inherit-velocity = Herdar Velocidade
 property.particlefx.material = Material
+property.particlefx.max-particle-count = Máximo de Partículas
+property.particlefx.mode = Modo de Animação
+property.particlefx.particle-orientation = Orientação da Partícula
+property.particlefx.pivot = Pivô
+property.particlefx.size-mode = Modo de Tamanho
+property.particlefx.space = Espaço de Emissão
+property.particlefx.start-delay = Atraso de Início
+property.particlefx.start-offset = Deslocamento Inicial
+property.particlefx.stretch-with-velocity = Alongar com Velocidade
 property.particlefx.tile-source = Imagem
+property.particlefx.type = Tipo de Emissor
 
+property.particlefx.emitter-key-particle-alpha = Alfa Inicial
+property.particlefx.emitter-key-particle-angular-velocity = Velocidade Angular Inicial
+property.particlefx.emitter-key-particle-blue = Azul Inicial
+property.particlefx.emitter-key-particle-green = Verde Inicial
+property.particlefx.emitter-key-particle-life-time = Tempo de Vida da Partícula
+property.particlefx.emitter-key-particle-red = Vermelho Inicial
 property.particlefx.emitter-key-particle-rotation = Rotação Inicial
+property.particlefx.emitter-key-particle-size = Tamanho Inicial
+property.particlefx.emitter-key-particle-speed = Velocidade Inicial
+property.particlefx.emitter-key-particle-stretch-factor-x = Alongamento Inicial X
+property.particlefx.emitter-key-particle-stretch-factor-y = Alongamento Inicial Y
+property.particlefx.emitter-key-size-x = Tamanho do Emissor X
+property.particlefx.emitter-key-size-y = Tamanho do Emissor Y
+property.particlefx.emitter-key-size-z = Tamanho do Emissor Z
+property.particlefx.emitter-key-spawn-rate = ​​Taxa de Geração​​
 property.particlefx.magnitude = Magnitude
 property.particlefx.max-distance = Distância Máxima
 property.particlefx.particle-key-alpha = Alfa
+property.particlefx.particle-key-angular-velocity = Velocidade Angular
 property.particlefx.particle-key-blue = Azul
 property.particlefx.particle-key-green = Verde
 property.particlefx.particle-key-red = Vermelho
 property.particlefx.particle-key-rotation = Rotação
 property.particlefx.particle-key-scale = Escala
+property.particlefx.particle-key-stretch-factor-x = Esticar X
+property.particlefx.particle-key-stretch-factor-y = Esticar Y
 
 # Properties: sound
 
 property.sound.sound = Som
+property.sound.looping = Repetir
+property.sound.loopcount = Repetições
 property.sound.group = Grupo
+property.sound.gain = Ganho
+property.sound.pan = Balanço
 property.sound.speed = Velocidade
 
 # Properties: sprite
 
+property.sprite.default-animation = Animação Padrão
+property.sprite.offset = Deslocamento
+property.sprite.playback-rate = Velocidade
+property.sprite.size-mode = Modo de Tamanho
+property.sprite.slice9 = Fatia 9
 
 # Properties: tile map
 
@@ -1037,12 +1187,20 @@ property.tile-source.tile-width = Largura do Tile
 
 outline.atlas.no-image = <Sem Imagem>
 outline.atlas = Atlas
+outline.camera = Câmera
 outline.collection = Coleção
+outline.collection-proxy = Proxy de Coleção
+outline.collision-object = Objeto de Colisão
+outline.game-object = Objeto de Jogo
 outline.gui.fonts = Fontes
+outline.gui.layouts = Layouts
 outline.gui.layers = Camadas
 outline.gui.nodes = Nós
 outline.gui.materials = Materiais
 outline.gui.textures = Texturas
+outline.non-editable-collection = Coleção Não Editável
+outline.non-editable-game-object = Objeto de Jogo Não Editável
+outline.particlefx = ParticleFX
 outline.sound = Som
 outline.tile-map = Tile Map
 outline.tile-source = Tile Source
@@ -1059,3 +1217,6 @@ resource.view.text = Texto
 
 resource.readonly.detail = Este arquivo é parte de uma biblioteca e não pode ser salvo.
 resource.readonly.button.read-more = Ler mais…
+
+# Quick Help
+
