@@ -24,9 +24,8 @@
             [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [clojure.lang Counted]
-           [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
-           [java.nio Buffer ByteBuffer IntBuffer]))
+           [java.nio Buffer ByteBuffer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -40,10 +39,6 @@
    :int     GL2/GL_INT
    :float   GL/GL_FLOAT
    :double  GL2/GL_DOUBLE})
-
-(def usage-types
-  {:static GL2/GL_STATIC_DRAW
-   :dynamic GL2/GL_DYNAMIC_DRAW})
 
 (defn type->stream-type [type]
   (case type
@@ -100,6 +95,7 @@
 
 (defn wrap-vertex-buffer
   [vertex-description usage ^Buffer buffer]
+  {:pre [(graphics.types/usage? usage)]}
   (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
     (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
@@ -253,7 +249,6 @@
          ([capacity#]
           (make-vertex-buffer '~vertex-description :static capacity#))
          ([capacity# usage#]
-          (assert (contains? usage-types usage#) (format "usage must be %s" (str/join " or " (map str (keys usage-types)))))
           (make-vertex-buffer '~vertex-description usage# capacity#)))
        ~(when gen-put?
           `(def ~put-name ~(make-put-fn (:attributes vertex-description)))))))
@@ -342,14 +337,6 @@
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl expanded-attribute-locations]
   (clear-attributes! gl expanded-attribute-locations))
 
-(defn- bind-index-buffer! [^GL2 gl request-id ^IntBuffer index-buffer]
-  ;; TODO: Feed in actual version. Perhaps deftype IndexBuffer with IntBuffer + version?
-  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl {:index-buffer index-buffer :version 0})]
-    (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
-
-(defn- unbind-index-buffer! [^GL2 gl]
-  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
-
 (defonce/type VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
   gl.types/GLBinding
   (bind! [_this gl _render-args]
@@ -359,32 +346,20 @@
     (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
     (set! expanded-attribute-locations nil)))
 
-(defonce/type VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
-  gl.types/GLBinding
-  (bind! [_this gl _render-args]
-    (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
-    (bind-index-buffer! gl request-id index-buffer))
-
-  (unbind! [_this gl _render-args]
-    (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
-    (set! expanded-attribute-locations nil)
-    (unbind-index-buffer! gl)))
-
-(defn use-with
-  ([request-id ^VertexBuffer vertex-buffer shader]
-   (->VertexBufferShaderLink request-id vertex-buffer shader nil))
-  ([request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
-   (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader nil)))
+(defn use-with [request-id ^VertexBuffer vertex-buffer shader]
+  (->VertexBufferShaderLink request-id vertex-buffer shader nil))
 
 (defn- update-vbo [^GL2 gl [vbo _] data]
-  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo) ; TODO(instancing): Move to right before gl-buffer-data call?
   (let [^VertexBuffer vbuf (:vertex-buffer data)
         ^Buffer buf (.buf vbuf)
         shader (:shader data)
         attribute-names (e/map :name (:attributes (.vertex-description vbuf)))
-        attribute-locations (shader/attribute-locations shader gl attribute-names)]
+        attribute-locations (shader/attribute-locations shader gl attribute-names)
+        gl-usage (gl.types/usage-gl-usage (.usage vbuf))]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
-    (gl/gl-buffer-data gl GL/GL_ARRAY_BUFFER (buffers/total-byte-size buf) buf (usage-types (.usage vbuf)))
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+    (gl/gl-buffer-data gl GL/GL_ARRAY_BUFFER (buffers/total-byte-size buf) buf gl-usage)
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     [vbo attribute-locations]))
 
 (defn- make-vbo [^GL2 gl data]
@@ -395,20 +370,3 @@
   (gl/gl-delete-buffers gl (mapv first objs)))
 
 (scene-cache/register-object-cache! ::vbo2 make-vbo update-vbo destroy-vbos)
-
-(defn- update-ibo [^GL2 gl ibo data]
-  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
-  (let [^IntBuffer int-buffer (:index-buffer data)
-        count (.remaining int-buffer)
-        size (* count Buffers/SIZEOF_INT)]
-    (gl/gl-buffer-data gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
-  ibo)
-
-(defn- make-ibo [^GL2 gl data]
-  (let [ibo (gl/gl-gen-buffer gl)]
-    (update-ibo gl ibo data)))
-
-(defn- destroy-ibos [^GL2 gl ibos _]
-  (gl/gl-delete-buffers gl ibos))
-
-(scene-cache/register-object-cache! ::ibo2 make-ibo update-ibo destroy-ibos)
