@@ -676,10 +676,12 @@ namespace dmGraphics
 
     bool IsTextureFormatSupportedForType(HContext context, TextureType type, TextureFormat format)
     {
-        if (type == TEXTURE_TYPE_2D_ARRAY && IsTextureFormatASTC(format))
+        if ((type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D) && IsTextureFormatASTC(format))
         {
             if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
+            {
                 return false;
+            }
         }
         return IsTextureFormatSupported(context, format);
     }
