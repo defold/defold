@@ -161,3 +161,14 @@
 #search-results-container {
     -fx-padding: 0;
 }
+
+#breakpoints-tab {
+    @extend .console-tab-base;
+    -fx-background-image: url("icons/tabs/ic_breakpoints-grey.png");
+    &:selected {
+        -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
+    }
+    &:hover {
+        -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
+    }
+}

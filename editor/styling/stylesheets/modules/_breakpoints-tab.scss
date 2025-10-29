@@ -1,0 +1,33 @@
+#breakpoints-grid-pane {
+  -fx-background-color: -df-background-light;
+}
+
+#breakpoints-tool-bar {
+  -fx-background-color: -df-background-light;
+  -fx-padding: 16px;
+  -fx-spacing: 5px;
+}
+
+#breakpoints-list {
+  -fx-background-color: -df-background-light;
+
+  .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -df-text;
+    -fx-padding: 8px;
+
+    &:hover {
+      -fx-background-color: -df-component-lighter;
+    }
+
+    &:selected {
+      -fx-background-color: -df-component-light;
+    }
+  }
+}
+
+#breakpoints-enable-all,
+#breakpoints-disable-all,
+#breakpoints-toggle-all {
+  @extend .console-button-base;
+}

@@ -39,7 +39,7 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.scene Parent]
+           [javafx.scene Node Parent]
            [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
@@ -223,6 +223,19 @@
                                                        (ui/add-style! "call-stack-line-container")
                                                        (ui/children! [(doto (Label. (str line))
                                                                         (ui/add-style! "call-stack-line"))]))]))})))))
+
+(defn- setup-variables-view!
+  [^TreeView debugger-variables]
+  (doto debugger-variables
+    (ui/customize-tree-view! {:double-click-expand? true})
+    (.setShowRoot false)
+    (ui/cell-factory! (fn [{:keys [display-name display-value]}]
+                        {:graphic (doto (HBox.)
+                                    (ui/fill-control)
+                                    (ui/children! [(Label. display-name)
+                                                   (doto (Label. " = ")
+                                                     (ui/add-style! "equals"))
+                                                   (Label. display-value)]))}))))
 
 (defn- setup-variables-view!
   [^TreeView debugger-variables]
@@ -909,3 +922,52 @@
                 :check true}
                {:label :separator
                 :id ::debug-end}]}])
+
+(defn- make-breakpoint-entry
+  ^Node [{:keys [proj-path row condition] :as breakpoint}
+         breakpoints-list-view
+         on-remove-fn]
+  (let [label (Label. (str proj-path ":" row (when condition (str " [" condition "]"))))
+        remove-button (Button. "×")]
+    (ui/on-action! remove-button
+      (fn [_]
+        (on-remove-fn breakpoint)
+        #_(ui/items! breakpoints-list-view (get-updated-breakpoints))))
+    (HBox. (into-array Node [label remove-button]))))
+
+(defn setup-breakpoints-list! [^ListView breakpoints-list breakpoints]
+  (doto breakpoints-list
+    (.setFixedCellSize 56.0)
+    (ui/items! breakpoints)
+    (ui/cell-factory!
+      (fn [breakpoint]
+        {:graphic (make-breakpoint-entry
+                   breakpoint
+                   breakpoints-list
+                   (fn [bp] (println "Remove:" bp)))}))))
+
+(defn breakpoint->list-view [breakpoint]
+  (-> breakpoint
+      (assoc :proj-path (get-in breakpoint [:resource :project-path]))
+      (#(update % :row + 1))
+      (dissoc :resource)))
+
+;; (defn- get-active-breakpoints []
+;;   (g/node-value (dev/project) :breakpoints))
+
+(comment
+  (def debug-view (dev/view-of-type editor.debug-view/DebugView))
+
+  (ui/run-now
+    (let [new-content (ui/load-fxml "breakpoints-view.fxml")
+          breakpoints-tab (->> (.lookup @editor.boot-open-project/the-root "#tool-tabs")
+                               .getTabs
+                               (filter #(= "breakpoints-tab" (.getId %)))
+                               first)]
+      (.setContent breakpoints-tab new-content)))
+  (ui/run-now
+    (let [list-view (.lookup @editor.boot-open-project/the-root "#breakpoints-list")
+          breakpoints (map breakpoint->list-view (g/node-value (dev/project) :breakpoints))
+          list (.getItems list-view)]
+      (setup-breakpoints-list! list-view breakpoints)))
+  ,)
