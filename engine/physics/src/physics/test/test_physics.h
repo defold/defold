@@ -97,7 +97,7 @@ protected:
 
     virtual void SetUp()
     {
-        SetupContextAndWorld(PRECISION_ROUNDING_PHYSICS_SCALE);
+        this->SetupContextAndWorld(PRECISION_ROUNDING_PHYSICS_SCALE);
     }
 };
 
