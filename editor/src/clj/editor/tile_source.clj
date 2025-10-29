@@ -318,6 +318,28 @@
   (output updatable g/Any produce-animation-updatable)
   (output scene g/Any produce-animation-scene))
 
+(defn- validate-image-resource [node-id image-resource]
+  (or (validation/prop-error :fatal node-id :image validation/prop-nil? image-resource "Image")
+      (validation/prop-error :fatal node-id :image validation/prop-resource-not-exists? image-resource "Image")))
+
+(defn- validate-tile-width [node-id tile-width]
+  (validation/prop-error :fatal node-id :tile-width validation/prop-zero-or-below? tile-width "Tile Width"))
+
+(defn- validate-tile-height [node-id tile-height]
+  (validation/prop-error :fatal node-id :tile-height validation/prop-zero-or-below? tile-height "Tile Height"))
+
+(defn- validate-tile-margin [node-id tile-margin]
+  (validation/prop-error :fatal node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))
+
+(defn- validate-tile-spacing [node-id tile-spacing]
+  (validation/prop-error :fatal node-id :tile-spacing validation/prop-negative? tile-spacing "Tile Spacing"))
+
+(defn- validate-extrude-borders [node-id extrude-borders]
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+
+(defn- validate-inner-padding [node-id inner-padding]
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
+
 (defn- attach-animation-node [self animation-node]
   (concat
     (for [[from to] [[:_node-id :nodes]
@@ -490,7 +512,6 @@
         scale-factor (camera/scale-factor (:camera render-args) (:viewport render-args))]
     (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))
 
-
 (g/defnk produce-scene
   [_node-id tile-source-attributes aabb layout-size uv-transforms texture-set texture-profile gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
@@ -543,9 +564,15 @@
              tile->collision-group-node))
 
 (g/defnk produce-tile-source-attributes
-  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size sprite-trim-mode]
-  (or (validation/prop-error :fatal _node-id :image validation/prop-nil? image-resource "Image")
-      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image-resource "Image")
+  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size sprite-trim-mode image-dim-error tile-width-error tile-height-error]
+  (or (g/flatten-errors
+        (validate-image-resource _node-id image-resource)
+        (validate-tile-width _node-id tile-width)
+        (validate-tile-height _node-id tile-height)
+        (validate-tile-margin _node-id tile-margin)
+        (validate-tile-spacing _node-id tile-spacing)
+        (validate-extrude-borders _node-id extrude-borders)
+        (validate-inner-padding _node-id inner-padding))
       (let [properties {:width tile-width
                         :height tile-height
                         :margin tile-margin
@@ -596,8 +623,7 @@
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
-                             (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                 (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
+                             (validate-image-resource _node-id image))))
   (property size types/Vec2 ; Just for presentation.
             (value (g/fnk [image-size]
                      [(:width image-size 0) (:height image-size 0)]))
@@ -607,29 +633,32 @@
             (dynamic label (properties/label-dynamic :tile-source :tile-width))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-width))
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
-                             (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
+                             (validate-tile-width _node-id tile-width))))
   (property tile-height g/Int (default (protobuf/required-default Tile$TileSet :tile-height))
             (dynamic label (properties/label-dynamic :tile-source :tile-height))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-height))
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
-                             (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
+                             (validate-tile-height _node-id tile-height))))
   (property tile-margin g/Int (default (protobuf/default Tile$TileSet :tile-margin))
             (dynamic label (properties/label-dynamic :tile-source :tile-margin))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-margin))
             (dynamic error (g/fnk [_node-id tile-margin tile-width-error tile-height-error]
-                             (validation/prop-error :fatal _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
+                             (validate-tile-margin _node-id tile-margin))))
   (property tile-spacing g/Int (default (protobuf/default Tile$TileSet :tile-spacing))
             (dynamic label (properties/label-dynamic :tile-source :tile-spacing))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-spacing))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? tile-spacing)))
+            (dynamic error (g/fnk [_node-id tile-spacing]
+                             (validate-tile-spacing _node-id tile-spacing))))
   (property extrude-borders g/Int (default (protobuf/default Tile$TileSet :extrude-borders))
             (dynamic label (properties/label-dynamic :tile-source :extrude-borders))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :extrude-borders))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
+            (dynamic error (g/fnk [_node-id extrude-borders]
+                             (validate-extrude-borders _node-id extrude-borders))))
   (property inner-padding g/Int (default (protobuf/default Tile$TileSet :inner-padding))
             (dynamic label (properties/label-dynamic :tile-source :inner-padding))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :inner-padding))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
+            (dynamic error (g/fnk [_node-id inner-padding]
+                             (validate-inner-padding _node-id inner-padding))))
   (property collision resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-resource))
             (set (fn [evaluation-context self old-value new-value]
