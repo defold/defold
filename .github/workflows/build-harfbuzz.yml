@@ -2,14 +2,13 @@ name: Build HarfBuzz
 
 on:
   workflow_dispatch:
-  pull_request:
 
 env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   HARFBUZZ_VERSION: 11.3.2
 
 jobs:
-  build-linux:
+  build:
     strategy:
       matrix:
         platforms: [
@@ -25,6 +24,7 @@ jobs:
            { name: 'win32', runner: 'windows-2025', target: 'windows' },
            { name: 'x86_64-win32', runner: 'windows-2025', target: 'windows' }
         ]
+      fail-fast: false
     runs-on: ${{ matrix.platforms.runner }}
     steps:
       - name: Checkout repo
@@ -51,7 +51,15 @@ jobs:
         run: |
           set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
-          source ci/env.sh
+
+          if [ ${{ matrix.platforms.target }} == "windows" ]; then
+            ORIG_PATH="$PATH"
+            source ci/env.sh
+            export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin"
+          else
+            source ci/env.sh
+          fi
+
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           if [ ${{ matrix.platforms.target }} == "web" ]; then 
             source "$EMSDK/emsdk_env.sh"
