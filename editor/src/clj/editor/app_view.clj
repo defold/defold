@@ -2267,21 +2267,22 @@
                                 (make-tab! app-view prefs localization workspace project resource resource-node
                                            resource-type view-type make-view-fn active-tab-pane-tabs opts)))
                  view-id (ui/user-data tab ::view)]
-             (when (or (nil? existing-tab) (:select-node opts))
-               (g/transact
-                 (select app-view resource-node [(:select-node opts resource-node)])))
              (.select (.getSelectionModel (.getTabPane tab)) tab)
-             (when-let [focus (:focus-fn view-type)]
-               (ui/force-scene-layout! (g/node-value app-view :scene))
-               (focus view-id opts))
-             ;; If we're opening a scene view, do an initial refresh so it
-             ;; shows up as fast as possible.
-             (ui/run-later
-               (if (g/node-instance? scene/SceneView view-id)
-                 (do (refresh-scene-view! view-id 1/60)
-                     (ui/run-later
-                       (slog/smoke-log "opened-resource")))
-                 (slog/smoke-log "opened-resource")))
+             (when (not (:ignore-refresh-layout opts))
+               (when (or (nil? existing-tab) (:select-node opts))
+                 (g/transact
+                  (select app-view resource-node [(:select-node opts resource-node)])))
+               (when-let [focus (:focus-fn view-type)]
+                 (ui/force-scene-layout! (g/node-value app-view :scene))
+                 (focus view-id opts))
+               ;; If we're opening a scene view, do an initial refresh so it
+               ;; shows up as fast as possible.
+               (ui/run-later
+                 (if (g/node-instance? scene/SceneView view-id)
+                   (do (refresh-scene-view! view-id 1/60)
+                       (ui/run-later
+                         (slog/smoke-log "opened-resource")))
+                   (slog/smoke-log "opened-resource"))))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
@@ -2310,7 +2311,8 @@
                            (resource/exists? resource))
                 :let [opened? (open-resource app-view prefs localization workspace project resource
                                              {:selected-view-type view-type
-                                              :use-custom-editor false})]
+                                              :use-custom-editor false
+                                              :ignore-refresh-layout true})]
                 :when opened?]
             {:pane-num pane-num
              :tab (ui/selected-tab tab-pane)}))))
@@ -3110,8 +3112,9 @@
     (let [editor-tabs-split ^SplitPane (g/node-value (dev/app-view) :editor-tabs-split)]
       (g/set-property! (dev/app-view) :active-tab-pane (second (.getItems editor-tabs-split)))))
   (ui/run-later
-    (g/with-auto-evaluation-context ec
-      (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec)))
+    (time
+     (g/with-auto-evaluation-context ec
+       (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec))))
   (ui/run-later
     (ui/run-command (ui/main-root) :window.tab.close-all))
   (g/with-auto-evaluation-context ec

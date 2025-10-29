@@ -160,4 +160,5 @@
   (prefs/get (dev/prefs) [:workflow :open-tabs])
   (prefs/get (dev/prefs) [:workflow :last-selected-tabs])
   (prefs/get (dev/prefs) [:window])
+  (prefs/set! (dev/prefs) [:workflow :open-tabs] (collect-open-tabs (dev/app-view)))
   ,)
