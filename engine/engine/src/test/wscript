@@ -101,7 +101,11 @@ def build(bld):
         always = True)
 
     # Build custom collections first to prevent overrides in default game.projectc
-    settings = ['cross_script_messaging.ini', 'render_script.ini', 'camera_acquire_input_focus.ini']
+    settings = [
+        'cross_script_messaging.ini',
+        'render_script.ini',
+        'camera_acquire_input_focus.ini',
+        'render_enabled.ini']
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,

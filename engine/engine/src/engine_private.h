@@ -85,7 +85,8 @@ namespace dmEngine
     {
         Stats();
 
-        uint32_t m_FrameCount;
+        uint32_t m_UpdateCount;
+        uint32_t m_RenderCount;
         float    m_TotalTime;   // Total running time of the game
     };
 

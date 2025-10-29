@@ -285,7 +285,8 @@ namespace dmEngine
     }
 
     Stats::Stats()
-    : m_FrameCount(0)
+    : m_UpdateCount(0)
+    , m_RenderCount(0)
     , m_TotalTime(0.0f)
     {
 
@@ -2057,6 +2058,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                ++engine->m_Stats.m_RenderCount;
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -2082,7 +2084,7 @@ bail:
         }
         ProfileFrameEnd(profile);
 
-        ++engine->m_Stats.m_FrameCount;
+        ++engine->m_Stats.m_UpdateCount;
         engine->m_Stats.m_TotalTime += dt;
     }
 
@@ -2389,7 +2391,7 @@ bail:
 
     uint32_t GetFrameCount(HEngine engine)
     {
-        return engine->m_Stats.m_FrameCount;
+        return engine->m_Stats.m_UpdateCount;
     }
 
     void GetStats(HEngine engine, Stats& stats)
