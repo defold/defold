@@ -414,7 +414,8 @@
               (map (fn [region]
                      (let [condition (:condition region)]
                        (cond-> {:resource resource
-                                :row (data/breakpoint-row region)}
+                                :row (data/breakpoint-row region)
+                                :active true}
                                condition
                                (assoc :condition condition))))))
         regions))
