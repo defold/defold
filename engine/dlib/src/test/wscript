@@ -140,7 +140,6 @@ def build(bld):
     create_test(bld, 'test_transform', extra_libs = ['THREAD'])
     create_test(bld, 'test_hashtable')
     create_test(bld, 'test_array')
-    create_test(bld, 'test_double_linked_list')
     create_test(bld, 'test_set')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
