@@ -319,14 +319,13 @@ namespace dmEngine
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
     , m_UseSwVSync(false)
-    , m_RenderEnabled(true)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
-    , m_ThrottleEnabled(false)
     , m_ThrottleCooldownMax(0.0f)
     , m_ThrottleCooldown(0.0f)
+    , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
@@ -1851,10 +1850,6 @@ bail:
         {
             DM_PROFILE("Frame");
 
-            // We grab the value here (true by default), as the scripts may disable it during the init() function,
-            // and we want to make sure we render it the same frame (if it receives init+enable)
-            bool render_enabled = true;//engine->m_RenderEnabled;
-
             {
                 DM_PROFILE("Sim");
 
@@ -1985,11 +1980,9 @@ bail:
 
                 dmSound::Update();
 
-                // Don't render while iconified, or when device is lost, or when manually disabled
-                bool skip_render = dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
-                                || dmRender::IsRenderPaused(engine->m_RenderContext)
-                                || !render_enabled;
-                if (!skip_render)
+                // Don't render while iconified
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
+                    && !dmRender::IsRenderPaused(engine->m_RenderContext))
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -2032,7 +2025,7 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                if (!skip_render)
+                if (!dmRender::IsRenderPaused(engine->m_RenderContext))
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
@@ -2056,7 +2049,7 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
-            if (!dmRender::IsRenderPaused(engine->m_RenderContext) && render_enabled)
+            if (!dmRender::IsRenderPaused(engine->m_RenderContext))
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));

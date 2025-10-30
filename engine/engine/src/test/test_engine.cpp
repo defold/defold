@@ -201,24 +201,57 @@ TEST_F(EngineTest, RenderScript)
     ASSERT_EQ(frame_count, 1u);
 }
 
-TEST_F(EngineTest, SetRenderEnabled)
+TEST_F(EngineTest, SetEngineThrottle)
 {
-    dmEngine::Stats stats;
-    char project_path[256];
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = {
-        "test_engine",
-        "--config=bootstrap.main_collection=/render_enabled/render_enabled.collectionc",
+        "dmengine",
         "--config=dmengine.unload_builtins=0",
-        MAKE_PATH(project_path, "/game.projectc")
+        project_path
     };
 
-    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
 
-    // The script disables rendering after the first frame and re-enables it later,
-    // yielding four fewer rendered frames than updates.
-    EXPECT_EQ(10u, stats.m_UpdateCount);
-    EXPECT_GT(stats.m_RenderCount, 0u);
-    EXPECT_EQ(stats.m_UpdateCount - stats.m_RenderCount, 4u);
+    dmEngine::Stats stats;
+    dmEngine::GetStats(engine, stats);
+    EXPECT_EQ(0u, stats.m_UpdateCount);
+
+    dmEngine::Step(engine);
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    EXPECT_EQ(2u, stats.m_UpdateCount);
+
+    const uint32_t updates_before_throttle = stats.m_UpdateCount;
+    const uint32_t renders_before_throttle = stats.m_RenderCount;
+
+    dmEngine::SetEngineThrottle(engine, true, 0.0f);
+
+    dmEngine::Step(engine); // first frame after enabling still updates
+    dmEngine::GetStats(engine, stats);
+    EXPECT_EQ(3U, stats.m_UpdateCount);
+
+    const uint32_t updates_after_enable = stats.m_UpdateCount;
+    const uint32_t renders_after_enable = stats.m_RenderCount;
+
+    dmEngine::Step(engine);
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    EXPECT_EQ(updates_after_enable, stats.m_UpdateCount);
+    EXPECT_EQ(renders_after_enable, stats.m_RenderCount);
+
+    dmEngine::SetEngineThrottle(engine, false, 0.0f);
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    EXPECT_EQ(4U, stats.m_UpdateCount);
+    EXPECT_EQ(4U, stats.m_RenderCount);
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
 }
 
 TEST_F(EngineTest, CameraAqcuireFocus)
