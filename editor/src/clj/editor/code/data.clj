@@ -2870,6 +2870,9 @@
         {:type :ui-element :ui-element :minimap-viewed-range}
         {:type :ui-element :ui-element :minimap}))
 
+    (in-gutter? layout x)
+    {:type :ui-element :ui-element :gutter}
+
     :else
     (when-some [clickable-region (some (fn [region]
                                          (when (and (some? (:on-click! region))

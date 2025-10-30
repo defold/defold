@@ -96,7 +96,7 @@
 
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
-  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors] "Draws the gutter into the specified Rect."))
+  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row] "Draws the gutter into the specified Rect."))
 
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
@@ -555,7 +555,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element hovered-row ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -663,7 +663,7 @@
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
       (when (< 0.0 (.w gutter-rect))
-        (draw-gutter! gutter-view gc gutter-rect layout font color-scheme lines regions visible-cursors)))))
+        (draw-gutter! gutter-view gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -843,12 +843,12 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
+(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element hovered-row indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
   canvas-repaint-info)
 
-(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
+(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
   nil)
 
 (g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
@@ -1328,6 +1328,7 @@
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
+  (property hovered-row g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property edited-breakpoint r/Region (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
@@ -2616,22 +2617,25 @@
             x (.getX event)
             y (.getY event)
             resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
-        (cond-> (data/mouse-moved (get-property view-node :lines evaluation-context)
-                                  (get-property view-node :cursor-ranges evaluation-context)
-                                  (get-property view-node :visible-regions evaluation-context)
-                                  layout
-                                  (get-property view-node :minimap-layout evaluation-context)
-                                  (get-property view-node :gesture-start evaluation-context)
-                                  (get-property view-node :hovered-element evaluation-context)
-                                  x
-                                  y)
-                (and lsp
-                     (prefs/get prefs hover-pref-path)
-                     (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
-                (merge
-                  (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
-                    (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context)))))))
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            row (data/y->row layout y)]
+        (-> (data/mouse-moved (get-property view-node :lines evaluation-context)
+                              (get-property view-node :cursor-ranges evaluation-context)
+                              (get-property view-node :visible-regions evaluation-context)
+                              layout
+                              (get-property view-node :minimap-layout evaluation-context)
+                              (get-property view-node :gesture-start evaluation-context)
+                              (get-property view-node :hovered-element evaluation-context)
+                              x
+                              y)
+            (assoc :hovered-row row)
+            (cond->
+              (and lsp
+                (prefs/get prefs hover-pref-path)
+                (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
+              (merge
+                (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
+                  (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context))))))))
   (refresh-mouse-cursor! view-node event))
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
@@ -3648,7 +3652,7 @@
     (let [gutter-margin (data/line-height glyph-metrics)]
       (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
 
-  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors]
+  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row]
     (let [^GraphicsContext gc gc
           ^Rect gutter-rect gutter-rect
           ^LayoutInfo layout layout
@@ -3701,6 +3705,12 @@
                      (< source-line-index source-line-count))
             (let [y (data/row->y layout source-line-index)
                   condition (breakpoint-row->condition source-line-index)]
+              (when (and (= hovered-ui-element :gutter)
+                         (= hovered-row source-line-index))
+                (.setFill gc ^Color (.deriveColor ^Color gutter-breakpoint-color 0.0 1.0 1.0 0.3))
+                (.fillOval gc
+                           (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
+                           (+ y indicator-offset) indicator-diameter indicator-diameter))
               (when condition
                 (.setFill gc gutter-breakpoint-color)
                 (.fillOval gc
