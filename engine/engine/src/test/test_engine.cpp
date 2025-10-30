@@ -129,7 +129,7 @@ static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
 {
     dmEngine::Stats stats;
     dmEngine::GetStats(engine, stats);
-    *((uint32_t*) ctx) = stats.m_UpdateCount;
+    *((uint32_t*) ctx) = stats.m_FrameCount;
 }
 
 static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
@@ -219,36 +219,31 @@ TEST_F(EngineTest, SetEngineThrottle)
 
     dmEngine::Stats stats;
     dmEngine::GetStats(engine, stats);
-    EXPECT_EQ(0u, stats.m_UpdateCount);
+    ASSERT_EQ(0u, stats.m_FrameCount);
 
-    dmEngine::Step(engine);
     dmEngine::Step(engine);
     dmEngine::GetStats(engine, stats);
-    EXPECT_EQ(2u, stats.m_UpdateCount);
+    ASSERT_EQ(1u, stats.m_FrameCount);
 
-    const uint32_t updates_before_throttle = stats.m_UpdateCount;
-    const uint32_t renders_before_throttle = stats.m_RenderCount;
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(2u, stats.m_FrameCount);
 
     dmEngine::SetEngineThrottle(engine, true, 0.0f);
 
-    dmEngine::Step(engine); // first frame after enabling still updates
-    dmEngine::GetStats(engine, stats);
-    EXPECT_EQ(3U, stats.m_UpdateCount);
-
-    const uint32_t updates_after_enable = stats.m_UpdateCount;
-    const uint32_t renders_after_enable = stats.m_RenderCount;
-
-    dmEngine::Step(engine);
     dmEngine::Step(engine);
     dmEngine::GetStats(engine, stats);
-    EXPECT_EQ(updates_after_enable, stats.m_UpdateCount);
-    EXPECT_EQ(renders_after_enable, stats.m_RenderCount);
+    ASSERT_EQ(3u, stats.m_FrameCount);
+
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(3u, stats.m_FrameCount);
 
     dmEngine::SetEngineThrottle(engine, false, 0.0f);
+
     dmEngine::Step(engine);
     dmEngine::GetStats(engine, stats);
-    EXPECT_EQ(4U, stats.m_UpdateCount);
-    EXPECT_EQ(4U, stats.m_RenderCount);
+    ASSERT_EQ(4u, stats.m_FrameCount);
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
@@ -545,7 +540,7 @@ TEST_F(EngineTest, ModelComponent)
 //     "--config=physics.use_fixed_timestep=1",
 //     "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
 //     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
-//     ASSERT_EQ(stats.m_FrameCount, 12u);
+//     ASSERT_EQ(12u, stats.m_FrameCount);
 //     ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.01f);
 // }
 
@@ -562,7 +557,7 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
     "--config=physics.use_fixed_timestep=1",
     "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
-    ASSERT_EQ(stats.m_UpdateCount, 12u);
+    ASSERT_EQ(12u, stats.m_FrameCount);
     ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.02f);
 }
 */
