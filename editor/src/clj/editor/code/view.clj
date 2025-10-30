@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
@@ -3881,6 +3882,11 @@
               [{:fx/type fx.label/lifecycle
                 :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
                 :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
+               {:fx/type fx.check-box/lifecycle
+                  :style-class ["check-box" "breakpoint-editor-checkbox"]
+                  :text "Enabled"
+                  :selected (get edited-breakpoint :active true)
+                  :on-selected-changed {:event :toggle-enabled}}
                {:fx/type fx.h-box/lifecycle
                 :spacing spacing
                 :alignment :baseline-left
@@ -3934,6 +3940,14 @@
 
                          :cancel
                          {:edited-breakpoint nil}
+
+                         :toggle-enabled
+                         (let [edited-breakpoint (assoc edited-breakpoint :active (:fx/event event))]
+                           (assoc (data/ensure-breakpoint
+                                   (g/node-value view-node :lines evaluation-context)
+                                   (g/node-value view-node :regions evaluation-context)
+                                   edited-breakpoint)
+                             :edited-breakpoint edited-breakpoint))
 
                          :apply
                          (assoc (data/ensure-breakpoint
