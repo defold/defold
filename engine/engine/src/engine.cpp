@@ -324,6 +324,9 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_ThrottleEnabled(false)
+    , m_ThrottleCooldownMax(0.0f)
+    , m_ThrottleCooldown(0.0f)
     {
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
@@ -1677,9 +1680,14 @@ bail:
         return false;
     }
 
-    void SetRenderEnable(HEngine engine, bool enable)
+    void SetEngineThrottle(HEngine engine, bool enable, float cooldown)
     {
-        engine->m_RenderEnabled = enable;
+        engine->m_ThrottleEnabled = enable;
+        if (enable)
+        {
+            engine->m_ThrottleCooldownMax = cooldown;
+            engine->m_ThrottleCooldown = 0;
+        }
     }
 
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -1784,6 +1792,24 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
+    // Return true if the frame should be skipped
+    static bool UpdateFrameThrottle(HEngine engine, float dt, bool has_input)
+    {
+        if (!engine->m_ThrottleEnabled)
+            return false;
+
+        // If cooldown is 0, we want 1 frame of update
+        bool skip = engine->m_ThrottleCooldown > engine->m_ThrottleCooldownMax;
+
+        engine->m_ThrottleCooldown += dt;
+
+        // We have new input, so reset the cooldown
+        if (has_input)
+            engine->m_ThrottleCooldown = 0;
+
+        return skip;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1827,20 +1853,24 @@ bail:
 
             // We grab the value here (true by default), as the scripts may disable it during the init() function,
             // and we want to make sure we render it the same frame (if it receives init+enable)
-            bool render_enabled = engine->m_RenderEnabled;
+            bool render_enabled = true;//engine->m_RenderEnabled;
 
             {
                 DM_PROFILE("Sim");
 
-                {
-                    DM_PROFILE("Resource");
-                    dmResource::UpdateFactory(engine->m_Factory);
-                }
-
+                bool has_input = false;
                 {
                     DM_PROFILE("Hid");
-                    dmHID::Update(engine->m_HidContext);
+                    has_input = dmHID::Update(engine->m_HidContext);
                 }
+
+                // Check if we should skip this frame
+                if (UpdateFrameThrottle(engine, dt, has_input))
+                {
+                    ProfileFrameEnd(profile);
+                    return;
+                }
+
                 if (!engine->m_RunWhileIconified) {
                     if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                     {
@@ -1859,6 +1889,11 @@ bail:
                 uint64_t jobthread_max_time_us = 3 * 1000;
 #endif
                 dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
+
+                {
+                    DM_PROFILE("Resource");
+                    dmResource::UpdateFactory(engine->m_Factory); // Process Reload event
+                }
 
                 {
                     DM_PROFILE("Extension");
