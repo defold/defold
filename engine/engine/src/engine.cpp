@@ -1794,16 +1794,21 @@ bail:
     static bool UpdateFrameThrottle(HEngine engine, float dt, bool has_input)
     {
         if (!engine->m_ThrottleEnabled)
+        {
             return false;
-
-        // If cooldown is 0, we want 1 frame of update
-        bool skip = engine->m_ThrottleCooldown > engine->m_ThrottleCooldownMax;
-
-        engine->m_ThrottleCooldown += dt;
+        }
 
         // We have new input, so reset the cooldown
         if (has_input)
+        {
             engine->m_ThrottleCooldown = 0;
+            return false;
+        }
+
+        // If cooldown max is 0, we want 1 frame of update
+        bool skip = engine->m_ThrottleCooldown > engine->m_ThrottleCooldownMax;
+
+        engine->m_ThrottleCooldown += dt;
 
         return skip;
     }

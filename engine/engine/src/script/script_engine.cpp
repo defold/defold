@@ -28,9 +28,12 @@ namespace dmEngine
 
 /*#
  * Enables engine throttling.
+ *
  * @note It will automatically wake up on input events
  * @note It will automatically throttle again after the cooldown period
- * @note It skips entire update+render loop
+ * @note It skips entire update+render loop on the main thread. E.g loading of assets, callbacks from threads (http)
+ * @note On threaded systems, Sound will continue to play any started sounds (e.g. looping and/or streaming background music)
+ *
  * @name sys.set_engine_throttle
  * @param enable [type:bool] true if throttling should be enabled
  * @param cooldown [type:number] the time period to do update + render for (seconds)
