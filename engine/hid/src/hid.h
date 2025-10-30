@@ -146,8 +146,9 @@ namespace dmHID
      * Updates a hid context by polling input from the connected hid devices.
      *
      * @param context the context to poll from
+     * @return true if it has any input events
      */
-    void Update(HContext context);
+    bool Update(HContext context);
 
     /**
      * Retrieves the number of buttons on a given gamepad.
