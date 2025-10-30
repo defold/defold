@@ -169,7 +169,7 @@ namespace dmGui
     /**
      * Callback to create a texture resource
      */
-    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     /**
      * Callback to delete a texture resource
@@ -179,7 +179,7 @@ namespace dmGui
     /**
      * Callback to set the data for a texture resource
      */
-    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     /**
      * Callback to query display profile resolution for a layout id
@@ -605,12 +605,13 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param compression_type
      * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
@@ -627,12 +628,13 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param compression_type
      * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Get texture data for a dynamic texture

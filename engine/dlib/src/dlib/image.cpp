@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <dlib/log.h>
+#include <dlib/static_assert.h>
 #include "image.h"
 
 //#define STBI_NO_JPEG
@@ -82,7 +83,21 @@ namespace dmImage
         delete image;
     }
 
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
+    static bool IsAstc(const void* mem, uint32_t memsize)
+    {
+        DM_STATIC_ASSERT(sizeof(struct AstcHeader) == 16, Invalid_Struct_Size);
+
+        if (memsize < 16)
+            return false;
+
+        AstcHeader* header = (AstcHeader*)mem;
+        return header->m_Magic[0] == 0x13
+            && header->m_Magic[1] == 0xAB
+            && header->m_Magic[2] == 0xA1
+            && header->m_Magic[3] == 0x5C;
+    }
+
+    static Result LoadSTB(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
         int x, y, comp;
 
@@ -132,6 +147,32 @@ namespace dmImage
         }
     }
 
+    static Result LoadASTC(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
+    {
+        image->m_Buffer = malloc(buffer_size);
+        memcpy(image->m_Buffer, buffer, buffer_size);
+
+        image->m_Type = TYPE_RGBA;
+        image->m_CompressionType = COMPRESSION_TYPE_ASTC;
+
+        AstcHeader* header = (AstcHeader*)buffer ;
+
+        image->m_Width  = header->m_DimensionX[0] + (header->m_DimensionX[1] << 8) + (header->m_DimensionX[2] << 16);
+        image->m_Height = header->m_DimensionY[0] + (header->m_DimensionY[1] << 8) + (header->m_DimensionY[2] << 16);
+
+        return RESULT_OK;
+    }
+
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
+    {
+        if (IsAstc(buffer, buffer_size))
+        {
+            return LoadASTC(buffer, buffer_size, premult, flip_vertically, image);
+        }
+
+        return LoadSTB(buffer, buffer_size, premult, flip_vertically, image);
+    }
+
     void Free(Image* image)
     {
         free(image->m_Buffer);
@@ -141,6 +182,11 @@ namespace dmImage
     Type GetType(HImage image)
     {
         return image->m_Type;
+    }
+
+    CompressionType GetCompressionType(HImage image)
+    {
+        return image->m_CompressionType;
     }
 
     uint32_t GetWidth(HImage image)
@@ -158,5 +204,16 @@ namespace dmImage
         return image->m_Buffer;
     }
 
+    bool GetAstcBlockSize(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth)
+    {
+        if (!IsAstc(mem, memsize))
+            return false;
+
+        AstcHeader* header = (AstcHeader*)mem;
+        *width  = header->m_BlockSizes[0];
+        *height = header->m_BlockSizes[1];
+        *depth  = header->m_BlockSizes[2];
+        return true;
+    }
 }
 

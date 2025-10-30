@@ -2096,7 +2096,7 @@ namespace dmGui
         return 0;
     }
 
-    static dmImage::Type ToImageType(lua_State*L, const char* type_str)
+    static dmImage::Type ToImageType(lua_State* L, const char* type_str)
     {
         if (strcmp(type_str, "rgb") == 0) {
             return dmImage::TYPE_RGB;
@@ -2104,12 +2104,22 @@ namespace dmGui
             return dmImage::TYPE_RGBA;
         } else if (strcmp(type_str, "l") == 0) {
             return dmImage::TYPE_LUMINANCE;
+        } else if (strcmp(type_str, "astc") == 0) {
+            return dmImage::TYPE_RGBA;
         } else {
             luaL_error(L, "unsupported texture format '%s'", type_str);
         }
 
         // never reached
         return (dmImage::Type) 0;
+    }
+
+    static dmImage::CompressionType ToImageCompressionType(const char* type_str)
+    {
+        if (strcmp(type_str, "astc") == 0) {
+            return dmImage::COMPRESSION_TYPE_ASTC;
+        }
+        return dmImage::COMPRESSION_TYPE_NONE;
     }
 
     /*# create new texture
@@ -2187,7 +2197,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = NewDynamicTexture(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
 
         if (r == RESULT_OK)
         {
@@ -2314,7 +2325,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = SetDynamicTextureData(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = SetDynamicTextureData(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
         } else {

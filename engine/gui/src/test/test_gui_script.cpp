@@ -1384,7 +1384,7 @@ TEST_F(dmGuiScriptTest, TestGuiAnimateEuler)
     dmGui::DeleteScript(script);
 }
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
     return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
@@ -1396,7 +1396,7 @@ static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui:
     self->m_DynamicTextures.Delete(path_hash);
 }
 
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
     self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);

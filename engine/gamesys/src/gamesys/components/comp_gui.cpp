@@ -80,9 +80,9 @@ namespace dmGameSystem
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
     static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
-    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res);
 
@@ -2418,22 +2418,64 @@ namespace dmGameSystem
         return dmHashString64(buffer);
     }
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* data)
+    // TODO: Could well be moved to dmGraphics
+    bool GetAstcFormat(const void* mem, uint32_t memsize, dmGraphics::TextureFormat* out)
+    {
+        uint32_t width, height, depth;
+        dmImage::GetAstcBlockSize(mem, memsize, &width, &height, &depth);
+
+#define CASE_ASTC(_WIDTH, _HEIGHT) if (width == (_WIDTH) && height == (_HEIGHT)) { *out = dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_ ## _WIDTH ## X ## _HEIGHT ; return true; }
+
+        CASE_ASTC(4, 4);
+        CASE_ASTC(5, 4);
+        CASE_ASTC(5, 5);
+        CASE_ASTC(6, 5);
+        CASE_ASTC(6, 6);
+        CASE_ASTC(8, 5);
+        CASE_ASTC(8, 6);
+        CASE_ASTC(8, 8);
+        CASE_ASTC(10, 5);
+        CASE_ASTC(10, 6);
+        CASE_ASTC(10, 8);
+        CASE_ASTC(10, 10);
+        CASE_ASTC(12, 10);
+        CASE_ASTC(12, 12);
+
+#undef CASE_ASTC
+
+        dmLogError("Astc block size currently unsupported: %u x %u", width, height);
+        return false;
+    }
+
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height,
+                                                            dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
 
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
+        dmGraphics::TextureFormat texture_format = ToGraphicsFormat(type);
+        dmGraphics::TextureImage::CompressionType texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+            if (!GetAstcFormat(data, data_size, &texture_format))
+            {
+                dmLogError("Failed to create texture resource %s", resource_path);
+                return 0;
+            }
+        }
+
         CreateTextureResourceParams params = {};
         params.m_Path               = resource_path;
         params.m_PathHash           = resolved_path_hash;
         params.m_Collection         = dmGameObject::GetCollection(component->m_Instance);
         params.m_Type               = dmGraphics::TEXTURE_TYPE_2D;
-        params.m_Format             = ToGraphicsFormat(type);
+        params.m_Format             = texture_format;
         params.m_TextureType        = GraphicsTextureTypeToImageType(params.m_Type);
         params.m_TextureFormat      = GraphicsTextureFormatToImageFormat(params.m_Format);
-        params.m_CompressionType    = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_CompressionType    = texture_compression;
         params.m_Buffer             = 0;
         params.m_Data               = data;
         params.m_Width              = width;
@@ -2467,19 +2509,31 @@ namespace dmGameSystem
         }
     }
 
-    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
+        dmGraphics::TextureFormat texture_format = ToGraphicsFormat(type);
+        dmGraphics::TextureImage::CompressionType texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+            if (!GetAstcFormat(buffer, buffer_size, &texture_format))
+            {
+                dmLogError("Failed to create texture resource %s", resource_path);
+                return;
+            }
+        }
+
         SetTextureResourceParams params = {};
         params.m_PathHash               = resolved_path_hash;
         params.m_TextureType            = dmGraphics::TEXTURE_TYPE_2D;
-        params.m_TextureFormat          = ToGraphicsFormat(type);
-        params.m_CompressionType        = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_TextureFormat          = texture_format;
+        params.m_CompressionType        = texture_compression;
         params.m_Data                   = buffer;
-        params.m_DataSize               = dmImage::BytesPerPixel(type) * width * height;
+        params.m_DataSize               = buffer_size;
         params.m_Width                  = width;
         params.m_Height                 = height;
         params.m_X                      = 0;
