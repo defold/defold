@@ -2525,7 +2525,8 @@
         line-end (count (lines row))]
     (assoc (->CursorRange (->Cursor row line-start)
                           (->Cursor row line-end))
-      :type :breakpoint)))
+      :type :breakpoint
+      :active true)))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))

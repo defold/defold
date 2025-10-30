@@ -415,7 +415,7 @@
                      (let [condition (:condition region)]
                        (cond-> {:resource resource
                                 :row (data/breakpoint-row region)
-                                :active true}
+                                :active (:active region)}
                                condition
                                (assoc :condition condition))))))
         regions))
