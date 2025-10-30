@@ -3695,7 +3695,9 @@
             breakpoint-row->condition (into {}
                                             (comp
                                               (filter data/breakpoint-region?)
-                                              (map (juxt data/breakpoint-row #(:condition % true))))
+                                              (map (juxt data/breakpoint-row
+                                                         #(hash-map :condition (:condition % true)
+                                                                    :active (:active %)))))
                                             regions)
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
@@ -3706,17 +3708,31 @@
                      (< source-line-index source-line-count))
             (let [y (data/row->y layout source-line-index)
                   condition (breakpoint-row->condition source-line-index)]
+              ;; TODO: We should rethink all these conditionals
               (when (and (= hovered-ui-element :gutter)
-                         (= hovered-row source-line-index))
+                         (= hovered-row source-line-index)
+                         (not condition))
                 (.setFill gc ^Color (.deriveColor ^Color gutter-breakpoint-color 0.0 1.0 1.0 0.3))
                 (.fillOval gc
                            (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
                            (+ y indicator-offset) indicator-diameter indicator-diameter))
               (when condition
-                (.setFill gc gutter-breakpoint-color)
-                (.fillOval gc
-                           (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
-                           (+ y indicator-offset) indicator-diameter indicator-diameter)
+                (if (:active condition)
+                  (do
+                    (.setFill gc gutter-breakpoint-color)
+                    (.fillOval gc
+                               (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
+                               (+ y indicator-offset) indicator-diameter indicator-diameter))
+                  (do
+                    (.setStroke gc gutter-breakpoint-color)
+                    (.setLineWidth gc 2)
+                    (.setFill gc gutter-background-color)
+                    (.fillOval gc
+                               (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
+                               (+ y indicator-offset) indicator-diameter indicator-diameter)
+                    (.strokeOval gc
+                                 (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset 1)
+                                 (+ y indicator-offset 1) (- indicator-diameter 2) (- indicator-diameter 2))))
                 (when (string? condition)
                   (doto gc
                     (.save)
