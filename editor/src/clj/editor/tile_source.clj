@@ -221,7 +221,39 @@
 
 (defn- prop-tile-range? [max v name]
   (when (or (< v 1) (< max v))
-    (format "%s is outside the tile range (1-%d)" name max)))
+    (format "'%s' is outside the tile range (1-%d)" name max)))
+
+(defn- validate-animation-id [node-id id]
+  (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id"))
+
+(defn- validate-animation-start-tile [tile-count node-id start-tile]
+  (validation/prop-error :fatal node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))
+
+(defn- validate-animation-end-tile [tile-count node-id end-tile]
+  (validation/prop-error :fatal node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))
+
+(defn- validate-animation-fps [node-id fps]
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "FPS"))
+
+(def ^:private protobuf-animation-defaults
+  "Default field values declared in the Tile$Animation protobuf message. Fields
+  that match these values will be excluded from the saved project files."
+  (protobuf/default-value Tile$Animation))
+
+(defn- animation-ddf-errors [tile-count node-id animation-ddf]
+  {:pre [(g/node-id? node-id)
+         (map? animation-ddf)]} ; Tile$Animation in map format.
+  (->> [[:id validate-animation-id]
+        [:start-tile (partial validate-animation-start-tile tile-count)]
+        [:end-tile (partial validate-animation-end-tile tile-count)]
+        [:fps validate-animation-fps]]
+       (keep (fn [[pb-field validation-fn]]
+               (let [pb-value (get animation-ddf pb-field ::not-found)
+                     pb-value (if (= ::not-found pb-value)
+                                (get protobuf-animation-defaults pb-field)
+                                pb-value)]
+                 (validation-fn node-id pb-value))))
+       (not-empty)))
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
@@ -267,7 +299,8 @@
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
   (property id g/Str ; Required protobuf field.
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
+            (dynamic error (g/fnk [_node-id id]
+                             (validate-animation-id _node-id id))))
   (property start-tile g/Int ; Required protobuf field.
             (dynamic label (properties/label-dynamic :tile-source :start-tile))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :start-tile))
@@ -276,7 +309,7 @@
                              ;; during node initialization while it's not
                              ;; connected to the tile source
                              (when tile-count
-                               (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile")))))
+                               (validate-animation-start-tile tile-count _node-id start-tile)))))
   (property end-tile g/Int ; Required protobuf field.
             (dynamic label (properties/label-dynamic :tile-source :end-tile))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :end-tile))
@@ -285,7 +318,7 @@
                              ;; during node initialization while it's not
                              ;; connected to the tile source
                              (when tile-count
-                               (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile")))))
+                               (validate-animation-end-tile tile-count _node-id end-tile)))))
   (property playback types/AnimationPlayback (default (protobuf/default Tile$Animation :playback))
             (dynamic label (properties/label-dynamic :tile-source :playback))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :playback))
@@ -293,7 +326,8 @@
   (property fps g/Int (default (protobuf/default Tile$Animation :fps))
             (dynamic label (properties/label-dynamic :tile-source :fps))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :fps))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
+            (dynamic error (g/fnk [_node-id fps]
+                             (validate-animation-fps _node-id fps))))
   (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal)))
             (dynamic label (properties/label-dynamic :tile-source :flip-horizontal))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :flip-horizontal)))
@@ -308,11 +342,12 @@
   (input anim-data g/Any)
   (input gpu-texture g/Any)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id ddf-message id tile-count]
                                                      {:node-id _node-id
                                                       :node-outline-key id
                                                       :label id
-                                                      :icon animation-icon}))
+                                                      :icon animation-icon
+                                                      :outline-error? (some? (animation-ddf-errors tile-count _node-id ddf-message))}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)
@@ -586,14 +621,14 @@
       (g/->error _node-id :image :fatal image-resource "tile data could not be generated due to invalid values")))
 
 (defn- check-anim-error [tile-count anim-data]
+  ;; This is used from the TileSourceNode to validate the animations in the
+  ;; resulting texture set. Presumably for efficiency, it operates on the
+  ;; protobuf maps it already has access to from each TileAnimationNode. We
+  ;; assume the values written to the Tile$Animation protobuf messages match the
+  ;; types and values of the TileAnimationNode properties.
   (let [node-id (:node-id anim-data)
-        anim (:ddf-message anim-data)
-        tile-range-f (partial prop-tile-range? tile-count)]
-    (->> [[:id validation/prop-empty?]
-          [:start-tile tile-range-f]
-          [:end-tile tile-range-f]]
-      (keep (fn [[prop-kw f]]
-              (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
+        animation-ddf (:ddf-message anim-data)] ; Tile$Animation in map format.
+    (animation-ddf-errors tile-count node-id animation-ddf)))
 
 (defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
@@ -1053,7 +1088,8 @@
         inner-padding :inner-padding
         sprite-trim-mode :sprite-trim-mode))))
 
-(def ^:private default-animation
+(def ^:private new-animation-defaults
+  "Default field values for added Tile$Animation instances."
   (protobuf/make-map-without-defaults Tile$Animation
     :id "New Animation"
     :start-tile 1
@@ -1064,7 +1100,7 @@
     :flip-vertical 0))
 
 (defn add-animation-node! [self select-fn]
-  (g/transact (make-animation-node self (project/get-project self) select-fn default-animation)))
+  (g/transact (make-animation-node self (project/get-project self) select-fn new-animation-defaults)))
 
 (defn add-collision-group-node!
   [self select-fn]

@@ -508,8 +508,9 @@
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
                                (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
-                                   (let [{:keys [anim-data sampler]} primary-texture-binding-info]
-                                     (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data sampler))))))
+                                   (let [{:keys [anim-data sampler]} primary-texture-binding-info
+                                         image-property-label (if (= 1 (count textures)) "Image" sampler)]
+                                     (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data image-property-label))))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 
   (property material resource/Resource ; Default assigned in load-fn.
