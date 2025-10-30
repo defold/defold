@@ -527,7 +527,7 @@
   (gutter-metrics [_this _lines _regions _glyph-metrics]
     (gutter-metrics))
 
-  (draw-gutter! [_this gc gutter-rect layout font color-scheme lines regions _visible-cursors]
+  (draw-gutter! [_this gc gutter-rect layout _hovered-ui-element font color-scheme lines regions _visible-cursors _hovered-row]
     (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
