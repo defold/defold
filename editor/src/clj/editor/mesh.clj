@@ -26,7 +26,6 @@
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.image :as image]
-            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.properties :as properties]
@@ -39,15 +38,15 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
+           [editor.graphics.types ElementType]
            [editor.types AABB]
            [java.nio ByteBuffer]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector4d]))
+           [javax.vecmath Matrix4d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -263,12 +262,36 @@
             node-id (:node-id renderable)]
         (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
 
-(defn- make-put-vertex-fn-raw [attribute-types component-counts]
-  (let [put-fns (mapv (fn [attribute-type component-count]
-                        (buffer/get-put-fn (vtx/type->stream-type attribute-type) component-count))
-                      attribute-types
-                      component-counts)]
-    (fn [source-arrays ^ByteBuffer byte-buffer ^long vertex-index]
+(defn data-type->buffer-value-type [type]
+  (case type
+    :type-float :value-type-float32
+    :type-unsigned-byte :value-type-uint8
+    :type-unsigned-short :value-type-uint16
+    :type-unsigned-int :value-type-uint32
+    :type-byte :value-type-int8
+    :type-short :value-type-int16
+    :type-int :value-type-int32))
+
+(defn- buffer-value-type->data-type [buffer-value-type]
+  {:post [(graphics.types/data-type? %)]}
+  (case buffer-value-type
+    :value-type-float32 :type-float
+    :value-type-uint8 :type-unsigned-byte
+    :value-type-uint16 :type-unsigned-short
+    :value-type-uint32 :type-unsigned-int
+    :value-type-int8 :type-byte
+    :value-type-int16 :type-short
+    :value-type-int32 :type-int))
+
+(defn- make-put-vertex-fn-raw [element-types]
+  (let [put-fns (mapv (fn [^ElementType element-type]
+                        (let [vector-type (.-vector-type element-type)
+                              data-type (.-data-type element-type)
+                              buffer-value-type (data-type->buffer-value-type data-type)
+                              component-count (graphics.types/vector-type-component-count vector-type)]
+                          (buffer/get-put-fn buffer-value-type component-count)))
+                      element-types)]
+    (fn put-vertex! [source-arrays ^ByteBuffer byte-buffer ^long vertex-index]
       (dorun
         (map (fn [source-array put-fn]
                (put-fn source-array byte-buffer vertex-index))
@@ -278,10 +301,13 @@
 (def make-put-vertex-fn
   (memoize make-put-vertex-fn-raw))
 
-(defn- make-put-vertices-fn-raw [attribute-types component-counts]
-  (let [put-vertex-fn (make-put-vertex-fn attribute-types component-counts)]
-    (fn [source-arrays ^ByteBuffer byte-buffer]
-      (let [vertex-count (/ (count (first source-arrays)) (first component-counts))]
+(defn- make-put-vertices-fn-raw [element-types]
+  (let [put-vertex-fn (make-put-vertex-fn element-types)
+        first-element-type ^ElementType (first element-types)
+        first-vector-type (.-vector-type first-element-type)
+        first-component-count (graphics.types/vector-type-component-count first-vector-type)]
+    (fn put-vertices! [source-arrays ^ByteBuffer byte-buffer]
+      (let [vertex-count (/ (count (first source-arrays)) first-component-count)]
         (loop [vertex-index 0]
           (if (= vertex-index vertex-count)
             vertex-count
@@ -291,14 +317,17 @@
 (def make-put-vertices-fn
   (memoize make-put-vertices-fn-raw))
 
-(defn- stream->attribute [stream position-stream-name normal-stream-name]
+(defn- stream->attribute-info [stream position-stream-name normal-stream-name]
+  {:post [(graphics.types/attribute-info? %)]}
   (let [attribute-name (:name stream)
         attribute-key (graphics.types/attribute-name-key attribute-name)]
     {:name attribute-name
      :name-key attribute-key
-     :type (vtx/stream-type->type (:type stream))
-     :components (:count stream)
+     :vector-type (graphics.types/component-count-vector-type (:count stream) false)
+     :data-type (buffer-value-type->data-type (:type stream))
      :normalize false ; TODO: Figure out if this should be configurable.
+     :coordinate-space :coordinate-space-default
+     :step-function :vertex-step-function-vertex
      :semantic-type (condp = attribute-key
                       position-stream-name :semantic-type-position
                       normal-stream-name :semantic-type-normal
@@ -318,19 +347,19 @@
      :renderable {:passes [pass/selection]}}
 
     (let [vertex-count (max-stream-length streams)
-          vertex-attributes (mapv #(stream->attribute % position-stream normal-stream) streams)
+          attribute-infos (mapv #(stream->attribute-info % position-stream normal-stream) streams)
           array-streams (mapv (partial buffer/stream->array-stream vertex-count) streams)
-          put-vertices-fn (make-put-vertices-fn (mapv :type vertex-attributes)
-                                                (mapv :components vertex-attributes))]
+          element-types (mapv graphics.types/attribute-info-element-type attribute-infos)
+          put-vertices-fn (make-put-vertices-fn element-types)]
       {:node-id _node-id
        :aabb aabb
        :renderable {:render-fn render-scene
                     :tags #{:model}
                     :batch-key (when (= :vertex-space-world vertex-space)
-                                 [vertex-attributes shader gpu-textures])
+                                 [attribute-infos shader gpu-textures])
                     :select-batch-key _node-id
                     :user-data {:array-streams array-streams
-                                :vertex-attributes vertex-attributes
+                                :vertex-attributes attribute-infos
                                 :vertex-count vertex-count
                                 :put-vertices-fn put-vertices-fn
                                 :position-stream-name position-stream
@@ -350,7 +379,7 @@
                                 :passes [pass/outline]}}]})))
 
 (g/defnk produce-aabb [streams position-stream]
-  (if-some [{:keys [count data]} (util/first-where #(position-stream-name? (:name %) position-stream) streams)]
+  (if-some [{:keys [count data]} (coll/first-where #(position-stream-name? (:name %) position-stream) streams)]
     (if (empty? data)
       geom/empty-bounding-box
       (let [[min-p max-p]
@@ -592,7 +621,7 @@
     (vtx/position! vb vertex-count)))
 
 (defn- make-vb-from-vertex-attributes [vertex-attributes vertex-count]
-  (let [vertex-description (vtx/make-vertex-description nil vertex-attributes)]
+  (let [vertex-description (graphics.types/make-vertex-description vertex-attributes)]
     (vtx/make-vertex-buffer vertex-description :static vertex-count)))
 
 (defn- update-vb! [^GL2 _gl ^VertexBuffer vb data]

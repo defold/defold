@@ -14,6 +14,7 @@
 
 (ns editor.gl.types
   (:require [editor.graphics.types :as graphics.types]
+            [util.coll :refer [pair]]
             [util.defonce :as defonce])
   (:import [com.jogamp.opengl GL2]
            [editor.buffers BufferData]
@@ -40,6 +41,24 @@
     :type-int GL2/GL_INT
     :type-unsigned-int GL2/GL_UNSIGNED_INT
     :type-float GL2/GL_FLOAT))
+
+(defn gl-attribute-type->vector-type+data-type [^long gl-attribute-type]
+  (condp = gl-attribute-type
+    GL2/GL_FLOAT (pair :vector-type-scalar :type-float)
+    GL2/GL_FLOAT_VEC2 (pair :vector-type-vec2 :type-float)
+    GL2/GL_FLOAT_VEC3 (pair :vector-type-vec3 :type-float)
+    GL2/GL_FLOAT_VEC4 (pair :vector-type-vec4 :type-float)
+    GL2/GL_FLOAT_MAT2 (pair :vector-type-mat2 :type-float)
+    GL2/GL_FLOAT_MAT3 (pair :vector-type-mat3 :type-float)
+    GL2/GL_FLOAT_MAT4 (pair :vector-type-mat4 :type-float)
+    GL2/GL_INT (pair :vector-type-scalar :type-int)
+    GL2/GL_INT_VEC2 (pair :vector-type-vec2 :type-int)
+    GL2/GL_INT_VEC3 (pair :vector-type-vec3 :type-int)
+    GL2/GL_INT_VEC4 (pair :vector-type-vec4 :type-int)
+    GL2/GL_UNSIGNED_INT (pair :vector-type-scalar :type-unsigned-int)
+    GL2/GL_UNSIGNED_INT_VEC2 (pair :vector-type-vec2 :type-unsigned-int)
+    GL2/GL_UNSIGNED_INT_VEC3 (pair :vector-type-vec3 :type-unsigned-int)
+    GL2/GL_UNSIGNED_INT_VEC4 (pair :vector-type-vec4 :type-unsigned-int)))
 
 (defn element-type-gl-type
   ^long [^ElementType element-type]

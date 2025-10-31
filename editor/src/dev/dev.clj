@@ -32,8 +32,8 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
@@ -963,7 +963,7 @@
         occupancy-factor (/ (double entry-count) (double capacity))
 
         next-capacity
-        (util/first-where
+        (coll/first-where
           (fn [^long num]
             (< capacity num))
           (:growth-sequence info))
@@ -1086,7 +1086,7 @@
               (val
                 (reduce (fn [[^long buf-vertex-attribute-offset clj-vertex] vertex-attribute]
                           (let [attribute-key (:name-key vertex-attribute)
-                                attribute-byte-size (vtx/attribute-size vertex-attribute)
+                                attribute-byte-size (graphics.types/attribute-info-byte-size vertex-attribute)
                                 component-data-type (:type vertex-attribute)
                                 clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size component-data-type)
                                 clj-vertex-attribute (pair attribute-key clj-vertex-attribute-data)

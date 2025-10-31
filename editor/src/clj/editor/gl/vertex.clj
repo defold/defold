@@ -40,12 +40,13 @@ the `do-gl` macro from `editor.gl`."
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
             [editor.scene-cache :as scene-cache]
-            [internal.util :as util])
+            [util.eduction :as e])
   (:import [clojure.lang IEditableCollection IPersistentVector ITransientVector]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
-           [java.nio ByteBuffer IntBuffer]
+           [java.nio ByteBuffer]
            [java.util.concurrent.atomic AtomicBoolean AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -434,31 +435,34 @@ the `do-gl` macro from `editor.gl`."
        (defn ~ctor [capacity#]
          (new-transient-vertex-buffer capacity# ~nm ~vx-size setter-fn# getter-fn#)))))
 
+;; TODO(instancing): Produce proper attribute-infos from defvertex macro.
+(defn- fake-attribute-info [[name-sym :as _attrib]]
+  {:pre [(symbol? name-sym)]}
+  (let [name (name name-sym)
+        name-key (graphics.types/attribute-name-key name)]
+    {:name name
+     :name-key name-key
+     :semantic-type (graphics.types/infer-semantic-type name-key)}))
+
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (let [attribute-infos (shader/attribute-infos shader gl)]
-    (mapv (fn [attrib]
-            (let [attribute-name (name (first attrib))]
-              (if-some [attribute-info (get attribute-infos attribute-name)]
-                (:location attribute-info)
-                -1)))
-          attribs)))
+  (let [attribute-infos (e/map fake-attribute-info attribs)]
+    (shader/attribute-locations shader gl attribute-infos)))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         ^int stride (vertex-size attribs)
-        attribute-infos (shader/attribute-infos shader gl)]
-    (mapv (fn [^long offset attrib]
-            (let [[nm ^int sz tp & more] attrib
-                  ^boolean norm (if (not (nil? (first more))) (first more) false)
-                  attribute-name (name nm)]
-              (when-some [attribute-info (get attribute-infos attribute-name)]
-                (let [^int loc (:location attribute-info)
-                      ^int gl-type (gl-types tp)]
-                  (gl/gl-vertex-attrib-pointer gl loc sz gl-type norm stride offset)))))
+        attribute-locations (vertex-locate-attribs gl shader attribs)]
+    (mapv (fn [^long offset attrib ^long loc]
+            (when (not= -1 loc)
+              (let [[_nm ^int sz tp & more] attrib
+                    ^boolean norm (if (not (nil? (first more))) (first more) false)
+                    ^int gl-type (gl-types tp)]
+                (gl/gl-vertex-attrib-pointer gl loc sz gl-type norm stride offset))))
           offsets
-          attribs)))
+          attribs
+          attribute-locations)))
 
 (defn- vertex-enable-attribs
   [^GL2 gl locs]
@@ -471,21 +475,6 @@ the `do-gl` macro from `editor.gl`."
   (doseq [l locs
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
-
-(def ^:private access-type-map
-  {[:static :draw] GL2/GL_STATIC_DRAW
-   [:dynamic :draw] GL2/GL_DYNAMIC_DRAW
-   [:stream :draw] GL2/GL_STREAM_DRAW
-   [:static :read] GL2/GL_STATIC_READ
-   [:dynamic :read] GL2/GL_DYNAMIC_READ
-   [:stream :read] GL2/GL_STREAM_READ
-   [:static :copy] GL2/GL_STATIC_COPY
-   [:dynamic :copy] GL2/GL_DYNAMIC_COPY
-   [:stream :copy] GL2/GL_STREAM_COPY})
-
-(defn- find-attribute-index [attribute-name attributes]
-  (util/first-index-where (fn [[name-sym]] (= attribute-name (name name-sym)))
-                          attributes))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]

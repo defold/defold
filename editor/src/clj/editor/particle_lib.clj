@@ -173,6 +173,7 @@
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
         attribute-data-type (graphics.types/data-type-pb-int (:data-type attribute-info))
         attribute-vector-type (graphics.types/vector-type-pb-int (:vector-type attribute-info))
+        attribute-step-function (graphics.types/vertex-step-function-pb-int (:step-function attribute-info))
         attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
@@ -183,15 +184,16 @@
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
     (set! (. particle-attribute-info vectorType) attribute-vector-type)
-    (set! (. particle-attribute-info stepFunction) (graphics.types/vertex-step-function-pb-int (:step-function attribute-info)))
+    (set! (. particle-attribute-info stepFunction) attribute-step-function)
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueVectorType) attribute-vector-type)
     (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 
-(defn- make-attribute-infos [^Pointer context vertex-description attribute-infos vertex-attribute-bytes]
+(defn- make-particle-attribute-infos [^Pointer context vertex-description vertex-attribute-bytes]
   (let [vertex-stride (:size vertex-description)
+        attribute-infos (:attributes vertex-description)
         infos (ParticleLibrary$VertexAttributeInfos.)
         num-attribute-infos (count attribute-infos)]
     (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
@@ -205,18 +207,18 @@
   (or (get (:raw-vbufs sim) emitter-index)
       (make-raw-vbuf max-particle-count (:size vertex-description))))
 
-(defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description attribute-infos vertex-attribute-bytes]
+(defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes]
   (when-let [raw-vbuf ^ByteBuffer (emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
     (let [context (:context sim)
           dt (:last-dt sim)
           out-size (IntByReference. 0)
           [r g b a] color
           instances (:instances sim)
-          attribute-infos (make-attribute-infos context vertex-description attribute-infos vertex-attribute-bytes)]
+          particle-attribute-infos (make-particle-attribute-infos context vertex-description vertex-attribute-bytes)]
       (assert (= 1 (count instances)))
       (.position raw-vbuf 0)
       (.limit raw-vbuf (.capacity raw-vbuf))
-      (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
+      (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index particle-attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
       (.position raw-vbuf (.getValue out-size))
       (.flip raw-vbuf)
       raw-vbuf)))

@@ -298,7 +298,7 @@
     :default false}])
 
 (def ^:private ^long value-vertex-attribute-field-index
-  (util/first-index-where #(= [:values] (:path %))
+  (coll/first-index-where #(= [:values] (:path %))
                           vertex-attribute-fields))
 
 (def ^:private form-data

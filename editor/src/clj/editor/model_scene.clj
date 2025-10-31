@@ -639,10 +639,10 @@
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        attribute-reflection-infos (:attribute-reflection-infos shaders/mesh-preview-local-space)
+        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
-        selection-attribute-reflection-infos (:attribute-reflection-infos shaders/mesh-selection-local-space)
+        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-selection-local-space nil)
         selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
 
         user-data
@@ -654,7 +654,7 @@
          :mesh-renderable-buffers renderable-buffers
          :selection-attribute-bindings selection-attribute-bindings
          :shader shaders/mesh-preview-local-space
-         :textures {"tex0" @texture/white-pixel}}
+         :textures {"tex0" @texture/white-pixel}} ; TODO(instancing): Remove? We don't need it for the mesh preview.
 
         renderable
         {:render-fn render-mesh
@@ -706,7 +706,7 @@
     (if (nil? material-scene-info)
       claimed-scene
       (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
-            shader-attribute-reflection-infos (:attribute-reflection-infos shader)
+            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
             default-coordinate-space (case vertex-space
                                        :vertex-space-local :coordinate-space-local
                                        :vertex-space-world :coordinate-space-world)]

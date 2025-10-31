@@ -367,6 +367,18 @@
             #"The partition-length must be positive."
             (coll/reduce-partitioned partition-length vector [] (range 6)))))))
 
+(deftest index-of-test
+  (is (= 0 (coll/index-of [:a :b :a :b] :a)))
+  (is (= 1 (coll/index-of [:a :b :a :b] :b)))
+  (is (= -1 (coll/index-of [:a :b :a :b] :c)))
+  (is (= [-1 1 0] (map #(coll/index-of [:a :b :a :b] %) [:c :b :a]))))
+
+(deftest last-index-of-test
+  (is (= 2 (coll/last-index-of [:a :b :a :b] :a)))
+  (is (= 3 (coll/last-index-of [:a :b :a :b] :b)))
+  (is (= -1 (coll/last-index-of [:a :b :a :b] :c)))
+  (is (= [-1 3 2] (map #(coll/last-index-of [:a :b :a :b] %) [:c :b :a]))))
+
 (deftest remove-index-test
   (testing "Returns a vector without the item at the specified index."
     (is (= [:b :c] (coll/remove-index [:a :b :c] 0)))
@@ -1673,6 +1685,39 @@
                  [{:type :wanted :index 0}
                   [{:type :wanted :index 1}]
                   {:key {:type :wanted :index 2}}])))))
+
+(deftest first-where-test
+  (is (= 2 (coll/first-where even? (range 1 4))))
+  (is (nil? (coll/first-where nil? [:a :b nil :d])))
+  (is (= [:d 4] (coll/first-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= :e (coll/first-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= "f" (coll/first-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (coll/first-where nil? nil)))
+  (is (nil? (coll/first-where even? nil)))
+  (is (nil? (coll/first-where even? [])))
+  (is (nil? (coll/first-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (fn/make-call-logger fn/constantly-true)]
+      (is (= 0 (coll/first-where pred (range 10))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
+
+(deftest first-index-where-test
+  (is (= 1 (coll/first-index-where even? (range 1 4))))
+  (is (= 2 (coll/first-index-where nil? [:a :b nil :d])))
+  (is (= 3 (coll/first-index-where #(^[char] Character/isDigit %) "abc123def")))
+  (is (= 3 (coll/first-index-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= 4 (coll/first-index-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= 5 (coll/first-index-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (coll/first-index-where nil? nil)))
+  (is (nil? (coll/first-index-where even? nil)))
+  (is (nil? (coll/first-index-where even? [])))
+  (is (nil? (coll/first-index-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (fn/make-call-logger fn/constantly-true)]
+      (is (= 0 (coll/first-index-where pred (range 10))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest some-test
   (testing "some behavior"

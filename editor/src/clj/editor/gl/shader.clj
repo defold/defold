@@ -106,6 +106,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [editor.graphics.types :as graphics.types]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.scene-cache :as scene-cache]
+            [internal.util :as util]
             [util.array :as array]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce])
@@ -294,27 +295,26 @@ These forms should be quoted, as if they came from a macro."
 
 (def max-array-samplers ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
 
+;; TODO(instancing): Remove once we have ported all uses of this macro.
 (defmacro defshader
-  "Macro to define the fragment shader program. Defines a new var whose contents will
-be the return value of `create-shader`.
+  "DEPRECATED. We want all shaders to go through the new transpilation and
+  shader reflection pipeline. Instead, use the `classpath-shader` function with
+  shader sources placed below `editor/resources/shaders` whenever you would
+  previously have used an inline `defshader` expression.
 
-This must be submitted to the driver for compilation before you can use it. See
-`make-shader`"
+  Macro to define the fragment shader program. Defines a new var whose contents
+  will be the return value of `create-shader`.
+
+  This must be submitted to the driver for compilation before you can use it.
+  See `make-shader`."
   [name & body]
   `(def ~name ~(create-shader body)))
 
 (defonce/protocol ShaderVariables
-  (attribute-infos [this gl])
+  (attribute-reflection-infos [this gl])
+  (attribute-locations [this gl attribute-infos])
   (set-uniform [this gl name val])
   (set-uniform-array [this gl name count val]))
-
-(defn attribute-locations [shader-variables gl attribute-names]
-  (let [attribute-infos-by-name (attribute-infos shader-variables gl)]
-    (coll/transfer attribute-names (vector-of :int)
-      (map (fn [attribute-name]
-             (if-some [attribute-info (get attribute-infos-by-name attribute-name)]
-               (:location attribute-info)
-               -1))))))
 
 (defonce/protocol SamplerVariables
   (set-samplers-by-name [this gl sampler-name texture-units])
@@ -480,7 +480,8 @@ This must be submitted to the driver for compilation before you can use it. See
   [request-id
    ^ShaderRequestData request-data
    attribute-reflection-infos
-   attribute-locations
+   name-key->attribute-location
+   semantic-type->attribute-locations
    uniforms]
 
   gl.types/GLBinding
@@ -499,9 +500,54 @@ This must be submitted to the driver for compilation before you can use it. See
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
-  (attribute-infos [_this gl]
-    (when-let [{:keys [attribute-infos]} (scene-cache/request-object! ::shader request-id gl request-data)]
-      attribute-infos))
+  (attribute-reflection-infos [_this gl]
+    (cond
+      (pos? (count attribute-reflection-infos))
+      attribute-reflection-infos
+
+      (some? gl)
+      (:attribute-reflection-infos (scene-cache/request-object! ::shader request-id gl request-data))
+
+      :else
+      (throw
+        (ex-info
+          "The ShaderLifecycle does not have attribute reflection info, presumably because it was created using the deprecated defshader macro. You must provide a valid OpenGL context."
+          {:request-id request-id
+           :request-data request-data}))))
+
+  (attribute-locations [_this gl attribute-infos]
+    ;; TODO(instancing): Once we eliminate all defshader expressions and every
+    ;; shader has reflection information, we can get rid of this fallback and
+    ;; the gl argument.
+    (let [[name-key->attribute-location semantic-type->attribute-locations]
+          (if (pos? (count name-key->attribute-location))
+            ;; This shader has reflection information - no need to query gl.
+            (pair name-key->attribute-location semantic-type->attribute-locations)
+
+            ;; This shader does not have reflection information. Presumably, it
+            ;; was declared using the deprecated defshader macro. Otherwise,
+            ;; we'd expect at least a position attribute to be present. We need
+            ;; to get reflection information using the gl context.
+            (let [{:keys [name-key->attribute-location semantic-type->attribute-locations]}
+                  (scene-cache/request-object! ::shader request-id gl request-data)]
+              (pair name-key->attribute-location semantic-type->attribute-locations)))]
+
+      (reduce
+        (fn [attribute-locations attribute-info]
+          (if-let [location (name-key->attribute-location (:name-key attribute-info))]
+            ;; We found an exact match for the attribute name in the shader.
+            (conj attribute-locations location)
+
+            ;; We don't have an exact match for the attribute name. Try to match
+            ;; the first available attribute with our semantic-type.
+            (let [semantic-type (:semantic-type attribute-info)
+                  shader-locations-for-semantic-type (semantic-type->attribute-locations semantic-type)
+                  location (coll/first-where
+                             #(= -1 (coll/index-of attribute-locations %)) ; Presumably, a linear scan is fast given the small number of attributes.
+                             shader-locations-for-semantic-type)]
+              (conj attribute-locations (or location -1)))))
+        (vector-of :int)
+        attribute-infos)))
 
   (set-uniform [_this gl name val]
     (assert (string? (not-empty name)))
@@ -580,17 +626,23 @@ This must be submitted to the driver for compilation before you can use it. See
          (every? graphics.types/attribute-reflection-info? attribute-reflection-infos)
          (map? uniform-values-by-name)
          (every? string? (keys uniform-values-by-name))]}
-  ;; TODO(instancing): We should be able to derive the attribute-infos from the
-  ;; attribute-reflection-infos we get after transpiling the shader. This would
-  ;; enable us to get the attribute-infos from a shader without an active OpenGL
-  ;; context. However, we first need to update all the editor-specific shaders
-  ;; created using the defshader macro to pass through the same transpilation
-  ;; pipeline as the material shaders. Unfortunately this also involves porting
-  ;; them to #version 140 first, since the transpiler does not support versions
-  ;; earlier than that. Such shaders are also created from editor plugins, so we
-  ;; need to update those.
-  (let [attribute-locations (coll/pair-map-by :name-key :location attribute-reflection-infos)]
-    (->ShaderLifecycle request-id request-data attribute-reflection-infos attribute-locations uniform-values-by-name)))
+  ;; TODO(instancing): We have attribute-reflection-infos after transpiling the
+  ;; shader, so we shouldn't need an active OpenGL context to perform shader
+  ;; reflection at render-time. However, we first need to update all the
+  ;; editor-specific shaders created using the defshader macro to pass through
+  ;; the same transpilation pipeline as the material shaders. Unfortunately this
+  ;; also involves porting them to #version 140 first, since the transpiler does
+  ;; not support versions earlier than that. Such shaders are also created from
+  ;; editor plugins, so we need to update those.
+  (let [name-key->attribute-location (coll/pair-map-by :name-key :location attribute-reflection-infos)
+        semantic-type->attribute-locations (util/group-into {} (vector-of :int) :semantic-type :location attribute-reflection-infos)]
+    (->ShaderLifecycle
+      request-id
+      request-data
+      attribute-reflection-infos
+      name-key->attribute-location
+      semantic-type->attribute-locations
+      uniform-values-by-name)))
 
 (defn shader-lifecycle? [value]
   (instance? ShaderLifecycle value))
@@ -678,14 +730,14 @@ This must be submitted to the driver for compilation before you can use it. See
 
     (make-shader-lifecycle request-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
-(defn classpath-shader-path->source
+(defn- classpath-shader-path->source
   ^String [^String shader-path]
   (if-some [url (io/resource shader-path)]
     (slurp url)
     (throw (FileNotFoundException. (format "'%s' was not found on the classpath." shader-path)))))
 
 (defn classpath-shader
-  ^ShaderRequestData [opts & shader-paths]
+  ^ShaderLifecycle [opts & shader-paths]
   {:pre [(map? opts)]}
   (if (coll/empty? shader-paths)
     (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
@@ -780,24 +832,35 @@ This must be submitted to the driver for compilation before you can use it. See
          :type type
          :count count}))))
 
-(def ^:private attribute-info
+;; TODO(instancing): Remove this once we get rid of all defshader expressions
+;; and have shader reflection information for all shaders.
+(def ^:private attribute-reflection-info
   (let [name-buffer-size 128
         out-name-length (int-array 1)
-        out-count (int-array 1) ; Number of array elements.
-        out-type (int-array 1)
+        out-array-size (int-array 1)
+        out-gl-type (int-array 1)
         out-name (byte-array name-buffer-size)]
-    (fn attribute-info [^GL2 gl program attribute-index]
-      (.glGetActiveAttrib gl program attribute-index name-buffer-size out-name-length 0 out-count 0 out-type 0 out-name 0)
+    (fn attribute-reflection-info [^GL2 gl program attribute-index]
+      {:post [(graphics.types/attribute-reflection-info? %)]}
+      (.glGetActiveAttrib gl program attribute-index name-buffer-size out-name-length 0 out-array-size 0 out-gl-type 0 out-name 0)
       (let [name-length (aget out-name-length 0)]
         (when (pos? name-length)
-          (let [name (String. out-name 0 name-length StandardCharsets/UTF_8)
-                location (.glGetAttribLocation gl program name)
-                type (gl-uniform-type->uniform-type (aget out-type 0))
-                count (aget out-count 0)]
-            {:name name
-             :location location
-             :type type
-             :count count}))))))
+          (when-let [[vector-type data-type] (gl.types/gl-attribute-type->vector-type+data-type (aget out-gl-type 0))]
+            (let [name (String. out-name 0 name-length StandardCharsets/UTF_8)
+                  name-key (graphics.types/attribute-name-key name)
+                  inferred-semantic-type (graphics.types/infer-semantic-type name-key)
+                  base-location (.glGetAttribLocation gl program name)
+                  array-size (aget out-array-size 0)]
+              {:name name
+               :name-key name-key
+               :semantic-type inferred-semantic-type
+               :vector-type vector-type
+               :data-type data-type
+               :normalize false
+               :coordinate-space :coordinate-space-default
+               :step-function :vertex-step-function-vertex
+               :location base-location
+               :array-size array-size})))))))
 
 (defn- strip-resource-namespace [uniform-info strip-resource-binding-namespace-regex]
   (if strip-resource-binding-namespace-regex
@@ -836,12 +899,14 @@ This must be submitted to the driver for compilation before you can use it. See
         strip-resource-binding-namespace-regex (some-> (.-strip-resource-binding-namespace-regex-str request-data) re-pattern)
         array-sampler-name->uniform-names (.-array-sampler-name->uniform-names request-data)
 
-        attribute-infos
-        (into {}
+        attribute-reflection-infos
+        (into []
               (keep (fn [^long attribute-index]
-                      (when-let [attribute-info (attribute-info gl gl-program attribute-index)]
-                        (pair (:name attribute-info) attribute-info))))
+                      (attribute-reflection-info gl gl-program attribute-index)))
               (range (gl-shader-parameter gl gl-program GL2/GL_ACTIVE_ATTRIBUTES)))
+
+        name-key->attribute-location (coll/pair-map-by :name-key :location attribute-reflection-infos)
+        semantic-type->attribute-locations (util/group-into {} (vector-of :int) :semantic-type :location attribute-reflection-infos)
 
         uniform-infos
         (into {}
@@ -871,9 +936,17 @@ This must be submitted to the driver for compilation before you can use it. See
              (sort-by (comp :location second))
              (mapv first))]
 
+    ;; TODO(instancing): Move most of this stuff out of here once we've gotten
+    ;; rid of the defshader macro. We should be able to obtain attribute
+    ;; reflection info during the shader transpilation step, and we could also
+    ;; move the uniform values out to a separate kind of GLBinding for uniforms.
+    ;; The attribute reflection info is already available in any ShaderLifecycle
+    ;; that is not created from a defshader expression.
     {:program gl-program
      :uniform-infos uniform-infos
-     :attribute-infos attribute-infos
+     :attribute-reflection-infos attribute-reflection-infos
+     :name-key->attribute-location name-key->attribute-location
+     :semantic-type->attribute-locations semantic-type->attribute-locations
      :sampler-name->uniform-names sampler-name->uniform-names
      :sampler-index->sampler-name sampler-index->sampler-name}))
 
@@ -884,7 +957,9 @@ This must be submitted to the driver for compilation before you can use it. See
     (catch Exception _
       {:program 0
        :uniform-infos {}
-       :attribute-infos {}
+       :attribute-reflection-infos []
+       :name-key->attribute-location {}
+       :semantic-type->attribute-locations {}
        :sampler-name->uniform-names {}
        :sampler-index->sampler-name {}})))
 

@@ -131,6 +131,8 @@
     :uint :type-unsigned-int
     :float :type-float))
 
+(def array-size? nat-int?)
+
 (def channel? nat-int?)
 
 (defonce coordinate-spaces (protobuf/valid-enum-values Graphics$CoordinateSpace))
@@ -473,11 +475,60 @@
          (:semantic-type-bone-indices :semantic-type-none :semantic-type-page-index) false
          true)))
 
-(defn attribute-reflection-info? [value]
+(defn attribute-info? [value]
   (and (map? value)
        (string? (:name value))
        (attribute-key? (:name-key value))
-       (location? (:location value))
-       (data-type? (:data-type value))
        (vector-type? (:vector-type value))
+       (data-type? (:data-type value))
+       (semantic-type? (:semantic-type value))
+       (coordinate-space? (:coordinate-space value))
+       (vertex-step-function? (:step-function value))
        (boolean? (:normalize value))))
+
+(defn attribute-reflection-info? [value]
+  (and (attribute-info? value)
+       (location? (:location value))
+       (array-size? (:array-size value))))
+
+(defn attribute-info-with-reflection-info [attribute-info attribute-reflection-info]
+  {:pre [(attribute-info? attribute-info)]}
+  (let [location (:location attribute-reflection-info)
+        array-size (:array-size attribute-reflection-info)
+        source-vector-type (:vector-type attribute-info)
+        target-vector-type (:vector-type attribute-reflection-info)]
+    (assert (location? location))
+    (assert (array-size? array-size))
+    (cond-> (assoc attribute-info
+              :location location
+              :array-size array-size)
+
+            (< (vector-type-component-count target-vector-type)
+               (vector-type-component-count source-vector-type))
+            (assoc :vector-type target-vector-type))))
+
+(defn attribute-info-byte-size
+  ^long [{:keys [data-type vector-type :as _attribute-info]}]
+  (* (data-type-byte-size data-type)
+     (vector-type-component-count vector-type)))
+
+(defn attribute-info-element-type
+  ^ElementType [attribute-info]
+  (make-element-type (:vector-type attribute-info)
+                     (:data-type attribute-info)
+                     (:normalize attribute-info)))
+
+(defn make-vertex-description [attribute-infos]
+  {:pre [(vector? attribute-infos)
+         (every? attribute-info? attribute-infos)]}
+  (let [byte-size (transduce (map attribute-info-byte-size) + 0 attribute-infos)]
+    {:size byte-size
+     :attributes attribute-infos}))
+
+(defn vertex-description? [value]
+  (and (map? value)
+       (pos-int? (:size value))
+       (let [attributes (:attributes value)]
+         (and (vector? attributes)
+              (pos? (count attributes))
+              (every? attribute-info? attributes)))))

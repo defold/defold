@@ -14,7 +14,7 @@
 
 (ns editor.shaders
   (:require [editor.gl.shader :as shader]
-            [editor.graphics :as graphics]))
+            [editor.graphics.types :as graphics.types]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -22,8 +22,8 @@
 (def ^{:arglists '([editor-shader])} vertex-description ::vertex-description)
 
 (defn- with-vertex-description [shader]
-  (let [attribute-reflection-infos (:attribute-reflection-infos shader)
-        vertex-description (graphics/make-vertex-description attribute-reflection-infos)]
+  (let [attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
+        vertex-description (graphics.types/make-vertex-description attribute-reflection-infos)]
     (assoc shader ::vertex-description vertex-description)))
 
 (defn- editor-shader [opts & shader-paths]

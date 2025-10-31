@@ -16,7 +16,7 @@
   (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
   (:import [clojure.core Eduction Vec]
            [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
-           [java.util ArrayList Arrays]
+           [java.util ArrayList Arrays List]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -509,6 +509,18 @@
       coll)
     (throw (IllegalArgumentException. "The partition-length must be positive."))))
 
+(definline index-of
+  "Returns the index of the first item in the supplied java.util.List that
+  equals the specified value. Returns -1 if there is no match."
+  [^List coll value]
+  `(List/.indexOf ~coll ~value))
+
+(definline last-index-of
+  "Returns the index of the last item in the supplied java.util.List that equals
+  the specified value. Returns -1 if there is no match."
+  [^List coll value]
+  `(List/.lastIndexOf ~coll ~value))
+
 (defn remove-index
   "Removes an item at the specified position in a vector"
   [coll ^long index]
@@ -785,6 +797,32 @@
           :else result)))))
   ([pred coll]
    (sequence (find-values pred) coll)))
+
+(defn first-where
+  "Returns the first element in coll where pred returns true, or nil if there
+  was no matching element. If coll is a map, the elements are key-value pairs."
+  [pred coll]
+  (reduce
+    (fn [_ item]
+      (when (pred item)
+        (reduced item)))
+    nil
+    coll))
+
+(defn first-index-where
+  "Returns the index of the first element in coll where pred returns true,
+  or nil if there was no matching element. If coll is a map, the elements are
+  key-value pairs."
+  [pred coll]
+  (let [index (reduce
+                (fn [^long index item]
+                  (if (pred item)
+                    (reduced (reduced index))
+                    (inc index)))
+                0
+                coll)]
+    (when (reduced? index)
+      (unreduced index))))
 
 (defn some
   "Like clojure.core/some, but uses reduce instead of lazy sequences."

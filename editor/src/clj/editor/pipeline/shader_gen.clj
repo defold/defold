@@ -109,22 +109,25 @@
     (pb-shader-data-type->vector-type+data-type pb-shader-data-type)))
 
 (defn- make-attribute-reflection-info [^Shaderc$ShaderResource attribute]
-  (let [[vector-type data-type] (shader-resource-type->vector-type+data-type (.-type attribute))
+  {:post [(graphics.types/attribute-reflection-info? %)]}
+  (let [shader-resource-type (.-type attribute)
         reflected-location (.-location attribute)
+        array-size (.-arraySize shader-resource-type)
+        [vector-type data-type] (shader-resource-type->vector-type+data-type shader-resource-type)
         name (.-name attribute)
         name-key (graphics.types/attribute-name-key name)
         inferred-semantic-type (graphics.types/infer-semantic-type name-key)]
-    ;; We want to keep the keys here in sync with the attribute-info maps in the
-    ;; editor.graphics module. The idea is that you should be able to amend this
-    ;; map with attribute-info keys from the material to get a fully formed
-    ;; attribute-info map.
+    ;; An attribute-reflection-info is an attribute-info with additional fields.
     {:name name
      :name-key name-key
-     :location reflected-location
+     :semantic-type inferred-semantic-type
      :vector-type vector-type
      :data-type data-type
-     :semantic-type inferred-semantic-type
-     :normalize false})) ; We could infer this using graphics.types/infer-normalize, but the engine doesn't.
+     :normalize false ; We could infer this using graphics.types/infer-normalize, but the engine doesn't.
+     :coordinate-space :coordinate-space-default
+     :step-function :vertex-step-function-vertex
+     :location reflected-location
+     :array-size array-size}))
 
 (def ^:private transpile-target-pb-shader-language
   ;; Use the old GLES2-compatible shaders for rendering in the editor.
@@ -253,7 +256,7 @@
                   ;; as we link the shader.
                   (let [attribute-count (graphics.types/vector-type-attribute-count (:vector-type attribute-reflection-info))
                         reflected-location (:location attribute-reflection-info)
-                        base-location (util/first-where
+                        base-location (coll/first-where
                                         #(not (contains? taken-locations %))
                                         (iterate inc reflected-location))
                         attribute-reflection-info (assoc attribute-reflection-info :location base-location)
