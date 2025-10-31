@@ -137,6 +137,17 @@ namespace dmImage
      * @return result [type: bool] true if it's an astc file
      */
     bool GetAstcBlockSize(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth);
+
+    /*#
+     * Get the astc image size
+     * @param mem [type: void*] the .astc memory (including the header)
+     * @param memsize [type: uint32_t] the length of the memory blob
+     * @param width [type: uint32_t*] the block width
+     * @param height [type: uint32_t*] the block height
+     * @param depth [type: uint32_t*] the block depth
+     * @return result [type: bool] true if it's an astc file
+     */
+    bool GetAstcDimensions(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth);
 }
 
 #endif // DMSDK_IMAGE

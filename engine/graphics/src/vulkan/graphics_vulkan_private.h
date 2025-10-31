@@ -93,6 +93,7 @@ namespace dmGraphics
         DeviceBuffer      m_DeviceBuffer;
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         HOpaqueHandle     m_PendingUpload;
+        uint32_t          m_DataSize; // for better memory profiling
         uint16_t          m_Width;
         uint16_t          m_Height;
         uint16_t          m_Depth;
@@ -101,8 +102,8 @@ namespace dmGraphics
         uint16_t          m_OriginalDepth;
         uint16_t          m_MipMapCount         : 5;
         uint16_t          m_TextureSamplerIndex : 10;
-        uint32_t          m_Destroyed           : 1;
-        uint32_t          m_UsageHintFlags      : 8;
+        uint16_t          m_Destroyed           : 1;
+        uint8_t           m_UsageHintFlags;
         uint8_t           m_LayerCount;
         uint8_t           m_PageCount; // page count of texture array
 

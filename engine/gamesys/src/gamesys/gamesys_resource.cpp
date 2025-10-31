@@ -21,6 +21,7 @@
 
 namespace dmGameSystem
 {
+    // Creates a texture image in DDF format which
     void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image)
     {
         uint32_t* mip_map_data_size          = new uint32_t[params.m_MaxMipMaps];
@@ -30,31 +31,43 @@ namespace dmGameSystem
         uint8_t layer_count                  = GetLayerCount(params.m_Type) * dmMath::Max((uint8_t) 1, params.m_LayerCount);
 
         uint32_t data_size = 0;
-        uint16_t mm_width  = params.m_Width;
-        uint16_t mm_height = params.m_Height;
-        uint16_t mm_depth  = params.m_Depth;
 
-        for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
+        if (params.m_CompressionType == dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC)
         {
-            mip_map_offsets[i]            = (data_size / 8);
-            mip_map_dimensions[i * 2 + 0] = mm_width;
-            mip_map_dimensions[i * 2 + 1] = mm_height;
-
-            // Calculate the data size per mipmap in bytes
-            // Graphics APIs require that the data size is _per slice_ and not the whole texture.
-            // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
-            uint32_t data_size_per_slice  = mm_width * mm_height * params.m_TextureBpp;
-            data_size                    += data_size_per_slice * layer_count;
-            mip_map_data_size[i]          = data_size_per_slice / 8;
-
-            mm_width                     /= 2;
-            mm_height                    /= 2;
+            mip_map_offsets[0]      = 0;
+            mip_map_data_size[0]    = params.m_DataSize;
+            mip_map_dimensions[0]   = params.m_Width;
+            mip_map_dimensions[1]   = params.m_Height;
         }
-        assert(data_size > 0);
+        else
+        {
+            uint16_t mm_width  = params.m_Width;
+            uint16_t mm_height = params.m_Height;
+            uint16_t mm_depth  = params.m_Depth;
 
-        data_size                *= layer_count * mm_depth;
-        uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
-        uint8_t* image_data       = 0;
+            for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
+            {
+                mip_map_offsets[i]            = (data_size / 8);
+                mip_map_dimensions[i * 2 + 0] = mm_width;
+                mip_map_dimensions[i * 2 + 1] = mm_height;
+
+                // Calculate the data size per mipmap in bytes
+                // Graphics APIs require that the data size is _per slice_ and not the whole texture.
+                // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
+                uint32_t data_size_per_slice  = mm_width * mm_height * params.m_TextureBpp;
+                data_size                    += data_size_per_slice * layer_count;
+                mip_map_data_size[i]          = data_size_per_slice / 8;
+
+                mm_width                     /= 2;
+                mm_height                    /= 2;
+            }
+            assert(data_size > 0);
+
+            data_size *= layer_count * mm_depth;
+        }
+
+        uint32_t image_data_size = 0;
+        uint8_t* image_data      = 0;
 
         if (params.m_Buffer)
         {
@@ -66,10 +79,12 @@ namespace dmGameSystem
         }
         else if (params.m_Data)
         {
-            image_data = (uint8_t*) params.m_Data;
+            image_data      = (uint8_t*) params.m_Data;
+            image_data_size = params.m_DataSize;
         }
         else
         {
+            image_data_size  = data_size / 8; // bits -> bytes for compression formats
             image_data = new uint8_t[image_data_size];
             memset(image_data, 0, image_data_size);
         }
@@ -93,6 +108,7 @@ namespace dmGameSystem
         image->m_OriginalHeight               = params.m_Height;
         image->m_OriginalDepth                = params.m_Depth;
         image->m_Format                       = params.m_TextureFormat;
+        image->m_DataSize                     = image_data_size;
         image->m_CompressionType              = params.m_CompressionType;
         image->m_MipMapOffset.m_Data          = mip_map_offsets;
         image->m_MipMapOffset.m_Count         = params.m_MaxMipMaps;

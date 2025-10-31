@@ -683,6 +683,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
     params->m_UsageFlags      = usage_flags;
     params->m_Data            = 0;
+    params->m_DataSize        = 0;
     return 0;
 }
 

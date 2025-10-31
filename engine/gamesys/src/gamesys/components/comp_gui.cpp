@@ -2465,6 +2465,10 @@ namespace dmGameSystem
                 dmLogError("Failed to create texture resource %s", resource_path);
                 return 0;
             }
+
+            // The astc header is 16 bytes and the graphcis api expects the raw block data, not the header
+            data = ((uint8_t*)data) + 16;
+            data_size -= 16;
         }
 
         CreateTextureResourceParams params = {};
@@ -2478,6 +2482,7 @@ namespace dmGameSystem
         params.m_CompressionType    = texture_compression;
         params.m_Buffer             = 0;
         params.m_Data               = data;
+        params.m_DataSize           = data_size;
         params.m_Width              = width;
         params.m_Height             = height;
         params.m_Depth              = 1;
@@ -2485,8 +2490,9 @@ namespace dmGameSystem
         params.m_TextureBpp         = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
         params.m_UsageFlags         = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
 
-        void* resource_out = 0;
-        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, &resource_out);
+        // Creates a texture and invokes the res_texture.cpp code path
+        dmGameSystem::TextureResource* resource_out = 0;
+        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, (void**)&resource_out);
         if (res != dmResource::RESULT_OK)
         {
             dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
@@ -3022,7 +3028,6 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
                 dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
                                                             texture_source->m_Texture->m_OriginalWidth,
                                                             texture_source->m_Texture->m_OriginalHeight);
