@@ -2174,28 +2174,13 @@ namespace dmGui
      * How to create a texture using .astc format
      *
      * ```lua
-     * function init(self)
-     *      local w = 200
-     *      local h = 300
-     *
-     *      -- A nice orange. String with the RGB values.
-     *      local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
-     *
-     *      -- Create the texture. Repeat the color string for each pixel.
-     *      local ok, reason = gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h))
-     *      if ok then
-     *          -- Create a box node and apply the texture to it.
-     *          local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
-     *          gui.set_texture(n, "orange_tx")
-     *      else
-     *          -- Could not create texture for some reason...
-     *          if reason == gui.RESULT_TEXTURE_ALREADY_EXISTS then
-     *              ...
-     *          else
-     *              ...
-     *          end
-     *      end
-     * end
+     * local path = "/assets/images/logo_4x4.astc"
+     * local buffer = sys.load_resource(path)
+     * local n = gui.new_box_node(pos, vmath.vector3(size, size, 0))
+     * -- size is read from the .astc buffer
+     * -- flip is not supported
+     * gui.new_texture(path, 0, 0, "astc", buffer, false)
+     * gui.set_texture(n, path)
      * ```
      */
     static int LuaNewTexture(lua_State* L)
