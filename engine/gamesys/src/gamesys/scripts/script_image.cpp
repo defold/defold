@@ -330,10 +330,83 @@ namespace dmGameSystem
         return 1;
     }
 
+
+    /*# load image from buffer
+    * Load image (PNG or JPEG) from buffer.
+    *
+    * @name image.load
+    * @param buffer [type:string] image data buffer
+    * @param [options] [type:table] An optional table containing parameters for loading the image. Supported entries:
+    *
+    * `premultiply_alpha`
+    * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
+    *
+    * `flip_vertically`
+    * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
+    *
+    * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
+    *
+    * - [type:number] `width`: image width
+    * - [type:number] `height`: image height
+    * - [type:number] `depth`: image depth
+    * - [type:number] `blocksize_x`: block size x
+    * - [type:number] `blocksize_y`: block size y
+    * - [type:number] `blocksize_z`: block size z
+    *
+    * @examples
+    *
+    * How to load an image from an URL and create a GUI texture from it:
+    *
+    * ```lua
+    * local s = sys.load_resource("/assets/cat.astc")
+    * local header = image.get_astc_header(s)
+    * pprint(s)
+    * ```
+    */
+    int Image_GetAstcHeader(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_checktype(L, 1, LUA_TSTRING);
+        size_t data_len = 0;
+        const char* data = lua_tolstring(L, 1, &data_len);
+
+        uint32_t width, height, depth;
+        if (!dmImage::GetAstcDimensions((void*)data, (uint32_t)data_len, &width, &height, &depth))
+        {
+            return luaL_error(L, "Data is not a valid .astc file");
+        }
+
+        uint32_t block_size_x, block_size_y, block_size_z;
+        if (!dmImage::GetAstcBlockSize((void*)data, (uint32_t)data_len, &block_size_x, &block_size_y, &block_size_z))
+        {
+            return luaL_error(L, "Data is not a valid .astc file");
+        }
+
+        lua_newtable(L);
+
+            lua_pushinteger(L, width);
+            lua_setfield(L, -2, "width");
+            lua_pushinteger(L, height);
+            lua_setfield(L, -2, "height");
+            lua_pushinteger(L, depth);
+            lua_setfield(L, -2, "depth");
+
+            lua_pushinteger(L, block_size_x);
+            lua_setfield(L, -2, "block_size_x");
+            lua_pushinteger(L, block_size_y);
+            lua_setfield(L, -2, "block_size_y");
+            lua_pushinteger(L, block_size_z);
+            lua_setfield(L, -2, "block_size_z");
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg ScriptImage_methods[] =
     {
-        {"load",        Image_Load},
-        {"load_buffer", Image_LoadBuffer},
+        {"load",            Image_Load},
+        {"load_buffer",     Image_LoadBuffer},
+        {"get_astc_header", Image_GetAstcHeader},
         {0, 0}
     };
 
