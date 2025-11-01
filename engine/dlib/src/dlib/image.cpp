@@ -144,11 +144,6 @@ namespace dmImage
         return image->m_Type;
     }
 
-    CompressionType GetCompressionType(HImage image)
-    {
-        return image->m_CompressionType;
-    }
-
     uint32_t GetWidth(HImage image)
     {
         return image->m_Width;

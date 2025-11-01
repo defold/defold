@@ -99,13 +99,6 @@ namespace dmImage
      */
     Type GetType(HImage image);
 
-    /*#
-     * Get data compression type
-     * @param image [type: dmImage::HImage] the image handle
-     * @return type [type: CompressionType] the image compression type
-     */
-    CompressionType GetCompressionType(HImage image);
-
     /**
      * Get image width
      * @param image [type: dmImage::HImage] the image handle
