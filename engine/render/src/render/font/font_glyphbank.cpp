@@ -32,14 +32,14 @@ static dmRenderDDF::GlyphBank* ToGlyphBank(HFont hfont)
 }
 
 
-static void FontDestroyGB(HFont hfont)
+static void GBFontDestroy(HFont hfont)
 {
     GlyphBankFont* font = (GlyphBankFont*)hfont;
     // The actual data comes from the resource system, so no need to free that
     free((void*)font);
 }
 
-static uint32_t GetResourceSizeGB(HFont hfont)
+static uint32_t GBGetResourceSize(HFont hfont)
 {
     dmRenderDDF::GlyphBank* bank = ToGlyphBank(hfont);
     uint32_t size = sizeof(dmRenderDDF::GlyphBank)
@@ -49,32 +49,32 @@ static uint32_t GetResourceSizeGB(HFont hfont)
     return size;
 }
 
-static float GetScaleFromSizeGB(HFont hfont, uint32_t size)
+static float GBGetScaleFromSize(HFont hfont, uint32_t size)
 {
     // These fonts are prebaked
     return 1.0f;
 }
 
-static float GetAscentGB(HFont hfont, float scale)
+static float GBGetAscent(HFont hfont, float scale)
 {
     (void)scale; // should be 1.0f
     dmRenderDDF::GlyphBank* bank = ToGlyphBank(hfont);
     return bank->m_MaxAscent;
 }
 
-static float GetDescentGB(HFont hfont, float scale)
+static float GBGetDescent(HFont hfont, float scale)
 {
     (void)scale; // should be 1.0f
     dmRenderDDF::GlyphBank* bank = ToGlyphBank(hfont);
     return bank->m_MaxDescent;
 }
 
-static float GetLineGapGB(HFont hfont, float scale)
+static float GBGetLineGap(HFont hfont, float scale)
 {
     return 0.0f;
 }
 
-static FontResult FreeGlyphGB(HFont hfont, FontGlyph* glyph)
+static FontResult GBFreeGlyph(HFont hfont, FontGlyph* glyph)
 {
     (void)hfont;
     (void)glyph;
@@ -96,7 +96,7 @@ static dmRenderDDF::GlyphBank::Glyph* FindByCodePoint(dmRenderDDF::GlyphBank* ba
     return 0;
 }
 
-static uint32_t GetGlyphIndexGB(HFont hfont, uint32_t codepoint)
+static uint32_t GBGetGlyphIndex(HFont hfont, uint32_t codepoint)
 {
     dmRenderDDF::GlyphBank* bank = ToGlyphBank(hfont);
     dmRenderDDF::GlyphBank::Glyph* g = FindByCodePoint(bank, codepoint);
@@ -111,7 +111,7 @@ static inline uint8_t* GetPointer(void* data, uint32_t offset)
     return ((uint8_t*)data) + offset;
 }
 
-static FontResult GetGlyphGB(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* out)
+static FontResult GBGetGlyph(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* out)
 {
     if (glyph_index == 0)
         return FONT_RESULT_ERROR;
@@ -155,15 +155,15 @@ HFont CreateGlyphBankFont(const char* path, dmRenderDDF::GlyphBank* glyph_bank)
     memset(font, 0, sizeof(*font));
 
     font->m_Base.m_LoadFontFromMemory = 0; // it's this current function!
-    font->m_Base.m_DestroyFont = FontDestroyGB;
-    font->m_Base.m_GetResourceSize = GetResourceSizeGB;
-    font->m_Base.m_GetScaleFromSize = GetScaleFromSizeGB;
-    font->m_Base.m_GetAscent = GetAscentGB;
-    font->m_Base.m_GetDescent = GetDescentGB;
-    font->m_Base.m_GetLineGap = GetLineGapGB;
-    font->m_Base.m_GetGlyphIndex = GetGlyphIndexGB;
-    font->m_Base.m_GetGlyph = GetGlyphGB;
-    font->m_Base.m_FreeGlyph = FreeGlyphGB;
+    font->m_Base.m_DestroyFont = GBFontDestroy;
+    font->m_Base.m_GetResourceSize = GBGetResourceSize;
+    font->m_Base.m_GetScaleFromSize = GBGetScaleFromSize;
+    font->m_Base.m_GetAscent = GBGetAscent;
+    font->m_Base.m_GetDescent = GBGetDescent;
+    font->m_Base.m_GetLineGap = GBGetLineGap;
+    font->m_Base.m_GetGlyphIndex = GBGetGlyphIndex;
+    font->m_Base.m_GetGlyph = GBGetGlyph;
+    font->m_Base.m_FreeGlyph = GBFreeGlyph;
 
 #define FOURCC(a,b,c,d) ( (uint32_t) (((d)<<24) | ((c)<<16) | ((b)<<8) | (a)) )
 

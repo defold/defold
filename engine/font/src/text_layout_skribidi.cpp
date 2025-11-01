@@ -110,7 +110,7 @@ static bool LayoutText(LayoutContext* ctx,
         layout->m_Lines.OffsetCapacity(lines_count - remaining_lines);
     }
 
-    const float edit_layout_y = 0;
+    const float edit_layout_y = 0.0f;
     uint32_t num_whitespaces = 0;
 
     float ox = 0.0f;
@@ -118,8 +118,6 @@ static bool LayoutText(LayoutContext* ctx,
 
     float max_ascender = 0.0f;
     float max_descender = 0.0f;
-
-    int debug = 0;
 
     // From example_testbed.c
     for (int li = 0; li < lines_count; li++)
@@ -133,8 +131,8 @@ static bool LayoutText(LayoutContext* ctx,
 
         skb_font_handle_t font_handle = 0;
 
-        float max_glyph_bounds_width = 0;
-        float max_glyph_bounds_height = 0;
+        float max_glyph_bounds_width = 0.0f;
+        float max_glyph_bounds_height = 0.0f;
 
         for (int32_t ri = line->glyph_run_range.start; ri < line->glyph_run_range.end; ri++)
         {
@@ -169,7 +167,7 @@ static bool LayoutText(LayoutContext* ctx,
 
                 num_whitespaces += dmUtf8::IsWhiteSpace(glyph.m_Codepoint);
 
-                if (debug)
+#if defined(DM_DEBUG_TEXT_LAYOUT_SKRIBIDI)
                 {
                     printf ("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
                             glyph.m_GlyphIndex,
@@ -180,6 +178,7 @@ static bool LayoutText(LayoutContext* ctx,
                             glyph.m_Width,
                             glyph.m_Height);
                 }
+#endif
             }
         }
 

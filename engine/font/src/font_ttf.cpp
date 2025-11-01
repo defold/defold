@@ -173,7 +173,7 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
 
     glyph->m_Width = (x1 - x0) * scale;
     glyph->m_Height = (y1 - y0) * scale;
-    glyph->m_Advance = advx*scale;;
+    glyph->m_Advance = advx*scale;
     glyph->m_LeftBearing = lsb*scale;
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;

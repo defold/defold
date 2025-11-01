@@ -78,7 +78,7 @@ enum FontGlyphBitmapFlags
  * @name FontGlyphBitmap
  * @member m_Width [type: uint16_t] The glyph image width
  * @member m_Height [type: uint16_t] The glyph image height
- * @member m_Channels [type: uint16_t] The glyph image height
+ * @member m_Channels [type: uint8_t] The number of color channels
  * @member m_Flags [type: uint8_t] Flags describing the data. See #FontGlyphBitmapFlags.
  * @member m_Data [type: uint8_t*] The bitmap data, or null if no data available.
  * @member m_DataSize [type: uint32_t] The bitmap data size (e.g. if the data is compressed)

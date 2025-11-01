@@ -38,13 +38,12 @@ typedef struct FontCollection* HFontCollection;
 
 /*#
  * Create a font collection
- * @function
  * @name FontCollectionCreate
+ * @return coll [type: HFontCollection] the font collection
  */
 HFontCollection FontCollectionCreate();
 
 /*# destroy a font collection
- * @function
  * @name FontCollectionDestroy
  * @param coll [type: HFontCollection] the font collection
  */
@@ -52,7 +51,6 @@ void FontCollectionDestroy(HFontCollection coll);
 
 /*# add a font to the font collection
  * @note No ownership transfer occurrs. HFont must be alive during the lifetime of the font collection
- * @function
  * @name FontCollectionAddFont
  * @param coll [type: HFontCollection] the font collection
  * @param font [type: HFont] the font
@@ -69,7 +67,6 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont font);
 FontResult FontCollectionRemoveFont(HFontCollection coll, HFont font);
 
 /*# return number of fonts in the collection
- * @function
  * @name FontCollectionGetFontCount
  * @param coll [type: HFontCollection] the font collection
  * @return count [type: uint32_t] the number of fonts
@@ -77,7 +74,6 @@ FontResult FontCollectionRemoveFont(HFontCollection coll, HFont font);
 uint32_t FontCollectionGetFontCount(HFontCollection coll);
 
 /*# return the font associated with the given index
- * @function
  * @name FontCollectionGetFont
  * @param coll [type: HFontCollection] the font collection
  * @return font [type: HFont] the font at the given index

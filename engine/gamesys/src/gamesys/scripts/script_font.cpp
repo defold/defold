@@ -255,6 +255,26 @@ static int PrewarmText(lua_State* L)
     return 1;
 }
 
+/*#
+ * Gets information about a font, such as the associated font files
+ *
+ * @name font.get_font_info
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @return info [type:table] the information table contains these fields:
+ *
+ * `path`
+ * : [type:hash] The path hash of the current file.
+ *
+ * `fonts`
+ * : [type:table] An array of associated font (e.g. .ttf) files. Each item is a table that contains:
+ *
+ *      `path`
+ *      : [type:string] The path of the font file
+ *
+ *      `path_hash`
+ *      : [type:hash] The path of the font file
+ *
+ */
 static int GetFontInfo(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);

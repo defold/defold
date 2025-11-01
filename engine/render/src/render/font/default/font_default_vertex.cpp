@@ -32,6 +32,9 @@
 
 namespace dmRender
 {
+
+static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+
 struct DM_ALIGNED(16) GlyphVertex
 {
     // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
@@ -414,10 +417,6 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
         }
     }
 
-    uint64_t tstart_layout = dmTime::GetMonotonicTime();
-
-    uint64_t tend_layout = dmTime::GetMonotonicTime();
-
     int32_t dir = 1;//layout->m_Direction == TEXT_DIRECTION_RTL ? -1 : 1;
     uint32_t align = te.m_Align;
     float x_offset = OffsetX(align, te.m_Width); // the box alignment is LTR direction (in pixels)
@@ -427,7 +426,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     }
     float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
-    for (int i = 0; i < line_count; ++i)
+    for (uint32_t i = 0; i < line_count; ++i)
     {
         TextLine& line = lines[i];
 
@@ -472,8 +471,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
             FontResult r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
             if (FONT_RESULT_OK != r)
             {
-                uint32_t fallback_codepoint = 126U; // '~'
-                glyph_index = FontGetGlyphIndex(font, fallback_codepoint);
+                glyph_index = FontGetGlyphIndex(font, FALLBACK_CODEPOINT);
                 r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
             }
 

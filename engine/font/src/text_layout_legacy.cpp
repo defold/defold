@@ -158,7 +158,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         return width;
     }
 
-    // the extent of the last character is left_breaking + width
+    // the extent of the last character is left bearing + width
     float extent_last = last.m_LeftBearing + last.m_Width;
     float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
 
@@ -183,7 +183,7 @@ struct LayoutMetrics
     }
 };
 
-void TextLayoutFreeLegacy(TextLayout* layout)
+static void TextLayoutLegacyFree(TextLayout* layout)
 {
     delete layout;
 }
@@ -193,7 +193,7 @@ TextResult TextLayoutCreateLegacy(HFontCollection collection,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {
     TextLayout* layout = new TextLayout;
-    layout->m_Free = TextLayoutFreeLegacy;
+    layout->m_Free = TextLayoutLegacyFree;
 
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(num_codepoints);

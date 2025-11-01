@@ -31,7 +31,7 @@ namespace dmRender
     , m_NameHash(0)
     , m_OnGlyphCacheMiss(0)
     , m_OnGlyphCacheMissContext(0)
-    , m_Size(0)
+    , m_Size(0.0f)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)

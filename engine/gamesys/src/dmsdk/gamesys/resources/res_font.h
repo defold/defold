@@ -132,7 +132,7 @@ namespace dmGameSystem
     /*#
      * @name ResFontGetInfo
      * @param font [type: FontResource*] The font resource to query
-     * @param info [type: FontInfo*] The output info
+     * @param info [type: FontInfo*] The output info (out)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
@@ -140,8 +140,8 @@ namespace dmGameSystem
     /*#
      * @name ResFontAddGlyph
      * @param font [type: FontResource*] The font resource
-     * @param hfont [type: HFont] The font the glyh was created from
-     * @param glyph_index [type: uint32_t] The glyph iundex
+     * @param hfont [type: HFont] The font the glyph was created from
+     * @param glyph_index [type: uint32_t] The glyph index
      * @return result [type: bool] true if the glyph already has rasterized bitmap data
      */
     bool ResFontIsGlyphIndexCached(FontResource* font, HFont hfont, uint32_t glyph_index);
@@ -149,7 +149,7 @@ namespace dmGameSystem
     /*#
      * @name ResFontAddGlyph
      * @param font [type: FontResource*] The font resource
-     * @param hfont [type: HFont] The font the glyh was created from
+     * @param hfont [type: HFont] The font the glyph was created from
      * @param glyph [type: FontGlyph*] The glyph
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
@@ -170,7 +170,7 @@ namespace dmGameSystem
      * @name ResFontAddFontByPathHash
      * @param factory [type: dmResource::HFactory] The factory
      * @param font [type: FontResource*] The font collection (.fontc)
-     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
+     * @param ttf_hash [type: dmhash_t] The ttf path hash (.ttf)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
@@ -179,7 +179,7 @@ namespace dmGameSystem
      * @name ResFontRemoveFont
      * @param factory [type: dmResource::HFactory] The factory
      * @param font [type: FontResource*] The font collection (.fontc)
-     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
+     * @param ttf_hash [type: dmhash_t] The ttf path hash (.ttf)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);

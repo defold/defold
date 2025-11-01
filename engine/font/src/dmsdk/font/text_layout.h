@@ -41,6 +41,8 @@ typedef struct TextLayout* HTextLayout;
  * An enum representing text layout results
  * @enum
  * @name TextResult
+ * @member TEXT_RESULT_OK
+ * @member TEXT_RESULT_ERROR
  */
 enum TextResult
 {
@@ -52,6 +54,8 @@ enum TextResult
  * An enum representing text layout directions
  * @enum
  * @name TextDirection
+ * @member TEXT_DIRECTION_LTR   Left-to-right text direction
+ * @member TEXT_DIRECTION_RTL   Right-to-left text direction
  */
 enum TextDirection
 {
@@ -65,6 +69,8 @@ enum TextDirection
  * The selected layout type it the minimum value of layout types
  * @enum
  * @name TextLayoutType
+ * @member TEXT_LAYOUT_TYPE_LEGACY Legacy text shaping api
+ * @member TEXT_LAYOUT_TYPE_FULL   Full text shaping api
  */
 enum TextLayoutType
 {
@@ -96,13 +102,13 @@ struct TextGlyph
     float       m_Width;        // width of the glyph bounding box
     float       m_Height;       // height of the glyph bounding box
 
-    // TODO: See if we can remove these
-    float  m_Advance;     // LEGACY SHAPING ONLY!
-    float  m_LeftBearing; // LEGACY SHAPING ONLY!
-
     uint32_t    m_Codepoint;    // Not always available if there was a substitution
     uint16_t    m_GlyphIndex;   // index into the font
     uint16_t    m_Cluster;      // index into the original text (i.e. into codepoints)
+
+    // private
+    float  m_Advance;     // LEGACY SHAPING ONLY! TODO: See if we can remove these
+    float  m_LeftBearing; // LEGACY SHAPING ONLY!
 };
 
 /*#
@@ -121,14 +127,13 @@ struct TextLine
 };
 
 /*#
- * Represents a line of glyphs
+ * Describes how to do a text layout
  * @struct
  * @name TextLayoutSettings
- * @member m_Size [type: float] The desired size of the font
- * @member m_Width [type: float] Max layout width. used only when line_break is non-zero
- * @member m_Leading [type: float]
- * @member m_Tracking [type: float]
-
+ * @member m_Size [type: float] The desired size of the font (in pixels)
+ * @member m_Width [type: float] Max layout width. Used only when m_LineBreak is non-zero
+ * @member m_Leading [type: float] The extra space between each line. Set 1.0f as default.
+ * @member m_Tracking [type: float] The extra tracking between glyphs. Set 0 as default.
  * @member m_Padding [type: uint32_t] Legacy: Padding for monospace, glyphbank fonts
  * @member m_LineBreak [type: uint8_t:1] Allow line breaks
  * @member m_Monospace [type: uint8_t:1] Legacy: Is the font a monospace font. Current: should be set on the font in the font collection!
@@ -154,7 +159,7 @@ struct TextLayoutSettings
  * @param codepoints [type: uint32_t*] an array of codepoints
  * @param num_codepoints [type: uint32_t] number of codepoints in the array
  * @param settings [type: TextLayoutSettings*] the settings used for rendering
- * @param layout [type: HTextLayout*] the output text layout
+ * @param layout [type: HTextLayout*] (out) the output text layout
  * @return result [type: TextResult] the result. TEXT_RESULT_OK if successful
  */
 TextResult TextLayoutCreate(HFontCollection collection,
