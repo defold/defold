@@ -2502,6 +2502,10 @@ namespace dmGameSystem
                 dmLogError("Failed to create texture resource %s", resource_path);
                 return;
             }
+
+            // The astc header is 16 bytes and the graphcis api expects the raw block data, not the header
+            buffer = ((uint8_t*)buffer) + 16;
+            buffer_size -= 16;
         }
 
         SetTextureResourceParams params = {};
