@@ -129,7 +129,7 @@ static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
 {
     dmEngine::Stats stats;
     dmEngine::GetStats(engine, stats);
-    *((uint32_t*) ctx) = stats.m_UpdateCount;
+    *((uint32_t*) ctx) = stats.m_FrameCount;
 }
 
 static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
@@ -201,24 +201,52 @@ TEST_F(EngineTest, RenderScript)
     ASSERT_EQ(frame_count, 1u);
 }
 
-TEST_F(EngineTest, SetRenderEnabled)
+TEST_F(EngineTest, SetEngineThrottle)
 {
-    dmEngine::Stats stats;
-    char project_path[256];
+    dmEngineInitialize();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = {
-        "test_engine",
-        "--config=bootstrap.main_collection=/render_enabled/render_enabled.collectionc",
+        "dmengine",
         "--config=dmengine.unload_builtins=0",
-        MAKE_PATH(project_path, "/game.projectc")
+        project_path
     };
 
-    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
 
-    // The script disables rendering after the first frame and re-enables it later,
-    // yielding four fewer rendered frames than updates.
-    EXPECT_EQ(10u, stats.m_UpdateCount);
-    EXPECT_GT(stats.m_RenderCount, 0u);
-    EXPECT_EQ(stats.m_UpdateCount - stats.m_RenderCount, 4u);
+    dmEngine::Stats stats;
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(0u, stats.m_FrameCount);
+
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(1u, stats.m_FrameCount);
+
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(2u, stats.m_FrameCount);
+
+    dmEngine::SetEngineThrottle(engine, true, 0.0f);
+
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(3u, stats.m_FrameCount);
+
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(3u, stats.m_FrameCount);
+
+    dmEngine::SetEngineThrottle(engine, false, 0.0f);
+
+    dmEngine::Step(engine);
+    dmEngine::GetStats(engine, stats);
+    ASSERT_EQ(4u, stats.m_FrameCount);
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
 }
 
 TEST_F(EngineTest, CameraAqcuireFocus)
@@ -512,7 +540,7 @@ TEST_F(EngineTest, ModelComponent)
 //     "--config=physics.use_fixed_timestep=1",
 //     "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
 //     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
-//     ASSERT_EQ(stats.m_FrameCount, 12u);
+//     ASSERT_EQ(12u, stats.m_FrameCount);
 //     ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.01f);
 // }
 
@@ -529,7 +557,7 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
     "--config=physics.use_fixed_timestep=1",
     "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunGetStats, &stats));
-    ASSERT_EQ(stats.m_UpdateCount, 12u);
+    ASSERT_EQ(12u, stats.m_FrameCount);
     ASSERT_NEAR(stats.m_TotalTime, 0.2f, 0.02f);
 }
 */

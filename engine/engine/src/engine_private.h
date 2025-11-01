@@ -85,8 +85,7 @@ namespace dmEngine
     {
         Stats();
 
-        uint32_t m_UpdateCount;
-        uint32_t m_RenderCount;
+        uint32_t m_FrameCount;
         float    m_TotalTime;   // Total running time of the game
     };
 
@@ -162,7 +161,6 @@ namespace dmEngine
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
         bool                                        m_UseSwVSync;
-        bool                                        m_RenderEnabled;
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
@@ -173,6 +171,10 @@ namespace dmEngine
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
         float                                       m_MaxTimeStep;
+
+        float                                       m_ThrottleCooldownMax;
+        float                                       m_ThrottleCooldown;
+        bool                                        m_ThrottleEnabled;
 
         RecordData                                  m_RecordData;
     };
@@ -187,8 +189,7 @@ namespace dmEngine
     bool LoadBootstrapContent(HEngine engine, HConfigFile config);
     void UnloadBootstrapContent(HEngine engine);
 
-    void SetRenderEnable(HEngine engine, bool enable);
-
+    void SetEngineThrottle(HEngine engine, bool enable, float cooldown);
 
     // Creates and initializes the engine. Returns the engine instance
     typedef HEngine (*EngineCreate)(int argc, char** argv);

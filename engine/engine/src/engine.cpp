@@ -285,8 +285,7 @@ namespace dmEngine
     }
 
     Stats::Stats()
-    : m_UpdateCount(0)
-    , m_RenderCount(0)
+    : m_FrameCount(0)
     , m_TotalTime(0.0f)
     {
 
@@ -319,11 +318,13 @@ namespace dmEngine
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
     , m_UseSwVSync(false)
-    , m_RenderEnabled(true)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_ThrottleCooldownMax(0.0f)
+    , m_ThrottleCooldown(0.0f)
+    , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
@@ -1677,9 +1678,14 @@ bail:
         return false;
     }
 
-    void SetRenderEnable(HEngine engine, bool enable)
+    void SetEngineThrottle(HEngine engine, bool enable, float cooldown)
     {
-        engine->m_RenderEnabled = enable;
+        engine->m_ThrottleEnabled = enable;
+        if (enable)
+        {
+            engine->m_ThrottleCooldownMax = cooldown;
+            engine->m_ThrottleCooldown = 0;
+        }
     }
 
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -1784,6 +1790,29 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
+    // Return true if the frame should be skipped
+    static bool UpdateFrameThrottle(HEngine engine, float dt, bool has_input)
+    {
+        if (!engine->m_ThrottleEnabled)
+        {
+            return false;
+        }
+
+        // We have new input, so reset the cooldown
+        if (has_input)
+        {
+            engine->m_ThrottleCooldown = 0;
+            return false;
+        }
+
+        // If cooldown max is 0, we want 1 frame of update
+        bool skip = engine->m_ThrottleCooldown > engine->m_ThrottleCooldownMax;
+
+        engine->m_ThrottleCooldown += dt;
+
+        return skip;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1825,22 +1854,22 @@ bail:
         {
             DM_PROFILE("Frame");
 
-            // We grab the value here (true by default), as the scripts may disable it during the init() function,
-            // and we want to make sure we render it the same frame (if it receives init+enable)
-            bool render_enabled = engine->m_RenderEnabled;
-
             {
                 DM_PROFILE("Sim");
 
-                {
-                    DM_PROFILE("Resource");
-                    dmResource::UpdateFactory(engine->m_Factory);
-                }
-
+                bool has_input = false;
                 {
                     DM_PROFILE("Hid");
-                    dmHID::Update(engine->m_HidContext);
+                    has_input = dmHID::Update(engine->m_HidContext);
                 }
+
+                // Check if we should skip this frame
+                if (UpdateFrameThrottle(engine, dt, has_input))
+                {
+                    ProfileFrameEnd(profile);
+                    return;
+                }
+
                 if (!engine->m_RunWhileIconified) {
                     if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                     {
@@ -1859,6 +1888,11 @@ bail:
                 uint64_t jobthread_max_time_us = 3 * 1000;
 #endif
                 dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
+
+                {
+                    DM_PROFILE("Resource");
+                    dmResource::UpdateFactory(engine->m_Factory); // Process Reload event
+                }
 
                 {
                     DM_PROFILE("Extension");
@@ -1950,11 +1984,9 @@ bail:
 
                 dmSound::Update();
 
-                // Don't render while iconified, or when device is lost, or when manually disabled
-                bool skip_render = dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
-                                || dmRender::IsRenderPaused(engine->m_RenderContext)
-                                || !render_enabled;
-                if (!skip_render)
+                // Don't render while iconified
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
+                    && !dmRender::IsRenderPaused(engine->m_RenderContext))
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -1997,7 +2029,7 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                if (!skip_render)
+                if (!dmRender::IsRenderPaused(engine->m_RenderContext))
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
@@ -2021,7 +2053,7 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
-            if (!dmRender::IsRenderPaused(engine->m_RenderContext) && render_enabled)
+            if (!dmRender::IsRenderPaused(engine->m_RenderContext))
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2058,8 +2090,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
-                ++engine->m_Stats.m_RenderCount;
-
+                
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {
@@ -2084,7 +2115,7 @@ bail:
         }
         ProfileFrameEnd(profile);
 
-        ++engine->m_Stats.m_UpdateCount;
+        ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;
     }
 
@@ -2391,7 +2422,7 @@ bail:
 
     uint32_t GetFrameCount(HEngine engine)
     {
-        return engine->m_Stats.m_UpdateCount;
+        return engine->m_Stats.m_FrameCount;
     }
 
     void GetStats(HEngine engine, Stats& stats)

@@ -221,7 +221,39 @@
 
 (defn- prop-tile-range? [max v name]
   (when (or (< v 1) (< max v))
-    (format "%s is outside the tile range (1-%d)" name max)))
+    (format "'%s' is outside the tile range (1-%d)" name max)))
+
+(defn- validate-animation-id [node-id id]
+  (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id"))
+
+(defn- validate-animation-start-tile [tile-count node-id start-tile]
+  (validation/prop-error :fatal node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))
+
+(defn- validate-animation-end-tile [tile-count node-id end-tile]
+  (validation/prop-error :fatal node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))
+
+(defn- validate-animation-fps [node-id fps]
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "FPS"))
+
+(def ^:private protobuf-animation-defaults
+  "Default field values declared in the Tile$Animation protobuf message. Fields
+  that match these values will be excluded from the saved project files."
+  (protobuf/default-value Tile$Animation))
+
+(defn- animation-ddf-errors [tile-count node-id animation-ddf]
+  {:pre [(g/node-id? node-id)
+         (map? animation-ddf)]} ; Tile$Animation in map format.
+  (->> [[:id validate-animation-id]
+        [:start-tile (partial validate-animation-start-tile tile-count)]
+        [:end-tile (partial validate-animation-end-tile tile-count)]
+        [:fps validate-animation-fps]]
+       (keep (fn [[pb-field validation-fn]]
+               (let [pb-value (get animation-ddf pb-field ::not-found)
+                     pb-value (if (= ::not-found pb-value)
+                                (get protobuf-animation-defaults pb-field)
+                                pb-value)]
+                 (validation-fn node-id pb-value))))
+       (not-empty)))
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
@@ -267,7 +299,8 @@
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
   (property id g/Str ; Required protobuf field.
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
+            (dynamic error (g/fnk [_node-id id]
+                             (validate-animation-id _node-id id))))
   (property start-tile g/Int ; Required protobuf field.
             (dynamic label (properties/label-dynamic :tile-source :start-tile))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :start-tile))
@@ -276,7 +309,7 @@
                              ;; during node initialization while it's not
                              ;; connected to the tile source
                              (when tile-count
-                               (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile")))))
+                               (validate-animation-start-tile tile-count _node-id start-tile)))))
   (property end-tile g/Int ; Required protobuf field.
             (dynamic label (properties/label-dynamic :tile-source :end-tile))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :end-tile))
@@ -285,7 +318,7 @@
                              ;; during node initialization while it's not
                              ;; connected to the tile source
                              (when tile-count
-                               (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile")))))
+                               (validate-animation-end-tile tile-count _node-id end-tile)))))
   (property playback types/AnimationPlayback (default (protobuf/default Tile$Animation :playback))
             (dynamic label (properties/label-dynamic :tile-source :playback))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :playback))
@@ -293,7 +326,8 @@
   (property fps g/Int (default (protobuf/default Tile$Animation :fps))
             (dynamic label (properties/label-dynamic :tile-source :fps))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :fps))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
+            (dynamic error (g/fnk [_node-id fps]
+                             (validate-animation-fps _node-id fps))))
   (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal)))
             (dynamic label (properties/label-dynamic :tile-source :flip-horizontal))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :flip-horizontal)))
@@ -308,15 +342,38 @@
   (input anim-data g/Any)
   (input gpu-texture g/Any)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id ddf-message id tile-count]
                                                      {:node-id _node-id
                                                       :node-outline-key id
                                                       :label id
-                                                      :icon animation-icon}))
+                                                      :icon animation-icon
+                                                      :outline-error? (some? (animation-ddf-errors tile-count _node-id ddf-message))}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)
   (output scene g/Any produce-animation-scene))
+
+(defn- validate-image-resource [node-id image-resource]
+  (or (validation/prop-error :fatal node-id :image validation/prop-nil? image-resource "Image")
+      (validation/prop-error :fatal node-id :image validation/prop-resource-not-exists? image-resource "Image")))
+
+(defn- validate-tile-width [node-id tile-width]
+  (validation/prop-error :fatal node-id :tile-width validation/prop-zero-or-below? tile-width "Tile Width"))
+
+(defn- validate-tile-height [node-id tile-height]
+  (validation/prop-error :fatal node-id :tile-height validation/prop-zero-or-below? tile-height "Tile Height"))
+
+(defn- validate-tile-margin [node-id tile-margin]
+  (validation/prop-error :fatal node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))
+
+(defn- validate-tile-spacing [node-id tile-spacing]
+  (validation/prop-error :fatal node-id :tile-spacing validation/prop-negative? tile-spacing "Tile Spacing"))
+
+(defn- validate-extrude-borders [node-id extrude-borders]
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+
+(defn- validate-inner-padding [node-id inner-padding]
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
 
 (defn- attach-animation-node [self animation-node]
   (concat
@@ -490,7 +547,6 @@
         scale-factor (camera/scale-factor (:camera render-args) (:viewport render-args))]
     (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))
 
-
 (g/defnk produce-scene
   [_node-id tile-source-attributes aabb layout-size uv-transforms texture-set texture-profile gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
@@ -543,9 +599,15 @@
              tile->collision-group-node))
 
 (g/defnk produce-tile-source-attributes
-  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size sprite-trim-mode]
-  (or (validation/prop-error :fatal _node-id :image validation/prop-nil? image-resource "Image")
-      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image-resource "Image")
+  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size sprite-trim-mode image-dim-error tile-width-error tile-height-error]
+  (or (g/flatten-errors
+        (validate-image-resource _node-id image-resource)
+        (validate-tile-width _node-id tile-width)
+        (validate-tile-height _node-id tile-height)
+        (validate-tile-margin _node-id tile-margin)
+        (validate-tile-spacing _node-id tile-spacing)
+        (validate-extrude-borders _node-id extrude-borders)
+        (validate-inner-padding _node-id inner-padding))
       (let [properties {:width tile-width
                         :height tile-height
                         :margin tile-margin
@@ -559,14 +621,14 @@
       (g/->error _node-id :image :fatal image-resource "tile data could not be generated due to invalid values")))
 
 (defn- check-anim-error [tile-count anim-data]
+  ;; This is used from the TileSourceNode to validate the animations in the
+  ;; resulting texture set. Presumably for efficiency, it operates on the
+  ;; protobuf maps it already has access to from each TileAnimationNode. We
+  ;; assume the values written to the Tile$Animation protobuf messages match the
+  ;; types and values of the TileAnimationNode properties.
   (let [node-id (:node-id anim-data)
-        anim (:ddf-message anim-data)
-        tile-range-f (partial prop-tile-range? tile-count)]
-    (->> [[:id validation/prop-empty?]
-          [:start-tile tile-range-f]
-          [:end-tile tile-range-f]]
-      (keep (fn [[prop-kw f]]
-              (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
+        animation-ddf (:ddf-message anim-data)] ; Tile$Animation in map format.
+    (animation-ddf-errors tile-count node-id animation-ddf)))
 
 (defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
@@ -596,8 +658,7 @@
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (g/fnk [_node-id image tile-width-error tile-height-error image-dim-error]
-                             (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                 (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")))))
+                             (validate-image-resource _node-id image))))
   (property size types/Vec2 ; Just for presentation.
             (value (g/fnk [image-size]
                      [(:width image-size 0) (:height image-size 0)]))
@@ -607,29 +668,32 @@
             (dynamic label (properties/label-dynamic :tile-source :tile-width))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-width))
             (dynamic error (g/fnk [_node-id tile-width tile-width-error]
-                             (validation/prop-error :fatal _node-id :tile-width validation/prop-negative? tile-width "Tile Width"))))
+                             (validate-tile-width _node-id tile-width))))
   (property tile-height g/Int (default (protobuf/required-default Tile$TileSet :tile-height))
             (dynamic label (properties/label-dynamic :tile-source :tile-height))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-height))
             (dynamic error (g/fnk [_node-id tile-height tile-height-error]
-                             (validation/prop-error :fatal _node-id :tile-height validation/prop-negative? tile-height "Tile Height"))))
+                             (validate-tile-height _node-id tile-height))))
   (property tile-margin g/Int (default (protobuf/default Tile$TileSet :tile-margin))
             (dynamic label (properties/label-dynamic :tile-source :tile-margin))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-margin))
             (dynamic error (g/fnk [_node-id tile-margin tile-width-error tile-height-error]
-                             (validation/prop-error :fatal _node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))))
+                             (validate-tile-margin _node-id tile-margin))))
   (property tile-spacing g/Int (default (protobuf/default Tile$TileSet :tile-spacing))
             (dynamic label (properties/label-dynamic :tile-source :tile-spacing))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :tile-spacing))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? tile-spacing)))
+            (dynamic error (g/fnk [_node-id tile-spacing]
+                             (validate-tile-spacing _node-id tile-spacing))))
   (property extrude-borders g/Int (default (protobuf/default Tile$TileSet :extrude-borders))
             (dynamic label (properties/label-dynamic :tile-source :extrude-borders))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :extrude-borders))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
+            (dynamic error (g/fnk [_node-id extrude-borders]
+                             (validate-extrude-borders _node-id extrude-borders))))
   (property inner-padding g/Int (default (protobuf/default Tile$TileSet :inner-padding))
             (dynamic label (properties/label-dynamic :tile-source :inner-padding))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :inner-padding))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
+            (dynamic error (g/fnk [_node-id inner-padding]
+                             (validate-inner-padding _node-id inner-padding))))
   (property collision resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -1024,7 +1088,8 @@
         inner-padding :inner-padding
         sprite-trim-mode :sprite-trim-mode))))
 
-(def ^:private default-animation
+(def ^:private new-animation-defaults
+  "Default field values for added Tile$Animation instances."
   (protobuf/make-map-without-defaults Tile$Animation
     :id "New Animation"
     :start-tile 1
@@ -1035,7 +1100,7 @@
     :flip-vertical 0))
 
 (defn add-animation-node! [self select-fn]
-  (g/transact (make-animation-node self (project/get-project self) select-fn default-animation)))
+  (g/transact (make-animation-node self (project/get-project self) select-fn new-animation-defaults)))
 
 (defn add-collision-group-node!
   [self select-fn]
