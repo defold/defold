@@ -40,7 +40,7 @@
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
+           [javafx.scene.control Button Label ListView Tab TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
@@ -140,6 +140,51 @@
   (output update-available-controls g/Any :cached update-available-controls!)
   (output update-call-stack g/Any :cached update-call-stack!)
   (output execution-locations g/Any :cached produce-execution-locations))
+
+(defn- make-breakpoint-entry
+  ^Node [{:keys [proj-path row condition] :as breakpoint}
+         breakpoints-list-view
+         on-remove-fn]
+  (let [label (Label. (str proj-path ":" row (when condition (str " [" condition "]"))))
+        remove-button (Button. "×")]
+    (ui/on-action! remove-button
+      (fn [_]
+        (on-remove-fn breakpoint)
+        #_(ui/items! breakpoints-list-view (get-updated-breakpoints))))
+    (HBox. ^Node (into-array Node [label remove-button]))))
+
+(defn setup-breakpoints-list! [project breakpoints-tab breakpoints open-resource-fn]
+  (println "Hello am I getting called?")
+  (doto breakpoints-tab
+    (.setFixedCellSize 56.0)
+    ;; (ui/on-double!
+    ;;  (fn [_]
+    ;;    (when-let [breakpoint (ui/selection breakpoints-list)]
+    ;;      (let [{:keys [resource row]} breakpoint]
+    ;;        ;; TODO: Figure out how to set the cursor position
+    ;;        (open-resource-fn resource [])))))
+    (ui/items! breakpoints)
+    (ui/cell-factory!
+      (fn [breakpoint]
+        {:graphic (make-breakpoint-entry
+                   breakpoint
+                   breakpoints
+                   (fn [bp] (println "Remove:" bp)))}))))
+
+(g/defnk produce-breakpoint-ui-items [project breakpoints-tab breakpoints open-resource-fn]
+  (setup-breakpoints-list! project breakpoints-tab breakpoints open-resource-fn))
+
+(g/defnode BreakpointsTabView
+  ;; TODO: Should we inherit something?
+  (property breakpoints-tab ListView)
+  (property open-resource-fn g/Any)
+  (property breakpoints-data g/Any (default []))
+  (property breakpoints-list g/Any (default []))
+
+  (input breakpoints project/Breakpoints)
+  (input project g/NodeID)
+
+  (output breakpoints-ui-data g/Any :cached produce-breakpoint-ui-items))
 
 (defn- current-stack-frame
   [debug-view]
@@ -430,6 +475,12 @@
            (run! #(remove-breakpoint! debug-session %) removed)
            (run! #(set-breakpoint! debug-session %) added)))))))
 
+(defn breakpoint->list-view [breakpoint]
+  (-> breakpoint
+      (assoc :proj-path (get-in breakpoint [:resource :project-path]))
+      (#(update % :row + 1))
+      (dissoc :resource)))
+
 (defn- make-update-timer
   [project debug-view]
   (let [state   (volatile! {})
@@ -453,10 +504,16 @@
   [app-view view-graph project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         right-pane (.lookup root "#right-pane")
+        breakpoints-tab (log/spy (.lookup root "#breakpoints-list"))
         view-id (setup-view! (g/make-node! view-graph DebugView
                                            :open-resource-fn (make-open-resource-fn project open-resource-fn)
                                            :state-changed-fn state-changed-fn)
                              app-view)
+        breakpoints-view-id (g/make-node! (g/node-id->graph-id project) BreakpointsTabView
+                                          :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                                          :breakpoints-tab breakpoints-tab)
+
+        breakpoints (map breakpoint->list-view (g/node-value project :breakpoints))
         timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane right-pane localization)
     (ui/timer-start! timer)
@@ -923,40 +980,23 @@
                {:label :separator
                 :id ::debug-end}]}])
 
-(defn- make-breakpoint-entry
-  ^Node [{:keys [proj-path row condition] :as breakpoint}
-         breakpoints-list-view
-         on-remove-fn]
-  (let [label (Label. (str proj-path ":" row (when condition (str " [" condition "]"))))
-        remove-button (Button. "×")]
-    (ui/on-action! remove-button
-      (fn [_]
-        (on-remove-fn breakpoint)
-        #_(ui/items! breakpoints-list-view (get-updated-breakpoints))))
-    (HBox. (into-array Node [label remove-button]))))
-
-(defn setup-breakpoints-list! [^ListView breakpoints-list breakpoints]
-  (doto breakpoints-list
-    (.setFixedCellSize 56.0)
-    (ui/items! breakpoints)
-    (ui/cell-factory!
-      (fn [breakpoint]
-        {:graphic (make-breakpoint-entry
-                   breakpoint
-                   breakpoints-list
-                   (fn [bp] (println "Remove:" bp)))}))))
-
-(defn breakpoint->list-view [breakpoint]
-  (-> breakpoint
-      (assoc :proj-path (get-in breakpoint [:resource :project-path]))
-      (#(update % :row + 1))
-      (dissoc :resource)))
-
-;; (defn- get-active-breakpoints []
-;;   (g/node-value (dev/project) :breakpoints))
-
 (comment
-  (def debug-view (dev/view-of-type editor.debug-view/DebugView))
+  (def debug-view (dev/view-of-type editor.debug-view/BreakpointsTabView))
+
+  (first (dev/views-of-type BreakpointsTabView))
+  (g/targets-of (dev/project) :breakpoints)
+  (g/sources-of (dev/project) :breakpoints)
+
+  (g/transact
+   (g/connect (dev/project) :breakpoints breakpoints-view-node :breakpoints))
+  (g/node-value breakpoints-view-node :breakpoints)
+  (g/node-value breakpoints-view-node :breakpoints)
+  (g/transact
+   (g/set-property breakpoints-view-node :breakpoints-data [1 2 3]))
+
+  (def breakpoints-view-node
+    (g/make-node! (g/node-id->graph-id (dev/project))
+                  BreakpointsTabView))
 
   (ui/run-now
     (let [new-content (ui/load-fxml "breakpoints-view.fxml")
@@ -969,5 +1009,5 @@
     (let [list-view (.lookup @editor.boot-open-project/the-root "#breakpoints-list")
           breakpoints (map breakpoint->list-view (g/node-value (dev/project) :breakpoints))
           list (.getItems list-view)]
-      (setup-breakpoints-list! list-view breakpoints)))
+      (setup-breakpoints-list! (dev/project) list-view breakpoints nil)))
   ,)
