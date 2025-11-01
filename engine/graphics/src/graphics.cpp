@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
+#include <dlib/image.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -957,6 +958,35 @@ namespace dmGraphics
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
     {
         return GetSupportedCompressionFormatForType(context, format, width, height, TEXTURE_TYPE_2D);
+    }
+
+    bool GetAstcTextureFormat(const void* mem, uint32_t memsize, dmGraphics::TextureFormat* out)
+    {
+        uint32_t width, height, depth;
+        if (!dmImage::GetAstcBlockSize(mem, memsize, &width, &height, &depth))
+            return false;
+
+#define CASE_ASTC(_WIDTH, _HEIGHT) if (width == (_WIDTH) && height == (_HEIGHT)) { *out = dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_ ## _WIDTH ## X ## _HEIGHT ; return true; }
+
+        CASE_ASTC(4, 4);
+        CASE_ASTC(5, 4);
+        CASE_ASTC(5, 5);
+        CASE_ASTC(6, 5);
+        CASE_ASTC(6, 6);
+        CASE_ASTC(8, 5);
+        CASE_ASTC(8, 6);
+        CASE_ASTC(8, 8);
+        CASE_ASTC(10, 5);
+        CASE_ASTC(10, 6);
+        CASE_ASTC(10, 8);
+        CASE_ASTC(10, 10);
+        CASE_ASTC(12, 10);
+        CASE_ASTC(12, 12);
+
+#undef CASE_ASTC
+
+        dmLogError("Astc block size currently unsupported: %u x %u", width, height);
+        return false;
     }
 
     void SetPipelineStateValue(dmGraphics::PipelineState& pipeline_state, State state, uint8_t value)

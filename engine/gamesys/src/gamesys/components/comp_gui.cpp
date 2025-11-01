@@ -2418,35 +2418,6 @@ namespace dmGameSystem
         return dmHashString64(buffer);
     }
 
-    // TODO: Could well be moved to dmGraphics
-    bool GetAstcFormat(const void* mem, uint32_t memsize, dmGraphics::TextureFormat* out)
-    {
-        uint32_t width, height, depth;
-        dmImage::GetAstcBlockSize(mem, memsize, &width, &height, &depth);
-
-#define CASE_ASTC(_WIDTH, _HEIGHT) if (width == (_WIDTH) && height == (_HEIGHT)) { *out = dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_ ## _WIDTH ## X ## _HEIGHT ; return true; }
-
-        CASE_ASTC(4, 4);
-        CASE_ASTC(5, 4);
-        CASE_ASTC(5, 5);
-        CASE_ASTC(6, 5);
-        CASE_ASTC(6, 6);
-        CASE_ASTC(8, 5);
-        CASE_ASTC(8, 6);
-        CASE_ASTC(8, 8);
-        CASE_ASTC(10, 5);
-        CASE_ASTC(10, 6);
-        CASE_ASTC(10, 8);
-        CASE_ASTC(10, 10);
-        CASE_ASTC(12, 10);
-        CASE_ASTC(12, 12);
-
-#undef CASE_ASTC
-
-        dmLogError("Astc block size currently unsupported: %u x %u", width, height);
-        return false;
-    }
-
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height,
                                                             dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
@@ -2460,7 +2431,7 @@ namespace dmGameSystem
         if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
         {
             texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
-            if (!GetAstcFormat(data, data_size, &texture_format))
+            if (!GetAstcTextureFormat(data, data_size, &texture_format))
             {
                 dmLogError("Failed to create texture resource %s", resource_path);
                 return 0;
@@ -2526,7 +2497,7 @@ namespace dmGameSystem
         if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
         {
             texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
-            if (!GetAstcFormat(buffer, buffer_size, &texture_format))
+            if (!GetAstcTextureFormat(buffer, buffer_size, &texture_format))
             {
                 dmLogError("Failed to create texture resource %s", resource_path);
                 return;
