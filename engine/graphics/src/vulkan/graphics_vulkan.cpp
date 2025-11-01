@@ -4175,10 +4175,7 @@ bail:
             texture->m_DataSize = tex_data_size;
         }
 
-        if (temp_data)
-        {
-            delete[] temp_data;
-        }
+        delete[] temp_data;
     }
 
     void VulkanDestroyResources(HContext _context)
@@ -4279,9 +4276,7 @@ bail:
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
-            uint16_t tex_depth = dmMath::Max((uint16_t) 1, dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth));
-            uint8_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
-            uint32_t tex_data_size_bpp= tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+            uint16_t tex_depth        = dmMath::Max((uint16_t) 1, dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth));
             TextureFormat format_orig = ap.m_Params.m_Format;
             void*  tex_data_ptr       = (void*) ap.m_Params.m_Data;
             uint8_t* temp_data        = 0;
@@ -4289,22 +4284,20 @@ bail:
 
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(ap.m_Params.m_Format))
+            {
                 tex_data_size = ap.m_Params.m_DataSize;
+            }
             else
+            {
+                uint32_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
+                uint32_t tex_data_size_bpp = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
                 tex_data_size = (uint32_t) ceil((float) tex_data_size_bpp / 8.0f);
+            }
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
             if (!is_memoryless)
             {
-                TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
-
-                VkResult res = CreateDeviceBuffer(
-                    context->m_PhysicalDevice.m_Device,
-                    context->m_LogicalDevice.m_Device, tex_data_size,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-                CHECK_VK_ERROR(res);
-
                 // Note: There's no RGB support in Vulkan. We have to expand this to four channels
                 // TODO: Can we use R11G11B10 somehow?
                 if (format_orig == TEXTURE_FORMAT_RGB)
@@ -4314,14 +4307,17 @@ bail:
 
                     RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
                     tex_data_ptr  = temp_data;
-                    tex_bpp       = 32;
+                    uint32_t tex_bpp       = 32;
                     tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
                 }
 
-                if (IsTextureFormatASTC(ap.m_Params.m_Format))
-                    tex_data_size = ap.m_Params.m_DataSize;
-                else
-                    tex_data_size = (uint32_t) ceil((float) tex_data_size_bpp / 8.0f);
+                TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
+
+                VkResult res = CreateDeviceBuffer(
+                    context->m_PhysicalDevice.m_Device,
+                    context->m_LogicalDevice.m_Device, tex_data_size,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+                CHECK_VK_ERROR(res);
 
                 CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
 
@@ -4345,10 +4341,7 @@ bail:
                 vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
             }
 
-            if (temp_data)
-            {
-                delete[] temp_data;
-            }
+            delete[] temp_data;
         }
 
         int32_t data_state = dmAtomicGet32(&tex->m_DataState);
