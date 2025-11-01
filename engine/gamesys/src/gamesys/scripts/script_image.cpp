@@ -331,31 +331,24 @@ namespace dmGameSystem
     }
 
 
-    /*# load image from buffer
-    * Load image (PNG or JPEG) from buffer.
+    /*# get the header of an .astc buffer
+    * get the header of an .astc buffer
     *
-    * @name image.load
-    * @param buffer [type:string] image data buffer
-    * @param [options] [type:table] An optional table containing parameters for loading the image. Supported entries:
+    * @name image.get_astc_header
+    * @param buffer [type:string] .astc file data buffer
     *
-    * `premultiply_alpha`
-    * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
-    *
-    * `flip_vertically`
-    * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
-    *
-    * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
+    * @return table [type:table|nil] header or `nil` if buffer is not a valid .astc. The header has these fields:
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height
     * - [type:number] `depth`: image depth
-    * - [type:number] `blocksize_x`: block size x
-    * - [type:number] `blocksize_y`: block size y
-    * - [type:number] `blocksize_z`: block size z
+    * - [type:number] `block_size_x`: block size x
+    * - [type:number] `block_size_y`: block size y
+    * - [type:number] `block_size_z`: block size z
     *
     * @examples
     *
-    * How to load an image from an URL and create a GUI texture from it:
+    * How to get the block size and dimensions from a .astc file
     *
     * ```lua
     * local s = sys.load_resource("/assets/cat.astc")
