@@ -52,7 +52,6 @@ def build(bld):
     remove_flags['CXXFLAGS'].append(('/O2', 1))
     remove_flags['CXXFLAGS'].append(('/O1', 1))
     remove_flags['CXXFLAGS'].append(('/Od', 1))
-    remove_flags['CXXFLAGS'].append(('-std=c++11', 0))
 
     OPT = '/O2' if TargetOS.WINDOWS == target_os else '-O3'
 
