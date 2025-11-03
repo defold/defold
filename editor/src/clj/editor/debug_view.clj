@@ -13,7 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debug-view
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as mutator]
+            [cljfx.prop :as prop]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -24,6 +33,8 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.lua :as lua]
@@ -40,7 +51,7 @@
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button CheckBox Label ListView Tab TextField TreeItem TreeView]
+           [javafx.scene.control Button CheckBox Label ListView TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
@@ -141,64 +152,78 @@
   (output update-call-stack g/Any :cached update-call-stack!)
   (output execution-locations g/Any :cached produce-execution-locations))
 
-(defn- make-breakpoint-entry
-  ^Node [{{proj-path :project-path}  :resource :keys [row condition active] :as breakpoint}
-         breakpoints-list-view
-         on-remove-fn]
-  (let [checkbox (CheckBox. (str proj-path ":" row (when condition (str " [" condition "]"))))
-        remove-button (Button. "×")]
-    (.setSelected checkbox active)
-    (ui/on-action! checkbox
-      (fn [cbox]
-        (g/with-auto-evaluation-context ec
-          (let [breakpoint (first (g/node-value current-breakpoints-tab :breakpoints))
-                script-node (project/get-resource-node (dev/project)
-                                                       (:resource breakpoint))
-                current-regions (g/node-value script-node :regions ec)
-                lines (g/node-value script-node :lines ec)
-                updated (update breakpoint :active not)
-                b-region (data/breakpoint lines row)
-                b-region' (merge b-region (select-keys updated [:active :condition]))
-                result (data/ensure-breakpoint lines current-regions b-region')]
-            (g/set-property! script-node :regions (:regions result))))))
-    (ui/on-action! remove-button
-      (fn [_]
-        (let [breakpoint (first (g/node-value current-breakpoints-tab :breakpoints))
-                script-node (project/get-resource-node (dev/project)
-                                                       (:resource breakpoint))
-                lines (g/node-value script-node :lines)
-                current-regions (g/node-value script-node :regions)
-              result (data/toggle-breakpoint lines current-regions #{row})]
-          (g/set-property! script-node :regions (:regions result)))))
-    (HBox. ^Node (into-array Node [checkbox remove-button]))))
+(defn- breakpoint-cell-view [breakpoint]
+  (let [{:keys [resource row condition active]} breakpoint
+        proj-path [:project-path resource]
+        label-text (str proj-path ":" row (when condition (str " [" condition "]")))]
+    {:graphic
+     {:fx/type fx.h-box/lifecycle
+      :alignment :center-left
+      :spacing 8
+      :children [{:fx/type fx.check-box/lifecycle
+                  :h-box/hgrow :always
+                  :text label-text
+                  :on-selected-changed {:event-type :toggle-active
+                                        :breakpoint breakpoint}}
+                 {:fx/type fx.button/lifecycle
+                  :text "×"
+                  :on-action {:event-type :remove
+                              :breakpoint breakpoint}}]}}))
 
-(defn setup-breakpoints-list! [breakpoints-tab breakpoints]
-  (doto breakpoints-tab
-    (.setFixedCellSize 56.0)
-    ;; (ui/on-double!
-    ;;  (fn [_]
-    ;;    (when-let [breakpoint (ui/selection breakpoints-list)]
-    ;;      (let [{:keys [resource row]} breakpoint]
-    ;;        ;; TODO: Figure out how to set the cursor position
-    ;;        (open-resource-fn resource [])))))
-    (ui/items! breakpoints)
-    (ui/cell-factory!
-      (fn [breakpoint]
-        {:graphic (make-breakpoint-entry
-                   breakpoint
-                   breakpoints
-                   (fn [bp] (println "Remove:" bp)))}))))
+(def ext-with-list-view-props
+  (fx/make-ext-with-props fx.list-view/props))
 
-(g/defnk produce-breakpoint-ui-items [breakpoints-tab breakpoints]
-  (setup-breakpoints-list! breakpoints-tab breakpoints))
+(defn- breakpoints-view [parent breakpoints]
+  {:fx/type ext-with-list-view-props
+   :desc {:fx/type fxui/ext-value
+          :value parent}
+   :props {:fixed-cell-size 56.0
+           :items breakpoints
+           :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                          :describe breakpoint-cell-view}}})
 
-(g/defnode BreakpointsTabView
-  ;; TODO: Should we inherit something?
-  (property breakpoints-tab ListView)
+(defn- handle-breakpoint-event! [project event]
+  (case (:event-type event)
+    :toggle-active
+    (g/with-auto-evaluation-context evaluation-context
+      (let [{:keys [breakpoint]} event
+            {:keys [resource row]} breakpoint
+            script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
+            current-regions (g/node-value script-node :regions evaluation-context)
+            lines (g/node-value script-node :lines evaluation-context)
+            updated (update breakpoint :active not)
+            b-region (data/breakpoint lines row)
+            b-region' (merge b-region (select-keys updated [:active :condition]))
+            result (data/ensure-breakpoint lines current-regions b-region')]
+        (g/set-property! script-node :regions (:regions result))))
+    :remove
+    (g/with-auto-evaluation-context evaluation-context
+      (let [{:keys [breakpoint]} event
+            {:keys [resource row]} breakpoint
+            script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
+            current-regions (g/node-value script-node :regions evaluation-context)
+            lines (g/node-value script-node :lines evaluation-context)
+            result (data/ensure-breakpoint lines current-regions current-regions #{row})]
+        (g/set-property! script-node :regions (:regions result))))))
 
-  (input breakpoints project/Breakpoints)
-
-  (output breakpoints-ui-data g/Any :cached produce-breakpoint-ui-items))
+(defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
+  (let [state (atom [])
+        timer (ui/->timer
+               4
+               "breakpoints-tab-update-timer"
+               (fn [timer _ _]
+                 (when-not (ui/ui-disabled?)
+                   (let [breakpoints (g/node-value project :breakpoints)]
+                     (reset! state breakpoints)))))]
+    (fx/mount-renderer
+      state
+      (fx/create-renderer
+        :error-handler println
+        :middleware (comp
+                      fxui/wrap-dedupe-desc
+                      (fx/wrap-map-desc #(breakpoints-view breakpoints-list-view %)))
+        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project %)}))
+    timer))
 
 (defn- current-stack-frame
   [debug-view]
@@ -489,12 +514,6 @@
            (run! #(remove-breakpoint! debug-session %) removed)
            (run! #(set-breakpoint! debug-session %) added)))))))
 
-(defn breakpoint->list-view [breakpoint]
-  (-> breakpoint
-      (assoc :proj-path (get-in breakpoint [:resource :project-path]))
-      (#(update % :row + 1))
-      (dissoc :resource)))
-
 (defn- make-update-timer
   [project debug-view]
   (let [state   (volatile! {})
@@ -507,14 +526,6 @@
                         (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
                         (vreset! state {:breakpoints breakpoints})))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
-
-(defn- make-update-timer
-  [project breakpoints-tab-list-view]
-  (ui/->timer 4 "breakpoints-tab-update-timer"
-              (fn [timer _ _]
-                (when-not (ui/ui-disabled?)
-                  (let [breakpoints (set (g/node-value project :breakpoints))]
-                    (setup-breakpoints-list! breakpoints-tab-list-view breakpoints))))))
 
 (defn- setup-view! [debug-view app-view]
   (g/transact
@@ -531,17 +542,13 @@
                                            :open-resource-fn (make-open-resource-fn project open-resource-fn)
                                            :state-changed-fn state-changed-fn)
                              app-view)
-        breakpoints-view-id (g/make-node! (g/node-id->graph-id project) BreakpointsTabView
-                                          :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                          :breakpoints-tab breakpoints-tab)
-
-        breakpoints (map breakpoint->list-view (g/node-value project :breakpoints))
+        breakpoints-timer (create-breakpoint-tab-renderer project breakpoints-tab)
+                            ;; :open-resource-fn (make-open-resource-fn project open-resource-fn)
         timer (make-update-timer project view-id)
-        breapoints-timer (make-update-timer project breakpoints-tab)]
-    (g/transact
-     (g/connect project :breakpoints breakpoints-view-id :breakpoints))
+        #_#_breapoints-timer (make-update-timer-breakpoints project breakpoints-tab)]
     (setup-controls! view-id console-grid-pane right-pane localization)
     (ui/timer-start! timer)
+    (ui/timer-start! breakpoints-timer)
     view-id))
 
 (defn- state-changed! [debug-view attention?]
@@ -1013,44 +1020,9 @@
               node-id))
           (g/node-ids (g/graph (g/node-id->graph-id (dev/project))))))
 
-  (let [node-id (project/get-resource-node (dev/project) (:resource (first (g/node-value current-breakpoints-tab :breakpoints))))]
-    (g/set-property! node-id :regions))
-
-  (def current-breakpoints-tab (first (get-breakpoints-tab-node editor.debug-view/BreakpointsTabView)))
+  (let [timer (create-breakpoint-tab-renderer (dev/project) (.lookup @editor.boot-open-project/the-root "#breakpoints-list"))]
+    (ui/timer-start! timer))
 
   (g/targets-of (dev/project) :breakpoints)
   (g/sources-of (dev/project) :breakpoints)
-
-  (g/transact
-   (g/connect (dev/project) :breakpoints current-breakpoints-tab :breakpoints))
-  (g/node-value current-breakpoints-tab :breakpoints-ui-data)
-  (:resource (first (g/node-value current-breakpoints-tab :breakpoints)))
-  (g/node-value current-breakpoints-tab :breakpoints-tab)
-  (g/transact
-   (g/set-property breakpoints-view-node :breakpoints-data [1 2 3]))
-  (g/transact
-   (g/set-property breakpoints-view-node :breakpoints-tab (.lookup @editor.boot-open-project/the-root "#breakpoints-list")))
-  (g/transact
-   (g/set-property breakpoints-view-node :project (dev/project)))
-
-
-  (def breakpoints-view-node
-    (g/make-node! (g/node-id->graph-id (dev/project))
-                  BreakpointsTabView))
-  (g/transact
-   (g/connect (dev/project) :breakpoints breakpoints-view-node :breakpoints))
-  (g/transact
-   (g/set-property breakpoints-view-node :breakpoints-tab (.lookup @editor.boot-open-project/the-root "#breakpoints-list")))
-
-  (ui/run-now
-    (let [new-content (ui/load-fxml "breakpoints-view.fxml")
-          breakpoints-tab (->> (.lookup @editor.boot-open-project/the-root "#tool-tabs")
-                               .getTabs
-                               (filter #(= "breakpoints-tab" (.getId %)))
-                               first)]
-      (.setContent breakpoints-tab new-content)))
-  (ui/run-now
-    (let [list-view (g/node-value breakpoints-view-node :breakpoints-tab)
-          breakpoints (g/node-value breakpoints-view-node :breakpoints)]
-      (setup-breakpoints-list! list-view breakpoints)))
   ,)
