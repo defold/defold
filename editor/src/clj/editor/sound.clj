@@ -235,7 +235,7 @@
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Sound")
+      :label (localization/message "resource.type.sound"))
     (for [format supported-audio-formats]
       (workspace/register-resource-type workspace
         :ext format

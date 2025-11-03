@@ -132,4 +132,4 @@
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}
-    :label "Collection Proxy"))
+    :label (localization/message "resource.type.collectionproxy")))

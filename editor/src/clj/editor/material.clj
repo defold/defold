@@ -22,6 +22,7 @@
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.localization :as localization]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
@@ -644,7 +645,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "material"
-    :label "Material"
+    :label (localization/message "resource.type.material")
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
     :load-fn load-material
