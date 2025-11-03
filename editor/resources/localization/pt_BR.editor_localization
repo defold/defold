@@ -78,7 +78,7 @@ welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuld
 # Welcome -> New Project -> From Sample
 welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
 welcome.new-project.linker-sample-game.description = Este é um jogo de exemplo completo onde você clica e arraste para ligar peixes da mesma cor para removê-los do tabuleiro. Grandes correntes de peixes geram bônus.
-welcome.new-project.roids-sample-game.title = 
+welcome.new-project.roids-sample-game.title = Jogo de Exemplo Roids
 welcome.new-project.roids-sample-game.description = Este é um jogo de exemplo completo onde você dirige um navio espacial e avance através de uma tempestade de meteoros.
 welcome.new-project.pixel-line-platformer.title = Plataforma Pixel em Linha
 welcome.new-project.pixel-line-platformer.description = Este é um jogo de plataforma completo com um estilo de arte de pixel moderno criado por Kenney.
