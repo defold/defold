@@ -14,13 +14,17 @@
 
 (ns editor.debug-view
   (:require [cljfx.api :as fx]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.fx.menu-item :as fx.menu-item]
+            [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
@@ -171,12 +175,28 @@
                    {:fx/type fx.button/lifecycle
                     :text "×"
                     :on-action {:event-type :remove
-                                :breakpoint breakpoint}}]}})))
+                                :breakpoint breakpoint}}]}
+       :context-menu {:fx/type fx.context-menu/lifecycle
+                      ;; :on-hidden {:event-type :context-menu-hidden}
+                      :consume-auto-hiding-events false
+                      :items [{:fx/type fx.menu-item/lifecycle
+                               :text "Enable Selected"
+                               :on-action {:event-type :enable-selected}}
+                              {:fx/type fx.menu-item/lifecycle
+                               :text "Disable Selected"
+                               :on-action {:event-type :disable-selected}}
+                              {:fx/type fx.menu-item/lifecycle
+                               :text "Toggle Selected"
+                               :on-action {:event-type :toggle-selected}}
+                              {:fx/type fx.separator-menu-item/lifecycle}
+                              {:fx/type fx.menu-item/lifecycle
+                               :text "Remove Selected"
+                               :on-action {:event-type :remove-selected}}]} })))
 
 (def ext-with-anchor-pane-props
   (fx/make-ext-with-props fx.anchor-pane/props))
 
-(defn- breakpoints-view [parent breakpoints]
+(defn- breakpoints-view [parent breakpoints selected-breakpoints]
   {:fx/type ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
           :value parent}
@@ -203,20 +223,25 @@
                                    :id "breakpoints-remove-all"
                                    :text "Remove All"
                                    :on-action {:event-type :remove-all}}]}
-                      {:fx/type fx.list-view/lifecycle
-                       :id "breakpoints-list-view"
+                      {:fx/type fx.ext.list-view/with-selection-props
                        :anchor-pane/top 57
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
                        :anchor-pane/left 0
-                       :fixed-cell-size 60.0
-                       :items breakpoints
-                       :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                      :describe breakpoint-cell-view}}]}})
+                       :props {:selection-mode :multiple
+                               :on-selected-items-changed {:event-type :selected-items-changed}}
+                       :desc
+                       {:fx/type fx.list-view/lifecycle
+                        :id "breakpoints-list-view"
+                        :fixed-cell-size 60.0
+                        :items breakpoints
+                        :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                       :describe breakpoint-cell-view}}}]}})
 
-(defn- handle-breakpoint-event! [project event]
+(defn- handle-breakpoint-event! [project state event]
   (g/with-auto-evaluation-context evaluation-context
-    (if (contains? event :breakpoint)
+    (cond
+      (contains? event :breakpoint)
       (let [{:keys [breakpoint]} event
             {:keys [resource row]} breakpoint
             script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
@@ -229,43 +254,51 @@
           :remove
           (let [new-regions (code-data/toggle-breakpoint lines current-regions #{row})]
             (g/set-property! script-node :regions (:regions new-regions)))))
-      (let [breakpoints-action (fn [action-fn]
+
+      (= (:event-type event) :selected-items-changed)
+      (swap! state assoc :selected (:fx/event event))
+
+      :else
+      (let [[action scope] (string/split (name (:event-type event)) #"-")
+            breakpoints (case scope
+                          "all" (g/node-value project :breakpoints evaluation-context)
+                          "selected" (:selected @state))
+            breakpoints-action (fn [action-fn]
                                  (g/transact
-                                  (let [breakpoints (g/node-value project :breakpoints evaluation-context)]
-                                    (apply concat
-                                           (for [script-node (map #(project/get-resource-node project (:resource %) evaluation-context) breakpoints)
-                                                 :let [lines (g/node-value script-node :lines evaluation-context)
-                                                       regions (g/node-value script-node :regions evaluation-context)
-                                                       rows (set (map code-data/breakpoint-row regions))
-                                                       result (action-fn lines regions rows)]]
-                                             (g/set-property script-node :regions (:regions result)))))))]
-        (case (:event-type event)
-          :remove-all
-          (breakpoints-action code-data/toggle-breakpoint)
-          :toggle-all
-          (breakpoints-action code-data/toggle-breakpoint-active)
-          :enable-all
-          (breakpoints-action #(code-data/update-breakpoint-state %1 %2 %3 true))
-          :disable-all
-          (breakpoints-action #(code-data/update-breakpoint-state %1 %2 %3 false)))))))
+                                   (apply
+                                     concat
+                                     (for [script-node (map #(project/get-resource-node project (:resource %) evaluation-context)
+                                                            breakpoints)
+                                           :let [lines (g/node-value script-node :lines evaluation-context)
+                                                 regions (g/node-value script-node :regions evaluation-context)
+                                                 rows (set (map code-data/breakpoint-row regions))
+                                                 result (action-fn lines regions rows)]]
+                                       (g/set-property script-node :regions (:regions result))))))]
+        (case action
+          "remove" (breakpoints-action code-data/toggle-breakpoint)
+          "toggle" (breakpoints-action code-data/toggle-breakpoint-active)
+          "enable" (breakpoints-action #(code-data/update-breakpoint-state %1 %2 %3 true))
+          "disable" (breakpoints-action #(code-data/update-breakpoint-state %1 %2 %3 false)))))))
 
 (defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
-  (let [state (atom [])
+  (let [state (atom {:breakpoints [] :selected []})
         timer (ui/->timer
                4
                "breakpoints-tab-update-timer"
                (fn [timer _ _]
                  (when-not (ui/ui-disabled?)
                    (let [breakpoints (g/node-value project :breakpoints)]
-                     (reset! state breakpoints)))))]
+                     (swap! state assoc :breakpoints breakpoints)))))]
     (fx/mount-renderer
       state
       (fx/create-renderer
-        :error-handler println
+        :error-handler error-reporting/report-exception!
         :middleware (comp
                       fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(breakpoints-view breakpoints-list-view %)))
-        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project %)}))
+                      (fx/wrap-map-desc #(breakpoints-view breakpoints-list-view
+                                                           (:breakpoints %)
+                                                           (:selected- %))))
+        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project state %)}))
     timer))
 
 (defn- current-stack-frame
@@ -532,7 +565,7 @@
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
         (when resource
-          (open-resource-fn resource {:cursor-range (data/line-number->CursorRange line)})))
+          (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)})))
       nil)))
 
 (defn- set-breakpoint!
