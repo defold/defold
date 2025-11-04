@@ -195,20 +195,24 @@
                                    :id "breakpoints-disable-all"
                                    :text "Disable All"
                                    :on-action {:event-type :disable-all}}
-                                   {:fx/type fx.button/lifecycle
+                                  {:fx/type fx.button/lifecycle
                                    :id "breakpoints-toggle-all"
                                    :text "Toggle All"
-                                   :on-action {:event-type :toggle-all}}]}
-                       {:fx/type fx.list-view/lifecycle
+                                   :on-action {:event-type :toggle-all}}
+                                  {:fx/type fx.button/lifecycle
+                                   :id "breakpoints-remove-all"
+                                   :text "Remove All"
+                                   :on-action {:event-type :remove-all}}]}
+                      {:fx/type fx.list-view/lifecycle
                        :id "breakpoints-list-view"
                        :anchor-pane/top 57
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
                        :anchor-pane/left 0
-                        :fixed-cell-size 60.0
-                        :items breakpoints
-                        :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                       :describe breakpoint-cell-view}}]}})
+                       :fixed-cell-size 60.0
+                       :items breakpoints
+                       :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                      :describe breakpoint-cell-view}}]}})
 
 (defn- handle-breakpoint-event! [project event]
   (g/with-auto-evaluation-context evaluation-context
@@ -226,14 +230,18 @@
           (let [new-regions (code-data/toggle-breakpoint lines current-regions #{row})]
             (g/set-property! script-node :regions (:regions new-regions)))))
       (let [breakpoints-action (fn [action-fn]
-                                 (let [breakpoints (g/node-value project :breakpoints evaluation-context)]
-                                   (doseq [script-node (map #(project/get-resource-node project (:resource %) evaluation-context) breakpoints)
-                                           :let [lines (g/node-value script-node :lines evaluation-context)
-                                                 regions (g/node-value script-node :regions evaluation-context)
-                                                 rows (set (map code-data/breakpoint-row regions))
-                                                 result (action-fn lines regions rows)]]
-                                     (g/set-property! script-node :regions (:regions result)))))]
+                                 (g/transact
+                                  (let [breakpoints (g/node-value project :breakpoints evaluation-context)]
+                                    (apply concat
+                                           (for [script-node (map #(project/get-resource-node project (:resource %) evaluation-context) breakpoints)
+                                                 :let [lines (g/node-value script-node :lines evaluation-context)
+                                                       regions (g/node-value script-node :regions evaluation-context)
+                                                       rows (set (map code-data/breakpoint-row regions))
+                                                       result (action-fn lines regions rows)]]
+                                             (g/set-property script-node :regions (:regions result)))))))]
         (case (:event-type event)
+          :remove-all
+          (breakpoints-action code-data/toggle-breakpoint)
           :toggle-all
           (breakpoints-action code-data/toggle-breakpoint-active)
           :enable-all
