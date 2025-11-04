@@ -21,7 +21,7 @@
 
 namespace dmGameSystem
 {
-    // Creates a texture image in DDF format which
+    // Creates a texture image in DDF format which can be serialized into a protobuf message
     void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image)
     {
         uint32_t* mip_map_data_size          = new uint32_t[params.m_MaxMipMaps];
@@ -34,6 +34,10 @@ namespace dmGameSystem
 
         if (params.m_CompressionType == dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC)
         {
+            if (params.m_MaxMipMaps > 1)
+            {
+                dmLogWarning("%s: Currently only support 1 mipmap for compressed textures", __FUNCTION__);
+            }
             mip_map_offsets[0]      = 0;
             mip_map_data_size[0]    = params.m_DataSize;
             mip_map_dimensions[0]   = params.m_Width;

@@ -633,7 +633,11 @@ namespace dmGui
         }
         else if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
         {
-            flip = false; // Cannot flip a preencoded astc image
+            if (flip) // Cannot flip a compressed textures
+            {
+                dmLogWarning("Flipping a compressed texture is not supported! '%s'", dmHashReverseSafe64(path_hash));
+            }
+            flip = false;
 
             uint32_t depth;
             if (!dmImage::GetAstcDimensions(buffer, buffer_size, &width, &height, &depth))
