@@ -856,13 +856,13 @@ code.replace.all = Заменить все
 
 # About dialog
 
-dialog.about.label.version = Версия:
-dialog.about.label.channel = Канал:
-dialog.about.label.build-time = Время сборки:
-dialog.about.label.editor-sha1 = SHA1 редактора:
-dialog.about.label.engine-sha1 = SHA1 движка:
+dialog.about.label.version = Версия\:
+dialog.about.label.channel = Канал\:
+dialog.about.label.build-time = Время сборки\:
+dialog.about.label.editor-sha1 = SHA1 редактора\:
+dialog.about.label.engine-sha1 = SHA1 движка\:
 dialog.about.value.unavailable = Нет данных
-dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.copyright = Copyright ©️ 2009-2025
 dialog.about.footer.foundation = Фонд Defold
 dialog.about.sponsor = Фонд разработки Defold
 

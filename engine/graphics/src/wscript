@@ -94,7 +94,7 @@ def build(bld):
                         source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_webgpu_wagyu')
 
-        wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
+        wagyu_port = '%s/ext/wagyu-port/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
         obj.env.append_value('CXXFLAGS', ['--use-port=%s' % wagyu_port])
 
     bld.add_group()

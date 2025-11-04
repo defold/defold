@@ -322,6 +322,7 @@ dialog.lua-transpilers-error.generic.header = Lua 转译器加载失败
 
 # Diff view dialogs
 
+dialog.diff-view.title = 差异对比
 dialog.diff-view.unchanged.title = 文件未更改
 dialog.diff-view.unchanged.header = 文件未更改
 dialog.diff-view.binary.title = 无法比较二进制文件
@@ -804,7 +805,7 @@ command.scene.set-camera-type = 设置相机类型
 command.scene.set-camera-type.option.orthographic = 正交相机
 command.scene.set-camera-type.option.perspective = 透视相机
 command.scene.set-gui-layout = 设置 GUI 布局
-command.scene.toggle-move-whole-pixels = 整像素移动
+command.scene.toggle-move-whole-pixels = 移动整体像素
 command.scene.visibility.toggle-filters = 切换可见性过滤器
 command.scene.visibility.toggle-component-guides = 切换组件向导
 command.scene.visibility.toggle-grid = 切换网格
@@ -842,6 +843,28 @@ command.help.open-donations = 发展基金
 command.app.about = 关于
 command.vcs.diff = 查看差异
 command.vcs.revert = 还原
+
+# Code editor – find bar
+
+code.find.word = 全词匹配
+code.find.case = 区分大小
+code.find.wrap = 循环查找
+code.find.prev = 查找上一个
+code.find.next = 查找下一个
+code.replace.next = 替换下一个
+code.replace.all = 替换全部
+
+# About dialog
+
+dialog.about.label.version = 版本：
+dialog.about.label.channel = 渠道：
+dialog.about.label.build-time = 构建时间：
+dialog.about.label.editor-sha1 = 编辑器 SHA1：
+dialog.about.label.engine-sha1 = 引擎 SHA1：
+dialog.about.value.unavailable = 不可用
+dialog.about.footer.copyright = 版权所有 © 2009-2025
+dialog.about.footer.foundation = Defold 基金会
+dialog.about.sponsor = Defold 基金会 开发基金
 
 # Overrides
 
@@ -1220,3 +1243,8 @@ resource.readonly.button.read-more = 阅读更多…
 
 # Quick Help
 
+quick-help.open-asset = 打开资产
+quick-help.reopen-closed-file = 重新打开已关闭的文件
+quick-help.search-in-files = 在文件中搜素
+quick-help.build-and-run-project = 构建并运行项目
+quick-help.start-or-attach-debugger = 启动或附加调试器
