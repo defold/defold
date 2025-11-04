@@ -1241,6 +1241,7 @@ resource.view.text = Texto
 resource.readonly.detail = Este arquivo é parte de uma biblioteca e não pode ser salvo.
 resource.readonly.button.read-more = Ler mais…
 
+
 # Quick Help
 
 quick-help.open-asset = Abrir Conteúdo
