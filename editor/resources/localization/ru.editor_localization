@@ -1241,6 +1241,7 @@ resource.view.text = Текст
 resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
 resource.readonly.button.read-more = Подробнее…
 
+
 # Quick Help
 
 quick-help.open-asset = Открыть ресурс
