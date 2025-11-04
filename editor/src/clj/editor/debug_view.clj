@@ -212,21 +212,32 @@
 
 (defn- handle-breakpoint-event! [project event]
   (g/with-auto-evaluation-context evaluation-context
-    (let [{:keys [breakpoint]} event
-          {:keys [resource row]} breakpoint
-          script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
-          lines (g/node-value script-node :lines evaluation-context)
-          current-regions (g/node-value script-node :regions evaluation-context)]
+    (if (contains? event :breakpoint)
+      (let [{:keys [breakpoint]} event
+            {:keys [resource row]} breakpoint
+            script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
+            lines (g/node-value script-node :lines evaluation-context)
+            current-regions (g/node-value script-node :regions evaluation-context)]
+        (case (:event-type event)
+          :toggle-active
+          (let [result (code-data/toggle-breakpoint-active lines current-regions #{row})]
+            (g/set-property! script-node :regions (:regions result)))
+          :remove
+          (let [new-regions (code-data/toggle-breakpoint lines current-regions #{row})]
+            (g/set-property! script-node :regions (:regions new-regions)))))
       (case (:event-type event)
-        :toggle-active
-        (let [updated (update breakpoint :active not)
-              b-region (code-data/breakpoint lines row)
-              b-region' (merge b-region (select-keys updated [:active :condition]))
-              result (code-data/ensure-breakpoint lines current-regions b-region')]
-          (g/set-property! script-node :regions (:regions result)))
-        :remove
-        (let [new-regions (code-data/toggle-breakpoint lines current-regions #{row})]
-          (g/set-property! script-node :regions (:regions new-regions)))))))
+        :toggle-all
+        (let [breakpoints (g/node-value project :breakpoints evaluation-context)]
+          (doseq [script-node (map #(project/get-resource-node project (:resource %) evaluation-context) breakpoints)
+                  :let [lines (g/node-value script-node :lines evaluation-context)
+                        regions (g/node-value script-node :regions evaluation-context)
+                        rows (set (map code-data/breakpoint-row regions))
+                        result (code-data/toggle-breakpoint-active lines regions rows)]]
+            (g/set-property! script-node :regions (:regions result))))
+        :enable-all
+        ()
+        :disable-all
+        ()))))
 
 (defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
   (let [state (atom [])

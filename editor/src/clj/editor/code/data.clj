@@ -2548,6 +2548,14 @@
                                         (map (partial breakpoint lines) added-rows))))]
         {:regions regions'}))))
 
+(defn toggle-breakpoint-active [lines regions rows]
+  {:regions (mapv (fn [region]
+                    (if (and (breakpoint-region? region)
+                             (contains? rows (breakpoint-row region)))
+                      (update region :active not)
+                      region))
+                  regions)})
+
 (defn- edit-breakpoint [lines regions row]
   {:edited-breakpoint (or (some (fn [region]
                                   (when (and (breakpoint-region? region)
