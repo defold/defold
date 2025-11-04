@@ -225,19 +225,21 @@
           :remove
           (let [new-regions (code-data/toggle-breakpoint lines current-regions #{row})]
             (g/set-property! script-node :regions (:regions new-regions)))))
-      (case (:event-type event)
-        :toggle-all
-        (let [breakpoints (g/node-value project :breakpoints evaluation-context)]
-          (doseq [script-node (map #(project/get-resource-node project (:resource %) evaluation-context) breakpoints)
-                  :let [lines (g/node-value script-node :lines evaluation-context)
-                        regions (g/node-value script-node :regions evaluation-context)
-                        rows (set (map code-data/breakpoint-row regions))
-                        result (code-data/toggle-breakpoint-active lines regions rows)]]
-            (g/set-property! script-node :regions (:regions result))))
-        :enable-all
-        ()
-        :disable-all
-        ()))))
+      (let [breakpoints-action (fn [action-fn]
+                                 (let [breakpoints (g/node-value project :breakpoints evaluation-context)]
+                                   (doseq [script-node (map #(project/get-resource-node project (:resource %) evaluation-context) breakpoints)
+                                           :let [lines (g/node-value script-node :lines evaluation-context)
+                                                 regions (g/node-value script-node :regions evaluation-context)
+                                                 rows (set (map code-data/breakpoint-row regions))
+                                                 result (action-fn lines regions rows)]]
+                                     (g/set-property! script-node :regions (:regions result)))))]
+        (case (:event-type event)
+          :toggle-all
+          (breakpoints-action code-data/toggle-breakpoint-active)
+          :enable-all
+          (breakpoints-action #(code-data/update-breakpoint-state %1 %2 %3 true))
+          :disable-all
+          (breakpoints-action #(code-data/update-breakpoint-state %1 %2 %3 false)))))))
 
 (defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
   (let [state (atom [])
@@ -1052,6 +1054,12 @@
             (when (g/node-instance? node-type node-id)
               node-id))
           (g/node-ids (g/graph (g/node-id->graph-id (dev/project))))))
+
+  (defn get-all-script-nodes [project node-type]
+    (keep (fn [node-id]
+            (when (g/node-instance? node-type node-id)
+              (g/node-by-id node-id)))
+          (g/node-ids (g/graph (g/node-id->graph-id project)))))
 
   (let [timer (create-breakpoint-tab-renderer (dev/project) (.lookup @editor.boot-open-project/the-root "#breakpoints-container"))]
     (ui/timer-start! timer))
