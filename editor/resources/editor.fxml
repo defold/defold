@@ -121,7 +121,7 @@
                                     </Tab>
                                     <Tab id="breakpoints-tab" text="Breakpoints">
                                       <content>
-                                        <fx:include source="breakpoints-view.fxml" />
+                                        <AnchorPane id="breakpoints-container" prefHeight="180.0" prefWidth="200.0" />
                                       </content>
                                     </Tab>
                                   </tabs>

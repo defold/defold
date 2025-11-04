@@ -14,19 +14,18 @@
 
 (ns editor.debug-view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.lifecycle :as fx.lifecycle]
-            [cljfx.mutator :as mutator]
-            [cljfx.prop :as prop]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.code.data :as data]
+            [editor.code.data :as code-data]
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
@@ -153,58 +152,81 @@
   (output execution-locations g/Any :cached produce-execution-locations))
 
 (defn- breakpoint-cell-view [breakpoint]
-  (let [{:keys [resource row condition active]} breakpoint
-        proj-path [:project-path resource]
-        label-text (str proj-path ":" row (when condition (str " [" condition "]")))]
-    {:graphic
-     {:fx/type fx.h-box/lifecycle
-      :alignment :center-left
-      :spacing 8
-      :children [{:fx/type fx.check-box/lifecycle
-                  :h-box/hgrow :always
-                  :text label-text
-                  :on-selected-changed {:event-type :toggle-active
-                                        :breakpoint breakpoint}}
-                 {:fx/type fx.button/lifecycle
-                  :text "×"
-                  :on-action {:event-type :remove
-                              :breakpoint breakpoint}}]}}))
+  ;; NOTE: We're getting passed in a nil breakpoint
+  (when (some? breakpoint)
+    (let [{:keys [resource row condition active]} breakpoint
+          proj-path (:project-path resource)
+          label-text (str proj-path ":" row (when condition (str " [" condition "]")))]
+      {:graphic
+       {:fx/type fx.h-box/lifecycle
+        :alignment :center-left
+        :spacing 8
+        :max-width ##Inf
+        :children [{:fx/type fx.check-box/lifecycle
+                    :h-box/hgrow :always
+                    :text label-text
+                    :selected active
+                    :on-selected-changed {:event-type :toggle-active
+                                          :breakpoint breakpoint}}
+                   {:fx/type fx.button/lifecycle
+                    :text "×"
+                    :on-action {:event-type :remove
+                                :breakpoint breakpoint}}]}})))
 
-(def ext-with-list-view-props
-  (fx/make-ext-with-props fx.list-view/props))
+(def ext-with-anchor-pane-props
+  (fx/make-ext-with-props fx.anchor-pane/props))
 
 (defn- breakpoints-view [parent breakpoints]
-  {:fx/type ext-with-list-view-props
+  {:fx/type ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
           :value parent}
-   :props {:fixed-cell-size 56.0
-           :items breakpoints
-           :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                          :describe breakpoint-cell-view}}})
+   :props {:stylesheets [(str (io/resource "editor.css"))]
+           :children [{:fx/type fx.h-box/lifecycle
+                       :id "breakpoints-tool-bar"
+                       :anchor-pane/top 0
+                       :anchor-pane/left 0
+                       :anchor-pane/right 0
+                       :spacing 10
+                       :children [{:fx/type fx.button/lifecycle
+                                   :id "breakpoints-enable-all"
+                                   :text "Enable All"
+                                   :on-action {:event-type :enable-all}}
+                                  {:fx/type fx.button/lifecycle
+                                   :id "breakpoints-disable-all"
+                                   :text "Disable All"
+                                   :on-action {:event-type :disable-all}}
+                                   {:fx/type fx.button/lifecycle
+                                   :id "breakpoints-toggle-all"
+                                   :text "Toggle All"
+                                   :on-action {:event-type :toggle-all}}]}
+                       {:fx/type fx.list-view/lifecycle
+                       :id "breakpoints-list-view"
+                       :anchor-pane/top 57
+                       :anchor-pane/right 0
+                       :anchor-pane/bottom 0
+                       :anchor-pane/left 0
+                        :fixed-cell-size 60.0
+                        :items breakpoints
+                        :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                       :describe breakpoint-cell-view}}]}})
 
 (defn- handle-breakpoint-event! [project event]
-  (case (:event-type event)
-    :toggle-active
-    (g/with-auto-evaluation-context evaluation-context
-      (let [{:keys [breakpoint]} event
-            {:keys [resource row]} breakpoint
-            script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
-            current-regions (g/node-value script-node :regions evaluation-context)
-            lines (g/node-value script-node :lines evaluation-context)
-            updated (update breakpoint :active not)
-            b-region (data/breakpoint lines row)
-            b-region' (merge b-region (select-keys updated [:active :condition]))
-            result (data/ensure-breakpoint lines current-regions b-region')]
-        (g/set-property! script-node :regions (:regions result))))
-    :remove
-    (g/with-auto-evaluation-context evaluation-context
-      (let [{:keys [breakpoint]} event
-            {:keys [resource row]} breakpoint
-            script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
-            current-regions (g/node-value script-node :regions evaluation-context)
-            lines (g/node-value script-node :lines evaluation-context)
-            result (data/ensure-breakpoint lines current-regions current-regions #{row})]
-        (g/set-property! script-node :regions (:regions result))))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [{:keys [breakpoint]} event
+          {:keys [resource row]} breakpoint
+          script-node (project/get-resource-node project (:resource breakpoint) evaluation-context)
+          lines (g/node-value script-node :lines evaluation-context)
+          current-regions (g/node-value script-node :regions evaluation-context)]
+      (case (:event-type event)
+        :toggle-active
+        (let [updated (update breakpoint :active not)
+              b-region (code-data/breakpoint lines row)
+              b-region' (merge b-region (select-keys updated [:active :condition]))
+              result (code-data/ensure-breakpoint lines current-regions b-region')]
+          (g/set-property! script-node :regions (:regions result)))
+        :remove
+        (let [new-regions (code-data/toggle-breakpoint lines current-regions #{row})]
+          (g/set-property! script-node :regions (:regions new-regions)))))))
 
 (defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
   (let [state (atom [])
@@ -537,7 +559,7 @@
   [app-view view-graph project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         right-pane (.lookup root "#right-pane")
-        breakpoints-tab (log/spy (.lookup root "#breakpoints-list"))
+        breakpoints-tab (log/spy (.lookup root "#breakpoints-container"))
         view-id (setup-view! (g/make-node! view-graph DebugView
                                            :open-resource-fn (make-open-resource-fn project open-resource-fn)
                                            :state-changed-fn state-changed-fn)
@@ -1020,7 +1042,7 @@
               node-id))
           (g/node-ids (g/graph (g/node-id->graph-id (dev/project))))))
 
-  (let [timer (create-breakpoint-tab-renderer (dev/project) (.lookup @editor.boot-open-project/the-root "#breakpoints-list"))]
+  (let [timer (create-breakpoint-tab-renderer (dev/project) (.lookup @editor.boot-open-project/the-root "#breakpoints-container"))]
     (ui/timer-start! timer))
 
   (g/targets-of (dev/project) :breakpoints)
