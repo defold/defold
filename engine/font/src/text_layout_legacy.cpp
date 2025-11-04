@@ -188,7 +188,7 @@ static void TextLayoutLegacyFree(TextLayout* layout)
     delete layout;
 }
 
-TextResult TextLayoutCreateLegacy(HFontCollection collection,
+TextResult TextLayoutLegacyCreate(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {

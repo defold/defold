@@ -42,11 +42,11 @@ struct TextLayout
     float              m_Height;
 };
 
-TextResult TextLayoutCreateLegacy(HFontCollection collection,
+TextResult TextLayoutLegacyCreate(HFontCollection collection,
                                 uint32_t* codepoints, uint32_t num_codepoints,
                                 TextLayoutSettings* settings, HTextLayout* outlayout);
 
-TextResult TextLayoutCreateSkribidi(HFontCollection collection,
+TextResult TextLayoutSkribidiCreate(HFontCollection collection,
                                 uint32_t* codepoints, uint32_t num_codepoints,
                                 TextLayoutSettings* settings, HTextLayout* outlayout);
 

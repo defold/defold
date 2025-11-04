@@ -53,8 +53,8 @@ TextResult TextLayoutCreate(HFontCollection collection,
 #if defined(FONT_USE_SKRIBIDI)
     TextLayoutType layout_type = FontCollectionGetLayoutType(collection);
     if (layout_type == TEXT_LAYOUT_TYPE_FULL)
-        return TextLayoutCreateSkribidi(collection, codepoints, num_codepoints, settings, outlayout);
+        return TextLayoutSkribidiCreate(collection, codepoints, num_codepoints, settings, outlayout);
 #endif
-    return TextLayoutCreateLegacy(collection, codepoints, num_codepoints, settings, outlayout);
+    return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout);
 }
 
