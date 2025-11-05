@@ -183,13 +183,17 @@
   (update-breakpoints breakpoints [breakpoint] active))
 
 (defn- collect-script-nodes-from-breakpoints [project breakpoints evaluation-context]
-  (mapv #(project/get-resource-node project (:resource %) evaluation-context) breakpoints))
+  (for [[resource bps] (group-by :resource breakpoints)
+        :let [script-node (project/get-resource-node project resource evaluation-context)]]
+    {:script-node script-node :breakpoints bps}))
 
 (defn- breakpoint->script-node [project breakpoint evaluation-context]
   (project/get-resource-node project (:resource breakpoint) evaluation-context))
 
-(defn- sync-breakpoint-single-script-regions [lines regions breakpoints]
-  (let [breakpoint-map (into {} (map (juxt :row identity)) breakpoints)
+(defn update-script-regions-from-breakpoints [script-node breakpoints evaluation-context]
+  (let [lines (g/node-value script-node :lines evaluation-context)
+        regions (g/node-value script-node :regions evaluation-context)
+        breakpoint-map (into {} (map (juxt :row identity)) breakpoints)
         breakpoint-rows (set (keys breakpoint-map))
         non-bp-regions (remove code-data/breakpoint-region? regions)
         existing-bp-regions (->> regions
@@ -198,19 +202,11 @@
                                  (map (fn [region]
                                         (let [row (code-data/breakpoint-row region)
                                               breakpoint (breakpoint-map row)]
-                                          (merge region (select-keys breakpoint
-                                                                     [:active :condition]))))))
+                                          (merge region (select-keys breakpoint [:active :condition]))))))
         existing-bp-rows (into #{} (comp (filter code-data/breakpoint-region?) (map code-data/breakpoint-row)) regions)
         new-bp-rows (set/difference breakpoint-rows existing-bp-rows)
         new-bp-regions (map (partial code-data/make-breakpoint-region lines) new-bp-rows)]
     (vec (sort (concat non-bp-regions existing-bp-regions new-bp-regions)))))
-
-(defn update-script-regions-from-breakpoints [script-nodes breakpoints evaluation-context]
-  (for [script-node script-nodes
-        :let [lines (g/node-value script-node :lines evaluation-context)
-              regions (g/node-value script-node :regions evaluation-context)
-              updated-regions (sync-breakpoint-single-script-regions lines regions breakpoints)]]
-    {:script-node script-node :regions updated-regions}))
 
 (defn- breakpoint-cell-view [breakpoint]
   ;; NOTE: We're getting passed in a nil breakpoint
@@ -296,6 +292,25 @@
                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                        :describe breakpoint-cell-view}}}]}})
 
+(defn- handle-breakpoint-action [project state evaluation-context action scope action-fn]
+  (let [all-breakpoints (:breakpoints state)
+        breakpoints (if (= scope "selected")
+                      (:selected state)
+                      all-breakpoints)
+        updated-breakpoints (action-fn all-breakpoints breakpoints)
+        scripts-with-breakpoints (if (coll/not-empty updated-breakpoints)
+                                   (collect-script-nodes-from-breakpoints project updated-breakpoints evaluation-context)
+                                   (map #(assoc % :breakpoints [])
+                                        (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)))
+        scripts-with-new-regions (map (fn [{:keys [script-node breakpoints]}]
+                                        (let [new-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]
+                                          {:script script-node :regions new-regions}))
+                                      scripts-with-breakpoints)
+        txs (mapcat (fn [{:keys [script regions]}]
+                      (g/set-property script :regions regions))
+                    scripts-with-new-regions)]
+    (g/transact txs)))
+
 (defn- handle-breakpoint-event! [project state event]
   (g/with-auto-evaluation-context evaluation-context
     (cond
@@ -306,12 +321,11 @@
         (case (:event-type event)
           :toggle-active
           (let [toggled-breakpoint (toggle-breakpoint-active breakpoints-in-script breakpoint)
-                {:keys [script-node regions]}
-                (update-script-regions-from-breakpoints [script-node] toggled-breakpoint evaluation-context)]
+                regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
             (g/set-property! script-node :regions regions))
           :remove
           (let [remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)]
-            (let [{:keys [script-node regions]} (update-script-regions-from-breakpoints [script-node] remaining evaluation-context)]
+            (let [regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
               (g/set-property! script-node :regions regions)))))
 
       (= (:event-type event) :selected-items-changed)
@@ -319,23 +333,12 @@
 
       :else
       (let [[action scope] (string/split (name (:event-type event)) #"-")
-            breakpoints-action (fn [action-fn]
-                                 (let [all-breakpoints (:breakpoints @state)
-                                       breakpoints (if (= scope "selected")
-                                                     (:selected @state)
-                                                     all-breakpoints)
-                                       updated-breakpoints (action-fn all-breakpoints breakpoints)
-                                       script-nodes (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
-                                       new-script-node-regions (update-script-regions-from-breakpoints script-nodes updated-breakpoints evaluation-context)
-                                       txs (mapcat (fn [{:keys [script-node regions]}]
-                                                     (g/set-property script-node :regions regions))
-                                                   new-script-node-regions)]
-                                     (g/transact txs)))]
+            handle-fn (partial handle-breakpoint-action project @state evaluation-context action scope)]
         (case action
-          "remove" (breakpoints-action (constantly []))
-          "toggle" (breakpoints-action toggle-breakpoints-active)
-          "enable" (breakpoints-action #(update-breakpoints-active-state %1 %2 true))
-          "disable" (breakpoints-action #(update-breakpoints-active-state %1 %2 false)))))))
+          "remove" (handle-fn #(vec (remove (set %2) %1)))
+          "toggle" (handle-fn toggle-breakpoints-active)
+          "enable" (handle-fn #(update-breakpoints-active-state %1 %2 true))
+          "disable" (handle-fn #(update-breakpoints-active-state %1 %2 false)))))))
 
 (defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
   (let [state (atom {:breakpoints [] :selected []})
