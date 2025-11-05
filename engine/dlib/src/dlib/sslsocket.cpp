@@ -23,7 +23,6 @@
 
 #include <dlib/file_descriptor.h>
 
-#include <mbedtls/certs.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/debug.h>
 #include <mbedtls/entropy.h>
