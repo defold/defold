@@ -55,7 +55,7 @@
            [java.util Collection]
            [javafx.scene Parent]
            [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
-           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
@@ -213,12 +213,14 @@
   (when (some? breakpoint)
     (let [{:keys [resource row condition active]} breakpoint
           proj-path (:project-path resource)
-          label-text (str proj-path ":" row (when condition (str " [" condition "]")))]
+          label-text (str proj-path ":" (+ 1 row) (when condition (str " [" condition "]")))]
       {:graphic
        {:fx/type fx.h-box/lifecycle
         :alignment :center-left
         :spacing 8
         :max-width ##Inf
+        :on-mouse-clicked {:event-type :breakpoint-clicked
+                           :clicked-breakpoint breakpoint}
         :children [{:fx/type fx.check-box/lifecycle
                     :h-box/hgrow :always
                     :text label-text
@@ -331,6 +333,15 @@
       (= (:event-type event) :selected-items-changed)
       (swap! state assoc :selected (:fx/event event))
 
+
+      (= (:event-type event) :breakpoint-clicked)
+      (let [^MouseEvent e (:fx/event event)
+            {:keys [resource row]} (:clicked-breakpoint event)]
+        (if (and (= MouseButton/PRIMARY (.getButton e))
+                 (= 2 (.getClickCount e)))
+          (let [open-fn (:open-resource-fn @state)]
+            (open-fn resource (+ 1 row)))))
+
       :else
       (let [[action scope] (string/split (name (:event-type event)) #"-")
             handle-fn (partial handle-breakpoint-action project @state evaluation-context action scope)]
@@ -340,8 +351,8 @@
           "enable" (handle-fn #(update-breakpoints-active-state %1 %2 true))
           "disable" (handle-fn #(update-breakpoints-active-state %1 %2 false)))))))
 
-(defn- create-breakpoint-tab-renderer [project breakpoints-list-view]
-  (let [state (atom {:breakpoints [] :selected []})
+(defn- create-breakpoint-tab-renderer [project breakpoints-list-view open-resource-fn]
+  (let [state (atom {:breakpoints [] :selected [] :open-resource-fn open-resource-fn})
         timer (ui/->timer
                4
                "breakpoints-tab-update-timer"
@@ -628,6 +639,14 @@
           (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)})))
       nil)))
 
+(defn- make-open-resource-breakpoint-fn
+  [project open-resource-fn]
+  (let [workspace (project/workspace project)]
+    (fn [resource line]
+      (when resource
+        (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)}))
+      nil)))
+
 (defn- set-breakpoint!
   [debug-session {:keys [resource row condition] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
@@ -673,15 +692,15 @@
   [app-view view-graph project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         right-pane (.lookup root "#right-pane")
-        breakpoints-tab (log/spy (.lookup root "#breakpoints-container"))
+        breakpoints-tab (.lookup root "#breakpoints-container")
+        open-resource-fn' (make-open-resource-fn project open-resource-fn)
         view-id (setup-view! (g/make-node! view-graph DebugView
-                                           :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                                           :open-resource-fn open-resource-fn'
                                            :state-changed-fn state-changed-fn)
                              app-view)
-        breakpoints-timer (create-breakpoint-tab-renderer project breakpoints-tab)
-                            ;; :open-resource-fn (make-open-resource-fn project open-resource-fn)
-        timer (make-update-timer project view-id)
-        #_#_breapoints-timer (make-update-timer-breakpoints project breakpoints-tab)]
+        open-resource-fn'' (make-open-resource-breakpoint-fn project open-resource-fn)
+        breakpoints-timer (create-breakpoint-tab-renderer project breakpoints-tab open-resource-fn'')
+        timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane right-pane localization)
     (ui/timer-start! timer)
     (ui/timer-start! breakpoints-timer)
