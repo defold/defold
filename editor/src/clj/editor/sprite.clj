@@ -687,4 +687,4 @@
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
-    :label "Sprite"))
+    :label (localization/message "resource.type.sprite")))

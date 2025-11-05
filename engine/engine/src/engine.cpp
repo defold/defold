@@ -1716,28 +1716,36 @@ bail:
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
 
-        input_action.m_TouchCount = action->m_Count;
-        int tc = action->m_Count;
-        for (int i = 0; i < tc; ++i) {
-            dmHID::Touch& a = action->m_Touch[i];
-            dmHID::Touch& ia = input_action.m_Touch[i];
-            ia = action->m_Touch[i];
-            ia.m_Id = a.m_Id;
-            ia.m_X = (a.m_X + 0.5f) * width_ratio;
-            ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
-            ia.m_DX = a.m_DX * width_ratio;
-            ia.m_DY = -a.m_DY * height_ratio;
-            ia.m_ScreenX = a.m_X;
-            ia.m_ScreenY = window_height - a.m_Y;
-            ia.m_ScreenDX = a.m_DX;
-            ia.m_ScreenDY = -a.m_DY;
+        input_action.m_TouchCount = 0;
+        if (!action->m_HasText && action->m_Count > 0)
+        {
+            uint32_t touch_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_TOUCH_COUNT);
+            input_action.m_TouchCount = touch_count;
+            for (uint32_t i = 0; i < touch_count; ++i) {
+                dmHID::Touch& a = action->m_Touch[i];
+                dmHID::Touch& ia = input_action.m_Touch[i];
+                ia = action->m_Touch[i];
+                ia.m_Id = a.m_Id;
+                ia.m_X = (a.m_X + 0.5f) * width_ratio;
+                ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
+                ia.m_DX = a.m_DX * width_ratio;
+                ia.m_DY = -a.m_DY * height_ratio;
+                ia.m_ScreenX = a.m_X;
+                ia.m_ScreenY = window_height - a.m_Y;
+                ia.m_ScreenDX = a.m_DX;
+                ia.m_ScreenDY = -a.m_DY;
+            }
         }
 
-        input_action.m_TextCount = action->m_Count;
+        input_action.m_TextCount = 0;
         input_action.m_HasText = action->m_HasText;
-        tc = action->m_Count;
-        for (int i = 0; i < tc; ++i) {
-            input_action.m_Text[i] = action->m_Text[i];
+        if (action->m_HasText && action->m_Count > 0)
+        {
+            uint32_t text_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_CHAR_COUNT);
+            input_action.m_TextCount = text_count;
+            for (uint32_t i = 0; i < text_count; ++i) {
+                input_action.m_Text[i] = action->m_Text[i];
+            }
         }
 
         input_action.m_IsGamepad = action->m_IsGamepad;

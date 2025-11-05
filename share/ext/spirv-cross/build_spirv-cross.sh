@@ -30,6 +30,7 @@ OSX_MIN_SDK_VERSION=10.15
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_POSITION_INDEPENDENT_CODE=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${CMAKE_FLAGS}"
 
 CMAKE_FLAGS="-DSPIRV_CROSS_STATIC=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_CLI=OFF ${CMAKE_FLAGS}"
@@ -38,7 +39,7 @@ CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_TESTS=OFF ${CMAKE_FLAGS}"
 
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_GLSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_HLSL=ON ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_MSL=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_MSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_CPP=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_REFLECT=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_C_API=ON ${CMAKE_FLAGS}"
@@ -54,6 +55,10 @@ case $PLATFORM in
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
         CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
+    x86_64-win32)
+        # We might have to force MT on windows, something like this:
+        # CMAKE_FLAGS="-DCMAKE_C_FLAGS_RELEASE=\"/MT /O2\" -DCMAKE_CXX_FLAGS_RELEASE=\"/MT /O2\" ${CMAKE_FLAGS}"
+        ;;
 esac
 
 # Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
@@ -68,7 +73,7 @@ mkdir -p ${BUILD_DIR}
 
 pushd $BUILD_DIR
 
-echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
+echo "CMAKE_FLAGS: ${CMAKE_FLAGS}"
 
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
@@ -96,6 +101,7 @@ cp -v ${LIB_PREFIX}spirv-cross-c${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-c${
 cp -v ${LIB_PREFIX}spirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-core${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-glsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-hlsl${LIB_SUFFIX}
+cp -v ${LIB_PREFIX}spirv-cross-msl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-msl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-util${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-reflect${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-reflect${LIB_SUFFIX}
 

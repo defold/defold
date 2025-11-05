@@ -359,6 +359,9 @@ namespace dmShaderc
             case SHADER_LANGUAGE_HLSL:
                 backend = SPVC_BACKEND_HLSL;
                 break;
+            case SHADER_LANGUAGE_MSL:
+                backend = SPVC_BACKEND_MSL;
+                break;
             default:break;
         }
 
@@ -545,6 +548,30 @@ namespace dmShaderc
                     }
                 }
             }
+        }
+        else if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_MSL)
+        {
+            uint32_t msl_version = SPVC_MAKE_MSL_VERSION(2, 2, 0);
+
+            switch(options.m_Version)
+            {
+                case 11: msl_version = SPVC_MAKE_MSL_VERSION(1, 1, 0); break;
+                case 12: msl_version = SPVC_MAKE_MSL_VERSION(1, 2, 0); break;
+                case 20: msl_version = SPVC_MAKE_MSL_VERSION(2, 0, 0); break;
+                case 21: msl_version = SPVC_MAKE_MSL_VERSION(2, 1, 0); break;
+                case 22: msl_version = SPVC_MAKE_MSL_VERSION(2, 2, 0); break;
+                case 23: msl_version = SPVC_MAKE_MSL_VERSION(2, 3, 0); break;
+                case 24: msl_version = SPVC_MAKE_MSL_VERSION(2, 4, 0); break;
+                case 30: msl_version = SPVC_MAKE_MSL_VERSION(3, 0, 0); break;
+                case 31: msl_version = SPVC_MAKE_MSL_VERSION(3, 1, 0); break;
+                case 32: msl_version = SPVC_MAKE_MSL_VERSION(3, 2, 0); break;
+                default: dmLogWarning("MSL version %d not supported for crosscompiling, defaulting to 2.2", options.m_Version);
+            }
+
+            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_VERSION, msl_version);
+            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_PLATFORM, SPVC_MSL_PLATFORM_MACOS);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, SPVC_TRUE);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_EMULATE_CUBEMAP_ARRAY, SPVC_FALSE);
         }
         else
         {

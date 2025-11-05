@@ -16,6 +16,7 @@
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -27,7 +28,7 @@
 (set! *warn-on-reflection* true)
 
 (def pb-def {:ext "display_profiles"
-             :label "Display Profiles"
+             :label (localization/message "resource.type.display-profiles")
              :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
              :icon-class :property

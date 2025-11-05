@@ -18,6 +18,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -193,4 +194,4 @@
     :icon "icons/32/Icons_30-Render.png"
     :icon-class :property
     :view-types [:cljfx-form-view :text]
-    :label "Render"))
+    :label (localization/message "resource.type.render")))

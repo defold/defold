@@ -21,6 +21,7 @@
             [editor.code.script-intelligence :as script-intelligence]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
@@ -199,23 +200,23 @@
           :script-property-type-resource))
 
 (def script-defs [{:ext "script"
-                   :label "Script"
+                   :label (localization/message "resource.type.script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
-                   :label "Render Script"
+                   :label (localization/message "resource.type.render-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :tags #{:debuggable}}
                   {:ext "gui_script"
-                   :label "Gui Script"
+                   :label (localization/message "resource.type.gui-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :tags #{:debuggable}}
                   {:ext "lua"
-                   :label "Lua Module"
+                   :label (localization/message "resource.type.lua")
                    :icon "icons/32/Icons_11-Script-general.png"
                    :icon-class :script
                    :annotations true

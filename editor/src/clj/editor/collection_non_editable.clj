@@ -432,7 +432,7 @@
     (resource-node/register-ddf-resource-type workspace
       :editable false
       :ext "collection"
-      :label "Non-Editable Collection"
+      :label (localization/message "resource.type.collection.non-editable")
       :node-type NonEditableCollectionNode
       :ddf-type GameObject$CollectionDesc
       :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))

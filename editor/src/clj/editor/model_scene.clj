@@ -21,6 +21,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graphics :as graphics]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.render :as render]
@@ -639,7 +640,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
     :ext model-file-types
-    :label "Model Scene"
+    :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
     :icon mesh-icon
     :icon-class :design

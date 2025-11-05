@@ -149,19 +149,14 @@
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
-           (let [rt (resource/resource-type resource)
-                 outline-key (or (:label rt) (:ext rt) "unknown")
-                 label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
-                 icon (or (:icon rt) unknown-icon)
-                 children (cond-> child-outlines
-                            source-outline (into (:children source-outline)))]
-             {:node-id _node-id
-              :node-outline-key outline-key
-              :label label
-              :icon icon
-              :children children
-              :outline-error? (g/error-fatal? own-build-errors)
-              :outline-overridden? (not (empty? _overridden-properties))})))
+      (let [rt (resource/resource-type resource)]
+        {:node-id _node-id
+         :node-outline-key (or (:ext rt) "unknown")
+         :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+         :icon (or (:icon rt) unknown-icon)
+         :children (cond-> child-outlines source-outline (into (:children source-outline)))
+         :outline-error? (g/error-fatal? own-build-errors)
+         :outline-overridden? (not (empty? _overridden-properties))})))
   (output sha256 g/Str :cached produce-sha256))
 
 ;; TODO(save-value-cleanup): Can we remove this now?

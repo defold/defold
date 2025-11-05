@@ -1146,7 +1146,7 @@
       :get (attachment/nodes-by-type-getter CollisionGroupNode))
     (resource-node/register-ddf-resource-type workspace
       :ext ["tilesource" "tileset"]
-      :label "Tile Source"
+      :label (localization/message "resource.type.tilesource")
       :build-ext "t.texturesetc"
       :node-type TileSourceNode
       :ddf-type Tile$TileSet

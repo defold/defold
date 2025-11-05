@@ -324,7 +324,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "cubemap"
-    :label "Cubemap"
+    :label (localization/message "resource.type.cubemap")
     :build-ext "texturec"
     :node-type CubemapNode
     :ddf-type Graphics$Cubemap

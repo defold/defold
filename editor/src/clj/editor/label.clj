@@ -438,7 +438,7 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-    :label "Label"
+    :label (localization/message "resource.type.label")
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc

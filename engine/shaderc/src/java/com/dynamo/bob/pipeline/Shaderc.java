@@ -26,7 +26,8 @@ public class Shaderc {
         SHADER_LANGUAGE_NONE(0),
         SHADER_LANGUAGE_GLSL(1),
         SHADER_LANGUAGE_HLSL(2),
-        SHADER_LANGUAGE_SPIRV(3);
+        SHADER_LANGUAGE_MSL(3),
+        SHADER_LANGUAGE_SPIRV(4);
         private final int value;
         private ShaderLanguage(int value) {
             this.value = value;
