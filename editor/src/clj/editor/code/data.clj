@@ -2520,7 +2520,7 @@
            :type :execution-marker
            :location-type location-type)))
 
-(defn breakpoint [lines ^long row]
+(defn make-breakpoint-region [lines ^long row]
   (let [line-start (text-start lines row)
         line-end (count (lines row))]
     (assoc (->CursorRange (->Cursor row line-start)
@@ -2535,7 +2535,7 @@
   (assert (breakpoint-region? region))
   (.row (cursor-range-start region)))
 
-(defn toggle-breakpoint [lines regions rows]
+(defn toggle-breakpoint-region [lines regions rows]
   (assert (set? rows))
   (let [removed-rows (into #{} (comp (filter breakpoint-region?) (map breakpoint-row) (filter rows)) regions)
         added-rows (set/difference rows removed-rows)]
@@ -2545,37 +2545,23 @@
                               (and (breakpoint-region? region)
                                    (contains? removed-rows (breakpoint-row region))))
             regions' (vec (sort (concat (remove removed-region? regions)
-                                        (map (partial breakpoint lines) added-rows))))]
+                                        (map (partial make-breakpoint-region lines) added-rows))))]
         {:regions regions'}))))
 
-(defn- update-breakpoint-active* [lines regions rows f]
-  {:regions (mapv (fn [region]
-                    (if (and (breakpoint-region? region)
-                             (contains? rows (breakpoint-row region)))
-                      (update region :active f)
-                      region))
-                  regions)})
-
-(defn toggle-breakpoint-active [lines regions rows]
-  (update-breakpoint-active* lines regions rows not))
-
-(defn update-breakpoint-state [lines regions rows active]
-  (update-breakpoint-active* lines regions rows (constantly active)))
-
-(defn- edit-breakpoint [lines regions row]
+(defn- edit-breakpoint-region [lines regions row]
   {:edited-breakpoint (or (some (fn [region]
                                   (when (and (breakpoint-region? region)
                                              (= row (breakpoint-row region)))
                                     region))
                                 regions)
-                          (breakpoint lines row))})
+                          (make-breakpoint-region lines row))})
 
 (defn edit-breakpoint-from-single-cursor-range [lines cursor-ranges regions]
   (when (= 1 (count cursor-ranges))
     (let [row (.row ^Cursor (.to ^CursorRange (first cursor-ranges)))]
-      (edit-breakpoint lines regions row))))
+      (edit-breakpoint-region lines regions row))))
 
-(defn ensure-breakpoint [lines regions breakpoint-region]
+(defn ensure-breakpoint-region [lines regions breakpoint-region]
   {:pre [(breakpoint-region? breakpoint-region)]}
   (let [row (breakpoint-row breakpoint-region)
         filtered-regions (filterv (fn [region]
@@ -2639,7 +2625,7 @@
       ;; Click in the gutter to toggle breakpoints.
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (toggle-breakpoint lines regions #{clicked-row}))
+        (toggle-breakpoint-region lines regions #{clicked-row}))
 
       ;; Prepare to drag the horizontal scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-x layout) (rect-contains? x y)))
@@ -2713,7 +2699,7 @@
     (cond
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (edit-breakpoint lines regions clicked-row))
+        (edit-breakpoint-region lines regions clicked-row))
 
       (not (some-> (.minimap layout) (rect-contains? x y)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))]

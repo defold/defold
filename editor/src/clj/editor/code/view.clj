@@ -2774,7 +2774,7 @@
              regions (get-property view-node :regions)
              breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
          (set-properties! view-node nil
-                          (data/toggle-breakpoint lines
+                          (data/toggle-breakpoint-region lines
                                                   regions
                                                   breakpoint-rows)))))
 
@@ -3959,14 +3959,14 @@
 
                          :toggle-enabled
                          (let [edited-breakpoint (assoc edited-breakpoint :active (:fx/event event))]
-                           (assoc (data/ensure-breakpoint
+                           (assoc (data/ensure-breakpoint-region
                                    (g/node-value view-node :lines evaluation-context)
                                    (g/node-value view-node :regions evaluation-context)
                                    edited-breakpoint)
                              :edited-breakpoint edited-breakpoint))
 
                          :apply
-                         (assoc (data/ensure-breakpoint
+                         (assoc (data/ensure-breakpoint-region
                                   (g/node-value view-node :lines evaluation-context)
                                   (g/node-value view-node :regions evaluation-context)
                                   edited-breakpoint)
