@@ -16,7 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.prefs :as prefs]
+            [editor.breakpoints-tab :as breakpoints-tab]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
@@ -42,6 +42,7 @@
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
+            [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -205,6 +206,8 @@
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs)
                                                       localization)
+          breakpoints-tab (let [breakpoints-container (.lookup root "#breakpoints-container")]
+                            (breakpoints-tab/create-breakpoint-tab-renderer project breakpoints-container open-resource))
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
