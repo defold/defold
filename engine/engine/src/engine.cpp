@@ -68,6 +68,11 @@
     #include <emscripten/emscripten.h>
 #endif
 
+#if defined(__EMSCRIPTEN__)
+extern "C" void dmEngineSetCpuThrottle(int enabled);
+extern "C" void dmEngineSetGpuThrottle(int enabled);
+#endif
+
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
 extern unsigned char DEBUG_SPC[];
@@ -112,6 +117,9 @@ namespace dmEngine
 #define SYSTEM_SOCKET_NAME "@system"
 
     dmEngineService::HEngineService g_EngineService = 0;
+
+    bool g_CpuThrottleEnabled = false;
+    bool g_GpuThrottleEnabled = false;
 
     static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
     {
@@ -1688,6 +1696,16 @@ bail:
         }
     }
 
+    void SetCpuThrottle(bool enabled)
+    {
+        g_CpuThrottleEnabled = enabled;
+    }
+
+    void SetGpuThrottle(bool enabled)
+    {
+        g_GpuThrottleEnabled = enabled;
+    }
+
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
@@ -1801,6 +1819,11 @@ bail:
     // Return true if the frame should be skipped
     static bool UpdateFrameThrottle(HEngine engine, float dt, bool has_input)
     {
+        if (g_CpuThrottleEnabled) // override from external call (e.g. HTML5)
+        {
+            return true;
+        }
+
         if (!engine->m_ThrottleEnabled)
         {
             return false;
@@ -1861,6 +1884,8 @@ bail:
         HProfile profile = ProfileFrameBegin();
         {
             DM_PROFILE("Frame");
+
+            bool do_render = !(g_GpuThrottleEnabled || dmRender::IsRenderPaused(engine->m_RenderContext));
 
             {
                 DM_PROFILE("Sim");
@@ -1994,7 +2019,7 @@ bail:
 
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
-                    && !dmRender::IsRenderPaused(engine->m_RenderContext))
+                    && do_render)
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -2037,7 +2062,7 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+                if (do_render)
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
@@ -2061,7 +2086,7 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
-            if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+            if (do_render)
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2443,6 +2468,11 @@ void dmEngineInitialize()
 {
 #if DM_RELEASE
     dLib::SetDebugMode(false);
+#endif
+
+#if defined(__EMSCRIPTEN__)
+    dmEngineSetCpuThrottle(0);
+    dmEngineSetGpuThrottle(0);
 #endif
 
     if (dLib::IsDebugMode())
