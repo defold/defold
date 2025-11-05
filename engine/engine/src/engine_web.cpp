@@ -15,6 +15,7 @@
 #include <emscripten/emscripten.h>
 
 #include "engine.h"
+#include "engine_web.h"
 
 extern "C"
 {

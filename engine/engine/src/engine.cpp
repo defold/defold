@@ -69,8 +69,7 @@
 #endif
 
 #if defined(__EMSCRIPTEN__)
-extern "C" void dmEngineSetCpuThrottle(int enabled);
-extern "C" void dmEngineSetGpuThrottle(int enabled);
+    #include "engine_web.h"
 #endif
 
 // Embedded resources
