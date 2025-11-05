@@ -107,21 +107,21 @@
 		// override ProgressView to create your own loader. See dmloader.js for more details.
 	</script>
 	<script id='engine-cpu-throttle' type='text/javascript'>
-		window.dmEngineSetCpuThrottle = function(enabled) {
+		window.dmEngineSetUpdateThrottle = function(enabled) {
 			if (typeof Module === 'undefined' || typeof Module.ccall !== 'function') {
-				console.warn('Defold engine is not ready to accept CPU throttle updates.');
+				console.warn('Defold engine is not ready to accept update throttle updates.');
 				return;
 			}
-			Module.ccall('dmEngineSetCpuThrottle', null, ['number'], [enabled ? 1 : 0]);
+			Module.ccall('dmEngineSetUpdateThrottle', null, ['number'], [enabled ? 1 : 0]);
 		};
 	</script>
 	<script id='engine-gpu-throttle' type='text/javascript'>
-		window.dmEngineSetGpuThrottle = function(enabled) {
+		window.dmEngineSetRenderThrottle = function(enabled) {
 			if (typeof Module === 'undefined' || typeof Module.ccall !== 'function') {
-				console.warn('Defold engine is not ready to accept GPU throttle updates.');
+				console.warn('Defold engine is not ready to accept render throttle updates.');
 				return;
 			}
-			Module.ccall('dmEngineSetGpuThrottle', null, ['number'], [enabled ? 1 : 0]);
+			Module.ccall('dmEngineSetRenderThrottle', null, ['number'], [enabled ? 1 : 0]);
 		};
 	</script>
 	<script id='engine-start' type='text/javascript'>

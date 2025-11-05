@@ -117,8 +117,8 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
-    bool g_CpuThrottleEnabled = false;
-    bool g_GpuThrottleEnabled = false;
+    bool g_UpdateThrottleEnabled = false;
+    bool g_RenderThrottleEnabled = false;
 
     static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
     {
@@ -1695,14 +1695,14 @@ bail:
         }
     }
 
-    void SetCpuThrottle(bool enabled)
+    void SetUpdateThrottle(bool enabled)
     {
-        g_CpuThrottleEnabled = enabled;
+        g_UpdateThrottleEnabled = enabled;
     }
 
-    void SetGpuThrottle(bool enabled)
+    void SetRenderThrottle(bool enabled)
     {
-        g_GpuThrottleEnabled = enabled;
+        g_RenderThrottleEnabled = enabled;
     }
 
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -1818,7 +1818,7 @@ bail:
     // Return true if the frame should be skipped
     static bool UpdateFrameThrottle(HEngine engine, float dt, bool has_input)
     {
-        if (g_CpuThrottleEnabled) // override from external call (e.g. HTML5)
+        if (g_UpdateThrottleEnabled) // override from external call (e.g. HTML5)
         {
             return true;
         }
@@ -1884,7 +1884,7 @@ bail:
         {
             DM_PROFILE("Frame");
 
-            bool do_render = !(g_GpuThrottleEnabled || dmRender::IsRenderPaused(engine->m_RenderContext));
+            bool do_render = !(g_RenderThrottleEnabled || dmRender::IsRenderPaused(engine->m_RenderContext));
 
             {
                 DM_PROFILE("Sim");
@@ -2470,8 +2470,8 @@ void dmEngineInitialize()
 #endif
 
 #if defined(__EMSCRIPTEN__)
-    dmEngineSetCpuThrottle(0);
-    dmEngineSetGpuThrottle(0);
+    dmEngineSetUpdateThrottle(0);
+    dmEngineSetRenderThrottle(0);
 #endif
 
     if (dLib::IsDebugMode())

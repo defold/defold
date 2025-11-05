@@ -23,8 +23,8 @@ namespace dmEngine
 
     uint16_t GetHttpPort(HEngine engine);
 
-    void SetCpuThrottle(bool enabled);
-    void SetGpuThrottle(bool enabled);
+    void SetUpdateThrottle(bool enabled);
+    void SetRenderThrottle(bool enabled);
 
     enum UpdateResult
     {

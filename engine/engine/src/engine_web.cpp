@@ -19,14 +19,14 @@
 
 extern "C"
 {
-    void EMSCRIPTEN_KEEPALIVE dmEngineSetCpuThrottle(int enabled)
+    void EMSCRIPTEN_KEEPALIVE dmEngineSetUpdateThrottle(int enabled)
     {
-        dmEngine::SetCpuThrottle(enabled != 0);
+        dmEngine::SetUpdateThrottle(enabled != 0);
     }
 
-    void EMSCRIPTEN_KEEPALIVE dmEngineSetGpuThrottle(int enabled)
+    void EMSCRIPTEN_KEEPALIVE dmEngineSetRenderThrottle(int enabled)
     {
-        dmEngine::SetGpuThrottle(enabled != 0);
+        dmEngine::SetRenderThrottle(enabled != 0);
     }
 }
 
