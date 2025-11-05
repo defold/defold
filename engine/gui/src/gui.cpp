@@ -635,7 +635,7 @@ namespace dmGui
         {
             if (flip) // Cannot flip a compressed textures
             {
-                dmLogWarning("Flipping a compressed texture is not supported! '%s'", dmHashReverseSafe64(path_hash));
+                dmLogWarning("Flipping a compressed texture is not supported! '%s'", dmHashReverseSafe64(path));
             }
             flip = false;
 
