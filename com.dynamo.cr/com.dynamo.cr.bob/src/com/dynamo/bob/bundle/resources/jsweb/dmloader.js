@@ -1233,6 +1233,15 @@ var Module = {
         } else if (Module['isDMFSSupported']) {
             // kick off the content download now that we have FS access
             GameArchiveLoader.downloadContent();
+            GameArchiveLoader.addArchiveLoadedListener(() => {
+                if (typeof CUSTOM_PARAMETERS["start_success"] === "function") {
+                    CUSTOM_PARAMETERS["start_success"]();
+                }
+            });
+            return;
+        }
+        if (typeof CUSTOM_PARAMETERS["start_success"] === "function") {
+            CUSTOM_PARAMETERS["start_success"]();
         }
     }],
 
@@ -1255,10 +1264,10 @@ var Module = {
         if (!Module._isMainCalled) {
             Module._isMainCalled = true;
             ProgressView.removeProgress();
-            if (typeof CUSTOM_PARAMETERS["start_success"] === "function") {
-                CUSTOM_PARAMETERS["start_success"]();
-            }
             if (Module.callMain === undefined) {
+                if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                    CUSTOM_PARAMETERS["start_error"](new Error("Unable to find main function"));
+                }
                 Module.noInitialRun = false;
             } else {
                 Module.callMain(Module.arguments);
