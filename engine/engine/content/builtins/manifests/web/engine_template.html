@@ -106,24 +106,6 @@
 		// From here you can configure game startup parameters via the CUSTOM_PARAMETERS object,
 		// override ProgressView to create your own loader. See dmloader.js for more details.
 	</script>
-	<script id='engine-cpu-throttle' type='text/javascript'>
-		window.dmEngineSetUpdateThrottle = function(enabled) {
-			if (typeof Module === 'undefined' || typeof Module.ccall !== 'function') {
-				console.warn('Defold engine is not ready to accept update throttle updates.');
-				return;
-			}
-			Module.ccall('dmEngineSetUpdateThrottle', null, ['number'], [enabled ? 1 : 0]);
-		};
-	</script>
-	<script id='engine-gpu-throttle' type='text/javascript'>
-		window.dmEngineSetRenderThrottle = function(enabled) {
-			if (typeof Module === 'undefined' || typeof Module.ccall !== 'function') {
-				console.warn('Defold engine is not ready to accept render throttle updates.');
-				return;
-			}
-			Module.ccall('dmEngineSetRenderThrottle', null, ['number'], [enabled ? 1 : 0]);
-		};
-	</script>
 	<script id='engine-start' type='text/javascript'>
 		var runningFromFileWarning = document.getElementById("running-from-file-warning");
 		if (window.location.href.startsWith("file://")) {

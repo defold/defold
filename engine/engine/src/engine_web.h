@@ -17,8 +17,8 @@
 extern "C" {
 #endif
 
-void dmEngineSetUpdateThrottle(int enabled);
-void dmEngineSetRenderThrottle(int enabled);
+void dmEngineSetUpdateEnabled(int enabled);
+void dmEngineSetRenderEnabled(int enabled);
 
 #ifdef __cplusplus
 }

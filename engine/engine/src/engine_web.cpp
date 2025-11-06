@@ -14,19 +14,19 @@
 
 #include <emscripten/emscripten.h>
 
-#include "engine.h"
+#include "engine_private.h"
 #include "engine_web.h"
 
 extern "C"
 {
-    void EMSCRIPTEN_KEEPALIVE dmEngineSetUpdateThrottle(int enabled)
+    void EMSCRIPTEN_KEEPALIVE dmEngineSetUpdateEnabled(int enabled)
     {
-        dmEngine::SetUpdateThrottle(enabled != 0);
+        dmEngine::SetUpdateEnabled(enabled != 0);
     }
 
-    void EMSCRIPTEN_KEEPALIVE dmEngineSetRenderThrottle(int enabled)
+    void EMSCRIPTEN_KEEPALIVE dmEngineSetRenderEnabled(int enabled)
     {
-        dmEngine::SetRenderThrottle(enabled != 0);
+        dmEngine::SetRenderEnabled(enabled != 0);
     }
 }
 
