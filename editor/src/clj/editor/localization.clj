@@ -21,6 +21,7 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
+            [editor.util :as eutil]
             [internal.java :as java]
             [internal.util :as util]
             [util.coll :as coll]
@@ -29,6 +30,7 @@
   (:import [clojure.lang AFn Agent IFn IRef]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
            [com.ibm.icu.util ULocale]
+           [com.sun.javafx.application PlatformImpl]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
            [java.util.concurrent Executor]
@@ -37,6 +39,14 @@
            [javafx.scene.control Labeled MenuItem Tab TableColumnBase Tooltip]
            [javafx.scene.text Text]
            [org.apache.commons.io FilenameUtils]))
+
+;; Next line of code makes sure JavaFX is initialized, which is required during
+;; compilation even when we are not actually running the editor. To properly
+;; generate reflection-less code, clojure compiler loads classes and searches
+;; for fitting methods while compiling it. Loading javafx.scene.control.Control
+;; class requires application to be running, because it sets default platform
+;; stylesheet, and this requires Application to be running.
+(PlatformImpl/startup (fn []))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -309,8 +319,9 @@
   ([object ^Localization localization pattern]
    {:pre [(localization? localization)]}
    (apply-localization object (impl-format @localization pattern))
-   (when (message-pattern? pattern)
-     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern))
+   (if (message-pattern? pattern)
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern)
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-unlocalize! object))
    object))
 
 (defn unlocalize!
@@ -391,18 +402,19 @@
                       (.reset watch-key)))))))))
       localization)))
 
-(defn- impl-simple-message [k m ^LocalizationState state]
+(defn- impl-simple-message [k m fallback ^LocalizationState state]
   (if-let [format-fn (get (.-messages state) k)]
     (format-fn m)
-    (if (system/defold-dev?)
-      (str "!" k "!")
-      (camel/->TitleCase (peek (string/split k #"\."))))))
+    (or fallback
+        (if (system/defold-dev?)
+          (str "!" k "!")
+          (camel/->TitleCase (peek (string/split k #"\.")))))))
 
-(defonce/record SimpleMessage [k m]
+(defonce/record SimpleMessage [k m fallback]
   MessagePattern
-  (format [_ state] (impl-simple-message k m state)))
+  (format [_ state] (impl-simple-message k m fallback state)))
 
-(defonce/record MessageWithNestedPatterns [k m ks]
+(defonce/record MessageWithNestedPatterns [k m fallback ks]
   MessagePattern
   (format [_ state]
     (impl-simple-message
@@ -412,6 +424,7 @@
           #(assoc! %1 %2 (.format ^MessagePattern (m %2) state))
           (transient m)
           ks))
+      fallback
       state)))
 
 (defn message
@@ -420,21 +433,26 @@
   To actually format, invoke localization (or its state) with pattern
 
   Args:
-    k    localization key, a dot-separated string, e.g. \"some-dialog.title\"
-    m    optional map from string keys (variable names available for use in k's
-         localization message) to either strings, numbers, or message patterns"
-  ([k]
-   (message k {}))
-  ([k m]
-   (if-let [localizable-keys (when (pos? (count m))
+    key          localization key, a dot-separated string, e.g. \"dialog.title\"
+    variables    optional map from string keys (variable names available for
+                 use in key's localization message) to either strings, numbers,
+                 or message patterns
+    fallback     optional fallback string used in the case when localization key
+                 does not exist"
+  ([key]
+   (message key {} nil))
+  ([key variables]
+   (message key variables nil))
+  ([key variables fallback]
+   (if-let [localizable-keys (when (pos? (count variables))
                                (coll/not-empty
                                  (persistent!
                                    (reduce-kv
                                      #(cond-> %1 (message-pattern? %3) (conj! %2))
                                      (transient [])
-                                     m))))]
-     (->MessageWithNestedPatterns k m localizable-keys)
-     (->SimpleMessage k m))))
+                                     variables))))]
+     (->MessageWithNestedPatterns key variables fallback localizable-keys)
+     (->SimpleMessage key variables fallback))))
 
 (defn vary-message-variables
   "Transforms message variable map with a supplied function
@@ -449,7 +467,7 @@
   [original f & args]
   {:pre [(or (instance? SimpleMessage original)
              (instance? MessageWithNestedPatterns original))]}
-  (message (:k original) (apply f (:m original) args)))
+  (message (:k original) (apply f (:m original) args) (:fallback original)))
 
 (defn- impl-simple-list [list-k items state]
   (.format ^ListFormatter (list-k state) ^Collection items))
@@ -597,10 +615,35 @@
   (let [message-localizable (message-pattern? message)]
     (->Transform (cond-> message (not message-localizable) str) message-localizable f args)))
 
+(defn annotate-as-sorted
+  "Annotate a vector of items as sorted with localization-aware sorting function
+
+  Args:
+    f        localization-aware sorting function, receive localization state,
+             items, and the rest of the arguments; see [[natural-sort-by-label]]
+    items    vector of items to annotate"
+  [f items]
+  {:pre [(vector? items)]}
+  (vary-meta items assoc ::sort f))
+
+(defn natural-sort-by-label
+  "Localization-aware function that sorts the items on their :label vals"
+  [localization-state items]
+  (->> items
+       (mapv #(coll/pair (localization-state (:label %)) %))
+       (sort-by key eutil/natural-order)
+       (mapv val)))
+
+(defn sort-if-annotated
+  "Perform a localization-aware sorting of the items if they were annotated"
+  [localization-state items]
+  {:pre [(localization-state? localization-state)]}
+  (if-let [f (::sort (meta items))]
+    (f localization-state items)
+    items))
+
 ;; TODO:
 ;;  - editor scripts localization
-;;  - resource type label
-;;  - view type labels
-;;  - all properties
-;;  - outline
+;;  - build errors view
 ;;  - missed things...
+;;  - extensions: resource types, properties, outlines...

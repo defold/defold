@@ -691,7 +691,8 @@
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
-   (let [cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
+   (let [items (localization/sort-if-annotated @localization items)
+         cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
                        (fn [text items]

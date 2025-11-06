@@ -3140,13 +3140,18 @@
 ;; Find & Replace
 ;; -----------------------------------------------------------------------------
 
-(defn- setup-find-bar! [^GridPane find-bar view-node]
+(defn- setup-find-bar! [^GridPane find-bar view-node localization]
   (doto find-bar
     (b/bind-presence! (b/= :find bar-ui-type-property))
     (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
+    (localization/localize! whole-word localization (localization/message "code.find.word"))
+    (localization/localize! case-sensitive localization (localization/message "code.find.case"))
+    (localization/localize! wrap localization (localization/message "code.find.wrap"))
+    (localization/localize! next localization (localization/message "code.find.next"))
+    (localization/localize! prev localization (localization/message "code.find.prev"))
     (b/bind-bidirectional! (.textProperty term) find-term-property)
     (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
     (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
@@ -3165,13 +3170,19 @@
     (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
     (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
-(defn- setup-replace-bar! [^GridPane replace-bar view-node editable]
+(defn- setup-replace-bar! [^GridPane replace-bar view-node editable localization]
   (doto replace-bar
     (b/bind-presence! (b/= :replace bar-ui-type-property))
     (ui/context! :code-view-replace-bar {:editable editable :replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
+    (localization/localize! whole-word localization (localization/message "code.find.word"))
+    (localization/localize! case-sensitive localization (localization/message "code.find.case"))
+    (localization/localize! wrap localization (localization/message "code.find.wrap"))
+    (localization/localize! next localization (localization/message "code.find.next"))
+    (localization/localize! replace localization (localization/message "code.replace.next"))
+    (localization/localize! replace-all localization (localization/message "code.replace.all"))
     (b/bind-bidirectional! (.textProperty term) find-term-property)
     (b/bind-bidirectional! (.textProperty replacement) find-replacement-property)
     (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
@@ -3532,13 +3543,13 @@
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
       (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
-      (let [row (data/last-visible-row (:layout canvas-repaint-info))]
+      (let [row (data/last-visible-row (:minimap-layout canvas-repaint-info))]
         (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info row))))
 
     (when editable
       (g/with-auto-evaluation-context evaluation-context
         ;; Show rename popup if appropriate
-        (fxui/advance-user-data-component!
+        (fxui/advance-graph-user-data-component!
           view-node :rename-popup
           (when (g/node-value view-node :rename-cursor-range evaluation-context)
             (g/node-value view-node :rename-view evaluation-context)))
@@ -3793,7 +3804,7 @@
       (insert-text! view-node prefs ({"≃" "~="} x x)))))
 
 (defn- setup-input-method-requests! [^Canvas canvas view-node prefs]
-  (when (os/is-linux?)
+  (when-not (os/is-win32?)
     (doto canvas
       (.setInputMethodRequests
         (reify InputMethodRequests
@@ -3964,8 +3975,8 @@
           app-view
           lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
-        find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
-        replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable)
+        find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node localization)
+        replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable localization)
         repainter (ui/->timer "repaint-code-editor-view"
                               (fn [_ elapsed-time _]
                                 (when (and (.isSelected tab) (not (ui/ui-disabled?)))
@@ -4213,13 +4224,13 @@
   (concat
     (workspace/register-view-type workspace
       :id :code
-      :label "Code"
+      :label (localization/message "resource.view.code")
       :make-view-fn make-view!
       :focus-fn focus-view!
       :text-selection-fn non-empty-single-selection-text)
     (workspace/register-view-type workspace
       :id :text
-      :label "Text"
+      :label (localization/message "resource.view.text")
       :make-view-fn make-view!
       :focus-fn focus-view!
       :text-selection-fn non-empty-single-selection-text)))

@@ -17,11 +17,12 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.code.lang.ini :as ini]
             [editor.form :as form]
             [editor.fs :as fs]
             [editor.game-project-core :as gpcore]
             [editor.graph-util :as gu]
-            [editor.code.lang.ini :as ini]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
@@ -84,7 +85,7 @@
   (resource-type [this]
     (let [ext (resource/ext this)]
       {:ext ext
-       :label "Custom Resource"
+       :label (localization/message "resource.type.custom")
        :build-ext ext}))
   (source-type [this] (resource/source-type resource))
   (exists? [this] (resource/exists? resource))
@@ -210,9 +211,6 @@
                          :message (ex-message error)
                          :severity :fatal}))))))
 
-  (output outline g/Any :cached
-          (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
-
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
 
@@ -253,7 +251,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
     :ext "project"
-    :label "Project"
+    :label (localization/message "resource.type.project")
     :node-type GameProjectNode
     :load-fn load-game-project
     :meta-settings (:settings gpcore/basic-meta-info)

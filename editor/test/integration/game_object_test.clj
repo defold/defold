@@ -48,7 +48,7 @@
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
                  (game-object/add-embedded-component! go-id r-type nil)
-                 (let [factory (:node-id (test-util/outline go-id [0]))]
+                 (let [factory (:node-id (test-util/outline go-id [1]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
                      (is (g/error? (test-util/prop-error comp-id :id)))
@@ -61,7 +61,7 @@
           go-resource (g/node-value go-id :resource)
           go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
-        (testing (:label resource-type)
+        (testing (:ext resource-type)
           (with-open [_ (test-util/make-graph-reverter (project/graph project))]
             (test-util/add-embedded-component! go-id resource-type)
             (let [save-data (g/node-value go-id :save-data)
@@ -75,7 +75,7 @@
               (is (nil? only-in-loaded))
               (when (or (some? only-in-saved)
                         (some? only-in-loaded))
-                (println "When comparing" (:label resource-type))
+                (println "When comparing" (:ext resource-type))
                 (prn 'disk only-in-loaded)
                 (prn 'save only-in-saved)))))))))
 

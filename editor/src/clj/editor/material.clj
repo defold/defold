@@ -22,6 +22,7 @@
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.localization :as localization]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
@@ -283,36 +284,36 @@
 
 (def ^:private vertex-attribute-fields
   [{:path [:semantic-type]
-    :label "Semantic Type"
+    :localization-key "material.attributes.semantic-type"
     :type :choicebox
     :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
-    :label "Step Function"
+    :localization-key "material.attributes.step-function"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$VertexStepFunction)
     :default graphics/default-attribute-step-function}
    {:path [:coordinate-space]
-    :label "Coordinate Space"
+    :localization-key "material.attributes.coordinate-space"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$CoordinateSpace)
     :default :coordinate-space-local}
    {:path [:data-type]
-    :label "Data Type"
+    :localization-key "material.attributes.data-type"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$DataType)
     :default graphics/default-attribute-data-type}
    {:path [:vector-type]
-    :label "Vector Type"
+    :localization-key "material.attributes.vector-type"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$VectorType)
     :default graphics/default-attribute-vector-type}
    {:path [:values]
-    :label "Value"
+    :localization-key "material.attributes.value"
     :type (vector-type->form-field-type graphics/default-attribute-vector-type)
     :default (graphics/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
-    :label "Normalize"
+    :localization-key "material.attributes.normalize"
     :type :boolean
     :default false}])
 
@@ -323,20 +324,20 @@
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:title "Material"
+   [{:localization-key "material"
      :fields
      [{:path [:name]
-       :label "Name"
+       :localization-key "material.name"
        :type :string
        :default "New Material"}
       {:path [:vertex-program]
-       :label "Vertex Program"
+       :localization-key "material.vertex-program"
        :type :resource :filter "vp"}
       {:path [:fragment-program]
-       :label "Fragment Program"
+       :localization-key "material.fragment-program"
        :type :resource :filter "fp"}
       {:path [:attributes]
-       :label "Vertex Attributes"
+       :localization-key "material.attributes"
        :type :2panel
        :panel-key {:path [:name]
                    :type :string
@@ -360,23 +361,23 @@
                       type (vector-type->form-field-type vector-type)
                       default (graphics/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
-                   :label "Value"
+                   :localization-key "material.attributes.value"
                    :type type
                    :default default})))}]})}
-      (render-program-utils/gen-form-data-constants "Vertex Constants" :vertex-constants)
-      (render-program-utils/gen-form-data-constants "Fragment Constants" :fragment-constants)
-      (render-program-utils/gen-form-data-samplers "Samplers" :samplers)
+      (render-program-utils/gen-form-data-constants "material.vertex-constants" :vertex-constants)
+      (render-program-utils/gen-form-data-constants "material.fragment-constants" :fragment-constants)
+      (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
       {:path [:tags]
-       :label "Tags"
+       :localization-key "material.tags"
        :type :list
        :element {:type :string :default "New Tag"}}
       {:path [:vertex-space]
-       :label "Vertex Space"
+       :localization-key "material.vertex-space"
        :type :choicebox
        :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
-       :label "Max Atlas Pages"
+       :localization-key "material.max-page-count"
        :type :integer
        :default 0}]}]})
 
@@ -644,7 +645,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "material"
-    :label "Material"
+    :label (localization/message "resource.type.material")
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
     :load-fn load-material

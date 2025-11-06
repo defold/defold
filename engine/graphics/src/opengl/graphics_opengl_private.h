@@ -191,6 +191,11 @@ namespace dmGraphics
         uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_InstancingSupport                : 1;
         uint32_t                m_ASTCSupport                      : 1;
+        // ASTC for 2D array textures (paged atlases). Some HTML5/GLES drivers
+        // fail on ASTC uploads for array targets even if 2D works. This flag
+        // allows us to disable ASTC only for array textures without disabling
+        // ASTC entirely.
+        uint32_t                m_ASTCArrayTextureSupport          : 1;
         uint32_t                m_3DTextureSupport                 : 1;
     };
 }

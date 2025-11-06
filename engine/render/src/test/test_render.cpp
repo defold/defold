@@ -71,7 +71,7 @@ protected:
     dmRender::HFontMap m_SystemFontMap;
     dmRender::FontGlyph m_Glyphs[128];
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmGraphics::InstallAdapter();
 
@@ -127,7 +127,7 @@ protected:
         dmRender::SetFontMapUserData(m_SystemFontMap, m_Glyphs);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
@@ -1828,6 +1828,28 @@ TEST_F(dmRenderTest, FindRanges)
     ASSERT_EQ(4, range.m_TagListKey);
     ASSERT_EQ(26, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
+}
+
+TEST_F(dmRenderTest, FontMapSetup)
+{
+    dmRender::FontMapParams font_map_params;
+    font_map_params.m_CacheWidth = 128;
+    font_map_params.m_CacheHeight = 128;
+    font_map_params.m_CacheCellWidth = 8;
+    font_map_params.m_CacheCellHeight = 8;
+    font_map_params.m_MaxAscent = 2;
+    font_map_params.m_MaxDescent = 1;
+    font_map_params.m_GetGlyph = GetGlyph;
+    font_map_params.m_GetGlyphData = GetGlyphData;
+    font_map_params.m_GetFontMetrics = GetFontMetrics;
+
+    font_map_params.m_GlyphChannels = 4; // Issue https://github.com/defold/defold/issues/11397
+
+    dmRender::HFontMap font = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
+
+    ASSERT_NE((dmRender::HFontMap)0, font);
+
+    dmRender::DeleteFontMap(font);
 }
 
 TEST(Constants, Constant)

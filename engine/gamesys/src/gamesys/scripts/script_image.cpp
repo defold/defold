@@ -330,10 +330,76 @@ namespace dmGameSystem
         return 1;
     }
 
+
+    /*# get the header of an .astc buffer
+    * get the header of an .astc buffer
+    *
+    * @name image.get_astc_header
+    * @param buffer [type:string] .astc file data buffer
+    *
+    * @return table [type:table|nil] header or `nil` if buffer is not a valid .astc. The header has these fields:
+    *
+    * - [type:number] `width`: image width
+    * - [type:number] `height`: image height
+    * - [type:number] `depth`: image depth
+    * - [type:number] `block_size_x`: block size x
+    * - [type:number] `block_size_y`: block size y
+    * - [type:number] `block_size_z`: block size z
+    *
+    * @examples
+    *
+    * How to get the block size and dimensions from a .astc file
+    *
+    * ```lua
+    * local s = sys.load_resource("/assets/cat.astc")
+    * local header = image.get_astc_header(s)
+    * pprint(s)
+    * ```
+    */
+    int Image_GetAstcHeader(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_checktype(L, 1, LUA_TSTRING);
+        size_t data_len = 0;
+        const char* data = lua_tolstring(L, 1, &data_len);
+
+        uint32_t width, height, depth;
+        if (!dmImage::GetAstcDimensions((void*)data, (uint32_t)data_len, &width, &height, &depth))
+        {
+            return luaL_error(L, "Data is not a valid .astc file");
+        }
+
+        uint32_t block_size_x, block_size_y, block_size_z;
+        if (!dmImage::GetAstcBlockSize((void*)data, (uint32_t)data_len, &block_size_x, &block_size_y, &block_size_z))
+        {
+            return luaL_error(L, "Data is not a valid .astc file");
+        }
+
+        lua_newtable(L);
+
+            lua_pushinteger(L, width);
+            lua_setfield(L, -2, "width");
+            lua_pushinteger(L, height);
+            lua_setfield(L, -2, "height");
+            lua_pushinteger(L, depth);
+            lua_setfield(L, -2, "depth");
+
+            lua_pushinteger(L, block_size_x);
+            lua_setfield(L, -2, "block_size_x");
+            lua_pushinteger(L, block_size_y);
+            lua_setfield(L, -2, "block_size_y");
+            lua_pushinteger(L, block_size_z);
+            lua_setfield(L, -2, "block_size_z");
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg ScriptImage_methods[] =
     {
-        {"load",        Image_Load},
-        {"load_buffer", Image_LoadBuffer},
+        {"load",            Image_Load},
+        {"load_buffer",     Image_LoadBuffer},
+        {"get_astc_header", Image_GetAstcHeader},
         {0, 0}
     };
 

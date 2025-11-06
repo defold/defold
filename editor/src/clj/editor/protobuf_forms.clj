@@ -78,52 +78,62 @@
         touch-values (butlast (protobuf/enum-values Input$Touch)) ; skip MAX_TOUCH_COUNT
         text-values (butlast (protobuf/enum-values Input$Text))] ; skip MAX_TEXT_COUNT
     {:navigation false
-     :sections [{:title "Input Bindings"
+     :sections [{:localization-key "input-binding"
                  :fields [{:path [:key-trigger]
-                           :label "Key Triggers"
+                           :localization-key "input-binding.key-trigger"
                            :type :table
                            :columns [{:path [:input]
-                                      :label "Input"
+                                      :localization-key "input-binding.key-trigger.input"
                                       :type :choicebox
                                       :options (sort-by first (make-options key-values))
                                       :default (ffirst key-values)}
-                                     {:path [:action] :label "Action" :type :string}]}
+                                     {:path [:action]
+                                      :localization-key "input-binding.key-trigger.action"
+                                      :type :string}]}
                           {:path [:mouse-trigger]
-                           :label "Mouse Triggers"
+                           :localization-key "input-binding.mouse-trigger"
                            :type :table
                            :columns [{:path [:input]
-                                      :label "Input"
+                                      :localization-key "input-binding.mouse-trigger.input"
                                       :type :choicebox
                                       :options (sort-by first (make-options mouse-values))
                                       :default (ffirst mouse-values)}
-                                     {:path [:action] :label "Action" :type :string}]}
+                                     {:path [:action]
+                                      :localization-key "input-binding.mouse-trigger.action"
+                                      :type :string}]}
                           {:path [:gamepad-trigger]
-                           :label "Gamepad Triggers"
+                           :localization-key "input-binding.gamepad-trigger"
                            :type :table
                            :columns [{:path [:input]
-                                      :label "Input"
+                                      :localization-key "input-binding.gamepad-trigger.input"
                                       :type :choicebox
                                       :options (sort-by first (make-options gamepad-values))
                                       :default (ffirst gamepad-values)}
-                                     {:path [:action] :label "Action" :type :string}]}
+                                     {:path [:action]
+                                      :localization-key "input-binding.gamepad-trigger.action"
+                                      :type :string}]}
                           {:path [:touch-trigger]
-                           :label "Touch Triggers"
+                           :localization-key "input-binding.touch-trigger"
                            :type :table
                            :columns [{:path [:input]
-                                      :label "Input"
+                                      :localization-key "input-binding.touch-trigger.input"
                                       :type :choicebox
                                       :options (sort-by first (make-options touch-values))
                                       :default (ffirst touch-values)}
-                                     {:path [:action] :label "Action" :type :string}]}
+                                     {:path [:action]
+                                      :localization-key "input-binding.touch-trigger.action"
+                                      :type :string}]}
                           {:path [:text-trigger]
-                           :label "Text Triggers"
+                           :localization-key "input-binding.text-trigger"
                            :type :table
                            :columns [{:path [:input]
-                                      :label "Input"
+                                      :localization-key "input-binding.text-trigger.input"
                                       :type :choicebox
                                       :options (make-options text-values) ; Unsorted.
                                       :default (ffirst text-values)}
-                                     {:path [:action] :label "Action" :type :string}]}]}]}))
+                                     {:path [:action]
+                                      :localization-key "input-binding.text-trigger.action"
+                                      :type :string}]}]}]}))
 
 (defn- gamepad-pb->form-pb [pb]
   (letfn [(mods->bools [modlist]
@@ -163,51 +173,51 @@
     {:navigation false
      :form-ops {:user-data {:node-id node-id}
                 :set gamepad-set-form-op}
-     :sections [{:title "Gamepads"
+     :sections [{:localization-key "gamepads"
                  :fields
                  [{:path [:driver]
-                   :label "Gamepad"
+                   :localization-key "gamepads.driver"
                    :type :2panel
                    :panel-key {:path [:device] :type :string}
                    :panel-form {:sections
                                 [{:fields
                                   [{:path [:device]
-                                    :label "Device"
+                                    :localization-key "gamepads.driver.device"
                                     :type :string
                                     :default "New device"}
                                    {:path [:platform]
-                                    :label "Platform"
+                                    :localization-key "gamepads.driver.platform"
                                     :type :string}
                                    {:path [:dead-zone]
-                                    :label "Dead zone"
+                                    :localization-key "gamepads.driver.dead-zone"
                                     :type :number}
                                    {:path [:map]
-                                    :label "Map"
+                                    :localization-key "gamepads.driver.map"
                                     :type :table
                                     :columns [{:path [:input]
-                                               :label "Input"
+                                               :localization-key "gamepads.driver.map.input"
                                                :type :choicebox
                                                :options (sort-by first (make-options gamepad-values))
                                                :default (ffirst gamepad-values)}
                                               {:path [:type]
-                                               :label "Type"
+                                               :localization-key "gamepads.driver.map.type"
                                                :type :choicebox
                                                :options (sort-by first (make-options gamepad-type-values))
                                                :default (ffirst gamepad-type-values)}
                                               {:path [:index]
-                                               :label "Index"
+                                               :localization-key "gamepads.driver.map.index"
                                                :type :integer}
                                               {:path [:negate]
-                                               :label "Negate"
+                                               :localization-key "gamepads.driver.map.negate"
                                                :type :boolean}
                                               {:path [:scale]
-                                               :label "Scale"
+                                               :localization-key "gamepads.driver.map.scale"
                                                :type :boolean}
                                               {:path [:clamp]
-                                               :label "Clamp"
+                                               :localization-key "gamepads.driver.map.clamp"
                                                :type :boolean}
                                               {:path [:hat-mask]
-                                               :label "Hat Mask"
+                                               :localization-key "gamepads.driver.map.hat-mask"
                                                :type :integer}]}]}]}}]}]
      :values (make-values (gamepad-pb->form-pb pb) [:driver])}))
 
@@ -244,30 +254,30 @@
         available-compressors (mapv #(vector % (TextureCompression/getCompressor %)) (TextureCompression/getInstalledCompressorNames))]
     {:navigation false
      :sections
-     [{:title "Texture Profiles"
+     [{:localization-key "texture-profiles"
        :fields
        [{:path [:path-settings]
-         :label "Path Settings"
+         :localization-key "texture-profiles.path-settings"
          :type :table
          :columns [{:path [:path]
-                    :label "Path"
+                    :localization-key "texture-profiles.path-settings.path"
                     :type :string
                     :default "**"}
                    {:path [:profile]
-                    :label "Profile"
+                    :localization-key "texture-profiles.path-settings.profile"
                     :type :choicebox
                     :from-string str
                     :to-string str                  ; allow manual entry
                     :options (sort-by first profile-options)
                     :default "Default"}]}
         {:path [:profiles]
-         :label "Profiles"
+         :localization-key "texture-profiles.profiles"
          :type :2panel
          :panel-key {:path [:name] :type :string :default "Default"}
          :panel-form {:sections
                       [{:fields
                         [{:path [:platforms]
-                          :label "Platforms"
+                          :localization-key "texture-profiles.profiles.platforms"
                           :type :2panel
                           :panel-key {:path [:os]
                                       :type :choicebox
@@ -276,10 +286,10 @@
                           :panel-form {:sections
                                        [{:fields
                                          [{:path [:formats]
-                                           :label "Formats"
+                                           :localization-key "texture-profiles.profiles.platforms.formats"
                                            :type :2panel
                                            :panel-key {:path [:format]
-                                                       :label "Format"
+                                                       :localization-key "texture-profiles.profiles.platforms.formats.format"
                                                        :type :choicebox
                                                        :options (sort-by first (make-options format-values-filtered))
                                                        :default (ffirst format-values-filtered)}
@@ -296,28 +306,28 @@
                                                                                         [preset-name (.getDisplayName (TextureCompression/getPreset preset-name))])
                                                                                       (TextureCompression/getPresetNamesForCompressor (:compressor selected-format)))]
                                                {:sections
-                                                [{:fields
-                                                  [{:path [:compressor]
-                                                    :label "Compressor"
+                                               [{:fields
+                                                 [{:path [:compressor]
+                                                    :localization-key "texture-profiles.profiles.platforms.formats.compressor"
                                                     :type :choicebox
                                                     :options (make-options available-compressors-for-format) ; Unsorted.
                                                     :default (TextureCompressorUncompressed/TextureCompressorName)}
                                                    {:path [:compressor-preset]
-                                                    :label "Compressor Preset"
+                                                    :localization-key "texture-profiles.profiles.platforms.formats.compressor-preset"
                                                     :type :choicebox
                                                     :options available-presets-for-compressor ; Unsorted.
                                                     :default (ffirst available-presets-for-compressor)}]}]}))}
                                           {:path [:mipmaps]
                                            :type :boolean
-                                           :label "Mipmaps"}
+                                           :localization-key "texture-profiles.profiles.platforms.mipmaps"}
                                           {:path [:max-texture-size]
                                            :type :integer
-                                           :label "Max texture size"
+                                           :localization-key "texture-profiles.profiles.platforms.max-texture-size"
                                            :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                            :optional true}
                                           {:path [:premultiply-alpha]
                                            :type :boolean
-                                           :label "Premultiply alpha"
+                                           :localization-key "texture-profiles.profiles.platforms.premultiply-alpha"
                                            :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
                                            :optional true}]}]}}]}]}}]}]}))
 

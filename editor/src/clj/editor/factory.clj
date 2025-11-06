@@ -16,8 +16,10 @@
   (:require [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -30,34 +32,39 @@
 
 (def ^:const factory-types
   {:game-object {:icon "icons/32/Icons_07-Factory.png"
+                 :message (localization/message "resource.type.factory")
                  :title "Factory"
+                 :localization-key "factory"
                  :ext "go"
                  :pb-type GameSystem$FactoryDesc}
    :collection  {:icon "icons/32/Icons_08-Collection-factory.png"
+                 :message (localization/message "resource.type.collectionfactory")
                  :title "Collection Factory"
+                 :localization-key "collectionfactory"
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
 (g/defnk produce-form-data
   [_node-id factory-type prototype-resource load-dynamically dynamic-prototype]
-  {:form-ops {:user-data {:node-id _node-id}
-              :set protobuf-forms-util/set-form-op
-              :clear protobuf-forms-util/clear-form-op}
-   :navigation false
-   :sections [{:title (get-in factory-types [factory-type :title])
-               :fields [{:path [:prototype]
-                         :label "Prototype"
-                         :type :resource
-                         :filter (get-in factory-types [factory-type :ext])}
-                        {:path [:load-dynamically]
-                         :label "Load Dynamically"
-                         :type :boolean}
-                        {:path [:dynamic-prototype]
-                         :label "Dynamic Prototype"
-                         :type :boolean}]}]
-   :values {[:prototype] prototype-resource
-            [:load-dynamically] load-dynamically
-            [:dynamic-prototype] dynamic-prototype}})
+  (let [localization-key (get-in factory-types [factory-type :localization-key])]
+    {:form-ops {:user-data {:node-id _node-id}
+                :set protobuf-forms-util/set-form-op
+                :clear protobuf-forms-util/clear-form-op}
+     :navigation false
+     :sections [{:localization-key localization-key
+                 :fields [{:path [:prototype]
+                           :localization-key (str localization-key ".prototype")
+                           :type :resource
+                           :filter (get-in factory-types [factory-type :ext])}
+                          {:path [:load-dynamically]
+                           :localization-key (str localization-key ".load-dynamically")
+                           :type :boolean}
+                          {:path [:dynamic-prototype]
+                           :localization-key (str localization-key ".dynamic-prototype")
+                           :type :boolean}]}]
+     :values {[:prototype] prototype-resource
+              [:load-dynamically] load-dynamically
+              [:dynamic-prototype] dynamic-prototype}}))
 
 (g/defnk produce-save-value
   [prototype-resource load-dynamically dynamic-prototype factory-type]
@@ -114,22 +121,26 @@
                                   (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource "Prototype")
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
-                                 {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
-  (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically)))
-  (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype)))
+                                 {:type resource/Resource :ext (get-in factory-types [factory-type :ext])}))
+            (dynamic label (properties/label-dynamic :factory :prototype))
+            (dynamic tooltip (properties/tooltip-dynamic :factory :prototype)))
+  (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically))
+            (dynamic label (properties/label-dynamic :factory :load-dynamically))
+            (dynamic tooltip (properties/tooltip-dynamic :factory :load-dynamically)))
+  (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype))
+            (dynamic label (properties/label-dynamic :factory :dynamic-prototype))
+            (dynamic tooltip (properties/tooltip-dynamic :factory :dynamic-prototype)))
 
   (output form-data g/Any produce-form-data)
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type prototype]
-                                                     (let [label (get-in factory-types [factory-type :title])
-                                                           icon (get-in factory-types [factory-type :icon])]
-                                                       (cond-> {:node-id _node-id
-                                                                :node-outline-key label
-                                                                :label label
-                                                                :icon icon}
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key (get-in factory-types [factory-type :title])
+                                                              :label (get-in factory-types [factory-type :message])
+                                                              :icon (get-in factory-types [factory-type :icon])}
 
-                                                               (resource/resource? prototype)
-                                                               (assoc :link prototype :outline-reference? false)))))
+                                                             (resource/resource? prototype)
+                                                             (assoc :link prototype :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
@@ -150,7 +161,7 @@
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Factory")
+      :label (localization/message "resource.type.factory"))
     (resource-node/register-ddf-resource-type workspace
       :textual? true
       :ext "collectionfactory"
@@ -163,4 +174,4 @@
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Collection Factory")))
+      :label (localization/message "resource.type.collectionfactory"))))

@@ -190,7 +190,11 @@
        :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) game-object-common/game-object-icon)
-       :children (into (outline/natural-sort child-outlines) (:children source-outline))
+       :children (localization/annotate-as-sorted
+                   (fn [localization-state _]
+                     (into (localization/natural-sort-by-label localization-state child-outlines)
+                           (localization/sort-if-annotated localization-state (:children source-outline))))
+                   (into child-outlines (:children source-outline)))
        :child-reqs [{:node-type ReferencedGOInstanceNode
                      :tx-attach-fn tx-attach-go-referenced-go}
                     {:node-type EmbeddedGOInstanceNode
@@ -480,13 +484,16 @@
     (tx-attach-coll-coll self-id child-id)))
 
 (g/defnk produce-coll-outline [_node-id child-outlines]
-  (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
-                                      [(get outlines false) (get outlines true)])]
+  (let [{go-outlines false coll-outlines true} (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Collection"
-     :label "Collection"
+     :label (localization/message "outline.collection")
      :icon collection-common/collection-icon
-     :children (into (outline/natural-sort coll-outlines) (outline/natural-sort go-outlines))
+     :children (localization/annotate-as-sorted
+                 (fn [localization-state _]
+                   (into (localization/natural-sort-by-label localization-state coll-outlines)
+                         (localization/natural-sort-by-label localization-state go-outlines)))
+                 (into (or coll-outlines []) go-outlines))
      :child-reqs [{:node-type ReferencedGOInstanceNode
                    :tx-attach-fn outline-tx-attach-coll-referenced-go}
                   {:node-type EmbeddedGOInstanceNode
@@ -499,7 +506,7 @@
 
   (property name g/Str
             (dynamic error (g/fnk [_node-id name]
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
+                             (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
 
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
@@ -702,7 +709,7 @@
         id (gen-instance-id coll-node base)]
     (g/transact
       (concat
-        (g/operation-label "Add Game Object")
+        (g/operation-label (localization/message "operation.collection.add-game-object"))
         (make-ref-go coll-node resource id nil parent nil select-fn)))))
 
 (defn- select-go-file [workspace project]
@@ -756,7 +763,7 @@
         id (gen-instance-id coll-node ext)]
     (g/transact
       (concat
-        (g/operation-label "Add Game Object")
+        (g/operation-label (localization/message "operation.collection.add-game-object"))
         (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
@@ -784,7 +791,7 @@
 (defn add-referenced-collection! [self source-resource id transform-properties overrides select-fn]
   (g/transact
     (concat
-      (g/operation-label "Add Collection")
+      (g/operation-label (localization/message "operation.collection.add-collection"))
       (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench
@@ -968,7 +975,7 @@
     (attachment/define-alternative workspace CollectionInstanceNode source-id)
     (resource-node/register-ddf-resource-type workspace
       :ext "collection"
-      :label "Collection"
+      :label (localization/message "resource.type.collection")
       :node-type CollectionNode
       :ddf-type GameObject$CollectionDesc
       :load-fn load-collection

@@ -16,9 +16,8 @@
   (:require [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
-            [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
@@ -93,7 +92,7 @@
                     (g/tx-nodes-added
                      (g/transact
                       (concat
-                       (g/operation-label "Add Component")
+                       (g/operation-label (localization/message "operation.game-object.add-component"))
                        (g/operation-sequence op-seq)
                        (g/make-nodes proj-graph
                                      [comp-node DummyComponent]
@@ -101,7 +100,7 @@
     (g/transact
      (concat
       (g/operation-sequence op-seq)
-      (g/operation-label "Add Component")
+      (g/operation-label (localization/message "operation.game-object.add-component"))
       (select-fn [component])))
     component))
 
@@ -120,7 +119,7 @@
 
        ;; delete the component
        (g/transact
-         [(g/operation-label "delete node")
+         [(g/operation-label (localization/message "operation.delete"))
           (g/delete-node component)])
 
        ;; force :outline to be cached

@@ -51,9 +51,9 @@
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListCell ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input KeyEvent MouseEvent]
+           [javafx.scene.input KeyEvent KeyCode MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Text TextFlow]
@@ -281,8 +281,11 @@
                      (HBox/setHgrow Priority/ALWAYS)
                      (ui/add-style! "path-field")
                      (ui/children! [(doto (Label.)
-                                      (HBox/setHgrow Priority/NEVER)
+                                      (HBox/setHgrow Priority/ALWAYS)
                                       (.setId "directory-text")
+                                      (.setMaxWidth Double/MAX_VALUE)
+                                      (.setTextOverrun OverrunStyle/LEADING_ELLIPSIS)
+                                      (.setEllipsisString "…")
                                       (ui/add-styles! ["path-element" "explicit"])
                                       (ui/text! (or (some-> directory .getAbsolutePath) "")))
                                     (doto (Label. File/separator)
@@ -290,7 +293,9 @@
                                       (ui/add-styles! ["path-element" "implicit"]))
                                     (doto (Label.)
                                       (HBox/setHgrow Priority/NEVER)
-                                      (.setMinWidth Region/USE_PREF_SIZE)
+                                      (.setMinWidth Region/USE_COMPUTED_SIZE)
+                                      (.setTextOverrun OverrunStyle/ELLIPSIS)
+                                      (.setEllipsisString "…")
                                       (.setId "title-text")
                                       (ui/add-styles! ["path-element" "implicit"]))]))
                    (doto (Button. "\u2022 \u2022 \u2022") ; "* * *" (BULLET)
@@ -406,8 +411,20 @@
             (fn [recent-project]
               {:graphic (make-recent-project-entry recent-project recent-projects-list prefs localization)}))
           (.setOnMouseClicked (ui/event-handler event
-                                (when (= 2 (.getClickCount ^MouseEvent event))
-                                  (open-selected-project!)))))))
+                                (let [^MouseEvent mouse-event event
+                                      ^Node target (.getTarget mouse-event)]
+                                  (when (and (instance? ListCell target)
+                                             (nil? (.getItem ^ListCell target)))
+                                    (.clearSelection (.getSelectionModel recent-projects-list)))
+                                  (when (and (= 2 (.getClickCount mouse-event))
+                                             (not-empty (ui/selection recent-projects-list)))
+                                    (open-selected-project!)))))
+          (.setOnKeyPressed (ui/event-handler event
+                              (when (= KeyCode/ENTER (.getCode ^KeyEvent event))
+                                (open-selected-project!))))
+          (when (not-empty (recent-projects prefs))
+            (ui/select-index! recent-projects-list 0)
+            (.requestFocus recent-projects-list)))))
     home-pane))
 
 ;; -----------------------------------------------------------------------------
@@ -456,16 +473,6 @@
                                           (:description project-template)
                                           (:zip-url project-template))])))
 
-(defn- make-category-button
-  ^RadioButton [{:keys [label templates] :as template-project-category} localization]
-  (s/validate TemplateProjectCategory template-project-category)
-  (doto (RadioButton.)
-    (localization/localize! localization (localization/message label))
-    (ui/user-data! :templates templates)))
-
-(defn- category-button->templates [category-button]
-  (ui/user-data category-button :templates))
-
 (defn- new-project-screen-name
   ^String [^ButtonBase selected-template-category-button]
   (str "new-project-"
@@ -473,88 +480,94 @@
            (string/replace " " "-")
            (string/lower-case))))
 
+(defn- init-new-project-pane!
+  [^Parent root new-project-location-directory templates localization download-template!]
+  (ui/with-controls root [^ButtonBase create-new-project-button
+                          new-project-location-field
+                          ^TextField new-project-title-field
+                          ^ListView template-list
+                          new-project-title-label
+                          new-project-location-label]
+    (.setText new-project-title-field (localization (localization/message "welcome.new-project.default-name")))
+    (localization/localize! new-project-title-label localization (localization/message "welcome.new-project.title"))
+    (localization/localize! new-project-location-label localization (localization/message "welcome.new-project.location"))
+    (localization/localize! create-new-project-button localization (localization/message "welcome.button.create-new-project"))
+    (setup-location-field! new-project-location-field localization "welcome.new-project.location.dialog.title" new-project-location-directory)
+    (let [title-text-property (.textProperty new-project-title-field)
+          sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
+      (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
+    (doto template-list
+      (ui/cell-factory! (fn [project-template]
+                          {:graphic (make-template-entry project-template localization)}))
+      (.setOnMouseClicked (ui/event-handler event
+                            (let [^MouseEvent mouse-event event
+                                  ^Node target (.getTarget mouse-event)]
+                              (when (and (instance? ListCell target)
+                                         (nil? (.getItem ^ListCell target)))
+                                (.clearSelection (.getSelectionModel template-list)))
+                              (when (and (= 2 (.getClickCount mouse-event))
+                                         (not-empty (ui/selection template-list)))
+                                (.requestFocus new-project-title-field)))))
+      (.setOnKeyPressed (ui/event-handler event
+                          (when (and (= KeyCode/ENTER (.getCode ^KeyEvent event))
+                                     (first (ui/selection template-list)))
+                            (.requestFocus new-project-title-field)))))
+    (when (some? templates)
+      (ui/items! template-list templates)
+      (when (seq templates)
+        (ui/select-index! template-list 0)
+        (when-some [selected-project-title (:name (first templates))]
+          (ui/text! new-project-title-field (localization (localization/message selected-project-title))))))
+
+    ;; Update the Title field whenever a template is selected.
+    (ui/observe-selection template-list
+                          (fn [_ selection]
+                            (when-some [selected-project-title (:name (first selection))]
+                              (ui/text! new-project-title-field (localization (localization/message selected-project-title))))))
+
+    ;; Configure create-new-project-button.
+    (b/bind-enabled-to-selection! create-new-project-button template-list)
+    (ui/on-action! create-new-project-button
+      (fn [_]
+        (let [project-template (first (ui/selection template-list))
+              project-title (ui/text new-project-title-field)
+              project-location (location-field-location new-project-location-field)]
+          (cond
+            (string/blank? project-title)
+            (dialogs/make-info-dialog
+              localization
+              {:title (localization/message "welcome.new-project.error.no-project-title.title")
+               :icon :icon/triangle-error
+               :header (localization/message "welcome.new-project.error.no-project-title.header")})
+
+            (not= project-title (string/trim project-title))
+            (dialogs/make-info-dialog
+              localization
+              {:title (localization/message "welcome.new-project.error.invalid-project-title.title")
+               :icon :icon/triangle-error
+               :size :large
+               :header (localization/message "welcome.new-project.error.invalid-project-title.header")})
+
+            (and (.exists project-location)
+                 (not (fs/empty-directory? project-location)))
+            (dialogs/make-info-dialog
+              localization
+              {:title (localization/message "welcome.new-project.error.conflicting-project-location.title")
+               :icon :icon/triangle-error
+               :size :large
+               :header (localization/message "welcome.new-project.error.conflicting-project-location.header")})
+
+            :else
+            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title)))))))
+
 (defn- make-new-project-pane
-  ^Parent [new-project-location-directory download-template! welcome-settings ^ToggleGroup category-buttons-toggle-group localization]
-  (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [^ButtonBase create-new-project-button
-                       new-project-location-field
-                       ^TextField new-project-title-field
-                       template-categories
-                       ^ListVew template-list
-                       new-project-title-label
-                       new-project-location-label]
-      (.setText new-project-title-field (localization (localization/message "welcome.new-project.default-name")))
-      (localization/localize! new-project-title-label localization (localization/message "welcome.new-project.title"))
-      (localization/localize! new-project-location-label localization (localization/message "welcome.new-project.location"))
-      (localization/localize! create-new-project-button localization (localization/message "welcome.button.create-new-project"))
-      (setup-location-field! new-project-location-field localization "welcome.new-project.location.dialog.title" new-project-location-directory)
-      (let [title-text-property (.textProperty new-project-title-field)
-            sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
-        (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
-      (doto template-list
-        (ui/cell-factory! (fn [project-template]
-                            {:graphic (make-template-entry project-template localization)})))
-
-      ;; Configure template category toggle buttons.
-      (let [category-buttons (mapv #(make-category-button % localization) (get-in welcome-settings [:new-project :categories]))]
-
-        ;; Add the category buttons to top bar and configure them to toggle between the templates.
-        (doseq [^RadioButton category-button category-buttons]
-          (.setToggleGroup category-button category-buttons-toggle-group)
-          (ui/add-child! template-categories category-button))
-
-        (ui/observe (.selectedToggleProperty category-buttons-toggle-group)
-                    (fn [_ old-selected-category-button new-selected-category-button]
-                      (when (some? old-selected-category-button)
-                        (analytics/track-screen! (new-project-screen-name new-selected-category-button)))
-                      (let [templates (category-button->templates new-selected-category-button)]
-                        (ui/items! template-list templates)
-                        (when (seq templates)
-                          (ui/select-index! template-list 0)))))
-
-        ;; Select the first category button.
-        (.selectToggle category-buttons-toggle-group (first category-buttons)))
-
-      ;; Update the Title field whenever a template is selected.
-      (ui/observe-selection template-list
-                            (fn [_ selection]
-                              (when-some [selected-project-title (:name (first selection))]
-                                (ui/text! new-project-title-field (localization (localization/message selected-project-title))))))
-
-      ;; Configure create-new-project-button.
-      (b/bind-enabled-to-selection! create-new-project-button template-list)
-      (ui/on-action! create-new-project-button
-                     (fn [_]
-                       (let [project-template (first (ui/selection template-list))
-                             project-title (ui/text new-project-title-field)
-                             project-location (location-field-location new-project-location-field)]
-                         (cond
-                           (string/blank? project-title)
-                           (dialogs/make-info-dialog
-                             localization
-                             {:title (localization/message "welcome.new-project.error.no-project-title.title")
-                              :icon :icon/triangle-error
-                              :header (localization/message "welcome.new-project.error.no-project-title.header")})
-
-                           (not= project-title (string/trim project-title))
-                           (dialogs/make-info-dialog
-                             localization
-                             {:title (localization/message "welcome.new-project.error.invalid-project-title.title")
-                              :icon :icon/triangle-error
-                              :size :large
-                              :header (localization/message "welcome.new-project.error.invalid-project-title.header")})
-
-                           (and (.exists project-location)
-                                (not (fs/empty-directory? project-location)))
-                           (dialogs/make-info-dialog
-                             localization
-                             {:title (localization/message "welcome.new-project.error.conflicting-project-location.title")
-                              :icon :icon/triangle-error
-                              :size :large
-                              :header (localization/message "welcome.new-project.error.conflicting-project-location.header")})
-
-                           :else
-                           (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
+  (^Parent [new-project-location-directory download-template! template-category localization]
+   ;; Single-category variant: hide internal category tabs and show only provided templates.
+   (let [{:keys [templates] :as _tc} template-category]
+     (s/validate TemplateProjectCategory template-category)
+     (let [pane (ui/load-fxml "welcome/new-project-pane.fxml")]
+       (init-new-project-pane! pane new-project-location-directory templates localization download-template!)
+       pane))))
 
 ;; -----------------------------------------------------------------------------
 ;; Automatic updates
@@ -584,6 +597,15 @@
 (defn- pane-button->pane
   ^Parent [pane-button]
   (ui/user-data pane-button :pane))
+
+(defn- make-left-header
+  "Creates a left-pane section header with Defold sub-header styling."
+  [localization message-key]
+  (doto (HBox.)
+    (ui/add-style! "header-pane")
+    (ui/add-child! (doto (Label.)
+                      (ui/add-style! "df-sub-header")
+                      (localization/localize! localization (localization/message message-key))))))
 
 (defn- show-progress!
   ^ProgressBar [^Parent root localization header-text-key template-name-key cancel-button-text-key cancel!]
@@ -731,20 +753,26 @@
          ^ComboBox language-selector (.lookup left-pane "#language-selector")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          pane-buttons-toggle-group (ToggleGroup.)
-         template-category-buttons-toggle-group (ToggleGroup.)
-         new-project-pane-button (make-pane-button localization "welcome.tab.new-project" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group localization))
-         show-new-project-pane! (fn [] (.selectToggle pane-buttons-toggle-group new-project-pane-button))
+         categories (vec (get-in welcome-settings [:new-project :categories]))
+         category-pane-buttons (mapv (fn [category]
+                                       (make-pane-button localization
+                                                         (:label category)
+                                                         (make-new-project-pane new-project-location-directory download-template! category localization)))
+                                     categories)
+         show-first-category-pane! (fn []
+                                     (when-let [first-btn (first category-pane-buttons)]
+                                       (.selectToggle pane-buttons-toggle-group first-btn)))
          home-pane-button (make-pane-button localization "welcome.tab.home"
                                             (make-home-pane last-opened-project-directory
-                                                            show-new-project-pane!
+                                                            show-first-category-pane!
                                                             close-dialog-and-open-project!
                                                             prefs
                                                             localization))
-         pane-buttons [home-pane-button new-project-pane-button]
-         screen-name (fn [selected-pane-button selected-template-category-button]
-                       (condp = selected-pane-button
-                         home-pane-button "home"
-                         new-project-pane-button (new-project-screen-name selected-template-category-button)))]
+         pane-buttons (into [home-pane-button] category-pane-buttons)
+         screen-name (fn [selected-pane-button]
+                       (if (= selected-pane-button home-pane-button)
+                         "home"
+                         (new-project-screen-name selected-pane-button)))]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]
@@ -775,15 +803,24 @@
                                          updater
                                          localization)))
 
-     ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
+     ;; Configure toggle group for all pane buttons.
      (doseq [^RadioButton pane-button pane-buttons]
-       (.setToggleGroup pane-button pane-buttons-toggle-group)
-       (ui/add-child! pane-buttons-container pane-button))
+       (.setToggleGroup pane-button pane-buttons-toggle-group))
+
+     ;; Add grouped headers and pane buttons to the left panel.
+     (let [open-header (make-left-header localization "welcome.header.open")
+           new-project-header (make-left-header localization "welcome.header.new-project-from")
+           ^RadioButton home-button home-pane-button]
+       (ui/add-child! pane-buttons-container open-header)
+       (ui/add-child! pane-buttons-container home-button)
+       (ui/add-child! pane-buttons-container new-project-header)
+       (doseq [^RadioButton pane-button category-pane-buttons]
+         (ui/add-child! pane-buttons-container pane-button)))
 
      (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
                  (fn [_ old-selected-pane-button new-selected-pane-button]
                    (when (some? old-selected-pane-button)
-                     (analytics/track-screen! (screen-name new-selected-pane-button (.getSelectedToggle template-category-buttons-toggle-group))))
+                     (analytics/track-screen! (screen-name new-selected-pane-button)))
                    (let [pane (pane-button->pane new-selected-pane-button)]
                      (ui/with-controls root [dialog-contents]
                        (ui/children! dialog-contents [left-pane pane])))))
@@ -803,7 +840,7 @@
                                 (let [key-event ^KeyEvent event
                                       selected-pane-button (.getSelectedToggle pane-buttons-toggle-group)]
                                   (when (and (.isShortcutDown key-event)
-                                             (= "r" (.getText key-event)))
+                                             (= KeyCode/R (.getCode key-event)))
                                     (ui/close! stage)
                                     (show-welcome-dialog! prefs localization updater open-project-fn
                                                           {:x (.getX stage)
@@ -818,30 +855,30 @@
        (error-reporting/report-exception! welcome-settings-load-error)
 
        ;; If this happens in dev mode, it is likely due to an invalid welcome.edn file.
-       ;; Display the error message on the new project pane, so we can fix and reload.
+       ;; Display the error message on the first new project category pane, so we can fix and reload.
        (when (system/defold-dev?)
-         (let [new-project-pane-button (second pane-buttons)
-               new-project-pane (pane-button->pane new-project-pane-button)]
-           (.selectToggle pane-buttons-toggle-group new-project-pane-button)
-           (ui/children! new-project-pane [(doto (TextArea.)
-                                             (.setPrefHeight 10000.0)
-                                             (.setEditable false)
-                                             (.setStyle "-fx-font-family: 'Dejavu Sans Mono'; -fx-font-size: 90%;")
-                                             (ui/text! (if (and (instance? ExceptionInfo welcome-settings-load-error)
-                                                                (= :schema.core/error (:type (ex-data welcome-settings-load-error))))
-                                                         (let [ex-data (ex-data welcome-settings-load-error)]
-                                                           (str "Schema Validation failed when loading `welcome.edn`.\n\n"
-                                                                "Use Command+R to reload once you've fixed the error.\n\n"
-                                                                "Errors were found here:\n"
-                                                                (with-out-str (pprint/pprint (:error ex-data)))
-                                                                "\n"
-                                                                "When matched against this schema:\n"
-                                                                (with-out-str (pprint/pprint (:schema ex-data)))))
-                                                         (with-out-str (pprint/pprint welcome-settings-load-error))))
-                                             (.positionCaret 0))]))))
+         (let [target-pane-button (or (first category-pane-buttons) home-pane-button)
+               target-pane (pane-button->pane target-pane-button)]
+           (.selectToggle pane-buttons-toggle-group target-pane-button)
+           (ui/children! target-pane [(doto (TextArea.)
+                                        (.setPrefHeight 10000.0)
+                                        (.setEditable false)
+                                        (.setStyle "-fx-font-family: 'Dejavu Sans Mono'; -fx-font-size: 90%;")
+                                        (ui/text! (if (and (instance? ExceptionInfo welcome-settings-load-error)
+                                                           (= :schema.core/error (:type (ex-data welcome-settings-load-error))))
+                                                    (let [ex-data (ex-data welcome-settings-load-error)]
+                                                      (str "Schema Validation failed when loading `welcome.edn`.\n\n"
+                                                           "Use Command+R to reload once you've fixed the error.\n\n"
+                                                           "Errors were found here:\n"
+                                                           (with-out-str (pprint/pprint (:error ex-data)))
+                                                           "\n"
+                                                           "When matched against this schema:\n"
+                                                           (with-out-str (pprint/pprint (:schema ex-data)))))
+                                                    (with-out-str (pprint/pprint welcome-settings-load-error))))
+                                        (.positionCaret 0))]))))
 
      ;; Show the dialog.
      (analytics/track-event! "welcome" "show-welcome")
-     (analytics/track-screen! (screen-name (.getSelectedToggle pane-buttons-toggle-group) (.getSelectedToggle template-category-buttons-toggle-group)))
+     (analytics/track-screen! (screen-name (.getSelectedToggle pane-buttons-toggle-group)))
      (.setScene stage scene)
      (ui/show! stage localization))))

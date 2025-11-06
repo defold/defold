@@ -42,7 +42,7 @@ protected:
         data->m_Height = height;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Window = dmPlatform::NewWindow();
 
@@ -62,7 +62,7 @@ protected:
         dmPlatform::OpenWindow(m_Window, params);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmPlatform::DeleteWindow(m_Window);
     }

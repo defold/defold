@@ -114,7 +114,7 @@ static float Remap(float value, float outline_edge)
 }
 
 // Called on the worker thread
-static int JobGenerateGlyph(void* context, void* data)
+static int JobGenerateGlyph(dmJobThread::HContext, dmJobThread::HJob job, void* context, void* data)
 {
     (void)context;
     JobItem* item = (JobItem*)data;
@@ -247,7 +247,7 @@ static void SetFailedStatus(JobItem* item, const char* msg)
     dmLogError("%s", msg); // log for each error in a batch
 }
 
-static void InvokeCallback(JobItem* item)
+static void InvokeCallback(dmJobThread::HContext, dmJobThread::HJob hjob, JobItem* item)
 {
     JobStatus* status = item->m_Status;
     if (item->m_Callback) // only the last item has this callback
@@ -273,7 +273,7 @@ static void DeleteItem(Context* ctx, JobItem* item)
 }
 
 // Called on the main thread
-static void JobPostProcessGlyph(void* context, void* data, int result)
+static void JobPostProcessGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob job, dmJobThread::JobStatus status, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
@@ -292,7 +292,7 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
         char msg[256];
         dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c' 0x%04X", codepoint, codepoint);
         SetFailedStatus(item, msg);
-        InvokeCallback(item);
+        InvokeCallback(job_thread, job, item);
         DeleteItem(ctx, item);
         return;
     }
@@ -307,7 +307,7 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
         SetFailedStatus(item, msg);
     }
 
-    InvokeCallback(item); // reports either first error, or success
+    InvokeCallback(job_thread, job, item); // reports either first error, or success
     DeleteItem(ctx, item);
 }
 
@@ -335,7 +335,15 @@ static void GenerateGlyph(Context* ctx,
     item->m_StbttSdfPadding = stbtt_padding;
     item->m_StbttEdgeValue = stbtt_edge;
     item->m_Mutex = is_loading ? 0 : ctx->m_Mutex;
-    dmJobThread::PushJob(ctx->m_Jobs, JobGenerateGlyph, JobPostProcessGlyph, ctx, item);
+
+    dmJobThread::Job job = {0};
+    job.m_Process = JobGenerateGlyph;
+    job.m_Callback = JobPostProcessGlyph;
+    job.m_Context = ctx;
+    job.m_Data = item;
+
+    dmJobThread::HJob hjob = dmJobThread::CreateJob(ctx->m_Jobs, &job);
+    dmJobThread::PushJob(ctx->m_Jobs, hjob);
 }
 
 static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,

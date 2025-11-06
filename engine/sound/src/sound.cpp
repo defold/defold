@@ -1758,44 +1758,66 @@ namespace dmSound
             sound->m_IsDeviceStarted = true;
         }
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-        if (free_slots > 0) {
+        if (free_slots > 0)
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
             StepGroupValues();
             StepInstanceValues();
         }
 
         uint32_t current_buffer = 0;
         uint32_t total_buffers = free_slots;
-        while (free_slots > 0) {
-
-            // Get the number of frames available
+        while (free_slots > 0)
+        {
+            // Get the number of frames available (can block, so avoid holding the sound mutex here)
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
             {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+                if (frame_count == 0)
+                {
+                    break;
+                }
             }
 
-            sound->m_FrameCount = frame_count;
+            uint32_t buffer_index = 0;
 
-            if (frame_count < SOUND_MAX_HISTORY)
-                continue;
+            {
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
-            MixContext mix_context(current_buffer, total_buffers, frame_count);
-            MixInstances(&mix_context);
+                sound->m_FrameCount = frame_count;
 
-            Master(&mix_context);
+                if (frame_count < SOUND_MAX_HISTORY)
+                {
+                    continue;
+                }
+
+                MixContext mix_context(current_buffer, total_buffers, frame_count);
+                MixInstances(&mix_context);
+
+                Master(&mix_context);
+
+                buffer_index = sound->m_NextOutBuffer;
+                sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
+            }
+
+            dmSound::Result queue_result;
 
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
                 DM_PROFILE("QueueBuffer");
-                sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+                queue_result = sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[buffer_index], frame_count);
             }
 
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
+            if (queue_result == dmSound::RESULT_INIT_ERROR)
+            {
+                sound->m_IsDeviceStarted = false;
+                return queue_result;
+            }
+
             current_buffer++;
             free_slots--;
         }

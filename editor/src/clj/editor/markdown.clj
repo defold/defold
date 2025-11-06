@@ -37,6 +37,7 @@
             [editor.code.resource :as r]
             [editor.defold-project :as project]
             [editor.fxui :as fxui]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -632,7 +633,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
     :ext "md"
-    :label "Markdown"
+    :label (localization/message "resource.type.markdown")
     :node-type MarkdownNode
     :view-types [:html :code]
     :view-opts nil))

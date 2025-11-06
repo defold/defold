@@ -19,7 +19,7 @@
 
 namespace dmDDF
 {
-    Result DoSaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function);
+    Result DoSaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function, int level);
 }
 
 #endif // DDF_SAVE_H

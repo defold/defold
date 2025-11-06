@@ -189,7 +189,8 @@ namespace dmGameSystem
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
             {
                 num_mips = MAX_MIPMAP_COUNT;
-                output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
+                dmGraphics::TextureType texture_type = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
+                output_format = dmGraphics::GetSupportedCompressionFormatForType(context, output_format, image->m_Width, image->m_Height, texture_type);
 
                 if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, image_data_alternative, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
                 {
@@ -198,7 +199,7 @@ namespace dmGameSystem
                 }
             }
 
-            if (!dmGraphics::IsTextureFormatSupported(context, output_format))
+            if (!dmGraphics::IsTextureFormatSupportedForType(context, TextureImageToTextureType(image_desc->m_DDFImage->m_Type), output_format))
             {
                 continue;
             }
@@ -486,6 +487,8 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
         TextureResource* texture_res = new TextureResource();
+        texture_res->m_OriginalWidth = 0;
+        texture_res->m_OriginalHeight = 0;
 
         if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
@@ -494,6 +497,9 @@ namespace dmGameSystem
             if (r == dmResource::RESULT_OK)
             {
                 dmResource::SetResource(params->m_Resource, texture_res);
+
+                texture_res->m_OriginalWidth = dmGraphics::GetOriginalTextureWidth(graphics_context, texture_res->m_Texture);
+                texture_res->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(graphics_context, texture_res->m_Texture);
             }
             else
             {

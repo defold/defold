@@ -245,6 +245,7 @@
      "pieFillAngle" :unused
      "shadow" :unused
      "shadow_alpha" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -301,6 +302,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -322,6 +324,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -356,6 +359,7 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -385,6 +389,7 @@
      "pieFillAngle" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -396,6 +401,11 @@
    {:default
     {"background_color" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+   'dmGraphics.TextureFormatAlternative
+   {:default
+    {"compression_level" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "compression_type" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
@@ -500,7 +510,12 @@
 
    'dmRigDDF.AnimationSetDesc
    {:default
-    {"skeleton" :deprecated}}}) ; Non-default depth/stencil format not supported yet.
+    {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
+
+   'dmRiveDDF.RiveModelDesc
+   {:default
+    {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.
+     "blit_material" :non-editable}}}) ; Not currently editable, but perhaps will be in the future.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -645,8 +660,8 @@
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
-            embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
-            referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
+            referenced-go (:node-id (test-util/outline uniform-scale-collection [1]))
+            embedded-go (:node-id (test-util/outline uniform-scale-collection [2]))]
         (is (= collection/CollectionInstanceNode (g/node-type* referenced-collection)))
         (is (= collection/EmbeddedGOInstanceNode (g/node-type* embedded-go)))
         (is (= collection/ReferencedGOInstanceNode (g/node-type* referenced-go)))
@@ -746,7 +761,7 @@
             legacy-texture-profiles-save-value (g/node-value legacy-texture-profiles :save-value)
             legacy-texture-profiles-formats (set (get-in legacy-texture-profiles-save-value [:profiles 0 :platforms 0 :formats]))
             all-format-combinations (set texture-profile-format-combinations)]
-        (is (= legacy-texture-profiles-formats all-format-combinations))))))
+        (is (= all-format-combinations legacy-texture-profiles-formats))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

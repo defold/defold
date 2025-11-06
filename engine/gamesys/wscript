@@ -35,7 +35,7 @@ def configure(conf):
     waf_render.configure(conf)
 
     if target_os == TargetOS.MACOS:
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif target_os == TargetOS.IOS:
         pass
     elif target_os == TargetOS.ANDROID:
@@ -55,10 +55,6 @@ def configure(conf):
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STLIB_INPUT'] = 'input'
-    conf.env['STLIB_HID'] = 'hid'
-    conf.env['STLIB_HID_NULL'] = 'hid_null'
-    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
     conf.env['STLIB_GRAPHICS_GAMESYS_TEST'] = ['graphics_null', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_TEST_SCRIPT'] = 'test_script'

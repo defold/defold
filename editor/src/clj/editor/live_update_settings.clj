@@ -22,6 +22,7 @@
             [editor.form :as form]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
@@ -111,7 +112,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
     :ext "settings"
-    :label "Live Update Settings"
+    :label (localization/message "resource.type.settings")
     :node-type LiveUpdateSettingsNode
     :load-fn load-live-update-settings
     :meta-settings (:settings basic-meta-info)

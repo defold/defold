@@ -62,6 +62,7 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
+#include "script/script_engine.h"
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -321,6 +322,9 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_ThrottleCooldownMax(0.0f)
+    , m_ThrottleCooldown(0.0f)
+    , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
@@ -379,11 +383,14 @@ namespace dmEngine
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
         } else {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -1056,9 +1063,9 @@ namespace dmEngine
         }
 
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "DefoldJobThread1";
-        job_thread_create_param.m_ThreadCount    = 1;
-        engine->m_JobThreadContext               = dmJobThread::Create(job_thread_create_param);
+        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
+        job_thread_create_param.m_ThreadCount       = 1;
+        engine->m_JobThreadContext                  = dmJobThread::Create(job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
@@ -1130,6 +1137,7 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
+        params.m_JobThreadContext = engine->m_JobThreadContext;
 
         if (dLib::IsDebugMode())
         {
@@ -1552,6 +1560,8 @@ namespace dmEngine
             {
                 goto bail;
             }
+
+            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
         }
         else
         {
@@ -1561,12 +1571,15 @@ namespace dmEngine
             {
                 goto bail;
             }
+            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
+
             script_lib_context.m_ScriptContext = engine->m_GuiScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
             {
                 goto bail;
             }
+            dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
         }
 
         // setup streaming for resource types, before we load the first collection
@@ -1665,6 +1678,16 @@ bail:
         return false;
     }
 
+    void SetEngineThrottle(HEngine engine, bool enable, float cooldown)
+    {
+        engine->m_ThrottleEnabled = enable;
+        if (enable)
+        {
+            engine->m_ThrottleCooldownMax = cooldown;
+            engine->m_ThrottleCooldown = 0;
+        }
+    }
+
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
@@ -1693,28 +1716,36 @@ bail:
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
 
-        input_action.m_TouchCount = action->m_Count;
-        int tc = action->m_Count;
-        for (int i = 0; i < tc; ++i) {
-            dmHID::Touch& a = action->m_Touch[i];
-            dmHID::Touch& ia = input_action.m_Touch[i];
-            ia = action->m_Touch[i];
-            ia.m_Id = a.m_Id;
-            ia.m_X = (a.m_X + 0.5f) * width_ratio;
-            ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
-            ia.m_DX = a.m_DX * width_ratio;
-            ia.m_DY = -a.m_DY * height_ratio;
-            ia.m_ScreenX = a.m_X;
-            ia.m_ScreenY = window_height - a.m_Y;
-            ia.m_ScreenDX = a.m_DX;
-            ia.m_ScreenDY = -a.m_DY;
+        input_action.m_TouchCount = 0;
+        if (!action->m_HasText && action->m_Count > 0)
+        {
+            uint32_t touch_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_TOUCH_COUNT);
+            input_action.m_TouchCount = touch_count;
+            for (uint32_t i = 0; i < touch_count; ++i) {
+                dmHID::Touch& a = action->m_Touch[i];
+                dmHID::Touch& ia = input_action.m_Touch[i];
+                ia = action->m_Touch[i];
+                ia.m_Id = a.m_Id;
+                ia.m_X = (a.m_X + 0.5f) * width_ratio;
+                ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
+                ia.m_DX = a.m_DX * width_ratio;
+                ia.m_DY = -a.m_DY * height_ratio;
+                ia.m_ScreenX = a.m_X;
+                ia.m_ScreenY = window_height - a.m_Y;
+                ia.m_ScreenDX = a.m_DX;
+                ia.m_ScreenDY = -a.m_DY;
+            }
         }
 
-        input_action.m_TextCount = action->m_Count;
+        input_action.m_TextCount = 0;
         input_action.m_HasText = action->m_HasText;
-        tc = action->m_Count;
-        for (int i = 0; i < tc; ++i) {
-            input_action.m_Text[i] = action->m_Text[i];
+        if (action->m_HasText && action->m_Count > 0)
+        {
+            uint32_t text_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_CHAR_COUNT);
+            input_action.m_TextCount = text_count;
+            for (uint32_t i = 0; i < text_count; ++i) {
+                input_action.m_Text[i] = action->m_Text[i];
+            }
         }
 
         input_action.m_IsGamepad = action->m_IsGamepad;
@@ -1767,6 +1798,29 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
+    // Return true if the frame should be skipped
+    static bool UpdateFrameThrottle(HEngine engine, float dt, bool has_input)
+    {
+        if (!engine->m_ThrottleEnabled)
+        {
+            return false;
+        }
+
+        // We have new input, so reset the cooldown
+        if (has_input)
+        {
+            engine->m_ThrottleCooldown = 0;
+            return false;
+        }
+
+        // If cooldown max is 0, we want 1 frame of update
+        bool skip = engine->m_ThrottleCooldown > engine->m_ThrottleCooldownMax;
+
+        engine->m_ThrottleCooldown += dt;
+
+        return skip;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1811,15 +1865,19 @@ bail:
             {
                 DM_PROFILE("Sim");
 
-                {
-                    DM_PROFILE("Resource");
-                    dmResource::UpdateFactory(engine->m_Factory);
-                }
-
+                bool has_input = false;
                 {
                     DM_PROFILE("Hid");
-                    dmHID::Update(engine->m_HidContext);
+                    has_input = dmHID::Update(engine->m_HidContext);
                 }
+
+                // Check if we should skip this frame
+                if (UpdateFrameThrottle(engine, dt, has_input))
+                {
+                    ProfileFrameEnd(profile);
+                    return;
+                }
+
                 if (!engine->m_RunWhileIconified) {
                     if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                     {
@@ -1838,6 +1896,11 @@ bail:
                 uint64_t jobthread_max_time_us = 3 * 1000;
 #endif
                 dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
+
+                {
+                    DM_PROFILE("Resource");
+                    dmResource::UpdateFactory(engine->m_Factory); // Process Reload event
+                }
 
                 {
                     DM_PROFILE("Extension");
@@ -1979,7 +2042,6 @@ bail:
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
 
-
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
             } // Sim
 
@@ -2036,7 +2098,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
-
+                
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {

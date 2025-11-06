@@ -20,9 +20,11 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
@@ -94,7 +96,7 @@
   [_node-id]
   {:node-id _node-id
    :node-outline-key "Sound"
-   :label "Sound"
+   :label (localization/message "outline.sound")
    :icon sound-icon})
 
 (g/defnk produce-form-data
@@ -103,28 +105,28 @@
    :form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
-   :sections [{:title "Sound"
+   :sections [{:localization-key "sound"
                :fields [{:path [:sound]
-                         :label "Sound"
+                         :localization-key "sound.sound"
                          :type :resource
                          :filter supported-audio-formats}
                         {:path [:looping]
-                         :label "Loop"
+                         :localization-key "sound.looping"
                          :type :boolean}
                         {:path [:loopcount]
-                         :label "Loopcount"
+                         :localization-key "sound.loopcount"
                          :type :integer}
                         {:path [:group]
-                         :label "Group"
+                         :localization-key "sound.group"
                          :type :string}
                         {:path [:gain]
-                         :label "Gain"
+                         :localization-key "sound.gain"
                          :type :number}
                         {:path [:pan]
-                         :label "Pan"
+                         :localization-key "sound.pan"
                          :type :number}
                         {:path [:speed]
-                         :label "Speed"
+                         :localization-key "sound.speed"
                          :type :number}]}]
    :values {[:sound] sound
             [:looping] looping
@@ -184,22 +186,36 @@
             (dynamic error (g/fnk [_node-id sound]
                              (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
                                  (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats})))
-  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping))))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats}))
+            (dynamic label (properties/label-dynamic :sound :sound))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :sound)))
+  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping)))
+            (dynamic label (properties/label-dynamic :sound :looping))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :looping)))
   (property loopcount g/Int (default (protobuf/default Sound$SoundDesc :loopcount))
             (value (g/fnk [looping loopcount]
                      (if (not looping) 0 loopcount)))
             (dynamic error (g/fnk [_node-id loopcount]
                              (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount "Loopcount")))
             (dynamic read-only? (g/fnk [looping]
-                                  (not looping))))
-  (property group g/Str (default (protobuf/default Sound$SoundDesc :group)))
+                                   (not looping)))
+            (dynamic label (properties/label-dynamic :sound :loopcount))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :loopcount)))
+  (property group g/Str (default (protobuf/default Sound$SoundDesc :group))
+            (dynamic label (properties/label-dynamic :sound :group))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :group)))
   (property gain g/Num (default (protobuf/default Sound$SoundDesc :gain))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain))
+            (dynamic label (properties/label-dynamic :sound :gain))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :gain)))
   (property pan g/Num (default (protobuf/default Sound$SoundDesc :pan))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan))
+            (dynamic label (properties/label-dynamic :sound :pan))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :pan)))
   (property speed g/Num (default (protobuf/default Sound$SoundDesc :speed))
-            (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed)))
+            (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed))
+            (dynamic label (properties/label-dynamic :sound :speed))
+            (dynamic tooltip (properties/tooltip-dynamic :sound :speed)))
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
@@ -219,7 +235,7 @@
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Sound")
+      :label (localization/message "resource.type.sound"))
     (for [format supported-audio-formats]
       (workspace/register-resource-type workspace
         :ext format

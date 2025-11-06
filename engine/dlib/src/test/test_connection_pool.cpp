@@ -35,7 +35,7 @@ class dmConnectionPoolTest: public jc_test_base_class
 public:
 
     dmConnectionPool::HPool pool;
-    virtual void SetUp()
+    void SetUp() override
     {
         dmConnectionPool::Params params;
         params.m_MaxConnections = MAX_CONNECTIONS;
@@ -52,7 +52,7 @@ public:
         ASSERT_EQ(in_use, stats.m_InUse);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmConnectionPool::Delete(pool);
     }

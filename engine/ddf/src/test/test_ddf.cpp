@@ -858,6 +858,10 @@ TEST(OneOfTests, Save)
     dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
+    // These are member numbers in the protobuf message
+    ASSERT_EQ(message->m_OneOfFieldOneOfIndex, 2);
+    ASSERT_EQ(message->m_OneOfFieldStringOneOfIndex, 6);
+
     std::string save_str;
     e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, save_str);
     ASSERT_EQ(dmDDF::RESULT_OK, e);

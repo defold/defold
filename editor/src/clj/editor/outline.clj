@@ -18,12 +18,15 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.util :as util]
             [internal.cache :as c]
             [schema.core :as s]
-            [service.log :as log])
-  (:import [internal.graph.types Arc]))
+            [service.log :as log]
+            [util.coll :as coll])
+  (:import [editor.localization MessagePattern]
+           [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -67,7 +70,9 @@
 
 (g/deftype OutlineData {:node-id                              s/Int
                         :node-outline-key                     (s/maybe s/Str)
-                        :label                                s/Str
+                        :label                                (s/conditional
+                                                                string? s/Str
+                                                                localization/message-pattern? MessagePattern)
                         :icon                                 s/Str
                         (s/optional-key :link)                (s/maybe (s/pred valid-link?))
                         (s/optional-key :children)            [s/Any]
@@ -187,7 +192,7 @@
          root-ids (mapv #(:node-id (value %)) src-item-iterators)]
      (g/transact
        (concat
-         (g/operation-label "Cut")
+         (g/operation-label (localization/message "operation.cut"))
          (for [id root-ids]
            (g/delete-node (g/override-root id)))
          extra-tx-data))
@@ -266,7 +271,7 @@
         paste-data (paste project fragment)
         root-nodes (root-nodes paste-data)]
     (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-      (do-paste! "Paste" (gensym) paste-data (:attachments fragment) item reqs select-fn))))
+      (do-paste! (localization/message "operation.paste") (gensym) paste-data (:attachments fragment) item reqs select-fn))))
 
 (defn paste? [project item-iterator data]
   (try
@@ -308,11 +313,11 @@
         (let [op-seq (gensym)]
           (g/transact
             (concat
-              (g/operation-label "Drop")
+              (g/operation-label (localization/message "operation.drop"))
               (g/operation-sequence op-seq)
               (for [it src-item-iterators]
                 (g/delete-node (g/override-root (:node-id (value it)))))))
-          (do-paste! "Drop" op-seq paste-data (:attachments fragment) item reqs select-fn))))))
+          (do-paste! (localization/message "operation.drop") op-seq paste-data (:attachments fragment) item reqs select-fn))))))
 
 (defn- trim-digits
   ^String [^String id]
@@ -326,9 +331,6 @@
 (defn name-resource-pairs [taken-ids resources]
   (let [names (id/resolve-all (map resource/base-name resources) taken-ids)]
     (map vector names resources)))
-
-(defn natural-sort [items]
-  (->> items (sort-by :label util/natural-order) vec))
 
 (defn gen-node-outline-keys [prefixes]
   (loop [prefixes prefixes

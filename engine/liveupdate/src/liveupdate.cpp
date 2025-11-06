@@ -416,7 +416,13 @@ namespace dmLiveUpdate
 
     static bool PushAsyncJob(dmJobThread::FProcess process, dmJobThread::FCallback callback, void* jobctx, void* jobdata)
     {
-        dmJobThread::PushJob(g_LiveUpdate.m_JobThread, process, callback, jobctx, jobdata);
+        dmJobThread::Job job = {0};
+        job.m_Process = process;
+        job.m_Callback = callback;
+        job.m_Context = jobctx;
+        job.m_Data = jobdata;
+        dmJobThread::HJob hjob = dmJobThread::CreateJob(g_LiveUpdate.m_JobThread, &job);
+        dmJobThread::PushJob(g_LiveUpdate.m_JobThread, hjob);
         return true;
     }
 
@@ -445,7 +451,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreResourceProcess(LiveUpdateCtx* jobctx, ResourceInfo* job)
+    static int StoreResourceProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, ResourceInfo* job)
     {
         if (jobctx->m_LiveupdateArchiveManifest == 0 || jobctx->m_LiveupdateArchive == 0)
         {
@@ -475,7 +481,7 @@ namespace dmLiveUpdate
         return dmResourceProvider::RESULT_OK == result;
     }
     // Called on the main thread (see dmJobThread::Update below)
-    static void StoreResourceFinished(LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
+    static void StoreResourceFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
     {
         if (job->m_Callback)
             job->m_Callback(result == 1, job->m_CallbackData);
@@ -534,7 +540,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreManifestProcess(LiveUpdateCtx* jobctx, StoreManifestInfo* job)
+    static int StoreManifestProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, StoreManifestInfo* job)
     {
         dmResource::Manifest* manifest = 0;
         dmResource::Result result = dmResource::LoadManifestFromBuffer(job->m_Data, job->m_DataLength, &manifest);
@@ -579,7 +585,7 @@ namespace dmLiveUpdate
     }
 
     // Called on the main thread (see dmJobThread::Update below)
-    static void StoreManifestFinished(LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
+    static void StoreManifestFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
     {
         dmLogInfo("Finishing manifest job");
         if (job->m_Callback)
@@ -633,7 +639,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreArchiveProcess(LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
+    static int StoreArchiveProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
     {
         if (job->m_Verify)
         {
@@ -688,7 +694,7 @@ namespace dmLiveUpdate
     }
 
     // Called on the main thread (see dmJobThread::Update below)
-    static void StoreArchiveFinished(LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
+    static void StoreArchiveFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
     {
         dmLogInfo("Finishing archive job: %d", result);
         if (job->m_Callback)
@@ -744,7 +750,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int AddMountProcess(LiveUpdateCtx* jobctx, AddMountInfo* job)
+    static int AddMountProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, AddMountInfo* job)
     {
         dmURI::Parts uri;
         dmURI::Parse(job->m_Uri, &uri);
@@ -782,7 +788,7 @@ namespace dmLiveUpdate
     }
 
     // Called on the main thread (see dmJobThread::Update below)
-    static void AddMountFinished(LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
+    static void AddMountFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
     {
         dmLogInfo("Finishing add mount job: %d", result);
         if (job->m_Callback)
@@ -931,8 +937,8 @@ namespace dmLiveUpdate
 
         // We initialize scripting first, as we might want to use file/http providers
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "liveupdate_jobs";
-        job_thread_create_param.m_ThreadCount    = 1;
+        job_thread_create_param.m_ThreadNamePrefix  = "liveupdate";
+        job_thread_create_param.m_ThreadCount       = 1;
 
         g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
 

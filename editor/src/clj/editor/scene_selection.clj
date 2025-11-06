@@ -133,7 +133,7 @@
       (concat
         (drop-fn resources)
         (g/operation-sequence op-seq)
-        (g/operation-label "Drop Resources")))))
+        (g/operation-label (localization/message "operation.drop"))))))
 
 (defn- handle-drag-dropped!
   [drop-fn root-id select-fn action]

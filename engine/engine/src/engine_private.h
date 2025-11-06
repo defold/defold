@@ -172,6 +172,10 @@ namespace dmEngine
         float                                       m_InvPhysicalHeight;
         float                                       m_MaxTimeStep;
 
+        float                                       m_ThrottleCooldownMax;
+        float                                       m_ThrottleCooldown;
+        bool                                        m_ThrottleEnabled;
+
         RecordData                                  m_RecordData;
     };
 
@@ -185,7 +189,7 @@ namespace dmEngine
     bool LoadBootstrapContent(HEngine engine, HConfigFile config);
     void UnloadBootstrapContent(HEngine engine);
 
-
+    void SetEngineThrottle(HEngine engine, bool enable, float cooldown);
 
     // Creates and initializes the engine. Returns the engine instance
     typedef HEngine (*EngineCreate)(int argc, char** argv);

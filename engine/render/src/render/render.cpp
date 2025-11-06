@@ -589,7 +589,6 @@ namespace dmRender
 
         const uint32_t ORDER_SCALE_MASK = 0xfffff0;
         const uint32_t ORDER_BASE_FRONT = 0x000008;
-        const uint32_t ORDER_BASE_BACK = 0xfffff8;
         const uint32_t ftb  = (sort_order == SORT_FRONT_TO_BACK);
         const float    base = (float)(ORDER_BASE_FRONT + ((uint32_t)!ftb) * ORDER_SCALE_MASK);
         const float    sign = ftb * 2.0f - 1.0f;
@@ -982,13 +981,12 @@ namespace dmRender
             {
                 uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
                 const RenderListEntry *last_entry = &base[*last];
+                const RenderListEntry *current_entry = &base[*idx];
+
                 // continue batch on match, or dispatch
-                if (i < count)
-                {
-                    const RenderListEntry *current_entry = &base[*idx];                
-                    if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
-                        continue;
-                }
+                if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
+                    continue;
+
                 if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
                 {
                     assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
