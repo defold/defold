@@ -269,10 +269,10 @@
         (-> (:selection-attribute-bindings user-data)
             (update :id-color graphics.types/with-value picking-id-float-array))]
 
-    (gl/with-gl-bindings gl render-args [shaders/instance-selection-local-space selection-attribute-bindings index-buffer]
+    (gl/with-gl-bindings gl render-args [shaders/selection-instance-local-space selection-attribute-bindings index-buffer]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
-        (shader/set-samplers-by-name shaders/instance-selection-local-space gl name (:texture-units t)))
+        (shader/set-samplers-by-name shaders/selection-instance-local-space gl name (:texture-units t)))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -642,7 +642,7 @@
         attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
-        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/instance-selection-local-space nil)
+        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
         selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
 
         user-data
