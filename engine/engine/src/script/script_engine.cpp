@@ -78,9 +78,46 @@ static int EngineSys_SetEngineThrottle(lua_State* L)
 }
 
 
+/*#
+ * Disables rendering
+ *
+ * @note It will will leave the back buffer as-is
+ *
+ * @name sys.set_render_enable
+ * @param enable [type:bool] true if throttling should be enabled
+ *
+ * @examples
+ *
+ * Disable rendering
+ *
+ * ```lua
+ * sys.set_render_enable(false)
+ * ```
+ *
+ */
+static int EngineSys_SetRenderEnabled(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    bool enable = true;
+    if (lua_isboolean(L, 1))
+    {
+        enable = lua_toboolean(L, 1);
+    }
+    else
+    {
+        return DM_LUA_ERROR("Expected boolean as first argument");
+    }
+
+    dmEngine::SetRenderEnabled(enable);
+    return 0;
+}
+
+
 static const luaL_reg EngineSys_methods[] =
 {
     {"set_engine_throttle", EngineSys_SetEngineThrottle},
+    {"set_render_enabled", EngineSys_SetRenderEnabled},
     {0, 0}
 };
 
