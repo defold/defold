@@ -120,12 +120,12 @@ public class ManifestBuilder {
             return 0;
         }
 
-        public static byte[] encrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        public static byte[] decrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
             byte[] result = null;
             if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
                 try {
                     final Cipher cipher = Cipher.getInstance("RSA");
-                    cipher.init(Cipher.ENCRYPT_MODE, privateKey);
+                    cipher.init(Cipher.DECRYPT_MODE, privateKey);
                     result = cipher.doFinal(plaintext);
                 } finally {
                     if (privateKey != null) {
@@ -146,11 +146,11 @@ public class ManifestBuilder {
             return result;
         }
 
-        public static byte[] decrypt(byte[] ciphertext, SignAlgorithm algorithm, PublicKey publicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        public static byte[] encrypt(byte[] ciphertext, SignAlgorithm algorithm, PublicKey publicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
             byte[] result = null;
             if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
                 final Cipher cipher = Cipher.getInstance("RSA");
-                cipher.init(Cipher.DECRYPT_MODE, publicKey);
+                cipher.init(Cipher.ENCRYPT_MODE, publicKey);
                 result = cipher.doFinal(ciphertext);
             } else {
                 throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
@@ -159,29 +159,40 @@ public class ManifestBuilder {
             return result;
         }
 
+        static private String getSignatureAlgorithm(HashAlgorithm hashAlgorithm) throws NoSuchAlgorithmException {
+            switch (hashAlgorithm) {
+                case HASH_SHA1:
+                    return "SHA1withRSA";
+                case HASH_SHA256:
+                    return "SHA256withRSA";
+                case HASH_SHA512:
+                    return "SHA512withRSA";
+                default:
+                    throw new NoSuchAlgorithmException("Specified hash algorithm is not supported for signing!");
+            }
+        }
+
         public static byte[] sign(byte[] data, HashAlgorithm hashAlgorithm, SignAlgorithm signAlgorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
             if (!signAlgorithm.equals(SignAlgorithm.SIGN_RSA)) {
                 throw new NoSuchAlgorithmException("Specified sign algorithm is not supported!");
             }
-            String sigantureAlgorithm = null;
-            switch (hashAlgorithm) {
-                case HASH_SHA1:
-                    sigantureAlgorithm = "SHA1withRSA";
-                    break;
-                case HASH_SHA256:
-                    sigantureAlgorithm = "SHA256withRSA";
-                    break;
-                case HASH_SHA512:
-                    sigantureAlgorithm = "SHA512withRSA";
-                    break;
-                default:
-                    throw new NoSuchAlgorithmException("Specified hash algorithm is not supported for signing!");
-            }
-            Signature signature = Signature.getInstance(sigantureAlgorithm);
+            String signatureAlgorithm = getSignatureAlgorithm(hashAlgorithm);
+            Signature signature = Signature.getInstance(signatureAlgorithm);
             signature.initSign(privateKey);
             signature.update(data);
             byte[] signBytes = signature.sign();
             return signBytes;
+        }
+
+        public static boolean verify(byte[] data, byte[] signature, HashAlgorithm hashAlgorithm, SignAlgorithm signAlgorithm, PublicKey publicKey) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+            if (!signAlgorithm.equals(SignAlgorithm.SIGN_RSA)) {
+                throw new NoSuchAlgorithmException("Specified sign algorithm is not supported!");
+            }
+            String signatureAlgorithm = getSignatureAlgorithm(hashAlgorithm);
+            Signature signatureVerifier = Signature.getInstance(signatureAlgorithm);
+            signatureVerifier.initVerify(publicKey);
+            signatureVerifier.update(data);
+            return signatureVerifier.verify(signature);
         }
 
         public static HashDigest createHashDigest(byte[] data, HashAlgorithm algorithm) throws NoSuchAlgorithmException {
