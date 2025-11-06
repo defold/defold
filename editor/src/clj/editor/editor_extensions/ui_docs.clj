@@ -20,7 +20,17 @@
             [editor.util :as util]
             [util.coll :as coll]
             [util.eduction :as e]
-            [util.fn :as fn]))
+            [util.fn :as fn])
+  (:import [com.defold.editor.localization MessagePattern]))
+
+(def message-pattern-coercer
+  ;; We don't use `localization/message-pattern?` because we can't depend on
+  ;; localization ns from here since this ns is used for generating docs before
+  ;; bob is built, while localization ns transitively depends on bob classes
+  (coerce/wrap-with-pred coerce/userdata #(instance? MessagePattern %) "is not a localization message"))
+
+(def string-or-message-pattern-coercer
+  (coerce/one-of coerce/string message-pattern-coercer))
 
 ;; region make-prop
 
@@ -358,14 +368,14 @@
               :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")])
 
 (def ^:private external-file-dialog-title-doc
-  "OS window title")
+  "OS window title, either a string or localization message")
 
 (def ^:private external-file-dialog-filters-doc
   (str "File filters, an array of filter tables, where each filter has following keys:"
        (lua-completion/args-doc-html
          [{:name "description"
-           :types ["string"]
-           :doc "string explaining the filter, e.g. <code>\"Text files (*.txt)\"</code>"}
+           :types ["string" "message"]
+           :doc "string explaining the filter, either a string like <code>\"Text files (*.txt)\"</code> or a localization message"}
           {:name "extensions"
            :types ["string[]"]
            :doc "array of file extension patterns, e.g. <code>\"*.txt\"</code>, <code>\"*.*\"</code> or <code>\"game.project\"</code>"}])))
@@ -373,7 +383,7 @@
 (def external-file-dialog-filters-coercer
   (coerce/vector-of
     (coerce/hash-map
-      :req {:description coerce/string
+      :req {:description string-or-message-pattern-coercer
             :extensions (coerce/vector-of
                           coerce/string
                           :min-count 1
@@ -383,7 +393,7 @@
 (def ^:private external-file-field-props
   (into [(make-prop :value :coerce coerce/string :doc "file or directory path; resolved against project root if relative")
          (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the absolute path of a selected file/folder or nil if the field was cleared; even though the selector dialog allows selecting only files, it's possible to receive directories and non-existent file system entries using text field input")
-         (make-prop :title :coerce coerce/string :doc external-file-dialog-title-doc)
+         (make-prop :title :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc external-file-dialog-title-doc)
          (make-prop :filters :coerce external-file-dialog-filters-coercer :doc external-file-dialog-filters-doc)]
         input-with-issue-props))
 ;; endregion
@@ -584,7 +594,7 @@
                           :types ["string"]
                           :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
                          {:name "title"
-                          :types ["string"]
+                          :types ["string" "message"]
                           :doc external-file-dialog-title-doc}
                          {:name "filters"
                           :types ["table[]"]
@@ -604,7 +614,7 @@
                           :types ["string"]
                           :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
                          {:name "title"
-                          :types ["string"]
+                          :types ["string" "message"]
                           :doc external-file-dialog-title-doc}])}]
    :returnvalues [{:name "value"
                    :types ["string" "nil"]
@@ -614,7 +624,7 @@
   "if specified, restricts selectable resources in the dialog to specified file extensions; e.g. <code>{\"collection\", \"go\"}</code>")
 
 (def ^:private resource-dialog-title-doc-string
-  "dialog title, defaults to <code>\"Select Resource\"</code>")
+  "dialog title, either a string or localization message, defaults to <code>localization.message(\"dialog.select-resource.title\")</code>")
 
 (def show-resource-dialog-doc
   {:name "show_resource_dialog"
@@ -630,7 +640,7 @@
                           :types ["string"]
                           :doc "either <code>\"single\"</code> or <code>\"multiple\"</code>, defaults to <code>\"single\"</code>"}
                          {:name "title"
-                          :types ["string"]
+                          :types ["string" "message"]
                           :doc resource-dialog-title-doc-string}])}]
    :returnvalues [{:name "value"
                    :types ["string" "string[]" "nil"]
@@ -714,7 +724,7 @@ end)</code></pre>"})
      :description "Input component for selecting project resources"
      :props (into [(make-prop :value :coerce coerce/string :doc "resource path (must start with <code>/</code>)")
                    (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive either resource path of a selected resource or nil when the field is cleared; even though the resource selector dialog allows filtering on resource extensions, it's possible to receive resources with other extensions and non-existent resources using text field input")
-                   (make-prop :title :coerce coerce/string :doc resource-dialog-title-doc-string)
+                   (make-prop :title :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc resource-dialog-title-doc-string)
                    (make-prop :extensions :coerce (coerce/vector-of coerce/string :min-count 1) :doc resource-dialog-extensions-doc-string)]
                   input-with-issue-props)}))
 

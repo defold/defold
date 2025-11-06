@@ -296,6 +296,7 @@
                                                web-server stopped-server}}]
   (extensions/reload! project :all
                       :prefs (or prefs (test-util/make-test-prefs))
+                      :localization test-util/localization
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)

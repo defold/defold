@@ -33,6 +33,7 @@
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
@@ -41,6 +42,7 @@
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
@@ -781,11 +783,14 @@
 
 (def ^:private show-external-file-dialog-opts-coercer
   (coerce/hash-map
-    :opt {:title coerce/string
+    :opt {:title ui-docs/string-or-message-pattern-coercer
           :path coerce/string
           :filters ui-docs/external-file-dialog-filters-coercer}))
 
-(defn- make-show-external-file-dialog-lua-fn [^Path project-path]
+(def ^:private default-select-external-file-dialog-title-message
+  (localization/message "dialog.file.title.select"))
+
+(defn- make-show-external-file-dialog-lua-fn [^Path project-path localization]
   (rt/suspendable-lua-fn select-external-file
     ([ctx]
      (select-external-file ctx nil))
@@ -793,7 +798,7 @@
      (let [opts (when maybe-lua-opts
                   (rt/->clj rt show-external-file-dialog-opts-coercer maybe-lua-opts))
            {:keys [title ^String path filters]
-            :or {title "Select File" path "."}} opts
+            :or {title default-select-external-file-dialog-title-message path "."}} opts
            initial-path (.normalize (.resolve project-path path))
            [^Path initial-directory-path initial-file-name]
            (if (fs/path-exists? initial-path)
@@ -805,14 +810,14 @@
                  [parent-path (str (.getFileName initial-path))]
                  [project-path nil])))
            dialog (doto (FileChooser.)
-                    (.setTitle title)
+                    (.setTitle (localization title))
                     (.setInitialDirectory (.toFile initial-directory-path)))]
        (when filters
          (.addAll (.getExtensionFilters dialog)
                   ^Collection
-                  (mapv (fn [{:keys [^String description extensions]}]
+                  (mapv (fn [{:keys [description extensions]}]
                           (FileChooser$ExtensionFilter.
-                            description
+                            ^String (localization description)
                             ^List extensions))
                         filters)))
        (when initial-file-name
@@ -832,10 +837,13 @@
 
 (def ^:private show-external-directory-dialog-opts-coercer
   (coerce/hash-map
-    :opt {:title coerce/string
+    :opt {:title ui-docs/string-or-message-pattern-coercer
           :path coerce/string}))
 
-(defn- make-show-external-directory-dialog-lua-fn [^Path project-path]
+(def ^:private default-select-external-directory-dialog-title-message
+  (localization/message "dialog.directory.title.select"))
+
+(defn- make-show-external-directory-dialog-lua-fn [^Path project-path localization]
   (rt/suspendable-lua-fn show-external-directory-dialog
     ([ctx]
      (show-external-directory-dialog ctx nil))
@@ -843,14 +851,14 @@
      (let [opts (when maybe-lua-opts
                   (rt/->clj rt show-external-directory-dialog-opts-coercer maybe-lua-opts))
            {:keys [title ^String path]
-            :or {title "Select Directory" path "."}} opts
+            :or {title default-select-external-directory-dialog-title-message path "."}} opts
            resolved-path (.normalize (.resolve project-path path))
            ^Path initial-path (cond
                                 (not (fs/path-exists? resolved-path)) project-path
                                 (fs/path-is-directory? resolved-path) resolved-path
                                 :else (.getParent resolved-path))
            dialog (doto (DirectoryChooser.)
-                    (.setTitle title)
+                    (.setTitle (localization title))
                     (.setInitialDirectory (.toFile initial-path)))
            f (future/make)]
        (fx/run-later
@@ -868,7 +876,10 @@
 (def ^:private show-resource-dialog-opts-coercer
   (coerce/hash-map :opt {:extensions (coerce/vector-of coerce/string :min-count 1)
                          :selection (coerce/enum :single :multiple)
-                         :title coerce/string}))
+                         :title ui-docs/string-or-message-pattern-coercer}))
+
+(def ^:private default-select-resource-title-message
+  (localization/message "dialog.select-resource.title"))
 
 (defn- make-show-resource-dialog-lua-fn [workspace project]
   (rt/suspendable-lua-fn show-resource-dialog
@@ -878,7 +889,7 @@
                   (rt/->clj rt show-resource-dialog-opts-coercer maybe-lua-opts))
            {:keys [selection extensions title]
             :or {selection :single
-                 title "Select Resource"}} opts
+                 title default-select-resource-title-message}} opts
            f (future/make)
            owner (current-owner-window)]
        (fx/run-later
@@ -1192,7 +1203,7 @@
 
 ;; endregion
 
-(defn env [workspace project project-path]
+(defn env [workspace project project-path localization]
   (into {}
         cat
         [(eduction
@@ -1232,8 +1243,8 @@
                   [(:name script-doc) lua-fn]))
            [[ui-docs/show-dialog-doc lua-show-dialog-fn]
             [ui-docs/function-component-doc function-component-lua-fn]
-            [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path)]
-            [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path)]
+            [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path localization)]
+            [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path localization)]
             [ui-docs/show-resource-dialog-doc (make-show-resource-dialog-lua-fn workspace project)]
             [ui-docs/use-state-doc use-state-hook-lua-fn]
             [ui-docs/use-memo-doc use-memo-hook-lua-fn]])]))

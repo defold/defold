@@ -28,6 +28,7 @@
             [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [clojure.lang AFn Agent IFn IRef]
+           [com.defold.editor.localization MessagePattern]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
            [com.ibm.icu.util ULocale]
            [com.sun.javafx.application PlatformImpl]
@@ -120,9 +121,6 @@
   nil
   (apply-localization [_ _]
     (throw (IllegalArgumentException. "localized object must not be nil"))))
-
-(defonce/interface MessagePattern
-  (format [state]))
 
 (defn message-pattern? [x]
   (instance? MessagePattern x))

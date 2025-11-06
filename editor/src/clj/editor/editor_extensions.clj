@@ -30,6 +30,7 @@
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.http-server :as ext.http-server]
+            [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.tile-map :as tile-map]
@@ -867,6 +868,7 @@
   Required kv-args:
     :web-server           http server associated with the project
     :prefs                editor prefs
+    :localization         the editor localization instance
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
                           complete exceptionally if reload fails)
@@ -892,8 +894,8 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
+  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [basis (:basis evaluation-context)
           extensions (g/node-value project :editor-extensions evaluation-context)
@@ -935,7 +937,7 @@
                                      "reorder" (graph/make-ext-reorder-fn project)
                                      "reset" (graph/make-ext-reset-fn project)}
                                "ui" (assoc
-                                      (ui-components/env workspace project project-path)
+                                      (ui-components/env workspace project project-path localization)
                                       "open_resource" (make-open-resource-fn workspace open-resource!))
                                "version" (system/defold-version)
                                "engine_sha1" (system/defold-engine-sha1)
@@ -945,6 +947,7 @@
                      "json" {"decode" ext-json-decode
                              "encode" ext-json-encode}
                      "io" {"tmpfile" nil}
+                     "localization" (ext.localization/env localization)
                      "os" {"execute" nil
                            "exit" nil
                            "remove" (make-ext-remove-file-fn project-path reload-resources!)
