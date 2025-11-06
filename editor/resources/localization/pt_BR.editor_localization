@@ -78,7 +78,7 @@ welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuld
 # Welcome -> New Project -> From Sample
 welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
 welcome.new-project.linker-sample-game.description = Este é um jogo de exemplo completo onde você clica e arraste para ligar peixes da mesma cor para removê-los do tabuleiro. Grandes correntes de peixes geram bônus.
-welcome.new-project.roids-sample-game.title = 
+welcome.new-project.roids-sample-game.title = Jogo de Exemplo Roids
 welcome.new-project.roids-sample-game.description = Este é um jogo de exemplo completo onde você dirige um navio espacial e avance através de uma tempestade de meteoros.
 welcome.new-project.pixel-line-platformer.title = Plataforma Pixel em Linha
 welcome.new-project.pixel-line-platformer.description = Este é um jogo de plataforma completo com um estilo de arte de pixel moderno criado por Kenney.
@@ -1240,6 +1240,101 @@ resource.view.text = Texto
 
 resource.readonly.detail = Este arquivo é parte de uma biblioteca e não pode ser salvo.
 resource.readonly.button.read-more = Ler mais…
+
+resource.type.animationset = Conjunto de Animações
+resource.type.atlas = Atlas
+resource.type.buffer = Buffer
+resource.type.c = C
+resource.type.camera = Câmera
+resource.type.collection = Coleção
+resource.type.collection.non-editable = Coleção Não Editável
+resource.type.collectionfactory = Fábrica de Coleções
+resource.type.collectionproxy = Proxy da Coleção
+resource.type.collisionobject = Objeto de Colisão
+resource.type.compute = Calcular
+resource.type.convexshape = Formato de Convex
+resource.type.cpp = C++
+resource.type.custom = Recurso Personalizado
+resource.type.editor-script = Script do Editor
+resource.type.factory = Fábrica
+resource.type.font = Fonte
+resource.type.go = Objeto de Jogo
+resource.type.h = Cabeçalho C/C++
+resource.type.html = HTML
+resource.type.image = Imagem
+resource.type.json = JSON
+resource.type.label = Rótulo
+resource.type.light = Luz
+resource.type.lua = Módulo Lua
+resource.type.markdown = Markdown
+resource.type.mesh = Malha
+resource.type.model = Modelo
+resource.type.model-scene = Cena do Modelo
+resource.type.objective-c = Objective-C
+resource.type.project = Projeto
+resource.type.properties = Propriedades
+resource.type.script = Script
+resource.type.script-api = API de Script
+resource.type.sound = Som
+resource.type.tilemap = Tile Map
+resource.type.unknown = Desconhecido
+resource.type.zig = Zig
+resource.type.zon = Notação de Objeto Zig
+
+# Forms
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Quick Help
 
