@@ -32,10 +32,12 @@
 
 (def ^:const factory-types
   {:game-object {:icon "icons/32/Icons_07-Factory.png"
+                 :message (localization/message "resource.type.factory")
                  :title "Factory"
                  :ext "go"
                  :pb-type GameSystem$FactoryDesc}
    :collection  {:icon "icons/32/Icons_08-Collection-factory.png"
+                 :message (localization/message "resource.type.collectionfactory")
                  :title "Collection Factory"
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
@@ -129,15 +131,13 @@
   (output form-data g/Any produce-form-data)
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type prototype]
-                                                     (let [label (get-in factory-types [factory-type :title])
-                                                           icon (get-in factory-types [factory-type :icon])]
-                                                       (cond-> {:node-id _node-id
-                                                                :node-outline-key label
-                                                                :label label
-                                                                :icon icon}
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key (get-in factory-types [factory-type :title])
+                                                              :label (get-in factory-types [factory-type :message])
+                                                              :icon (get-in factory-types [factory-type :icon])}
 
-                                                               (resource/resource? prototype)
-                                                               (assoc :link prototype :outline-reference? false)))))
+                                                             (resource/resource? prototype)
+                                                             (assoc :link prototype :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
@@ -158,7 +158,7 @@
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Factory")
+      :label (localization/message "resource.type.factory"))
     (resource-node/register-ddf-resource-type workspace
       :textual? true
       :ext "collectionfactory"
@@ -171,4 +171,4 @@
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
-      :label "Collection Factory")))
+      :label (localization/message "resource.type.collectionfactory"))))

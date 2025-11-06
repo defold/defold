@@ -856,13 +856,13 @@ code.replace.all = Заменить все
 
 # About dialog
 
-dialog.about.label.version = Версия:
-dialog.about.label.channel = Канал:
-dialog.about.label.build-time = Время сборки:
-dialog.about.label.editor-sha1 = SHA1 редактора:
-dialog.about.label.engine-sha1 = SHA1 движка:
+dialog.about.label.version = Версия\:
+dialog.about.label.channel = Канал\:
+dialog.about.label.build-time = Время сборки\:
+dialog.about.label.editor-sha1 = SHA1 редактора\:
+dialog.about.label.engine-sha1 = SHA1 движка\:
 dialog.about.value.unavailable = Нет данных
-dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.copyright = Copyright ©️ 2009-2025
 dialog.about.footer.foundation = Фонд Defold
 dialog.about.sponsor = Фонд разработки Defold
 
@@ -1240,6 +1240,72 @@ resource.view.text = Текст
 
 resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
 resource.readonly.button.read-more = Подробнее…
+
+resource.type.animationset = Набор анимаций
+resource.type.appmanifest = Манифест приложения
+resource.type.atlas = Атлас
+resource.type.buffer = Буфер
+resource.type.c = C
+resource.type.camera = Камера
+resource.type.collection = Коллекция
+resource.type.collection.non-editable = Нередактируемая коллекция
+resource.type.collectionfactory = Фабрика коллекций
+resource.type.collectionproxy = Прокси коллекции
+resource.type.collisionobject = Объект коллизий
+resource.type.compute = Вычисление
+resource.type.convexshape = Выпуклая форма
+resource.type.cp = Вычислительный шейдер
+resource.type.cpp = C++
+resource.type.custom = Пользовательский ресурс
+resource.type.cubemap = Кубическая карта
+resource.type.defignore = Defignore
+resource.type.defunload = Defunload
+resource.type.display-profiles = Профили отображения
+resource.type.editor-localization = Локализация редактора
+resource.type.editor-script = Скрипт редактора
+resource.type.factory = Фабрика
+resource.type.font = Шрифт
+resource.type.fp = Фрагментный шейдер
+resource.type.gamepads = Геймпады
+resource.type.glsl = Включаемый шейдер
+resource.type.go = Игровой объект
+resource.type.go.non-editable = Нередактируемый игровой объект
+resource.type.gui = GUI
+resource.type.gui-script = GUI-скрипт
+resource.type.h = Заголовок C/C++
+resource.type.html = HTML
+resource.type.image = Изображение
+resource.type.input-binding = Привязка ввода
+resource.type.json = JSON
+resource.type.label = Надпись
+resource.type.light = Источник света
+resource.type.lua = Lua-модуль
+resource.type.manifest = Манифест
+resource.type.markdown = Markdown
+resource.type.material = Материал
+resource.type.mesh = Меш
+resource.type.model = Модель
+resource.type.model-scene = Сцена модели
+resource.type.objective-c = Objective-C
+resource.type.particlefx = Эффекты частиц
+resource.type.project = Проект
+resource.type.properties = Свойства
+resource.type.render = Рендер
+resource.type.render-script = Рендер-скрипт
+resource.type.render-target = Рендер-таргет
+resource.type.script = Скрипт
+resource.type.script-api = API скриптов
+resource.type.settings = Настройки Live Update
+resource.type.shared-editor-settings = Общие настройки редактора
+resource.type.sound = Звук
+resource.type.sprite = Спрайт
+resource.type.texture-profiles = Профили текстур
+resource.type.tilemap = Тайловая карта
+resource.type.tilesource = Источник тайлов
+resource.type.unknown = Неизвестно
+resource.type.vp = Вершинный шейдер
+resource.type.zig = Zig
+resource.type.zon = Нотация объектов Zig
 
 # Quick Help
 

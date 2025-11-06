@@ -381,7 +381,7 @@
     (resource-node/register-ddf-resource-type workspace
       :editable false
       :ext "go"
-      :label "Non-Editable Game Object"
+      :label (localization/message "resource.type.go.non-editable")
       :node-type NonEditableGameObjectNode
       :ddf-type GameObject$PrototypeDesc
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))

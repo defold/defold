@@ -17,6 +17,7 @@
             [editor.build-target :as bt]
             [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -188,4 +189,4 @@
     :icon-class :design
     :view-types [:cljfx-form-view :text]
     :view-opts {}
-    :label "Render Target"))
+    :label (localization/message "resource.type.render-target")))

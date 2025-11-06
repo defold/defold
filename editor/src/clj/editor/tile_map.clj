@@ -1590,4 +1590,4 @@
                           :tool-controller TileMapController}}
       :tags #{:component :non-embeddable}
       :tag-opts {:component {:transform-properties #{:position :rotation}}}
-      :label "Tile Map")))
+      :label (localization/message "resource.type.tilemap"))))

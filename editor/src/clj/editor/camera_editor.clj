@@ -409,4 +409,4 @@
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}
-    :label "Camera"))
+    :label (localization/message "resource.type.camera")))

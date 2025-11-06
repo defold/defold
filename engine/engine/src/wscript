@@ -25,11 +25,18 @@ def build(bld):
               install_path = platform_lib_install_path,
               target = 'engine_service_null')
 
-    platform_main_cpp = ''
+    source = [
+        'engine.cpp',
+        'engine_main.cpp',
+        'engine_loop.cpp',
+        'extension.cpp',
+        './script/script_engine.cpp',
+        '../proto/engine/engine_ddf.proto']
+
     if 'arm64-nx64' in bld.env.PLATFORM:
-        platform_main_cpp = 'nx64/main_nx64.cpp nx64/engine_nx64.cpp'
-    if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        platform_main_cpp = 'engine_ps4.cpp'
+        source.append('nx64/main_nx64.cpp nx64/engine_nx64.cpp')
+    elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
+        source.append('engine_ps4.cpp')
 
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
@@ -37,7 +44,7 @@ def build(bld):
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                    source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
+                    source = source + ['physics_debug_render.cpp'],
                     install_path = platform_lib_install_path,
                     use = 'engine_service')
 
@@ -49,7 +56,7 @@ def build(bld):
                     defines = 'DM_RELEASE=1',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                    source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
+                    source = source,
                     install_path = platform_lib_install_path,
                     use = 'engine_service_null')
 

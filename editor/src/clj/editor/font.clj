@@ -795,7 +795,6 @@
   (input material-shader ShaderLifecycle)
   (input font-resource-map g/Any)
 
-  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output save-value g/Any :cached produce-save-value)
   (output font-resource-hashes g/Any (g/fnk [font-resource-map] (map resource/resource->sha1-hex (vals font-resource-map))))
   (output build-targets g/Any :cached produce-build-targets)
@@ -883,7 +882,7 @@
     (resource-node/register-ddf-resource-type workspace
       :textual? true
       :ext "font"
-      :label "Font"
+      :label (localization/message "resource.type.font")
       :node-type FontNode
       :ddf-type Font$FontDesc
       :load-fn load-font
@@ -895,7 +894,7 @@
       :ext "glyph_bank")
     (workspace/register-resource-type workspace
       :ext font-file-extensions
-      :label "Font"
+      :label (localization/message "resource.type.font")
       :node-type FontSourceNode
       :load-fn load-font-source
       :icon font-icon

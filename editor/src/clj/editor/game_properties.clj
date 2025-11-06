@@ -15,8 +15,9 @@
 (ns editor.game-properties
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
-            [editor.code.resource :as r]
             [editor.code.lang.ini :as ini]
+            [editor.code.resource :as r]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [util.coll :as coll])
@@ -41,7 +42,7 @@
     :ext "properties"
     :node-type GameProperties
     :additional-load-fn additional-load-fn
-    :label "Properties"
+    :label (localization/message "resource.type.properties")
     :icon "icons/32/Icons_05-Project-info.png"
     :language "ini"
     :view-types [:code :default]

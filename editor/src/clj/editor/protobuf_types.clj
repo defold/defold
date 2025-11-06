@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.protobuf-types
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
@@ -93,27 +93,27 @@
                :icon "icons/32/Icons_35-Inputbinding.png"
                :icon-class :property
                :pb-class Input$InputBinding
-               :label "Input Binding"
+               :label (localization/message "resource.type.input-binding")
                :view-types [:cljfx-form-view :text]}
               {:ext "light"
-               :label "Light"
+               :label (localization/message "resource.type.light")
                :icon "icons/32/Icons_21-Light.png"
                :pb-class GameSystem$LightDesc
                :tags #{:component}
                :tag-opts {:component {:transform-properties #{}}}}
               {:ext "gamepads"
-               :label "Gamepads"
+               :label (localization/message "resource.type.gamepads")
                :icon "icons/32/Icons_34-Gamepad.png"
                :icon-class :property
                :pb-class Input$GamepadMaps
                :view-types [:cljfx-form-view :text]}
               {:ext "convexshape"
-               :label "Convex Shape"
+               :label (localization/message "resource.type.convexshape")
                ; TODO - missing icon
                :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
               {:ext "texture_profiles"
-               :label "Texture Profiles"
+               :label (localization/message "resource.type.texture-profiles")
                :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
                :icon-class :property

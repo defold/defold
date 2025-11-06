@@ -18,6 +18,7 @@
 #include "hid.h"
 
 #include <dlib/array.h>
+#include <dlib/hash.h>
 
 namespace dmHID
 {
@@ -70,6 +71,7 @@ namespace dmHID
         void*              m_GamepadConnectivityUserdata;
         void*              m_NativeContext;
         void*              m_NativeContextUserData;
+        dmhash_t           m_StateHash;
 
         uint32_t m_AccelerometerConnected : 1;
         uint32_t m_IgnoreMouse : 1;
@@ -87,6 +89,8 @@ namespace dmHID
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* user_id);
     int  GetKeyValue(Key key);
     int  GetMouseButtonValue(MouseButton button);
+
+    dmhash_t CalcStateHash(HContext context);
 }
 
 #endif

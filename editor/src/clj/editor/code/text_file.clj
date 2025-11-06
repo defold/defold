@@ -17,7 +17,8 @@
             [editor.code.lang.cish :as cish]
             [editor.code.lang.json :as json]
             [editor.code.lang.zig :as zig]
-            [editor.code.resource :as r]))
+            [editor.code.resource :as r]
+            [editor.localization :as localization]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -31,67 +32,67 @@
 (def ^:private text-file-defs
   [{:ext "cpp"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "cxx"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "C"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "cc"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "hpp"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "h"
     :language "cpp"
-    :label "C/C++ Header"
+    :label (localization/message "resource.type.h")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "mm"
     :language "objective-c"
-    :label "Objective-C"
+    :label (localization/message "resource.type.objective-c")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "c"
     :language "c"
-    :label "C"
+    :label (localization/message "resource.type.c")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "json"
     :language "json"
-    :label "JSON"
+    :label (localization/message "resource.type.json")
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-opts json-opts}
    {:ext "manifest"
     :language "yaml"
-    :label "Manifest"
+    :label (localization/message "resource.type.manifest")
     :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "defignore"
-    :label "Defignore"
+    :label (localization/message "resource.type.defignore")
     :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "defunload"
-    :label "Defunload"
+    :label (localization/message "resource.type.defunload")
     :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "zig"
     :language "zig"
-    :label "Zig"
+    :label (localization/message "resource.type.zig")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts zig-opts}
    {:ext "zon"
     :language "zig"
-    :label "Zig Object Notation"
+    :label (localization/message "resource.type.zon")
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-opts zig-opts}])
 

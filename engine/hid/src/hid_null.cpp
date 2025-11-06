@@ -58,7 +58,7 @@ namespace dmHID
         }
     }
 
-    void Update(HContext context)
+    bool Update(HContext context)
     {
         dmPlatform::PollEvents(context->m_Window);
         context->m_Keyboards[0].m_Connected = !context->m_IgnoreKeyboard;
@@ -67,6 +67,10 @@ namespace dmHID
         context->m_Gamepads[0].m_Connected = !context->m_IgnoreGamepads;
         context->m_Gamepads[0].m_ButtonCount = MAX_GAMEPAD_BUTTON_COUNT;
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
+
+        dmhash_t prev_state_hash = context->m_StateHash;
+        context->m_StateHash = CalcStateHash(context);
+        return prev_state_hash != context->m_StateHash;
     }
 
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])

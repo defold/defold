@@ -1201,18 +1201,18 @@ namespace dmPhysics
     void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE("RayCast3D");
-
-        if (lengthSqr(request.m_To - request.m_From) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
-
+        
         float scale = world->m_Context->m_Scale;
         btVector3 from;
         ToBt(request.m_From, from, scale);
         btVector3 to;
         ToBt(request.m_To, to, scale);
+        
+        if ((to - from).length2() <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
+            return;
+        }
 
         float inv_scale = world->m_Context->m_InvScale;
 

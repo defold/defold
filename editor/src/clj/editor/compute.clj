@@ -18,6 +18,7 @@
             [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.render-program-utils :as render-program-utils]
@@ -126,7 +127,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "compute"
-    :label "Compute"
+    :label (localization/message "resource.type.compute")
     :node-type ComputeNode
     :ddf-type Compute$ComputeDesc
     :load-fn load-compute
