@@ -202,17 +202,17 @@ static bool LayoutText(LayoutContext* ctx,
     return true;
 }
 
-void TextLayoutFreeSkribidi(TextLayout* layout)
+void TextLayoutSkribidiFree(TextLayout* layout)
 {
     delete layout;
 }
 
-TextResult TextLayoutCreateSkribidi(HFontCollection collection,
+TextResult TextLayoutSkribidiCreate(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, TextLayout** outlayout)
 {
     TextLayout* layout = new TextLayout;
-    layout->m_Free = TextLayoutFreeSkribidi;
+    layout->m_Free = TextLayoutSkribidiFree;
 
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(0);
@@ -239,7 +239,7 @@ TextResult TextLayoutCreateSkribidi(HFontCollection collection,
 
     if (!result)
     {
-        TextLayoutFreeSkribidi(layout);
+        TextLayoutSkribidiFree(layout);
         layout = 0;
     }
 
