@@ -70,7 +70,7 @@
 (defn- collect-script-nodes-from-breakpoints [project breakpoints evaluation-context]
   (for [[resource bps] (group-by :resource breakpoints)
         :let [script-node (project/get-resource-node project resource evaluation-context)]]
-    {:script-node script-node :breakpoints bps}))
+    {:script-node script-node :resource resource :breakpoints bps}))
 
 (defn- breakpoint->script-node [project breakpoint evaluation-context]
   (project/get-resource-node project (:resource breakpoint) evaluation-context))
@@ -184,18 +184,18 @@
         breakpoints (if (= scope "selected")
                       (:selected state)
                       all-breakpoints)
-        updated-breakpoints (action-fn all-breakpoints breakpoints)
-        scripts-with-breakpoints (if (coll/not-empty updated-breakpoints)
-                                   (collect-script-nodes-from-breakpoints project updated-breakpoints evaluation-context)
-                                   (map #(assoc % :breakpoints [])
-                                        (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)))
-        scripts-with-new-regions (map (fn [{:keys [script-node breakpoints]}]
-                                        (let [new-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]
-                                          {:script script-node :regions new-regions}))
-                                      scripts-with-breakpoints)
-        txs (mapcat (fn [{:keys [script regions]}]
-                      (g/set-property script :regions regions))
-                    scripts-with-new-regions)]
+        affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
+        all-by-resource (group-by :resource all-breakpoints)
+        breakpoints-by-script (map (fn [{:keys [script-node resource breakpoints]}]
+                                     {:script script-node
+                                      :affected-bps breakpoints
+                                      :all-bps (get all-by-resource resource [])})
+                                   affected-scripts)
+        txs (mapcat (fn [{:keys [script affected-bps all-bps]}]
+                      (let [updated-bps (action-fn all-bps affected-bps)
+                            new-regions (update-script-regions-from-breakpoints script updated-bps evaluation-context)]
+                        (g/set-property script :regions new-regions)))
+                    breakpoints-by-script)]
     (g/transact txs)))
 
 (defn- handle-breakpoint-event! [project state event]
