@@ -1286,6 +1286,99 @@ resource.type.zon = Notação de Objeto Zig
 
 
 
+form.label.project.bootstrap.main_collection = Coleção Principal
+
+form.label.project.project = Projeto
+form.help.project.project = Configurações gerais do projeto
+form.label.project.project.title = Título
+form.help.project.project.title = O título da aplicação
+form.label.project.project.version = Versão
+form.help.project.project.version = Versão da aplicação
+form.label.project.project.publisher = Editora
+form.help.project.project.minimum_log_level = Apenas o nível mínimo de log e níveis superiores serão exibidos
+form.label.project.project.compress_archive = Compactar Arquivo
+form.help.project.project.compress_archive = Compactar arquivo (não para Android)
+form.label.project.project.dependencies = Dependências
+form.label.project.project.custom_resources = Recursos Personalizados
+form.label.project.project.bundle_resources = Empacotar Recursos
+
+form.label.project.android = Android
+form.help.project.android = Configurações do Android
+form.label.project.android.app_icon_36x36 = Ícone do Aplicativo 36x36
+form.label.project.android.app_icon_48x48 = Ícone do Aplicativo 48x48
+form.label.project.android.app_icon_72x72 = Ícone do Aplicativo 72x72
+form.label.project.android.app_icon_96x96 = Ícone do Aplicativo 96x96
+form.label.project.android.app_icon_144x144 = Ícone do Aplicativo 144x144
+form.label.project.android.app_icon_192x192 = Ícone do Aplicativo 192x192
+form.help.project.android.package = Identificador do pacote
+form.label.project.android.gcm_sender_id = ID de Remetente GCM
+form.help.project.android.gcm_sender_id = ID de Remetente de Mensagem de Nuvem Firebase
+form.label.project.android.input_method = Método de Entrada
+form.label.project.android.immersive_mode = Modo Imersivo
+
+form.label.project.html5 = HTML5
+form.help.project.html5 = Configurações do HTML5
+form.label.project.html5.splash_image = Imagem Splash
+form.label.project.html5.show_fullscreen_button = Mostrar Botão de Tela Cheia
+form.label.project.html5.show_console_banner = Mostrar Banner do Console
+form.label.project.html5.scale_mode = Modo de Escala
+form.label.project.html5.retry_count = Retentativas
+
+
+form.label.project.osx.bundle_identifier = Identificador do Pacote
+form.help.project.osx.bundle_identifier = Identificador de pacote (CFBundleIdentifier)
+form.label.project.osx.bundle_name = Nome do Pacote
+form.help.project.osx.bundle_name = Nome curto do pacote (CFBundleName). Limite de 15 caracteres
+form.label.project.osx.bundle_version = Versão do Pacote
+form.help.project.osx.bundle_version = Número da compilação (CFBundleVersion). Numérico ou x.y.z
+form.label.project.osx.default_language = Idioma Padrão
+form.help.project.osx.default_language = Idioma e região padrão (CFBundleDevelopmentRegion)
+
+form.label.project.windows = Windows
+form.help.project.windows = Configurações do Windows
+
+form.label.project.collection = Coleção
+form.help.project.collection = Configurações de coleção
+form.label.project.collection.max_instances = Máximo de instâncias
+form.help.project.collection.max_instances = Máximo de instâncias por coleção, 1024 por padrão
+
+
+
+form.label.project.factory = Fábrica
+form.label.project.factory.max_count = Contagem Máxima
+form.help.project.factory.max_count = Máximo de fábricas, 128 por padrão
+
+
+form.label.project.label.subpixels = Subpixels
+
+
+form.label.project.model = Modelo
+
+
+form.label.project.script = Script
+
+form.label.project.sound = Som
+
+
+
+
+form.label.project.display.width = Largura
+form.label.project.display.height = Altura
+
+
+form.label.project.font = Fonte
+
+
+
+form.label.project.network = Rede
+form.help.project.network = Configurações de Rede
+
+form.label.project.physics = Física
+form.help.project.physics = Configurações de física
+form.label.project.physics.type = Tipo
+form.label.project.physics.scale = Escala
+
+form.label.project.profiler = Perfilador
 
 
 
@@ -1294,47 +1387,40 @@ resource.type.zon = Notação de Objeto Zig
 
 
 
+form.label.camera = Câmera
 
 
 
 
 
+form.label.input-binding.key-trigger.action = Ação
+form.label.input-binding.mouse-trigger.action = Ação
+form.label.input-binding.gamepad-trigger.action = Ação
+form.label.input-binding.text-trigger.action = Ação
+
+form.label.gamepads.driver.map.scale = Escala
 
 
+form.label.factory = Fábrica
 
 
+form.label.sound = Som
+form.label.sound.sound = Som
 
 
+form.label.material.vertex-constants.name = Nome
+form.label.material.vertex-constants.type = Tipo
+form.label.material.vertex-constants.value = Valor
+form.label.material.fragment-constants.name = Nome
+form.label.material.fragment-constants.type = Tipo
+form.label.material.fragment-constants.value = Valor
+form.label.material.samplers.name = Nome
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+form.label.compute.constants = Constantes
+form.label.compute.constants.name = Nome
+form.label.compute.constants.type = Tipo
+form.label.compute.constants.value = Valor
+form.label.compute.samplers.name = Nome
 
 # Quick Help
 
