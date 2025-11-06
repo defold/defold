@@ -110,7 +110,6 @@
                     :h-box/hgrow :always
                     :text label-text
                     :selected active
-                    ;; TODO: I am not handling toggle-active in the event handler
                     :on-selected-changed {:event-type :toggle-active
                                           :breakpoint breakpoint}}
                    {:fx/type fx.button/lifecycle
@@ -179,12 +178,8 @@
                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                        :describe breakpoint-cell-view}}}]}})
 
-(defn- handle-breakpoint-action [project state evaluation-context scope action-fn]
-  (let [all-breakpoints (:breakpoints state)
-        breakpoints (if (= scope "selected")
-                      (:selected state)
-                      all-breakpoints)
-        affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
+(defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
+  (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
         all-by-resource (group-by :resource all-breakpoints)
         breakpoints-by-script (map (fn [{:keys [script-node resource breakpoints]}]
                                      {:script script-node
@@ -200,26 +195,27 @@
 
 (defn- handle-breakpoint-event! [project state event]
   (g/with-auto-evaluation-context evaluation-context
-    (cond
-      (contains? event :breakpoint)
+    (case (:event-type event)
+      :toggle-active
       (let [breakpoint (:breakpoint event)
             breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
-            script-node (breakpoint->script-node project breakpoint evaluation-context)]
-        (case (:event-type event)
-          :toggle-active
-          (let [toggled-breakpoint (toggle-breakpoint-active breakpoints-in-script breakpoint)
-                regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
-            (g/set-property! script-node :regions regions))
-          :remove
-          (let [remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)]
-            (let [regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
-              (g/set-property! script-node :regions regions)))))
+            script-node (breakpoint->script-node project breakpoint evaluation-context)
+            toggled-breakpoint (toggle-breakpoint-active breakpoints-in-script breakpoint)
+            regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
+        (g/set-property! script-node :regions regions))
 
-      (= (:event-type event) :selected-items-changed)
+      :remove
+      (let [breakpoint (:breakpoint event)
+            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
+            script-node (breakpoint->script-node project breakpoint evaluation-context)
+            remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
+            regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
+        (g/set-property! script-node :regions regions))
+
+      :selected-items-changed
       (swap! state assoc :selected (:fx/event event))
 
-
-      (= (:event-type event) :breakpoint-clicked)
+      :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
             {:keys [resource row]} (:clicked-breakpoint event)]
         (if (and (= MouseButton/PRIMARY (.getButton e))
@@ -227,9 +223,15 @@
           (let [open-fn (:open-resource-fn @state)]
             (open-fn resource (+ 1 row)))))
 
-      :else
+      ;; default case
+      ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
+      ;; we can shorten this code quite a bit
       (let [[action scope] (string/split (name (:event-type event)) #"-")
-            handle-fn (partial handle-breakpoint-action project @state evaluation-context scope)]
+            all-breakpoints (:breakpoints @state)
+            breakpoints (if (= scope "selected")
+                          (:selected @state)
+                          all-breakpoints)
+            handle-fn (partial handle-breakpoint-action project evaluation-context all-breakpoints breakpoints)]
         (case action
           "remove" (handle-fn #(vec (remove (set %2) %1)))
           "toggle" (handle-fn toggle-breakpoints-active)
