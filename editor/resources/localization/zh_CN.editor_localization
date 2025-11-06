@@ -1241,13 +1241,57 @@ resource.view.text = 文本
 resource.readonly.detail = 此文件是库的一部分，无法保存。
 resource.readonly.button.read-more = 阅读更多…
 
+resource.type.atlas = 图集
+resource.type.c = C
+resource.type.camera = 相机
+resource.type.collection = 集合
+resource.type.collectionfactory = 集合工厂
+resource.type.collectionproxy = 集合代理
+resource.type.cpp = C++
+resource.type.font = 字体
+resource.type.go = 游戏对象
+resource.type.gui = 图形界面
+resource.type.gui-script = 图形界面脚本
+resource.type.h = C/C++ 头文件
+resource.type.html = HTML
+resource.type.image = 图像
+resource.type.input-binding = 输入绑定
+resource.type.json = JSON
+resource.type.label = 标签
+resource.type.light = 灯光
+resource.type.lua = Lua 模块
+resource.type.markdown = Markdown
+resource.type.material = 材质
+resource.type.mesh = 网格
+resource.type.model = 模型
+resource.type.particlefx = 粒子特效
+resource.type.properties = 属性
+resource.type.render = 渲染
+resource.type.script = 脚本
+resource.type.settings = 热更新设置
+resource.type.sound = 音效
+resource.type.sprite = 精灵
+resource.type.tilemap = 瓦片地图
+resource.type.tilesource = 瓦片源
+resource.type.unknown = 未知
+resource.type.vp = 顶点程序
 
 # Forms
 
 
+form.context-menu.add = 添加
+form.context-menu.remove = 移除
+
+form.group.components = 组件
+form.group.runtime = 运行时
+form.group.other = 其他
 
 
-
+form.label.project.project.write_log = 写入日志
+form.help.project.project.write_log = 将日志文件写到磁盘
+form.label.project.project.write_log_file = 写入日志文件
+form.help.project.project.write_log_file = 将日志文件写到磁盘
+form.label.project.project.dependencies = 依赖项
 
 
 
