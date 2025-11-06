@@ -30,107 +30,123 @@
   (with-vertex-description
     (apply shader/classpath-shader opts shader-paths)))
 
-(defn- basic-shader-opts [page-mode coordinate-space]
-  (let [transform-render-arg-key
-        (case coordinate-space
-          :coordinate-space-local :world-view-proj
-          :coordinate-space-world :view-proj)
+(def attribute-selection-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/attribute-selection.vp"
+    "shaders/attribute-selection.fp"))
 
-        uniform-values-by-name
-        {"mtx_world_view_proj" transform-render-arg-key}
+(def attribute-selection-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/attribute-selection.vp"
+    "shaders/attribute-selection.fp"))
 
-        max-page-count
-        (case page-mode
-          :unpaged 0
-          :paged shader/max-array-samplers)]
+(def attribute-selection-paged-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/attribute-selection-paged.vp"
+    "shaders/attribute-selection-paged.fp"))
 
-    {:coordinate-space coordinate-space
-     :max-page-count max-page-count
-     :uniforms uniform-values-by-name}))
+(def attribute-selection-paged-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/attribute-selection-paged.vp"
+    "shaders/attribute-selection-paged.fp"))
 
 (def basic-color-local-space
   (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-local)
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-color.vp"
     "shaders/basic-color.fp"))
 
 (def basic-color-world-space
   (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-world)
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-color.vp"
     "shaders/basic-color.fp"))
 
-(def basic-selection-local-space
-  (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-local)
-    "shaders/basic-selection.vp"
-    "shaders/basic-selection.fp"))
-
-(def basic-selection-world-space
-  (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-world)
-    "shaders/basic-selection.vp"
-    "shaders/basic-selection.fp"))
-
-(def basic-selection-paged-local-space
-  (editor-shader
-    (basic-shader-opts :paged :coordinate-space-local)
-    "shaders/basic-selection-paged.vp"
-    "shaders/basic-selection-paged.fp"))
-
-(def basic-selection-paged-world-space
-  (editor-shader
-    (basic-shader-opts :paged :coordinate-space-world)
-    "shaders/basic-selection-paged.vp"
-    "shaders/basic-selection-paged.fp"))
-
 (def basic-texture-local-space
   (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-local)
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-texture.vp"
     "shaders/basic-texture.fp"))
 
 (def basic-texture-world-space
   (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-world)
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture.vp"
     "shaders/basic-texture.fp"))
 
 (def basic-texture-color-local-space
   (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-local)
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-texture-color.vp"
     "shaders/basic-texture-color.fp"))
 
 (def basic-texture-color-world-space
   (editor-shader
-    (basic-shader-opts :unpaged :coordinate-space-world)
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-color.vp"
     "shaders/basic-texture-color.fp"))
 
 (def basic-texture-paged-local-space
   (editor-shader
-    (basic-shader-opts :paged :coordinate-space-local)
+    {:coordinate-space :coordinate-space-local
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-texture-paged.vp"
     "shaders/basic-texture-paged.fp"))
 
 (def basic-texture-paged-world-space
   (editor-shader
-    (basic-shader-opts :paged :coordinate-space-world)
+    {:coordinate-space :coordinate-space-world
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-paged.vp"
     "shaders/basic-texture-paged.fp"))
 
 (def basic-texture-paged-color-local-space
   (editor-shader
-    (basic-shader-opts :paged :coordinate-space-local)
+    {:coordinate-space :coordinate-space-local
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-texture-paged-color.vp"
     "shaders/basic-texture-paged-color.fp"))
 
 (def basic-texture-paged-color-world-space
   (editor-shader
-    (basic-shader-opts :paged :coordinate-space-world)
+    {:coordinate-space :coordinate-space-world
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-paged-color.vp"
     "shaders/basic-texture-paged-color.fp"))
+
+(def instance-selection-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_view_proj" :view-proj}}
+    "shaders/instance-selection.vp"
+    "shaders/instance-selection.fp"))
+
+(def instance-selection-paged-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_view_proj" :view-proj}}
+    "shaders/instance-selection-paged.vp"
+    "shaders/instance-selection-paged.fp"))
 
 (def mesh-preview-local-space
   (editor-shader
@@ -140,9 +156,36 @@
     "shaders/mesh-preview.vp"
     "shaders/mesh-preview.fp"))
 
-(def mesh-selection-local-space
+(def uniform-selection-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
-     :uniforms {"mtx_view_proj" :view-proj}}
-    "shaders/mesh-selection.vp"
-    "shaders/mesh-selection.fp"))
+     :uniforms {"mtx_world_view_proj" :world-view-proj
+                "id_color" :id-color}}
+    "shaders/uniform-selection.vp"
+    "shaders/uniform-selection.fp"))
+
+(def uniform-selection-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj
+                "id_color" :id-color}}
+    "shaders/uniform-selection.vp"
+    "shaders/uniform-selection.fp"))
+
+(def uniform-selection-paged-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :world-view-proj
+                "id_color" :id-color}}
+    "shaders/uniform-selection-paged.vp"
+    "shaders/uniform-selection-paged.fp"))
+
+(def uniform-selection-paged-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :max-page-count shader/max-array-samplers
+     :uniforms {"mtx_world_view_proj" :view-proj
+                "id_color" :id-color}}
+    "shaders/uniform-selection-paged.vp"
+    "shaders/uniform-selection-paged.fp"))
