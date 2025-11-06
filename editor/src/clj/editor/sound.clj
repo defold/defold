@@ -105,28 +105,28 @@
    :form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
-   :sections [{:title "Sound"
+   :sections [{:localization-key "sound"
                :fields [{:path [:sound]
-                         :label "Sound"
+                         :localization-key "sound.sound"
                          :type :resource
                          :filter supported-audio-formats}
                         {:path [:looping]
-                         :label "Loop"
+                         :localization-key "sound.looping"
                          :type :boolean}
                         {:path [:loopcount]
-                         :label "Loopcount"
+                         :localization-key "sound.loopcount"
                          :type :integer}
                         {:path [:group]
-                         :label "Group"
+                         :localization-key "sound.group"
                          :type :string}
                         {:path [:gain]
-                         :label "Gain"
+                         :localization-key "sound.gain"
                          :type :number}
                         {:path [:pan]
-                         :label "Pan"
+                         :localization-key "sound.pan"
                          :type :number}
                         {:path [:speed]
-                         :label "Speed"
+                         :localization-key "sound.speed"
                          :type :number}]}]
    :values {[:sound] sound
             [:looping] looping

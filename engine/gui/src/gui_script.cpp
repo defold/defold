@@ -2096,7 +2096,7 @@ namespace dmGui
         return 0;
     }
 
-    static dmImage::Type ToImageType(lua_State*L, const char* type_str)
+    static dmImage::Type ToImageType(lua_State* L, const char* type_str)
     {
         if (strcmp(type_str, "rgb") == 0) {
             return dmImage::TYPE_RGB;
@@ -2104,12 +2104,22 @@ namespace dmGui
             return dmImage::TYPE_RGBA;
         } else if (strcmp(type_str, "l") == 0) {
             return dmImage::TYPE_LUMINANCE;
+        } else if (strcmp(type_str, "astc") == 0) {
+            return dmImage::TYPE_RGBA;
         } else {
             luaL_error(L, "unsupported texture format '%s'", type_str);
         }
 
         // never reached
         return (dmImage::Type) 0;
+    }
+
+    static dmImage::CompressionType ToImageCompressionType(const char* type_str)
+    {
+        if (strcmp(type_str, "astc") == 0) {
+            return dmImage::COMPRESSION_TYPE_ASTC;
+        }
+        return dmImage::COMPRESSION_TYPE_NONE;
     }
 
     /*# create new texture
@@ -2124,6 +2134,7 @@ namespace dmGui
      * - `"rgb"` - RGB</li>
      * - `"rgba"` - RGBA</li>
      * - `"l"` - LUMINANCE</li>
+     * - `"astc"` - ASTC compressed format</li>
      *
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
@@ -2157,6 +2168,20 @@ namespace dmGui
      *      end
      * end
      * ```
+     *
+     * @examples
+     *
+     * How to create a texture using .astc format
+     *
+     * ```lua
+     * local path = "/assets/images/logo_4x4.astc"
+     * local buffer = sys.load_resource(path)
+     * local n = gui.new_box_node(pos, vmath.vector3(size, size, 0))
+     * -- size is read from the .astc buffer
+     * -- flip is not supported
+     * gui.new_texture(path, 0, 0, "astc", buffer, false)
+     * gui.set_texture(n, path)
+     * ```
      */
     static int LuaNewTexture(lua_State* L)
     {
@@ -2187,7 +2212,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = NewDynamicTexture(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
 
         if (r == RESULT_OK)
         {
@@ -2255,6 +2281,7 @@ namespace dmGui
      *   <li><code>"rgb"</code> - RGB</li>
      *   <li><code>"rgba"</code> - RGBA</li>
      *   <li><code>"l"</code> - LUMINANCE</li>
+     *   <li><code>"astc"</code> - ASTC compressed format</li>
      * </ul>
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
@@ -2314,7 +2341,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = SetDynamicTextureData(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = SetDynamicTextureData(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
         } else {

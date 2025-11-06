@@ -64,20 +64,20 @@
 
 (def ^:private form-sections
   {:navigation false
-   :sections [{:title "Render"
+   :sections [{:localization-key "render"
                :fields [{:path [:script]
                          :type :resource
                          :filter "render_script"
-                         :label "Script"}
+                         :localization-key "render.script"}
                         {:path [:named-render-resources]
                          :type :table
-                         :label "Render Resources"
+                         :localization-key "render.render-resources"
                          :columns [{:path [:name]
-                                    :label "Name"
+                                    :localization-key "render.render-resources.name"
                                     :type :string
                                     :default "New Render Resource"}
                                    {:path [:path]
-                                    :label "Render Resource"
+                                    :localization-key "render.render-resources.resource"
                                     :type :resource
                                     :filter ["material" "render_target" "compute"]
                                     :default nil}]}]}]})

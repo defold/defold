@@ -165,6 +165,7 @@ namespace dmGameSystem
         dmGraphics::TextureImage::CompressionType m_CompressionType;
         dmBuffer::HBuffer                         m_Buffer;
         const void*                               m_Data;
+        uint32_t                                  m_DataSize;
         uint16_t                                  m_Width;
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;

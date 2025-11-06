@@ -78,12 +78,12 @@
 (g/defnk produce-form-data-desc [_node-id]
   {:navigation false
    :sections
-   [{:title "Display Profiles"
+   [{:localization-key "display-profiles"
      :fields [{:path [:auto-layout-selection]
-               :label "Auto Layout Selection"
+               :localization-key "display-profiles.auto-layout-selection"
                :type :boolean}
               {:path [:profiles]
-               :label "Profile"
+               :localization-key "display-profiles.profile"
                :type :2panel
                :panel-key {:path [:name] :type :string :default "New Display Profile"}
                :on-add #(add-profile! _node-id "New Display Profile" [])
@@ -91,16 +91,16 @@
                :set (fn [v path val] (g/set-property! (:node-id v) (first path) val))
                :panel-form {:sections
                             [{:fields [{:path [:qualifiers]
-                                        :label "Qualifiers"
+                                        :localization-key "display-profiles.profile.qualifiers"
                                         :type :table
                                         :columns [{:path [:width]
-                                                   :label "Width"
+                                                   :localization-key "display-profiles.profile.qualifiers.width"
                                                    :type :integer}
                                                   {:path [:height]
-                                                   :label "Height"
+                                                   :localization-key "display-profiles.profile.qualifiers.height"
                                                    :type :integer}
                                                   {:path [:device-models]
-                                                   :label "Device Models"
+                                                   :localization-key "display-profiles.profile.qualifiers.device-models"
                                                    :type :string}]}]}]}}]}]})
 
 (g/defnk produce-form-data [_node-id form-data-desc form-values]

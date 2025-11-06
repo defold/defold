@@ -81,31 +81,31 @@
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
    :navigation false
-   :sections [{:title "Camera"
+   :sections [{:localization-key "camera"
                :fields [{:path [:aspect-ratio]
-                         :label "Aspect Ratio"
+                         :localization-key "camera.aspect-ratio"
                          :type :number}
                         {:path [:fov]
-                         :label "FOV"
+                         :localization-key "camera.fov"
                          :type :number}
                         {:path [:near-z]
-                         :label "Near-Z"
+                         :localization-key "camera.near-z"
                          :type :number}
                         {:path [:far-z]
-                         :label "Far-Z"
+                         :localization-key "camera.far-z"
                          :type :number}
                         {:path [:auto-aspect-ratio]
-                         :label "Auto Aspect Ratio"
+                         :localization-key "camera.auto-aspect-ratio"
                          :type :boolean}
                         {:path [:orthographic-projection]
-                         :label "Orthographic Projection"
+                         :localization-key "camera.orthographic-projection"
                          :type :boolean}
                         {:path [:orthographic-mode]
-                         :label "Orthographic Zoom Mode"
+                         :localization-key "camera.orthographic-mode"
                          :type :choicebox
                          :options (sort-by first (protobuf-forms/make-enum-options Camera$OrthoZoomMode))}
                         {:path [:orthographic-zoom]
-                         :label "Orthographic Zoom"
+                         :localization-key "camera.orthographic-zoom"
                          :type :number}]}]
    :values {[:aspect-ratio] aspect-ratio
             [:fov] fov

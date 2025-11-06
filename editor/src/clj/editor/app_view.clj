@@ -2268,10 +2268,10 @@
                                            resource-type view-type make-view-fn active-tab-pane-tabs opts)))
                  view-id (ui/user-data tab ::view)]
              (.select (.getSelectionModel (.getTabPane tab)) tab)
+             (when (or (nil? existing-tab) (:select-node opts))
+               (g/transact
+                (select app-view resource-node [(:select-node opts resource-node)])))
              (when (not (:ignore-refresh-layout opts))
-               (when (or (nil? existing-tab) (:select-node opts))
-                 (g/transact
-                   (select app-view resource-node [(:select-node opts resource-node)])))
                (when-let [focus (:focus-fn view-type)]
                  (ui/force-scene-layout! (g/node-value app-view :scene))
                  (focus view-id opts))

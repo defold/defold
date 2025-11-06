@@ -34,13 +34,14 @@
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:title "Compute"
+   [{:localization-key "compute"
      :fields
      [{:path [:compute-program]
-       :label "Compute Program"
-       :type :resource :filter "cp"}
-      (render-program-utils/gen-form-data-constants "Constants" :constants)
-      (render-program-utils/gen-form-data-samplers "Samplers" :samplers)]}]})
+       :localization-key "compute.compute-program"
+       :type :resource
+       :filter "cp"}
+      (render-program-utils/gen-form-data-constants "compute.constants" :constants)
+      (render-program-utils/gen-form-data-samplers "compute.samplers" :samplers)]}]})
 
 (g/defnk produce-form-data [_node-id compute-program constants samplers :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))

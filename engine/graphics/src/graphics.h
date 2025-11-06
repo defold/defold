@@ -429,7 +429,9 @@ namespace dmGraphics
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
-    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
+    bool        GetAstcTextureFormat(const void* mem, uint32_t memsize, dmGraphics::TextureFormat* out);
+
+    uint32_t    GetTextureFormatBitsPerPixel(TextureFormat format);
     uint8_t     GetTexturePageCount(HTexture texture);
 
     // Calculating mipmap info helpers

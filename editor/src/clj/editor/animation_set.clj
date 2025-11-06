@@ -122,10 +122,10 @@
 (def ^:private form-sections
   {:navigation false
    :sections
-   [{:title "Animation Set"
+   [{:localization-key "animationset"
      :fields [{:path [:animations]
                :type :list
-               :label "Animations"
+               :localization-key "animationset.animations"
                :element {:type :resource
                          :filter model-scene/animation-file-types
                          :default nil}}]}]})

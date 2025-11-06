@@ -645,6 +645,5 @@
 ;; TODO:
 ;;  - editor scripts localization
 ;;  - build errors view
-;;  - form views
 ;;  - missed things...
-;;  - link in drop-down
+;;  - extensions: resource types, properties, outlines...
