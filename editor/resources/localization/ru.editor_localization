@@ -950,6 +950,8 @@ property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
+property.appmanifest.use-font-layout = Полная система текста
+property.appmanifest.use-font-layout.tooltip = Использовать систему полной разметки текста (поддерживающую, например, RTL)
 
 # Properties: atlas
 
