@@ -951,9 +951,6 @@
        (map #(g/node-value (project/get-resource-node (dev/project) %) :regions))
        (remove empty?))
 
-  (let [timer (create-breakpoint-tab-renderer (dev/project) (.lookup @editor.boot-open-project/the-root "#breakpoints-container"))]
-    (ui/timer-start! timer))
-
   (g/targets-of (dev/project) :breakpoints)
   (g/sources-of (dev/project) :breakpoints)
   ,)

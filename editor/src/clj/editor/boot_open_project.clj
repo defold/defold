@@ -207,7 +207,7 @@
                                                       (partial app-view/debugger-state-changed! scene tool-tabs)
                                                       localization)
           breakpoints-tab (let [breakpoints-container (.lookup root "#breakpoints-container")]
-                            (breakpoints-tab/create-breakpoint-tab-renderer project breakpoints-container open-resource))
+                            (breakpoints-tab/create-breakpoint-tab-renderer root project breakpoints-container open-resource))
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat

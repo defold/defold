@@ -33,13 +33,15 @@
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
-            [editor.localization :as localization]
-            [editor.prefs :as prefs]
-            [editor.protobuf :as protobuf]
             [editor.ui :as ui]
-            [service.log :as log]
-            [util.coll :as coll])
-  (:import [javafx.scene.input MouseButton MouseEvent]))
+            [util.fn :as fn])
+  (:import [javafx.scene.control ListCell ListView]
+           [javafx.scene.input MouseButton MouseEvent]))
+
+(set! *warn-on-reflection* true)
+
+(defonce state (atom {:breakpoints []
+                      :selected-indices []}))
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
@@ -94,9 +96,8 @@
         new-bp-regions (map (partial code-data/make-breakpoint-region lines) new-bp-rows)]
     (vec (sort (concat non-bp-regions existing-bp-regions new-bp-regions)))))
 
-(defn- breakpoint-cell-view [breakpoint]
-  ;; NOTE: We're getting passed in a nil breakpoint
-  (when (some? breakpoint)
+(defn- breakpoint-cell-view [breakpoints breakpoint]
+  (when-let [breakpoint (get breakpoints breakpoint)]
     (let [{:keys [resource row condition active]} breakpoint
           proj-path (:project-path resource)
           label-text (str proj-path ":" (+ 1 row) (when condition (str " [" condition "]")))]
@@ -116,28 +117,12 @@
                    {:fx/type fx.button/lifecycle
                     :text "×"
                     :on-action {:event-type :remove
-                                :breakpoint breakpoint}}]}
-       :context-menu {:fx/type fx.context-menu/lifecycle
-                      ;; :on-hidden {:event-type :context-menu-hidden}
-                      :consume-auto-hiding-events false
-                      :items [{:fx/type fx.menu-item/lifecycle
-                               :text "Enable Selected"
-                               :on-action {:event-type :enable-selected}}
-                              {:fx/type fx.menu-item/lifecycle
-                               :text "Disable Selected"
-                               :on-action {:event-type :disable-selected}}
-                              {:fx/type fx.menu-item/lifecycle
-                               :text "Toggle Selected"
-                               :on-action {:event-type :toggle-selected}}
-                              {:fx/type fx.separator-menu-item/lifecycle}
-                              {:fx/type fx.menu-item/lifecycle
-                               :text "Remove Selected"
-                               :on-action {:event-type :remove-selected}}]} })))
+                                :breakpoint breakpoint}}]}})))
 
 (def ext-with-anchor-pane-props
   (fx/make-ext-with-props fx.anchor-pane/props))
 
-(defn- breakpoints-view [parent breakpoints selected-breakpoints]
+(defn- breakpoints-view [parent state]
   {:fx/type ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
           :value parent}
@@ -170,14 +155,33 @@
                        :anchor-pane/bottom 0
                        :anchor-pane/left 0
                        :props {:selection-mode :multiple
-                               :on-selected-items-changed {:event-type :selected-items-changed}}
+                               ;; TODO: Need to reconsider how we handle selections when we delete with
+                               ;; the dedicated breakpoints remove button
+                               ;; :selected-indices (:selected-indices state)
+                               :on-selected-indices-changed {:event-type :selected-items-changed}}
                        :desc
                        {:fx/type fx.list-view/lifecycle
                         :id "breakpoints-list-view"
+                        :on-mouse-pressed {:event-type :list-view-clicked}
                         :fixed-cell-size 60.0
-                        :items breakpoints
+                        :context-menu {:fx/type fx.context-menu/lifecycle
+                                       :consume-auto-hiding-events false
+                                       :items [{:fx/type fx.menu-item/lifecycle
+                                                :text "Enable Selected"
+                                                :on-action {:event-type :enable-selected}}
+                                               {:fx/type fx.menu-item/lifecycle
+                                                :text "Disable Selected"
+                                                :on-action {:event-type :disable-selected}}
+                                               {:fx/type fx.menu-item/lifecycle
+                                                :text "Toggle Selected"
+                                                :on-action {:event-type :toggle-selected}}
+                                               {:fx/type fx.separator-menu-item/lifecycle}
+                                               {:fx/type fx.menu-item/lifecycle
+                                                :text "Remove Selected"
+                                                :on-action {:event-type :remove-selected}}]}
+                        :items (range (count (:breakpoints state)))
                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                       :describe breakpoint-cell-view}}}]}})
+                                       :describe (fn/partial breakpoint-cell-view (:breakpoints state))}}}]}})
 
 (defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
@@ -194,7 +198,7 @@
                     breakpoints-by-script)]
     (g/transact txs)))
 
-(defn- handle-breakpoint-event! [project state event]
+(defn- handle-breakpoint-event! [root project open-resource-fn event]
   (g/with-auto-evaluation-context evaluation-context
     (case (:event-type event)
       :toggle-active
@@ -214,15 +218,23 @@
         (g/set-property! script-node :regions regions))
 
       :selected-items-changed
-      (swap! state assoc :selected (:fx/event event))
+      (swap! state assoc :selected-indices (:fx/event event))
+
+
+      ;; We clicked empty space, not an item
+      :list-view-clicked
+      (let [^MouseEvent e (:fx/event event)
+            ^ListView target (.getTarget e)]
+        (when (and (instance? ListCell target)
+                   (.isEmpty ^ListCell target))
+          (.clearSelection (.getSelectionModel (.getSource e)))))
 
       :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
             {:keys [resource row]} (:clicked-breakpoint event)]
         (if (and (= MouseButton/PRIMARY (.getButton e))
                  (= 2 (.getClickCount e)))
-          (let [open-fn (:open-resource-fn @state)]
-            (open-fn resource (+ 1 row)))))
+          (open-resource-fn resource (+ 1 row))))
 
       ;; default case
       ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
@@ -230,8 +242,8 @@
       (let [[action scope] (string/split (name (:event-type event)) #"-")
             all-breakpoints (:breakpoints @state)
             breakpoints (if (= scope "selected")
-                          (:selected @state)
-                          all-breakpoints)
+                               (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
+                               all-breakpoints)
             handle-fn (partial handle-breakpoint-action project evaluation-context all-breakpoints breakpoints)]
         (case action
           "remove" (handle-fn #(vec (remove (set %2) %1)))
@@ -246,11 +258,8 @@
       (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)}))
     nil))
 
-(defn create-breakpoint-tab-renderer [project breakpoints-list-view open-resource-fn]
-  (let [state (atom {:breakpoints []
-                     :selected []
-                     :open-resource-fn (make-open-resource-fn project open-resource-fn)})
-        timer (ui/->timer
+(defn create-breakpoint-tab-renderer [root project breakpoint-container open-resource-fn]
+  (let [timer (ui/->timer
                4
                "breakpoints-tab-update-timer"
                (fn [timer _ _]
@@ -260,8 +269,7 @@
     (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
       (ui/context! tab-pane
                    :breakpoints-tab
-                   ;; TODO: Do we need the list-view?
-                   {:list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
+                   {:project project :list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
                    nil))
     (fx/mount-renderer
       state
@@ -269,36 +277,42 @@
         :error-handler error-reporting/report-exception!
         :middleware (comp
                       fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(breakpoints-view breakpoints-list-view
-                                                           (:breakpoints %)
-                                                           (:selected- %))))
-        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project state %)}))
+                      (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
+        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! root project open-resource-fn %)}))
     (ui/timer-start! timer)))
 
 (handler/defhandler :breakpoints-tab.toggle-breakpoint-active :breakpoints-tab
-  (run [list-view tab-pane some-var]
+  (run [project list-view]
     (g/with-auto-evaluation-context evaluation-context
-      (let [selection-model (.getSelectionModel list-view)
-            items (.getItems list-view)
-            selected (.getSelectedItems selection-model)]
-        (handle-breakpoint-action (dev/project)
+      (let [breakpoints (:breakpoints @state)
+            selected (map #(get breakpoints %) (:selected-indices @state))]
+        (handle-breakpoint-action project
                                   evaluation-context
-                                  items
+                                  breakpoints
                                   selected
                                   toggle-breakpoints-active)))))
 
 (handler/defhandler :breakpoints-tab.remove-breakpoint :breakpoints-tab
-  (run [list-view tab-pane some-var]
+  (run [project list-view]
     (g/with-auto-evaluation-context evaluation-context
-      (let [selection-model (.getSelectionModel list-view)
-            items (.getItems list-view)
-            selected (.getSelectedItems selection-model)]
-        (handle-breakpoint-action (dev/project)
+      (let [breakpoints (:breakpoints @state)
+            selected (map #(get breakpoints %) (:selected-indices @state))]
+        (handle-breakpoint-action project
                                   evaluation-context
-                                  items
+                                  breakpoints
                                   selected
                                   #(vec (remove (set %2) %1)))))))
 
 (handler/defhandler :breakpoints-tab.edit-breakpoint :breakpoints-tab
   (run []
        ()))
+
+(comment
+  (let [list-view (.lookup (ui/main-root) "#breakpoints-list-view")
+        items (.getItems list-view)]
+    (select-breakpoints-by-bp! list-view (take 2 items)))
+  (let [open-resource (partial #'editor.app-view/open-resource
+                               (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
+        breakpoints-container (.lookup @editor.boot-open-project/the-root "#breakpoints-container")]
+    (create-breakpoint-tab-renderer (dev/project) breakpoints-container open-resource))
+  ,)
