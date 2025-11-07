@@ -32,6 +32,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:dynamic *current-action* nil)
+
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta]
@@ -498,7 +500,8 @@
     (let [proj-fn (manip->project-fn manip camera viewport)
           apply-fn (manip->apply-fn manip-opts evaluation-context manip manip-origin original-values)
           [start-pos pos] (map #(action->manip-pos % lead-transform manip manip-rotation proj-fn) [start-action action])]
-      (apply-fn start-pos pos))))
+      (binding [*current-action* action]
+        (apply-fn start-pos pos)))))
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
@@ -566,9 +569,19 @@
   {:pre [(boolean? enabled)]}
   (prefs/set! prefs [:scene :move-whole-pixels] enabled))
 
+(defn- snap-component ^double [^double value ^double factor]
+  (/ (double (Math/round (* value factor))) factor))
+
+(defn- snap-vector [^Vector3d v ^double factor]
+  (Vector3d. (snap-component (.x v) factor)
+             (snap-component (.y v) factor)
+             (snap-component (.z v) factor)))
+
 (defn move-snap-fn [prefs]
   (if (move-whole-pixels? prefs)
-    math/round-vector
+    (fn [^Vector3d v]
+      (let [factor (if (:shift *current-action*) 10.0 1.0)]
+        (snap-vector v factor)))
     identity))
 
 (g/defnk produce-manip-opts [prefs]
