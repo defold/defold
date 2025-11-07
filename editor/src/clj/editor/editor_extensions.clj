@@ -57,7 +57,8 @@
             [util.fn :as fn]
             [util.http-client :as http]
             [util.http-server :as http-server])
-  (:import [com.dynamo.bob Platform]
+  (:import [clojure.lang IDeref]
+           [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [java.io PrintStream PushbackReader]
            [java.net URI]
@@ -798,13 +799,19 @@
                          :on_target_launched coerce/function
                          :on_target_terminated coerce/function}))
 
-(def ^:private bundle-editor-script-prototype
+(defn- read-bundle-editor-script []
   (rt/read (io/resource "bundle.editor_script") "bundle.editor_script"))
+
+(def ^:private bundle-editor-script-prototype
+  ;; reloadable in dev
+  (if (system/defold-dev?)
+    (reify IDeref (deref [_] (read-bundle-editor-script)))
+    (reduced (read-bundle-editor-script))))
 
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt display-output!]} initial-state]
     (->> (e/concat
-           [bundle-editor-script-prototype]
+           [@bundle-editor-script-prototype]
            (:library-prototypes initial-state)
            (:project-prototypes initial-state))
          (reduce
@@ -852,7 +859,13 @@
 (defn- resolve-file [^Path project-path _ ^String file-name]
   (str (ensure-file-path-in-project-directory project-path file-name)))
 
-(def ^:private prelude-prototype (rt/read (io/resource "prelude.lua") "prelude.lua"))
+(defn- read-prelude-lua []
+  (rt/read (io/resource "prelude.lua") "prelude.lua"))
+
+(def ^:private prelude-prototype
+  (if (system/defold-dev?)
+    (reify IDeref (deref [_] (read-prelude-lua)))
+    (reduced (read-prelude-lua))))
 
 ;; endregion
 
@@ -957,7 +970,7 @@
                      "pprint" ext-pprint
                      "tilemap" tile-map/env
                      "zip" (zip/env project-path reload-resources!)})
-          _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
+          _ (rt/invoke-immediate rt (rt/bind rt @prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts
                         :rt rt

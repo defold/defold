@@ -10,7 +10,7 @@
 
 (def ^:private message-args-coercer
   (coerce/regex :key coerce/string
-                :vars :? (coerce/hash-map coerce/string localizable-value-coercer)))
+                :vars :? (coerce/map-of coerce/string localizable-value-coercer)))
 
 (defn- make-ext-message-fn [localization]
   (rt/varargs-lua-fn ext-message [{:keys [rt]} varargs]

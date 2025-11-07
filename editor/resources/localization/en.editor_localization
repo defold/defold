@@ -472,6 +472,24 @@ dialog.open-resource.open-file-failed.detail = This can happen if the file type 
 
 dialog.loading-project.header = Loading project
 
+# Bundle dialog
+
+dialog.bundle.title = Bundle Application
+dialog.bundle.button.create = Create Bundle...
+dialog.bundle.header.select-output-folder = Proceed to select output folder.
+dialog.bundle.label.variant = Variant
+dialog.bundle.failed.title = Bundle Failed
+dialog.bundle.failed.heading = Failed to bundle the project
+dialog.bundle.failed.hint = Please fix build errors and try again
+dialog.bundle.output-directory.title = Output Directory
+dialog.bundle.output-directory.error-file.title = Cannot Overwrite File
+dialog.bundle.output-directory.error-file.heading = Cannot create a directory
+dialog.bundle.output-directory.error-file.message = Cannot create directory at path "{path}", there is a file with the same name as the directory we are trying to create
+dialog.bundle.output-directory.overwrite.title = Overwrite Existing Directory?
+dialog.bundle.output-directory.overwrite.heading = A directory already exists
+dialog.bundle.output-directory.overwrite.message = Overwrite "{path}"?
+dialog.bundle.output-directory.button.overwrite = Overwrite
+
 # Editor panes
 
 pane.assets = Assets
@@ -706,6 +724,12 @@ command.project.clean-build = Clean Build
 command.project.build-html5 = Build HTML5
 command.project.clean-build-html5 = Clean Build HTML5
 command.project.bundle = Bundle
+command.project.bundle-ios = iOS Application...
+command.project.bundle-android = Android Application...
+command.project.bundle-macos = macOS Application...
+command.project.bundle-windows = Windows Application...
+command.project.bundle-linux = Linux Application...
+command.project.bundle-html5 = HTML5 Application...
 command.project.rebundle = Rebundle
 command.project.fetch-libraries = Fetch Libraries
 command.project.reload-editor-scripts = Reload Editor Scripts
