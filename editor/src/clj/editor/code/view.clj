@@ -2769,14 +2769,27 @@
 
 (handler/defhandler :debugger.toggle-breakpoint :code-view
   (run [view-node]
-       (let [lines (get-property view-node :lines)
-             cursor-ranges (get-property view-node :cursor-ranges)
-             regions (get-property view-node :regions)
-             breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
-         (set-properties! view-node nil
-                          (data/toggle-breakpoint-region lines
-                                                  regions
-                                                  breakpoint-rows)))))
+    (let [lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          regions (get-property view-node :regions)
+          breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
+      (set-properties! view-node nil
+                       (data/toggle-breakpoint-region lines
+                                                      regions
+                                                      breakpoint-rows)))))
+
+(handler/defhandler :code-view.toggle-breakpoint-active :code-view
+  (run [view-node]
+    (let [lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          regions (get-property view-node :regions)
+          breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)
+          breakpoint-regions (remove nil? (map #(data/get-breakpoint-region lines regions %) breakpoint-rows))
+          updated-regions (coll/transfer breakpoint-regions {}
+                                         (map #(assoc % :active (not (:active %))))
+                                         (map #(data/ensure-breakpoint-region lines regions %)))]
+      (when (coll/not-empty updated-regions)
+        (set-properties! view-node nil updated-regions)))))
 
 (handler/defhandler :edit.rename :code-view
   (active? [editable] editable)

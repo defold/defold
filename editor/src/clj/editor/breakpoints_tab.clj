@@ -32,6 +32,7 @@
             [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
+            [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.protobuf :as protobuf]
@@ -256,6 +257,12 @@
                  (when-not (ui/ui-disabled?)
                    (let [breakpoints (g/node-value project :breakpoints)]
                      (swap! state assoc :breakpoints breakpoints)))))]
+    (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
+      (ui/context! tab-pane
+                   :breakpoints-tab
+                   ;; TODO: Do we need the list-view?
+                   {:list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
+                   nil))
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -267,3 +274,31 @@
                                                            (:selected- %))))
         :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project state %)}))
     (ui/timer-start! timer)))
+
+(handler/defhandler :breakpoints-tab.toggle-breakpoint-active :breakpoints-tab
+  (run [list-view tab-pane some-var]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [selection-model (.getSelectionModel list-view)
+            items (.getItems list-view)
+            selected (.getSelectedItems selection-model)]
+        (handle-breakpoint-action (dev/project)
+                                  evaluation-context
+                                  items
+                                  selected
+                                  toggle-breakpoints-active)))))
+
+(handler/defhandler :breakpoints-tab.remove-breakpoint :breakpoints-tab
+  (run [list-view tab-pane some-var]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [selection-model (.getSelectionModel list-view)
+            items (.getItems list-view)
+            selected (.getSelectedItems selection-model)]
+        (handle-breakpoint-action (dev/project)
+                                  evaluation-context
+                                  items
+                                  selected
+                                  #(vec (remove (set %2) %1)))))))
+
+(handler/defhandler :breakpoints-tab.edit-breakpoint :breakpoints-tab
+  (run []
+       ()))
