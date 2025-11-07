@@ -220,7 +220,7 @@
         read-only-common-props))
 
 (def ^:private label-without-color-specific-props
-  [(make-prop :text :coerce coerce/string :doc "the text")
+  [(make-prop :text :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "the text, either a string or localization message")
    (enum-prop :text_alignment :enum :text-alignment :doc "text alignment within paragraph bounds")])
 
 (def ^:private label-specific-props
@@ -231,7 +231,7 @@
   [(enum-prop :icon :enum :icon :required true :doc "predefined icon name")])
 
 (def ^:private tooltip-prop
-  (make-prop :tooltip :coerce coerce/string :doc "tooltip message, shown on hover"))
+  (make-prop :tooltip :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "tooltip message, shown on hover; either a string or localization message"))
 
 (def ^:private label-props
   (-> label-specific-props
@@ -277,7 +277,7 @@
   (into [(make-prop :issue
                     :coerce (coerce/one-of
                               (coerce/hash-map :req {:severity (coerce/enum :error :warning)
-                                                     :message coerce/string})
+                                                     :message string-or-message-pattern-coercer})
                               absent-coercer)
                     :types ["table"]
                     :doc (str "issue related to the input; table with the following keys (all required):"
@@ -286,8 +286,8 @@
                                   :types ["string"]
                                   :doc "either <code>editor.ui.ISSUE_SEVERITY.WARNING</code> or <code>editor.ui.ISSUE_SEVERITY.ERROR</code>"}
                                  {:name "message"
-                                  :types ["string"]
-                                  :doc "issue message, will be shown in a tooltip"}])))
+                                  :types ["string" "message"]
+                                  :doc "issue message, will be shown in a tooltip; either a string or localization message"}])))
          tooltip-prop]
         common-input-props))
 
@@ -333,9 +333,10 @@
 
 (def ^:private dialog-button-props
   [(make-prop :text
-              :coerce coerce/string
+              :coerce string-or-message-pattern-coercer
               :required true
-              :doc "button text")
+              :types ["string" "message"]
+              :doc "button text, either a string or localization message")
    (make-prop :result
               :coerce coerce/untouched
               :doc "value returned by <code>editor.ui.show_dialog(...)</code> if this button is pressed")
@@ -351,9 +352,10 @@
 
 (def ^:private dialog-props
   [(make-prop :title
-              :coerce coerce/string
+              :coerce string-or-message-pattern-coercer
               :required true
-              :doc "OS dialog window title")
+              :types ["string" "message"]
+              :doc "OS dialog window title, either a string or localization message")
    (make-prop :header
               :coerce child-coercer
               :types ["component"]

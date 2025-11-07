@@ -33,7 +33,6 @@
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.coerce :as coerce]
-            [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
@@ -225,42 +224,48 @@
     (fn apply-label-color [props color]
       (fxui/add-style-classes props (color->style-class color)))))
 
-(defn- apply-tooltip [props text]
+(defn- apply-tooltip [props text localization-state]
   {:pre [(some? text)]}
   (assoc props :tooltip {:fx/type fx.tooltip/lifecycle
-                         :text text
+                         :text (localization-state text)
                          :hide-delay :zero
                          :show-delay :zero
                          :show-duration [30 :s]}))
 
-(defn- label-view [{:keys [alignment text text_alignment color tooltip]
-                    :or {alignment :top-left
-                         color :text}}]
+(fxui/defc label-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [alignment text text_alignment color tooltip localization-state]
+    :or {alignment :top-left
+         color :text}}]
   (cond-> {:fx/type fxui/label :alignment alignment}
-          text (assoc :text text)
+          text (assoc :text (localization-state text))
           color (assoc :color color)
           text_alignment (assoc :text-alignment text_alignment)
-          tooltip (assoc :tooltip tooltip)))
+          tooltip (assoc :tooltip (localization-state tooltip))))
 
-(defn- paragraph-view [{:keys [alignment text text_alignment color word_wrap]
-                        :or {alignment :top-left
-                             word_wrap true
-                             color :text}}]
+(fxui/defc paragraph-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [alignment text text_alignment color word_wrap localization-state]
+    :or {alignment :top-left
+         word_wrap true
+         color :text}}]
   (cond-> {:fx/type fxui/paragraph
            :wrap-text word_wrap
            :alignment alignment
            :color color}
-          text (assoc :text text)
+          text (assoc :text (localization-state text))
           text_alignment (assoc :text-alignment text_alignment)))
 
 (def ^:private heading-style->label-style-class
   (fn/make-case-fn (coll/pair-map-by identity #(str "ext-heading-style-" (name %)) (:heading-style ui-docs/enums))))
 
-(defn- heading-view [{:keys [alignment text text_alignment color word_wrap style]
-                      :or {alignment :top-left
-                           word_wrap true
-                           style :h3
-                           color :text}}]
+(fxui/defc heading-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [alignment text text_alignment color word_wrap style localization-state]
+    :or {alignment :top-left
+         word_wrap true
+         style :h3
+         color :text}}]
   (-> {:fx/type fx.label/lifecycle
        :style-class ["label" (heading-style->label-style-class style)]
        :max-width Double/MAX_VALUE
@@ -268,7 +273,7 @@
        :wrap-text word_wrap}
       (apply-alignment alignment)
       (apply-label-color color)
-      (cond-> text (assoc :text text)
+      (cond-> text (assoc :text (localization-state text))
               text_alignment (assoc :text-alignment text_alignment))))
 
 (defn- wrap-in-alignment-container
@@ -340,18 +345,23 @@
 (defn- event-source->owner-window [^Event e]
   (.getWindow (.getScene ^Node (.getSource e))))
 
-(defn- button-view [{:keys [rt
-                            ;; text
-                            text
-                            text_alignment
-                            ;; icon
-                            icon
-                            ;; rest
-                            on_pressed
-                            enabled
-                            alignment]
-                     :or {enabled true}}]
-  (let [has-text (not (string/blank? text))
+(fxui/defc button-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt
+           ;; text
+           text
+           text_alignment
+           ;; icon
+           icon
+           ;; rest
+           on_pressed
+           enabled
+           alignment
+           ;; env
+           localization-state]
+    :or {enabled true}}]
+  (let [text (localization-state text)
+        has-text (not (string/blank? text))
         has-icon (some? icon)
         style-class (cond
                       (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
@@ -393,30 +403,34 @@
                             (fx.mutator/property-change-listener #(.selectedProperty ^CheckBox %))
                             property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- apply-tooltip-and-issue [props tooltip issue]
+(defn- apply-tooltip-and-issue [props tooltip issue localization-state]
   (let [message (:message issue)]
     (cond-> props (or message tooltip) (apply-tooltip (if (and message tooltip)
-                                                        (str message "\n\n" tooltip)
-                                                        (or message tooltip))))))
+                                                        (localization/join "\n\n" [message tooltip])
+                                                        (or message tooltip))
+                                                      localization-state))))
 
-(defn- set-tooltip-and-issue [props tooltip issue]
+(defn- set-tooltip-and-issue [props tooltip issue localization-state]
   (let [message (:message issue)]
-    (cond-> props (or message tooltip) (assoc :tooltip (if (and message tooltip)
-                                                         (str message "\n\n" tooltip)
-                                                         (or message tooltip))))))
+    (cond-> props (or message tooltip) (assoc :tooltip (localization-state
+                                                         (if (and message tooltip)
+                                                           (localization/join "\n\n" [message tooltip])
+                                                           (or message tooltip)))))))
 
-(defn- check-box-view [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed]
-                        :or {enabled true
-                             value false}}]
+(fxui/defc check-box-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed localization-state]
+    :or {enabled true
+         value false}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
      :desc (-> {:fx/type fxui/check-box
                 :disable (not enabled)
                 :selected value}
-               (set-tooltip-and-issue tooltip issue)
+               (set-tooltip-and-issue tooltip issue localization-state)
                (cond->
                  issue (assoc :color (:severity issue))
-                 text (assoc :text text)
+                 text (assoc :text (localization-state text))
                  text_alignment (assoc :text-alignment text_alignment)))
      :props (cond-> {} on_value_changed (assoc :on-selected-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment))
@@ -453,9 +467,11 @@
                          (fx.mutator/property-change-listener #(.valueProperty ^ComboBox %))
                          property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- select-box-view [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string]
-                         :or {options []
-                              enabled true}}]
+(fxui/defc select-box-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string localization-state]
+    :or {options []
+         enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-combo-box-props
      :desc {:fx/type fxui/ext-memo
@@ -469,7 +485,7 @@
                      :on-key-pressed on-select-box-key-pressed
                      :items options
                      :disable (not enabled)}
-                    tooltip issue)}
+                    tooltip issue localization-state)}
      :props (cond-> {} on_value_changed (assoc :on-value-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment
     true))
@@ -484,14 +500,16 @@
                         (fx.mutator/property-change-listener #(.textProperty ^TextField %))
                         property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- text-field-view [{:keys [rt text on_text_changed tooltip issue enabled alignment]
-                         :or {text "" enabled true}}]
+(fxui/defc text-field-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt text on_text_changed tooltip issue enabled alignment localization-state]
+    :or {text "" enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-text-field-props
      :desc (-> {:fx/type fxui/text-field
                 :disable (not enabled)
                 :text text}
-               (set-tooltip-and-issue tooltip issue)
+               (set-tooltip-and-issue tooltip issue localization-state)
                (cond-> issue (assoc :color (:severity issue))))
      :props (cond-> {} on_text_changed (assoc :on-text-changed (make-event-handler-1 :window :value rt "on_text_changed" on_text_changed)))}
     alignment true))
@@ -575,7 +593,8 @@
                            (fx.mutator/property-change-listener #(.focusedProperty ^TextField %))
                            property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- value-field-view-impl-2
+(fxui/defc value-field-view-impl-2
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
   [{:keys [text                                             ;; text of the current value
            state swap-state                                 ;; local state, may contain :value and :edit
            rt
@@ -586,7 +605,8 @@
            tooltip
            issue
            enabled
-           alignment]
+           alignment
+           localization-state]
     :or {enabled true}}]
   (let [{:keys [edit]} state]
     (wrap-in-alignment-container
@@ -597,7 +617,7 @@
                   :disable (not enabled)
                   :on-text-changed #(swap-state assoc :edit %)
                   :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
-                 (set-tooltip-and-issue tooltip issue)
+                 (set-tooltip-and-issue tooltip issue localization-state)
                  (cond-> issue (assoc :color (:severity issue))))}
       alignment
       true)))
@@ -671,21 +691,26 @@
 
 ;; region dialog components
 
-(defn- dialog-button-view [{:keys [enabled text result cancel default]
-                            :or {enabled true cancel false default false}}]
+(fxui/defc dialog-button-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [enabled text result cancel default localization-state]
+    :or {enabled true cancel false default false}}]
   (let [button {:fx/type fxui/button
                 :disable (not enabled)
                 :variant (if default :primary :secondary)
                 :cancel-button cancel
                 :default-button default
-                :text text
+                :text (localization-state text)
                 :on-action {:result result}}]
     (if default
       {:fx/type fxui/ext-focused-by-default :desc button}
       button)))
 
-(defn- dialog-view [{:keys [title header content buttons]}]
-  (let [header (or header {:fx/type fxui/legacy-label :text title :variant :header})
+(fxui/defc dialog-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [title header content buttons localization-state]}]
+  (let [title (localization-state title)
+        header (or header {:fx/type fxui/legacy-label :text title :variant :header})
         buttons (into []
                       (keep-indexed
                         (fn [i desc]
@@ -698,7 +723,7 @@
                                      buttons))
         footer {:fx/type dialogs/dialog-buttons
                 :children (if (coll/empty? buttons)
-                            [{:fx/type dialog-button-view :text "Close" :cancel true :default true}]
+                            [{:fx/type dialog-button-view :text (localization/message "dialog.button.close") :cancel true :default true}]
                             buttons)}]
     (cond-> {:fx/type dialogs/dialog-stage
              :title title
@@ -732,15 +757,12 @@
              (vreset! v# nil)
              ret#))))))
 
-(def evaluation-context-lifecycle
-  "Root lifecycle that must be used to re-use evaluation context in cljfx tree
-
-  This lifecycle shares the same evaluation context along the whole cljfx tree
-  during cljfx lifecycle updates.
+(def ext-with-evaluation-context
+  "Lifecycle that shares an evaluation context in cljfx tree
 
   Expected keys:
     :desc    child description that will be able to access a shared evaluation
-             context using lifecycle-evaluation-context fn"
+             context using [[lifecycle-evaluation-context]] fn"
   (reify fx.lifecycle/Lifecycle
     (create [_ {:keys [desc]} opts]
       (with-nestable-evaluation-context
@@ -752,6 +774,25 @@
       (with-nestable-evaluation-context
         (fx.lifecycle/delete fx.lifecycle/dynamic component opts)))))
 
+(fxui/defc root-view
+  {:doc "Root lifecycle that must be used by all extension UIs
+
+         Expected keys:
+           :desc            extension cljfx description
+           :localization    localization instance
+
+         Provides:
+           - evaluation context: shared along the whole cljfx tree during
+             lifecycle updates, can be accessed using
+             [[lifecycle-evaluation-context]] fn
+           - localization state: available in cljfx env using [[fx/ext-get-env]]
+             with :localization-state key"
+   :compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}
+             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props)}}
+             {:fx/type ext-with-evaluation-context}]}
+  [{:keys [desc]}]
+  desc)
+
 ;; region show_dialog
 
 (def ^:private ext-with-stage-props
@@ -762,10 +803,11 @@
    :props {:showing (fxui/dialog-showing? props)}
    :desc desc})
 
-(def ^:private lua-show-dialog-fn
+(defn- make-lua-show-dialog-fn [localization]
   (rt/suspendable-lua-fn show-dialog [{:keys [rt]} lua-dialog-component]
     (let [desc {:fx/type show-dialog-wrapper-view
-                :desc {:fx/type evaluation-context-lifecycle
+                :desc {:fx/type root-view
+                       :localization localization
                        :desc (rt/->clj rt ui-docs/component-coercer lua-dialog-component)}}
           f (future/make)]
       (fx/run-later
@@ -1241,7 +1283,7 @@
          (eduction
            (map (fn [[script-doc lua-fn]]
                   [(:name script-doc) lua-fn]))
-           [[ui-docs/show-dialog-doc lua-show-dialog-fn]
+           [[ui-docs/show-dialog-doc (make-lua-show-dialog-fn localization)]
             [ui-docs/function-component-doc function-component-lua-fn]
             [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path localization)]
             [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path localization)]
