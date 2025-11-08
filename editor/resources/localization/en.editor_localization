@@ -507,7 +507,7 @@ prefs.tab.general = General
 prefs.tab.code = Code
 prefs.tab.extensions = Extensions
 prefs.tab.tools = Tools
-prefs.tab.move-step = MoveStep
+prefs.tab.move-step = Move Step
 prefs.tab.dev = Dev
 prefs.tab.keymap = Keymap
 
@@ -549,7 +549,7 @@ prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used
 
 # MoveStep tab
 prefs.label.move-step.move-step = Move Step
-prefs.label.move-step.fine-move-step = Fine Move Step
+prefs.label.move-step.fine-move-step = Shift move step
 
 # Dev tab
 prefs.label.dev.custom-engine = Custom Engine

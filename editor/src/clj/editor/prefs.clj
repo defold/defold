@@ -122,8 +122,8 @@
 
   :move-step {:type :object
             :properties
-            {:move-step {:type :number :default 10.0}
-             :fine-move-step {:type :number :default 1.0}}}
+            {:move-step {:type :string :default "10"}
+             :fine-move-step {:type :string :default "1"}}}
 
     :extensions {:type :object
                  :properties

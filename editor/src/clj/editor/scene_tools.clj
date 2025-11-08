@@ -580,12 +580,14 @@
 (defn move-snap-fn [prefs]
   (if (move-whole-pixels? prefs)
     (fn [^Vector3d v]
-      (let [factor (if (:shift *current-action*) (prefs/get prefs [:move-step :move-step]) (prefs/get prefs [:move-step :fine-move-step]))]
+      (let [factor-raw (if (:shift *current-action*)
+                         (prefs/get prefs [:move-step :fine-move-step])
+                         (prefs/get prefs [:move-step :move-step]))
+            f (try (Double/parseDouble (str factor-raw)) (catch Exception _ 1.0))
+            factor (if (pos? f) (/ 1.0 f) 1.0)]
         (snap-vector v factor)))
     identity))
 
-
-    
 
 (g/defnk produce-manip-opts [prefs]
   {:move-snap-fn (move-snap-fn prefs)})
