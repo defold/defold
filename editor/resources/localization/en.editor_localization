@@ -507,6 +507,7 @@ prefs.tab.general = General
 prefs.tab.code = Code
 prefs.tab.extensions = Extensions
 prefs.tab.tools = Tools
+prefs.tab.move-step = MoveStep
 prefs.tab.dev = Dev
 prefs.tab.keymap = Keymap
 
@@ -545,6 +546,10 @@ prefs.label.tools.adb-path = ADB path
 prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
 prefs.label.tools.ios-deploy-path = ios-deploy path
 prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
+
+# MoveStep tab
+prefs.label.move-step.move-step = Move Step
+prefs.label.move-step.fine-move-step = Fine Move Step
 
 # Dev tab
 prefs.label.dev.custom-engine = Custom Engine

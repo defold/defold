@@ -119,6 +119,12 @@
             :properties
             {:adb-path {:type :string}
              :ios-deploy-path {:type :string}}}
+
+  :move-step {:type :object
+            :properties
+            {:move-step {:type :number :default 10.0}
+             :fine-move-step {:type :number :default 1.0}}}
+
     :extensions {:type :object
                  :properties
                  {:build-server {:type :string
@@ -863,7 +869,10 @@
      "scene-move-whole-pixels?" [:scene :move-whole-pixels]
      "dev-custom-engine" [:dev :custom-engine]
      "open-project-directory" [:welcome :last-opened-project-directory]
-     "recent-project-entries" [:welcome :recent-projects]}))
+     "recent-project-entries" [:welcome :recent-projects]
+     "move-step" [:move-step :move-step]
+     "fine-move-step" [:move-step :fine-move-step]
+     }))
 
 (defn migrate-project-prefs!
   "Migrate project prefs from the old prefs storage
@@ -920,5 +929,3 @@
                                       "instance-count" [:run :instance-count]
                                       "simulate-rotated-device" [:run :simulate-rotated-device]
                                       "simulated-resolution" [:run :simulated-resolution]})))))
-
-;; end region

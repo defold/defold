@@ -81,7 +81,11 @@
                 [:extensions :build-server-headers]]}
        {:pattern (localization/message "prefs.tab.tools")
         :paths [[:tools :adb-path]
-                [:tools :ios-deploy-path]]}]
+                [:tools :ios-deploy-path]]}
+                
+        {:pattern (localization/message "prefs.tab.move-step")
+        :paths [[:move-step :move-step]
+                [:move-step :fine-move-step]]}]
 
       (system/defold-dev?)
       (conj {:pattern (localization/message "prefs.tab.dev")
