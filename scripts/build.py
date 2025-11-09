@@ -44,6 +44,20 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web', 'wasm_pthread-web']
 
+_CMAKE_FEATURE_FLAG_MAP = {
+    '--with-asan': 'WITH_ASAN',
+    '--with-ubsan': 'WITH_UBSAN',
+    '--with-tsan': 'WITH_TSAN',
+    '--with-valgrind': 'WITH_VALGRIND',
+    '--with-openal': 'WITH_OPENAL',
+    '--with-opengl': 'WITH_OPENGL',
+    '--with-vulkan': 'WITH_VULKAN',
+    '--with-vulkan-validation': 'WITH_VULKAN_VALIDATION',
+    '--with-dx12': 'WITH_DX12',
+    '--with-opus': 'WITH_OPUS',
+    '--with-webgpu': 'WITH_WEBGPU'
+}
+
 sys.dont_write_bytecode = True
 try:
     import build_vendor
@@ -1568,6 +1582,22 @@ class Configuration(object):
             return 'Debug'
         return 'RelWithDebInfo'
 
+    def _cmake_feature_defines(self):
+        defines = []
+        handled = set()
+        for option in self.waf_options:
+            if not option.startswith('--with-'):
+                continue
+            if option in handled:
+                continue
+            handled.add(option)
+            feature = _CMAKE_FEATURE_FLAG_MAP.get(option)
+            if feature:
+                defines.append(f"-D{feature}=ON")
+            else:
+                self._log(f"Warning: CMake build currently ignores '{option}'")
+        return defines
+
     def _build_engine_lib_cmake(self, lib, platform, directory):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
@@ -1596,6 +1626,7 @@ class Configuration(object):
         self.build_tracker.start_command(log_cmd_config)
 
         cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
+        cmake_configure_args += self._cmake_feature_defines()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
         self.build_tracker.end_command(log_cmd_config)

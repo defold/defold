@@ -21,6 +21,14 @@ Some rules:
 By default, it uses `RelWithDebugInfo` build type.
 We use `Debug` builds if you pass in `--opt-level=N`, where `N<2`.
 
+### Feature toggles
+
+CMake builds honour the same feature flags as the legacy Waf flow. Pass
+`--with-asan`, `--with-ubsan`, or `--with-tsan` after the `--` separator when
+invoking `scripts/build.py` and the configure step applies the matching
+`WITH_*` cache options (e.g. `WITH_ASAN=ON`). The graphics toggles such as
+`--with-vulkan` continue to map to `WITH_VULKAN`.
+
 ## Invocation
 
 Just as before, we invoke a separate, single configure + build command for each built library.

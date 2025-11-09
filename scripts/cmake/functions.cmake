@@ -40,6 +40,24 @@ function(defold_collect_packaged_roots SDKS_DIR OUT_LIST)
     set(${OUT_LIST} "${_roots}" PARENT_SCOPE)
 endfunction()
 
+# Build an environment list suitable for executing host tools (Python/Bob/Java)
+# without inheriting sanitizer injection. Pass user-specified VAR=VALUE entries
+# and this helper appends cleared DYLD/LD preload vars when sanitizers are active.
+function(defold_build_host_env OUT_VAR)
+    set(_ENV_ARGS)
+    foreach(_arg IN LISTS ARGN)
+        list(APPEND _ENV_ARGS "${_arg}")
+    endforeach()
+    if(DEFINED DEFOLD_ACTIVE_SANITIZER AND NOT "${DEFOLD_ACTIVE_SANITIZER}" STREQUAL "")
+        if(APPLE)
+            list(APPEND _ENV_ARGS "DYLD_INSERT_LIBRARIES=")
+        elseif(UNIX)
+            list(APPEND _ENV_ARGS "LD_PRELOAD=")
+        endif()
+    endif()
+    set(${OUT_VAR} "${_ENV_ARGS}" PARENT_SCOPE)
+endfunction()
+
 # Create a C++ file implementing dmExportedSymbols() that calls a list of
 # exported C symbols provided via the CMake list.
 # The file content is generated from exported_symbols.in.cpp.
