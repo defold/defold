@@ -42,6 +42,22 @@
     :type-unsigned-int GL2/GL_UNSIGNED_INT
     :type-float GL2/GL_FLOAT))
 
+(defn gl-compatible-shader-type? [value]
+  ;; Enum values for compute shaders exist in Protobuf but are not supported by
+  ;; the OpenGL profile we use in the editor. Uncomment if we update.
+  (case value
+    (:shader-type-vertex :shader-type-fragment #_ :shader-type-compute) true
+    false))
+
+(defn shader-type-gl-type
+  ^long [shader-type]
+  ;; Enum values for compute shaders exist in Protobuf but are not supported by
+  ;; the OpenGL profile we use in the editor. Uncomment if we update.
+  (case shader-type
+    :shader-type-vertex GL2/GL_VERTEX_SHADER
+    :shader-type-fragment GL2/GL_FRAGMENT_SHADER
+    #_#_ :shader-type-compute GL3/GL_COMPUTE_SHADER))
+
 (defn gl-attribute-type->vector-type+data-type [^long gl-attribute-type]
   (condp = gl-attribute-type
     GL2/GL_FLOAT (pair :vector-type-scalar :type-float)

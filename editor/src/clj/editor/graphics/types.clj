@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics.types
-  (:require [editor.buffers]
+  (:require [clojure.string :as string]
+            [editor.buffers]
             [editor.protobuf :as protobuf]
             [util.array :as array]
             [util.coll :as coll]
@@ -23,9 +24,10 @@
             [util.num :as num])
   (:import [clojure.lang IHashEq]
            [com.dynamo.bob.pipeline GraphicsUtil]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$ShaderDesc$ShaderType Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [editor.buffers BufferData]
-           [javax.vecmath Vector4d]))
+           [javax.vecmath Vector4d]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -382,6 +384,42 @@
               {:value-array value-array
                :element-type element-type}))))))
   vector)
+
+(defonce shader-types (protobuf/valid-enum-values Graphics$ShaderDesc$ShaderType))
+
+(fn/defamong shader-type? shader-types)
+
+(defn type-ext-shader-type [^String type-ext]
+  (case type-ext
+    "cp" :shader-type-compute
+    "fp" :shader-type-fragment
+    "vp" :shader-type-vertex))
+
+(defn shader-type-pb-int
+  ^long [shader-type]
+  (case shader-type
+    :shader-type-compute Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE_VALUE
+    :shader-type-fragment Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT_VALUE
+    :shader-type-vertex Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX_VALUE))
+
+(defn shader-type-pb-shader-type
+  ^Graphics$ShaderDesc$ShaderType [shader-type]
+  (case shader-type
+    :shader-type-compute Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE
+    :shader-type-fragment Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
+    :shader-type-vertex Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX))
+
+(defn filename-shader-type [^String filename]
+  {:pre [(string? filename)
+         (pos? (count filename))]}
+  (let [type-ext (string/lower-case (FilenameUtils/getExtension filename))]
+    (type-ext-shader-type type-ext)))
+
+(defn filename-pb-shader-type
+  ^Graphics$ShaderDesc$ShaderType [^String filename]
+  (-> filename
+      filename-shader-type
+      shader-type-pb-shader-type))
 
 (defonce vertex-step-functions (protobuf/valid-enum-values Graphics$VertexStepFunction))
 

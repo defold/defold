@@ -16,13 +16,14 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.graphics.types :as graphics.types]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [util.array :as array]
             [util.eduction :as e])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder$ShaderDescBuildResult ShaderProgramBuilderEditor]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
            [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]
            [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
 
@@ -51,7 +52,7 @@
          (pos? (count resource-proj-path))
          (string? shader-source)
          (pos? (count shader-source))]}
-  (let [pb-shader-type (shader-gen/filename->pb-shader-type resource-proj-path)
+  (let [pb-shader-type (graphics.types/filename-pb-shader-type resource-proj-path)
         shader-module-desc (ShaderCompilePipeline$ShaderModuleDesc.)]
     (set! (. shader-module-desc source) shader-source)
     (set! (. shader-module-desc resourcePath) resource-proj-path)

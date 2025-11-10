@@ -21,33 +21,10 @@
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType Graphics$ShaderDesc$ShaderType]
-           [org.apache.commons.io FilenameUtils]))
+           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn filename->shader-type [^String filename]
-  {:pre [(string? filename)
-         (pos? (count filename))]}
-  (let [type-ext (string/lower-case (FilenameUtils/getExtension filename))]
-    (case type-ext
-      "vp" :shader-type-vertex
-      "fp" :shader-type-fragment
-      "cp" :shader-type-compute)))
-
-(defn- shader-type->pb-shader-type
-  ^Graphics$ShaderDesc$ShaderType [shader-type]
-  (case shader-type
-    :shader-type-vertex Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
-    :shader-type-fragment Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
-    :shader-type-compute Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE))
-
-(defn filename->pb-shader-type
-  ^Graphics$ShaderDesc$ShaderType [^String filename]
-  (-> filename
-      filename->shader-type
-      shader-type->pb-shader-type))
 
 (defn shader-language->pb-shader-language
   ^Graphics$ShaderDesc$Language [shader-language]
@@ -170,8 +147,8 @@
          (pos? (count shader-path))
          (string? shader-source)
          (pos? (count shader-source))]}
-  (let [shader-type (filename->shader-type shader-path)
-        pb-shader-type (shader-type->pb-shader-type shader-type)
+  (let [shader-type (graphics.types/filename-shader-type shader-path)
+        pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try

@@ -17,7 +17,7 @@
             [util.coll :as coll])
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
+           [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point3d Quat4d SingularMatrixException Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -529,13 +529,16 @@
 
 (defn derive-normal-transform
   ^Matrix4d [^Matrix4d transform]
-  (let [normal-transform (Matrix3d.)]
-    (.getRotationScale transform normal-transform)
-    (.invert normal-transform)
-    (.transpose normal-transform)
-    (doto (Matrix4d.)
-      (.setRotationScale normal-transform)
-      (.setM33 1.0))))
+  (try
+    (let [normal-transform (Matrix3d.)]
+      (.getRotationScale transform normal-transform)
+      (.invert normal-transform)
+      (.transpose normal-transform)
+      (doto (Matrix4d.)
+        (.setRotationScale normal-transform)
+        (.setM33 1.0)))
+    (catch SingularMatrixException _
+      identity-mat4)))
 
 (defn derive-render-transforms
   "Given the world, view, projection, and texture transforms, derive the normal,
@@ -571,7 +574,7 @@
   "Given a result from the derive-render-transforms function, returns a new
   map of transforms where the world transform contributions have been canceled
   out if all attributes of the affected semantic-type are in world-space. This
-  is a compatibility hack which enables a vertex shader that applies these
+  is a compatibility hack that enables a vertex shader that applies these
   transforms to be shared among materials that require either world-space or
   local-space attributes.
 

@@ -99,6 +99,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.walk :as walk]
+            [dynamo.graph :as g]
             [editor.buffers :refer [bbuf->string]]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -364,22 +365,6 @@ These forms should be quoted, as if they came from a macro."
   (let [fb (FloatBuffer/wrap vals)]
     (.glUniform4fv gl loc count fb)))
 
-(defn- shader-type? [value]
-  ;; Enum values for compute shaders exist in Protobuf but are not supported by
-  ;; the OpenGL profile we use in the editor. Uncomment if we update.
-  (case value
-    (:shader-type-vertex :shader-type-fragment #_ :shader-type-compute) true
-    false))
-
-(defn- shader-type->gl-shader-type
-  ^long [shader-type]
-  ;; Enum values for compute shaders exist in Protobuf but are not supported by
-  ;; the OpenGL profile we use in the editor. Uncomment if we update.
-  (case shader-type
-    :shader-type-vertex GL2/GL_VERTEX_SHADER
-    :shader-type-fragment GL2/GL_FRAGMENT_SHADER
-    #_#_ :shader-type-compute GL3/GL_COMPUTE_SHADER))
-
 (defn program-link-errors
   [^GL2 gl progn]
   (let [msg-len (IntBuffer/allocate 1)]
@@ -592,7 +577,7 @@ These forms should be quoted, as if they came from a macro."
   (and (vector? value)
        (= 2 (count value))
        (let [[shader-type shader-source] value]
-         (and (shader-type? shader-type)
+         (and (gl.types/gl-compatible-shader-type? shader-type)
               (string? shader-source)
               (pos? (count shader-source))))))
 
@@ -743,6 +728,21 @@ These forms should be quoted, as if they came from a macro."
     (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
     (read-shader :classpath-shader shader-paths opts classpath-shader-path->source)))
 
+(defn workspace-shader
+  ^ShaderLifecycle [workspace opts & shader-proj-paths]
+  {:pre [(map? opts)]}
+  (if (coll/empty? shader-proj-paths)
+    (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
+    (let [resources-by-proj-path (g/valid-node-value workspace :resource-map)
+
+          shader-proj-path->source
+          (fn proj-path->source [proj-path]
+            (if-some [resource (resources-by-proj-path proj-path)]
+              (slurp resource)
+              (throw (FileNotFoundException. (format "'%s' was not found in the workspace." proj-path)))))]
+
+      (read-shader :workspace-shader shader-proj-paths opts shader-proj-path->source))))
+
 (defn is-using-array-samplers? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)
         array-sampler-name->uniform-names (.-array-sampler-name->uniform-names request-data)]
@@ -874,7 +874,7 @@ These forms should be quoted, as if they came from a macro."
                 (fn [gl-shaders shader-type+source-pair]
                   (try
                     (let [[shader-type shader-source] shader-type+source-pair
-                          gl-shader-type (shader-type->gl-shader-type shader-type)
+                          gl-shader-type (gl.types/shader-type-gl-type shader-type)
                           gl-shader (make-shader* gl-shader-type gl shader-source)]
                       (conj gl-shaders gl-shader))
                     (catch Throwable error
