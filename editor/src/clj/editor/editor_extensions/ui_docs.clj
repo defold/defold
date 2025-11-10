@@ -220,7 +220,7 @@
         read-only-common-props))
 
 (def ^:private label-without-color-specific-props
-  [(make-prop :text :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "the text, either a string or localization message")
+  [(make-prop :text :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "the text, either a string or a localization message")
    (enum-prop :text_alignment :enum :text-alignment :doc "text alignment within paragraph bounds")])
 
 (def ^:private label-specific-props
@@ -231,7 +231,7 @@
   [(enum-prop :icon :enum :icon :required true :doc "predefined icon name")])
 
 (def ^:private tooltip-prop
-  (make-prop :tooltip :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "tooltip message, shown on hover; either a string or localization message"))
+  (make-prop :tooltip :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "tooltip message shown on hover; either a string or a localization message"))
 
 (def ^:private label-props
   (-> label-specific-props
@@ -287,7 +287,7 @@
                                   :doc "either <code>editor.ui.ISSUE_SEVERITY.WARNING</code> or <code>editor.ui.ISSUE_SEVERITY.ERROR</code>"}
                                  {:name "message"
                                   :types ["string" "message"]
-                                  :doc "issue message, will be shown in a tooltip; either a string or localization message"}])))
+                                  :doc "issue message that will be shown in a tooltip; either a string or a localization message"}])))
          tooltip-prop]
         common-input-props))
 
@@ -302,7 +302,7 @@
   [(make-prop :value :coerce coerce/untouched :doc "selected value")
    (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the selected value")
    (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options")
-   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string (or localization message), defaults to <code>tostring</code>")])
+   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string (or a localization message); defaults to <code>tostring</code>")])
 
 (def ^:private select-box-props
   (into select-box-specific-props input-with-issue-props))
@@ -320,9 +320,9 @@
 
 (def ^:private convertible-value-field-specific-props
   (into [(make-prop :to_value :coerce coerce/function :required true
-                    :doc "covert string to value, should return converted value or <code>nil</code> if not convertible")
+                    :doc "convert the string to a value; should return the converted value or <code>nil</code> if not convertible")
          (make-prop :to_string :coerce coerce/function :required true
-                    :doc "covert value to a string (or localization message)")]
+                    :doc "convert the value to a string (or a localization message)")]
         value-field-specific-props))
 
 (def ^:private generic-value-field-props
@@ -336,7 +336,7 @@
               :coerce string-or-message-pattern-coercer
               :required true
               :types ["string" "message"]
-              :doc "button text, either a string or localization message")
+              :doc "button text, either a string or a localization message")
    (make-prop :result
               :coerce coerce/untouched
               :doc "value returned by <code>editor.ui.show_dialog(...)</code> if this button is pressed")
@@ -355,7 +355,7 @@
               :coerce string-or-message-pattern-coercer
               :required true
               :types ["string" "message"]
-              :doc "OS dialog window title, either a string or localization message")
+              :doc "OS dialog window title, either a string or a localization message")
    (make-prop :header
               :coerce child-coercer
               :types ["component"]
@@ -370,14 +370,14 @@
               :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")])
 
 (def ^:private external-file-dialog-title-doc
-  "OS window title, either a string or localization message")
+  "OS window title, either a string or a localization message")
 
 (def ^:private external-file-dialog-filters-doc
   (str "File filters, an array of filter tables, where each filter has following keys:"
        (lua-completion/args-doc-html
          [{:name "description"
            :types ["string" "message"]
-           :doc "string explaining the filter, either a string like <code>\"Text files (*.txt)\"</code> or a localization message"}
+           :doc "text explaining the filter, either a literal string like <code>\"Text files (*.txt)\"</code> or a localization message"}
           {:name "extensions"
            :types ["string[]"]
            :doc "array of file extension patterns, e.g. <code>\"*.txt\"</code>, <code>\"*.*\"</code> or <code>\"game.project\"</code>"}])))
@@ -626,7 +626,7 @@
   "if specified, restricts selectable resources in the dialog to specified file extensions; e.g. <code>{\"collection\", \"go\"}</code>")
 
 (def ^:private resource-dialog-title-doc-string
-  "dialog title, either a string or localization message, defaults to <code>localization.message(\"dialog.select-resource.title\")</code>")
+  "dialog title, either a string or a localization message, defaults to <code>localization.message(\"dialog.select-resource.title\")</code>")
 
 (def show-resource-dialog-doc
   {:name "show_resource_dialog"

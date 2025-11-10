@@ -88,7 +88,7 @@
                                   (lua-completion/args-doc-html
                                     [{:name "label"
                                       :types ["string" "message"]
-                                      :doc "required, user-visible command name, either a string or localization message"}
+                                      :doc "required, user-visible command name, either a string or a localization message"}
                                      {:name "locations"
                                       :types ["string[]"]
                                       :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), or <code>\"Outline\"</code> (the outline pane)"}
@@ -561,7 +561,7 @@ http.server.route(
                         :doc "any Lua value to pretty-print"}]}]
         (let [message-pattern-ret {:name "message"
                                    :types ["message"]
-                                   :doc "a userdata value that, when stringified with <code>tostring()</code>, will produce a localized text according to currently selected language in the editor"}
+                                   :doc "a userdata value that, when stringified with <code>tostring()</code>, will produce a localized text according to the currently selected language in the editor"}
               localizable-value-doc "<code>nil</code>, <code>boolean</code>, <code>number</code>, <code>string</code>, or another <code>message</code> instance"
               localizable-items-doc (str "array of values; each value may be " localizable-value-doc)]
           [{:name "localization"
@@ -569,13 +569,13 @@ http.server.route(
             :description "Module for producing localizable messages for editor localization"}
            {:name "localization.message"
             :type :function
-            :description "Create a message pattern for a localization key defined in `.editor_localization` file; the actual localization happens when the returned value is stringified"
+            :description "Create a message pattern for a localization key defined in an `.editor_localization` file; the actual localization happens when the returned value is stringified"
             :parameters [{:name "key"
                           :types ["string"]
-                          :doc "localization key defined in <code>.editor_localization</code> file"}
+                          :doc "localization key defined in an <code>.editor_localization</code> file"}
                          {:name "[vars]"
                           :types ["table"]
-                          :doc (str "optional table with variables to be substituted in the localized string, uses <a href=\"https://unicode-org.github.io/icu/userguide/format_parse/messages/\">ICU Message Format</a> syntax; keys must be strings; values must be either " localizable-value-doc)}]
+                          :doc (str "optional table with variables to be substituted in the localized string that uses <a href=\"https://unicode-org.github.io/icu/userguide/format_parse/messages/\">ICU Message Format</a> syntax; keys must be strings; values must be either " localizable-value-doc)}]
             :returnvalues [message-pattern-ret]}
            {:name "localization.and_list"
             :type :function
