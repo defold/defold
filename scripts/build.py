@@ -1207,6 +1207,12 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # new cmake support. it outputs to x86-win32 folder
+            if platform == 'win32':
+                libdir = os.path.join(self.dynamo_home, 'lib/x86-win32')
+                paths = _findlibs(libdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
                 wagyu_port_files = []
