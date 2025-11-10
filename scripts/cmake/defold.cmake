@@ -34,59 +34,6 @@ if(APPLE OR CMAKE_SYSTEM_NAME MATCHES "Darwin" OR CMAKE_SYSTEM_NAME MATCHES "iOS
   list(APPEND DEFOLD_LANGUAGE_LIST OBJC OBJCXX)
 endif()
 
-# Normalise optimisation/debug flags for single-config generators so repeated
-# configure/build cycles stay in sync.
-function(_defold_set_opt_flag cfg optflag debugflag)
-  string(TOUPPER "${cfg}" _CFG_UP)
-  foreach(_lang IN LISTS DEFOLD_LANGUAGE_LIST)
-    foreach(_suffix "" "_INIT")
-      set(_var "CMAKE_${_lang}_FLAGS_${_CFG_UP}${_suffix}")
-      set(_existing "")
-      if(DEFINED ${_var})
-        set(_existing "${${_var}}")
-      endif()
-
-      set(_clean "${_existing}")
-      string(REGEX REPLACE "-O[0-9s]" "" _clean "${_clean}")
-      string(REGEX REPLACE "-g([0-9]?)" "" _clean "${_clean}")
-      string(REGEX REPLACE "-fno-omit-frame-pointer" "" _clean "${_clean}")
-      string(REGEX REPLACE "  +" " " _clean "${_clean}")
-      string(STRIP "${_clean}" _clean)
-
-      set(_new_flags)
-      if(NOT "${optflag}" STREQUAL "")
-        list(APPEND _new_flags "${optflag}")
-      endif()
-      if(NOT "${debugflag}" STREQUAL "")
-        list(APPEND _new_flags "${debugflag}")
-      endif()
-      if("${CMAKE_${_lang}_COMPILER_ID}" STREQUAL "Clang")
-        list(APPEND _new_flags "-fno-omit-frame-pointer")
-      endif()
-
-      set(_combined "${_clean}")
-      foreach(_flag IN LISTS _new_flags)
-        if(_combined STREQUAL "")
-          set(_combined "${_flag}")
-        else()
-          set(_combined "${_combined} ${_flag}")
-        endif()
-      endforeach()
-
-      if(_suffix STREQUAL "")
-        set(${_var} "${_combined}" CACHE STRING "${_var}" FORCE)
-      else()
-        set(${_var} "${_combined}")
-      endif()
-    endforeach()
-  endforeach()
-endfunction()
-
-_defold_set_opt_flag(Debug "-O0" "-g")
-_defold_set_opt_flag(Release "-O2" "-g")
-_defold_set_opt_flag(RelWithDebInfo "-O2" "-g")
-_defold_set_opt_flag(MinSizeRel "-Os" "-g")
-
 # Prime Release-like flag variables before CMake enables the toolchains so
 # /DNDEBUG or -DNDEBUG never sneak into optimised builds. We update both the
 # cached values and their *_INIT counterparts; the post-project hook keeps a
