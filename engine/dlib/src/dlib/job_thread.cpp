@@ -14,6 +14,7 @@
 
 
 #include <stdio.h> // printf
+#include <new>
 
 #include <dlib/thread.h> // We want the defines DM_HAS_THREADS
 
@@ -25,6 +26,7 @@
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/object_pool.h>
+#include <dmsdk/dlib/memory.h>
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
@@ -518,7 +520,10 @@ static void ProcessFinishedJobs(HContext context, jc::RingBuffer<HJob>& items)
 
 HContext Create(const JobThreadCreationParams& create_params)
 {
-    JobContext* context = new JobContext;
+    JobContext* context = 0;
+    dmMemory::Result mem_result = dmMemory::AlignedMalloc((void**)&context, 16, sizeof(JobContext));
+    assert(mem_result == dmMemory::RESULT_OK);
+    new (context) JobContext();
     context->m_Initialized = 1;
 
     context->m_ThreadContext.m_Context = context;
@@ -589,7 +594,8 @@ void Destroy(HContext context)
     }
 #endif // DM_HAS_THREADS
 
-    delete context;
+    context->~JobContext();
+    dmMemory::AlignedFree(context);
 }
 
 
