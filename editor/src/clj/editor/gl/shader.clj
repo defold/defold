@@ -779,31 +779,6 @@ These forms should be quoted, as if they came from a macro."
 
 (def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))
 
-(defn- gl-uniform-type->uniform-type [^long gl-uniform-type]
-  (condp = gl-uniform-type
-    GL2/GL_FLOAT :float
-    GL2/GL_FLOAT_VEC2 :float-vec2
-    GL2/GL_FLOAT_VEC3 :float-vec3
-    GL2/GL_FLOAT_VEC4 :float-vec4
-    GL2/GL_INT :int
-    GL2/GL_INT_VEC2 :int-vec2
-    GL2/GL_INT_VEC3 :int-vec3
-    GL2/GL_INT_VEC4 :int-vec4
-    GL2/GL_BOOL :bool
-    GL2/GL_BOOL_VEC2 :bool-vec2
-    GL2/GL_BOOL_VEC3 :bool-vec3
-    GL2/GL_BOOL_VEC4 :bool-vec4
-    GL2/GL_FLOAT_MAT2 :float-mat2
-    GL2/GL_FLOAT_MAT3 :float-mat3
-    GL2/GL_FLOAT_MAT4 :float-mat4
-    GL2/GL_SAMPLER_2D :sampler-2d
-    GL2/GL_SAMPLER_CUBE :sampler-cube))
-
-(defn- sampler-uniform-type? [uniform-type]
-  (case uniform-type
-    (:sampler-2d :sampler-cube) true
-    false))
-
 (def ^:private gl-shader-parameter
   (let [out-param-value (int-array 1)]
     (fn gl-shader-parameter
@@ -815,22 +790,23 @@ These forms should be quoted, as if they came from a macro."
   (let [name-array-suffix-pattern #"\[\d+\]$"
         name-buffer-size 128
         out-name-length (int-array 1)
-        out-count (int-array 1) ; Number of array elements.
+        out-array-size (int-array 1)
         out-type (int-array 1)
         out-name (byte-array name-buffer-size)]
     (fn uniform-info [^GL2 gl program uniform-index]
-      (.glGetActiveUniform gl program uniform-index name-buffer-size out-name-length 0 out-count 0 out-type 0 out-name 0)
+      {:post [(graphics.types/uniform-reflection-info? %)]}
+      (.glGetActiveUniform gl program uniform-index name-buffer-size out-name-length 0 out-array-size 0 out-type 0 out-name 0)
       (let [name-length (aget out-name-length 0)
             name (String. out-name 0 name-length StandardCharsets/UTF_8)
-            location (.glGetUniformLocation gl program name)
-            type (gl-uniform-type->uniform-type (aget out-type 0))
-            count (aget out-count 0)
+            base-location (.glGetUniformLocation gl program name)
+            uniform-type (gl.types/gl-uniform-type-uniform-type (aget out-type 0))
+            array-size (aget out-array-size 0)
             ;; 1. strip brackets from uniform name, i.e "uniform_name[123]"
             sanitized-name (string/replace name name-array-suffix-pattern "")]
         {:name sanitized-name
-         :location location
-         :type type
-         :count count}))))
+         :uniform-type uniform-type
+         :location base-location
+         :array-size array-size}))))
 
 ;; TODO(instancing): Remove this once we get rid of all defshader expressions
 ;; and have shader reflection information for all shaders.
@@ -845,7 +821,7 @@ These forms should be quoted, as if they came from a macro."
       (.glGetActiveAttrib gl program attribute-index name-buffer-size out-name-length 0 out-array-size 0 out-gl-type 0 out-name 0)
       (let [name-length (aget out-name-length 0)]
         (when (pos? name-length)
-          (when-let [[vector-type data-type] (gl.types/gl-attribute-type->vector-type+data-type (aget out-gl-type 0))]
+          (when-let [[vector-type data-type] (gl.types/gl-attribute-type-vector-type+data-type (aget out-gl-type 0))]
             (let [name (String. out-name 0 name-length StandardCharsets/UTF_8)
                   name-key (graphics.types/attribute-name-key name)
                   inferred-semantic-type (graphics.types/infer-semantic-type name-key)
@@ -923,7 +899,7 @@ These forms should be quoted, as if they came from a macro."
         sampler-name->uniform-names
         (into array-sampler-name->uniform-names
               (keep (fn [[uniform-name uniform-info]]
-                      (when (sampler-uniform-type? (:type uniform-info))
+                      (when (graphics.types/sampler-uniform-type? (:uniform-type uniform-info))
                         (when-not (array-sampler-uniform-name? uniform-name)
                           (pair uniform-name [uniform-name])))))
               uniform-infos)

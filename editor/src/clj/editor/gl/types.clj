@@ -47,7 +47,8 @@
   ;; the OpenGL profile we use in the editor. Uncomment if we update.
   (case value
     (:shader-type-vertex :shader-type-fragment #_ :shader-type-compute) true
-    false))
+    (do (assert (graphics.types/shader-type? value))
+        false)))
 
 (defn shader-type-gl-type
   ^long [shader-type]
@@ -58,7 +59,9 @@
     :shader-type-fragment GL2/GL_FRAGMENT_SHADER
     #_#_ :shader-type-compute GL3/GL_COMPUTE_SHADER))
 
-(defn gl-attribute-type->vector-type+data-type [^long gl-attribute-type]
+(defn gl-attribute-type-vector-type+data-type [^long gl-attribute-type]
+  {:post [(graphics.types/vector-type? (key %))
+          (graphics.types/data-type? (val %))]}
   (condp = gl-attribute-type
     GL2/GL_FLOAT (pair :vector-type-scalar :type-float)
     GL2/GL_FLOAT_VEC2 (pair :vector-type-vec2 :type-float)
@@ -75,6 +78,27 @@
     GL2/GL_UNSIGNED_INT_VEC2 (pair :vector-type-vec2 :type-unsigned-int)
     GL2/GL_UNSIGNED_INT_VEC3 (pair :vector-type-vec3 :type-unsigned-int)
     GL2/GL_UNSIGNED_INT_VEC4 (pair :vector-type-vec4 :type-unsigned-int)))
+
+(defn gl-uniform-type-uniform-type [^long gl-uniform-type]
+  {:post [(graphics.types/uniform-type? %)]}
+  (condp = gl-uniform-type
+    GL2/GL_FLOAT :uniform-type-float
+    GL2/GL_FLOAT_VEC2 :uniform-type-float-vec2
+    GL2/GL_FLOAT_VEC3 :uniform-type-float-vec3
+    GL2/GL_FLOAT_VEC4 :uniform-type-float-vec4
+    GL2/GL_FLOAT_MAT2 :uniform-type-float-mat2
+    GL2/GL_FLOAT_MAT3 :uniform-type-float-mat3
+    GL2/GL_FLOAT_MAT4 :uniform-type-float-mat4
+    GL2/GL_INT :uniform-type-int
+    GL2/GL_INT_VEC2 :uniform-type-int-vec2
+    GL2/GL_INT_VEC3 :uniform-type-int-vec3
+    GL2/GL_INT_VEC4 :uniform-type-int-vec4
+    GL2/GL_BOOL :uniform-type-bool
+    GL2/GL_BOOL_VEC2 :uniform-type-bool-vec2
+    GL2/GL_BOOL_VEC3 :uniform-type-bool-vec3
+    GL2/GL_BOOL_VEC4 :uniform-type-bool-vec4
+    GL2/GL_SAMPLER_2D :uniform-type-sampler-2d
+    GL2/GL_SAMPLER_CUBE :uniform-type-sampler-cube))
 
 (defn element-type-gl-type
   ^long [^ElementType element-type]

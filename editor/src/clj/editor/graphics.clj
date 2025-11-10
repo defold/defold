@@ -17,7 +17,6 @@
             [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl.vertex2 :as vtx]
-            [editor.gl.types :as gl.types]
             [editor.graphics.types :as graphics.types]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -190,16 +189,6 @@
 
 (defn validate-doubles [double-values attribute node-id prop-kw]
   (validation/prop-error :fatal node-id prop-kw doubles-outside-attribute-range-error-message double-values attribute))
-
-(defn- shader-uniform-type->vector-type [shader-uniform-type]
-  (case shader-uniform-type
-    :float :vector-type-scalar
-    :float-vec2 :vector-type-vec2
-    :float-vec3 :vector-type-vec3
-    :float-vec4 :vector-type-vec4
-    :float-mat2 :vector-type-mat2
-    :float-mat3 :vector-type-mat3
-    :float-mat4 :vector-type-mat4))
 
 (defn- semantic-type->w [semantic-type]
   (nth (graphics.types/default-attribute-doubles semantic-type :vector-type-vec4) 3))
@@ -538,116 +527,6 @@
       (dissoc :binary-values :coordinate-space :data-type :element-count :name-hash :normalize :semantic-type)
       (sanitize-attribute-value-field :double-values)
       (sanitize-attribute-value-field :long-values)))
-
-;; TODO(instancing): Remove. We don't need it anymore.
-(def attribute-key->default-attribute-info
-  (fn/make-case-fn
-    (into {}
-          (map (fn [{:keys [coordinate-space name semantic-type step-function vector-type] :as attribute}]
-                 {:pre [(graphics.types/coordinate-space? coordinate-space)
-                        (graphics.types/vertex-step-function? step-function)]
-                  :post [(graphics.types/attribute-key? (key %))
-                         (graphics.types/attribute-info? (val %))]}
-                 (let [attribute-key (graphics.types/attribute-name-key name)
-                       data-type :type-float
-                       normalize false
-                       values (graphics.types/default-attribute-doubles semantic-type vector-type)
-                       bytes (default-attribute-bytes semantic-type data-type vector-type normalize)
-                       attribute-info (assoc attribute
-                                        :name-key attribute-key
-                                        :values values
-                                        :bytes bytes
-                                        :data-type data-type
-                                        :normalize normalize)]
-                   (pair attribute-key attribute-info))))
-          [{:name "position"
-            :semantic-type :semantic-type-position
-            :coordinate-space :coordinate-space-default ; Assigned default-coordinate-space parameter.
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec4}
-           {:name "color"
-            :semantic-type :semantic-type-color
-            :coordinate-space :coordinate-space-local
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec4}
-           {:name "texcoord0"
-            :semantic-type :semantic-type-texcoord
-            :coordinate-space :coordinate-space-local
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec2}
-           {:name "page_index"
-            :semantic-type :semantic-type-page-index
-            :coordinate-space :coordinate-space-local
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-scalar}
-           {:name "normal"
-            :semantic-type :semantic-type-normal
-            :coordinate-space :coordinate-space-default ; Assigned default-coordinate-space parameter.
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec3}
-           {:name "tangent"
-            :semantic-type :semantic-type-tangent
-            :coordinate-space :coordinate-space-default ; Assigned default-coordinate-space parameter.
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec4}
-           {:name "mtx_world"
-            :semantic-type :semantic-type-world-matrix
-            :coordinate-space :coordinate-space-world
-            :step-function :vertex-step-function-instance
-            :vector-type :vector-type-mat4}
-           {:name "mtx_normal"
-            :semantic-type :semantic-type-normal-matrix
-            :coordinate-space :coordinate-space-world
-            :step-function :vertex-step-function-instance
-            :vector-type :vector-type-mat4}])))
-
-(defn- compatible-vector-type [input-vector-type shader-vector-type]
-  ;; Shrink the component count if the shader vector-type is smaller than the
-  ;; input vector-type.
-  (let [input-component-count (graphics.types/vector-type-component-count input-vector-type)
-        shader-component-count (graphics.types/vector-type-component-count shader-vector-type)]
-    (if (<= input-component-count shader-component-count)
-      input-vector-type
-      shader-vector-type)))
-
-;; TODO(instancing): Remove now that this is unused.
-(defn shader-bound-attributes [shader-attribute-infos-by-name-key material-attribute-infos manufactured-attribute-keys default-coordinate-space]
-  {:pre [(or (nil? shader-attribute-infos-by-name-key)
-             (and (map? shader-attribute-infos-by-name-key)
-                  (every? (fn [entry]
-                            (and (graphics.types/attribute-key? (key entry))
-                                 (graphics.types/attribute-info? (val entry))))
-                          shader-attribute-infos-by-name-key)))
-         (seqable? material-attribute-infos)
-         (graphics.types/concrete-coordinate-space? default-coordinate-space)]}
-  (let [shader-bound-attribute-info?
-        (comp boolean shader-attribute-infos-by-name-key :name-key)
-
-        declared-material-attribute-key?
-        (coll/transfer material-attribute-infos #{}
-          (map :name-key))
-
-        manufactured-attribute-infos
-        (coll/transfer manufactured-attribute-keys :eduction
-          (remove declared-material-attribute-key?)
-          (map attribute-key->default-attribute-info)
-          (map (fn [{:keys [coordinate-space] :as attribute-info}]
-                 {:pre [(graphics.types/coordinate-space? coordinate-space)]}
-                 (cond-> attribute-info
-                         (= :coordinate-space-default coordinate-space)
-                         (assoc :coordinate-space default-coordinate-space)))))
-
-        ensure-compatible-vector-type
-        (fn ensure-compatible-vector-type [attribute-info]
-          {:pre [(graphics.types/attribute-info? attribute-info)]}
-          (let [shader-attribute-info (get shader-attribute-infos-by-name-key (:name-key attribute-info))
-                shader-attribute-vector-type (:vector-type shader-attribute-info)]
-            (update attribute-info :vector-type compatible-vector-type shader-attribute-vector-type)))]
-
-    (coll/transfer [manufactured-attribute-infos material-attribute-infos] []
-      cat
-      (filter shader-bound-attribute-info?)
-      (map ensure-compatible-vector-type))))
 
 (defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)

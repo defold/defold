@@ -292,8 +292,8 @@
 
 (fn/defamong vector-type? vector-types)
 
-(defn component-count-vector-type
-  [^long component-count is-matrix]
+(defn component-count-vector-type [^long component-count is-matrix]
+  {:post [(vector-type? %)]}
   (case component-count
     1 :vector-type-scalar
     2 :vector-type-vec2
@@ -346,6 +346,33 @@
     :vector-type-mat2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT2_VALUE
     :vector-type-mat3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT3_VALUE
     :vector-type-mat4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT4_VALUE))
+
+(defonce uniform-types
+  #{:uniform-type-bool
+    :uniform-type-bool-vec2
+    :uniform-type-bool-vec3
+    :uniform-type-bool-vec4
+    :uniform-type-float
+    :uniform-type-float-mat2
+    :uniform-type-float-mat3
+    :uniform-type-float-mat4
+    :uniform-type-float-vec2
+    :uniform-type-float-vec3
+    :uniform-type-float-vec4
+    :uniform-type-int
+    :uniform-type-int-vec2
+    :uniform-type-int-vec3
+    :uniform-type-int-vec4
+    :uniform-type-sampler-2d
+    :uniform-type-sampler-cube})
+
+(fn/defamong uniform-type? uniform-types)
+
+(defn sampler-uniform-type? [uniform-type]
+  (case uniform-type
+    (:uniform-type-sampler-2d :uniform-type-sampler-cube) true
+    (do (assert (uniform-type? uniform-type))
+        false)))
 
 (defn assign-vector-components!
   ^Vector4d [^Vector4d vector value-array ^ElementType element-type]
@@ -511,7 +538,17 @@
   (and (not= :type-float data-type)
        (case semantic-type
          (:semantic-type-bone-indices :semantic-type-none :semantic-type-page-index) false
-         true)))
+         (do (assert (semantic-type? semantic-type))
+             true))))
+
+(defn uniform-reflection-info? [value]
+  (and (map? value)
+       (string? (:name value))
+       (uniform-type? (:uniform-type value))
+       (array-size? (:array-size value))
+       (let [location (:location value)]
+         (or (= -1 location) ; Built-in uniforms like gl_ModelViewProjectionMatrix have no location.
+             (location? location)))))
 
 (defn attribute-info? [value]
   (and (map? value)
