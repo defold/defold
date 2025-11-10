@@ -130,7 +130,7 @@
     (.format ^MessagePattern v state)
     (str v)))
 
-(defonce/record LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
+(defonce/type LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
   IFn
   (invoke [this v] (impl-format this v))
   (applyTo [this args] (AFn/applyToHelper this args)))
@@ -138,8 +138,8 @@
 (defn- localization-state? [x]
   (instance? LocalizationState x))
 
-(defn- refresh-messages! [^LocalizationState state]
-  (let [u-locale (ULocale/createCanonical ^String (.-locale state))
+(defn- make-localization-state [^String locale bundles listeners]
+  (let [u-locale (ULocale/createCanonical locale)
         u-locale-chain (vec
                          (e/distinct
                            (e/conj
@@ -147,8 +147,7 @@
                                   (iterate ^[] ULocale/.getFallback)
                                   (e/take-while #(not (coll/empty? (str %)))))
                              (ULocale/createCanonical "en"))))
-        u-locale->reader-fns (->> state
-                                  .-bundles
+        u-locale->reader-fns (->> bundles
                                   (e/mapcat val)
                                   (util/group-into
                                     {} []
@@ -180,17 +179,21 @@
                                                   (str "!" k "! `" v "`: " (or (ex-message e) (.getSimpleName (class e))))
                                                   v)))))))
                         (transient {}))
-                      persistent!)]
-    (assoc state
-      :messages messages
-      :date (DateFormat/getDateInstance DateFormat/SHORT u-locale)
-      :list-and (ListFormatter/getInstance u-locale ListFormatter$Type/AND ListFormatter$Width/WIDE)
-      :list-or (ListFormatter/getInstance u-locale ListFormatter$Type/OR ListFormatter$Width/WIDE)
-      :available-locales (->> u-locale->reader-fns
-                              (e/map #(-> % key str))
-                              (vec)
-                              (sort)
-                              (vec)))))
+                      persistent!)
+        available-locales (->> u-locale->reader-fns
+                               (e/map #(-> % key str))
+                               (vec)
+                               (sort)
+                               (vec))]
+    (->LocalizationState
+      locale
+      bundles
+      listeners
+      messages
+      available-locales
+      (ListFormatter/getInstance u-locale ListFormatter$Type/AND ListFormatter$Width/WIDE)
+      (ListFormatter/getInstance u-locale ListFormatter$Type/OR ListFormatter$Width/WIDE)
+      (DateFormat/getDateInstance DateFormat/SHORT u-locale))))
 
 (defonce/type Localization [prefs ^Agent agent]
   IRef
@@ -207,16 +210,17 @@
 (defn- localization? [x]
   (instance? Localization x))
 
-(defn- impl-set-bundle! [state key bundle]
-  (-> state
-      (update :bundles assoc key bundle)
-      refresh-messages!))
+(defn- impl-set-bundle [^LocalizationState state key bundle]
+  (let [bundles (.-bundles state)]
+    (if (= bundle (get bundles key))
+      state
+      (make-localization-state (.-locale state) (assoc bundles key bundle) (.-listeners state)))))
 
-(defn- impl-set-locale! [state prefs locale]
+(defn- impl-set-locale! [^LocalizationState state prefs locale]
   (prefs/set! prefs [:window :locale] locale)
-  (-> state
-      (assoc :locale locale)
-      refresh-messages!))
+  (if (= (.-locale state) locale)
+    state
+    (make-localization-state locale (.-bundles state) (.-listeners state))))
 
 (defn- impl-localize! [^LocalizationState state object message-pattern]
   (assert (Platform/isFxApplicationThread))
@@ -281,7 +285,7 @@
                     file"
   [^Localization localization bundle-key bundle]
   {:pre [(localization? localization)]}
-  (send-off (.-agent localization) impl-set-bundle! bundle-key bundle)
+  (send-off (.-agent localization) impl-set-bundle bundle-key bundle)
   (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn set-locale!
@@ -355,12 +359,7 @@
   (->Localization
     prefs
     (agent
-      (impl-set-bundle!
-        (map->LocalizationState
-          {:locale (prefs/get prefs [:window :locale])
-           :bundles {}
-           :listeners (WeakHashMap.)})
-        initial-bundle-key initial-bundle)
+      (make-localization-state (prefs/get prefs [:window :locale]) {initial-bundle-key initial-bundle} (WeakHashMap.))
       :error-handler (fn report-localization-error [_ exception]
                        (error-reporting/report-exception! exception)))))
 
@@ -467,18 +466,18 @@
              (instance? MessageWithNestedPatterns original))]}
   (message (:k original) (apply f (:m original) args) (:fallback original)))
 
-(defn- impl-simple-list [list-k items state]
-  (.format ^ListFormatter (list-k state) ^Collection items))
+(defn- impl-simple-list [list-f items state]
+  (.format ^ListFormatter (list-f state) ^Collection items))
 
-(defonce/record SimpleList [list-k items]
+(defonce/record SimpleList [list-f items]
   MessagePattern
-  (format [_ state] (impl-simple-list list-k items state)))
+  (format [_ state] (impl-simple-list list-f items state)))
 
-(defonce/record ListWithNestedPatterns [list-k items localizable-indices]
+(defonce/record ListWithNestedPatterns [list-f items localizable-indices]
   MessagePattern
   (format [_ state]
     (impl-simple-list
-      list-k
+      list-f
       (persistent!
         (reduce
           #(assoc! %1 %2 (.format ^MessagePattern (items %2) state))
@@ -486,14 +485,17 @@
           localizable-indices))
       state)))
 
-(defn- impl-list [k items]
+(defn- impl-list [list-f items]
   (if-let [localizable-indices (when (pos? (count items))
                                  (coll/not-empty
                                    (into []
                                          (keep-indexed #(when (message-pattern? %2) %1))
                                          items)))]
-    (->ListWithNestedPatterns k items localizable-indices)
-    (->SimpleList k items)))
+    (->ListWithNestedPatterns list-f items localizable-indices)
+    (->SimpleList list-f items)))
+
+(defn- get-and-list-formatter [^LocalizationState state]
+  (.-list-and state))
 
 (defn and-list
   "Create a list message pattern using \"and\" conjunction (e.g., a, b, and c)
@@ -505,7 +507,10 @@
              messages"
   [items]
   {:pre [(vector? items)]}
-  (impl-list :list-and items))
+  (impl-list get-and-list-formatter items))
+
+(defn- get-or-list-formatter [^LocalizationState state]
+  (.-list-or state))
 
 (defn or-list
   "Create a list message pattern using \"or\" conjunction (e.g., a, b, or c)
@@ -517,7 +522,7 @@
              messages"
   [items]
   {:pre [(vector? items)]}
-  (impl-list :list-or items))
+  (impl-list get-or-list-formatter items))
 
 (defonce/record Date [date]
   MessagePattern

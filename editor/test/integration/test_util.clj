@@ -89,6 +89,7 @@
 (set! *warn-on-reflection* true)
 
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
+(.setLevel ^Logger (LoggerFactory/getLogger "cognitect.aws.credentials") Level/ERROR)
 
 ;; Disable defspec logs:
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}

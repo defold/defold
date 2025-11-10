@@ -439,22 +439,25 @@
 
 ;; region select_box
 
-(defn- stringify-lua-value
-  ([rt maybe-lua-value]
-   (if (nil? maybe-lua-value)
-     ""
-     (rt/->clj rt coerce/to-string maybe-lua-value)))
-  ([rt to_string maybe-lua-value]
-   (if (nil? maybe-lua-value)
-     ""
-     (rt/->clj rt coerce/to-string (rt/invoke-immediate-1 rt to_string maybe-lua-value)))))
+(def ^:private message-or-to-string-coercer
+  (coerce/one-of ui-docs/message-pattern-coercer coerce/to-string))
 
-(defn- create-select-box-string-converter [rt to_string]
+(defn- stringify-lua-value
+  ([rt maybe-lua-value localization-state]
+   (if (nil? maybe-lua-value)
+     ""
+     (localization-state (rt/->clj rt message-or-to-string-coercer maybe-lua-value))))
+  ([rt to_string maybe-lua-value localization-state]
+   (if (nil? maybe-lua-value)
+     ""
+     (localization-state (rt/->clj rt message-or-to-string-coercer (rt/invoke-immediate-1 rt to_string maybe-lua-value))))))
+
+(defn- create-select-box-string-converter [rt to_string localization-state]
   ;; Note: if a combo box has no value provided, the default is JVM null
   (DefoldStringConverter.
     (if to_string
-      #(stringify-lua-value rt to_string %)
-      #(stringify-lua-value rt %))))
+      #(stringify-lua-value rt to_string % localization-state)
+      #(stringify-lua-value rt % localization-state))))
 
 (defn- on-select-box-key-pressed [^KeyEvent event]
   (when (= KeyCode/SPACE (.getCode event))
@@ -476,7 +479,7 @@
     {:fx/type ext-with-extra-combo-box-props
      :desc {:fx/type fxui/ext-memo
             :fn create-select-box-string-converter
-            :args [rt to_string]
+            :args [rt to_string localization-state]
             :key :converter
             :desc (apply-tooltip-and-issue
                     {:fx/type fx.combo-box/lifecycle
@@ -593,8 +596,7 @@
                            (fx.mutator/property-change-listener #(.focusedProperty ^TextField %))
                            property-change-listener-with-source-owner-window-lifecycle)}))
 
-(fxui/defc value-field-view-impl-2
-  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+(defn- value-field-view-impl-2
   [{:keys [text                                             ;; text of the current value
            state swap-state                                 ;; local state, may contain :value and :edit
            rt
@@ -622,17 +624,19 @@
       alignment
       true)))
 
-(defn- value-field-view-impl-1 [{:keys [state rt value to_string]
-                                 :as props}]
+(fxui/defc value-field-view-impl-1
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [state rt value to_string localization-state]
+    :as props}]
   ;; overrides :value to point to the current value of the control, which might
   ;; differ from the one assigned from outside.
   ;; adds value's :text to props
   (let [current-value (:value state value)]
     {:fx/type fxui/ext-memo
      :fn stringify-lua-value
-     :args [rt to_string current-value]
+     :args [rt to_string current-value localization-state]
      :key :text
-     :desc (assoc props :fx/type value-field-view-impl-2 :value current-value)}))
+     :desc (assoc props :fx/type value-field-view-impl-2 :value current-value :localization-state localization-state)}))
 
 (defn- value-field-view [props]
   ;; adds :state and :swap-state to props

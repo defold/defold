@@ -302,7 +302,7 @@
   [(make-prop :value :coerce coerce/untouched :doc "selected value")
    (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the selected value")
    (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options")
-   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string, defaults to <code>tostring</code>")])
+   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string (or localization message), defaults to <code>tostring</code>")])
 
 (def ^:private select-box-props
   (into select-box-specific-props input-with-issue-props))
@@ -322,7 +322,7 @@
   (into [(make-prop :to_value :coerce coerce/function :required true
                     :doc "covert string to value, should return converted value or <code>nil</code> if not convertible")
          (make-prop :to_string :coerce coerce/function :required true
-                    :doc "covert value to string, should always return string")]
+                    :doc "covert value to a string (or localization message)")]
         value-field-specific-props))
 
 (def ^:private generic-value-field-props
