@@ -3720,17 +3720,16 @@
           (when (and (< drawn-line-index drawn-line-count)
                      (< source-line-index source-line-count))
             (let [y (data/row->y layout source-line-index)
-                  condition (breakpoint-row->condition source-line-index)]
-              ;; TODO: We should rethink all these conditionals
-              (when (and (= hovered-ui-element :gutter)
-                         (= hovered-row source-line-index)
-                         (not condition))
+                  breakpoint (breakpoint-row->condition source-line-index)
+                  hovered? (and (= hovered-ui-element :gutter)
+                                (= hovered-row source-line-index))]
+              (when (and hovered? (nil? breakpoint))
                 (.setFill gc ^Color (.deriveColor ^Color gutter-breakpoint-color 0.0 1.0 1.0 0.3))
                 (.fillOval gc
                            (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
                            (+ y indicator-offset) indicator-diameter indicator-diameter))
-              (when condition
-                (if (:active condition)
+              (when breakpoint
+                (if (:active breakpoint)
                   (do
                     (.setFill gc gutter-breakpoint-color)
                     (.fillOval gc
@@ -3746,7 +3745,7 @@
                     (.strokeOval gc
                                  (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset 1)
                                  (+ y indicator-offset 1) (- indicator-diameter 2) (- indicator-diameter 2))))
-                (when (string? condition)
+                (when (string? (:condition breakpoint))
                   (doto gc
                     (.save)
                     (.setFill gutter-background-color)

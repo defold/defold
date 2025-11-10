@@ -24,6 +24,7 @@
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
+            [cljfx.fx.text-field :as fx.text-field]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
@@ -41,7 +42,10 @@
 (set! *warn-on-reflection* true)
 
 (defonce state (atom {:breakpoints []
-                      :selected-indices []}))
+                      :selected-indices []
+                      :hovered nil
+                      :edited-breakpoint nil
+                      :edited-condition nil}))
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
@@ -70,6 +74,12 @@
 (defn- update-breakpoint-active-state [breakpoints breakpoint active]
   (update-breakpoints breakpoints [breakpoint] active))
 
+(defn- update-breakpoint-condition [breakpoints breakpoint condition]
+  (update-breakpoints breakpoints [breakpoint] #(if (and (:condition %)
+                                                         (string/blank? condition))
+                                                  (dissoc % :condition)
+                                                  (assoc % :condition condition))))
+
 (defn- collect-script-nodes-from-breakpoints [project breakpoints evaluation-context]
   (for [[resource bps] (group-by :resource breakpoints)
         :let [script-node (project/get-resource-node project resource evaluation-context)]]
@@ -89,35 +99,68 @@
                                  (filter #(contains? breakpoint-rows (code-data/breakpoint-row %)))
                                  (map (fn [region]
                                         (let [row (code-data/breakpoint-row region)
-                                              breakpoint (breakpoint-map row)]
-                                          (merge region (select-keys breakpoint [:active :condition]))))))
+                                              breakpoint (breakpoint-map row)
+                                              updated (merge region (select-keys breakpoint [:active :condition]))]
+                                          (if (nil? (:condition breakpoint))
+                                            (dissoc updated :condition)
+                                            updated)))))
         existing-bp-rows (into #{} (comp (filter code-data/breakpoint-region?) (map code-data/breakpoint-row)) regions)
         new-bp-rows (set/difference breakpoint-rows existing-bp-rows)
         new-bp-regions (map (partial code-data/make-breakpoint-region lines) new-bp-rows)]
     (vec (sort (concat non-bp-regions existing-bp-regions new-bp-regions)))))
 
-(defn- breakpoint-cell-view [breakpoints breakpoint]
-  (when-let [breakpoint (get breakpoints breakpoint)]
+(defn- breakpoint-cell-view [state breakpoint-idx]
+  (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
     (let [{:keys [resource row condition active]} breakpoint
           proj-path (:project-path resource)
-          label-text (str proj-path ":" (+ 1 row) (when condition (str " [" condition "]")))]
+          label-text (str proj-path ":" (+ 1 row) (when condition (str " [" condition "]")))
+          hovered? (= (:hovered state) breakpoint-idx)
+          editing? (= (:edited-breakpoint state) breakpoint-idx)]
       {:graphic
        {:fx/type fx.h-box/lifecycle
         :alignment :center-left
         :spacing 8
         :max-width ##Inf
-        :on-mouse-clicked {:event-type :breakpoint-clicked
-                           :clicked-breakpoint breakpoint}
-        :children [{:fx/type fx.check-box/lifecycle
-                    :h-box/hgrow :always
-                    :text label-text
-                    :selected active
-                    :on-selected-changed {:event-type :toggle-active
-                                          :breakpoint breakpoint}}
-                   {:fx/type fx.button/lifecycle
-                    :text "×"
-                    :on-action {:event-type :remove
-                                :breakpoint breakpoint}}]}})))
+        :on-mouse-clicked {:event-type :breakpoint-clicked       :clicked-breakpoint breakpoint}
+        :on-mouse-entered {:event-type :breakpoint-mouse-entered :breakpoint-idx breakpoint-idx}
+        :on-mouse-exited  {:event-type :breakpoint-mouse-exited  :breakpoint-idx breakpoint-idx}
+        :children (into [{:fx/type fx.check-box/lifecycle
+                          :h-box/hgrow :always
+                          :text label-text
+                          :selected active
+                          :on-selected-changed {:event-type :toggle-active
+                                                :breakpoint breakpoint}}]
+                        (if (or editing? hovered?)
+                          (concat
+                           (when-not editing?
+                             [{:fx/type fx.button/lifecycle
+                               :text "×"
+                               :on-action {:event-type :remove
+                                           :breakpoint breakpoint}}])
+                           [{:fx/type fx.h-box/lifecycle
+                             :spacing 4
+                             :alignment :center-left
+                             :children (if editing?
+                                         [{:fx/type fx.button/lifecycle
+                                           :text "✓"
+                                           :on-action {:event-type :save-condition
+                                                       :breakpoint breakpoint}}
+                                          {:fx/type fx.text-field/lifecycle
+                                           :text (or condition "")
+                                           :prompt-text "condition"
+                                           :focus-traversable true
+                                           :on-text-changed {:event-type :condition-text-changed}
+                                           :on-action {:event-type :save-condition
+                                                       :breakpoint breakpoint
+                                                       :breakpoint-idx breakpoint-idx}}]
+                                         [{:fx/type fx.button/lifecycle
+                                           :text "✏️"
+                                           :on-action {:event-type :edit-condition
+                                                       :breakpoint-idx breakpoint-idx}}
+                                          {:fx/type :label
+                                           :text "condition"
+                                           :style "-fx-text-fill: -fx-text-base-color; -fx-opacity: 0.6;"}])}])
+                          []))}})))
 
 (def ext-with-anchor-pane-props
   (fx/make-ext-with-props fx.anchor-pane/props))
@@ -181,7 +224,7 @@
                                                 :on-action {:event-type :remove-selected}}]}
                         :items (range (count (:breakpoints state)))
                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                       :describe (fn/partial breakpoint-cell-view (:breakpoints state))}}}]}})
+                                       :describe (fn/partial breakpoint-cell-view state)}}}]}})
 
 (defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
@@ -199,6 +242,7 @@
     (g/transact txs)))
 
 (defn- handle-breakpoint-event! [root project open-resource-fn event]
+  ;; TODO: No all events need this, probably better to split between those that do and don't
   (g/with-auto-evaluation-context evaluation-context
     (case (:event-type event)
       :toggle-active
@@ -220,7 +264,6 @@
       :selected-items-changed
       (swap! state assoc :selected-indices (:fx/event event))
 
-
       ;; We clicked empty space, not an item
       :list-view-clicked
       (let [^MouseEvent e (:fx/event event)
@@ -235,6 +278,21 @@
         (if (and (= MouseButton/PRIMARY (.getButton e))
                  (= 2 (.getClickCount e)))
           (open-resource-fn resource (+ 1 row))))
+
+      :breakpoint-mouse-entered (swap! state assoc :hovered (:breakpoint-idx event))
+      :breakpoint-mouse-exited  (swap! state assoc :hovered nil)
+
+      :edit-condition (swap! state assoc :edited-breakpoint (:breakpoint-idx event))
+      :condition-text-changed (swap! state assoc :edited-condition (:fx/event event))
+
+      :save-condition
+      (let [condition-text (:edited-condition @state)
+            breakpoint (get (:breakpoints @state) (:edited-breakpoint @state))]
+        (swap! state assoc :edited-breakpoint nil)
+        (let [updated-breakpoints (update-breakpoint-condition (:breakpoints @state) breakpoint condition-text)
+              script-node (breakpoint->script-node project breakpoint evaluation-context)
+              regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
+          (g/set-property! script-node :regions regions)))
 
       ;; default case
       ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
@@ -274,7 +332,7 @@
     (fx/mount-renderer
       state
       (fx/create-renderer
-        :error-handler error-reporting/report-exception!
+        :error-handler #'error-reporting/report-exception!
         :middleware (comp
                       fxui/wrap-dedupe-desc
                       (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
@@ -313,6 +371,6 @@
     (select-breakpoints-by-bp! list-view (take 2 items)))
   (let [open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
-        breakpoints-container (.lookup @editor.boot-open-project/the-root "#breakpoints-container")]
-    (create-breakpoint-tab-renderer (dev/project) breakpoints-container open-resource))
+        breakpoints-container (.lookup (ui/main-root) "#breakpoints-container")]
+    (create-breakpoint-tab-renderer (ui/main-root) (dev/project) breakpoints-container open-resource))
   ,)
