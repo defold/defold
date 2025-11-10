@@ -108,6 +108,13 @@
                     :whole-word {:type :boolean}
                     :case-sensitive {:type :boolean}
                     :wrap {:type :boolean :default true}}}
+            :breakpoints {:type :array
+                          :item {:type :object
+                                 :properties {:proj-path {:type :string}
+                                              :row {:type :integer}
+                                              :active {:type :boolean :default true}
+                                              :condition {:type :string :default ""}}}
+                          :scope :project}
             :auto-closing-parens {:type :boolean
                                   :default true}
             :visibility {:type :object

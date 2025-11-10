@@ -34,7 +34,10 @@
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
+            [editor.prefs :as prefs]
+            [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [util.fn :as fn])
   (:import [javafx.scene.control ListCell ListView]
            [javafx.scene.input MouseButton MouseEvent]))
@@ -95,8 +98,8 @@
         breakpoint-rows (set (keys breakpoint-map))
         non-bp-regions (remove code-data/breakpoint-region? regions)
         existing-bp-regions (->> regions
-                                 (filter code-data/breakpoint-region?)
-                                 (filter #(contains? breakpoint-rows (code-data/breakpoint-row %)))
+                                 (filter #(and (code-data/breakpoint-region? %)
+                                               (contains? breakpoint-rows (code-data/breakpoint-row %))))
                                  (map (fn [region]
                                         (let [row (code-data/breakpoint-row region)
                                               breakpoint (breakpoint-map row)
@@ -104,10 +107,13 @@
                                           (if (nil? (:condition breakpoint))
                                             (dissoc updated :condition)
                                             updated)))))
-        existing-bp-rows (into #{} (comp (filter code-data/breakpoint-region?) (map code-data/breakpoint-row)) regions)
-        new-bp-rows (set/difference breakpoint-rows existing-bp-rows)
-        new-bp-regions (map (partial code-data/make-breakpoint-region lines) new-bp-rows)]
-    (vec (sort (concat non-bp-regions existing-bp-regions new-bp-regions)))))
+        new-bp-regions (->> regions
+                            (into #{} (comp (filter code-data/breakpoint-region?)
+                                            (map code-data/breakpoint-row)))
+                            (set/difference breakpoint-rows)
+                            (map (partial code-data/make-breakpoint-region lines)))
+        updated-regions (concat non-bp-regions existing-bp-regions new-bp-regions)]
+    (vec (sort updated-regions))))
 
 (defn- breakpoint-cell-view [state breakpoint-idx]
   (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
@@ -316,27 +322,41 @@
       (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)}))
     nil))
 
-(defn create-breakpoint-tab-renderer [root project breakpoint-container open-resource-fn]
+(defn save-breakpoints [prefs breakpoints]
+  (let [bps-prefs (mapv #(dissoc (assoc % :proj-path (resource/proj-path (:resource %))) :resource) breakpoints)]
+    (prefs/set! prefs [:code :breakpoints] bps-prefs)))
+
+(defn create-breakpoint-tab-renderer [root workspace project prefs breakpoint-container open-resource-fn]
+  (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
+    (ui/context! tab-pane
+                 :breakpoints-tab
+                 {:project project :list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
+                 nil))
+  ;; Restore breakpoints
+  (g/with-auto-evaluation-context evaluation-context
+    (let [bps-prefs (prefs/get prefs [:code :breakpoints])
+          breakpoints (mapv #(assoc % :resource (workspace/find-resource workspace (:proj-path %) evaluation-context)) bps-prefs)
+          script-bps (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)]
+      (g/transact
+        (for [{:keys [script-node breakpoints]} script-bps
+              :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]]
+          (g/set-property script-node :regions updated-regions)))))
+  (fx/mount-renderer
+    state
+    (fx/create-renderer
+     :error-handler #'error-reporting/report-exception!
+     :middleware (comp
+                   fxui/wrap-dedupe-desc
+                   (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
+     :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! root project open-resource-fn %)}))
   (let [timer (ui/->timer
                4
                "breakpoints-tab-update-timer"
                (fn [timer _ _]
                  (when-not (ui/ui-disabled?)
                    (let [breakpoints (g/node-value project :breakpoints)]
+                     (save-breakpoints prefs breakpoints)
                      (swap! state assoc :breakpoints breakpoints)))))]
-    (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
-      (ui/context! tab-pane
-                   :breakpoints-tab
-                   {:project project :list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
-                   nil))
-    (fx/mount-renderer
-      state
-      (fx/create-renderer
-        :error-handler #'error-reporting/report-exception!
-        :middleware (comp
-                      fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
-        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! root project open-resource-fn %)}))
     (ui/timer-start! timer)))
 
 (handler/defhandler :breakpoints-tab.toggle-breakpoint-active :breakpoints-tab
@@ -372,5 +392,15 @@
   (let [open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
         breakpoints-container (.lookup (ui/main-root) "#breakpoints-container")]
-    (create-breakpoint-tab-renderer (ui/main-root) (dev/project) breakpoints-container open-resource))
+    (create-breakpoint-tab-renderer (ui/main-root) (dev/workspace) (dev/project) (dev/prefs) breakpoints-container open-resource))
+  (prefs/get (dev/prefs) [:code :breakpoints])
+  (g/with-auto-evaluation-context ec
+    (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :active true}
+                     {:proj-path "/scripts/game.script", :row 20, :active true}]
+          breakpoints (mapv #(assoc % :resource (workspace/find-resource (dev/workspace) (:proj-path %) ec)) bps-prefs)
+          script-bps (collect-script-nodes-from-breakpoints (dev/project) breakpoints ec)]
+      (g/transact
+        (for [{:keys [script-node breakpoints]} script-bps
+              :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints ec)]]
+          (g/set-property script-node :regions updated-regions)))))
   ,)
