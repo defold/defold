@@ -25,6 +25,7 @@
   (:import [clojure.lang IHashEq]
            [com.dynamo.bob.pipeline GraphicsUtil]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$ShaderDesc$ShaderType Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.sun.jna Pointer]
            [editor.buffers BufferData]
            [javax.vecmath Vector4d]
            [org.apache.commons.io FilenameUtils]))
@@ -459,8 +460,11 @@
     :vertex-step-function-instance Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_INSTANCE_VALUE))
 
 (defn request-id? [value]
-  ;; We might want to add support for other values as well.
+  ;; A good request-id must implement efficient hashing. These cover what we've
+  ;; seen so far, but we might want to add support for other values as well.
   (or (number? value)
+      (keyword? value)
+      (instance? Pointer value)
       (and (instance? IHashEq value)
            (not (coll/lazy? value)))))
 

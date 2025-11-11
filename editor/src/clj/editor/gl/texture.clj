@@ -16,6 +16,7 @@
   "Functions for creating and using textures"
   (:require [editor.gl :as gl]
             [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
             [editor.image-util :as image-util]
             [editor.scene-cache :as scene-cache]
             [internal.util :as util]
@@ -267,6 +268,7 @@
   ([request-id img params]
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
+   {:pre [(graphics.types/request-id? request-id)]}
    (let [texture-datas [(image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)]
          texture-units (vector-of :int unit-index)]
      (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
@@ -326,6 +328,7 @@
   ([request-id texture-images params]
    (texture-images->gpu-texture request-id texture-images params 0))
   ([request-id texture-images params ^long start-texture-unit]
+   {:pre [(graphics.types/request-id? request-id)]}
    (let [texture-datas (mapv texture-image->texture-data texture-images)
          texture-units (into (vector-of :int)
                              (range start-texture-unit (+ start-texture-unit (count texture-images))))]
@@ -349,11 +352,13 @@
   ([request-id img params]
    (texture-image->gpu-texture request-id img params 0))
   ([request-id ^Graphics$TextureImage img params unit-index]
+   {:pre [(graphics.types/request-id? request-id)]}
    (let [texture-datas [(texture-image->texture-data img)]
          texture-units (vector-of :int unit-index)]
       (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
 
 (defn empty-texture [request-id width height data-format params unit-index]
+  {:pre [(graphics.types/request-id? request-id)]}
   (let [texture-datas [(->texture-data width height data-format nil false)]
         texture-units (vector-of :int unit-index)]
     (->TextureLifecycle request-id ::texture params texture-datas texture-units)))
@@ -396,6 +401,7 @@
   ([request-id texture-images params]
    (cubemap-texture-images->gpu-texture request-id texture-images params 0))
   ([request-id texture-images params unit-index]
+   {:pre [(graphics.types/request-id? request-id)]}
    (let [texture-datas [(util/map-vals texture-image->texture-data texture-images)]
          texture-units (vector-of :int unit-index)]
      (->TextureLifecycle request-id ::cubemap-texture params texture-datas texture-units))))

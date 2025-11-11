@@ -21,8 +21,7 @@
             [editor.graphics.types :as graphics.types]
             [editor.scene-cache :as scene-cache]
             [util.coll :as coll]
-            [util.defonce :as defonce]
-            [util.eduction :as e])
+            [util.defonce :as defonce])
   (:import [clojure.lang Counted]
            [com.jogamp.opengl GL GL2]
            [java.nio Buffer ByteBuffer]))
@@ -295,6 +294,9 @@
     (set! expanded-attribute-locations nil)))
 
 (defn use-with [request-id ^VertexBuffer vertex-buffer shader]
+  {:pre [(graphics.types/request-id? request-id)
+         (instance? VertexBuffer vertex-buffer)
+         (satisfies? shader/ShaderVariables shader)]}
   (->VertexBufferShaderLink request-id vertex-buffer shader nil))
 
 (defn- update-vbo [^GL2 gl [vbo _] data]

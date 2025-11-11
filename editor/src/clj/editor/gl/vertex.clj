@@ -42,6 +42,7 @@ the `do-gl` macro from `editor.gl`."
             [editor.gl.types :as gl.types]
             [editor.graphics.types :as graphics.types]
             [editor.scene-cache :as scene-cache]
+            [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [clojure.lang IEditableCollection IPersistentVector ITransientVector]
            [com.jogamp.common.nio Buffers]
@@ -213,7 +214,7 @@ the `do-gl` macro from `editor.gl`."
 (declare new-persistent-vertex-buffer)
 (declare new-transient-vertex-buffer)
 
-(deftype PersistentVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicLong count set-fn get-fn]
+(defonce/type PersistentVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicLong count set-fn get-fn]
   b/ByteStringCoding
   (byte-pack [this] (b/byte-pack buffer))
 
@@ -264,7 +265,7 @@ the `do-gl` macro from `editor.gl`."
   (pop    [this]
     (throw (UnsupportedOperationException. "Pop would be slow here. Use 'transient' to create an editable vertex buffer." ))))
 
-(deftype TransientVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicBoolean editable ^AtomicLong position set-fn get-fn]
+(defonce/type TransientVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicBoolean editable ^AtomicLong position set-fn get-fn]
   b/ByteStringCoding
   (byte-pack [this] (b/byte-pack buffer))
 
@@ -435,7 +436,7 @@ the `do-gl` macro from `editor.gl`."
        (defn ~ctor [capacity#]
          (new-transient-vertex-buffer capacity# ~nm ~vx-size setter-fn# getter-fn#)))))
 
-;; TODO(instancing): Produce proper attribute-infos from defvertex macro.
+;; TODO(instancing): Produce proper attribute-infos from the defvertex macro.
 (defn- fake-attribute-info [[name-sym :as _attrib]]
   {:pre [(symbol? name-sym)]}
   (let [name (name name-sym)
@@ -490,7 +491,7 @@ the `do-gl` macro from `editor.gl`."
     (vertex-disable-attribs gl attrib-locs)
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
 
-(defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
+(defonce/record VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   gl.types/GLBinding
   (bind! [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
@@ -504,6 +505,9 @@ the `do-gl` macro from `editor.gl`."
   attribute that exists in the vertex buffer but is not used by the shader will
   simply be ignored."
   [request-id ^PersistentVertexBuffer vertex-buffer shader]
+  {:pre [(graphics.types/request-id? request-id)
+         (instance? PersistentVertexBuffer vertex-buffer)
+         (satisfies? shader/ShaderVariables shader)]}
   (->VertexBufferShaderLink request-id vertex-buffer shader))
 
 (defn- update-vbo [^GL2 gl vbo data]

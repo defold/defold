@@ -605,7 +605,7 @@ These forms should be quoted, as if they came from a macro."
 
 (defn make-shader-lifecycle
   ^ShaderLifecycle [request-id request-data attribute-reflection-infos uniform-values-by-name]
-  {:pre [(scene-cache/valid-request-id? request-id)
+  {:pre [(graphics.types/request-id? request-id)
          (instance? ShaderRequestData request-data)
          (vector? attribute-reflection-infos)
          (every? graphics.types/attribute-reflection-info? attribute-reflection-infos)
@@ -650,10 +650,13 @@ These forms should be quoted, as if they came from a macro."
    ;; emits an older syntax that is incompatible with the transpiler. The lack
    ;; of attribute location information results in the driver choosing whatever
    ;; locations it likes for the attributes. It also forces us to have a current
-   ;; OpenGL context while looking up the attribute locations. This is still how
-   ;; we do it for the dynamic VertexBuffer class, but it won't work with the
-   ;; newer AttributeBufferBinding class that binds the attributes to locations
-   ;; pre-determined by the shader reflection stage of the transpiler.
+   ;; OpenGL context while looking up the attribute locations. For the dynamic
+   ;; VertexBuffer class, we use the ShaderVariables attribute-locations method
+   ;; to locate the attributes. It will fall back on OpenGL context reflection
+   ;; if there is no attribute reflection info, but the AttributeBufferBinding
+   ;; class will not work with a shader returned from here since it relies on
+   ;; the attribute reflection info being pre-determined by the shader
+   ;; reflection stage of the transpiler.
    (let [location+attribute-name-pairs []
          attribute-reflection-infos []
 
