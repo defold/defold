@@ -130,6 +130,11 @@
     (.format ^MessagePattern v state)
     (str v)))
 
+;; We use a deftype instead of a defrecord even though LocalizationState is a
+;; simple immutable data holder. This is useful because localization state is
+;; used in cljfx contexts as a cache entry key, and continuously checked for
+;; equality on update. Using deftype makes those checks very cheap — reference
+;; equality instead of structural equality.
 (defonce/type LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
   IFn
   (invoke [this v] (impl-format this v))
