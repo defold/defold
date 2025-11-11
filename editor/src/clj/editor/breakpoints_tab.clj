@@ -15,7 +15,7 @@
 (ns editor.breakpoints-tab
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
-            [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.ext.table-view :as fx.ext.table-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.context-menu :as fx.context-menu]
@@ -24,6 +24,10 @@
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
+            [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.table-cell :as fx.table-cell]
+            [cljfx.fx.table-column :as fx.table-column]
+            [cljfx.fx.table-view :as fx.table-view]
             [cljfx.fx.text-field :as fx.text-field]
             [clojure.java.io :as io]
             [clojure.set :as set]
@@ -114,13 +118,107 @@
         updated-regions (concat non-bp-regions existing-bp-regions new-bp-regions)]
     (vec (sort updated-regions))))
 
+(defn- breakpoints-view [parent state]
+  {:fx/type ext-with-anchor-pane-props
+   :desc {:fx/type fxui/ext-value
+          :value parent}
+   :props {:stylesheets [(str (io/resource "editor.css"))]
+           :children [{:fx/type fx.h-box/lifecycle
+                       :id "breakpoints-tool-bar"
+                       :anchor-pane/top 0
+                       :anchor-pane/left 0
+                       :anchor-pane/right 0
+                       :spacing 10
+                       :children [{:fx/type fx.button/lifecycle
+                                   :id "breakpoints-enable-all"
+                                   :text "Enable All"
+                                   :on-action {:event-type :enable-all}}
+                                  {:fx/type fx.button/lifecycle
+                                   :id "breakpoints-disable-all"
+                                   :text "Disable All"
+                                   :on-action {:event-type :disable-all}}
+                                  {:fx/type fx.button/lifecycle
+                                   :id "breakpoints-toggle-all"
+                                   :text "Toggle All"
+                                   :on-action {:event-type :toggle-all}}
+                                  {:fx/type fx.button/lifecycle
+                                   :id "breakpoints-remove-all"
+                                   :text "Remove All"
+                                   :on-action {:event-type :remove-all}}]}
+                      {:fx/type fx.ext.table-view/with-selection-props
+                       :anchor-pane/top 57
+                       :anchor-pane/right 0
+                       :anchor-pane/bottom 0
+                       :anchor-pane/left 0
+                       :props {:selection-mode :multiple
+                               :on-selected-indices-changed {:event-type :selected-items-changed}}
+                       :desc
+                       {:fx/type fx.table-view/lifecycle
+                        :id "breakpoints-table-view"
+                        :on-mouse-pressed {:event-type :list-view-clicked}
+                        :context-menu {:fx/type fx.context-menu/lifecycle
+                                       :consume-auto-hiding-events false
+                                       :items [{:fx/type fx.menu-item/lifecycle
+                                                :text "Enable Selected"
+                                                :on-action {:event-type :enable-selected}}
+                                               {:fx/type fx.menu-item/lifecycle
+                                                :text "Disable Selected"
+                                                :on-action {:event-type :disable-selected}}
+                                               {:fx/type fx.menu-item/lifecycle
+                                                :text "Toggle Selected"
+                                                :on-action {:event-type :toggle-selected}}
+                                               {:fx/type fx.separator-menu-item/lifecycle}
+                                               {:fx/type fx.menu-item/lifecycle
+                                                :text "Remove Selected"
+                                                :on-action {:event-type :remove-selected}}]}
+                        :items (:breakpoints state)
+                        :columns [{:fx/type fx.table-column/lifecycle
+                                   :text "Enabled"
+                                   :pref-width 80
+                                   :cell-value-factory identity
+                                   :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                                  :describe (fn [breakpoint]
+                                                              {:graphic {:fx/type fx.check-box/lifecycle
+                                                                         :selected (:active breakpoint)
+                                                                         :on-selected-changed {:event-type :toggle-active
+                                                                                               :breakpoint breakpoint}}})}}
+                                  {:fx/type fx.table-column/lifecycle
+                                   :text "Location"
+                                   :pref-width 250
+                                   :cell-value-factory (fn [breakpoint]
+                                                         (str (-> breakpoint :resource :project-path)
+                                                              ":" (inc (:row breakpoint))))}
+                                  {:fx/type fx.table-column/lifecycle
+                                   :text "Condition"
+                                   :pref-width 200
+                                   :cell-value-factory :condition
+                                   :editable true
+                                   :on-edit-commit (fn [e]
+                                                     {:event-type :save-condition
+                                                      :breakpoint (.getRowValue e)
+                                                      :new-value (.getNewValue e)})}]}}]}})
+
+(defn- icon-button [icon-path on-action-event]
+  {:fx/type fx.button/lifecycle
+   :style "-fx-padding: 2; -fx-min-width: 0; -fx-pref-width: 30;"
+   :graphic {:fx/type fx.svg-path/lifecycle
+             :content icon-path
+             :scale-x 0.5
+             :scale-y 0.5
+             :style "-fx-fill: -fx-text-base-color;"}
+   :on-action on-action-event})
+
 (defn- breakpoint-cell-view [state breakpoint-idx]
   (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
     (let [{:keys [resource row condition active]} breakpoint
           proj-path (:project-path resource)
           label-text (str proj-path ":" (+ 1 row) (when condition (str " [" condition "]")))
           hovered? (= (:hovered state) breakpoint-idx)
-          editing? (= (:edited-breakpoint state) breakpoint-idx)]
+          editing? (= (:edited-breakpoint state) breakpoint-idx)
+          ;; SVG paths
+          edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+          close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          save-icon "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"]
       {:graphic
        {:fx/type fx.h-box/lifecycle
         :alignment :center-left
@@ -129,46 +227,36 @@
         :on-mouse-clicked {:event-type :breakpoint-clicked       :clicked-breakpoint breakpoint}
         :on-mouse-entered {:event-type :breakpoint-mouse-entered :breakpoint-idx breakpoint-idx}
         :on-mouse-exited  {:event-type :breakpoint-mouse-exited  :breakpoint-idx breakpoint-idx}
-        :children (into [{:fx/type fx.check-box/lifecycle
-                          :h-box/hgrow :always
-                          :text label-text
-                          :selected active
-                          :on-selected-changed {:event-type :toggle-active
-                                                :breakpoint breakpoint}}]
-                        (if (or editing? hovered?)
-                          (concat
-                           (when-not editing?
-                             [{:fx/type fx.button/lifecycle
-                               :text "×"
-                               :on-action {:event-type :remove
-                                           :breakpoint breakpoint}}])
-                           [{:fx/type fx.h-box/lifecycle
-                             :spacing 4
-                             :alignment :center-left
-                             :children (if editing?
-                                         [{:fx/type fx.button/lifecycle
-                                           :text "✓"
-                                           :on-action {:event-type :save-condition
-                                                       :breakpoint breakpoint}}
-                                          {:fx/type fx.text-field/lifecycle
-                                           :text (or condition "")
-                                           :prompt-text "condition"
-                                           :focus-traversable true
-                                           :on-text-changed {:event-type :condition-text-changed}
-                                           :on-action {:event-type :save-condition
-                                                       :breakpoint breakpoint
-                                                       :breakpoint-idx breakpoint-idx}}]
-                                         [{:fx/type fx.button/lifecycle
-                                           :text "✏️"
-                                           :on-action {:event-type :edit-condition
-                                                       :breakpoint-idx breakpoint-idx}}
-                                          {:fx/type :label
-                                           :text "condition"
-                                           :style "-fx-text-fill: -fx-text-base-color; -fx-opacity: 0.6;"}])}])
-                          []))}})))
-
-(def ext-with-anchor-pane-props
-  (fx/make-ext-with-props fx.anchor-pane/props))
+        :children (concat [{:fx/type fx.check-box/lifecycle
+                            :h-box/hgrow :always
+                            :text label-text
+                            :selected active
+                            :on-selected-changed {:event-type :toggle-active
+                                                  :breakpoint breakpoint}}]
+                          [{:fx/type :region
+                            :h-box/hgrow :always}]
+                          (when (or editing? hovered?)
+                            (if editing?
+                              [{:fx/type fx.text-field/lifecycle
+                                :text (or condition "")
+                                :prompt-text "condition"
+                                :pref-width 150
+                                :focus-traversable true
+                                :on-text-changed {:event-type :condition-text-changed}
+                                :on-action {:event-type :save-condition
+                                            :breakpoint breakpoint
+                                            :breakpoint-idx breakpoint-idx}}
+                               (icon-button save-icon {:event-type :save-condition
+                                                       :breakpoint breakpoint})]
+                              (concat
+                               (when condition
+                                 [{:fx/type :label
+                                   :text condition
+                                   :style "-fx-text-fill: -fx-text-base-color; -fx-opacity: 0.6;"}])
+                               [(icon-button edit-icon {:event-type :edit-condition
+                                                        :breakpoint-idx breakpoint-idx})
+                                (icon-button close-icon {:event-type :remove
+                                                         :breakpoint breakpoint})]))))}})))
 
 (defn- breakpoints-view [parent state]
   {:fx/type ext-with-anchor-pane-props
