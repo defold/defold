@@ -701,7 +701,7 @@
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
-(defn claim-child-scene [old-node-id new-node-id new-node-outline-key child-scene]
+(defn claim-child-scene [child-scene old-node-id new-node-id new-node-outline-key]
   (if (= old-node-id (:node-id child-scene))
     (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
     (assoc child-scene :picking-node-id new-node-id)))
@@ -713,10 +713,12 @@
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
   (let [old-node-id (:node-id scene)
-        children (:children scene)]
+        children (:children scene)
+        finalize-claim-fn (:finalize-claim-fn scene)]
     (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
-            children (assoc :children (mapv (partial map-scene (partial claim-child-scene old-node-id new-node-id new-node-outline-key))
-                                            children)))))
+            children (assoc :children (mapv (partial map-scene #(claim-child-scene % old-node-id new-node-id new-node-outline-key))
+                                            children))
+            finalize-claim-fn (finalize-claim-fn old-node-id new-node-id))))
 
 (defn- box-selection? [^Rect picking-rect]
   (or (> (.width picking-rect) selection/min-pick-size)

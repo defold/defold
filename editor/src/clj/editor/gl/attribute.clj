@@ -593,7 +593,7 @@
           Quat4d (quat-transform-into! buffer untransformed-data transform w-component))]
 
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER gl-buffer)
-    (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size transformed-data GL2/GL_DYNAMIC_DRAW)
+    (gl/gl-buffer-data gl GL2/GL_ARRAY_BUFFER data-byte-size transformed-data GL2/GL_STATIC_DRAW)
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
     (pair gl-buffer transformed-data)))
 
@@ -681,3 +681,56 @@
   create-index-buffer!
   update-index-buffer!
   destroy-index-buffers!)
+
+;; -----------------------------------------------------------------------------
+;; Claiming requests
+;; -----------------------------------------------------------------------------
+
+(defn- claim-request [request new-request-id-fn]
+  (let [old-request-id (:request-id request)]
+    (if (graphics.types/request-id? old-request-id)
+      (let [new-request-id (new-request-id-fn old-request-id)]
+        (cond
+          (not (graphics.types/request-id? new-request-id))
+          (throw
+            (ex-info
+              "new-request-id-fn must return a valid request-id"
+              {:old-request-id old-request-id
+               :new-request-id new-request-id}))
+
+          (= old-request-id new-request-id)
+          (throw
+            (ex-info
+              "new-request-id-fn must return a new request-id that differs from the old one"
+              {:old-request-id old-request-id
+               :new-request-id new-request-id}))
+
+          :else
+          (assoc request :request-id new-request-id)))
+      (throw
+        (ex-info
+          "request must be an Associative with a valid :request-id"
+          {:request request})))))
+
+(defn transformed-attribute-buffer-binding-claim-fn [attribute-binding new-request-id-fn]
+  (if (instance? AttributeBufferBinding attribute-binding)
+    (let [attribute-buffer-lifecycle (.-attribute-buffer-lifecycle ^AttributeBufferBinding attribute-binding)]
+      (if (instance? TransformedAttributeBufferLifecycle attribute-buffer-lifecycle)
+        (let [claimed-attribute-buffer-lifecycle (claim-request attribute-buffer-lifecycle new-request-id-fn)]
+          (assoc attribute-binding :attribute-buffer-lifecycle claimed-attribute-buffer-lifecycle))
+        attribute-binding))
+    attribute-binding))
+
+(defn claim-bindings [bindings claim-fn new-request-id-fn & args]
+  (let [new-request-id-fn #(apply new-request-id-fn % args)]
+    (reduce-kv
+      (fn [bindings key binding]
+        (let [claimed-binding (claim-fn binding new-request-id-fn)]
+          (if (identical? binding claimed-binding)
+            bindings
+            (assoc bindings key claimed-binding))))
+      bindings
+      bindings)))
+
+(defn claim-transformed-attribute-buffer-bindings [bindings new-request-id-fn & args]
+  (apply claim-bindings bindings transformed-attribute-buffer-binding-claim-fn new-request-id-fn args))

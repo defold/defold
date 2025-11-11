@@ -103,7 +103,7 @@
        (zero? (rem input-float-count input-component-count))
        (let [float-buffer (make-attribute-float-buffer input-floats input-component-count output-component-count output-component-fill)
              buffer-data (buffers/make-buffer-data float-buffer)
-             request-id (conj mesh-request-id input-floats-pb-field)
+             request-id (assoc mesh-request-id :pb-field input-floats-pb-field)
              vector-type (graphics.types/component-count-vector-type output-component-count false)]
          (attribute/make-attribute-buffer request-id buffer-data vector-type :static))
 
@@ -122,8 +122,10 @@
         w-component (graphics.types/attribute-transform-w-component attribute-transform)
         untransformed-buffer-data (graphics.types/buffer-data untransformed-attribute-buffer-lifecycle)
         untransformed-buffer-request-id (:request-id untransformed-attribute-buffer-lifecycle)
-        _ (assert (vector? (not-empty untransformed-buffer-request-id)))
-        request-id (conj untransformed-buffer-request-id scene-node-id attribute-transform)]
+        _ (assert (g/node-id? (:scene-node-id untransformed-buffer-request-id)))
+        request-id (assoc untransformed-buffer-request-id
+                     :scene-node-id scene-node-id
+                     :attribute-transform attribute-transform)]
     (attribute/make-transformed-attribute-buffer request-id untransformed-buffer-data transform-render-arg-key w-component)))
 
 (defn- make-index-buffer [mesh-request-id mesh indices-pb-field]
@@ -147,7 +149,7 @@
                          (.asIntBuffer)
                          (.put (.asIntBuffer source-byte-buffer))
                          (.flip))))]
-          (let [request-id (conj mesh-request-id indices-pb-field)
+          (let [request-id (assoc mesh-request-id :pb-field indices-pb-field)
                 buffer-data (buffers/make-buffer-data indices-buffer)]
             (attribute/make-index-buffer request-id buffer-data :static))
           (g/error-fatal
@@ -496,7 +498,7 @@
         (coll/transfer (:meshes model) []
           (map-indexed
             (fn [mesh-index mesh]
-              (let [mesh-request-id (conj model-request-id mesh-index)]
+              (let [mesh-request-id (assoc model-request-id :mesh-index mesh-index)]
                 (make-renderable-mesh mesh mesh-request-id mesh-set mesh-material-index->material-name)))))]
 
     (g/precluding-errors renderable-meshes
@@ -512,7 +514,7 @@
 (defn- make-renderable-mesh-set [mesh-set mesh-set-request-id mesh-material-index->material-name]
   (let [renderable-models
         (mapv (fn [model]
-                (let [model-request-id (conj mesh-set-request-id (:id model))]
+                (let [model-request-id (assoc mesh-set-request-id :model-id (:id model))]
                   (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name)))
               (:models mesh-set))]
 
@@ -527,7 +529,9 @@
          :renderable-models renderable-models}))))
 
 (g/defnk produce-renderable-mesh-set [_node-id content]
-  (let [mesh-set-request-id [:ModelSceneNode/mesh-set _node-id]
+  (let [mesh-set-request-id
+        {:request-type :ModelSceneNode/mesh-set
+         :scene-node-id _node-id}
 
         mesh-material-index->material-name
         (or (some-> content :material-ids not-empty vec)
@@ -697,11 +701,18 @@
 (g/defnk produce-scene [_node-id renderable-mesh-set]
   (make-scene renderable-mesh-set _node-id))
 
+(defn- finalize-claim-scene [scene _old-node-id new-node-id]
+  (update scene :children coll/mapv>
+          update :children coll/mapv>
+          update-in [:renderable :user-data :attribute-bindings]
+          attribute/claim-transformed-attribute-buffer-bindings
+          assoc :scene-node-id new-node-id))
+
 (defn- augment-mesh-scene [mesh-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [{:keys [user-data]} (:renderable mesh-scene)
         {:keys [material-data material-name]} user-data
         material-scene-info (material-name->material-scene-info material-name)
-        claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
+        claimed-scene (scene/claim-child-scene mesh-scene old-node-id new-node-id new-node-outline-key)]
     (if (nil? material-scene-info)
       claimed-scene
       (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
@@ -717,28 +728,25 @@
         (assert (shader/shader-lifecycle? shader))
         (assert (every? keyword? (keys vertex-attribute-bytes)))
         (assert (every? bytes? (vals vertex-attribute-bytes)))
-        (update
-          claimed-scene
-          :renderable
-          update
-          :user-data
-          (fn [user-data]
-            (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
-                  semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
-                  combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
-                  coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
-                  attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes new-node-id)]
-              (assoc user-data
-                :attribute-bindings attribute-bindings
-                :coordinate-space-info coordinate-space-info
-                :material-attribute-infos material-attribute-infos
-                :material-data material-data
-                :shader shader
-                :textures gpu-textures))))))))
+        (update claimed-scene :renderable
+                update :user-data
+                (fn [user-data]
+                  (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
+                        semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
+                        combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
+                        coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
+                        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes new-node-id)]
+                    (assoc user-data
+                      :attribute-bindings attribute-bindings
+                      :coordinate-space-info coordinate-space-info
+                      :material-attribute-infos material-attribute-infos
+                      :material-data material-data
+                      :shader shader
+                      :textures gpu-textures))))))))
 
 (defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-scenes (:children model-scene)]
-    (assoc (scene/claim-child-scene old-node-id new-node-id new-node-outline-key model-scene)
+    (assoc (scene/claim-child-scene model-scene old-node-id new-node-id new-node-outline-key)
       :children (mapv #(augment-mesh-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                       mesh-scenes))))
 
@@ -750,6 +758,7 @@
       (assoc scene
         :node-id new-node-id
         :node-outline-key new-node-outline-key
+        :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
         :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                         model-scenes)))))
 

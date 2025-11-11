@@ -934,3 +934,12 @@
   (when (instance? Vec coll)
     (let [array-manager-id (System/identityHashCode (.am coll))]
       (primitive-types-by-array-manager-id array-manager-id))))
+
+(defn mapv>
+  "Like core.mapv, but takes the input sequence as the first argument and
+  supplies any arguments following the transform function to it after the item
+  argument. Useful with various core functions such as update."
+  ([coll f]
+   (mapv f coll))
+  ([coll f & args]
+   (mapv #(apply f % args) coll)))
