@@ -6,6 +6,7 @@
 # 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = 从磁盘打开…
@@ -471,6 +472,9 @@ dialog.open-resource.open-file-failed.detail = 这种情况是文件类型在操
 # Loading project dialog
 
 dialog.loading-project.header = 正在加载项目
+
+# Bundle dialog
+
 
 # Editor panes
 
