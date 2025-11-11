@@ -634,6 +634,14 @@ namespace dmGameObject
      */
     void ComponentTypeSetRenderFn(HComponentType type, ComponentsRender fn);
 
+    /*# set the component pre-update callback
+     * Set the component pre-update callback. Called before regular update callback.
+     * @name ComponentTypeSetPreUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsPreUpdate] callback
+     */
+    void ComponentTypeSetPreUpdateFn(HComponentType type, ComponentsPreUpdate fn);
+
     /*# set the component update callback
      * Set the component update callback. Called when it's time to update all component instances.
      * @name ComponentTypeSetUpdateFn
