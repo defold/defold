@@ -94,6 +94,7 @@
 
 (defn make-event
   [^Exception ex ^Thread thread user]
+  {:pre [(map? user) (= 1 (count user)) (contains? user :id)]}
   (let [id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
         environment (if (system/defold-version) "release" "dev")
         gl-info (gl/info)
