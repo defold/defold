@@ -2917,6 +2917,7 @@
   (extensions/reload!
     project kind
     :prefs prefs
+    :localization localization
     :reload-resources! (fn reload-resources! []
                          (let [f (future/make)]
                            (disk/async-reload! (make-render-task-progress :resource-sync)

@@ -6,6 +6,7 @@
 # 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = Open From Disk…
@@ -472,6 +473,95 @@ dialog.open-resource.open-file-failed.detail = This can happen if the file type 
 
 dialog.loading-project.header = Loading project
 
+# Bundle dialog
+
+dialog.bundle.title = Bundle Application
+dialog.bundle.button.create = Create Bundle…
+dialog.bundle.hint.select-output-folder = Proceed to select output folder.
+dialog.bundle.header.linux = Bundle Linux Application
+dialog.bundle.header.macos = Bundle macOS Application
+dialog.bundle.header.html5 = Bundle HTML5 Application
+dialog.bundle.header.windows = Bundle Windows Application
+dialog.bundle.header.ios = Bundle iOS Application
+dialog.bundle.header.android = Bundle Android Application
+dialog.bundle.label.variant = Variant
+dialog.bundle.option.variant.debug = Debug
+dialog.bundle.option.variant.release = Release
+dialog.bundle.option.variant.headless = Headless
+dialog.bundle.label.platform = Platform
+dialog.bundle.option.platform.x86_64-linux = X64
+dialog.bundle.option.platform.arm64-linux = Arm64
+dialog.bundle.option.platform.x86_64-win32 = 64-bit
+dialog.bundle.option.platform.x86-win32 = 32-bit
+dialog.bundle.option.identity.none = None
+dialog.bundle.label.architectures = Architectures
+dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-ios = Simulator (x86_64)
+dialog.bundle.option.architecture.x86_64-macos = x86_64
+dialog.bundle.option.architecture.arm64-macos = arm64
+dialog.bundle.option.architecture.js-web = asm.js
+dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
+dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Thread support
+dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
+dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.label.sign-application = Sign Application
+dialog.bundle.label.code-signing-identity = Code Signing Identity
+dialog.bundle.label.provisioning-profile = Provisioning Profile
+dialog.bundle.title.choose-provisioning-profile = Choose Provisioning Profile
+dialog.bundle.filter.provisioning-profile = Provisioning Profiles (*.mobileprovision)
+dialog.bundle.label.on-bundled = On Bundled
+dialog.bundle.option.on-bundled.install = Install on connected device
+dialog.bundle.option.on-bundled.launch = Launch installed app
+dialog.bundle.label.android.keystore = Keystore
+dialog.bundle.label.android.keystore-pass = Keystore password
+dialog.bundle.label.android.key-pass = Key password
+dialog.bundle.label.android.bundle-format = Bundle format
+dialog.bundle.option.bundle-format.apk = APK
+dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-keystore = Choose Keystore
+dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
+dialog.bundle.title.choose-keystore-pass = Choose Keystore password
+dialog.bundle.filter.keystore-pass = Keystore password (*.txt)
+dialog.bundle.title.choose-key-pass = Choose Key password
+dialog.bundle.filter.key-pass = Key password (*.txt)
+dialog.bundle.hint.android.keystore = Set keystore, or leave blank to sign with an auto-generated debug certificate.
+dialog.bundle.label.texture-compression = Texture Compression
+dialog.bundle.option.texture-compression.enabled = Enabled
+dialog.bundle.option.texture-compression.disabled = Disabled
+dialog.bundle.option.texture-compression.editor = Use Editor Preference
+dialog.bundle.label.with-symbols = Generate debug symbols
+dialog.bundle.label.build-report = Generate build report
+dialog.bundle.label.liveupdate = Publish Live Update content
+dialog.bundle.label.contentless = Contentless bundle
+dialog.bundle.failed.title = Bundle Failed
+dialog.bundle.failed.header = Failed to bundle the project
+dialog.bundle.failed.hint = Please fix build errors and try again
+dialog.bundle.output-directory.title = Output Directory
+dialog.bundle.output-directory.error-file.title = Cannot Overwrite File
+dialog.bundle.output-directory.error-file.header = Cannot create a directory
+dialog.bundle.output-directory.error-file.message = Cannot create directory at path "{path}", there is a file with the same name as the directory we are trying to create
+dialog.bundle.output-directory.overwrite.title = Overwrite Existing Directory?
+dialog.bundle.output-directory.overwrite.header = A directory already exists
+dialog.bundle.output-directory.overwrite.message = Overwrite "{path}"?
+dialog.bundle.output-directory.button.overwrite = Overwrite
+dialog.bundle.error.architectures-required = At least one architecture must be selected.
+dialog.bundle.error.identity.not-found = No code signing identities found on this computer.
+dialog.bundle.error.identity.required = Code signing identity must be set to sign the application.
+dialog.bundle.error.provisioning.required = Provisioning profile must be set to sign the application.
+dialog.bundle.error.provisioning.invalid = Invalid provisioning profile.
+dialog.bundle.error.provisioning.not-found = Provisioning profile file not found.
+dialog.bundle.error.provisioning.not-file = Provisioning profile must be a file.
+dialog.bundle.error.keystore.not-found = Keystore file not found.
+dialog.bundle.error.keystore.invalid = Invalid keystore.
+dialog.bundle.error.keystore.required-with-pass = Keystore must be set if keystore password is specified.
+dialog.bundle.error.keystore-pass.not-found = Keystore password file not found.
+dialog.bundle.error.keystore-pass.invalid = Invalid keystore password file.
+dialog.bundle.error.keystore-pass.required-with-keystore = Keystore password must be set if keystore is specified.
+dialog.bundle.error.key-pass.not-found = Key password file not found.
+dialog.bundle.error.key-pass.invalid = Invalid key password file.
+dialog.bundle.error.key-pass.required-with-keystore = Keystore must be set if key password is specified.
+dialog.bundle.error.bundle-format.required = No bundle format selected.
+
 # Editor panes
 
 pane.assets = Assets
@@ -706,6 +796,12 @@ command.project.clean-build = Clean Build
 command.project.build-html5 = Build HTML5
 command.project.clean-build-html5 = Clean Build HTML5
 command.project.bundle = Bundle
+command.project.bundle-ios = iOS Application…
+command.project.bundle-android = Android Application…
+command.project.bundle-macos = macOS Application…
+command.project.bundle-windows = Windows Application…
+command.project.bundle-linux = Linux Application…
+command.project.bundle-html5 = HTML5 Application…
 command.project.rebundle = Rebundle
 command.project.fetch-libraries = Fetch Libraries
 command.project.reload-editor-scripts = Reload Editor Scripts
