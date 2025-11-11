@@ -219,7 +219,8 @@
                                  (future/complete! result-future http-server/internal-server-error))))]
                        (assert (g/node-id? changes-view))
                        (assert (g/node-id? workspace))
-                       (log/info :msg "Processing request" :command command)
+                       (when-not (Boolean/getBoolean "defold.tests")
+                         (log/info :msg "Processing request" :command command))
                        (if-not resource-sync
                          (ui/run-later (execute-command!))
                          (disk/async-reload!
