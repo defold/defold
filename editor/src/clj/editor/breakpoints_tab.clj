@@ -78,10 +78,9 @@
   (update-breakpoints breakpoints [breakpoint] active))
 
 (defn- update-breakpoint-condition [breakpoints breakpoint condition]
-  (update-breakpoints breakpoints [breakpoint] #(if (and (:condition %)
-                                                         (string/blank? condition))
-                                                  (dissoc % :condition)
-                                                  (assoc % :condition condition))))
+  (update-breakpoints breakpoints [breakpoint] #(if (not (string/blank? condition))
+                                                  (assoc % :condition condition)
+                                                  (dissoc % :condition))))
 
 (defn- collect-script-nodes-from-breakpoints [project breakpoints evaluation-context]
   (for [[resource bps] (group-by :resource breakpoints)
@@ -293,12 +292,13 @@
 
       :save-condition
       (let [condition-text (:edited-condition @state)
-            breakpoint (get (:breakpoints @state) (:edited-breakpoint @state))]
+            breakpoint (get (:breakpoints @state) (:edited-breakpoint @state))
+            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
+            updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint condition-text)
+            script-node (breakpoint->script-node project breakpoint evaluation-context)
+            regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
         (swap! state assoc :edited-breakpoint nil)
-        (let [updated-breakpoints (update-breakpoint-condition (:breakpoints @state) breakpoint condition-text)
-              script-node (breakpoint->script-node project breakpoint evaluation-context)
-              regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
-          (g/set-property! script-node :regions regions)))
+        (g/set-property! script-node :regions regions))
 
       ;; default case
       ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
