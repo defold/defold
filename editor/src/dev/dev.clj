@@ -240,9 +240,8 @@
     (exclude-keys-deep-helper excluded-map-entry? value)
 
     (coll? value)
-    (into (empty value)
-          (map (partial exclude-keys-deep-value-helper excluded-map-entry?))
-          value)
+    (coll/transform value
+      (map (partial exclude-keys-deep-value-helper excluded-map-entry?)))
 
     :else
     value))

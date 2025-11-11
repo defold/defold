@@ -36,6 +36,119 @@
       (.put coll key value))
     coll))
 
+(deftest transform-test
+  (testing "Empty collection."
+    (let [colls [nil
+                 ""
+                 []
+                 (vector-of :long)
+                 '()
+                 {}
+                 #{}
+                 (sorted-map)
+                 (sorted-set)
+                 (double-array 0)
+                 (object-array 0)
+                 (range 0)
+                 (repeatedly 0 (constantly 1))
+                 (Nothing.)]]
+
+      (testing "No transducer."
+        (doseq [coll colls]
+          (testing (or (some-> coll class .getSimpleName) "nil")
+            (let [transformed-coll (coll/transform coll)]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Single transducer."
+        (doseq [coll colls]
+          (testing (or (some-> coll class .getSimpleName) "nil")
+            (let [transformed-coll (coll/transform coll
+                                     (take 1))]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Multiple transducers."
+        (doseq [coll colls]
+          (testing (or (some-> coll class .getSimpleName) "nil")
+            (let [transformed-coll (coll/transform coll
+                                     (take 1)
+                                     (mapcat (juxt identity identity identity))
+                                     (drop 2))]
+              (is (identical? coll transformed-coll))))))))
+
+  (testing "Non-empty sequence."
+    (let [colls (mapv #(with-meta % {:version "original"})
+                      [[1]
+                       (vector-of :long 1)
+                       '(1)
+                       #{1}
+                       (sorted-set 1)])]
+
+      (testing "No transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll)]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Single transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (take 1))]
+              (is (= (class coll) (class transformed-coll)))
+              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= (first coll) (first transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll)))))))
+
+      (testing "Multiple transducers."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (take 1)
+                                     (mapcat (juxt identity identity identity))
+                                     (drop 2))]
+              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= (first coll) (first transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll)))))))))
+
+  (testing "Non-empty map."
+    (let [colls (mapv #(with-meta % {:version "original"})
+                      [{:a 1}
+                       (sorted-map :a 1)
+                       (JustA. 1)])]
+
+      (testing "No transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll)]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Single transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (tap> (.getSimpleName (class coll)))
+            (let [transformed-coll (coll/transform coll
+                                     (map (fn [entry]
+                                            (tap> entry)
+                                            [(key entry)
+                                             (inc (long (val entry)))])))]
+              (is (= (class coll) (class transformed-coll)))
+              (is (= (map inc (vals coll)) (vals transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll)))))))
+
+      (testing "Multiple transducers."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (take 1)
+                                     (mapcat (juxt identity identity identity))
+                                     (map (fn [entry]
+                                            [(key entry)
+                                             (inc (long (val entry)))]))
+                                     (drop 2))]
+              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= (map inc (vals coll)) (vals transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll))))))))))
+
 (deftest key-set-test
   (letfn [(check! [expected actual]
             (is (set? actual))

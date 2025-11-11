@@ -31,7 +31,7 @@
   "Transfer the sequence supplied as the first argument into the destination
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
-  as the destination returns an eduction instead."
+  as the destination returns an eduction instead. See also: transform."
   ([from to]
    (case to
      :eduction `(->Eduction identity ~from)
@@ -235,6 +235,34 @@
 (defonce into-set (fnil into #{}))
 
 (defonce into-vector (fnil into []))
+
+(defn transform
+  "Transform the collection supplied as the first argument into a new collection
+  of the same type, using a transducer composed of the remaining arguments.
+  Preserves metadata. Returns coll unaltered if empty or if no transducers are
+  supplied. See also: transfer."
+  ([coll] coll)
+  ([coll xform]
+   (cond
+     (empty? coll)
+     coll
+
+     (record? coll)
+     (transduce xform
+                (fn
+                  ([coll] coll)
+                  ([coll [key value]] (assoc coll key value)))
+                coll
+                coll)
+
+     :else
+     (into (empty-with-meta coll)
+           xform
+           coll)))
+  ([coll xform & xforms]
+   (if (empty? coll)
+     coll
+     (transform coll (apply comp xform xforms)))))
 
 (defn update-vals
   "Like core.update-vals, but retains the type of the input map or record. Also
@@ -730,9 +758,7 @@
   values."
   [nested-map]
   {:pre [(map? nested-map)]}
-  (into (empty nested-map)
-        xform-nested-map->path-map
-        nested-map))
+  (transform nested-map xform-nested-map->path-map))
 
 (defn path-map->nested-map
   "Takes a flat map of vector paths to values and returns a nested map to the

@@ -1795,9 +1795,8 @@
     num))
 
 (defn non-zeroify-scale [scale]
-  (into (coll/empty-with-meta scale)
-        (map non-zeroify-component)
-        scale))
+  (coll/transform scale
+    (map non-zeroify-component)))
 
 (g/defnode SceneNode
   (property position types/Vec3 (default default-position)
