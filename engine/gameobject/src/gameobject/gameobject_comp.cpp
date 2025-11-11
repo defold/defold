@@ -34,7 +34,7 @@ namespace dmGameObject
         ComponentTypeSetInitFn(type, CompScriptInit);
         ComponentTypeSetFinalFn(type, CompScriptFinal);
         ComponentTypeSetAddToUpdateFn(type, CompScriptAddToUpdate);
-        ComponentTypeSetUpdateFn(type, CompScriptUpdate);
+        ComponentTypeSetPreUpdateFn(type, CompScriptPreUpdate);
         ComponentTypeSetFixedUpdateFn(type, CompScriptFixedUpdate);
         ComponentTypeSetOnMessageFn(type, CompScriptOnMessage);
         ComponentTypeSetOnInputFn(type, CompScriptOnInput);
@@ -54,7 +54,7 @@ namespace dmGameObject
         ComponentTypeSetNewWorldFn(type, CompAnimNewWorld);
         ComponentTypeSetDeleteWorldFn(type, CompAnimDeleteWorld);
         ComponentTypeSetAddToUpdateFn(type, CompAnimAddToUpdate);
-        ComponentTypeSetUpdateFn(type, CompAnimUpdate);
+        ComponentTypeSetPreUpdateFn(type, CompAnimPreUpdate);
         return dmGameObject::RESULT_OK;
     }
 

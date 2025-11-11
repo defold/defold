@@ -298,6 +298,16 @@ namespace dmGameObject
     };
 
     /*#
+     * Component pre-update function. Run component logic before main Update and FixedUpdate (optional)
+     * @typedef
+     * @name ComponentsPreUpdate
+     * @param params [type: const dmGameObject::ComponentsUpdateParams&] Update parameters
+     * @param params [type: dmGameObject::ComponentsUpdateResult&] (out) Update result
+     * @return result [type: UpdateResult] UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsPreUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
+
+    /*#
      * Component update function. Updates all component of this type for all game objects
      * @typedef
      * @name ComponentsUpdate

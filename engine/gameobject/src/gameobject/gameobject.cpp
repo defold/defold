@@ -661,8 +661,8 @@ namespace dmGameObject
         if (FindComponentType(regist, type.m_ResourceType, 0x0) != 0)
             return RESULT_ALREADY_REGISTERED;
 
-        if (type.m_UpdateFunction != 0x0 && type.m_AddToUpdateFunction == 0x0) {
-            dmLogWarning("Registering an Update function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
+        if ((type.m_UpdateFunction != 0x0 || type.m_PreUpdateFunction != 0x0 || type.m_FixedUpdateFunction != 0x0) && type.m_AddToUpdateFunction == 0x0) {
+            dmLogWarning("Registering an PreUpdate/Update/FixedUpdate function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
             return RESULT_INVALID_OPERATION;
         }
 
@@ -2620,13 +2620,47 @@ namespace dmGameObject
         }
 
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
+        // pre update 
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms)
+            {
+                UpdateTransforms(collection);
+            }
+
+            if (component_type->m_PreUpdateFunction)
+            {
+                DM_PROFILE_DYN(component_type->m_Name, 0);
+                ComponentsUpdateParams params;
+                params.m_Collection = collection->m_HCollection;
+                params.m_UpdateContext = &dynamic_update_context;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+
+                ComponentsUpdateResult update_result;
+                update_result.m_TransformsUpdated = false;
+                UpdateResult res = component_type->m_PreUpdateFunction(params, update_result);
+                if (res != UPDATE_RESULT_OK)
+                {
+                    ret = false;
+                }
+
+                // Mark the collections transforms as dirty if this component has updated
+                // them in its update function.
+                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+            }
+        }
+        // regular update
         for (uint32_t i = 0; i < component_types; ++i)
         {
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
             // Avoid to call UpdateTransforms for each/all component types.
-            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
+            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms)
+            {
                 UpdateTransforms(collection);
             }
 
@@ -2721,7 +2755,8 @@ namespace dmGameObject
         }
 
         collection->m_InUpdate = 0;
-        if (collection->m_DirtyTransforms) {
+        if (collection->m_DirtyTransforms)
+        {
             UpdateTransforms(collection);
         }
 
