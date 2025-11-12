@@ -119,7 +119,7 @@
     (vec (sort updated-regions))))
 
 (defn- breakpoints-view [parent state]
-  {:fx/type ext-with-anchor-pane-props
+  {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
           :value parent}
    :props {:stylesheets [(str (io/resource "editor.css"))]
@@ -258,8 +258,8 @@
                                 (icon-button close-icon {:event-type :remove
                                                          :breakpoint breakpoint})]))))}})))
 
-(defn- breakpoints-view [parent state]
-  {:fx/type ext-with-anchor-pane-props
+(defn- breakpoints-view-list-version [parent state]
+  {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
           :value parent}
    :props {:stylesheets [(str (io/resource "editor.css"))]
@@ -429,14 +429,15 @@
         (for [{:keys [script-node breakpoints]} script-bps
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]]
           (g/set-property script-node :regions updated-regions)))))
-  (fx/mount-renderer
-    state
-    (fx/create-renderer
-     :error-handler #'error-reporting/report-exception!
-     :middleware (comp
-                   fxui/wrap-dedupe-desc
-                   (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
-     :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! root project open-resource-fn %)}))
+  (let [open-res-fn (make-open-resource-fn project open-resource-fn)]
+    (fx/mount-renderer
+      state
+      (fx/create-renderer
+       :error-handler #'error-reporting/report-exception!
+       :middleware (comp
+                     fxui/wrap-dedupe-desc
+                     (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
+       :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! root project open-res-fn %)})))
   (let [timer (ui/->timer
                4
                "breakpoints-tab-update-timer"
