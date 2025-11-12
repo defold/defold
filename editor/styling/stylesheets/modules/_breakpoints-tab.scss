@@ -1,16 +1,46 @@
-#breakpoints-table-view .table-cell {
-    -fx-padding: 3px;
-    -fx-alignment: center-left;
+#breakpoints-table-view {
+    -fx-control-inner-background: -df-background-lightish;
+    -fx-control-inner-background-alt: -df-background-lightish;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+
+    &:focused {
+        -fx-border-width: 0;
+    }
+
+    .table-row-cell {
+        -fx-border-width: 2px;
+        -fx-border-color: transparent transparent transparent transparent;
+
+        &:focused {
+            -fx-border-color: transparent transparent transparent -df-defold-orange;
+        }
+    }
+
+    .table-cell {
+        -fx-padding: 5px 5px 5px 8px;
+        -fx-border-color: transparent;
+        -fx-alignment: center-left;
+    }
+
+    .column-header {
+        -fx-background-color: -df-background-lightish;
+    }
+
+    .filler {
+        -fx-background-color: -df-background-lightish;
+        -fx-border-color: -df-background-lightish;
+    }
 }
 
 #breakpoints-tool-bar {
-  -fx-background-color: -df-background-light;
-  -fx-padding: 16px;
-  -fx-spacing: 8px;
+    -fx-background-color: -df-background-light;
+    -fx-padding: 16px;
+    -fx-spacing: 8px;
 }
 
 #breakpoints-enable-all,
 #breakpoints-disable-all,
 #breakpoints-toggle-all {
-  @extend .console-button-base;
+    @extend .console-button-base;
 }
