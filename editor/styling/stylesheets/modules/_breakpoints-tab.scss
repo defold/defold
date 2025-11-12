@@ -1,29 +1,12 @@
-#breakpoints-grid-pane {
-  -fx-background-color: -df-background-light;
+#breakpoints-table-view .table-cell {
+    -fx-padding: 3px;
+    -fx-alignment: center-left;
 }
 
 #breakpoints-tool-bar {
   -fx-background-color: -df-background-light;
   -fx-padding: 16px;
-  -fx-spacing: 5px;
-}
-
-#breakpoints-list {
-  -fx-background-color: -df-background-light;
-
-  .list-cell {
-    -fx-background-color: transparent;
-    -fx-text-fill: -df-text;
-    -fx-padding: 8px;
-
-    &:hover {
-      -fx-background-color: -df-component-lighter;
-    }
-
-    &:selected {
-      -fx-background-color: -df-component-light;
-    }
-  }
+  -fx-spacing: 8px;
 }
 
 #breakpoints-enable-all,
