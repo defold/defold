@@ -26,6 +26,7 @@
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.model-loader :as model-loader]
+            [editor.model-util :as model-util]
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -34,10 +35,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
             [editor.workspace :as workspace]
-            [internal.util :as util]
-            [service.log :as log]
-            [util.coll :as coll :refer [pair]]
-            [util.eduction :as e]
+            [util.coll :as coll]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -115,18 +113,6 @@
           :input-floats-pb-field input-floats-pb-field
           :mesh-request-id mesh-request-id
           :mesh mesh})))))
-
-(defn- make-transformed-attribute-buffer [scene-node-id untransformed-attribute-buffer-lifecycle attribute-transform]
-  {:pre [(g/node-id? scene-node-id)]}
-  (let [transform-render-arg-key (graphics.types/attribute-transform-render-arg-key attribute-transform)
-        w-component (graphics.types/attribute-transform-w-component attribute-transform)
-        untransformed-buffer-data (graphics.types/buffer-data untransformed-attribute-buffer-lifecycle)
-        untransformed-buffer-request-id (:request-id untransformed-attribute-buffer-lifecycle)
-        _ (assert (g/node-id? (:scene-node-id untransformed-buffer-request-id)))
-        request-id (assoc untransformed-buffer-request-id
-                     :scene-node-id scene-node-id
-                     :attribute-transform attribute-transform)]
-    (attribute/make-transformed-attribute-buffer request-id untransformed-buffer-data transform-render-arg-key w-component)))
 
 (defn- make-index-buffer [mesh-request-id mesh indices-pb-field]
   (when-let [^ByteString indices-byte-string (get mesh indices-pb-field)]
@@ -544,110 +530,15 @@
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
       renderable-mesh-set-or-error-value)))
 
-(defn- make-attribute-render-arg-binding [render-arg-key attribute-info]
-  (let [{:keys [data-type location normalize vector-type]} attribute-info
-        element-type (graphics.types/make-element-type vector-type data-type normalize)]
-    (attribute/make-attribute-render-arg-binding render-arg-key element-type location)))
-
-(defn- make-attribute-buffer-binding [attribute-buffer-lifecycle attribute-info scene-node-id]
-  (let [{:keys [attribute-transform ^long location]} attribute-info]
-    (case attribute-transform
-      (:attribute-transform-none)
-      (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location)
-
-      (:attribute-transform-normal :attribute-transform-world)
-      (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
-          (attribute/make-attribute-buffer-binding location)))))
-
-(defn- make-attribute-value-binding [attribute-bytes attribute-info]
-  (let [{:keys [attribute-transform data-type location normalize semantic-type vector-type]} attribute-info
-        element-type (graphics.types/make-element-type vector-type data-type normalize)
-
-        value-array
-        (or (when attribute-bytes
-              (try
-                (let [byte-buffer (buffers/wrap-byte-array attribute-bytes :byte-order/native)
-                      buffer-data-type (graphics.types/data-type->buffer-data-type data-type)]
-                  (buffers/as-primitive-array byte-buffer buffer-data-type))
-                (catch Exception exception
-                  (let [message (format "Vertex attribute '%s' - %s"
-                                        (:name attribute-info)
-                                        (ex-message exception))]
-                    (log/warn :message message
-                              :exception exception
-                              :ex-data (ex-data exception)))
-                  nil)))
-            (graphics.types/default-attribute-value-array semantic-type element-type))]
-
-    (case attribute-transform
-      (:attribute-transform-none)
-      (attribute/make-attribute-value-binding value-array element-type location)
-
-      (:attribute-transform-normal :attribute-transform-world)
-      (let [transform-render-arg-key (graphics.types/attribute-transform-render-arg-key attribute-transform)
-            w-component (graphics.types/attribute-transform-w-component attribute-transform)]
-        (attribute/make-transformed-attribute-value-binding value-array element-type transform-render-arg-key w-component location)))))
-
-(defn- make-render-arg-attribute-binding-entries [attribute-infos render-arg-key]
-  (->> attribute-infos
-       (e/map
-         (fn [{:keys [name-key] :as attribute-info}]
-           {:pre [(keyword? name-key)]}
-           (pair name-key
-                 (make-attribute-render-arg-binding render-arg-key attribute-info))))))
-
-(defn- make-model-attribute-binding-entries [attribute-infos attribute-buffers attribute-bytes-by-name-key scene-node-id]
-  (let [attribute-buffer-count (count attribute-buffers)]
-    (->> attribute-infos
-         (e/map-indexed
-           (fn [^long channel {:keys [name-key] :as attribute-info}]
-             {:pre [(keyword? name-key)]}
-             ;; Use attribute buffers from the mesh when available. Otherwise,
-             ;; use the attribute value from the referencing Model component. If
-             ;; not overridden by the Model, use the value specified for the
-             ;; attribute in the Material. Finally, if none of the above are
-             ;; available, use a suitable default value inferred from the
-             ;; semantic-type.
-             (pair name-key
-                   (if (< channel attribute-buffer-count)
-                     (let [attribute-buffer (attribute-buffers channel)]
-                       (make-attribute-buffer-binding attribute-buffer attribute-info scene-node-id))
-                     (let [attribute-bytes (or (get attribute-bytes-by-name-key name-key) ; From the referencing Model component.
-                                               (:bytes attribute-info))] ; From the Material.
-                       (make-attribute-value-binding attribute-bytes attribute-info)))))))))
-
-(defn- make-attribute-bindings
-  ([semantic-type->attribute-buffers combined-attribute-infos]
-   (make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos nil nil))
-  ([semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes scene-node-id]
-   ;; Note: The combined-attribute-infos are in material declaration order. This
-   ;; becomes important when channels are assigned later in this function.
-   (->> combined-attribute-infos
-        (util/group-into {} [] :semantic-type)
-        (into {}
-              (mapcat
-                (fn [[semantic-type attribute-infos]]
-                  {:pre [(graphics.types/semantic-type? semantic-type)]}
-                  (case semantic-type
-                    :semantic-type-world-matrix
-                    (make-render-arg-attribute-binding-entries attribute-infos :world)
-
-                    :semantic-type-normal-matrix
-                    (make-render-arg-attribute-binding-entries attribute-infos :normal)
-
-                    ;; else
-                    (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
-                      (make-model-attribute-binding-entries attribute-infos attribute-buffers vertex-attribute-bytes scene-node-id)))))))))
-
 (defn- make-mesh-scene [renderable-mesh]
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
         attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
-        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
+        attribute-bindings (model-util/make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
         selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
-        selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
+        selection-attribute-bindings (model-util/make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
 
         user-data
         {:attribute-bindings attribute-bindings
@@ -735,7 +626,7 @@
                         semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
                         combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
                         coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
-                        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes new-node-id)]
+                        attribute-bindings (model-util/make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes new-node-id)]
                     (assoc user-data
                       :attribute-bindings attribute-bindings
                       :coordinate-space-info coordinate-space-info
