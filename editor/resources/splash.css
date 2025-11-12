@@ -76,6 +76,7 @@ Label.emphasis {
 * {
   -df-background-darker: derive(#212428, -40%);
   -df-background: #212428;
+  -df-background-lightish: #27292D;
   -df-background-light: #2c2e33;
   -df-background-lighter: #3B3F43;
   -df-background-input: #292a2f;

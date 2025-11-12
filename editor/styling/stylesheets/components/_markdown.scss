@@ -71,7 +71,7 @@
   }
   &-code-block {
     -fx-padding: 10px;
-    -fx-background-color: #27292D;
+    -fx-background-color: -df-background-lightish;
     -fx-background-radius: 4px;
     &-hover { visibility: hidden; }
     &:hover > &-hover { visibility: visible; }
