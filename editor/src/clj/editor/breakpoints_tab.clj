@@ -24,6 +24,7 @@
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.table-cell :as fx.table-cell]
             [cljfx.fx.table-column :as fx.table-column]
@@ -44,14 +45,14 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.fn :as fn])
-  (:import [javafx.scene.control ListCell ListView]
-           [javafx.scene.input MouseButton MouseEvent]))
+  (:import [javafx.scene.control ListCell ListView TextField]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]))
 
 (set! *warn-on-reflection* true)
 
 (defonce state (atom {:breakpoints []
                       :selected-indices []
-                      :hovered nil
+                      :hovered-breakpoint nil
                       :edited-breakpoint nil
                       :edited-condition nil}))
 
@@ -119,6 +120,54 @@
         updated-regions (concat non-bp-regions existing-bp-regions new-bp-regions)]
     (vec (sort updated-regions))))
 
+(defn- icon-button [icon-path on-action-event]
+  {:fx/type fx.button/lifecycle
+   :style "-fx-padding: 2; -fx-min-width: 0; -fx-pref-width: 30;"
+   :graphic {:fx/type fx.stack-pane/lifecycle
+             :min-width 12
+             :min-height 12
+             :max-width 12
+             :max-height 12
+             :children [{:fx/type fx.svg-path/lifecycle
+                         :content icon-path
+                         :scale-x 0.5
+                         :scale-y 0.5
+                         :style "-fx-fill: -fx-text-base-color;"}]}
+   :on-action on-action-event})
+
+(defn- condition-table-cell [state breakpoint]
+  (let [condition (:condition breakpoint)
+        editing? (= (:edited-breakpoint state) breakpoint)
+        hovered? (= (:hovered-breakpoint state) breakpoint)
+        edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+        close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
+    (if editing?
+      {:graphic {:fx/type fx/ext-on-instance-lifecycle
+                 :on-created (fn [^TextField node]
+                               (ui/run-later (.requestFocus node)))
+                 :desc {:fx/type fx.text-field/lifecycle
+                        :text condition
+                        :on-text-changed {:event-type :condition-text-changed}
+                        :on-action {:event-type :save-condition}
+                        :on-key-pressed {:event-type :key-pressed}}}}
+      {:graphic {:fx/type fx.stack-pane/lifecycle
+                 :children [{:fx/type :label
+                             :max-width ##Inf
+                             :text-overrun :ellipsis
+                             :text (or condition "")}
+                            {:fx/type fx.h-box/lifecycle
+                             :max-width ##Inf
+                             :alignment :center-right
+                             :children (concat (when hovered?
+                                                 [(icon-button edit-icon {:event-type :edit-condition
+                                                                          :breakpoint breakpoint})
+                                                  (icon-button close-icon {:event-type :remove-condition
+                                                                           :breakpoint breakpoint})]))}]}
+       :on-mouse-entered {:event-type :row-mouse-entered  :breakpoint breakpoint}
+       :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint breakpoint}
+       :on-mouse-clicked {:event-type :edit-condition
+                          :breakpoint breakpoint}})))
+
 (defn- breakpoints-view [parent state]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
@@ -156,6 +205,7 @@
                        :desc
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
+                        :fixed-cell-size 35.0
                         :on-mouse-pressed {:event-type :list-view-clicked}
                         :context-menu {:fx/type fx.context-menu/lifecycle
                                        :consume-auto-hiding-events false
@@ -183,6 +233,7 @@
                                    :cell-value-factory identity
                                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                                   :describe (fn [breakpoint]
+                                                              ;; NOTE: When we delete a breakpoint, we receive a nil
                                                               (if (nil? breakpoint)
                                                                 {:text ""}
                                                                 {:alignment :center
@@ -204,29 +255,9 @@
                                    :text "Condition"
                                    :pref-width 200
                                    :cell-value-factory identity
-                                   :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                                  :describe (fn [bp]
-                                                              ;; (println (:edited-breakpoint state))
-                                                              (let [condition (:condition bp)
-                                                                    editing? (= (:edited-breakpoint state) bp)]
-                                                                (if editing?
-                                                                  {:graphic {:fx/type fx.text-field/lifecycle
-                                                                             :text (:condition-text state)
-                                                                             :on-text-changed {:event-type :condition-text-changed}
-                                                                             :on-action {:event-type :save-condition}}}
-                                                                  {:text condition
-                                                                   :on-mouse-clicked {:event-type :edit-condition
-                                                                                      :breakpoint bp}})))}}]}}]}})
-
-(defn- icon-button [icon-path on-action-event]
-  {:fx/type fx.button/lifecycle
-   :style "-fx-padding: 2; -fx-min-width: 0; -fx-pref-width: 30;"
-   :graphic {:fx/type fx.svg-path/lifecycle
-             :content icon-path
-             :scale-x 0.5
-             :scale-y 0.5
-             :style "-fx-fill: -fx-text-base-color;"}
-   :on-action on-action-event})
+                                   :cell-factory
+                                   {:fx/cell-type fx.table-cell/lifecycle
+                                    :describe (fn/partial condition-table-cell state)}}]}}]}})
 
 (defn- breakpoint-cell-view [state breakpoint-idx]
   (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
@@ -340,7 +371,7 @@
                                        :describe (fn/partial breakpoint-cell-view state)}}}]}})
 
 (defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
-  ;; NOTE: Any of these actions should disable editing
+  ;; Any of these actions should disable editing
   (swap! state assoc :edited-breakpoint nil)
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
         all-by-resource (group-by :resource all-breakpoints)
@@ -368,6 +399,7 @@
             script-node (breakpoint->script-node project breakpoint evaluation-context)
             toggled-breakpoint (toggle-breakpoint-active breakpoints-in-script breakpoint)
             regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
+        (swap! state assoc :edited-breakpoint nil)
         (g/set-property! script-node :regions regions))
 
       :remove
@@ -392,22 +424,40 @@
       :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
             {:keys [resource row]} (:clicked-breakpoint event)]
+        (swap! state assoc :edited-breakpoint nil)
         ;; TODO: Do we need to check primary?
         (when (and (= MouseButton/PRIMARY (.getButton e))
                  (= 2 (.getClickCount e)))
           (open-resource-fn resource (inc row))))
 
-      :breakpoint-mouse-entered (swap! state assoc :hovered (:breakpoint-idx event))
-      :breakpoint-mouse-exited  (swap! state assoc :hovered nil)
+      :row-mouse-entered
+      (swap! state assoc :hovered-breakpoint (:breakpoint event))
+
+      :row-mouse-exited
+      (swap! state assoc :hovered-breakpoint nil)
 
       :edit-condition
       (when (= 2 (.getClickCount (:fx/event event)))
         (.consume (:fx/event event))
         (swap! state assoc :edited-breakpoint (:breakpoint event)))
 
+      :remove-condition
+      ;; TODO: Maybe generalize this since it's the same belove for save-condition
+      (let [breakpoint (:breakpoint event)
+            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
+            updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint nil)
+            script-node (breakpoint->script-node project breakpoint evaluation-context)
+            regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
+        (swap! state assoc :edited-breakpoint nil)
+        (reset! condition-text nil)
+        (g/set-property! script-node :regions regions))
+
       :condition-text-changed (reset! condition-text (:fx/event event))
 
-      :key-pressed (println event)
+      :key-pressed
+      (when (= (.getCode ^KeyEvent (:fx/event event)) KeyCode/ESCAPE)
+        (reset! condition-text nil)
+        (swap! state assoc :edited-breakpoint nil))
 
       :save-condition
       (when (not (string/blank? @condition-text))
