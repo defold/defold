@@ -209,6 +209,25 @@
 (defn clj-quat->euler [[^double x ^double y ^double z ^double w]]
   (quat-components->euler x y z w))
 
+(defn float-array-distance-sq
+  ^double [^floats a ^floats b]
+  (let [ax (aget a 0)
+        ay (aget a 1)
+        az (aget a 2)
+        bx (aget b 0)
+        by (aget b 1)
+        bz (aget b 2)
+        dx (- bx ax)
+        dy (- by ay)
+        dz (- bz az)]
+    (+ (* dx dx)
+       (+ (* dy dy)
+          (* dz dz)))))
+
+(defn float-array-distance
+  ^double [^floats a ^floats b]
+  (Math/sqrt (float-array-distance-sq a b)))
+
 (defn offset-scaled
   ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
   (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.

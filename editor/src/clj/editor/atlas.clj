@@ -38,7 +38,7 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.render :as render]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-io :as resource-io]
@@ -570,15 +570,6 @@
           (shader/set-samplers-by-index shaders/basic-texture-paged-local-space gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 
-(defn- render-page-outline
-  [^GL2 gl render-args renderables renderable-count]
-  (let [{:keys [pass]} render-args]
-    (condp = pass
-      pass/outline
-      (let [renderable (first renderables)
-            node-id (:node-id renderable)]
-        (render/render-aabb-outline gl render-args [node-id ::outline] renderables renderable-count)))))
-
 (defn- make-page-scene
   [aabb layout-width layout-height page-index gpu-texture]
   {:aabb aabb
@@ -589,9 +580,7 @@
                 :tags #{:atlas}
                 :passes [pass/transparent]}
    :children [{:aabb aabb
-               :renderable {:render-fn render-page-outline
-                            :tags #{:atlas :outline}
-                            :passes [pass/outline]}}]})
+               :renderable (render-util/make-aabb-outline-renderable :atlas)}]})
 
 (g/defnk produce-scene
   [_node-id aabb layout-rects layout-size gpu-texture child-scenes texture-profile]

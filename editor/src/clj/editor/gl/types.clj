@@ -112,7 +112,8 @@
   ^long [usage]
   (case usage
     :dynamic GL2/GL_DYNAMIC_DRAW
-    :static GL2/GL_STATIC_DRAW))
+    :static GL2/GL_STATIC_DRAW
+    :stream GL2/GL_STREAM_DRAW))
 
 (defn gl-compatible-buffer? [^Buffer value]
   (and (instance? Buffer value)

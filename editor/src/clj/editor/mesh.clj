@@ -30,7 +30,7 @@
             [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.render :as render]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
@@ -246,6 +246,7 @@
         array-streams))
 
 (defn- render-scene [^GL2 gl render-args renderables rcount]
+  ;; TODO(instancing): Update rendering to use AttributeBufferBindings. Share scene representation with ModelSceneNode?
   (let [pass (:pass render-args)]
     (condp = pass
       pass/opaque
@@ -253,14 +254,6 @@
 
       pass/opaque-selection
       (render-scene-opaque-selection gl render-args renderables rcount))))
-
-(defn- render-outline [^GL2 gl render-args renderables rcount]
-  (let [pass (:pass render-args)]
-    (condp = pass
-      pass/outline
-      (let [renderable (first renderables)
-            node-id (:node-id renderable)]
-        (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
 
 (defn data-type->buffer-value-type [type]
   (case type
@@ -372,11 +365,7 @@
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id
                    :aabb aabb
-                   :renderable {:render-fn render-outline
-                                :tags #{:model :outline}
-                                :batch-key _node-id
-                                :select-batch-key _node-id
-                                :passes [pass/outline]}}]})))
+                   :renderable (render-util/make-aabb-outline-renderable :model)}]})))
 
 (g/defnk produce-aabb [streams position-stream]
   (if-some [{:keys [count data]} (coll/first-where #(position-stream-name? (:name %) position-stream) streams)]

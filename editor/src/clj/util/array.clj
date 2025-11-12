@@ -166,7 +166,14 @@
      (set-items-impl! array more 8)
      array)))
 
-;; TODO: Add primitive equivalents:
+(defmacro of-floats [& numbers]
+  (let [arg-count (count numbers)]
+    (case arg-count
+      0 `empty-float-array
+      `(doto (float-array ~arg-count)
+         ~@(map-indexed #(list `Array/setFloat %1 %2) numbers)))))
+
+;; TODO: Add all primitive equivalents:
 ;; of-booleans
 ;; of-chars
 ;; of-bytes

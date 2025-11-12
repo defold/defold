@@ -49,7 +49,7 @@
   Counted
   (count [_this]
     (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
-      (/ item-count buf-items-per-vertex))))
+      (quot item-count buf-items-per-vertex))))
 
 (defn- buffer-items-per-vertex
   ^long [^Buffer buffer vertex-description]

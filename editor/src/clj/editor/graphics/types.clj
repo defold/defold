@@ -287,7 +287,7 @@
        (pos? (count value))
        (coll/not-any? neg? value)))
 
-(def usage? #{:dynamic :static})
+(def usage? #{:dynamic :static :stream})
 
 (defonce vector-types (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
 

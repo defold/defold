@@ -561,8 +561,9 @@
 
 (defn push-floats!
   ^ByteBuffer [^ByteBuffer buffer numbers]
-  (doseq [n numbers]
-    (.putFloat buffer (float n)))
+  (run! (fn [n]
+          (.putFloat buffer (float n)))
+        numbers)
   buffer)
 
 (defn push!

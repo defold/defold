@@ -36,7 +36,7 @@
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.render :as render]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
@@ -320,15 +320,10 @@
                             :picking-color :select-batch-key
                             :picking-rect :select-batch-key})
 
-(defn- render-aabb [^GL2 gl render-args renderables rcount]
-  (render/render-aabb-outline gl render-args ::renderable-aabb renderables rcount))
-
 (defn- make-aabb-renderables [renderables]
-  (into []
-        (comp
-          (filter :aabb)
-          (map #(assoc % :render-fn render-aabb)))
-        renderables))
+  (coll/transfer renderables []
+    (keep :aabb)
+    (map #(assoc (render-util/make-aabb-outline-renderable :renderable) :aabb %))))
 
 (defn render! [^GLContext context render-mode renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)

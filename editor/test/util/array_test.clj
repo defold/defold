@@ -139,6 +139,20 @@
               (object-array expected-items)
               actual-items))))))
 
+(deftest of-floats-test
+  (is (identical? array/empty-float-array (array/of-floats)))
+  (is (pos? (* 100.0 (aget (array/of-floats 123.45) 0))))
+  (doseq [[expected actual]
+          [[[(float -1)] (array/of-floats -1)]
+           [[(float 0)] (array/of-floats 0)]
+           [[(float 1)] (array/of-floats 1)]
+           [[(float 1) (float 2)] (array/of-floats 1 2)]
+           [[(float 1.1) (float 2.1)] (array/of-floats 1.1 2.1)]
+           [[(float 1.2) (float 2.2) (float 3.2)] (array/of-floats 1.2 2.2 3.2)]
+           [[(float 1.3) (float 2.3) (float 3.3) (float 4.3)] (array/of-floats 1.3 2.3 3.3 4.3)]]]
+    (is (= float/1 (class actual)))
+    (is (= expected (vec actual)))))
+
 (deftest from-test
   (is (= Object/1 (class (array/from nil))))
   (is (= Object/1 (class (array/from ["item"]))))

@@ -27,7 +27,7 @@
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.model-util :as model-util]
-            [editor.render :as render]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
@@ -279,15 +279,6 @@
 
     pass/opaque-selection
     (render-mesh-opaque-selection gl render-args renderables)))
-
-(defn- render-outline [^GL2 gl render-args renderables rcount]
-  ;; TODO(instancing): Seems like we could batch these? The :aabb should already be in world-space after flattening, but maybe the issue is selection highlighting?
-  (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
-  (when (= pass/outline (:pass render-args))
-    (let [renderable (first renderables)
-          node-id (:node-id renderable)
-          request-id [::outline node-id]]
-      (render/render-aabb-outline gl render-args request-id renderables rcount))))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
   (rig/make-mesh-set-build-target (resource/workspace resource) _node-id (:mesh-set content)))
@@ -574,11 +565,7 @@
         child-scenes
         (into [{:node-id model-scene-resource-node-id
                 :aabb aabb
-                :renderable {:render-fn render-outline
-                             :tags #{:model :outline}
-                             :batch-key nil
-                             :select-batch-key :not-rendered
-                             :passes [pass/outline]}}]
+                :renderable (render-util/make-aabb-outline-renderable :model)}]
               (map make-model-scene)
               renderable-models)]
 
