@@ -27,6 +27,7 @@
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.table-cell :as fx.table-cell]
             [cljfx.fx.table-column :as fx.table-column]
+            [cljfx.fx.table-row :as fx.table-row]
             [cljfx.fx.table-view :as fx.table-view]
             [cljfx.fx.text-field :as fx.text-field]
             [clojure.java.io :as io]
@@ -171,32 +172,51 @@
                                                {:fx/type fx.menu-item/lifecycle
                                                 :text "Remove Selected"
                                                 :on-action {:event-type :remove-selected}}]}
+                        :row-factory {:fx/cell-type fx.table-row/lifecycle
+                                      :describe (fn [bp]
+                                                  {:on-mouse-clicked {:event-type :breakpoint-clicked
+                                                                      :clicked-breakpoint bp}})}
                         :items (:breakpoints state)
                         :columns [{:fx/type fx.table-column/lifecycle
                                    :text "Enabled"
-                                   :pref-width 80
+                                   :pref-width 70
                                    :cell-value-factory identity
                                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                                   :describe (fn [breakpoint]
-                                                              {:graphic {:fx/type fx.check-box/lifecycle
-                                                                         :selected (:active breakpoint)
-                                                                         :on-selected-changed {:event-type :toggle-active
-                                                                                               :breakpoint breakpoint}}})}}
+                                                              (if (nil? breakpoint)
+                                                                {:text ""}
+                                                                {:alignment :center
+                                                                 :graphic {:fx/type fx.check-box/lifecycle
+                                                                           :selected (:active breakpoint)
+                                                                           :on-selected-changed {:event-type :toggle-active
+                                                                                                 :breakpoint breakpoint}}}))}}
                                   {:fx/type fx.table-column/lifecycle
-                                   :text "Location"
+                                   :text "File"
                                    :pref-width 250
                                    :cell-value-factory (fn [breakpoint]
-                                                         (str (-> breakpoint :resource :project-path)
-                                                              ":" (inc (:row breakpoint))))}
+                                                         (-> breakpoint :resource :project-path))}
+                                  {:fx/type fx.table-column/lifecycle
+                                   :text "Line"
+                                   :pref-width 50
+                                   :cell-value-factory (fn [breakpoint]
+                                                         (str (inc (:row breakpoint))))}
                                   {:fx/type fx.table-column/lifecycle
                                    :text "Condition"
                                    :pref-width 200
-                                   :cell-value-factory :condition
-                                   :editable true
-                                   :on-edit-commit (fn [e]
-                                                     {:event-type :save-condition
-                                                      :breakpoint (.getRowValue e)
-                                                      :new-value (.getNewValue e)})}]}}]}})
+                                   :cell-value-factory identity
+                                   :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                                  :describe (fn [bp]
+                                                              ;; (println (:edited-breakpoint state))
+                                                              (let [condition (:condition bp)
+                                                                    editing? (= (:edited-breakpoint state) bp)]
+                                                                (if editing?
+                                                                  {:graphic {:fx/type fx.text-field/lifecycle
+                                                                             :text (:condition-text state)
+                                                                             :on-text-changed {:event-type :condition-text-changed}
+                                                                             :on-action {:event-type :save-condition}}}
+                                                                  {:text condition
+                                                                   :on-mouse-clicked {:event-type :edit-condition
+                                                                                      :breakpoint bp}})))}}]}}]}})
 
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
@@ -320,6 +340,8 @@
                                        :describe (fn/partial breakpoint-cell-view state)}}}]}})
 
 (defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
+  ;; NOTE: Any of these actions should disable editing
+  (swap! state assoc :edited-breakpoint nil)
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
         all-by-resource (group-by :resource all-breakpoints)
         breakpoints-by-script (map (fn [{:keys [script-node resource breakpoints]}]
@@ -333,6 +355,8 @@
                         (g/set-property script :regions new-regions)))
                     breakpoints-by-script)]
     (g/transact txs)))
+
+(defonce condition-text (atom nil))
 
 (defn- handle-breakpoint-event! [root project open-resource-fn event]
   ;; TODO: No all events need this, probably better to split between those that do and don't
@@ -368,25 +392,33 @@
       :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
             {:keys [resource row]} (:clicked-breakpoint event)]
-        (if (and (= MouseButton/PRIMARY (.getButton e))
+        ;; TODO: Do we need to check primary?
+        (when (and (= MouseButton/PRIMARY (.getButton e))
                  (= 2 (.getClickCount e)))
-          (open-resource-fn resource (+ 1 row))))
+          (open-resource-fn resource (inc row))))
 
       :breakpoint-mouse-entered (swap! state assoc :hovered (:breakpoint-idx event))
       :breakpoint-mouse-exited  (swap! state assoc :hovered nil)
 
-      :edit-condition (swap! state assoc :edited-breakpoint (:breakpoint-idx event))
-      :condition-text-changed (swap! state assoc :edited-condition (:fx/event event))
+      :edit-condition
+      (when (= 2 (.getClickCount (:fx/event event)))
+        (.consume (:fx/event event))
+        (swap! state assoc :edited-breakpoint (:breakpoint event)))
+
+      :condition-text-changed (reset! condition-text (:fx/event event))
+
+      :key-pressed (println event)
 
       :save-condition
-      (let [condition-text (:edited-condition @state)
-            breakpoint (get (:breakpoints @state) (:edited-breakpoint @state))
-            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
-            updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint condition-text)
-            script-node (breakpoint->script-node project breakpoint evaluation-context)
-            regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
-        (swap! state assoc :edited-breakpoint nil)
-        (g/set-property! script-node :regions regions))
+      (when (not (string/blank? @condition-text))
+        (let [breakpoint (:edited-breakpoint @state)
+              breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
+              updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint @condition-text)
+              script-node (breakpoint->script-node project breakpoint evaluation-context)
+              regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
+          (swap! state assoc :edited-breakpoint nil)
+          (reset! condition-text nil)
+          (g/set-property! script-node :regions regions)))
 
       ;; default case
       ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
