@@ -252,7 +252,15 @@
         bp-regions (map (partial breakpoint->region lines) breakpoints)]
     (vec (sort (concat non-bp-regions bp-regions)))))
 
-(defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
+(defn- set-breakpoint-condition! [project breakpoints breakpoint condition evaluation-context]
+  ;; TODO: Create a function for this filter thing
+  (let [script-node (breakpoint->script-node project breakpoint evaluation-context)
+        breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) breakpoints)
+        updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint condition)
+        regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
+    (g/set-property! script-node :regions regions)))
+
+(defn- set-regions-with-action [project evaluation-context all-breakpoints breakpoints action-fn]
   ;; Any of these actions should disable editing
   (swap! state assoc :edited-breakpoint nil)
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
@@ -316,15 +324,10 @@
           (swap! state assoc :edited-breakpoint (:breakpoint event))))
 
       :remove-condition
-      ;; TODO: Maybe generalize this since it's the same below for save-condition
-      (let [breakpoint (:breakpoint event)
-            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
-            updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint nil)
-            script-node (breakpoint->script-node project breakpoint evaluation-context)
-            regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
+      (let [breakpoint (:breakpoint event)]
+        (set-breakpoint-condition! project (:breakpoints @state) breakpoint nil evaluation-context)
         (swap! state assoc :edited-breakpoint nil)
-        (reset! condition-text nil)
-        (g/set-property! script-node :regions regions))
+        (reset! condition-text nil))
 
       :condition-text-changed (reset! condition-text (:fx/event event))
 
@@ -335,15 +338,10 @@
 
       ;; TODO: When I hit enter on an empty string it doesn't just save with empty
       :save-condition
-      (when (not (string/blank? @condition-text))
-        (let [breakpoint (:edited-breakpoint @state)
-              breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
-              updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint @condition-text)
-              script-node (breakpoint->script-node project breakpoint evaluation-context)
-              regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
-          (swap! state assoc :edited-breakpoint nil)
-          (reset! condition-text nil)
-          (g/set-property! script-node :regions regions)))
+      (let [condition (or @condition-text (get-in @state [:edited-breakpoint :condition]))]
+        (set-breakpoint-condition! project (:breakpoints @state) (:edited-breakpoint @state) condition evaluation-context)
+        (swap! state assoc :edited-breakpoint nil)
+        (reset! condition-text nil))
 
       ;; default case
       ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
@@ -353,25 +351,24 @@
             breakpoints (if (= scope "selected")
                                (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
                                all-breakpoints)
-            handle-fn (partial handle-breakpoint-action project evaluation-context all-breakpoints breakpoints)]
+            handle-fn (partial set-regions-with-action project evaluation-context all-breakpoints breakpoints)]
         (case action
           "remove" (handle-fn #(vec (remove (set %2) %1)))
           "toggle" (handle-fn toggle-breakpoints-enabled)
           "enable" (handle-fn #(update-breakpoints-enabled-state %1 %2 true))
           "disable" (handle-fn #(update-breakpoints-enabled-state %1 %2 false)))))))
 
-(defn- make-open-resource-fn
-  [open-resource-fn]
+(defn- make-open-resource-fn [open-resource-fn]
   (fn [resource line]
     (when resource
       (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)}))
     nil))
 
-(defn- save-breakpoints [prefs breakpoints]
+(defn- save-breakpoints! [prefs breakpoints]
   (let [bps-prefs (mapv #(dissoc (assoc % :proj-path (resource/proj-path (:resource %))) :resource) breakpoints)]
     (prefs/set! prefs [:code :breakpoints] bps-prefs)))
 
-(defn- restore-breakpoints [project prefs]
+(defn- restore-breakpoints! [project prefs]
   (g/with-auto-evaluation-context evaluation-context
     (let [bps-prefs (prefs/get prefs [:code :breakpoints])
           workspace (project/workspace project)
@@ -412,7 +409,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
-        (handle-breakpoint-action project
+        (set-regions-with-action project
                                   evaluation-context
                                   breakpoints
                                   selected
@@ -423,7 +420,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
-        (handle-breakpoint-action project
+        (set-regions-with-action project
                                   evaluation-context
                                   breakpoints
                                   selected
