@@ -2529,7 +2529,10 @@
       :active true)))
 
 (defn get-breakpoint-region [lines regions ^long row]
-  (some #(when (= (get-in % [:from :row]) row) %) regions))
+  (some #(when (and (= (:type %) :breakpoint)
+                    (= (get-in % [:from :row]) row))
+           %)
+        regions)))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))
