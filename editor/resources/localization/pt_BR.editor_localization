@@ -475,6 +475,56 @@ dialog.loading-project.header = Carregando projeto
 
 # Bundle dialog
 
+dialog.bundle.title = Empacotar Aplicação
+dialog.bundle.button.create = Criar Pacote…
+dialog.bundle.hint.select-output-folder = Continuar para seleção da pasta de saída.
+dialog.bundle.header.linux = Empacotar Aplicação Linux
+dialog.bundle.header.macos = Empacotar Aplicação macOS
+dialog.bundle.header.html5 = Empacotar Aplicação HTML5
+dialog.bundle.header.windows = Empacotar Aplicação Windows
+dialog.bundle.header.ios = Empacotar Aplicação iOS
+dialog.bundle.header.android = Empacotar Aplicação Android
+dialog.bundle.label.variant = Variante
+dialog.bundle.option.variant.debug = Depuração
+dialog.bundle.option.variant.release = Lançamento
+dialog.bundle.option.variant.headless = Headless
+dialog.bundle.label.platform = Plataforma
+dialog.bundle.option.platform.x86_64-linux = X64
+dialog.bundle.option.platform.arm64-linux = Arm64
+dialog.bundle.option.platform.x86_64-win32 = 64-bit
+dialog.bundle.option.platform.x86-win32 = 32-bit
+dialog.bundle.option.identity.none = Nenhum
+dialog.bundle.label.architectures = Arquiteturas
+dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
+dialog.bundle.option.architecture.x86_64-macos = x86_64
+dialog.bundle.option.architecture.arm64-macos = arm64
+dialog.bundle.option.architecture.js-web = asm.js
+dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
+dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
+dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
+dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.label.sign-application = Assinar Aplicação
+dialog.bundle.label.code-signing-identity = Identidade de Assinatura de Código
+dialog.bundle.label.provisioning-profile = Perfil de Provisão
+dialog.bundle.title.choose-provisioning-profile = Escolher Perfil de Provisão
+dialog.bundle.filter.provisioning-profile = Perfis de Provisão (*.mobileprovision)
+dialog.bundle.label.on-bundled = No Pacote
+dialog.bundle.option.on-bundled.install = Instalar no dispositivo conectado
+dialog.bundle.option.on-bundled.launch = Iniciar aplicação instalada
+dialog.bundle.label.android.keystore = Keystore
+dialog.bundle.label.android.keystore-pass = Senha da keystore
+dialog.bundle.label.android.key-pass = Senha da chave
+dialog.bundle.label.android.bundle-format = Empacotar formato
+dialog.bundle.option.bundle-format.apk = APK
+dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-keystore = Escolher Keystore
+dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
+dialog.bundle.title.choose-keystore-pass = Escolher senha da keystore
+dialog.bundle.filter.keystore-pass = Senha da keystore (*.txt)
+dialog.bundle.title.choose-key-pass = Escolher senha da Chave
+dialog.bundle.filter.key-pass = Senha chave (*.txt)
+dialog.bundle.hint.android.keystore = Defina keystore, ou deixe em branco para assinar com um certificado de depuração gerado automaticamente.
 
 # Editor panes
 
@@ -954,6 +1004,7 @@ property.appmanifest.graphics-osx = Gráficos (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan é o renderizador padrão para o macOS
 property.appmanifest.graphics-web = Gráficos (HTML5)
 property.appmanifest.graphics-web.tooltip = O suporte para WebGPU está em BETA (plataformas web)
+property.appmanifest.use-font-layout = Usar sistema de layout de texto completo
 
 # Properties: atlas
 
@@ -1262,6 +1313,9 @@ resource.type.custom = Recurso Personalizado
 resource.type.editor-script = Script do Editor
 resource.type.factory = Fábrica
 resource.type.font = Fonte
+resource.type.fp = Programa de Fragmento
+resource.type.gamepads = Gamepads
+resource.type.glsl = Incluir Shader
 resource.type.go = Objeto de Jogo
 resource.type.h = Cabeçalho C/C++
 resource.type.html = HTML
@@ -1271,6 +1325,7 @@ resource.type.label = Rótulo
 resource.type.light = Luz
 resource.type.lua = Módulo Lua
 resource.type.markdown = Markdown
+resource.type.material = Material
 resource.type.mesh = Malha
 resource.type.model = Modelo
 resource.type.model-scene = Cena do Modelo
@@ -1289,6 +1344,7 @@ resource.type.zon = Notação de Objeto Zig
 
 
 
+form.group.other = Outros
 
 form.label.project.bootstrap.main_collection = Coleção Principal
 
@@ -1299,6 +1355,8 @@ form.help.project.project.title = O título da aplicação
 form.label.project.project.version = Versão
 form.help.project.project.version = Versão da aplicação
 form.label.project.project.publisher = Editora
+form.label.project.project.developer = Desenvolvedor
+form.help.project.project.developer = Nome do desenvolvedor
 form.help.project.project.minimum_log_level = Apenas o nível mínimo de log e níveis superiores serão exibidos
 form.label.project.project.compress_archive = Compactar Arquivo
 form.help.project.project.compress_archive = Compactar arquivo (não para Android)
@@ -1386,6 +1444,9 @@ form.label.project.profiler = Perfilador
 
 
 
+form.label.project.shader = Shader
+form.help.project.shader = Configurações de Shader
+form.label.project.shader.output_spirv = Saída SPIR-V
 
 
 
