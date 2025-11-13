@@ -31,7 +31,7 @@
 
       (testing "new breakpoints are mapped to regions"
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :active true}
-                          {:row 2 :resource script-resource :active false}]
+                           {:row 2 :resource script-resource :active false}]
               result (update-fn script-node breakpoints ec)]
           (is (= 2 (count result)))
           (doseq [[bp region] (map vector breakpoints result)]
@@ -39,9 +39,9 @@
 
       (testing "existing breakpoints are mapped to regions"
         (let [regions [(code-data/make-breakpoint-region lines 1)
-                      (code-data/make-breakpoint-region lines 2)]
+                       (code-data/make-breakpoint-region lines 2)]
               breakpoints [{:row 1 :resource script-resource :condition "x > 5" :active true}
-                          {:row 2 :resource script-resource :active false}]
+                           {:row 2 :resource script-resource :active false}]
               result (update-fn script-node breakpoints ec)]
           (is (= 2 (count result)))
           (doseq [[bp region] (map vector breakpoints result)]
@@ -49,7 +49,36 @@
 
       (testing "missing breakpoints are mapped to empty"
         (let [regions [(code-data/make-breakpoint-region lines 1)
-                      (code-data/make-breakpoint-region lines 2)]
+                       (code-data/make-breakpoint-region lines 2)]
               breakpoints []
               result (update-fn script-node breakpoints ec)]
-          (is (not (seq result))))))))
+          (is (not (seq result)))))
+      (testing "handles modified, removed, and new breakpoints"
+        (let [existing-regions [(code-data/make-breakpoint-region lines 1)
+                                (code-data/make-breakpoint-region lines 2)
+                                (code-data/make-breakpoint-region lines 3)
+                                (code-data/make-breakpoint-region lines 4)]
+              breakpoints [{:row 1 :resource script-resource :condition "modified1" :active true}
+                           {:row 2 :resource script-resource :active false}
+                           {:row 5 :resource script-resource :condition "new1" :active true}
+                           {:row 6 :resource script-resource :active false}]
+              result (update-fn script-node breakpoints ec)]
+          
+          (is (= 4 (count result)))
+          
+          (let [modified-1 (first (filter #(= 1 (:row (code-data/region->breakpoint script-resource %))) result))
+                modified-2 (first (filter #(= 2 (:row (code-data/region->breakpoint script-resource %))) result))]
+            (is (= "modified1" (:condition (code-data/region->breakpoint script-resource modified-1))))
+            (is (true? (:active (code-data/region->breakpoint script-resource modified-1))))
+            (is (nil? (:condition (code-data/region->breakpoint script-resource modified-2))))
+            (is (false? (:active (code-data/region->breakpoint script-resource modified-2)))))
+          
+          (is (nil? (first (filter #(= 3 (:row (code-data/region->breakpoint script-resource %))) result))))
+          (is (nil? (first (filter #(= 4 (:row (code-data/region->breakpoint script-resource %))) result))))
+          
+          (let [new-1 (first (filter #(= 5 (:row (code-data/region->breakpoint script-resource %))) result))
+                new-2 (first (filter #(= 6 (:row (code-data/region->breakpoint script-resource %))) result))]
+            (is (= "new1" (:condition (code-data/region->breakpoint script-resource new-1))))
+            (is (true? (:active (code-data/region->breakpoint script-resource new-1))))
+            (is (nil? (:condition (code-data/region->breakpoint script-resource new-2))))
+            (is (false? (:active (code-data/region->breakpoint script-resource new-2))))))))))

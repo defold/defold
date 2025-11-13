@@ -100,19 +100,8 @@
   (let [lines (g/node-value script-node :lines evaluation-context)
         regions (g/node-value script-node :regions evaluation-context)
         non-bp-regions (remove code-data/breakpoint-region? regions)
-        existing-bp-regions (->> regions
-                                 (filter code-data/breakpoint-region?)
-                                 (map (fn [region]
-                                        (if-some [bp (some #(when (= (:row %) (code-data/breakpoint-row region)) %)
-                                                           breakpoints)]
-                                          (breakpoint->region lines bp)
-                                          region))))
-        new-bp-regions (->> breakpoints
-                            (remove (fn [bp]
-                                      (some #(= (:row bp) (code-data/breakpoint-row %)) existing-bp-regions)))
-                            (map (partial breakpoint->region lines)))
-        updated-regions (concat non-bp-regions existing-bp-regions new-bp-regions)]
-    (vec (sort updated-regions))))
+        bp-regions (map (partial breakpoint->region lines) breakpoints)]
+    (vec (sort (concat non-bp-regions bp-regions)))))
 
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
