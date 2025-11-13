@@ -12,18 +12,18 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.breakpoints-tab-test
+(ns editor.breakpoints-view-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code.data :as code-data]
-            [editor.breakpoints-tab :as breakpoints-tab]
+            [editor.breakpoints-view :as breakpoints-view]
             [integration.test-util :as test-util]))
 
 (def ^:private project-path "test/resources/geometry_wars")
 
 (deftest update-script-regions-from-breakpoints-test
   (test-util/with-loaded-project project-path
-    (let [update-fn (var-get #'breakpoints-tab/update-script-regions-from-breakpoints)
+    (let [update-fn (var-get #'breakpoints-view/update-script-regions-from-breakpoints)
           script-resource (test-util/resource workspace "/main/main.script")
           script-node (test-util/resource-node (dev/project) script-resource)
           ec (g/make-evaluation-context)

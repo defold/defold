@@ -925,12 +925,6 @@
 
 
 (comment
-  (defn get-breakpoints-tab-node [node-type]
-    (keep (fn [node-id]
-            (when (g/node-instance? node-type node-id)
-              node-id))
-          (g/node-ids (g/graph (g/node-id->graph-id (dev/project))))))
-
   (defn get-all-script-nodes [project]
     (keep (fn [node-id]
             (when (g/node-instance? editor.code.script/ScriptNode node-id)

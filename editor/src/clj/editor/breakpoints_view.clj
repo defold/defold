@@ -12,16 +12,13 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.breakpoints-tab
+(ns editor.breakpoints-view
   (:require [cljfx.api :as fx]
-            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.ext.table-view :as fx.ext.table-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.list-cell :as fx.list-cell]
-            [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
             [cljfx.fx.stack-pane :as fx.stack-pane]
@@ -32,7 +29,6 @@
             [cljfx.fx.table-view :as fx.table-view]
             [cljfx.fx.text-field :as fx.text-field]
             [clojure.java.io :as io]
-            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as code-data]
@@ -45,7 +41,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.fn :as fn])
-  (:import [javafx.scene.control ListCell ListView TextField]
+  (:import [javafx.scene.control TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]))
 
 (set! *warn-on-reflection* true)
@@ -109,7 +105,7 @@
                                  (map (fn [region]
                                         (if-some [bp (some #(when (= (:row %) (code-data/breakpoint-row region)) %)
                                                            breakpoints)]
-                                          (breakpoint->region lines bp evaluation-context)
+                                          (breakpoint->region lines bp)
                                           region))))
         new-bp-regions (->> breakpoints
                             (remove (fn [bp]
@@ -284,7 +280,7 @@
 
 (defonce condition-text (atom nil))
 
-(defn- handle-breakpoint-event! [root project open-resource-fn event]
+(defn- handle-breakpoint-event! [project open-resource-fn event]
   ;; TODO: No all events need this, probably better to split between those that do and don't
   (g/with-auto-evaluation-context evaluation-context
     (case (:event-type event)
@@ -324,13 +320,14 @@
       (swap! state assoc :hovered-breakpoint nil)
 
       :edit-condition
-      (when (or (= (:source event) :button)
-                (= 2 (.getClickCount (:fx/event event))))
-        (.consume (:fx/event event))
-        (swap! state assoc :edited-breakpoint (:breakpoint event)))
+      (let [^MouseEvent me (:fx/event event)]
+        (when (or (= (:source event) :button)
+                  (= 2 (.getClickCount me)))
+          (.consume me)
+          (swap! state assoc :edited-breakpoint (:breakpoint event))))
 
       :remove-condition
-      ;; TODO: Maybe generalize this since it's the same belove for save-condition
+      ;; TODO: Maybe generalize this since it's the same below for save-condition
       (let [breakpoint (:breakpoint event)
             breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
             updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint nil)
@@ -374,7 +371,7 @@
           "disable" (handle-fn #(update-breakpoints-active-state %1 %2 false)))))))
 
 (defn- make-open-resource-fn
-  [project open-resource-fn]
+  [open-resource-fn]
   (fn [resource line]
     (when resource
       (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)}))
@@ -396,15 +393,12 @@
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]]
           (g/set-property script-node :regions updated-regions))))))
 
-(defn create-breakpoint-tab-renderer [root workspace project prefs breakpoint-container open-resource-fn]
+(defn create-breakpoint-view-renderer [project prefs breakpoint-container open-resource-fn]
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
-    (ui/context! tab-pane
-                 :breakpoints-tab
-                 {:project project :list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
-                 nil))
+    (ui/context! tab-pane :breakpoints-view {:project project} nil))
   ;; Restore breakpoints
   (restore-breakpoints project prefs)
-  (let [open-res-fn (make-open-resource-fn project open-resource-fn)]
+  (let [open-res-fn (make-open-resource-fn open-resource-fn)]
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -412,19 +406,19 @@
        :middleware (comp
                      fxui/wrap-dedupe-desc
                      (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
-       :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! root project open-res-fn %)})))
+       :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
   (let [timer (ui/->timer
                4
-               "breakpoints-tab-update-timer"
-               (fn [timer _ _]
+               "breakpoints-view-update-timer"
+               (fn [_ _ _]
                  (when-not (ui/ui-disabled?)
                    (let [breakpoints (g/node-value project :breakpoints)]
                      (save-breakpoints prefs breakpoints)
                      (swap! state assoc :breakpoints breakpoints)))))]
     (ui/timer-start! timer)))
 
-(handler/defhandler :breakpoints-tab.toggle-breakpoint-active :breakpoints-tab
-  (run [project list-view]
+(handler/defhandler :breakpoints-view.toggle-breakpoint-active :breakpoints-view
+  (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
@@ -434,8 +428,8 @@
                                   selected
                                   toggle-breakpoints-active)))))
 
-(handler/defhandler :breakpoints-tab.remove-breakpoint :breakpoints-tab
-  (run [project list-view]
+(handler/defhandler :breakpoints-view.remove-breakpoint :breakpoints-view
+  (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
@@ -445,19 +439,15 @@
                                   selected
                                   #(vec (remove (set %2) %1)))))))
 
-(handler/defhandler :breakpoints-tab.edit-breakpoint :breakpoints-tab
+(handler/defhandler :breakpoints-view.edit-breakpoint :breakpoints-view
   (run []
        ()))
 
 (comment
-  (let [list-view (.lookup (ui/main-root) "#breakpoints-list-view")
-        items (.getItems list-view)]
-    (select-breakpoints-by-bp! list-view (take 2 items)))
   (let [open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
         breakpoints-container (.lookup (ui/main-root) "#breakpoints-container")]
-    (create-breakpoint-tab-renderer (ui/main-root) (dev/workspace) (dev/project) (dev/prefs) breakpoints-container open-resource))
-  (g/node-value script-node :regions evaluation-context)
+    (create-breakpoint-view-renderer (ui/main-root) (dev/workspace) (dev/project) (dev/prefs) breakpoints-container open-resource))
   (g/with-auto-evaluation-context ec
     (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :active true}
                      {:proj-path "/scripts/game.script", :row 20, :active true}]
@@ -481,5 +471,5 @@
   (g/with-auto-evaluation-context ec
     (let [bp {:proj-path "/scripts/knight.script", :row 21, :active true :condition "Testing"}
           bp (assoc bp :resource (workspace/find-resource (dev/workspace) (:proj-path bp) ec))]
-      (breakpoint->region (dev/project) bp ec)))
+      (breakpoint->region (dev/project) bp)))
   ,)
