@@ -429,6 +429,7 @@
       fallback
       state)))
 
+;; SDK API
 (defn message
   "Create a message pattern
 
@@ -650,8 +651,14 @@
     (f localization-state items)
     items))
 
+(defn error-message [e]
+  (join "\n"
+        (coll/transfer [e] []
+          (coll/tree-xf :causes :causes)
+          (keep :message)
+          (distinct))))
+
 ;; TODO:
-;;  - editor scripts localization
-;;  - build errors view
+;;  - build errors
 ;;  - missed things...
 ;;  - extensions: resource types, properties, outlines...
