@@ -2526,7 +2526,7 @@
     (assoc (->CursorRange (->Cursor row line-start)
                           (->Cursor row line-end))
       :type :breakpoint
-      :active true)))
+      :enabled true)))
 
 (defn get-breakpoint-region [lines regions ^long row]
   (some #(when (and (= (:type %) :breakpoint)
@@ -2545,7 +2545,7 @@
   (let [condition (:condition region)]
     (cond-> {:resource resource
              :row (breakpoint-row region)
-             :active (:active region)}
+             :enabled (:enabled region)}
       condition
       (assoc :condition condition))))
 

@@ -69,7 +69,7 @@
 (def ^:private TBreakpoint
   {:resource s/Any
    :row Long
-   :active Boolean
+   :enabled Boolean
    (s/optional-key :condition) String})
 
 (g/deftype Breakpoints [TBreakpoint])

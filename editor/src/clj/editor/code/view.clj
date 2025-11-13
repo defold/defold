@@ -2778,7 +2778,7 @@
                                                       regions
                                                       breakpoint-rows)))))
 
-(handler/defhandler :code-view.toggle-breakpoint-active :code-view
+(handler/defhandler :code.toggle-breakpoint-enabled :code-view
   (run [view-node]
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
@@ -2786,7 +2786,7 @@
           breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)
           breakpoint-regions (remove nil? (map #(data/get-breakpoint-region lines regions %) breakpoint-rows))
           updated-regions (coll/transfer breakpoint-regions {}
-                                         (map #(assoc % :active (not (:active %))))
+                                         (map #(assoc % :enabled (not (:enabled %))))
                                          (map #(data/ensure-breakpoint-region lines regions %)))]
       (when (coll/not-empty updated-regions)
         (set-properties! view-node nil updated-regions)))))
@@ -3710,7 +3710,7 @@
                                               (filter data/breakpoint-region?)
                                               (map (juxt data/breakpoint-row
                                                          #(hash-map :condition (:condition % true)
-                                                                    :active (:active %)))))
+                                                                    :enabled (:enabled %)))))
                                             regions)
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
@@ -3729,7 +3729,7 @@
                            (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
                            (+ y indicator-offset) indicator-diameter indicator-diameter))
               (when breakpoint
-                (if (:active breakpoint)
+                (if (:enabled breakpoint)
                   (do
                     (.setFill gc gutter-breakpoint-color)
                     (.fillOval gc
@@ -3913,7 +3913,7 @@
                {:fx/type fx.check-box/lifecycle
                   :style-class ["check-box" "breakpoint-editor-checkbox"]
                   :text "Enabled"
-                  :selected (get edited-breakpoint :active true)
+                  :selected (get edited-breakpoint :enabled true)
                   :on-selected-changed {:event :toggle-enabled}}
                {:fx/type fx.h-box/lifecycle
                 :spacing spacing
@@ -3970,7 +3970,7 @@
                          {:edited-breakpoint nil}
 
                          :toggle-enabled
-                         (let [edited-breakpoint (assoc edited-breakpoint :active (:fx/event event))]
+                         (let [edited-breakpoint (assoc edited-breakpoint :enabled (:fx/event event))]
                            (assoc (data/ensure-breakpoint-region
                                    (g/node-value view-node :lines evaluation-context)
                                    (g/node-value view-node :regions evaluation-context)

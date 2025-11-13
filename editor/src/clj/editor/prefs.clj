@@ -112,7 +112,7 @@
                           :item {:type :object
                                  :properties {:proj-path {:type :string}
                                               :row {:type :integer}
-                                              :active {:type :boolean :default true}
+                                              :enabled {:type :boolean :default true}
                                               :condition {:type :string :default ""}}}
                           :scope :project}
             :auto-closing-parens {:type :boolean

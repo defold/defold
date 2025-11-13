@@ -52,6 +52,8 @@
                       :edited-breakpoint nil
                       :edited-condition nil}))
 
+(defonce condition-text (atom nil))
+
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
    :style "-fx-padding: 2; -fx-min-width: 0; -fx-pref-width: 30;"
@@ -174,8 +176,8 @@
                                                                 {:style-class ["enabled-cell"]
                                                                  :alignment :center
                                                                  :graphic {:fx/type fx.check-box/lifecycle
-                                                                           :selected (:active breakpoint)
-                                                                           :on-selected-changed {:event-type :toggle-active
+                                                                           :selected (:enabled breakpoint)
+                                                                           :on-selected-changed {:event-type :toggle-enabled
                                                                                                  :breakpoint breakpoint}}}))}}
                                   {:fx/type fx.table-column/lifecycle
                                    :text "File"
@@ -214,17 +216,17 @@
             bp))
         breakpoints))
 
-(defn- toggle-breakpoints-active [breakpoints breakpoint-batch]
-  (update-breakpoints breakpoints breakpoint-batch #(assoc % :active (not (:active %)))))
+(defn- toggle-breakpoints-enabled [breakpoints breakpoint-batch]
+  (update-breakpoints breakpoints breakpoint-batch #(assoc % :enabled (not (:enabled %)))))
 
-(defn- toggle-breakpoint-active [breakpoints breakpoint]
-  (toggle-breakpoints-active breakpoints [breakpoint]))
+(defn- toggle-breakpoint-enabled [breakpoints breakpoint]
+  (toggle-breakpoints-enabled breakpoints [breakpoint]))
 
-(defn- update-breakpoints-active-state [breakpoints breakpoint-batch active]
-  (update-breakpoints breakpoints breakpoint-batch #(assoc % :active active)))
+(defn- update-breakpoints-enabled-state [breakpoints breakpoint-batch enabled]
+  (update-breakpoints breakpoints breakpoint-batch #(assoc % :enabled enabled)))
 
-(defn- update-breakpoint-active-state [breakpoints breakpoint active]
-  (update-breakpoints breakpoints [breakpoint] active))
+(defn- update-breakpoint-enabled-state [breakpoints breakpoint enabled]
+  (update-breakpoints breakpoints [breakpoint] enabled))
 
 (defn- update-breakpoint-condition [breakpoints breakpoint condition]
   (update-breakpoints breakpoints [breakpoint] #(if (not (string/blank? condition))
@@ -241,7 +243,7 @@
 
 (defn- breakpoint->region [lines breakpoint]
   (let [region (code-data/make-breakpoint-region lines (:row breakpoint))]
-    (merge region (select-keys breakpoint [:condition :active]))))
+    (merge region (select-keys breakpoint [:condition :enabled]))))
 
 (defn- update-script-regions-from-breakpoints [script-node breakpoints evaluation-context]
   (let [lines (g/node-value script-node :lines evaluation-context)
@@ -267,17 +269,15 @@
                     breakpoints-by-script)]
     (g/transact txs)))
 
-(defonce condition-text (atom nil))
-
 (defn- handle-breakpoint-event! [project open-resource-fn event]
   ;; TODO: No all events need this, probably better to split between those that do and don't
   (g/with-auto-evaluation-context evaluation-context
     (case (:event-type event)
-      :toggle-active
+      :toggle-enabled
       (let [breakpoint (:breakpoint event)
             breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
             script-node (breakpoint->script-node project breakpoint evaluation-context)
-            toggled-breakpoint (toggle-breakpoint-active breakpoints-in-script breakpoint)
+            toggled-breakpoint (toggle-breakpoint-enabled breakpoints-in-script breakpoint)
             regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
         (swap! state assoc :edited-breakpoint nil)
         (g/set-property! script-node :regions regions))
@@ -356,9 +356,9 @@
             handle-fn (partial handle-breakpoint-action project evaluation-context all-breakpoints breakpoints)]
         (case action
           "remove" (handle-fn #(vec (remove (set %2) %1)))
-          "toggle" (handle-fn toggle-breakpoints-active)
-          "enable" (handle-fn #(update-breakpoints-active-state %1 %2 true))
-          "disable" (handle-fn #(update-breakpoints-active-state %1 %2 false)))))))
+          "toggle" (handle-fn toggle-breakpoints-enabled)
+          "enable" (handle-fn #(update-breakpoints-enabled-state %1 %2 true))
+          "disable" (handle-fn #(update-breakpoints-enabled-state %1 %2 false)))))))
 
 (defn- make-open-resource-fn
   [open-resource-fn]
@@ -406,7 +406,7 @@
                      (swap! state assoc :breakpoints breakpoints)))))]
     (ui/timer-start! timer)))
 
-(handler/defhandler :breakpoints-view.toggle-breakpoint-active :breakpoints-view
+(handler/defhandler :breakpoints-view.toggle-breakpoint-enabled :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
@@ -415,7 +415,7 @@
                                   evaluation-context
                                   breakpoints
                                   selected
-                                  toggle-breakpoints-active)))))
+                                  toggle-breakpoints-enabled)))))
 
 (handler/defhandler :breakpoints-view.remove-breakpoint :breakpoints-view
   (run [project]
@@ -430,7 +430,11 @@
 
 (handler/defhandler :breakpoints-view.edit-breakpoint :breakpoints-view
   (run []
-       ()))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [breakpoints (:breakpoints @state)
+            selected (last (:selected-indices @state))]
+        ;; (swap! state assoc :edited-breakpoint (:breakpoint event))
+        (println selected)))))
 
 (comment
   (let [open-resource (partial #'editor.app-view/open-resource
@@ -439,8 +443,8 @@
     (create-breakpoint-view-renderer (dev/project) (dev/prefs) breakpoints-container open-resource))
 
   (g/with-auto-evaluation-context ec
-    (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :active true}
-                     {:proj-path "/scripts/game.script", :row 20, :active true}]
+    (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :enabled true}
+                     {:proj-path "/scripts/game.script", :row 20, :enabled true}]
           breakpoints (mapv #(assoc % :resource (workspace/find-resource (dev/workspace) (:proj-path %) ec)) bps-prefs)
           script-bps (collect-script-nodes-from-breakpoints (dev/project) breakpoints ec)]
       (g/transact
