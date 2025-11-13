@@ -2528,6 +2528,14 @@
       :type :breakpoint
       :active true)))
 
+(defn region->breakpoint [resource region]
+  (let [condition (:condition region)]
+    (cond-> {:resource resource
+             :row (breakpoint-row region)
+             :active (:active region)}
+      condition
+      (assoc :condition condition))))
+
 (defn get-breakpoint-region [lines regions ^long row]
   (some #(when (= (get-in % [:from :row]) row) %) regions))
 

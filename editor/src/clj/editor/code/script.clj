@@ -410,16 +410,7 @@
     (partial project/get-resource-node (project/get-project _node-id))))
 
 (g/defnk produce-breakpoints [resource regions]
-  (into []
-        (comp (filter data/breakpoint-region?)
-              (map (fn [region]
-                     (let [condition (:condition region)]
-                       (cond-> {:resource resource
-                                :row (data/breakpoint-row region)
-                                :active (:active region)}
-                               condition
-                               (assoc :condition condition))))))
-        regions))
+  (into [] (comp (filter data/breakpoint-region?) (map (partial data/region->breakpoint resource))) regions))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)

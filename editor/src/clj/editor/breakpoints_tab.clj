@@ -96,27 +96,25 @@
 (defn- breakpoint->script-node [project breakpoint evaluation-context]
   (project/get-resource-node project (:resource breakpoint) evaluation-context))
 
+(defn- breakpoint->region [lines breakpoint]
+  (let [region (code-data/make-breakpoint-region lines (:row breakpoint))]
+    (merge region (select-keys breakpoint [:condition :active]))))
+
 (defn- update-script-regions-from-breakpoints [script-node breakpoints evaluation-context]
   (let [lines (g/node-value script-node :lines evaluation-context)
         regions (g/node-value script-node :regions evaluation-context)
-        breakpoint-map (into {} (map (juxt :row identity)) breakpoints)
-        breakpoint-rows (set (keys breakpoint-map))
         non-bp-regions (remove code-data/breakpoint-region? regions)
         existing-bp-regions (->> regions
-                                 (filter #(and (code-data/breakpoint-region? %)
-                                               (contains? breakpoint-rows (code-data/breakpoint-row %))))
+                                 (filter code-data/breakpoint-region?)
                                  (map (fn [region]
-                                        (let [row (code-data/breakpoint-row region)
-                                              breakpoint (breakpoint-map row)
-                                              updated (merge region (select-keys breakpoint [:active :condition]))]
-                                          (if (nil? (:condition breakpoint))
-                                            (dissoc updated :condition)
-                                            updated)))))
-        new-bp-regions (->> regions
-                            (into #{} (comp (filter code-data/breakpoint-region?)
-                                            (map code-data/breakpoint-row)))
-                            (set/difference breakpoint-rows)
-                            (map (partial code-data/make-breakpoint-region lines)))
+                                        (if-some [bp (some #(when (= (:row %) (code-data/breakpoint-row region)) %)
+                                                           breakpoints)]
+                                          (breakpoint->region lines bp evaluation-context)
+                                          region))))
+        new-bp-regions (->> breakpoints
+                            (remove (fn [bp]
+                                      (some #(= (:row bp) (code-data/breakpoint-row %)) existing-bp-regions)))
+                            (map (partial breakpoint->region lines)))
         updated-regions (concat non-bp-regions existing-bp-regions new-bp-regions)]
     (vec (sort updated-regions))))
 
@@ -382,9 +380,21 @@
       (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)}))
     nil))
 
-(defn save-breakpoints [prefs breakpoints]
+(defn- save-breakpoints [prefs breakpoints]
   (let [bps-prefs (mapv #(dissoc (assoc % :proj-path (resource/proj-path (:resource %))) :resource) breakpoints)]
     (prefs/set! prefs [:code :breakpoints] bps-prefs)))
+
+(defn- restore-breakpoints [project prefs]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [bps-prefs (prefs/get prefs [:code :breakpoints])
+          workspace (project/workspace project)
+          breakpoints (mapv #(assoc % :resource (workspace/find-resource workspace (:proj-path %) evaluation-context))
+                            bps-prefs)
+          script-bps (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)]
+      (g/transact
+        (for [{:keys [script-node breakpoints]} script-bps
+              :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]]
+          (g/set-property script-node :regions updated-regions))))))
 
 (defn create-breakpoint-tab-renderer [root workspace project prefs breakpoint-container open-resource-fn]
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
@@ -393,14 +403,7 @@
                  {:project project :list-view (.lookup (ui/main-root) "#breakpoints-list-view")}
                  nil))
   ;; Restore breakpoints
-  (g/with-auto-evaluation-context evaluation-context
-    (let [bps-prefs (prefs/get prefs [:code :breakpoints])
-          breakpoints (mapv #(assoc % :resource (workspace/find-resource workspace (:proj-path %) evaluation-context)) bps-prefs)
-          script-bps (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)]
-      (g/transact
-        (for [{:keys [script-node breakpoints]} script-bps
-              :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]]
-          (g/set-property script-node :regions updated-regions)))))
+  (restore-breakpoints project prefs)
   (let [open-res-fn (make-open-resource-fn project open-resource-fn)]
     (fx/mount-renderer
       state
@@ -454,7 +457,7 @@
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
         breakpoints-container (.lookup (ui/main-root) "#breakpoints-container")]
     (create-breakpoint-tab-renderer (ui/main-root) (dev/workspace) (dev/project) (dev/prefs) breakpoints-container open-resource))
-  (prefs/get (dev/prefs) [:code :breakpoints])
+  (g/node-value script-node :regions evaluation-context)
   (g/with-auto-evaluation-context ec
     (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :active true}
                      {:proj-path "/scripts/game.script", :row 20, :active true}]
@@ -464,4 +467,19 @@
         (for [{:keys [script-node breakpoints]} script-bps
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints ec)]]
           (g/set-property script-node :regions updated-regions)))))
+  (g/with-auto-evaluation-context ec
+    (let [bps-prefs (prefs/get (dev/prefs) [:code :breakpoints])
+          workspace (project/workspace (dev/project))
+          breakpoints (mapv #(assoc % :resource (workspace/find-resource workspace (:proj-path %) ec))
+                            bps-prefs)
+          script-bps (collect-script-nodes-from-breakpoints (dev/project) breakpoints ec)]
+      (g/node-value (:script-node (first script-bps)) :regions ec)))
+  (defn save-breakpoints [_ _] nil)
+  (prefs/get (dev/prefs) [:code :breakpoints])
+  (save-breakpoints (dev/prefs) (g/node-value (dev/project) :breakpoints))
+  (restore-breakpoints (dev/project) (dev/prefs))
+  (g/with-auto-evaluation-context ec
+    (let [bp {:proj-path "/scripts/knight.script", :row 21, :active true :condition "Testing"}
+          bp (assoc bp :resource (workspace/find-resource (dev/workspace) (:proj-path bp) ec))]
+      (breakpoint->region (dev/project) bp ec)))
   ,)
