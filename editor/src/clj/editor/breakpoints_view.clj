@@ -384,8 +384,6 @@
           (g/set-property script-node :regions updated-regions))))))
 
 (defn create-breakpoint-view-renderer [project prefs breakpoint-container open-resource-fn]
-  (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
-    (ui/context! tab-pane :breakpoints-view {:project project} nil))
   (restore-breakpoints project prefs)
   (let [open-res-fn (make-open-resource-fn open-resource-fn)]
     (fx/mount-renderer
@@ -396,6 +394,9 @@
                      fxui/wrap-dedupe-desc
                      (fx/wrap-map-desc #(breakpoints-view breakpoint-container %)))
        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
+  (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
+        table (.lookup (ui/main-root) "#breakpoints-table-view")]
+    (ui/context! tab-pane :breakpoints-view {:project project :table table} nil))
   (let [timer (ui/->timer
                4
                "breakpoints-view-update-timer"
@@ -406,7 +407,7 @@
                      (swap! state assoc :breakpoints breakpoints)))))]
     (ui/timer-start! timer)))
 
-(handler/defhandler :breakpoints-view.toggle-breakpoint-enabled :breakpoints-view
+(handler/defhandler :breakpoints.toggle-breakpoint-enabled :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
@@ -417,7 +418,7 @@
                                   selected
                                   toggle-breakpoints-enabled)))))
 
-(handler/defhandler :breakpoints-view.remove-breakpoint :breakpoints-view
+(handler/defhandler :breakpoints.remove-breakpoint :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
@@ -428,19 +429,22 @@
                                   selected
                                   #(vec (remove (set %2) %1)))))))
 
-(handler/defhandler :breakpoints-view.edit-breakpoint :breakpoints-view
+(handler/defhandler :breakpoints.edit-breakpoint :breakpoints-view
   (run []
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (last (:selected-indices @state))]
-        ;; (swap! state assoc :edited-breakpoint (:breakpoint event))
-        (println selected)))))
+        (swap! state assoc :edited-breakpoint (get breakpoints selected))))))
 
 (comment
   (let [open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
         breakpoints-container (.lookup (ui/main-root) "#breakpoints-container")]
     (create-breakpoint-view-renderer (dev/project) (dev/prefs) breakpoints-container open-resource))
+
+  (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
+        table (.lookup (ui/main-root) "#breakpoints-table-view")]
+    (ui/context! tab-pane :breakpoints-view {:project (dev/project) :table table} nil))
 
   (g/with-auto-evaluation-context ec
     (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :enabled true}
