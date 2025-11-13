@@ -342,12 +342,13 @@
   (input anim-data g/Any)
   (input gpu-texture g/Any)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id ddf-message id tile-count]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id ddf-message id ^:try tile-count]
                                                      {:node-id _node-id
                                                       :node-outline-key id
                                                       :label id
                                                       :icon animation-icon
-                                                      :outline-error? (some? (animation-ddf-errors tile-count _node-id ddf-message))}))
+                                                      :outline-error? (and (not (g/error-value? tile-count))
+                                                                           (some? (animation-ddf-errors tile-count _node-id ddf-message)))}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)

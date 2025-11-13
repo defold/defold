@@ -296,6 +296,7 @@
                                                web-server stopped-server}}]
   (extensions/reload! project :all
                       :prefs (or prefs (test-util/make-test-prefs))
+                      :localization test-util/localization
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
@@ -2130,3 +2131,22 @@ Expected errors:
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-game-project-properties-test-output out))))
+
+(def ^:private expected-localization-output
+  "message => Build
+localization.and_list({1, 2, message}) => 1, 2, and Build
+localization.or_list({1, 2, message}) => 1, 2, or Build
+localization.concat({1, 2, message}) => 12Build
+localization.concat({1, 2, message}, '/') => 1/2/Build
+localization.concat({1, 2, message}, message) => 1Build2BuildBuild
+localization.message('progress.loading-resource') => Loading {resource}
+localization.message('progress.loading-resource', {resource = 1}) => Loading 1
+localization.message('progress.loading-resource', {resource = message}) => Loading Build
+")
+
+(deftest localization-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/localization_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-localization-output out))))

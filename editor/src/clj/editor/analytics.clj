@@ -245,13 +245,14 @@
 
 (defn start! [^String analytics-url send-interval]
   {:pre [(valid-analytics-url? analytics-url)]}
-  (reset! config-atom (read-config!))
-  (when (some? (sys/defold-version))
-    (swap! worker-atom
-           (fn [started-worker]
-             (when (some? started-worker)
-               (shutdown-worker! started-worker 0))
-             (start-worker! analytics-url send-interval)))))
+  (let [config (reset! config-atom (read-config!))]
+    (when (some? (sys/defold-version))
+      (swap! worker-atom
+             (fn [started-worker]
+               (when (some? started-worker)
+                 (shutdown-worker! started-worker 0))
+               (start-worker! analytics-url send-interval))))
+    (:cid config)))
 
 (defn shutdown!
   ([]

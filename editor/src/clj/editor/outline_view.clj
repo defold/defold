@@ -37,7 +37,7 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.eduction :as e])
-  (:import [com.defold.control TreeCell]
+  (:import [com.defold.control OutlineTreeViewSkin TreeCell]
            [java.awt Toolkit]
            [javafx.event Event]
            [javafx.geometry Orientation]
@@ -126,7 +126,7 @@
       :selected-node-id-paths
       (fx.prop/make
         (fx.mutator/setter
-          (fn set-selected-node-id-paths [^TreeView tree-view new-selected-node-id-paths]
+          (fn set-selected-node-id-paths [^TreeView tree-view [new-selected-node-id-paths _key]]
             (let [selection-model (.getSelectionModel tree-view)
                   old-selected-node-id-paths (coll/transfer (.getSelectedItems selection-model) #{}
                                                (keep #(:node-id-path (.getValue ^TreeItem %))))]
@@ -138,9 +138,9 @@
                     (let [first-index (new-selected-indices 0)
                           focus-model (.getFocusModel tree-view)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (ui/scroll-to-item! tree-view (.getTreeItem tree-view first-index))
+                      (when (.shouldScrollTo ^OutlineTreeViewSkin (.getSkin tree-view) first-index)
+                        (.scrollTo tree-view first-index))
                       (ui/run-later (.focus focus-model first-index)))))))))
-
         fx.lifecycle/scalar))))
 
 ;; Iff every item-iterator has the same parent, return that parent, else nil
@@ -244,14 +244,21 @@
   (let [{:keys [active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]} state
         {:keys [outline]} decorated-outline
         selected-node-id->node-id-paths (get active-node-id->selected-node-id->node-id-paths active-resource-node)
-        node-id-path->expanded (get active-node-id->node-id-path->expanded active-resource-node)]
+        node-id-path->expanded (get active-node-id->node-id-path->expanded active-resource-node)
+        root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)]
     {:fx/type fx.ext.tree-view/with-selection-props
      :props {:on-selected-items-changed #(update-selection! app-view swap-state active-resource-node %)}
      :desc
      {:fx/type ext-with-tree-view-props
-      :props {:root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)
-              :selected-node-id-paths (coll/transfer selected-node-id->node-id-paths #{}
-                                        (mapcat val))}
+      :props {:root root
+              :selected-node-id-paths (coll/pair
+                                        (coll/transfer selected-node-id->node-id-paths #{}
+                                          (mapcat val))
+                                        ;; we use tree as a key, so that changes to the
+                                        ;; tree without changes to selection (like
+                                        ;; re-ordering) will also cause the selection to
+                                        ;; sync
+                                        root)}
       :desc
       {:fx/type fxui/ext-value :value tree-view}}}))
 
@@ -769,6 +776,7 @@
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
+      (.setSkin (OutlineTreeViewSkin. tree-view))
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e 

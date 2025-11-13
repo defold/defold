@@ -2,12 +2,25 @@
 
 from waflib.Options import options
 
+def configure(conf):
+    conf.env['STLIB_HARFBUZZ'] = ['harfbuzz', 'sheenbidi']
+    conf.env['STLIB_SKRIBIDI'] = ['skribidi', 'unibreak']
+
 def build(bld):
     if options.skip_build_tests:
        return
 
-    bld(features = 'cxx cprogram ddf test',
+    bld.add_group()
+
+    bld(features = 'cxx cprogram test',
         source   = bld.path.ant_glob(['*.cpp']),
-        use      = 'TESTMAIN DLIB SOCKET PROFILE_NULL font',
+        use      = 'TESTMAIN DLIB PROFILE_NULL font',
         includes = '. .. ../font',
         target = 'test_font')
+
+    bld(features = 'cxx cprogram test',
+        source   = bld.path.ant_glob(['*.cpp']),
+        use      = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ SKRIBIDI font_skribidi',
+        defines  = ['FONT_USE_HARFBUZZ', 'FONT_USE_SKRIBIDI'],
+        includes = '. .. ../font',
+        target = 'test_font_skribidi')

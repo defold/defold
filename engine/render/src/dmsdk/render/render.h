@@ -57,7 +57,7 @@ namespace dmRender
      * @typedef
      * @name HFont
      */
-    typedef struct FontMap* HFont;
+    typedef struct FontMap* HFontMap;
 
     // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;

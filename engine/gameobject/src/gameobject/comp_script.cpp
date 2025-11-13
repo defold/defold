@@ -251,7 +251,7 @@ namespace dmGameObject
         return result;
     }
 
-    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    UpdateResult CompScriptPreUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);

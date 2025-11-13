@@ -6,6 +6,7 @@
 # 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = 从磁盘打开…
@@ -471,6 +472,9 @@ dialog.open-resource.open-file-failed.detail = 这种情况是文件类型在操
 # Loading project dialog
 
 dialog.loading-project.header = 正在加载项目
+
+# Bundle dialog
+
 
 # Editor panes
 
@@ -950,6 +954,8 @@ property.appmanifest.graphics-osx = 绘图(macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan 是 macOS 的默认渲染器
 property.appmanifest.graphics-web = 绘图(HTML5)
 property.appmanifest.graphics-web.tooltip = WebGPU支持处于测试版(web 平台)
+property.appmanifest.use-font-layout = 使用完整文本布局系统
+property.appmanifest.use-font-layout.tooltip = 使用支持的完整文本布局系统 (例如RTL)
 
 # Properties: atlas
 
@@ -1240,6 +1246,472 @@ resource.view.text = 文本
 
 resource.readonly.detail = 此文件是库的一部分，无法保存。
 resource.readonly.button.read-more = 阅读更多…
+
+resource.type.animationset = 动画集
+resource.type.appmanifest = 应用程序清单
+resource.type.atlas = 图集
+resource.type.buffer = 缓存
+resource.type.c = C
+resource.type.camera = 相机
+resource.type.collection = 集合
+resource.type.collection.non-editable = 不可编辑集合
+resource.type.collectionfactory = 集合工厂
+resource.type.collectionproxy = 集合代理
+resource.type.collisionobject = 碰撞对象
+resource.type.compute = 计算机
+resource.type.convexshape = 凸形
+resource.type.cp = 计算机程序
+resource.type.cpp = C++
+resource.type.custom = 自定义资源
+resource.type.cubemap = 立方体贴图
+resource.type.defignore = 应忽略
+resource.type.defunload = 可卸载
+resource.type.display-profiles = 显示配置
+resource.type.editor-localization = 编辑器本地化
+resource.type.editor-script = 编辑器脚本
+resource.type.factory = 工厂
+resource.type.font = 字体
+resource.type.fp = 片段程序
+resource.type.gamepads = 游戏手柄
+resource.type.glsl = 着色器包含
+resource.type.go = 游戏对象
+resource.type.go.non-editable = 不可编辑游戏对象
+resource.type.gui = 图形界面
+resource.type.gui-script = 图形界面脚本
+resource.type.h = C/C++ 头文件
+resource.type.html = HTML
+resource.type.image = 图像
+resource.type.input-binding = 输入绑定
+resource.type.json = JSON
+resource.type.label = 标签
+resource.type.light = 灯光
+resource.type.lua = Lua 模块
+resource.type.manifest = 配置清单
+resource.type.markdown = Markdown
+resource.type.material = 材质
+resource.type.mesh = 网格
+resource.type.model = 模型
+resource.type.model-scene = 模型场景
+resource.type.objective-c = Objective-C
+resource.type.particlefx = 粒子特效
+resource.type.project = 项目
+resource.type.properties = 属性
+resource.type.render = 渲染
+resource.type.render-script = 渲染脚本
+resource.type.script = 脚本
+resource.type.script-api = 脚本API
+resource.type.settings = 热更新设置
+resource.type.shared-editor-settings = 共享编辑器设置
+resource.type.sound = 音效
+resource.type.sprite = 精灵
+resource.type.texture-profiles = 纹理配置
+resource.type.tilemap = 瓦片地图
+resource.type.tilesource = 瓦片源
+resource.type.unknown = 未知
+resource.type.vp = 顶点程序
+resource.type.zig = Zig
+resource.type.zon = Zig 对象标记
+
+# Forms
+
+form.filter = 过滤
+
+form.context-menu.add = 添加
+form.context-menu.remove = 移除
+
+form.group.main = 主要
+form.group.platforms = 平台
+form.group.components = 组件
+form.group.runtime = 运行时
+form.group.distribution = 分发
+form.group.other = 其他
+
+form.label.project.bootstrap = 启动
+form.help.project.bootstrap = 引擎初始化设置
+form.label.project.bootstrap.main_collection = 主集合
+form.help.project.bootstrap.main_collection = 用于启动应用程序的集合文件的引用，默认为/logic/main.collectionc
+form.label.project.bootstrap.render = 渲染器
+form.help.project.bootstrap.render = 所使用的渲染文件，该文件定义渲染管线，默认为/builtins/render/default.renderc
+form.label.project.bootstrap.debug_init_script = 调试初始化脚本
+form.help.project.bootstrap.debug_init_script = 调试时在主集合之前运行的 Lua 脚本
+
+form.label.project.project = 项目
+form.help.project.project = 常规项目设置
+form.label.project.project.title = 标题
+form.help.project.project.title = 应用程序的标题
+form.label.project.project.version = 版本
+form.help.project.project.version = 应用程序版本
+form.label.project.project.publisher = 发布者
+form.help.project.project.publisher = 发布者名字
+form.label.project.project.developer = 开发者
+form.help.project.project.developer = 开发者名字
+form.label.project.project.write_log = 写入日志
+form.help.project.project.write_log = 将日志文件写到磁盘
+form.label.project.project.write_log_file = 写入日志文件
+form.help.project.project.write_log_file = 将日志文件写到磁盘
+form.label.project.project.minimum_log_level = 最小日志级别
+form.help.project.project.minimum_log_level = 仅显示最小日志级别及更高级别
+form.label.project.project.compress_archive = 压缩归档
+form.help.project.project.compress_archive = 压缩归档(不适用于 Android)
+form.label.project.project.dependencies = 依赖项
+form.help.project.project.dependencies = 此项目所需的项目 URL 列表
+form.label.project.project.custom_resources = 自定义资源
+form.help.project.project.custom_resources = 逗号分隔的包含在项目中资源的列表。如果指定目录，则递归包含该目录中的所有文件和目录
+form.label.project.project.bundle_resources = 资源包
+form.help.project.project.bundle_resources = 包含资源文件和文件夹的目录，在打包时应按原样复制到生成的包中
+form.label.project.project.bundle_exclude_resources = 包排除资源
+form.help.project.project.bundle_exclude_resources = 逗号分隔的不应包含在打包时的资源列表
+
+form.label.project.android = Android
+form.help.project.android = Android 相关设置
+form.label.project.android.app_icon_36x36 = 应用程序图标 36x36
+form.help.project.android.app_icon_36x36 = Android ldpi 图标文件 (.png)
+form.label.project.android.app_icon_48x48 = 应用程序图标 48x48
+form.help.project.android.app_icon_48x48 = Android mdpi 图标文件 (.png)
+form.label.project.android.app_icon_72x72 = 应用程序图标 72x72
+form.help.project.android.app_icon_72x72 = Android hdpi 图标文件 (.png)
+form.label.project.android.app_icon_96x96 = 应用程序图标 96x96
+form.help.project.android.app_icon_96x96 = Android xhdpi 图标文件 (.png)
+form.label.project.android.app_icon_144x144 = 应用程序图标 144x144
+form.help.project.android.app_icon_144x144 = Android xxhdpi 图标文件 (.png)
+form.label.project.android.app_icon_192x192 = 应用程序图标 192x192
+form.help.project.android.app_icon_192x192 = Android xxxhdpi 图标文件 (.png)
+form.label.project.android.push_icon_small = 推送小图标
+form.help.project.android.push_icon_small = 小推送通知图标 (.png)
+form.label.project.android.push_icon_large = 推送大图标
+form.help.project.android.push_icon_large = 大推送通知图标 (.png)
+form.label.project.android.push_icon_small_ldpi = 推送小LDPI 图标
+form.help.project.android.push_icon_small_ldpi = 小 ldpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_small_mdpi = 推送小 MDPI 图标
+form.help.project.android.push_icon_small_mdpi = 小 mdpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_small_hdpi = 推送小 HDPI 图标
+form.help.project.android.push_icon_small_hdpi = 小 hdpi 推送通知图标文件 (.png)
+form.label.project.android.push_icon_small_xhdpi = 推送小 XHDPI 图标
+form.help.project.android.push_icon_small_xhdpi = 小 xhdpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_small_xxhdpi = 推送小 XXHDPI 图标
+form.help.project.android.push_icon_small_xxhdpi = 小 xxhdpi 推送通知图标文件 (.png)
+form.label.project.android.push_icon_small_xxxhdpi = 推送 小XXXHDPI 图标
+form.help.project.android.push_icon_small_xxxhdpi = 小 xxxhdpi 推送通知图标文件 (.png)
+form.label.project.android.push_icon_large_ldpi = 推送大 LDPI 图标
+form.help.project.android.push_icon_large_ldpi = 大l dpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_large_mdpi = 大 MDPI 推送图标
+form.help.project.android.push_icon_large_mdpi = 大 mdpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_large_hdpi = 推送大HDPI 图标
+form.help.project.android.push_icon_large_hdpi = 大 hdpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_large_xhdpi = 大 XHDPI 推送图标
+form.help.project.android.push_icon_large_xhdpi = 大 xhdpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_large_xxhdpi = 推送大 XXHDPI 图标
+form.help.project.android.push_icon_large_xxhdpi = 大 xxhdpi 推送通知图标文件(.png)
+form.label.project.android.push_icon_large_xxxhdpi = 推送大 XXXHDPI 图标
+form.help.project.android.push_icon_large_xxxhdpi = 大 xxxhdpi 推送通知图标文件(.png)
+form.label.project.android.push_field_title = 推送字段标题
+form.help.project.android.push_field_title = 推送载荷中用作通知标题的 JSON 字段名
+form.label.project.android.push_field_text = 推送字段文本
+form.help.project.android.push_field_text = 推送载荷中用作通知文本的 JSON 字段名
+form.label.project.android.version_code = 版本代码
+form.help.project.android.version_code = Android 版本代码 (android\:versionCode)
+form.label.project.android.minimum_sdk_version = 最小 SDK 版本
+form.help.project.android.minimum_sdk_version = 应用程序运行所需的最低 API 级别 (android\:minSdkVersion)
+form.label.project.android.target_sdk_version = 目标 SDK 版本
+form.help.project.android.target_sdk_version = 应用程序目标的 API 级别(android\:targetSdkVersion)
+form.label.project.android.package = 包
+form.help.project.android.package = 包标识符
+form.label.project.android.gcm_sender_id = GCM 发送者 ID
+form.help.project.android.gcm_sender_id = Firebase 云消息发送者 ID
+form.label.project.android.fcm_application_id = FCM 应用程序 ID
+form.help.project.android.fcm_application_id = Firebase 云消息应用程序 ID
+form.label.project.android.manifest = 配置清单
+form.help.project.android.manifest = 自定义 AndroidManifest.xml 模板文件
+form.label.project.android.iap_provider = IAP 提供者
+form.help.project.android.iap_provider = 应用内购买服务提供商，支持的选项有 'GooglePlay' 和 'Amazon'
+form.label.project.android.input_method = 输入方式
+form.help.project.android.input_method = 使用哪种输入方式，支持的选项有 'KeyEvent' 和 'HiddenInputField'
+form.label.project.android.immersive_mode = 沉浸模式
+form.help.project.android.immersive_mode = 隐藏导航栏和状态栏，并能够捕获屏幕上的所有触摸事件
+form.label.project.android.display_cutout = 刘海屏
+form.help.project.android.display_cutout = 延伸至刘海区域
+form.label.project.android.debuggable = 可调试
+form.help.project.android.debuggable = 帮助您调试应用程序并从应用程序获取文件
+form.label.project.android.proguard = ProGuard 配置
+form.help.project.android.proguard = 自定义 ProGuard 文件，帮助从最终 .apk 中删除冗余的 Java 类
+form.label.project.android.extract_native_libs = 提取原生库
+form.help.project.android.extract_native_libs = 此属性指示包安装程序是否将原生库从 APK 提取到文件系统
+
+form.label.project.html5 = HTML5
+form.help.project.html5 = HTML5 相关设置
+form.label.project.html5.set_custom_heap_size = 设置自定义堆大小
+form.help.project.html5.set_custom_heap_size = 此设置已弃用。如果你希望调整应用程序堆内存大小，请设置为 true
+form.label.project.html5.custom_heap_size = 自定义堆大小
+form.help.project.html5.custom_heap_size = 此设置已弃用。应用程序堆的大小，以字节为单位
+form.label.project.html5.heap_size = 堆大小
+form.help.project.html5.heap_size = 应用程序堆的大小，以兆字节为单位
+form.label.project.html5.htmlfile = .html Shell
+form.help.project.html5.htmlfile = 画布的 HTML shell
+form.label.project.html5.cssfile = 自定义 .css
+form.help.project.html5.cssfile = CSS 将内联到 index.html 模板中
+form.label.project.html5.splash_image = 启动画面图像
+form.help.project.html5.splash_image = 自定义 HTML 启动屏幕图像
+form.label.project.html5.archive_location_prefix = 归档位置前缀
+
+form.label.project.ios = iOS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+form.label.project.profiler.performance_timeline_enabled = 性能时间线
+form.help.project.profiler.performance_timeline_enabled = 启用向浏览器性能时间线报告
+
+form.label.project.render = 渲染
+form.help.project.render = 渲染相关配置
+form.label.project.render.clear_color_red = 清除颜色红色
+form.help.project.render.clear_color_red = 渲染清除颜色 - 红色通道
+form.label.project.render.clear_color_green = 清除颜色绿色
+form.help.project.render.clear_color_green = 渲染清除颜色 - 绿色通道
+form.label.project.render.clear_color_blue = 清除颜色蓝色
+form.help.project.render.clear_color_blue = 渲染清除颜色 - 蓝色通道
+form.label.project.render.clear_color_alpha = 清除颜色透明度
+form.help.project.render.clear_color_alpha = 渲染清除颜色 - Alpha 通道
+
+form.label.project.resource = 资源
+form.help.project.resource = 资源加载和管理相关设置
+form.label.project.resource.http_cache = HTTP 缓存
+form.help.project.resource.http_cache = 使用 HTTP 缓存以加快网络加载速度
+form.label.project.resource.uri = URI
+form.help.project.resource.uri = game.project 文件的位置，使用 URI 格式
+form.label.project.resource.max_resources = 最大资源数
+form.help.project.resource.max_resources = 可同时加载的资源最大数量，默认为 1024
+
+form.label.project.shader = 着色器
+form.help.project.shader = 着色器相关设置
+form.label.project.shader.output_spirv = 输出 SPIR-V
+form.help.project.shader.output_spirv = 此设置已弃用。编译并输出用于 Metal 或 Vulkan 的 SPIR-V 着色器
+form.label.project.shader.exclude_gles_sm100 = 排除 GLES 2.0
+form.help.project.shader.exclude_gles_sm100 = 不为运行 OpenGLES 2.0 / WebGL 1.0 的设备编译着色器
+
+form.label.project.library = 库
+form.help.project.library = 当此项目被其他项目用作库时的设置
+form.label.project.library.include_dirs = 包含目录
+form.help.project.library.include_dirs = 当此项目被用作库时要包含的目录
+
+form.label.project.liveupdate = 热更新
+form.help.project.liveupdate = 热更新设置
+form.label.project.liveupdate.enabled = 启用
+form.help.project.liveupdate.enabled = 启用热更新功能
+form.label.project.liveupdate.settings = 设置
+form.help.project.liveupdate.settings = 热更新设置资源
+form.label.project.liveupdate.mount_on_start = 启动时自动挂载
+form.help.project.liveupdate.mount_on_start = 启用后,应用程序启动时会自动挂载之前已挂载的资源
+
+form.label.project.native_extension = 原生扩展
+form.help.project.native_extension = 原生扩展的设置
+form.label.project.native_extension.app_manifest = 应用清单
+form.help.project.native_extension.app_manifest = 可选的配置文件,用于详细控制构建设置
+
+form.label.animationset = 动画集
+form.label.animationset.animations = 动画
+
+form.label.camera = 相机
+form.label.camera.aspect-ratio = 宽高比
+form.label.camera.fov = 视野
+form.label.camera.near-z = 近 Z
+form.label.camera.far-z = 远 Z
+form.label.camera.auto-aspect-ratio = 自动宽高比
+form.label.camera.orthographic-projection = 正交投影
+form.label.camera.orthographic-mode = 正交缩放模式
+form.label.camera.orthographic-zoom = 正交缩放
+
+form.label.collectionproxy = 集合代理
+form.label.collectionproxy.collection = 集合
+
+form.label.render = 渲染
+form.label.render.script = 脚本
+form.label.render.render-resources = 资源
+form.label.render.render-resources.name = 名称
+form.label.render.render-resources.resource = 资源
+
+form.label.render-target = 渲染目标
+form.label.render-target.color-attachments = 颜色附件
+form.label.render-target.color-attachments.width = 宽度
+form.label.render-target.color-attachments.height = 高度
+form.label.render-target.color-attachments.format = 格式
+form.label.render-target.depth-stencil-attachment-width = 深度/模板宽度
+form.label.render-target.depth-stencil-attachment-height = 深度/模板高度
+form.label.render-target.depth-stencil-attachment-texture-storage = 深度纹理存储
+
+form.label.display-profiles = 显示配置文件
+form.label.display-profiles.auto-layout-selection = 自动布局选择
+form.label.display-profiles.profile = 配置文件
+form.label.display-profiles.profile.qualifiers = 限定符
+form.label.display-profiles.profile.qualifiers.width = 宽度
+form.label.display-profiles.profile.qualifiers.height = 高度
+form.label.display-profiles.profile.qualifiers.device-models = 设备型号
+
+form.label.input-binding = 输入绑定
+form.label.input-binding.key-trigger = 按键触发器
+form.label.input-binding.key-trigger.input = 输入
+form.label.input-binding.key-trigger.action = 动作
+form.label.input-binding.mouse-trigger = 鼠标触发器
+form.label.input-binding.mouse-trigger.input = 输入
+form.label.input-binding.mouse-trigger.action = 动作
+form.label.input-binding.gamepad-trigger = 游戏手柄触发器
+form.label.input-binding.gamepad-trigger.input = 输入
+form.label.input-binding.gamepad-trigger.action = 动作
+form.label.input-binding.touch-trigger = 触摸触发器
+form.label.input-binding.touch-trigger.input = 输入
+form.label.input-binding.touch-trigger.action = 动作
+form.label.input-binding.text-trigger = 文本触发器
+form.label.input-binding.text-trigger.input = 输入
+form.label.input-binding.text-trigger.action = 动作
+
+form.label.gamepads = 游戏手柄
+form.label.gamepads.driver = 游戏手柄
+form.label.gamepads.driver.device = 设备
+form.label.gamepads.driver.platform = 平台
+form.label.gamepads.driver.dead-zone = 死区
+form.label.gamepads.driver.map = 映射
+form.label.gamepads.driver.map.input = 输入
+form.label.gamepads.driver.map.type = 类型
+form.label.gamepads.driver.map.index = 索引
+form.label.gamepads.driver.map.negate = 取反
+form.label.gamepads.driver.map.scale = 缩放
+form.label.gamepads.driver.map.clamp = 限幅
+form.label.gamepads.driver.map.hat-mask = 方向键掩码
+
+form.label.texture-profiles = 纹理配置文件
+form.label.texture-profiles.path-settings = 路径设置
+form.label.texture-profiles.path-settings.path = 路径
+form.label.texture-profiles.path-settings.profile = 配置文件
+form.label.texture-profiles.profiles = 配置文件
+form.label.texture-profiles.profiles.platforms = 平台
+form.label.texture-profiles.profiles.platforms.formats = 格式
+form.label.texture-profiles.profiles.platforms.formats.format = 格式
+form.label.texture-profiles.profiles.platforms.formats.compressor = 压缩器
+form.label.texture-profiles.profiles.platforms.formats.compressor-preset = 压缩器预设
+form.label.texture-profiles.profiles.platforms.mipmaps = Mipmaps
+form.label.texture-profiles.profiles.platforms.max-texture-size = 最大纹理大小
+form.label.texture-profiles.profiles.platforms.premultiply-alpha = 预乘透明度
+
+form.label.factory = 工厂
+form.label.factory.prototype = 原型
+form.label.factory.load-dynamically = 动态加载
+form.label.factory.dynamic-prototype = 动态原型
+
+form.label.collectionfactory = 集合工厂
+form.label.collectionfactory.prototype = 原型
+form.label.collectionfactory.load-dynamically = 动态加载
+form.label.collectionfactory.dynamic-prototype = 动态原型
+
+form.label.sound = 声音
+form.label.sound.sound = 音频文件
+form.label.sound.looping = 循环
+form.label.sound.loopcount = 循环次数
+form.label.sound.group = 分组
+form.label.sound.gain = 增益
+form.label.sound.pan = 声道平衡
+form.label.sound.speed = 速度
+
+form.label.liveupdate.liveupdate = 实时更新
+form.label.liveupdate.liveupdate.mode = 模式
+form.help.liveupdate.liveupdate.mode = 目标
+form.label.liveupdate.amazon = Amazon
+form.label.liveupdate.liveupdate.amazon-credential-profile = 凭据配置文件
+form.help.liveupdate.liveupdate.amazon-credential-profile = Amazon 凭据配置文件
+form.label.liveupdate.liveupdate.amazon-bucket = 存储桶
+form.help.liveupdate.liveupdate.amazon-bucket = Amazon 存储桶
+form.label.liveupdate.liveupdate.amazon-prefix = 前缀
+form.help.liveupdate.liveupdate.amazon-prefix = Amazon 前缀
+form.label.liveupdate.zip = Zip
+form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = 保存到Bundle文件夹
+form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = 在打包后将zip文件移动到bundle目录
+form.label.liveupdate.liveupdate.zip-filepath = 输出目录
+form.help.liveupdate.liveupdate.zip-filepath = Zip 输出目录
+form.label.liveupdate.liveupdate.zip-filename = 文件名
+form.title.liveupdate.liveupdate.zip-filepath = 选择 Zip 输出目录
+form.help.liveupdate.liveupdate.zip-filename = Zip 文件名
+form.label.liveupdate.liveupdate.zip-compression-level = 压缩级别
+form.help.liveupdate.liveupdate.zip-compression-level = 创建实时更新Zip存档时使用的压缩级别
+form.label.liveupdate.folder = 文件夹
+form.label.liveupdate.liveupdate.save-folder-in-bundle-folder = 保存到Bundle文件夹
+form.help.liveupdate.liveupdate.save-folder-in-bundle-folder = 在打包后将输出文件夹移动到bundle目录
+form.label.liveupdate.liveupdate.output-directory = 输出目录
+form.help.liveupdate.liveupdate.output-directory = 输出目录
+form.title.liveupdate.liveupdate.output-directory = 选择输出目录
+form.label.liveupdate.liveupdate.output-folder-name = 输出文件夹
+form.help.liveupdate.liveupdate.output-folder-name = 输出文件夹名称
+form.label.liveupdate.manifest = 清单
+form.label.liveupdate.liveupdate.publickey = 公钥
+form.help.liveupdate.liveupdate.publickey = 用于清单签名的公钥
+form.title.liveupdate.liveupdate.publickey = 选择清单公钥
+form.label.liveupdate.liveupdate.privatekey = 私钥
+form.help.liveupdate.liveupdate.privatekey = 用于清单签名的私钥
+form.title.liveupdate.liveupdate.privatekey = 选择清单私钥
+form.label.liveupdate.liveupdate.supported-versions = 支持的引擎版本
+form.help.liveupdate.liveupdate.supported-versions = 支持的引擎版本列表
+
+form.label.material = 材质
+form.label.material.name = 名称
+form.label.material.vertex-program = 顶点程序
+form.label.material.fragment-program = 片段程序
+form.label.material.attributes = 顶点属性
+form.label.material.attributes.semantic-type = 语义类型
+form.label.material.attributes.step-function = 步进函数
+form.label.material.attributes.coordinate-space = 坐标空间
+form.label.material.attributes.data-type = 数据类型
+form.label.material.attributes.vector-type = 向量类型
+form.label.material.attributes.value = 值
+form.label.material.attributes.normalize = 归一化
+form.label.material.vertex-constants = 顶点常量
+form.label.material.vertex-constants.name = 名称
+form.label.material.vertex-constants.type = 类型
+form.label.material.vertex-constants.value = 值
+form.label.material.fragment-constants = 片段常量
+form.label.material.fragment-constants.name = 名称
+form.label.material.fragment-constants.type = 类型
+form.label.material.fragment-constants.value = 值
+form.label.material.samplers = 采样器
+form.label.material.samplers.name = 名称
+form.label.material.samplers.wrap-u = U 轴环绕
+form.label.material.samplers.wrap-v = V 轴环绕
+form.label.material.samplers.filter-min = 缩小过滤器
+form.label.material.samplers.filter-mag = 放大过滤器
+form.label.material.samplers.max-anisotropy = 最大各向异性
+form.label.material.tags = 标签
+form.label.material.vertex-space = 顶点空间
+form.label.material.max-page-count = 最大图集页数
+
+form.label.compute = 计算
+form.label.compute.compute-program = 程序
+form.label.compute.constants = 常量
+form.label.compute.constants.name = 名称
+form.label.compute.constants.type = 类型
+form.label.compute.constants.value = 值
+form.label.compute.samplers = 采样器
+form.label.compute.samplers.name = 名称
+form.label.compute.samplers.wrap-u = U 轴环绕
+form.label.compute.samplers.wrap-v = V 轴环绕
+form.label.compute.samplers.filter-min = 缩小过滤器
+form.label.compute.samplers.filter-mag = 放大过滤器
+form.label.compute.samplers.max-anisotropy = 最大各向异性
 
 # Quick Help
 

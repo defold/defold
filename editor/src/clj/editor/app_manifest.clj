@@ -337,6 +337,12 @@
       (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
       (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"]))))
 
+(def font-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["font"])
+      (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "unibreak", "skribidi"]))))
+
 (def sound-setting
   (make-check-box-setting
     (concat
@@ -678,7 +684,13 @@
                                                         [:web-gpu "WebGPU"]
                                                         [:both "WebGL & WebGPU"]]}))
             (value (setting-property-getter graphics-web-setting))
-            (set (setting-property-setter graphics-web-setting))))
+            (set (setting-property-setter graphics-web-setting)))
+  (property use-font-layout g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :use-font-layout))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-font-layout))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter font-setting))
+            (set (setting-property-setter font-setting))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type

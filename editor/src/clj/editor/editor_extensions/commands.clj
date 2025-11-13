@@ -18,8 +18,10 @@
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.error-handling :as error-handling]
+            [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.future :as future]
             [editor.handler :as handler]
             [editor.lsp.async :as lsp.async]
@@ -106,7 +108,7 @@
 
 (def ^:private command-definition-coercer
   (coerce/hash-map
-    :req {:label coerce/string
+    :req {:label ui-docs/string-or-message-pattern-coercer
           :locations (coerce/vector-of
                        (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View")
                        :distinct true

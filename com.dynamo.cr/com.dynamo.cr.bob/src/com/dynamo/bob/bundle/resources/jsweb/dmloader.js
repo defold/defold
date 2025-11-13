@@ -332,8 +332,9 @@ var EngineLoader = {
                         const error = new Error("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.getWasmSha1());
                         if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
                            CUSTOM_PARAMETERS["start_error"](error);
+                        } else {
+                            throw error;
                         }
-                        throw error;
                     }
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
@@ -343,8 +344,9 @@ var EngineLoader = {
                     console.log('wasm instantiation failed! ' + e);
                     if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
                         CUSTOM_PARAMETERS["start_error"](e);
+                    } else {
+                        throw e;
                     }
-                    throw e;
                 });
             },
             function(loadedDelta, currentAttempt){
@@ -733,7 +735,11 @@ var GameArchiveLoader = {
                 this.onFileLoaded(file);
             }).catch((e) => {
                 console.log('file verification failed! ' + e);
-                throw e;
+                if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                   CUSTOM_PARAMETERS["start_error"](e);
+                } else {
+                   throw e;
+                }
             });
         }
         // continue loading more pieces of the file
