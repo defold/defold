@@ -882,7 +882,6 @@ command.code.toggle-visible-whitespace = 显示空白字符
 command.code.zoom.increase = 增大字体大小
 command.code.zoom.decrease = 减小字体大小
 command.code.zoom.reset = 重置字体大小
-command.debugger.start = 启动/附加
 command.debugger.continue = 继续
 command.debugger.break = 中断
 command.debugger.step-over = 单步跳过
