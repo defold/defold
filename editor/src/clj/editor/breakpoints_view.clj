@@ -52,57 +52,6 @@
                       :edited-breakpoint nil
                       :edited-condition nil}))
 
-(defn- update-breakpoints [breakpoints breakpoints-batch f]
-  (let [bp-set (set breakpoints-batch)]
-    (mapv (fn [bp]
-            (if (bp-set bp)
-              (f bp)
-              bp))
-          breakpoints)))
-
-(defn- update-breakpoint [breakpoints breakpoint f]
-  (mapv (fn [bp]
-          (if (= bp breakpoint)
-            (f bp)
-            bp))
-        breakpoints))
-
-(defn- toggle-breakpoints-active [breakpoints breakpoint-batch]
-  (update-breakpoints breakpoints breakpoint-batch #(assoc % :active (not (:active %)))))
-
-(defn- toggle-breakpoint-active [breakpoints breakpoint]
-  (toggle-breakpoints-active breakpoints [breakpoint]))
-
-(defn- update-breakpoints-active-state [breakpoints breakpoint-batch active]
-  (update-breakpoints breakpoints breakpoint-batch #(assoc % :active active)))
-
-(defn- update-breakpoint-active-state [breakpoints breakpoint active]
-  (update-breakpoints breakpoints [breakpoint] active))
-
-(defn- update-breakpoint-condition [breakpoints breakpoint condition]
-  (update-breakpoints breakpoints [breakpoint] #(if (not (string/blank? condition))
-                                                  (assoc % :condition condition)
-                                                  (dissoc % :condition))))
-
-(defn- collect-script-nodes-from-breakpoints [project breakpoints evaluation-context]
-  (for [[resource bps] (group-by :resource breakpoints)
-        :let [script-node (project/get-resource-node project resource evaluation-context)]]
-    {:script-node script-node :resource resource :breakpoints bps}))
-
-(defn- breakpoint->script-node [project breakpoint evaluation-context]
-  (project/get-resource-node project (:resource breakpoint) evaluation-context))
-
-(defn- breakpoint->region [lines breakpoint]
-  (let [region (code-data/make-breakpoint-region lines (:row breakpoint))]
-    (merge region (select-keys breakpoint [:condition :active]))))
-
-(defn- update-script-regions-from-breakpoints [script-node breakpoints evaluation-context]
-  (let [lines (g/node-value script-node :lines evaluation-context)
-        regions (g/node-value script-node :regions evaluation-context)
-        non-bp-regions (remove code-data/breakpoint-region? regions)
-        bp-regions (map (partial breakpoint->region lines) breakpoints)]
-    (vec (sort (concat non-bp-regions bp-regions)))))
-
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
    :style "-fx-padding: 2; -fx-min-width: 0; -fx-pref-width: 30;"
@@ -249,6 +198,57 @@
                                    :cell-value-factory identity
                                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                                   :describe (fn/partial condition-table-cell state)}}]}}]}})
+
+(defn- update-breakpoints [breakpoints breakpoints-batch f]
+  (let [bp-set (set breakpoints-batch)]
+    (mapv (fn [bp]
+            (if (bp-set bp)
+              (f bp)
+              bp))
+          breakpoints)))
+
+(defn- update-breakpoint [breakpoints breakpoint f]
+  (mapv (fn [bp]
+          (if (= bp breakpoint)
+            (f bp)
+            bp))
+        breakpoints))
+
+(defn- toggle-breakpoints-active [breakpoints breakpoint-batch]
+  (update-breakpoints breakpoints breakpoint-batch #(assoc % :active (not (:active %)))))
+
+(defn- toggle-breakpoint-active [breakpoints breakpoint]
+  (toggle-breakpoints-active breakpoints [breakpoint]))
+
+(defn- update-breakpoints-active-state [breakpoints breakpoint-batch active]
+  (update-breakpoints breakpoints breakpoint-batch #(assoc % :active active)))
+
+(defn- update-breakpoint-active-state [breakpoints breakpoint active]
+  (update-breakpoints breakpoints [breakpoint] active))
+
+(defn- update-breakpoint-condition [breakpoints breakpoint condition]
+  (update-breakpoints breakpoints [breakpoint] #(if (not (string/blank? condition))
+                                                  (assoc % :condition condition)
+                                                  (dissoc % :condition))))
+
+(defn- collect-script-nodes-from-breakpoints [project breakpoints evaluation-context]
+  (for [[resource bps] (group-by :resource breakpoints)
+        :let [script-node (project/get-resource-node project resource evaluation-context)]]
+    {:script-node script-node :resource resource :breakpoints bps}))
+
+(defn- breakpoint->script-node [project breakpoint evaluation-context]
+  (project/get-resource-node project (:resource breakpoint) evaluation-context))
+
+(defn- breakpoint->region [lines breakpoint]
+  (let [region (code-data/make-breakpoint-region lines (:row breakpoint))]
+    (merge region (select-keys breakpoint [:condition :active]))))
+
+(defn- update-script-regions-from-breakpoints [script-node breakpoints evaluation-context]
+  (let [lines (g/node-value script-node :lines evaluation-context)
+        regions (g/node-value script-node :regions evaluation-context)
+        non-bp-regions (remove code-data/breakpoint-region? regions)
+        bp-regions (map (partial breakpoint->region lines) breakpoints)]
+    (vec (sort (concat non-bp-regions bp-regions)))))
 
 (defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
   ;; Any of these actions should disable editing
