@@ -21,16 +21,35 @@
 
 (def ^:private project-path "test/resources/geometry_wars")
 
-(deftest new-breakpoints-are-mapped-to-regions
+(deftest update-script-regions-from-breakpoints-test
   (test-util/with-loaded-project project-path
-    (let [update-script-regions-from-breakpoints (var-get #'breakpoints-tab/update-script-regions-from-breakpoints)
+    (let [update-fn (var-get #'breakpoints-tab/update-script-regions-from-breakpoints)
           script-resource (test-util/resource workspace "/main/main.script")
           script-node (test-util/resource-node (dev/project) script-resource)
-          breakpoints [{:row 1 :resource script-resource :condition "x > 5" :active true}
-                       {:row 2 :resource script-resource :active false}]
-          ec (g/make-evaluation-context)]
-      
-      (let [result (update-script-regions-from-breakpoints script-node breakpoints ec)]
-        (is (= 2 (count result)))
-        (doseq [[bp region] (map vector breakpoints result)]
-          (is (= (code-data/region->breakpoint script-resource region) bp)))))))
+          ec (g/make-evaluation-context)
+          lines (g/node-value script-node :lines ec)]
+
+      (testing "new breakpoints are mapped to regions"
+        (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :active true}
+                          {:row 2 :resource script-resource :active false}]
+              result (update-fn script-node breakpoints ec)]
+          (is (= 2 (count result)))
+          (doseq [[bp region] (map vector breakpoints result)]
+            (is (= (code-data/region->breakpoint script-resource region) bp)))))
+
+      (testing "existing breakpoints are mapped to regions"
+        (let [regions [(code-data/make-breakpoint-region lines 1)
+                      (code-data/make-breakpoint-region lines 2)]
+              breakpoints [{:row 1 :resource script-resource :condition "x > 5" :active true}
+                          {:row 2 :resource script-resource :active false}]
+              result (update-fn script-node breakpoints ec)]
+          (is (= 2 (count result)))
+          (doseq [[bp region] (map vector breakpoints result)]
+            (is (= (code-data/region->breakpoint script-resource region) bp)))))
+
+      (testing "missing breakpoints are mapped to empty"
+        (let [regions [(code-data/make-breakpoint-region lines 1)
+                      (code-data/make-breakpoint-region lines 2)]
+              breakpoints []
+              result (update-fn script-node breakpoints ec)]
+          (is (not (seq result))))))))
