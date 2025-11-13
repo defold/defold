@@ -210,7 +210,6 @@
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
                         :fixed-cell-size 35.0
-                        :on-mouse-pressed {:event-type :list-view-clicked}
                         :context-menu {:fx/type fx.context-menu/lifecycle
                                        :consume-auto-hiding-events false
                                        :items [{:fx/type fx.menu-item/lifecycle
@@ -268,117 +267,6 @@
                                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                                   :describe (fn/partial condition-table-cell state)}}]}}]}})
 
-(defn- breakpoint-cell-view [state breakpoint-idx]
-  (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
-    (let [{:keys [resource row condition active]} breakpoint
-          proj-path (:project-path resource)
-          label-text (str proj-path ":" (+ 1 row) (when condition (str " [" condition "]")))
-          hovered? (= (:hovered state) breakpoint-idx)
-          editing? (= (:edited-breakpoint state) breakpoint-idx)
-          ;; SVG paths
-          edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-          close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-          save-icon "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"]
-      {:graphic
-       {:fx/type fx.h-box/lifecycle
-        :alignment :center-left
-        :spacing 8
-        :max-width ##Inf
-        :on-mouse-clicked {:event-type :breakpoint-clicked       :clicked-breakpoint breakpoint}
-        :on-mouse-entered {:event-type :breakpoint-mouse-entered :breakpoint-idx breakpoint-idx}
-        :on-mouse-exited  {:event-type :breakpoint-mouse-exited  :breakpoint-idx breakpoint-idx}
-        :children (concat [{:fx/type fx.check-box/lifecycle
-                            :h-box/hgrow :always
-                            :text label-text
-                            :selected active
-                            :on-selected-changed {:event-type :toggle-active
-                                                  :breakpoint breakpoint}}]
-                          [{:fx/type :region
-                            :h-box/hgrow :always}]
-                          (when (or editing? hovered?)
-                            (if editing?
-                              [{:fx/type fx.text-field/lifecycle
-                                :text (or condition "")
-                                :prompt-text "condition"
-                                :pref-width 150
-                                :focus-traversable true
-                                :on-text-changed {:event-type :condition-text-changed}
-                                :on-action {:event-type :save-condition
-                                            :breakpoint breakpoint
-                                            :breakpoint-idx breakpoint-idx}}
-                               (icon-button save-icon {:event-type :save-condition
-                                                       :breakpoint breakpoint})]
-                              (concat
-                               (when condition
-                                 [{:fx/type :label
-                                   :text condition
-                                   :style "-fx-text-fill: -fx-text-base-color; -fx-opacity: 0.6;"}])
-                               [(icon-button edit-icon {:event-type :edit-condition
-                                                        :breakpoint-idx breakpoint-idx})
-                                (icon-button close-icon {:event-type :remove
-                                                         :breakpoint breakpoint})]))))}})))
-
-(defn- breakpoints-view-list-version [parent state]
-  {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value
-          :value parent}
-   :props {:stylesheets [(str (io/resource "editor.css"))]
-           :children [{:fx/type fx.h-box/lifecycle
-                       :id "breakpoints-tool-bar"
-                       :anchor-pane/top 0
-                       :anchor-pane/left 0
-                       :anchor-pane/right 0
-                       :spacing 10
-                       :children [{:fx/type fx.button/lifecycle
-                                   :id "breakpoints-enable-all"
-                                   :text "Enable All"
-                                   :on-action {:event-type :enable-all}}
-                                  {:fx/type fx.button/lifecycle
-                                   :id "breakpoints-disable-all"
-                                   :text "Disable All"
-                                   :on-action {:event-type :disable-all}}
-                                  {:fx/type fx.button/lifecycle
-                                   :id "breakpoints-toggle-all"
-                                   :text "Toggle All"
-                                   :on-action {:event-type :toggle-all}}
-                                  {:fx/type fx.button/lifecycle
-                                   :id "breakpoints-remove-all"
-                                   :text "Remove All"
-                                   :on-action {:event-type :remove-all}}]}
-                      {:fx/type fx.ext.list-view/with-selection-props
-                       :anchor-pane/top 57
-                       :anchor-pane/right 0
-                       :anchor-pane/bottom 0
-                       :anchor-pane/left 0
-                       :props {:selection-mode :multiple
-                               ;; TODO: Need to reconsider how we handle selections when we delete with
-                               ;; the dedicated breakpoints remove button
-                               ;; :selected-indices (:selected-indices state)
-                               :on-selected-indices-changed {:event-type :selected-items-changed}}
-                       :desc
-                       {:fx/type fx.list-view/lifecycle
-                        :id "breakpoints-list-view"
-                        :on-mouse-pressed {:event-type :list-view-clicked}
-                        :fixed-cell-size 60.0
-                        :context-menu {:fx/type fx.context-menu/lifecycle
-                                       :consume-auto-hiding-events false
-                                       :items [{:fx/type fx.menu-item/lifecycle
-                                                :text "Enable Selected"
-                                                :on-action {:event-type :enable-selected}}
-                                               {:fx/type fx.menu-item/lifecycle
-                                                :text "Disable Selected"
-                                                :on-action {:event-type :disable-selected}}
-                                               {:fx/type fx.menu-item/lifecycle
-                                                :text "Toggle Selected"
-                                                :on-action {:event-type :toggle-selected}}
-                                               {:fx/type fx.separator-menu-item/lifecycle}
-                                               {:fx/type fx.menu-item/lifecycle
-                                                :text "Remove Selected"
-                                                :on-action {:event-type :remove-selected}}]}
-                        :items (range (count (:breakpoints state)))
-                        :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                       :describe (fn/partial breakpoint-cell-view state)}}}]}})
-
 (defn- handle-breakpoint-action [project evaluation-context all-breakpoints breakpoints action-fn]
   ;; Any of these actions should disable editing
   (swap! state assoc :edited-breakpoint nil)
@@ -421,14 +309,6 @@
 
       :selected-items-changed
       (swap! state assoc :selected-indices (:fx/event event))
-
-      ;; We clicked empty space, not an item
-      :list-view-clicked
-      (let [^MouseEvent e (:fx/event event)
-            ^ListView target (.getTarget e)]
-        (when (and (instance? ListCell target)
-                   (.isEmpty ^ListCell target))
-          (.clearSelection (.getSelectionModel (.getSource e)))))
 
       :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
