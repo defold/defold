@@ -186,6 +186,7 @@
                 "-package" "com.defold.editor"
                 "-no-listener"
                 "-no-visitor"]
+               ["sass" "once"]
                "javac"
                "compile"]
 
