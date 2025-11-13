@@ -2532,7 +2532,7 @@
   (some #(when (and (= (:type %) :breakpoint)
                     (= (get-in % [:from :row]) row))
            %)
-        regions)))
+        regions))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))

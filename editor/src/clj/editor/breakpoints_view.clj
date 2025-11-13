@@ -344,6 +344,7 @@
         (reset! condition-text nil)
         (swap! state assoc :edited-breakpoint nil))
 
+      ;; TODO: When I hit enter on an empty string it doesn't just save with empty
       :save-condition
       (when (not (string/blank? @condition-text))
         (let [breakpoint (:edited-breakpoint @state)
@@ -396,7 +397,6 @@
 (defn create-breakpoint-view-renderer [project prefs breakpoint-container open-resource-fn]
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))]
     (ui/context! tab-pane :breakpoints-view {:project project} nil))
-  ;; Restore breakpoints
   (restore-breakpoints project prefs)
   (let [open-res-fn (make-open-resource-fn open-resource-fn)]
     (fx/mount-renderer
@@ -447,7 +447,8 @@
   (let [open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
         breakpoints-container (.lookup (ui/main-root) "#breakpoints-container")]
-    (create-breakpoint-view-renderer (ui/main-root) (dev/workspace) (dev/project) (dev/prefs) breakpoints-container open-resource))
+    (create-breakpoint-view-renderer (dev/project) (dev/prefs) breakpoints-container open-resource))
+
   (g/with-auto-evaluation-context ec
     (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :active true}
                      {:proj-path "/scripts/game.script", :row 20, :active true}]
@@ -457,19 +458,12 @@
         (for [{:keys [script-node breakpoints]} script-bps
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints ec)]]
           (g/set-property script-node :regions updated-regions)))))
-  (g/with-auto-evaluation-context ec
-    (let [bps-prefs (prefs/get (dev/prefs) [:code :breakpoints])
-          workspace (project/workspace (dev/project))
-          breakpoints (mapv #(assoc % :resource (workspace/find-resource workspace (:proj-path %) ec))
-                            bps-prefs)
-          script-bps (collect-script-nodes-from-breakpoints (dev/project) breakpoints ec)]
-      (g/node-value (:script-node (first script-bps)) :regions ec)))
+
   (defn save-breakpoints [_ _] nil)
   (prefs/get (dev/prefs) [:code :breakpoints])
   (save-breakpoints (dev/prefs) (g/node-value (dev/project) :breakpoints))
   (restore-breakpoints (dev/project) (dev/prefs))
-  (g/with-auto-evaluation-context ec
-    (let [bp {:proj-path "/scripts/knight.script", :row 21, :active true :condition "Testing"}
-          bp (assoc bp :resource (workspace/find-resource (dev/workspace) (:proj-path bp) ec))]
-      (breakpoint->region (dev/project) bp)))
+
+  (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
+
   ,)
