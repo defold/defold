@@ -112,6 +112,7 @@ void ComponentTypeSetFinalFn(HComponentType type, ComponentFinal fn)            
 void ComponentTypeSetAddToUpdateFn(HComponentType type, ComponentAddToUpdate fn)            { type->m_AddToUpdateFunction = fn; }
 void ComponentTypeSetGetFn(HComponentType type, ComponentGet fn)                            { type->m_GetFunction = fn; }
 void ComponentTypeSetRenderFn(HComponentType type, ComponentsRender fn)                     { type->m_RenderFunction = fn; }
+void ComponentTypeSetPreUpdateFn(HComponentType type, ComponentsPreUpdate fn)               { type->m_PreUpdateFunction = fn; }
 void ComponentTypeSetUpdateFn(HComponentType type, ComponentsUpdate fn)                     { type->m_UpdateFunction = fn; }
 void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsFixedUpdate fn)           { type->m_FixedUpdateFunction = fn; }
 void ComponentTypeSetPostUpdateFn(HComponentType type, ComponentsPostUpdate fn)             { type->m_PostUpdateFunction = fn; }

@@ -368,7 +368,7 @@ def check_reflections(jdk_path):
         exit(1)
 
 def write_docs(docs_dir, jdk_path=None):
-    invoke_lein(['with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
+    invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
 
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""

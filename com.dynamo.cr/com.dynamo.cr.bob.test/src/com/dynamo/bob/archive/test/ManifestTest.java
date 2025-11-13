@@ -18,6 +18,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -30,6 +31,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.SignatureException;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -61,8 +63,8 @@ public class ManifestTest {
 
         public final String projectIdentifier = "Defold test";
         public final String[] supportedEngineVersions = { "alpha", "beta", "gamma", "delta" };
-        public final String privateKeyFilepath = "test/private_rsa_1024_1.der";
-        public final String publicKeyFilepath = "test/public_rsa_1024_1.der";
+        public final String privateKeyFilepath = "test/private_rsa_4096_1.der";
+        public final String publicKeyFilepath = "test/public_rsa_4096_1.der";
         public final String[][] resources;
         public final ResourceGraph resourceGraph;
         public final PublicKey publicKey;
@@ -266,25 +268,25 @@ public class ManifestTest {
 
     @Test
     public void testEncrypt_RSA() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
+        String filepath = "test/public_rsa_4096_1.der";
+        PublicKey publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey(filepath, SignAlgorithm.SIGN_RSA);
         String data = "defold";
-        byte[] ciphertext = ManifestBuilder.CryptographicOperations.encrypt(data.getBytes(), SignAlgorithm.SIGN_RSA, privateKey);
+        byte[] ciphertext = ManifestBuilder.CryptographicOperations.encrypt(data.getBytes(), SignAlgorithm.SIGN_RSA, publicKey);
 
         assertNotNull(ciphertext);
-        assertEquals(128, ciphertext.length);
+        assertEquals(512, ciphertext.length);
     }
 
     @Test
     public void testDecrypt_RSA() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey("test/private_rsa_1024_1.der", SignAlgorithm.SIGN_RSA);
-        PublicKey publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey("test/public_rsa_1024_1.der", SignAlgorithm.SIGN_RSA);
+        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey("test/private_rsa_4096_1.der", SignAlgorithm.SIGN_RSA);
+        PublicKey publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey("test/public_rsa_4096_1.der", SignAlgorithm.SIGN_RSA);
         String data = "defold";
-        byte[] ciphertext = ManifestBuilder.CryptographicOperations.encrypt(data.getBytes(), SignAlgorithm.SIGN_RSA, privateKey);
-        byte[] plaintext = ManifestBuilder.CryptographicOperations.decrypt(ciphertext, SignAlgorithm.SIGN_RSA, publicKey);
+        byte[] ciphertext = ManifestBuilder.CryptographicOperations.encrypt(data.getBytes(), SignAlgorithm.SIGN_RSA, publicKey);
+        byte[] plaintext = ManifestBuilder.CryptographicOperations.decrypt(ciphertext, SignAlgorithm.SIGN_RSA, privateKey);
 
         assertNotNull(ciphertext);
-        assertEquals(128, ciphertext.length);
+        assertEquals(512, ciphertext.length);
 
         assertNotNull(plaintext);
         assertEquals(6, plaintext.length);
@@ -294,7 +296,7 @@ public class ManifestTest {
 
     @Test
     public void testloadPrivateKey() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        String filepath = "test/private_rsa_1024_1.der";
+        String filepath = "test/private_rsa_4096_1.der";
         PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
         assertNotNull(privateKey);
     }
@@ -311,11 +313,11 @@ public class ManifestTest {
         ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
     }
 
-    @Test
-    public void testSign_MD5() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
+    @Test(expected=NoSuchAlgorithmException.class)
+    public void testSign_MD5() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, SignatureException {
         HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_MD5;
         SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
+        String filepath = "test/private_rsa_4096_1.der";
         PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
         String data = "defold";
 
@@ -325,10 +327,10 @@ public class ManifestTest {
     }
 
     @Test
-    public void testSign_SHA1() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
+    public void testSign_SHA1() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, SignatureException {
         HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA1;
         SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
+        String filepath = "test/private_rsa_4096_1.der";
         PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
         String data = "defold";
 
@@ -338,10 +340,10 @@ public class ManifestTest {
     }
 
     @Test
-    public void testSign_SHA256() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
+    public void testSign_SHA256() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, SignatureException {
         HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA256;
         SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
+        String filepath = "test/private_rsa_4096_1.der";
         PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
         String data = "defold";
 
@@ -351,37 +353,16 @@ public class ManifestTest {
     }
 
     @Test
-    public void testSign_SHA512() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
+    public void testSign_SHA512() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, SignatureException {
         HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA512;
         SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
+        String filepath = "test/private_rsa_4096_1.der";
         PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
         String data = "defold";
 
         byte[] actual = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
         assertNotNull(actual);
         assertTrue(actual.length > 0);
-    }
-
-    @Test
-    public void testSign_DecryptPublic() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
-        HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA1;
-        SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String privateKeyFilepath = "test/private_rsa_1024_1.der";
-        String publicKeyFilepath = "test/public_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(privateKeyFilepath, signAlgorithm);
-        PublicKey publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey(publicKeyFilepath, signAlgorithm);
-        String data = "defold";
-
-        byte[] expected = ManifestBuilder.CryptographicOperations.hash(data.getBytes(), hashAlgorithm);
-        byte[] signature = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
-        byte[] actual = ManifestBuilder.CryptographicOperations.decrypt(signature, signAlgorithm, publicKey);
-
-        assertNotNull(expected);
-        assertNotNull(signature);
-        assertNotNull(actual);
-
-        assertArrayEquals(expected, actual);
     }
 
     @Test
@@ -412,17 +393,23 @@ public class ManifestTest {
     }
 
     @Test
-    public void testBuildManifest_VerifySignature() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public void testBuildManifest_VerifySignature() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, SignatureException {
         ManifestInstance instance = new ManifestInstance();
 
         ManifestFile manifestFile = ManifestFile.parseFrom(instance.manifest);
-        byte[] expected = ManifestBuilder.CryptographicOperations.hash(manifestFile.getData().toByteArray(), HashAlgorithm.HASH_SHA1);
-        byte[] actual = ManifestBuilder.CryptographicOperations.decrypt(manifestFile.getSignature().toByteArray(), SignAlgorithm.SIGN_RSA, instance.publicKey);
+        byte[] data = manifestFile.getData().toByteArray();
 
-        assertNotNull(expected);
-        assertNotNull(actual);
+        ManifestData manifestData = ManifestData.parseFrom(data);
+        HashAlgorithm hashAlgorithm = manifestData.getHeader().getSignatureHashAlgorithm();
+        SignAlgorithm signAlgorithm = manifestData.getHeader().getSignatureSignAlgorithm();
+        manifestFile.getSignature();
+        boolean isValid = ManifestBuilder.CryptographicOperations.verify(data, manifestFile.getSignature().toByteArray(), hashAlgorithm, signAlgorithm, instance.publicKey);
 
-        assertArrayEquals(expected, actual);
+        assertTrue(isValid);
+
+        data = new byte[] { 0x00, 0x0c, 0x0a, 0x03, 0x03, 0x03 };
+        isValid = ManifestBuilder.CryptographicOperations.verify(data, manifestFile.getSignature().toByteArray(), hashAlgorithm, signAlgorithm, instance.publicKey);
+        assertFalse(isValid);
     }
 
     @Test

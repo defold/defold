@@ -103,7 +103,7 @@
                     {:value value}))))
 
 (defn- get-resource-name [node-id]
-  (when-let [resource (resource-node/as-resource node-id)]
+  (when-let [resource (some-> node-id resource-node/owner-resource)]
     (resource/resource-name resource)))
 
 (defn- error-message-lines

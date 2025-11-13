@@ -27,22 +27,71 @@ namespace dmEngine
     dmEngine::HEngine g_Engine = 0;
 
 /*#
+ * Enables engine throttling.
  *
- * @name sys.set_render_enabled
- * @param enable [type:bool] true if rendering should be enabled
+ * @note It will automatically wake up on input events
+ * @note It will automatically throttle again after the cooldown period
+ * @note It skips entire update+render loop on the main thread. E.g loading of assets, callbacks from threads (http)
+ * @note On threaded systems, Sound will continue to play any started non-streaming sounds. (e.g. looping background music)
+ *
+ * @name sys.set_engine_throttle
+ * @param enable [type:bool] true if throttling should be enabled
+ * @param cooldown [type:number] the time period to do update + render for (seconds)
+ *
+ * @examples
+ *
+ * Disable throttling
+ *
+ * ```lua
+ * sys.set_engine_throttle(false)
+ * ```
+ *
+ * Enable throttling
+ *
+ * ```lua
+ * sys.set_engine_throttle(true, 1.5)
+ * ```
+ *
+ */
+static int EngineSys_SetEngineThrottle(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    bool enable = true;
+    if (lua_isboolean(L, 1))
+    {
+        enable = lua_toboolean(L, 1);
+    }
+    else
+    {
+        return DM_LUA_ERROR("Expected boolean as first argument");
+    }
+
+    float cooldown = 0.0f;
+    if (enable)
+    {
+        cooldown = luaL_checknumber(L, 2);
+    }
+
+    dmEngine::SetEngineThrottle(g_Engine, enable, cooldown);
+    return 0;
+}
+
+
+/*#
+ * Disables rendering
+ *
+ * @note It will will leave the back buffer as-is
+ *
+ * @name sys.set_render_enable
+ * @param enable [type:bool] true if throttling should be enabled
  *
  * @examples
  *
  * Disable rendering
  *
  * ```lua
- * sys.set_render_enabled(false)
- * ```
- *
- * Enable rendering
- *
- * ```lua
- * sys.set_render_enabled(true)
+ * sys.set_render_enable(false)
  * ```
  *
  */
@@ -51,21 +100,23 @@ static int EngineSys_SetRenderEnabled(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     bool enable = true;
-    if (lua_isboolean(L, -1))
+    if (lua_isboolean(L, 1))
     {
-        enable = lua_toboolean(L, -1);
+        enable = lua_toboolean(L, 1);
     }
     else
     {
         return DM_LUA_ERROR("Expected boolean as first argument");
     }
 
-    dmEngine::SetRenderEnable(g_Engine, enable);
+    dmEngine::SetRenderEnabled(enable);
     return 0;
 }
 
+
 static const luaL_reg EngineSys_methods[] =
 {
+    {"set_engine_throttle", EngineSys_SetEngineThrottle},
     {"set_render_enabled", EngineSys_SetRenderEnabled},
     {0, 0}
 };

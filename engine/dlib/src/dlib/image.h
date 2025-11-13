@@ -21,6 +21,16 @@
 
 namespace dmImage
 {
+    // https://chromium.googlesource.com/external/github.com/ARM-software/astc-encoder/+/HEAD/Docs/FileFormat.md
+    struct AstcHeader
+    {
+        uint8_t m_Magic[4];
+        uint8_t m_BlockSizes[3];    // x, y, z block sizes (in texels)
+        uint8_t m_DimensionX[3];    // X dimension (in texels). Encoded as: dim[0] + (dim[1] << 8) + (dim[2] << 16);
+        uint8_t m_DimensionY[3];
+        uint8_t m_DimensionZ[3];
+    };
+
     struct Image
     {
         Image() : m_Width(0), m_Height(0), m_Type(TYPE_RGB), m_Buffer(0) {}

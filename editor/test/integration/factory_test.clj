@@ -15,14 +15,9 @@
 (ns integration.factory-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.factory :as factory]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
+            [editor.localization :as localization]
             [editor.resource :as resource]
-            [editor.properties :as properties]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]))
 
 (deftest new-factory-object
@@ -31,7 +26,7 @@
       (let [node-id   (test-util/resource-node project "/factory/new.factory")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
-        (is (= "Factory" (:label outline)))
+        (is (= (localization/message "resource.type.factory") (:label outline)))
         (is (empty? (:children outline)))
         (is (= nil (get-in form-data [:values [:prototype]])))))))
 
@@ -41,7 +36,7 @@
       (let [node-id   (test-util/resource-node project "/factory/with_prototype.factory")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
-        (is (= "Factory" (:label outline)))
+        (is (= (localization/message "resource.type.factory") (:label outline)))
         (is (empty? (:children outline)))
         (is (= "/game_object/test.go"
                (resource/resource->proj-path (get-in form-data [:values [:prototype]]))))))))

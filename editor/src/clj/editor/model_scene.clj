@@ -24,6 +24,7 @@
             [editor.gl.types :as gl.types]
             [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.model-util :as model-util]
@@ -684,7 +685,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
     :ext model-file-types
-    :label "Model Scene"
+    :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
     :icon mesh-icon
     :icon-class :design

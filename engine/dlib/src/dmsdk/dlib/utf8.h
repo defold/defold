@@ -67,6 +67,47 @@ namespace dmUtf8
      * @return length [type: uint32_t] Number of characters in buffer
      */
     uint32_t ToUtf8(uint16_t chr, char* buf);
+
+
+    static const uint32_t UTF_WHITESPACE_TAB               = 0x09;      // '\t'
+    static const uint32_t UTF_WHITESPACE_NEW_LINE          = 0x0A;      // '\n'
+    static const uint32_t UTF_WHITESPACE_CARRIAGE_RETURN   = 0x0D;      // '\r'
+    static const uint32_t UTF_WHITESPACE_SPACE             = 0x20;      // ' '
+    static const uint32_t UTF_WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
+    static const uint32_t UTF_WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
+    static const uint32_t UTF_WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
+
+    /*#
+     * Checks if a codepoint is a whitespace
+     * @name IsWhiteSpace
+     * @param c [type: uint32_t] the codepoint
+     * @return result [type: bool] true if it's a whitespace
+     */
+    inline bool IsWhiteSpace(uint32_t c)
+    {
+        return c == UTF_WHITESPACE_SPACE ||
+               c == UTF_WHITESPACE_NEW_LINE ||
+               c == UTF_WHITESPACE_ZERO_WIDTH_SPACE ||
+               c == UTF_WHITESPACE_NO_BREAK_SPACE ||
+               c == UTF_WHITESPACE_IDEOGRAPHIC_SPACE ||
+               c == UTF_WHITESPACE_TAB ||
+               c == UTF_WHITESPACE_CARRIAGE_RETURN;
+    }
+
+    /*#
+     * Checks if a codepoint is a breaking whitespace
+     * @name IsBreaking
+     * @param c [type: uint32_t] the codepoint
+     * @return result [type: bool] true if it's a breaking whitespace
+     */
+    inline bool IsBreaking(uint32_t c)
+    {
+        return c == UTF_WHITESPACE_SPACE ||
+               c == UTF_WHITESPACE_NEW_LINE ||
+               c == UTF_WHITESPACE_ZERO_WIDTH_SPACE ||
+               c == UTF_WHITESPACE_CARRIAGE_RETURN;
+    }
+
 }
 
 #endif // DMSDK_UTF8_H

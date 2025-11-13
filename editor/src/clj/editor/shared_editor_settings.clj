@@ -85,7 +85,7 @@
 (defn register-resource-types [workspace]
   (settings/register-simple-settings-resource-type workspace
     :ext "shared_editor_settings"
-    :label "Shared Editor Settings"
+    :label (localization/message "resource.type.shared-editor-settings")
     :icon shared-editor-settings-icon
     :meta-info meta-info))
 

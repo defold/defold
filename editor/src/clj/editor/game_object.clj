@@ -88,14 +88,11 @@
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
-    (let [rt (resource/resource-type resource)
-          outline-key (or (:label rt) (:ext rt) "unknown")
-          label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
-          icon (or (:icon rt) unknown-icon)]
+    (let [rt (resource/resource-type resource)]
       {:node-id (:node-id err)
-       :node-outline-key outline-key
-       :label label
-       :icon icon})
+       :node-outline-key (or (:ext rt) "unknown")
+       :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+       :icon (or (:icon rt) unknown-icon)})
     {:node-id -1
      :node-outline-key ""
      :icon ""
@@ -736,7 +733,7 @@
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"
-      :label "Game Object"
+      :label (localization/message "resource.type.go")
       :node-type GameObjectNode
       :ddf-type GameObject$PrototypeDesc
       :load-fn load-game-object

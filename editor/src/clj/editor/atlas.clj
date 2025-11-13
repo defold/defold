@@ -1245,7 +1245,7 @@
       :get (attachment/nodes-by-type-getter AtlasImage))
     (resource-node/register-ddf-resource-type workspace
       :ext "atlas"
-      :label "Atlas"
+      :label (localization/message "resource.type.atlas")
       :build-ext "a.texturesetc"
       :node-type AtlasNode
       :ddf-type AtlasProto$Atlas

@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <testmain/testmain.h>
 #include "../dlib/array.h"
 #include "../dlib/atomic.h"
@@ -241,6 +242,7 @@ static void TestLogCaptureCallback(LogSeverity severity, const char* domain, con
 
 TEST(dmLog, TestCapture)
 {
+    g_LogListenerOutput.SetSize(0);
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
     dmLogRegisterListener(TestLogCaptureCallback);
@@ -266,6 +268,62 @@ TEST(dmLog, TestCapture)
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
 }
 
+TEST(dmLog, TestMaxUntruncatedMessageLength)
+{
+    g_LogListenerOutput.SetSize(0);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
+
+    const size_t expected_size = dmLog::MAX_STRING_SIZE;
+    char* expected = (char*)malloc(expected_size);
+    const char prefix[] = "INFO:DLIB: ";
+    const size_t prefix_length = sizeof(prefix) - 1;
+    memcpy(expected, prefix, prefix_length);
+    memset(expected + prefix_length, 'x', expected_size - prefix_length - 2);
+    strcpy(expected + expected_size - 2, "\n");
+
+    expected[expected_size - 2] = '\0'; // let input length be one short of the output length to leave space for dmLog to append a newline
+    dmLogInfo("%s", expected + prefix_length);
+    expected[expected_size - 2] = '\n'; // add the expected newline at the end
+
+    dmLog::LogFinalize();
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push('\0');
+
+    ASSERT_STREQ(expected, g_LogListenerOutput.Begin());
+
+    free(expected);
+}
+
+TEST(dmLog, TestMessageTruncationThreshold)
+{
+    g_LogListenerOutput.SetSize(0);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
+
+    const size_t expected_size = dmLog::MAX_STRING_SIZE;
+    char* expected = (char*)malloc(expected_size);
+    const char prefix[] = "INFO:DLIB: ";
+    const size_t prefix_length = sizeof(prefix) - 1;
+    memcpy(expected, prefix, prefix_length);
+    memset(expected + prefix_length, 'x', expected_size - prefix_length - 2);
+    strcpy(expected + expected_size - 2, "\n");
+
+    expected[expected_size - 2] = '!'; // let input length be one too long, i.e. leave no space for dmLog to append a newline
+    dmLogInfo("%s", expected + prefix_length);
+    const char truncation_msg[] = "...\n[Output truncated]\n"; // copied from log.cpp
+    strcpy(expected + expected_size - sizeof(truncation_msg), truncation_msg);
+
+    dmLog::LogFinalize();
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push('\0');
+
+    ASSERT_STREQ(expected, g_LogListenerOutput.Begin());
+
+    free(expected);
+}
 
 static void LogThreadWithLogCalls(void* arg)
 {

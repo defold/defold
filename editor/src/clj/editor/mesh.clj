@@ -26,6 +26,7 @@
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.image :as image]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.properties :as properties]
@@ -516,7 +517,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "mesh"
-    :label "Mesh"
+    :label (localization/message "resource.type.mesh")
     :node-type MeshNode
     :ddf-type MeshProto$MeshDesc
     :load-fn load-mesh

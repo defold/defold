@@ -34,7 +34,7 @@ public class ShaderCompilers {
             this.platform = platform;
         }
 
-        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL, boolean outputGLSL, CompileOptions compileOptions) {
+        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL, boolean outputGLSL, boolean outputMsl, CompileOptions compileOptions) {
             Set<ShaderDesc.Language> shaderLanguages = new LinkedHashSet<>();
 
             boolean spirvSupported = true;
@@ -48,6 +48,8 @@ public class ShaderCompilers {
                 // Vulkan is default on OSX since 1.9.9, meaning OpenGL is optional.
                 if (!isComputeType && outputGLSL) {
                     shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                } else if (outputMsl) {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
                 }
             }
             else
@@ -72,9 +74,12 @@ public class ShaderCompilers {
             else
             if (platform == Platform.Arm64Ios ||
                 platform == Platform.X86_64Ios) {
-                    if (!isComputeType) {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                    }
+                if (!isComputeType) {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                }
+                if (outputMsl) {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
+                }
             }
             else
             if (platform == Platform.Armv7Android ||
@@ -143,6 +148,7 @@ public class ShaderCompilers {
             boolean outputHLSL = false;
             boolean outputWGSL = false;
             boolean outputGlsl = false;
+            boolean outputMsl = false;
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
@@ -160,6 +166,7 @@ public class ShaderCompilers {
                         shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                         shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
                         shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
+                outputMsl |= shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22;
             }
 
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
@@ -167,7 +174,7 @@ public class ShaderCompilers {
 
             validateModules(shaderModules);
 
-            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL, outputGlsl, compileOptions);
+            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL, outputGlsl, outputMsl, compileOptions);
             assert shaderLanguages != null;
 
             // Used for tests, merge in potentially unsupported languages here.

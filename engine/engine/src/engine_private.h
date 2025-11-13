@@ -25,8 +25,6 @@
 #include <resource/resource.h>
 
 #include <render/render.h>
-#include <render/font_renderer.h>
-#include <rig/rig.h>
 
 #include <hid/hid.h>
 #include <input/input.h>
@@ -43,7 +41,11 @@
 #include "engine_service.h"
 #include "engine.h"
 #include <engine/engine_ddf.h>
-#include <dmsdk/gamesys/resources/res_font.h>
+
+namespace dmGameSystem
+{
+    struct FontResource;
+}
 
 namespace dmEngine
 {
@@ -85,8 +87,7 @@ namespace dmEngine
     {
         Stats();
 
-        uint32_t m_UpdateCount;
-        uint32_t m_RenderCount;
+        uint32_t m_FrameCount;
         float    m_TotalTime;   // Total running time of the game
     };
 
@@ -162,7 +163,6 @@ namespace dmEngine
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
         bool                                        m_UseSwVSync;
-        bool                                        m_RenderEnabled;
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
@@ -173,6 +173,10 @@ namespace dmEngine
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
         float                                       m_MaxTimeStep;
+
+        float                                       m_ThrottleCooldownMax;
+        float                                       m_ThrottleCooldown;
+        bool                                        m_ThrottleEnabled;
 
         RecordData                                  m_RecordData;
     };
@@ -187,8 +191,26 @@ namespace dmEngine
     bool LoadBootstrapContent(HEngine engine, HConfigFile config);
     void UnloadBootstrapContent(HEngine engine);
 
-    void SetRenderEnable(HEngine engine, bool enable);
+    /** Enables automatic disabling of update+render. Wakes up on input, for a period of time
+     * @name SetEngineThrottle
+     * @param engine [type: HEngine]
+     * @param enabled [type: bool] true to skip updates, false to reenable updates (default = false)
+     * @param cooldown [type: float] cooldown in seconds. 0 = single frame update+render
+     */
+    void SetEngineThrottle(HEngine engine, bool enabled, float cooldown);
 
+    /** Enables or disables the "update" part of the engine loop (Lua, scripting etc).
+     * @note If disabled, it will also skip rendering, as there is nothing new to render.
+     * @name SetUpdateEnabled
+     * @param enabled [type: bool] true to skip updates, false to reenable updates (default = true)
+     */
+    void SetUpdateEnabled(bool enabled);
+
+    /** Enables or disables the "render" part of the engine loop
+     * @name SetRenderEnabled
+     * @param enabled [type: bool] true to skip rendering, false to reenable rendering (default = true)
+     */
+    void SetRenderEnabled(bool enabled);
 
     // Creates and initializes the engine. Returns the engine instance
     typedef HEngine (*EngineCreate)(int argc, char** argv);

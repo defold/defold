@@ -18,6 +18,7 @@
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -121,10 +122,10 @@
 (def ^:private form-sections
   {:navigation false
    :sections
-   [{:title "Animation Set"
+   [{:localization-key "animationset"
      :fields [{:path [:animations]
                :type :list
-               :label "Animations"
+               :localization-key "animationset.animations"
                :element {:type :resource
                          :filter model-scene/animation-file-types
                          :default nil}}]}]})
@@ -186,7 +187,7 @@
     :ext "animationset"
     :icon animation-set-icon
     :icon-class :property
-    :label "Animation Set"
+    :label (localization/message "resource.type.animationset")
     :load-fn load-animation-set
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode

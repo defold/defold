@@ -322,6 +322,7 @@ dialog.lua-transpilers-error.generic.header = Falha ao carregar transpiladores L
 
 # Diff view dialogs
 
+dialog.diff-view.title = Diff
 dialog.diff-view.unchanged.title = Arquivo Não Alterado
 dialog.diff-view.unchanged.header = Arquivo não alterado
 dialog.diff-view.binary.title = Não Foi Possível Fazer Diff de Arquivos Binários
@@ -843,6 +844,28 @@ command.app.about = Sobre
 command.vcs.diff = Ver Diff
 command.vcs.revert = Desfazer
 
+# Code editor – find bar
+
+code.find.word = Palavra
+code.find.case = Caixa
+code.find.wrap = Retorno
+code.find.prev = Anterior
+code.find.next = Próximo
+code.replace.next = Substituir
+code.replace.all = Substituir Todos
+
+# About dialog
+
+dialog.about.label.version = Versão\:
+dialog.about.label.channel = Canal\:
+dialog.about.label.build-time = Tempo de Compilação\:
+dialog.about.label.editor-sha1 = Editor SHA1\:
+dialog.about.label.engine-sha1 = Motor SHA1\:
+dialog.about.value.unavailable = Não disponível
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Fundação Defold
+dialog.about.sponsor = Fundo de Desenvolvimento da Fundação Defold
+
 # Overrides
 
 override.aspect.layout = Layout {layout}
@@ -1220,3 +1243,8 @@ resource.readonly.button.read-more = Ler mais…
 
 # Quick Help
 
+quick-help.open-asset = Abrir Conteúdo
+quick-help.reopen-closed-file = Reabrir Arquivo Fechado
+quick-help.search-in-files = Buscar em Arquivos
+quick-help.build-and-run-project = Compilar e Executar Projeto
+quick-help.start-or-attach-debugger = Iniciar ou Conectar Depurador

@@ -1392,7 +1392,7 @@
       :get (attachment/nodes-by-type-getter ModifierNode))
     (resource-node/register-ddf-resource-type workspace
       :ext particlefx-ext
-      :label "Particle FX"
+      :label (localization/message "resource.type.particlefx")
       :node-type ParticleFXNode
       :ddf-type Particle$ParticleFX
       :load-fn load-particle-fx

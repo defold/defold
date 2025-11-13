@@ -310,7 +310,8 @@ ordinary paths."
                         resource type that is utilized by the automated tests.
                         Must include a :type field that classifies the method of
                         registration for the tests.
-    :label              label for a resource type when shown in the editor
+    :label              label for a resource type when shown in the editor,
+                        either a string or a MessagePattern instance
     :stateless?         whether or not the node stores any state that needs to
                         be reloaded if the resource is modified externally. When
                         true, we can simply invalidate its outputs without

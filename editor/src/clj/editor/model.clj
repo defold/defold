@@ -43,8 +43,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private model-resource-type-label "Model")
-
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (def ^:private supported-image-exts (conj image/exts "cubemap" "render_target"))
@@ -170,7 +168,7 @@
 
 (g/defnk produce-scene [_node-id scene material-name->material-scene-info]
   (if scene
-    (model-scene/augment-scene scene _node-id model-resource-type-label material-name->material-scene-info)
+    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info)
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 
@@ -583,7 +581,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "model"
-    :label model-resource-type-label
+    :label (localization/message "resource.type.model")
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
     :load-fn load-model

@@ -20,12 +20,10 @@
             [editor.id :as id]
             [editor.localization :as localization]
             [editor.resource :as resource]
-            [editor.util :as util]
             [internal.cache :as c]
             [schema.core :as s]
-            [service.log :as log]
-            [util.coll :as coll])
-  (:import [editor.localization MessagePattern]
+            [service.log :as log])
+  (:import [com.defold.editor.localization MessagePattern]
            [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)

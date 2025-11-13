@@ -18,6 +18,7 @@
             [editor.code.resource :as r]
             [editor.code.script :as script]
             [editor.editor-extensions.runtime :as rt]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.resource :as resource]))
 
@@ -40,7 +41,7 @@
   (r/register-code-resource-type workspace
                                  :ext "editor_script"
                                  :language "lua"
-                                 :label "Editor Script"
+                                 :label (localization/message "resource.type.editor-script")
                                  :icon "icons/32/Icons_29-AT-Unknown.png"
                                  :view-types [:code :default]
                                  :view-opts script/lua-code-opts
