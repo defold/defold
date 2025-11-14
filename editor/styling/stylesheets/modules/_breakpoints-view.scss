@@ -31,6 +31,26 @@
         -fx-background-color: -df-background-lightish;
         -fx-border-color: -df-background-lightish;
     }
+
+    .icon-button {
+        -fx-padding: 2;
+        -fx-min-width: 0;
+        -fx-pref-width: 30;
+        -fx-background-color: -df-background-light;
+        -fx-alignment: center;
+
+        &:hover {
+            -fx-background-color: -df-background-lighter;
+        }
+
+        .icon-button-graphic {
+            -fx-fill: -fx-text-base-color;
+        }
+    }
+}
+
+.path-cell {
+    -fx-text-fill: derive(-df-text, -30%);
 }
 
 #breakpoints-tool-bar {

@@ -56,17 +56,18 @@
 
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
-   :style "-fx-padding: 2; -fx-min-width: 0; -fx-pref-width: 30;"
+   :style-class ["icon-button"]
    :graphic {:fx/type fx.stack-pane/lifecycle
              :min-width 12
              :min-height 12
              :max-width 12
              :max-height 12
+             :alignment :center
              :children [{:fx/type fx.svg-path/lifecycle
                          :content icon-path
                          :scale-x 0.5
                          :scale-y 0.5
-                         :style "-fx-fill: -fx-text-base-color;"}]}
+                         :style-class ["icon-button-graphic"]}]}
    :on-action on-action-event})
 
 (defn- condition-table-cell [state breakpoint]
@@ -93,13 +94,13 @@
                              :max-width ##Inf
                              :alignment :center-right
                              :children (concat
+                                         (when (and hovered? condition)
+                                           [(icon-button close-icon {:event-type :remove-condition
+                                                                     :breakpoint breakpoint})])
                                          (when hovered?
                                            [(icon-button edit-icon {:event-type :edit-condition
                                                                     :source :button
-                                                                    :breakpoint breakpoint})])
-                                         (when (and hovered? condition)
-                                           [(icon-button close-icon {:event-type :remove-condition
-                                                                     :breakpoint breakpoint})]))}]}
+                                                                    :breakpoint breakpoint})]))}]}
        :on-mouse-entered {:event-type :row-mouse-entered  :breakpoint breakpoint}
        :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint breakpoint}
        :on-mouse-clicked {:event-type :edit-condition
@@ -180,26 +181,32 @@
                                                                            :on-selected-changed {:event-type :toggle-enabled
                                                                                                  :breakpoint breakpoint}}}))}}
                                   {:fx/type fx.table-column/lifecycle
-                                   :text "File"
-                                   :pref-width 250
-                                   :cell-value-factory (fn [breakpoint]
-                                                         (-> breakpoint :resource :project-path))}
-                                  {:fx/type fx.table-column/lifecycle
                                    :text "Line"
                                    :pref-width 50
                                    :cell-value-factory identity
                                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                                        :describe (fn [breakpoint]
-                                                                    ;; NOTE: When we delete a breakpoint, we receive a nil
-                                                                    (if (nil? breakpoint)
-                                                                      {:text ""}
-                                                                      {:text (str (inc (:row breakpoint)))}))}}
+                                                  :describe (fn [breakpoint]
+                                                              ;; NOTE: When we delete a breakpoint, we receive a nil
+                                                              (if (nil? breakpoint)
+                                                                {:text ""}
+                                                                {:text (str (inc (:row breakpoint)))}))}}
+                                  {:fx/type fx.table-column/lifecycle
+                                   :text "Name"
+                                   :pref-width 200
+                                   :cell-value-factory (fn [breakpoint]
+                                                         (-> breakpoint :resource :name))}
                                   {:fx/type fx.table-column/lifecycle
                                    :text "Condition"
-                                   :pref-width 200
+                                   :pref-width 250
                                    :cell-value-factory identity
                                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                                  :describe (fn/partial condition-table-cell state)}}]}}]}})
+                                                  :describe (fn/partial condition-table-cell state)}}
+                                  {:fx/type fx.table-column/lifecycle
+                                   :style-class ["path-cell"]
+                                   :text "Path"
+                                   :pref-width 200
+                                   :cell-value-factory (fn [breakpoint]
+                                                         (-> breakpoint :resource :project-path))}]}}]}})
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
