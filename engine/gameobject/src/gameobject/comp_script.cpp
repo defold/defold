@@ -126,7 +126,7 @@ namespace dmGameObject
                 lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
                 ++arg_count;
             }
-            if (script_function == SCRIPT_FUNCTION_UPDATE || script_function == SCRIPT_FUNCTION_FIXED_UPDATE)
+            if (script_function == SCRIPT_FUNCTION_UPDATE || script_function == SCRIPT_FUNCTION_FIXED_UPDATE || script_function == SCRIPT_FUNCTION_LATE_UPDATE)
             {
                 lua_pushnumber(L, params.m_UpdateContext->m_DT);
                 ++arg_count;
@@ -215,7 +215,9 @@ namespace dmGameObject
         if (script_instance->m_Initialized)
         {
             HScript script = script_instance->m_Script;
-            script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF;
+            script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF 
+                || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF
+                || script->m_FunctionReferences[SCRIPT_FUNCTION_LATE_UPDATE] != LUA_NOREF;
             return CREATE_RESULT_OK;
         }
         return CREATE_RESULT_UNKNOWN_ERROR;
@@ -235,7 +237,8 @@ namespace dmGameObject
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            if (script_instance->m_Update) {
+            if (script_instance->m_Update)
+            {
                 ScriptResult ret = RunScript(L, script_instance->m_Script, function, script_instance, run_params);
                 if (ret == SCRIPT_RESULT_FAILED)
                 {
@@ -264,6 +267,13 @@ namespace dmGameObject
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_FIXED_UPDATE, update_result);
+    }
+
+    UpdateResult CompScriptLateUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    {
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
+        dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+        return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_LATE_UPDATE, update_result);
     }
 
     static UpdateResult HandleUnrefMessage(void* context, ScriptInstance* script_instance, int reference)

@@ -43,6 +43,7 @@ namespace dmGameObject
         ComponentGet            m_GetFunction;
         ComponentsPreUpdate     m_PreUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
+        ComponentsUpdate        m_LateUpdateFunction;
         ComponentsFixedUpdate   m_FixedUpdateFunction;
         ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;

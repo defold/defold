@@ -35,6 +35,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
+    dmGameObject::UpdateResult CompModelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+
     dmGameObject::UpdateResult CompModelRender(const dmGameObject::ComponentsRenderParams& params);
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
