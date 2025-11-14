@@ -580,6 +580,18 @@ console.filter.enable-filtering = Включить фильтрацию
 console.filter.add-filter = Новый фильтр ("текст" или "\!убрать")
 console.search = Поиск
 
+# Breakpoints Tab
+
+breakpoints.button.enable-all = Включить все
+breakpoints.button.disable-all = Отключить все
+breakpoints.button.toggle-all = Переключить все
+breakpoints.button.remove-all = Удалить все
+breakpoints.column.enabled = Включен
+breakpoints.column.line = Строка
+breakpoints.column.name = Имя
+breakpoints.column.condition = Условие
+breakpoints.column.path = Путь
+
 # Changes view
 
 changes-view.button.diff = Сравнить

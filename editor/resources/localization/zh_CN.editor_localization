@@ -495,6 +495,18 @@ console.filter.enable-filtering = 启用过滤
 console.filter.add-filter = 添加过滤器 (例如 text, \!exclude)
 console.search = 搜索
 
+# Breakpoints Tab
+
+breakpoints.button.enable-all = 启用全部
+breakpoints.button.disable-all = 禁用全部
+breakpoints.button.toggle-all = 切换全部
+breakpoints.button.remove-all = 移除全部
+breakpoints.column.enabled = 已启用
+breakpoints.column.line = 行
+breakpoints.column.name = 名称
+breakpoints.column.condition = 条件
+breakpoints.column.path = 路径
+
 # Changes view
 
 changes-view.button.diff = 差异
