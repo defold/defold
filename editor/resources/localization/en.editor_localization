@@ -581,6 +581,18 @@ console.filter.enable-filtering = Enable filtering
 console.filter.add-filter = Add filter (e.g. text, !exclude)
 console.search = Search
 
+# Breakpoints Tab
+
+breakpoints.button.enable-all = Enable All
+breakpoints.button.disable-all = Disable All
+breakpoints.button.toggle-all = Toggle All
+breakpoints.button.remove-all = Remove All
+breakpoints.column.enabled = Enabled
+breakpoints.column.line = Line
+breakpoints.column.name = Name
+breakpoints.column.condition = Condition
+breakpoints.column.path = Path
+
 # Changes view
 
 changes-view.button.diff = Diff
