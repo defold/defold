@@ -408,6 +408,9 @@
           (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)})))
       nil)))
 
+(defn- collect-enabled-breakpoints [project]
+  (filter :enabled (g/node-value project :breakpoints)))
+
 (defn- set-breakpoint!
   [debug-session {:keys [resource row condition] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
@@ -438,7 +441,7 @@
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.
                     (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (let [breakpoints (set (g/node-value project :breakpoints))]
+                      (let [breakpoints (set (collect-enabled-breakpoints project))]
                         (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
                         (vreset! state {:breakpoints breakpoints})))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
@@ -507,7 +510,7 @@
                                                  (when old (mobdebug/close! old))
                                                  new)
                                                debug-session)
-                           (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                           (update-breakpoints! debug-session (collect-enabled-breakpoints project))
                            (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
                            (state-changed! debug-view true)))
                        (fn [_debug-session]
@@ -930,20 +933,9 @@
             (when (g/node-instance? editor.code.script/ScriptNode node-id)
               (g/node-by-id node-id)))
           (g/node-ids (g/graph (g/node-id->graph-id project)))))
+
   (->> (g/node-value (dev/project) :breakpoints)
        (group-by #(get-in % [:resource :project-path])))
-
-  (g/with-auto-evaluation-context ec
-    (code-data/update-regions-from-breakpoints (dev/project)
-                                               (g/node-value (dev/project) :breakpoints)
-                                               ec))
-  (->> (get-all-script-nodes (dev/project))
-       ;; (filter #(= (get-in % [:resource :project-path]) "/scripts/knight.script"))
-       ;; first
-       (map :resource)
-       (remove nil?)
-       (map #(g/node-value (project/get-resource-node (dev/project) %) :regions))
-       (remove empty?))
 
   (g/targets-of (dev/project) :breakpoints)
   (g/sources-of (dev/project) :breakpoints)

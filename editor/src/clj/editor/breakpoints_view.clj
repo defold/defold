@@ -381,7 +381,7 @@
           (g/set-property script-node :regions updated-regions))))))
 
 (defn create-breakpoint-view-renderer [project prefs breakpoint-container open-resource-fn]
-  (restore-breakpoints project prefs)
+  (restore-breakpoints! project prefs)
   (let [open-res-fn (make-open-resource-fn open-resource-fn)]
     (fx/mount-renderer
       state
@@ -400,7 +400,7 @@
                (fn [_ _ _]
                  (when-not (ui/ui-disabled?)
                    (let [breakpoints (g/node-value project :breakpoints)]
-                     (save-breakpoints prefs breakpoints)
+                     (save-breakpoints! prefs breakpoints)
                      (swap! state assoc :breakpoints breakpoints)))))]
     (ui/timer-start! timer)))
 
@@ -453,10 +453,10 @@
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints ec)]]
           (g/set-property script-node :regions updated-regions)))))
 
-  (defn save-breakpoints [_ _] nil)
+  (defn save-breakpoints! [_ _] nil)
   (prefs/get (dev/prefs) [:code :breakpoints])
-  (save-breakpoints (dev/prefs) (g/node-value (dev/project) :breakpoints))
-  (restore-breakpoints (dev/project) (dev/prefs))
+  (save-breakpoints! (dev/prefs) (g/node-value (dev/project) :breakpoints))
+  (restore-breakpoints! (dev/project) (dev/prefs))
 
   (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
 
