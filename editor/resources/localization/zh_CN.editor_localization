@@ -59,14 +59,14 @@ welcome.new-project.native-extension.title = 原生扩展
 welcome.new-project.native-extension.description = 如果您想开始创建原生扩展，此模板包含基本设置。
 welcome.new-project.basic-3d-project.title = 基本 3D 项目
 welcome.new-project.basic-3d-project.description = 此模板包含用于进行 3D 渲染的基础设置。
-welcome.new-project.platformer-game.title = 平台跳跃游戏
-welcome.new-project.platformer-game.description = 如果您想开始制作平台跳跃游戏，此模板包含了一些基础设置。
+welcome.new-project.platformer-game.title = 平台跳跃类游戏
+welcome.new-project.platformer-game.description = 如果您想开始制作平台跳跃类游戏，此模板包含了一些基础设置。
 welcome.new-project.rive-project.title = Rive 项目
 welcome.new-project.rive-project.description = 此模板使用 rive 扩展来帮助你快速入门。
 
 # Welcome -> New Project -> From Tutorial
-welcome.new-project.side-scroller-tutorial.title = 横向卷轴 教程
-welcome.new-project.side-scroller-tutorial.description = 在这个初学者教程中，您将通过修改一个非常简单的横向卷轴游戏来体验如何在 Defold 中构建游戏。
+welcome.new-project.side-scroller-tutorial.title = 横版卷轴类游戏教程
+welcome.new-project.side-scroller-tutorial.description = 在这个初学者教程中，您将体验在 Defold 中构建简单横版卷轴类游戏。
 welcome.new-project.walking-astronaut-tutorial.title = 行走的宇航员 教程
 welcome.new-project.walking-astronaut-tutorial.description = 在这个初学者教程中，您将学习如何捕获玩家输入并使角色移动和播放动画。您还将了解 Defold 中的核心构建块：游戏对象、组件和集合。
 welcome.new-project.movement-tutorial.title = 角色移动 教程
