@@ -14,7 +14,8 @@
 
 (ns editor.math
   (:require [editor.util :as eutil]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [java.lang Math]
            [java.math RoundingMode]
            [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point3d Quat4d SingularMatrixException Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
@@ -619,7 +620,7 @@
             (assoc :normal (derive-normal-transform view)
                    :world-rotation identity-quat))))
 
-(def render-transform-key?
+(def render-transform-keys
   #{:actual/normal
     :actual/world
     :actual/world-rotation
@@ -634,6 +635,8 @@
     :world-rotation
     :world-view
     :world-view-proj})
+
+(fn/defamong render-transform-key? render-transform-keys)
 
 (defn- vecmath-matrix-dim
   ^long [matrix]

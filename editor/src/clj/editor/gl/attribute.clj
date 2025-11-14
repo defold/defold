@@ -253,14 +253,21 @@
   (unbind! [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
-(defn make-attribute-render-arg-binding-raw
+(defn- make-attribute-render-arg-binding-raw
   ^AttributeRenderArgBinding [render-arg-key ^ElementType element-type ^long base-location]
   (ensure/argument render-arg-key keyword? "%s must be a keyword")
   (ensure/argument-type element-type ElementType)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (->AttributeRenderArgBinding render-arg-key element-type base-location))
 
-(def ^{:arglists '([render-arg-key ^ElementType element-type base-location])} make-attribute-render-arg-binding (fn/memoize make-attribute-render-arg-binding-raw))
+(def ^{:doc
+       "Returns a GLBinding that binds a shader attribute location to a value
+       associated with a key in the render-args map. The value in render-arg may
+       be a primitive array, a Tuple4d, or a Matrix4d, which could be produced
+       from one of the keywords in the the `math/render-transform-keys` set."
+       :arglists '([render-arg-key ^ElementType element-type base-location])}
+  make-attribute-render-arg-binding
+  (fn/memoize make-attribute-render-arg-binding-raw))
 
 ;; -----------------------------------------------------------------------------
 ;; AttributeValue
@@ -284,7 +291,10 @@
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
 (defn make-attribute-value-binding
+  "Returns a GLBinding that binds a shader attribute location to a primitive
+  array value."
   ^AttributeValueBinding [value-array ^ElementType element-type ^long base-location]
+  ;; TODO(instancing): Support Tuple4d and Matrix4d values as well?
   (ensure/argument-type element-type ElementType)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (graphics.types/ensure-element-type-value-array element-type value-array)
@@ -345,15 +355,22 @@
     (clear-attribute! :vector-type-vec4 gl base-location)))
 
 (defn make-transformed-attribute-value-binding
-  ^TransformedAttributeValueBinding [untransformed-value-array ^ElementType element-type transform-render-arg-key w-component base-location]
+  "Returns a GLBinding that binds a shader attribute location to a vector that
+  will be transformed by the Matrix4d or Quat4d associated with the specified
+  key in the render-args map. The specified w-component will be used during
+  transformation, but the W value in the output vector will be that of the input
+  vector."
+  ^TransformedAttributeValueBinding [untransformed-vector-or-value-array ^ElementType element-type transform-render-arg-key w-component base-location]
   (ensure/argument math/render-transform-key? transform-render-arg-key)
   (ensure/argument base-location graphics.types/location? "%s must be a non-negative integer")
   (let [w-component (double w-component)
 
         untransformed-vector
-        (doto (Vector4d.)
-          (.setW w-component)
-          (graphics.types/assign-vector-components! untransformed-value-array element-type))]
+        (if (instance? Vector4d untransformed-vector-or-value-array)
+          untransformed-vector-or-value-array
+          (doto (Vector4d.)
+            (.setW w-component)
+            (graphics.types/assign-vector-components! untransformed-vector-or-value-array element-type)))]
 
     (->TransformedAttributeValueBinding untransformed-vector transform-render-arg-key w-component base-location)))
 
@@ -392,6 +409,8 @@
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
 
 (defn make-attribute-buffer
+  "Creates an attribute buffer from the provided data. The returned object is a
+  GLBinding and an ElementBuffer."
   ^AttributeBufferLifecycle [request-id ^BufferData buffer-data vector-type usage]
   (ensure/argument request-id graphics.types/request-id?)
   (let [element-type (graphics.types/make-element-type vector-type :type-float false)
@@ -433,6 +452,9 @@
       (gl/disable-vertex-attrib-arrays! gl base-location attribute-count))))
 
 (defn make-attribute-buffer-binding
+  "Returns a GLBinding that binds a shader attribute location to an attribute
+  buffer. An attribute buffer can be created using the `make-attribute-buffer`
+  or `make-transformed-attribute-buffer` functions."
   ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
   (ensure/argument-satisfies attribute-buffer-lifecycle graphics.types/ElementBuffer)
   (ensure/argument-satisfies attribute-buffer-lifecycle gl.types/GLBinding)
@@ -508,6 +530,14 @@
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)))
 
 (defn make-transformed-attribute-buffer
+  "Creates an attribute buffer that will apply a render-arg transform to the
+  provided data. You should create individual transformed attribute buffers for
+  each renderable so the managed GPU-side buffer can be reused between frames.
+  The GPU-side buffer will be updated whenever the Matrix4d or Quat4d associated
+  with the specified render-arg key differs for the request-id. The specified
+  w-component will be used during transformation, but the W value in the output
+  vectors will be copied from the input vectors. The returned object is a
+  GLBinding and an ElementBuffer."
   ^TransformedAttributeBufferLifecycle [request-id ^BufferData untransformed-buffer-data transform-render-arg-key w-component]
   (ensure/argument request-id graphics.types/request-id?)
   (ensure/argument transform-render-arg-key math/render-transform-key?)
@@ -641,6 +671,9 @@
     (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)))
 
 (defn make-index-buffer
+  "Creates an index buffer from the indices in the provided data. The
+  buffer-data must use either a ShortBuffer or an IntBuffer. The returned object
+  is a GLBinding and an ElementBuffer."
   ^IndexBufferLifecycle [request-id ^BufferData buffer-data usage]
   (ensure/argument request-id graphics.types/request-id?)
   (ensure/argument buffer-data gl.types/gl-compatible-buffer-data?)
@@ -686,7 +719,8 @@
 ;; Claiming requests
 ;; -----------------------------------------------------------------------------
 
-(defn- claim-request [request new-request-id-fn]
+(defn- claim-request
+  [request new-request-id-fn]
   (let [old-request-id (:request-id request)]
     (if (graphics.types/request-id? old-request-id)
       (let [new-request-id (new-request-id-fn old-request-id)]
@@ -712,7 +746,8 @@
           "request must be an Associative with a valid :request-id"
           {:request request})))))
 
-(defn transformed-attribute-buffer-binding-claim-fn [attribute-binding new-request-id-fn]
+(defn- transformed-attribute-buffer-binding-claim-fn
+  [attribute-binding new-request-id-fn]
   (if (instance? AttributeBufferBinding attribute-binding)
     (let [attribute-buffer-lifecycle (.-attribute-buffer-lifecycle ^AttributeBufferBinding attribute-binding)]
       (if (instance? TransformedAttributeBufferLifecycle attribute-buffer-lifecycle)
@@ -721,7 +756,8 @@
         attribute-binding))
     attribute-binding))
 
-(defn claim-bindings [bindings claim-fn new-request-id-fn & args]
+(defn- claim-bindings
+  [bindings claim-fn new-request-id-fn & args]
   (let [new-request-id-fn #(apply new-request-id-fn % args)]
     (reduce-kv
       (fn [bindings key binding]
@@ -732,5 +768,11 @@
       bindings
       bindings)))
 
-(defn claim-transformed-attribute-buffer-bindings [bindings new-request-id-fn & args]
+(defn claim-transformed-attribute-buffer-bindings
+  "Takes a collection of bindings (which may be a map) and returns a new
+  collection of the same type where all the values that are transformed
+  attribute buffers have been assigned new request-ids. The specified
+  new-request-id-fn will be called with the old request-id from each transformed
+  attribute buffer and is expected to return a new unique request-id."
+  [bindings new-request-id-fn & args]
   (apply claim-bindings bindings transformed-attribute-buffer-binding-claim-fn new-request-id-fn args))
