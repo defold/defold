@@ -17,10 +17,7 @@
             [cljfx.ext.table-view :as fx.ext.table-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
-            [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.menu-item :as fx.menu-item]
-            [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.table-cell :as fx.table-cell]
@@ -36,6 +33,8 @@
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
+            [editor.localization :as localization]
+            [editor.menu-items :as menu-items]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -163,7 +162,7 @@
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
                         :fixed-cell-size 35.0
-                        :context-menu {:fx/type fx.context-menu/lifecycle
+                        #_#_:context-menu {:fx/type fx.context-menu/lifecycle
                                        :consume-auto-hiding-events false
                                        :items [{:fx/type fx.menu-item/lifecycle
                                                 :text "Enable Selected"
@@ -211,6 +210,12 @@
                           :text "Path"
                           :pref-width 200
                           :cell-value-factory #(-> (get (:breakpoints state) %) :resource :project-path)}]}}]}})
+
+(handler/register-menu! ::breakpoint-menu
+  [menu-items/separator
+   {:label (localization/message "command.file.show-in-assets")
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :file.show-in-assets}])
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
@@ -405,7 +410,8 @@
        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
         table (.lookup (ui/main-root) "#breakpoints-table-view")]
-    (ui/context! tab-pane :breakpoints-view {:project project :table table} nil))
+    (ui/context! tab-pane :breakpoints-view {:project project :table table} nil)
+    (ui/register-context-menu table ::breakpoint-menu true))
   (let [timer (ui/->timer
                4
                "breakpoints-view-update-timer"
@@ -465,6 +471,12 @@
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints ec)]]
           (g/set-property script-node :regions updated-regions)))))
 
+  (g/with-auto-evaluation-context ec
+    (let [script (project/get-resource-node (dev/project)
+                                            (workspace/find-resource (dev/workspace) "/scripts/game.script" ec)
+                                            ec)]
+      (g/node-value script :regions)))
+
   (defn save-breakpoints! [_ _] nil)
   (prefs/get (dev/prefs) [:code :breakpoints])
   (save-breakpoints! (dev/prefs) (g/node-value (dev/project) :breakpoints))
@@ -472,4 +484,6 @@
 
   (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
 
+  (let [table (.lookup (ui/main-root) "#breakpoints-container")]
+    (ui/register-context-menu table ::breakpoint-menu true))
   ,)
