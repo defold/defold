@@ -19,7 +19,9 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^{:arglists '([editor-shader])} vertex-description ::vertex-description)
+(defn vertex-description [editor-shader]
+  {:post [(graphics.types/vertex-description? %)]}
+  (::vertex-description editor-shader))
 
 (defn- with-vertex-description [shader]
   (let [attribute-reflection-infos (shader/attribute-reflection-infos shader nil)

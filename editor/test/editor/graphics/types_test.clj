@@ -27,11 +27,7 @@
         (map (juxt protobuf/pb-enum->val protobuf/pb-enum->int))
         (protobuf/protocol-message-enums pb-enum-class)))
 
-(deftest buffer-data-type?-test
-  (is (every? false? (map graphics.types/buffer-data-type? random-values)))
-  (is (every? true? (map graphics.types/buffer-data-type? graphics.types/buffer-data-types))))
-
-(deftest buffer-data-type->data-type-test
+(deftest buffer-data-type-data-type-test
   (is (= {:byte :type-byte
           :ubyte :type-unsigned-byte
           :short :type-short
@@ -40,8 +36,8 @@
           :uint :type-unsigned-int
           :float :type-float}
          (into {}
-               (map (juxt identity graphics.types/buffer-data-type->data-type))
-               graphics.types/buffer-data-types))))
+               (map (juxt identity graphics.types/buffer-data-type-data-type))
+               (disj editor.buffers/buffer-data-types :double :long)))))
 
 (deftest coordinate-space?-test
   (is (every? false? (map graphics.types/coordinate-space? random-values)))
@@ -83,7 +79,7 @@
                (map (juxt identity graphics.types/data-type-pb-int))
                graphics.types/data-types))))
 
-(deftest data-type->buffer-data-type-test
+(deftest data-type-buffer-data-type-test
   (is (= {:type-byte :byte
           :type-unsigned-byte :ubyte
           :type-short :short
@@ -92,7 +88,7 @@
           :type-unsigned-int :uint
           :type-float :float}
          (into {}
-               (map (juxt identity graphics.types/data-type->buffer-data-type))
+               (map (juxt identity graphics.types/data-type-buffer-data-type))
                graphics.types/data-types))))
 
 (deftest semantic-type?-test

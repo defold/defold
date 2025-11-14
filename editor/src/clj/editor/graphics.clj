@@ -381,7 +381,7 @@
   (let [attribute-value-byte-count (attribute-values+data-type->byte-size attribute-values attribute-data-type)
         attribute-bytes (byte-array attribute-value-byte-count)
         byte-buffer (vtx/wrap-buf attribute-bytes)
-        buffer-data-type (graphics.types/data-type->buffer-data-type attribute-data-type)]
+        buffer-data-type (graphics.types/data-type-buffer-data-type attribute-data-type)]
     (vtx/buf-push! byte-buffer buffer-data-type normalize attribute-values)
     attribute-bytes))
 
@@ -867,7 +867,7 @@
               (let [semantic-type (:semantic-type attribute)
                     data-type (:data-type attribute)
                     vector-type (:vector-type attribute)
-                    buffer-data-type (graphics.types/data-type->buffer-data-type data-type)
+                    buffer-data-type (graphics.types/data-type-buffer-data-type data-type)
                     element-count (graphics.types/vector-type-component-count vector-type)
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
@@ -946,7 +946,7 @@
                   ;; attribute bound by the shader, use a default that makes
                   ;; sense for the attribute.
                   (let [attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))
-                        attribute-data-type (graphics.types/buffer-data-type->data-type buffer-data-type)
+                        attribute-data-type (graphics.types/buffer-data-type-data-type buffer-data-type)
                         default-attribute-bytes (default-attribute-bytes semantic-type attribute-data-type vector-type normalize)]
                     (put-renderables!
                       attribute-byte-offset put-attribute-bytes!

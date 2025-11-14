@@ -17,6 +17,7 @@
   (:require [internal.java :as java]
             [util.array :as array]
             [util.defonce :as defonce]
+            [util.fn :as fn]
             [util.num :as num])
   (:import [clojure.lang Counted IHashEq IReduceInit Murmur3 Util]
            [com.google.protobuf ByteString]
@@ -188,8 +189,21 @@
                   `(. ~byte-buffer-sym ~put-method-sym (aget ~source-data-sym (+ ~offset-sym ~component-index))))
                 (range component-count))))))
 
-(defn primitive-type-kw [data-type]
-  (case data-type
+(defonce buffer-data-types
+  #{:ubyte
+    :byte
+    :ushort
+    :short
+    :uint
+    :int
+    :long
+    :float
+    :double})
+
+(fn/defamong buffer-data-type? buffer-data-types)
+
+(defn primitive-type-kw [buffer-data-type]
+  (case buffer-data-type
     (:double) :double
     (:float) :float
     (:long) :long
@@ -198,8 +212,8 @@
     (:byte :ubyte) :byte))
 
 (defn as-typed-buffer
-  ^Buffer [^ByteBuffer buffer data-type]
-  (case data-type
+  ^Buffer [^ByteBuffer buffer buffer-data-type]
+  (case buffer-data-type
     (:double) (.asDoubleBuffer buffer)
     (:float) (.asFloatBuffer buffer)
     (:long) (.asLongBuffer buffer)
@@ -250,8 +264,8 @@
      (item-count buffer)))
 
 (defn as-primitive-array
-  [^ByteBuffer buffer data-type]
-  (case data-type
+  [^ByteBuffer buffer buffer-data-type]
+  (case buffer-data-type
     (:double)
     (let [size (quot (item-count buffer) Double/BYTES)
           array (double-array size)]
@@ -425,11 +439,11 @@
   buffer)
 
 (defn put!
-  ^ByteBuffer [^ByteBuffer buffer byte-offset data-type normalize numbers]
+  ^ByteBuffer [^ByteBuffer buffer byte-offset buffer-data-type normalize numbers]
   (let [byte-offset (int byte-offset)]
     (if normalize
       ;; Normalized.
-      (case data-type
+      (case buffer-data-type
         :float
         (reduce (fn [^long byte-offset n]
                   (.putFloat buffer byte-offset (float n))
@@ -494,7 +508,7 @@
                 numbers))
 
       ;; Not normalized.
-      (case data-type
+      (case buffer-data-type
         :float
         (reduce (fn [^long byte-offset n]
                   (.putFloat buffer byte-offset (float n))
@@ -567,10 +581,10 @@
   buffer)
 
 (defn push!
-  ^ByteBuffer [^ByteBuffer buffer data-type normalize numbers]
+  ^ByteBuffer [^ByteBuffer buffer buffer-data-type normalize numbers]
   (if normalize
     ;; Normalized.
-    (case data-type
+    (case buffer-data-type
       :float
       (doseq [n numbers]
         (.putFloat buffer (float n)))
@@ -608,7 +622,7 @@
         (.putLong buffer (num/normalized->long n))))
 
     ;; Not normalized.
-    (case data-type
+    (case buffer-data-type
       :float
       (doseq [n numbers]
         (.putFloat buffer (float n)))

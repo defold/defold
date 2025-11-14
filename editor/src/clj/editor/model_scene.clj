@@ -566,7 +566,7 @@
         child-scenes
         (into [{:node-id model-scene-resource-node-id
                 :aabb aabb
-                :renderable (render-util/make-aabb-outline-renderable :model)}]
+                :renderable (render-util/make-aabb-outline-renderable #{:model})}]
               (map make-model-scene)
               renderable-models)]
 

@@ -59,7 +59,7 @@
         (or (when attribute-bytes
               (try
                 (let [byte-buffer (buffers/wrap-byte-array attribute-bytes :byte-order/native)
-                      buffer-data-type (graphics.types/data-type->buffer-data-type data-type)]
+                      buffer-data-type (graphics.types/data-type-buffer-data-type data-type)]
                   (buffers/as-primitive-array byte-buffer buffer-data-type))
                 (catch Exception exception
                   (let [message (format "Vertex attribute '%s' - %s"

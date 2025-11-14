@@ -286,12 +286,16 @@
                (into (vector-of :byte)
                      (b/make-buffer-data buffer))))))))
 
+(deftest buffer-data-type?-test
+  (is (every? false? (map b/buffer-data-type? [nil 1 "string" :keyword (Object.) #{}])))
+  (is (every? true? (map b/buffer-data-type? b/buffer-data-types))))
+
 ;; -----------------------------------------------------------------------------
 ;; Buffer push! and put! tests
 ;; -----------------------------------------------------------------------------
 
-(defn- element-at-offset-fn [data-type]
-  (case data-type
+(defn- element-at-offset-fn [buffer-data-type]
+  (case buffer-data-type
     (:double) #(.getDouble ^ByteBuffer %1 ^long %2)
     (:float) #(.getFloat ^ByteBuffer %1 ^long %2)
     (:int :uint) #(.getInt ^ByteBuffer %1 ^long %2)

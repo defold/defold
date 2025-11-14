@@ -96,24 +96,14 @@
 (definline buf-put-floats! [buffer byte-offset numbers]
   `(buffers/put-floats! ~buffer ~byte-offset ~numbers))
 
-(definline buf-put! [buf byte-offset data-type normalize numbers]
-  `(buffers/put! ~buf ~byte-offset ~data-type ~normalize ~numbers))
-
-(defn put!
-  ^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
-  (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
-  vbuf)
+(definline buf-put! [buf byte-offset buffer-data-type normalize numbers]
+  `(buffers/put! ~buf ~byte-offset ~buffer-data-type ~normalize ~numbers))
 
 (definline buf-push-floats! [buffer numbers]
   `(buffers/push-floats! ~buffer ~numbers))
 
-(definline buf-push! [buf data-type normalize numbers]
-  `(buffers/push! ~buf ~data-type ~normalize ~numbers))
-
-(defn push!
-  ^VertexBuffer [^VertexBuffer vbuf data-type normalize numbers]
-  (buf-push! (.buf vbuf) data-type normalize numbers)
-  vbuf)
+(definline buf-push! [buf buffer-data-type normalize numbers]
+  `(buffers/push! ~buf ~buffer-data-type ~normalize ~numbers))
 
 ;; defvertex macro
 
@@ -165,7 +155,7 @@
                            :vec2 :vector-type-vec2
                            :vec3 :vector-type-vec3
                            :vec4 :vector-type-vec4)
-        data-type        (graphics.types/buffer-data-type->data-type suffix)
+        data-type        (graphics.types/buffer-data-type-data-type suffix)
         attribute-name   (name nm)
         attribute-key    (graphics.types/attribute-name-key attribute-name)
         semantic-type    (graphics.types/infer-semantic-type attribute-key)
@@ -246,6 +236,9 @@
 ;; This is needed because to bind a matrix as attribute in OpenGL, we need
 ;; to bind each column of the vector type individually.
 (defn- expand-attributes+locations [attributes attribute-locations]
+  ;; TODO(instancing): No need to "expand" the attributes - we should just move
+  ;; this logic into the assign-attributes! and clear-attributes! functions and
+  ;; avoid creating these temporary collections.
   {:pre [(vector? attributes)
          (vector? attribute-locations)
          (= (count attributes) (count attribute-locations))]}
@@ -272,7 +265,6 @@
     [expanded-attributes expanded-attribute-locations]))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
-  ;; TODO(instancing): We can pre-calc the expanded attribute locations without the gl context.
   (let [[vbo attribute-locations] (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader})
         attributes (:attributes (.vertex-description vertex-buffer))
         [expanded-attributes expanded-attribute-locations] (expand-attributes+locations attributes attribute-locations)]

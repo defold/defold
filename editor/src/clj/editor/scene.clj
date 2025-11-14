@@ -323,7 +323,7 @@
 (defn- make-aabb-renderables [renderables]
   (coll/transfer renderables []
     (keep :aabb)
-    (map #(assoc (render-util/make-aabb-outline-renderable :renderable) :aabb %))))
+    (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
 (defn render! [^GLContext context render-mode renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
@@ -598,7 +598,7 @@
           [(get renderables-by-pass pass/selection)
            (get renderables-by-pass pass/opaque-selection)])))
 
-(defn- calculate-scene-aabb
+(defn calculate-scene-aabb
   ^AABB [^AABB union-aabb ^Matrix4d parent-world-transform scene]
   (let [local-transform ^Matrix4d (:transform scene)
         world-transform (if (nil? local-transform)

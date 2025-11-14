@@ -366,7 +366,7 @@
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id
                    :aabb aabb
-                   :renderable (render-util/make-aabb-outline-renderable :model)}]})))
+                   :renderable (render-util/make-aabb-outline-renderable #{:model})}]})))
 
 (g/defnk produce-aabb [streams position-stream]
   (if-some [{:keys [count data]} (coll/first-where #(position-stream-name? (:name %) position-stream) streams)]

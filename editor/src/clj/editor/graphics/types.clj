@@ -113,18 +113,7 @@
 
 (def ^{:arglists '([semantic-type ^ElementType element-type])} default-attribute-value-array (fn/memoize default-attribute-value-array-raw))
 
-(defonce buffer-data-types
-  #{:byte
-    :ubyte
-    :short
-    :ushort
-    :int
-    :uint
-    :float})
-
-(fn/defamong buffer-data-type? buffer-data-types)
-
-(defn buffer-data-type->data-type [buffer-data-type]
+(defn buffer-data-type-data-type [buffer-data-type]
   (case buffer-data-type
     :byte :type-byte
     :ubyte :type-unsigned-byte
@@ -176,14 +165,14 @@
     :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
     :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
 
-(defn data-type->primitive-type [data-type]
+(defn data-type-primitive-type [data-type]
   (case data-type
     (:type-byte :type-unsigned-byte) :byte
     (:type-short :type-unsigned-short) :short
     (:type-int :type-unsigned-int) :int
     (:type-float) :float))
 
-(defn data-type->buffer-data-type [data-type]
+(defn data-type-buffer-data-type [data-type]
   (case data-type
     :type-byte :byte
     :type-unsigned-byte :ubyte
@@ -497,7 +486,7 @@
 (def ^{:arglists '([vector-type data-type normalize])} make-element-type (fn/memoize make-element-type-raw))
 
 (defn element-type-value-array? [^ElementType element-type value]
-  (and (= (data-type->primitive-type (.-data-type element-type))
+  (and (= (data-type-primitive-type (.-data-type element-type))
           (array/primitive-type value))
        (= (vector-type-component-count (.-vector-type element-type))
           (array/length value))))
@@ -611,3 +600,9 @@
          (and (vector? attributes)
               (pos? (count attributes))
               (every? attribute-info? attributes)))))
+
+(def renderable-tag? keyword?)
+
+(defn renderable-tags? [value]
+  (and (set? value)
+       (coll/every? renderable-tag? value)))

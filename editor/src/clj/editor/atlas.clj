@@ -23,7 +23,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
@@ -61,7 +60,7 @@
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
-           [editor.types AABB Animation Image]
+           [editor.types Animation Image]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [java.util List]
@@ -127,7 +126,7 @@
 (defn- gen-outline-vertex-buffer [renderables count]
   (let [tmp-point (Point3d.)
         vertex-description (shaders/vertex-description shaders/basic-color-local-space)
-        vbuf (vtx/make-vertex-buffer vertex-description :dynamic count)
+        vbuf (vtx/make-vertex-buffer vertex-description :stream count)
         buf (vtx/buf vbuf)]
     (doseq [renderable renderables]
       (let [[cr cg cb] (colors/renderable-outline-color renderable)
@@ -536,61 +535,19 @@
         content-pb        (protobuf/map->bytes TextureSetProto$TextureSet (assoc pb-msg :texture texture-path))]
     content-pb))
 
-(defn- make-page-rect-vertex-buffer [^double width ^double height ^long page-index]
-  (let [x0 0.0
-        y0 0.0
-        x1 width
-        y1 height
-        v0 (vector-of :float x0 y0 0.0 0.0 0.0 page-index)
-        v1 (vector-of :float x0 y1 0.0 0.0 1.0 page-index)
-        v2 (vector-of :float x1 y1 0.0 1.0 1.0 page-index)
-        v3 (vector-of :float x1 y0 0.0 1.0 0.0 page-index)
-        vertex-description (shaders/vertex-description shaders/basic-texture-paged-local-space)
-        vbuf (vtx/make-vertex-buffer vertex-description :dynamic 6)
-        buf (vtx/buf vbuf)]
-    (doto buf
-      (vtx/buf-push-floats! v0)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v0))
-    (vtx/flip! vbuf)))
-
-(defn- render-page-image
-  [^GL2 gl render-args [renderable] _renderable-count]
-  (let [{:keys [pass]} render-args]
-    (condp = pass
-      pass/transparent
-      (let [{:keys [user-data]} renderable
-            {:keys [vbuf]} user-data
-            gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
-            vertex-binding (vtx/use-with ::atlas-binding vbuf shaders/basic-texture-paged-local-space)]
-        (gl/with-gl-bindings gl render-args [shaders/basic-texture-paged-local-space vertex-binding gpu-texture]
-          (shader/set-samplers-by-index shaders/basic-texture-paged-local-space gl 0 (:texture-units gpu-texture))
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
-
 (defn- make-page-scene
-  [aabb layout-width layout-height page-index gpu-texture]
-  {:aabb aabb
-   :transform (get-rect-transform layout-width page-index)
-   :renderable {:render-fn render-page-image
-                :user-data {:gpu-texture gpu-texture
-                            :vbuf (make-page-rect-vertex-buffer layout-width layout-height page-index)}
-                :tags #{:atlas}
-                :passes [pass/transparent]}
-   :children [{:aabb aabb
-               :renderable (render-util/make-aabb-outline-renderable :atlas)}]})
+  [layout-width layout-height page-index gpu-texture]
+  (let [page-offset-transform (get-rect-transform layout-width page-index)]
+    (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-transform layout-width layout-height gpu-texture page-index)))
 
 (g/defnk produce-scene
-  [_node-id aabb layout-rects layout-size gpu-texture child-scenes texture-profile]
+  [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
         page-scenes (mapv (fn [^long page-index]
-                            (make-page-scene aabb width height page-index gpu-texture))
+                            (make-page-scene width height page-index gpu-texture))
                           (range (count pages)))]
-    {:aabb aabb
-     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+    {:info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
      :children (into page-scenes child-scenes)}))
 
 (defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
@@ -811,16 +768,8 @@
                                                    texture/non-paged-page-count)))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
-
   (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-images-generator] (call-generator packed-page-images-generator)))
-
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
-
-  (output aabb             AABB                (g/fnk [layout-size layout-rects]
-                                                 (if (or (= [0 0] layout-size) (empty? layout-rects))
-                                                   geom/null-aabb
-                                                   (let [[w h] layout-size]
-                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-page-images texture-profile]
                                                          (let [page-texture-images+texture-bytes
