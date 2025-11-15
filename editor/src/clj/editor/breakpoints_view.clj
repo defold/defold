@@ -170,7 +170,7 @@
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
                         :fixed-cell-size 35.0
-                        #_#_:context-menu {:fx/type fx.context-menu/lifecycle
+                        :context-menu {:fx/type fx.context-menu/lifecycle
                                        :consume-auto-hiding-events false
                                        :items [{:fx/type fx.menu-item/lifecycle
                                                 :text "Enable Selected"
@@ -233,7 +233,9 @@
   [menu-items/separator
    {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.show-in-assets}])
+    :command :file.show-in-assets}
+   {:label (localization/message "breakpoints.edit-breakpoint")
+    :command :breakpoints.edit-breakpoint}])
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
