@@ -502,6 +502,9 @@ breakpoints.column.line = Linha
 breakpoints.column.name = Nome
 breakpoints.column.condition = Condição
 breakpoints.column.path = Caminho
+breakpoints.context-menu.edit-selected = Editar Selecionado
+breakpoints.context-menu.remove-selected = Remover Selecionado
+breakpoints.context-menu.toggle-selected-enabled = Alternar Selecionado
 
 # Changes view
 

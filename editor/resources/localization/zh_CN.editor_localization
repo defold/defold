@@ -506,6 +506,9 @@ breakpoints.column.line = 行
 breakpoints.column.name = 名称
 breakpoints.column.condition = 条件
 breakpoints.column.path = 路径
+breakpoints.context-menu.edit-selected = 编辑所选
+breakpoints.context-menu.remove-selected = 移除所选
+breakpoints.context-menu.toggle-selected-enabled = 切换所选
 
 # Changes view
 

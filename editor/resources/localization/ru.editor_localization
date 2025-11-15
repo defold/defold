@@ -591,6 +591,9 @@ breakpoints.column.line = Строка
 breakpoints.column.name = Имя
 breakpoints.column.condition = Условие
 breakpoints.column.path = Путь
+breakpoints.context-menu.edit-selected = Изменить выбранное
+breakpoints.context-menu.remove-selected = Удалить выбранное
+breakpoints.context-menu.toggle-selected-enabled = Переключить выбранное
 
 # Changes view
 

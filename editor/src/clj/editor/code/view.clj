@@ -2778,7 +2778,7 @@
                                                       regions
                                                       breakpoint-rows)))))
 
-(handler/defhandler :code.toggle-breakpoint-enabled :code-view
+(handler/defhandler :debugger.toggle-breakpoint-enabled :code-view
   (run [view-node]
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)

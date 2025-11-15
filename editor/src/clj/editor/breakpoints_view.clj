@@ -163,21 +163,6 @@
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
                         :fixed-cell-size 35.0
-                        :context-menu {:fx/type fx.context-menu/lifecycle
-                                       :consume-auto-hiding-events false
-                                       :items [{:fx/type fx.menu-item/lifecycle
-                                                :text "Enable Selected"
-                                                :on-action {:event-type :enable-selected}}
-                                               {:fx/type fx.menu-item/lifecycle
-                                                :text "Disable Selected"
-                                                :on-action {:event-type :disable-selected}}
-                                               {:fx/type fx.menu-item/lifecycle
-                                                :text "Toggle Selected"
-                                                :on-action {:event-type :toggle-selected}}
-                                               {:fx/type fx.separator-menu-item/lifecycle}
-                                               {:fx/type fx.menu-item/lifecycle
-                                                :text "Remove Selected"
-                                                :on-action {:event-type :remove-selected}}]}
                         :row-factory {:fx/cell-type fx.table-row/lifecycle
                                       :describe (fn [bp]
                                                   {:on-mouse-clicked {:event-type :breakpoint-clicked
@@ -216,9 +201,15 @@
   [menu-items/separator
    {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
+    :contexts [:global]
     :command :file.show-in-assets}
-   {:label (localization/message "breakpoints.edit-breakpoint")
-    :command :breakpoints.edit-breakpoint}])
+   {:label (localization/message "breakpoints.context-menu.edit-selected")
+    :command :breakpoints.edit-selected}
+   {:label (localization/message "breakpoints.context-menu.toggle-selected-enabled")
+    :command :breakpoints.toggle-selected-enabled}
+   menu-items/separator
+   {:label (localization/message "breakpoints.context-menu.remove-selected")
+    :command :breakpoints.remove-selected}])
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
@@ -433,7 +424,7 @@
                      (swap! state assoc :breakpoints breakpoints)))))]
     (ui/timer-start! timer)))
 
-(handler/defhandler :breakpoints.toggle-breakpoint-enabled :breakpoints-view
+(handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
@@ -444,7 +435,7 @@
                                   selected
                                   toggle-breakpoints-enabled)))))
 
-(handler/defhandler :breakpoints.remove-breakpoint :breakpoints-view
+(handler/defhandler :breakpoints.remove-selected :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
@@ -455,7 +446,7 @@
                                   selected
                                   #(vec (remove (set %2) %1)))))))
 
-(handler/defhandler :breakpoints.edit-breakpoint :breakpoints-view
+(handler/defhandler :breakpoints.edit-selected :breakpoints-view
   (run []
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
@@ -494,6 +485,14 @@
   (restore-breakpoints! (dev/project) (dev/prefs))
 
   (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
+
+  (prefs/get (dev/prefs) [:window :keymap])
+  (prefs/set! (dev/prefs) [:window :keymap] {:breakpoints.remove-selected {:add #{"Delete"}, :remove #{}},
+                                             :breakpoints.toggle-selected-enabled
+                                             {:add #{"Shift+F9"}, :remove #{}},
+                                             :debugger.toggle-breakpoint-enabled {:add #{"Shift+F9"}, :remove #{}},
+                                             :scene.select-scale-tool {:add #{"D"}, :remove #{}},
+                                             :scene.set-camera-type {:add #{}, :remove #{}}})
 
   (let [table (.lookup (ui/main-root) "#breakpoints-container")]
     (ui/register-context-menu table ::breakpoint-menu true))
