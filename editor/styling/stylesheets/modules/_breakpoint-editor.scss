@@ -16,6 +16,12 @@
     -fx-padding: 8px 12px;
     -fx-min-width: 340px;
   }
+  &-checkbox {
+      -fx-text-fill: -df-text;
+      .label {
+          -fx-text-fill: -df-text;
+      }
+  }
   &-arrow {
     -fx-shape: "M 1,0 L 0,-1 L 0,0";
     -fx-background-color: -df-component-dark;

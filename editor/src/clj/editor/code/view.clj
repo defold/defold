@@ -3922,13 +3922,14 @@
                 [{:fx/type fx.label/lifecycle
                   :style-class ["label" "breakpoint-editor-label"]
                   :text "Condition"}
-                 {:fx/type fxui/legacy-text-field
+                 {:fx/type fxui/ext-focused-by-default
                   :h-box/hgrow :always
-                  :style-class ["text-field" "breakpoint-editor-label"]
-                  :prompt-text "e.g. i == 1"
-                  :text (:condition edited-breakpoint "")
-                  :on-text-changed {:event :edit}
-                  :on-action {:event :apply}}]}
+                  :desc {:fx/type fx.text-field/lifecycle
+                         :style-class ["text-field" "breakpoint-editor-label"]
+                         :prompt-text "e.g. i == 1"
+                         :text (:condition edited-breakpoint "")
+                         :on-text-changed {:event :edit}
+                         :on-action {:event :apply}}}]}
                {:fx/type fx.h-box/lifecycle
                 :spacing spacing
                 :alignment :center-right
