@@ -222,8 +222,8 @@
     (:byte :ubyte) buffer))
 
 (defn type-size
-  ^long [type]
-  (case type
+  ^long [buffer-data-type]
+  (case buffer-data-type
     :ubyte Byte/BYTES
     :byte Byte/BYTES
     :ushort Short/BYTES

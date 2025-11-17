@@ -74,8 +74,7 @@
 
 (vtx/defvertex pos-uv-vtx
   (vec3 position)
-  (vec2 texcoord)
-  (vec1 page_index))
+  (vec2 texcoord))
 
 (def ^:private tile-shader shaders/basic-texture-local-space)
 
@@ -394,8 +393,7 @@
 
 (defn gen-tiles-vbuf
   [tile-source-attributes uv-transforms scale]
-  (let [page-index 0 ; Tile-sources does not support pages.
-        uvs uv-transforms
+  (let [uvs uv-transforms
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
@@ -404,10 +402,10 @@
                      [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
                  (-> vbuf
-                     (conj! [x0 y0 0.0 u0 v1 page-index])
-                     (conj! [x0 y1 0.0 u0 v0 page-index])
-                     (conj! [x1 y1 0.0 u1 v0 page-index])
-                     (conj! [x1 y0 0.0 u1 v1 page-index]))))
+                     (conj! [x0 y0 0.0 u0 v1])
+                     (conj! [x0 y1 0.0 u0 v0])
+                     (conj! [x1 y1 0.0 u1 v0])
+                     (conj! [x1 y0 0.0 u1 v1]))))
              (->pos-uv-vtx (* 4 rows cols))
              (range (* rows cols))))))
 

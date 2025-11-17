@@ -343,7 +343,7 @@
 
 (defmacro among-values-case-expr
   "Given a sequence of valid-values and a checked-value, returns a case
-  expression that returns for the valid-values and false otherwise."
+  expression that returns true for the valid-values and false otherwise."
   [valid-values checked-value]
   `(case ~checked-value
      ~(seq (eval valid-values)) true

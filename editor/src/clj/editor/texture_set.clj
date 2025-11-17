@@ -153,10 +153,7 @@
 
 ;; vertex data
 
-(vtx/defvertex animation-overlay-vertex
-  (vec3 position)
-  (vec2 texcoord)
-  (vec1 page_index))
+(def ^:private animation-overlay-shader shaders/basic-texture-paged-local-space)
 
 (defn- gen-vertex
   [^Matrix4d world-transform x y u v page-index]
@@ -330,7 +327,8 @@
   [anim-data frame-index world-transform]
   (let [animation-data (get-in anim-data [:frames frame-index])
         animation-vertices (animation-frame->vertex-floats animation-data world-transform)
-        ^VertexBuffer vbuf (->animation-overlay-vertex (count animation-vertices))
+        vertex-description (shaders/vertex-description animation-overlay-shader)
+        ^VertexBuffer vbuf (vtx/make-vertex-buffer vertex-description :stream (count animation-vertices))
         ^ByteBuffer buf (.buf vbuf)]
     (doseq [vertex animation-vertices]
       (vtx/buf-push-floats! buf vertex))
@@ -353,8 +351,7 @@
                   (.setM11 (- (/ 1.0 sy))) ; flip
                   (.setM22 (/ 1.0 sz))
                   (.setM33 1.0))
-        world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)
-        shader shaders/basic-texture-paged-local-space]
+        world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
     (doseq [renderable renderables]
       (let [state (-> renderable :updatable :state)]
         (when-let [frame (:frame state)]
@@ -371,7 +368,7 @@
                 vertex-count (anim-data->vertex-count anim-data frame)
                 vbuf (anim-data->vbuf anim-data frame world-transform)]
             (when vbuf
-              (let [vertex-binding (vtx/use-with ::animation vbuf shader)
+              (let [vertex-binding (vtx/use-with ::animation vbuf animation-overlay-shader)
                     gpu-texture (:gpu-texture user-data)
                     x0 (.x world-pos)
                     y0 (.y world-pos)
@@ -393,6 +390,6 @@
                 (.glVertex3d gl x1 y1 0)
                 (.glVertex3d gl x1 y0 0)
                 (.glEnd gl)
-                (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-                  (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+                (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
+                  (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

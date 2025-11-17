@@ -142,6 +142,9 @@
                  vertex-shader-stage-flag)))
 
 (defn transpile-shader-source
+  "Compiles a single shader source file, for example, a .vp or a .fp file into a
+  augmented-shader-info map with the transpiled shader source and various
+  reflection info."
   [^String shader-path ^String shader-source ^long max-page-count]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
@@ -186,15 +189,11 @@
   ^String [resource-binding-namespaces]
   (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
 
-(defn combined-shader-info [augmented-shader-infos]
-  ;; Move a bunch of reflection stuff from gl.shader/compose-shader-request-data
-  ;; Here and return it in a regular map we feed to compose-shader-request-data.
-  ;; The goal is to have ShaderRequestData only contain the stuff actually
-  ;; required by the GL parts of gl.shader/make-shader-program. Everything else
-  ;; is derived and does not need to be part of the compared ShaderRequestData.
-  ;; Consider having a parallel ShaderLifecycle implementation wholly based on
-  ;; the pre-GL shader reflection?
-
+(defn combined-shader-info
+  "Combines several augmented-shader-infos from, for example, a `.vp` and a
+  `.fp` file returned from the transpile-shader-source function into a map with
+  all the information required to construct a ShaderLifecycle."
+  [augmented-shader-infos]
   (let [max-page-count
         (or (coll/consensus (e/map :max-page-count augmented-shader-infos))
             (throw (ex-info "The shaders do not have a consensus max-page-count."

@@ -455,6 +455,12 @@ These forms should be quoted, as if they came from a macro."
          slice-sampler-uniform-names
          texture-units)))
 
+;; TODO(instancing): Eventually we want to move the stuff related to uniform
+;; reflection out of here. In here, it unnecessarily becomes part of the request
+;; data comparison. If we are able to use uniform reflection info from the
+;; shader transpiler instead, we don't need to feed it into the scene cache
+;; request in order to get it from the OpenGL context. It could reside in the
+;; ShaderLifecycle beside the attribute-reflection-infos.
 (defonce/record ^:private ShaderRequestData
   [shader-type+source-pairs
    location+attribute-name-pairs
@@ -617,8 +623,8 @@ These forms should be quoted, as if they came from a macro."
   ;; editor-specific shaders created using the defshader macro to pass through
   ;; the same transpilation pipeline as the material shaders. Unfortunately this
   ;; also involves porting them to #version 140 first, since the transpiler does
-  ;; not support versions earlier than that. Such shaders are also created from
-  ;; editor plugins, so we need to update those.
+  ;; not support versions earlier than that. All such shaders have now been
+  ;; removed from our editor plugins, so no need to update those.
   (let [name-key->attribute-location (coll/pair-map-by :name-key :location attribute-reflection-infos)
         semantic-type->attribute-locations (util/group-into {} (vector-of :int) :semantic-type :location attribute-reflection-infos)]
     (->ShaderLifecycle
@@ -734,6 +740,11 @@ These forms should be quoted, as if they came from a macro."
 (defn workspace-shader
   ^ShaderLifecycle [workspace opts & shader-proj-paths]
   {:pre [(map? opts)]}
+  ;; Note: It's debatable if we should have this function at all. It might be
+  ;; better to have a `.material` in the workspace that we connect to resource
+  ;; nodes that require it. In fact, that is how we do it in our editor plugins
+  ;; that require specialized shaders for rendering or picking. Otherwise, the
+  ;; library of internal shaders in `editor.shaders` should cover most needs.
   (if (coll/empty? shader-proj-paths)
     (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
     (let [resources-by-proj-path (g/valid-node-value workspace :resource-map)

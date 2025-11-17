@@ -565,13 +565,8 @@
 (defmacro gl-draw-arrays [gl prim-type start count]
   `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
 
-(defmacro gl-draw-elements
-  ;; TODO: Deprecate this overload (used in extensions) - we should be explicit
-  ;; about the index-type.
-  ([gl prim-type start count]
-   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count GL/GL_UNSIGNED_INT ~start))
-  ([gl prim-type index-type start count]
-   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start)))
+(defmacro gl-draw-elements [gl prim-type index-type start count]
+  `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 

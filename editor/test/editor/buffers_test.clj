@@ -302,10 +302,10 @@
     (:short :ushort) #(.getShort ^ByteBuffer %1 ^long %2)
     (:byte :ubyte) #(.get ^ByteBuffer %1 ^long %2)))
 
-(defn- buffer->data-fn [data-type]
-  (let [primitive-type-kw (b/primitive-type-kw data-type)
-        element-byte-size (b/type-size data-type)
-        element-at-offset-fn (element-at-offset-fn data-type)]
+(defn- buffer->data-fn [buffer-data-type]
+  (let [primitive-type-kw (b/primitive-type-kw buffer-data-type)
+        element-byte-size (b/type-size buffer-data-type)
+        element-at-offset-fn (element-at-offset-fn buffer-data-type)]
     (fn buffer->data [^ByteBuffer buffer]
       (into (vector-of primitive-type-kw)
             (map #(element-at-offset-fn buffer %))
@@ -316,12 +316,12 @@
         (map #(.get buffer ^long %))
         (range 0 (.capacity buffer) Byte/BYTES)))
 
-(defn- out-data-fn [data-type]
-  (partial vector-of (b/primitive-type-kw data-type)))
+(defn- out-data-fn [buffer-data-type]
+  (partial vector-of (b/primitive-type-kw buffer-data-type)))
 
-(defn- limits [data-type normalize]
+(defn- limits [buffer-data-type normalize]
   (let [out-min
-        (case data-type
+        (case buffer-data-type
           :double Double/MIN_VALUE
           :float Float/MIN_VALUE
           :int Integer/MIN_VALUE
@@ -332,13 +332,13 @@
           :ubyte (byte 0))
 
         in-min
-        (case data-type
+        (case buffer-data-type
           (:double :float) out-min
           (:int :short :byte) (if normalize -1.0 out-min)
           (:uint :ushort :ubyte) (if normalize 0.0 out-min))
 
         out-max
-        (case data-type
+        (case buffer-data-type
           :double Double/MAX_VALUE
           :float Float/MAX_VALUE
           :int Integer/MAX_VALUE
@@ -350,10 +350,10 @@
 
         in-max
         (if normalize
-          (case data-type
+          (case buffer-data-type
             (:double :float) out-max
             (:int :uint :short :ushort :byte :ubyte) 1.0)
-          (case data-type
+          (case buffer-data-type
             :double Double/MAX_VALUE
             :float Float/MAX_VALUE
             :int (long Integer/MAX_VALUE)
@@ -393,17 +393,17 @@
 
 (deftest put!-test
   (doseq [normalize [false true]
-          data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
-    (let [[in-min in-max out-min out-max] (limits data-type normalize)
-          element-byte-size (b/type-size data-type)
-          buffer->data (buffer->data-fn data-type)
-          out-data (out-data-fn data-type)
+          buffer-data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
+    (let [[in-min in-max out-min out-max] (limits buffer-data-type normalize)
+          element-byte-size (b/type-size buffer-data-type)
+          buffer->data (buffer->data-fn buffer-data-type)
+          out-data (out-data-fn buffer-data-type)
           buf (buffer-with-byte-size (* 4 element-byte-size))]
-      (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
-        (is (identical? buf (b/put! buf 0 data-type normalize (vector in-min in-min in-min in-min))) "Returns self")
+      (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name buffer-data-type))
+        (is (identical? buf (b/put! buf 0 buffer-data-type normalize (vector in-min in-min in-min in-min))) "Returns self")
         (is (zero? (.position buf)) "Position is unaffected")
         (is (= (out-data out-min out-min out-min out-min) (buffer->data buf)))
-        (b/put! buf element-byte-size data-type normalize (vector in-max in-max))
+        (b/put! buf element-byte-size buffer-data-type normalize (vector in-max in-max))
         (is (= (out-data out-min out-max out-max out-min) (buffer->data buf)))))))
 
 (deftest push-floats!-test
@@ -422,22 +422,22 @@
 
 (deftest push!-test
   (doseq [normalize [false true]
-          data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
-    (let [[in-min in-max out-min out-max] (limits data-type normalize)
-          element-byte-size (b/type-size data-type)
-          buffer->data (buffer->data-fn data-type)
-          out-data (out-data-fn data-type)
+          buffer-data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
+    (let [[in-min in-max out-min out-max] (limits buffer-data-type normalize)
+          element-byte-size (b/type-size buffer-data-type)
+          buffer->data (buffer->data-fn buffer-data-type)
+          out-data (out-data-fn buffer-data-type)
           buf (buffer-with-byte-size (* 4 element-byte-size))]
-      (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
-        (is (identical? buf (b/push! buf data-type normalize (vector in-min in-min))) "Returns self")
+      (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name buffer-data-type))
+        (is (identical? buf (b/push! buf buffer-data-type normalize (vector in-min in-min))) "Returns self")
         (is (= (* 2 element-byte-size) (.position buf)) "Position advances")
         (is (= (out-data out-min out-min 0 0) (buffer->data buf)))
-        (b/push! buf data-type normalize (vector in-max in-max))
+        (b/push! buf buffer-data-type normalize (vector in-max in-max))
         (is (= (* 4 element-byte-size) (.position buf)) "Position advances")
         (is (= (out-data out-min out-min out-max out-max) (buffer->data buf)))))))
 
 (deftest as-primitive-array-test
-  (doseq [[data-type expected-class ^int byte-size expected-vec]
+  (doseq [[buffer-data-type expected-class ^int byte-size expected-vec]
           [[:byte byte/1 Byte/BYTES (vector-of :byte Byte/MIN_VALUE 0 Byte/MAX_VALUE)]
            [:ubyte byte/1 Byte/BYTES (into (vector-of :byte) (map num/normalized->ubyte) [0.0 1.0])]
            [:short short/1 Short/BYTES (vector-of :short Short/MIN_VALUE 0 Short/MAX_VALUE)]
@@ -448,7 +448,7 @@
            [:float float/1 Float/BYTES (vector-of :float Float/MIN_VALUE 0.0 Float/MAX_VALUE)]
            [:double double/1 Double/BYTES (vector-of :double Double/MIN_VALUE 0.0 Double/MAX_VALUE)]]]
     (let [actual (-> (b/new-byte-buffer (* byte-size (count expected-vec)) :byte-order/native)
-                     (b/put! 0 data-type false expected-vec)
-                     (b/as-primitive-array data-type))]
+                     (b/put! 0 buffer-data-type false expected-vec)
+                     (b/as-primitive-array buffer-data-type))]
       (is (= expected-class (class actual)))
       (is (= expected-vec (vec actual))))))
