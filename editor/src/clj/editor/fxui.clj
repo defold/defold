@@ -37,6 +37,7 @@
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
@@ -54,15 +55,14 @@
            [javafx.application Platform]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
-           [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
-           [javafx.event Event]
+           [javafx.event Event EventHandler]
            [javafx.geometry Bounds]
            [javafx.scene Node]
-           [javafx.scene.control ListView ScrollPane TextInputControl]
+           [javafx.scene.control ListView ScrollPane TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
-           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region]
            [javafx.scene.shape SVGPath]
            [javafx.stage PopupWindow Window]
@@ -297,37 +297,6 @@
                  (proxy-super updateItem item empty)
                  (vreset! props-vol (% props this item empty))))))))))
 
-(def on-text-input-selection-changed-prop
-  "Prop-config that will observe changes for selection in TextInputControl
-
-  Value for such prop in component description is expected to be an event
-  handler (either function or event map)"
-  (fx.prop/make
-    (reify fx.mutator/Mutator
-      (assign! [_ instance coerce value]
-        (let [[caret-listener anchor-listener] (coerce value)]
-          (doto ^TextInputControl instance
-            (-> .caretPositionProperty (.addListener ^ChangeListener caret-listener))
-            (-> .anchorProperty (.addListener ^ChangeListener anchor-listener)))))
-      (replace! [this instance coerce old-value new-value]
-        (when-not (= old-value new-value)
-          (fx.mutator/retract! this instance coerce old-value)
-          (fx.mutator/assign! this instance coerce new-value)))
-      (retract! [_ instance coerce value]
-        (let [[caret-listener anchor-listener] (coerce value)]
-          (doto ^TextInputControl instance
-            (-> .caretPositionProperty (.removeListener ^ChangeListener caret-listener))
-            (-> .anchorProperty (.removeListener ^ChangeListener anchor-listener))))))
-    (fx.lifecycle/wrap-coerce
-      fx.lifecycle/event-handler
-      (fn [f]
-        [(reify ChangeListener
-           (changed [_ o _ new-caret]
-             (f [(.getAnchor ^TextInputControl (.getBean ^ReadOnlyProperty o)) new-caret])))
-         (reify ChangeListener
-           (changed [_ o _ new-anchor]
-             (f [new-anchor (.getCaretPosition ^TextInputControl (.getBean ^ReadOnlyProperty o))])))]))))
-
 (defn wrap-dedupe-desc
   "Renderer middleware that skips advancing if new description is the same"
   [lifecycle]
@@ -510,13 +479,43 @@
         :show-delay [200 :ms]
         :show-duration [30 :s])))
 
+;; TODO tooltip refactoring
+;;  1. important tooltips: shown immediately on hover, keep being show when focused
+;;  2. info tooltips: shown with delay
+;;  problem with tooltips obstructing the view, e.g. for menu buttons and combo boxes what are solutions?
+;;    always hide if showing a drop down? not configurable, should be inferred.
+
+(def prop-tooltip
+  (fx.prop/make
+    (fx.mutator/adder-remover
+      #(do (.addEventHandler ^Node %1 MouseEvent/MOUSE_ENTERED (key %2))
+           (.addEventHandler ^Node %1 MouseEvent/MOUSE_EXITED (val %2)))
+      #(do (.removeEventHandler ^Node %1 MouseEvent/MOUSE_ENTERED (key %2))
+           (.removeEventHandler ^Node %1 MouseEvent/MOUSE_EXITED (val %2))))
+    (fx.lifecycle/wrap-coerce
+      fx.lifecycle/dynamic
+      (fn [^Tooltip tooltip]
+        (coll/pair
+          ;; show on mouse enter
+          (reify EventHandler
+            (handle [_ e]
+              (let [^Node node (.getSource e)
+                    screen-bounds (.localToScreen node (.getBoundsInLocal node))]
+                (.show tooltip node (.getMinX screen-bounds) (+ 8.0 (.getMaxY screen-bounds))))))
+          ;; hide on mouse exit
+          (reify EventHandler
+            (handle [_ _]
+              (.hide tooltip))))))))
+
 (defn- resolve-tooltip [props]
-  (let [tooltip-text (:tooltip props)]
-    (cond-> props
-            (string? tooltip-text)
-            (assoc :tooltip
-                   {:fx/type tooltip
-                    :text tooltip-text}))))
+  (if-let [tooltip-value (:tooltip props)]
+    (let [tooltip (if (string? tooltip-value)
+                    {:fx/type tooltip :text tooltip-value}
+                    tooltip-value)]
+      (-> props
+          (dissoc :tooltip)
+          (assoc prop-tooltip tooltip)))
+    props))
 
 (defn button
   "Generic `:button` with styling determined by `:variant`.
@@ -952,6 +951,22 @@
       resolve-input-color
       resolve-tooltip))
 
+(defn play-invalid-value-animation! [^Node node]
+  (let [properties (.getProperties node)]
+    (if-let [^SequentialTransition animation (.get properties ::invalid-value-animation)]
+      (do (.stop animation)
+          (.setTranslateX node 0.0)
+          (.playFromStart animation))
+      (let [animation (SequentialTransition.
+                        node
+                        (into-array Animation [(doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0))
+                                               (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0))
+                                               (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0))
+                                               (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0))
+                                               (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))]))]
+        (.put properties ::invalid-value-animation animation)
+        (.play animation)))))
+
 (defn- handle-value-field-key-pressed [edit text swap-state on-value-changed to-value commit-on-enter ^KeyEvent e]
   (condp = (.getCode e)
     KeyCode/ENTER
@@ -961,14 +976,7 @@
       (if-some [value (to-value edit)]
         (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
             (when on-value-changed (on-value-changed value)))
-        (.play
-          (SequentialTransition.
-            (.getSource e)
-            (into-array Animation [(doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0))
-                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0))
-                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0))
-                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0))
-                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))])))))
+        (play-invalid-value-animation! (.getSource e))))
 
     KeyCode/ESCAPE
     (when-not (= edit text)
@@ -984,28 +992,59 @@
           (when on-value-changed (on-value-changed value)))
       (swap-state dissoc :edit))))
 
-(def ^:private ext-with-value-field-text-props
-  (fx/make-ext-with-props
-    {:text (fx.prop/make
-             (fx.mutator/setter
-               (fn [^TextInputControl text-input text]
-                 (when-not (= text (.getText text-input))
-                   (.setText text-input text)
-                   (.selectAll text-input))))
-             fx.lifecycle/scalar)}))
+(def ^:private prop-value-field-text
+  (fx.prop/make
+    (fx.mutator/setter
+      (fn [^TextInputControl text-input text]
+        (when-not (= text (.getText text-input))
+          (.setText text-input text)
+          (.selectAll text-input))))
+    fx.lifecycle/scalar))
+
+(def ^:private prop-filter-mouse-pressed
+  (fx.prop/make
+    (fx.mutator/adder-remover
+      #(.addEventFilter ^Node %1 MouseEvent/MOUSE_PRESSED %2)
+      #(.removeEventFilter ^Node %1 MouseEvent/MOUSE_PRESSED %2))
+    (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler fx.coerce/event-handler)))
+
+(def ^:private prop-filter-mouse-released
+  (fx.prop/make
+    (fx.mutator/adder-remover
+      #(.addEventFilter ^Node %1 MouseEvent/MOUSE_RELEASED %2)
+      #(.removeEventFilter ^Node %1 MouseEvent/MOUSE_RELEASED %2))
+    (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler fx.coerce/event-handler)))
+
+(defn- filter-select-all-text-on-mouse-pressed [^MouseEvent e]
+  (let [^TextInputControl text-input (.getSource e)]
+    (when-not (.isFocused text-input)
+      (.deselect text-input)
+      (.put (.getProperties text-input) ::selection-at-focus true))))
+
+(defn- filter-select-all-text-on-mouse-released [^MouseEvent e]
+  (let [^TextInputControl text-input (.getSource e)
+        properties (.getProperties text-input)]
+    (when (and (.get properties ::selection-at-focus)
+               (string/blank? (.getSelectedText text-input)))
+      (.consume e)
+      (fx/run-later (.selectAll text-input)))
+    (.remove properties ::selection-at-focus)))
 
 (defn- value-field-impl-final-step [{:keys [state swap-state text on-value-changed to-value component commit-on-enter]
                                      :or {to-value identity}
                                      :as props}]
   (let [edit (:edit state text)]
-    {:fx/type ext-with-value-field-text-props
-     :props {:text edit}
-     :desc (-> props
-               (assoc :fx/type component
-                      :on-text-changed (fn/partial swap-state assoc :edit)
-                      :on-key-pressed (fn/partial handle-value-field-key-pressed edit text swap-state on-value-changed to-value commit-on-enter)
-                      :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value))
-               (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))}))
+    (-> props
+        (assoc :fx/type component
+               :on-text-changed (fn/partial swap-state assoc :edit)
+               :on-key-pressed (fn/partial handle-value-field-key-pressed edit text swap-state on-value-changed to-value commit-on-enter)
+               :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value)
+               prop-value-field-text edit
+               ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
+               prop-filter-mouse-pressed filter-select-all-text-on-mouse-pressed
+               ;; Filter is necessary because the TextArea captures the event
+               prop-filter-mouse-released filter-select-all-text-on-mouse-released)
+        (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))))
 
 (defn- stringify-value [f v]
   (if (identical? v ::not-found)
@@ -1039,7 +1078,6 @@
                          nil implies value could not be converted"
   [props]
   (make-value-field text-field true props))
-
 
 (defn password-value-field
   "Password field with value commit/reset semantics
@@ -1210,11 +1248,13 @@
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 
 (defn- advance-user-data-component! [target user-data user-data! key desc]
-  (let [component (user-data target key)]
+  (let [component (user-data target key)
+        ;; TODO REMOVE!!!
+        opts {:fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)}]
     (cond
-      (and component desc) (user-data! target key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (user-data! target key nil))
-      desc (user-data! target key (fx/create-component desc)))))
+      (and component desc) (user-data! target key (fx/advance-component component desc opts))
+      component (do (fx/delete-component component opts) (user-data! target key nil))
+      desc (user-data! target key (fx/create-component desc opts)))))
 
 (defn advance-graph-user-data-component! [view-node key desc]
   (advance-user-data-component! view-node g/user-data g/user-data! key desc))

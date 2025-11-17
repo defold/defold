@@ -14,10 +14,7 @@
 
 (ns editor.field-expression
   (:require [editor.math :as math])
-  (:import [java.math MathContext]
-           [java.text DecimalFormat DecimalFormatSymbols]
-           [java.util Locale]
-           [net.objecthunter.exp4j ExpressionBuilder]))
+  (:import [net.objecthunter.exp4j ExpressionBuilder]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)

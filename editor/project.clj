@@ -81,7 +81,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.9.6"
+                     [cljfx "1.10.3"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -293,7 +293,7 @@
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
-                                                    [io.github.cljfx/dev "1.0.39"]
+                                                    [io.github.cljfx/dev "1.10.1.41"]
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]]

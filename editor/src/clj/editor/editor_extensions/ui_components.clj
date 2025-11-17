@@ -226,11 +226,8 @@
 
 (defn- apply-tooltip [props text localization-state]
   {:pre [(some? text)]}
-  (assoc props :tooltip {:fx/type fx.tooltip/lifecycle
-                         :text (localization-state text)
-                         :hide-delay :zero
-                         :show-delay :zero
-                         :show-duration [30 :s]}))
+  (assoc props fxui/prop-tooltip {:fx/type fxui/tooltip
+                                  :text (localization-state text)}))
 
 (fxui/defc label-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
@@ -548,15 +545,8 @@
                                     (catch LuaError _))]
           ;; nil result or error from `to_value` means couldn't convert => keep editing
           (if (nil? maybe-new-lua-value)
-            (let [^TextField text-field (.getSource e)
-                  anim (SequentialTransition. text-field)]
-              (doto (.getChildren anim)
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))))
-              (.play anim)
+            (do
+              (fxui/play-invalid-value-animation! (.getSource e))
               (.consume e))
             ;; new value!
             (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))

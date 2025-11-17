@@ -13,11 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.properties-view
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.menu-button :as fx.menu-button]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
+            [cljfx.prop :as fx.prop]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.localization :as localization]
@@ -32,6 +40,7 @@
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
@@ -209,16 +218,16 @@
             delta-y (- prev-y y)
             max-delta (if (> (abs delta-x) (abs delta-y)) delta-x delta-y)
             update-val (cond-> (or (:precision edit-type) 1.0)
-                         (.isShiftDown event) (* 10.0)
-                         (.isControlDown event) (* 0.1)
-                         (neg? max-delta) -)]
+                               (.isShiftDown event) (* 10.0)
+                               (.isControlDown event) (* 0.1)
+                               (neg? max-delta) -)]
         (when (> (abs max-delta) 1)
           (let [values (or (ui/user-data target ::values)
                            (properties/values property))
                 new-values (mapv (fn [value]
                                    (cond-> (drag-update-fn value update-val)
-                                     min-val (max min-val)
-                                     max-val (min max-val))) values)]
+                                           min-val (max min-val)
+                                           max-val (min max-val))) values)]
             (properties/set-values! property values op-seq)
             (ui/user-data! target ::position [x y])
             (ui/user-data! target ::values new-values)
@@ -560,8 +569,8 @@
 
 (defn- color->web-string [^Color c ignore-alpha]
   (cond->> (nnext (.toString c))
-    ignore-alpha (drop-last 2)
-    :always (apply str "#")))
+           ignore-alpha (drop-last 2)
+           :always (apply str "#")))
 
 (defn- save-colors!
   [colors prefs]
@@ -638,18 +647,18 @@
     [combo-box update-ui-fn]))
 
 (defmethod make-property-control resource/Resource [edit-type context property-fn]
-  (let [box           (GridPane.)
-        browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+  (let [box (GridPane.)
+        browse-button (doto (Button. "\u2026")              ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
                         (.setPrefHeight 27)
                         (.setFocusTraversable false)
                         (ui/add-style! "button-small"))
-        open-button   (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
-                        (.setPrefWidth 26)
-                        (.setPrefHeight 27)
-                        (.setFocusTraversable false)
-                        (ui/add-style! "button-small"))
-        text          (TextField.)
+        open-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+                      (.setPrefWidth 26)
+                      (.setPrefHeight 27)
+                      (.setFocusTraversable false)
+                      (ui/add-style! "button-small"))
+        text (TextField.)
         dialog-opts (merge
                       (if (:ext edit-type)
                         {:ext (:ext edit-type)}
@@ -657,11 +666,11 @@
                       (if (:dialog-accept-fn edit-type)
                         {:accept-fn (:dialog-accept-fn edit-type)}
                         {}))
-        update-ui-fn  (fn [values message read-only?]
-                        (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
-                        (let [val (properties/unify-values values)]
-                          (ui/editable! browse-button (not read-only?))
-                          (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
+        update-ui-fn (fn [values message read-only?]
+                       (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
+                       (let [val (properties/unify-values values)]
+                         (ui/editable! browse-button (not read-only?))
+                         (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
         cancel-fn (fn [_]
                     (let [property (property-fn)
                           current-vals (properties/values property)]
@@ -811,12 +820,12 @@
 (defn- install-tooltip-message [ctrl msg]
   (ui/user-data! ctrl ::field-message msg)
   (ui/on-mouse! ctrl
-    (when msg
-      (fn [verb _]
-        (condp = verb
-          :enter (show-message-tooltip ctrl)
-          :exit (hide-message-tooltip ctrl)
-          :move nil)))))
+                (when msg
+                  (fn [verb _]
+                    (condp = verb
+                      :enter (show-message-tooltip ctrl)
+                      :exit (hide-message-tooltip ctrl)
+                      :move nil)))))
 
 (def ^:private severity-field-style-map
   {:fatal "field-error"
@@ -838,72 +847,72 @@
 
 (handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
-    (when-let [node-id (handler/selection->node-id selection)]
-      (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
+           (when-let [node-id (handler/selection->node-id selection)]
+             (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
   (run [property selection search-results-view app-view workspace]
-    (let [localization (g/with-auto-evaluation-context evaluation-context
-                         (workspace/localization workspace evaluation-context))]
-      (app-view/show-override-inspector!
-        app-view
-        search-results-view
-        (handler/selection->node-id selection)
-        [(:key property)]
-        localization))))
+       (let [localization (g/with-auto-evaluation-context evaluation-context
+                            (workspace/localization workspace evaluation-context))]
+         (app-view/show-override-inspector!
+           app-view
+           search-results-view
+           (handler/selection->node-id selection)
+           [(:key property)]
+           localization))))
 
 (handler/defhandler :edit.pull-up-overrides :property
   (label [property user-data]
-    (when (nil? user-data)
-      (localization/message "command.edit.pull-up-overrides.variant.property" {"property" (properties/label property)})))
+         (when (nil? user-data)
+           (localization/message "command.edit.pull-up-overrides.variant.property" {"property" (properties/label property)})))
   (active? [property user-data]
-    (or (some? user-data)
-        (= 1 (count (:original-values property)))))
+           (or (some? user-data)
+               (= 1 (count (:original-values property)))))
   (enabled? [user-data]
-    (if user-data
-      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
-      true))
+            (if user-data
+              (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+              true))
   (options [property selection user-data]
-    (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
-        (g/with-auto-evaluation-context evaluation-context
-          (let [prop-kws [(:key property)]
-                source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
-            (when source-prop-infos-by-prop-kw
-              (mapv (fn [transfer-overrides-plan]
-                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                       :command :edit.pull-up-overrides
-                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                    (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
+           (when (nil? user-data)
+             (when-let [node-id (handler/selection->node-id selection)]
+               (g/with-auto-evaluation-context evaluation-context
+                 (let [prop-kws [(:key property)]
+                       source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+                   (when source-prop-infos-by-prop-kw
+                     (mapv (fn [transfer-overrides-plan]
+                             {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                              :command :edit.pull-up-overrides
+                              :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                           (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
   (run [user-data]
-    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+       (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :edit.push-down-overrides :property
   (label [property user-data]
-    (when (nil? user-data)
-      (localization/message "command.edit.push-down-overrides.variant.property" {"property" (properties/label property)})))
+         (when (nil? user-data)
+           (localization/message "command.edit.push-down-overrides.variant.property" {"property" (properties/label property)})))
   (active? [property selection user-data evaluation-context]
-    (or (some? user-data)
-        (and (= 1 (count (:original-values property)))
-             (if-let [node-id (handler/selection->node-id selection)]
-               (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
-               false))))
+           (or (some? user-data)
+               (and (= 1 (count (:original-values property)))
+                    (if-let [node-id (handler/selection->node-id selection)]
+                      (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
+                      false))))
   (enabled? [user-data]
-    (if user-data
-      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
-      true))
+            (if user-data
+              (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+              true))
   (options [property selection user-data]
-    (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
-        (g/with-auto-evaluation-context evaluation-context
-          (let [prop-kws [(:key property)]
-                source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
-            (when source-prop-infos-by-prop-kw
-              (mapv (fn [transfer-overrides-plan]
-                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                       :command :edit.push-down-overrides
-                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                    (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
+           (when (nil? user-data)
+             (when-let [node-id (handler/selection->node-id selection)]
+               (g/with-auto-evaluation-context evaluation-context
+                 (let [prop-kws [(:key property)]
+                       source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+                   (when source-prop-infos-by-prop-kw
+                     (mapv (fn [transfer-overrides-plan]
+                             {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                              :command :edit.push-down-overrides
+                              :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                           (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
   (run [user-data]
-    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+       (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :private/clear-override :property
   (label [property]
@@ -912,6 +921,8 @@
     (not (coll/empty? (:original-values property))))
   (run [property property-control]
     (properties/clear-override! property)
+    ;; TODO: no :property-control handler context value any more — clear-override doesn't work now...
+    ;;       probably safe to just remove
     (ui/clear-auto-commit! property-control)))
 
 (handler/register-menu! ::property-menu
@@ -1103,6 +1114,198 @@
         (ui/user-data! parent ::template template))
       (refresh-control-values! parent properties))))
 
+;; OLD VIEW END
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;; NEW VIEW BEGIN
+
+#_(defn- make-property-grid-row [context property-keyword edit-type row property-keyword->property]
+    (let [{:keys [localization]} context
+          property-fn #(property-keyword->property property-keyword)
+          [^Node control update-ctrl-fn drag-update-fn] (make-property-control edit-type context property-fn)
+
+          control
+          (cond-> control
+                  drag-update-fn
+                  (make-control-draggable
+                    (partial handle-control-drag-event! property-fn drag-update-fn update-ctrl-fn)))]))
+
+(defmulti cljfx-component-view
+  (fn [property _context _localization-state]
+    (edit-type->type (:edit-type property))))
+
+(defn- resolve-validation
+  "If property has validation message, set :color and :tooltip input-desc props"
+  [input-desc property localization-state]
+  (if-let [{:keys [severity message]} (properties/validation-message property)]
+    (-> input-desc
+        (assoc :tooltip (localization-state message))
+        (cond-> (identical? severity :fatal) (assoc :color :error)
+                (identical? severity :warning) (assoc :warning :warning)))
+    input-desc))
+
+(defn- resolve-script-property-style-class [input-desc property]
+  (if-let [style-class (script-property-type->style-class (:script-property-type (:edit-type property)))]
+    (update input-desc :style-class coll/conj-vector style-class)
+    input-desc))
+
+(defmethod cljfx-component-view g/Str [property _context localization-state]
+  (-> {:fx/type fxui/value-field
+       :value (properties/unify-values (properties/values property))
+       :on-value-changed #(properties/set-values! property (repeat %))
+       :editable (not (properties/read-only? property))}
+      (resolve-validation property localization-state)
+      (resolve-script-property-style-class property)))
+
+(defmethod cljfx-component-view g/Int [property _context localization-state]
+  ;; todo draggable
+  ;; #_ drag-update-fn (fn [v update-val] (int (+ v update-val)))
+  (-> {:fx/type fxui/value-field
+       :to-string field-expression/format-int
+       :to-value field-expression/to-int
+       :value (properties/unify-values (properties/values property))
+       :on-value-changed #(properties/set-values! property (repeat %))
+       :editable (not (properties/read-only? property))}
+      (resolve-validation property localization-state)
+      (resolve-script-property-style-class property)))
+
+(defmethod cljfx-component-view :default [property _ _]
+  ;; TODO delete
+  {:fx/type fxui/paragraph
+   :text (str "TODO: " (pr-str (properties/edit-type-id (:edit-type property))))})
+
+(defn- focus-mouse-event-source! [^MouseEvent e]
+  (.requestFocus ^Node (.getSource e)))
+
+(def ^:private prop-mouse-pressed-handler
+  (fx.prop/make
+    (fx.mutator/adder-remover
+      #(.addEventHandler ^Node %1 MouseEvent/MOUSE_PRESSED %2)
+      #(.removeEventHandler ^Node %1 MouseEvent/MOUSE_PRESSED %2))
+    fx.lifecycle/event-handler))
+
+(def ^:private prop-property-context
+  (fx.prop/make
+    (fx.mutator/setter
+      (fn [label [context selection-provider]]
+        (ui/context! label :property context selection-provider)))
+    fx.lifecycle/scalar))
+
+(def ^:private prop-button-menu
+  (fx.prop/make (fx.mutator/setter ui/register-button-menu) fx.lifecycle/scalar))
+
+(fxui/defc new-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization (:context props))
+              :key :localization-state}]}
+  [{:keys [localization-state properties context]}]
+  (let [properties (properties/coalesce properties)
+        selection-provider (->SelectionProvider (:original-node-ids properties))]
+    {:fx/type fxui/vertical
+     :padding :small
+     :spacing :small
+     :children
+     (->> properties
+          category-property-edit-types
+          (e/mapcat
+            (fn [[category-title properties]]
+              (when-not (coll/empty? properties)
+                (-> []
+                    (cond->
+                      category-title
+                      (conj {:fx/type fxui/label
+                             :text (localization-state category-title)
+                             :style-class "property-category"}))
+                    (conj
+                      {:fx/type fxui/grid
+                       :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                                            {:fx/type fx.column-constraints/lifecycle
+                                             :hgrow :always}]
+                       :spacing :small
+                       :children
+                       (coll/transfer properties []
+                         (coll/mapcat-indexed
+                           (fn [i [property-keyword property]]
+                             (let [overridden (properties/overridden? property)]
+                               (coll/pair
+                                 {:fx/type fx.menu-button/lifecycle
+                                  :min-width :use-pref-size
+                                  :style-class (cond-> ["menu-button" "property-label"] overridden (conj "overridden"))
+                                  :grid-pane/column 0
+                                  :grid-pane/row i
+                                  :grid-pane/fill-width true
+                                  :grid-pane/valignment :top
+                                  :mnemonic-parsing false
+                                  :focus-traversable false
+                                  :text (localization-state (properties/label property))
+                                  fxui/prop-tooltip {:fx/type fxui/tooltip
+                                                     :text (localization-state
+                                                             (localization/message
+                                                               "property.tooltip"
+                                                               {"help" (properties/tooltip property)
+                                                                "id" (string/replace (name property-keyword) \- \_)}))}
+                                  prop-button-menu ::property-menu
+                                  prop-mouse-pressed-handler focus-mouse-event-source!
+                                  prop-property-context [(assoc context :property property) selection-provider]}
+                                 (assoc
+                                   (cljfx-component-view property context localization-state)
+                                   :grid-pane/column 1
+                                   :grid-pane/row i
+                                   :grid-pane/fill-width true))))))})))))
+          (into []))}))
+
+;; MIXING OLD AND NEW
+
+(def prop-old-view-data
+  (fx.prop/make
+    (fx.mutator/setter
+      (fn [parent [context properties]]
+        (update-pane! parent context properties)))
+    fx.lifecycle/scalar))
+
+(defn cljfx-view [{:keys [parent context selected-node-properties]}]
+  {:fx/type fxui/ext-with-anchor-pane-props
+   :desc {:fx/type fxui/ext-value :value parent}
+   :props {:children [{:fx/type fxui/scroll
+                       :anchor-pane/top 0
+                       :anchor-pane/bottom 0
+                       :anchor-pane/left 0
+                       :anchor-pane/right 0
+                       :content
+                       {:fx/type fxui/grid
+                        :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                                              :percent-width 50}
+                                             {:fx/type fx.column-constraints/lifecycle
+                                              :percent-width 50}]
+                        :children
+                        [{:fx/type fx.anchor-pane/lifecycle
+                          :grid-pane/column 1
+                          prop-old-view-data [context selected-node-properties]}
+                         {:fx/type new-view
+                          :grid-pane/column 0
+                          :context context
+                          :properties selected-node-properties}]}}]}})
+
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property prefs g/Any)
@@ -1116,17 +1319,22 @@
   (input selected-node-properties g/Any)
 
   (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
-                                   (let [context {:workspace workspace
-                                                  :project project
-                                                  :app-view app-view
-                                                  :prefs prefs
-                                                  :localization localization
-                                                  :search-results-view search-results-view
-                                                  :color-dropper-view color-dropper-view}]
-                                     ;; Collecting the properties and then updating the view takes some time, but has no immediacy
-                                     ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
-                                     (ui/run-later
-                                       (update-pane! parent-view context selected-node-properties))))))
+                              (let [context {:workspace workspace
+                                             :project project
+                                             :app-view app-view
+                                             :prefs prefs
+                                             :localization localization
+                                             :search-results-view search-results-view
+                                             :color-dropper-view color-dropper-view}]
+                                (fxui/advance-ui-user-data-component! parent-view ::tree
+                                                                      {:fx/type cljfx-view
+                                                                       :parent parent-view
+                                                                       :context context
+                                                                       :selected-node-properties selected-node-properties})
+                                ;; Collecting the properties and then updating the view takes some time, but has no immediacy
+                                ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
+                                #_(ui/run-later
+                                    (update-pane! parent-view context selected-node-properties))))))
 
 (defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
   (first
