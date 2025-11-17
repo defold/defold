@@ -125,7 +125,11 @@
             edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
             close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
         (if editing?
-          {:graphic {:fx/type fxui/ext-focused-by-default
+          ;; NOTE: There's `ext-focused-by-default` which does something similar, but it's aggressive
+          ;; and steals focus when modifying breakpoints from the code view
+          {:graphic {:fx/type fx/ext-on-instance-lifecycle
+                     :on-created (fn [^TextField node]
+                                   (ui/run-later (.requestFocus node)))
                      :desc {:fx/type ext-with-focus-changed-handler
                             :props {:on-focused-changed {:event-type :condition-focus-changed}}
                             :desc {:fx/type fx.text-field/lifecycle
@@ -365,7 +369,7 @@
             {:keys [resource row]} (:clicked-breakpoint event)]
         ;; TODO: Do we need to check primary?
         (when (and (= MouseButton/PRIMARY (.getButton e))
-                 (= 2 (.getClickCount e)))
+                   (= 2 (.getClickCount e)))
           (open-resource-fn resource (inc row))))
 
       :row-mouse-entered (swap! state assoc :hovered-row (:breakpoint event))
