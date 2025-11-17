@@ -47,6 +47,12 @@
             -fx-fill: -fx-text-base-color;
         }
     }
+
+    .remove-button {
+        .icon-button-graphic {
+            -fx-fill: -df-defold-red-dark;
+        }
+    }
 }
 
 .path-cell {

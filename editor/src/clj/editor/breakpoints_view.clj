@@ -43,14 +43,15 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.fn :as fn])
-  (:import [javafx.scene.control TextField]
+  (:import [javafx.scene.control TableView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]))
 
 (set! *warn-on-reflection* true)
 
 (defonce state (atom {:breakpoints []
                       :selected-indices []
-                      :hovered-breakpoint nil
+                      :hovered-condition nil
+                      :hovered-row nil
                       :edited-breakpoint nil
                       :edited-condition nil}))
 
@@ -76,8 +77,7 @@
   (let [breakpoint (get (:breakpoints state) breakpoint-idx)]
     (case column-id
       ::enabled
-      (if (nil? breakpoint)
-        {:text ""}
+      (when breakpoint
         {:style-class ["enabled-cell"]
          :alignment :center
          :graphic {:fx/type fx.check-box/lifecycle
@@ -86,14 +86,24 @@
                                          :breakpoint breakpoint}}})
       ::line
       ;; NOTE: When we delete a breakpoint, we receive a nil
-      (if (nil? breakpoint)
-        {:text ""}
+      (when breakpoint
         {:text (str (inc (:row breakpoint)))})
+
+      ::action-btns
+      (let [hovered? (= (:hovered-row state) breakpoint)]
+        (when hovered?
+          {:alignment :center
+           :graphic {:fx/type fx.h-box/lifecycle
+                     :alignment :center-left
+                     :children [(assoc (icon-button "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                                                    {:event-type :remove-breakpoint
+                                                     :breakpoint breakpoint})
+                                       :style-class ["icon-button" "remove-button"])]}}))
 
       ::condition
       (let [condition (:condition breakpoint)
             editing? (= (:edited-breakpoint state) breakpoint)
-            hovered? (= (:hovered-breakpoint state) breakpoint)
+            hovered? (= (:hovered-condition state) breakpoint)
             edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
             close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
         (if editing?
@@ -109,7 +119,6 @@
                                  :text-overrun :ellipsis
                                  :text (or condition "")}
                                 {:fx/type fx.h-box/lifecycle
-                                 :max-width ##Inf
                                  :alignment :center-right
                                  :children (concat
                                             (when (and hovered? condition)
@@ -119,8 +128,8 @@
                                               [(icon-button edit-icon {:event-type :edit-condition
                                                                        :source :button
                                                                        :breakpoint breakpoint})]))}]}
-           :on-mouse-entered {:event-type :row-mouse-entered  :breakpoint breakpoint}
-           :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint breakpoint}
+           :on-mouse-entered {:event-type :condition-mouse-entered  :breakpoint breakpoint}
+           :on-mouse-exited  {:event-type :condition-mouse-exited   :breakpoint breakpoint}
            :on-mouse-clicked {:event-type :edit-condition
                               :source :double-click
                               :breakpoint breakpoint}})))))
@@ -163,21 +172,30 @@
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
                         :fixed-cell-size 35.0
+                        :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
                         :row-factory {:fx/cell-type fx.table-row/lifecycle
-                                      :describe (fn [bp]
-                                                  {:on-mouse-clicked {:event-type :breakpoint-clicked
-                                                                      :clicked-breakpoint bp}})}
+                                      :describe
+                                      (fn [idx]
+                                        (let [bp (get (:breakpoints state) idx)]
+                                          {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
+                                          :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
+                                          :on-mouse-clicked {:event-type :breakpoint-clicked
+                                                             :clicked-breakpoint bp}}))}
                         :items (range (count (:breakpoints state)))
                         :columns
                         [{:fx/type fx.table-column/lifecycle
                           :text (localization-state (localization/message "breakpoints.column.enabled"))
                           :pref-width 60
+                          :min-width 60
+                          :max-width 80
                           :cell-value-factory identity
                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                          :describe (fn/partial column-cell-factory state ::enabled)}}
                          {:fx/type fx.table-column/lifecycle
                           :text (localization-state (localization/message "breakpoints.column.line"))
                           :pref-width 50
+                          :min-width 50
+                          :max-width 100
                           :cell-value-factory identity
                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                          :describe (fn/partial column-cell-factory state ::line)}}
@@ -195,7 +213,15 @@
                           :text (localization-state (localization/message "breakpoints.column.path"))
                           :style-class ["path-cell"]
                           :pref-width 200
-                          :cell-value-factory #(-> (get (:breakpoints state) %) :resource :project-path)}]}}]}})
+                          :cell-value-factory #(-> (get (:breakpoints state) %) :resource :project-path)}
+                         {:fx/type fx.table-column/lifecycle
+                          :pref-width 50
+                          :reorderable false
+                          :resizable false
+                          :sortable false
+                          :cell-value-factory identity
+                          :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                         :describe (fn/partial column-cell-factory state ::action-btns)}}]}}]}})
 
 (handler/register-menu! ::breakpoint-menu
   [menu-items/separator
@@ -300,7 +326,7 @@
         (swap! state assoc :edited-breakpoint nil)
         (g/set-property! script-node :regions regions))
 
-      :remove
+      :remove-breakpoint
       (let [breakpoint (:breakpoint event)
             breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
             script-node (breakpoint->script-node project breakpoint evaluation-context)
@@ -320,11 +346,10 @@
                  (= 2 (.getClickCount e)))
           (open-resource-fn resource (inc row))))
 
-      :row-mouse-entered
-      (swap! state assoc :hovered-breakpoint (:breakpoint event))
-
-      :row-mouse-exited
-      (swap! state assoc :hovered-breakpoint nil)
+      :row-mouse-entered (swap! state assoc :hovered-row (:breakpoint event))
+      :row-mouse-exited  (swap! state assoc :hovered-row nil)
+      :condition-mouse-entered (swap! state assoc :hovered-condition (:breakpoint event))
+      :condition-mouse-exited  (swap! state assoc :hovered-condition nil)
 
       :edit-condition
       (let [^MouseEvent me (:fx/event event)]
