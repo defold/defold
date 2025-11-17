@@ -583,7 +583,7 @@
         (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
             (notify-value-field-change owner-window rt on_value_changed maybe-lua-value maybe-new-lua-value))))))
 
-(def ^:private ext-with-extra-value-field-props
+(def ext-with-extra-value-field-props
   (fx/make-ext-with-props
     {:text (fx.prop/make
              (fx.mutator/setter

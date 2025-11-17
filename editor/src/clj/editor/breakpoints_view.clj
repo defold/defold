@@ -33,6 +33,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as code-data]
             [editor.defold-project :as project]
+            [editor.editor-extensions.ui-components :as ui-components]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
@@ -108,11 +109,13 @@
             close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
         (if editing?
           {:graphic {:fx/type fxui/ext-focused-by-default
-                     :desc {:fx/type fx.text-field/lifecycle
-                            :text condition
-                            :on-text-changed {:event-type :condition-text-changed}
-                            :on-action {:event-type :save-condition}
-                            :on-key-pressed {:event-type :key-pressed}}}}
+                     :desc {:fx/type ui-components/ext-with-extra-value-field-props
+                            :props {:on-focused-changed {:event-type :condition-focus-changed}}
+                            :desc {:fx/type fx.text-field/lifecycle
+                                   :text condition
+                                   :on-text-changed {:event-type :condition-text-changed}
+                                   :on-action {:event-type :save-condition}
+                                   :on-key-pressed {:event-type :key-pressed}}}}}
           {:graphic {:fx/type fx.stack-pane/lifecycle
                      :children [{:fx/type :label
                                  :max-width ##Inf
@@ -337,10 +340,13 @@
       :selected-items-changed
       (swap! state assoc :selected-indices (:fx/event event))
 
+      :condition-focus-changed
+      (when (not (get-in event [:fx/event :value]))
+        (swap! state assoc :edited-breakpoint nil))
+
       :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
             {:keys [resource row]} (:clicked-breakpoint event)]
-        (swap! state assoc :edited-breakpoint nil)
         ;; TODO: Do we need to check primary?
         (when (and (= MouseButton/PRIMARY (.getButton e))
                  (= 2 (.getClickCount e)))
