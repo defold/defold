@@ -44,7 +44,7 @@ def configure(conf):
         glfw_library = 'glfw3'
 
     if target_os == TargetOS.MACOS:
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif platform == 'x86_64-ios':
         pass
     elif target_os == TargetOS.WINDOWS:

@@ -81,15 +81,15 @@ RUN \
     && pyenv rehash
 
 
-# Java (Temurin OpenJDK 21)
+# Java (Temurin OpenJDK 25)
 # Install from official Adoptium API tarball to avoid apt signature issues
-ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk
+ENV JAVA_HOME=/usr/lib/jvm/temurin-25-jdk
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
 RUN set -eux; \
-  echo "Installing Temurin OpenJDK 21 (tarball)"; \
+  echo "Installing Temurin OpenJDK 25 (tarball)"; \
   arch="$(dpkg --print-architecture)"; \
-  url="https://api.adoptium.net/v3/binary/latest/21/ga/linux/${JDK_ARCH}/jdk/hotspot/normal/eclipse?project=jdk"; \
+  url="https://api.adoptium.net/v3/binary/latest/25/ga/linux/${JDK_ARCH}/jdk/hotspot/normal/eclipse?project=jdk"; \
   echo "Downloading: $url"; \
   mkdir -p /tmp/java && cd /tmp/java; \
   curl -fsSL "$url" -o openjdk.tar.gz; \

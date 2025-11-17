@@ -47,9 +47,11 @@
     (fn [prefix lib & options]
       (when-let [progress-reporter @namespace-progress-reporter]
         (let [pos (swap! namespace-counter inc)
-              msg (str "Initializing editor " (if prefix
-                                                (str prefix "." lib)
-                                                (str lib)))]
+              msg (localization/message
+                    "progress.initializing-editor"
+                    {"lib" (if prefix
+                             (str prefix "." lib)
+                             (str lib))})]
           (progress-reporter
             #(progress/jump % pos msg))))
       (apply core-load-lib-fn prefix lib options))))
@@ -57,10 +59,11 @@
 (defn- open-project-with-progress-dialog
   [namespace-loader user-prefs localization cli-options project updater newly-created?]
   (dialogs/make-load-project-dialog
+    localization
     (fn [render-progress!]
-      (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
-            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
-            render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
+      (let [namespace-progress (progress/make (localization/message "progress.loading-editor") 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 0) 1)
+            render-project-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 1) 4)
             project-file (io/file project)
             project-dir (.getParentFile project-file)
             project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
@@ -127,21 +130,22 @@
                   (prefs/global prefs-path)
                   (doto (prefs/global) prefs/migrate-global-prefs!))
                 keymap/migrate-from-file!)
-        localization (localization/make-editor prefs)]
+        localization (localization/make-editor prefs)
+        analytics-url (:analytics-url connection-properties)
+        analytics-send-interval 300
+        cid (analytics/start! analytics-url analytics-send-interval)]
+    (Shutdown/addShutdownAction analytics/shutdown!)
     (error-reporting/setup-error-reporting! {:notifier {:notify-fn (partial notify-user localization)}
-                                             :sentry (get connection-properties :sentry)})
+                                             :sentry (-> connection-properties
+                                                         :sentry
+                                                         (assoc :user {:id cid}))})
     (disable-imageio-cache!)
-
     (when-let [support-error (gl/gl-support-error)]
       (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
         (System/exit -1)))
-    (let [updater (updater/start!)
-          analytics-url (get connection-properties :analytics-url)
-          analytics-send-interval 300]
+    (let [updater (updater/start!)]
       (when (some? updater)
         (updater/delete-backup-files! updater))
-      (analytics/start! analytics-url analytics-send-interval)
-      (Shutdown/addShutdownAction analytics/shutdown!)
       (try
         (let [game-project-path (get-in opts [:arguments 0])
               game-project-file (io/file game-project-path)]

@@ -159,6 +159,7 @@
 
       (testing "save-value"
         (is (= {:artboard "New Artboard"
+                :blit-material "/defold-rive/assets/shader-library/rivemodel_blit.material"
                 :default-animation "Animation1"
                 :material "/defold-rive/assets/rivemodel.material"
                 :scene "/bones/marty.rivescene"}

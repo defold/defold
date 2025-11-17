@@ -40,6 +40,7 @@ ordinary paths."
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
@@ -309,7 +310,8 @@ ordinary paths."
                         resource type that is utilized by the automated tests.
                         Must include a :type field that classifies the method of
                         registration for the tests.
-    :label              label for a resource type when shown in the editor
+    :label              label for a resource type when shown in the editor,
+                        either a string or a MessagePattern instance
     :stateless?         whether or not the node stores any state that needs to
                         be reloaded if the resource is modified externally. When
                         true, we can simply invalidate its outputs without
@@ -553,9 +555,10 @@ ordinary paths."
         notifications
         {:id ::dependencies-missing
          :type :warning
-         :text (format "The following dependencies are missing:\n%s\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries."
-                       (string/join "\n" (map dialogs/indent-with-bullet missing)))
-         :actions [{:text "Fetch Libraries"
+         :message (localization/message
+                    "notification.fetch-libraries.dependencies-missing.warning"
+                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
                                   :project.fetch-libraries
@@ -566,9 +569,10 @@ ordinary paths."
         notifications
         {:id ::dependencies-error
          :type :error
-         :text (format "Couldn't install following dependencies:\n%s"
-                       (string/join "\n" (map dialogs/indent-with-bullet error)))
-         :actions [{:text "Open game.project"
+         :message (localization/message
+                    "notification.fetch-libraries.dependencies-error.error"
+                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet error))})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
                                   :file.open
@@ -605,12 +609,14 @@ ordinary paths."
   (= "clj" (resource/ext resource)))
 
 (defn- load-clojure-plugin! [workspace resource]
-  (log/info :message (str "Loading plugin " (resource/path resource)))
+  (when-not (Boolean/getBoolean "defold.tests")
+    (log/info :message (str "Loading plugin " (resource/path resource))))
   (try
     (if-let [plugin-fn (load-string (slurp resource))]
       (do
         (plugin-fn workspace)
-        (log/info :message (str "Loaded plugin " (resource/path resource))))
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/info :message (str "Loaded plugin " (resource/path resource)))))
       (log/error :message (str "Unable to load plugin " (resource/path resource))))
     (catch Exception e
       (log/error :message (str "Exception while loading plugin: " (.getMessage e))
@@ -787,12 +793,13 @@ ordinary paths."
             notifications-node
             {:type :warning
              :id (collision-notification-id resource-path)
-             :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
+             :message (localization/message
                         (case source
-                          :library (str " in a project dependency: " (:library status))
-                          :builtins " in builtins"
-                          :directory ""
-                          ""))}))))))
+                          :library "notification.resource-collision.library.warning"
+                          :builtins "notification.resource-collision.builtins.warning"
+                          "notification.resource-collision.directory.warning")
+                        {"resource" resource-path
+                         "library" (:library status)})}))))))
 
 (defn resource-sync!
   ([workspace]
@@ -867,7 +874,7 @@ ordinary paths."
            (let [listeners @(g/node-value workspace :resource-listeners)
                  total-progress-size (transduce (map first) + 0 listeners)]
              (loop [listeners listeners
-                    parent-progress (progress/make "" total-progress-size)]
+                    parent-progress (progress/make localization/empty-message total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
                  (resource/handle-changes listener changes-with-moved
                                           (progress/nest-render-progress render-progress! parent-progress progress-span))
@@ -1082,7 +1089,8 @@ ordinary paths."
 
   Required kv-args:
     :id       keyword identifying the view type
-    :label    a label for the view type shown in the editor
+    :label    a label for the view type shown in the editor, localization
+              MessagePattern or a string
 
   Optional kv-args:
     :make-view-fn          fn of graph, parent (AnchorPane), resource node and

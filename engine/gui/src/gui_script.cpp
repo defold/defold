@@ -1493,13 +1493,7 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
-        }
-
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             char buffer[128];
             luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
@@ -1586,13 +1580,13 @@ namespace dmGui
         return 0;
     }
 
-    /*# cancels an ongoing animation
+    /*# cancels a single animation or all animations
      *
-     * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
+     * If one or more animations of the specified node is currently running (started by <code>gui.animate</code>), they will immediately be canceled.
      *
-     * @name gui.cancel_animation
+     * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
-     * @param property [type:string|constant] property for which the animation should be canceled
+     * @param [property] [type:nil|string|constant] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -1620,10 +1614,22 @@ namespace dmGui
      * gui.animate(node, "position", pos, go.EASING_LINEAR, 2)
      * ...
      * -- cancel animation of the x component.
-     * gui.cancel_animation(node, "position.x")
+     * gui.cancel_animations(node, "position.x")
+     * ```
+     * 
+     * Cancels all property animations on a node in a single call:
+     * 
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * -- animate to new position and scale
+     * gui.animate(node, "position", vmath.vector3(100, 100, 0), go.EASING_LINEAR, 5)
+     * gui.animate(node, "scale", vmath.vector3(0.5), go.EASING_LINEAR, 5)
+     * ...
+     * -- cancel positioning and scaling at once
+     * gui.cancel_animations(node)
      * ```
      */
-    static int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimations(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -1634,14 +1640,13 @@ namespace dmGui
         InternalNode* node = LuaCheckNodeInternal(L, 1, &hnode);
         (void) node;
 
-        dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
+        dmhash_t property_hash = 0;
+        if (top >= 2 && !lua_isnil(L, 2))
+        {
+            property_hash = dmScript::CheckHashOrString(L, 2);
         }
 
-        if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
+        if (property_hash != 0 && !dmGui::HasPropertyHash(scene, hnode, property_hash)) {
             luaL_error(L, "property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
@@ -2091,7 +2096,7 @@ namespace dmGui
         return 0;
     }
 
-    static dmImage::Type ToImageType(lua_State*L, const char* type_str)
+    static dmImage::Type ToImageType(lua_State* L, const char* type_str)
     {
         if (strcmp(type_str, "rgb") == 0) {
             return dmImage::TYPE_RGB;
@@ -2099,12 +2104,22 @@ namespace dmGui
             return dmImage::TYPE_RGBA;
         } else if (strcmp(type_str, "l") == 0) {
             return dmImage::TYPE_LUMINANCE;
+        } else if (strcmp(type_str, "astc") == 0) {
+            return dmImage::TYPE_RGBA;
         } else {
             luaL_error(L, "unsupported texture format '%s'", type_str);
         }
 
         // never reached
         return (dmImage::Type) 0;
+    }
+
+    static dmImage::CompressionType ToImageCompressionType(const char* type_str)
+    {
+        if (strcmp(type_str, "astc") == 0) {
+            return dmImage::COMPRESSION_TYPE_ASTC;
+        }
+        return dmImage::COMPRESSION_TYPE_NONE;
     }
 
     /*# create new texture
@@ -2119,6 +2134,7 @@ namespace dmGui
      * - `"rgb"` - RGB</li>
      * - `"rgba"` - RGBA</li>
      * - `"l"` - LUMINANCE</li>
+     * - `"astc"` - ASTC compressed format</li>
      *
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
@@ -2152,6 +2168,20 @@ namespace dmGui
      *      end
      * end
      * ```
+     *
+     * @examples
+     *
+     * How to create a texture using .astc format
+     *
+     * ```lua
+     * local path = "/assets/images/logo_4x4.astc"
+     * local buffer = sys.load_resource(path)
+     * local n = gui.new_box_node(pos, vmath.vector3(size, size, 0))
+     * -- size is read from the .astc buffer
+     * -- flip is not supported
+     * gui.new_texture(path, 0, 0, "astc", buffer, false)
+     * gui.set_texture(n, path)
+     * ```
      */
     static int LuaNewTexture(lua_State* L)
     {
@@ -2182,7 +2212,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = NewDynamicTexture(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
 
         if (r == RESULT_OK)
         {
@@ -2250,6 +2281,7 @@ namespace dmGui
      *   <li><code>"rgb"</code> - RGB</li>
      *   <li><code>"rgba"</code> - RGBA</li>
      *   <li><code>"l"</code> - LUMINANCE</li>
+     *   <li><code>"astc"</code> - ASTC compressed format</li>
      * </ul>
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
@@ -2309,7 +2341,8 @@ namespace dmGui
         flip = !flip;
 
         dmImage::Type type = ToImageType(L, type_str);
-        Result r = SetDynamicTextureData(scene, name, width, height, type, flip, buffer, buffer_size);
+        dmImage::CompressionType compression_type = ToImageCompressionType(type_str);
+        Result r = SetDynamicTextureData(scene, name, width, height, type, compression_type, flip, buffer, buffer_size);
         if (r == RESULT_OK) {
             lua_pushboolean(L, 1);
         } else {
@@ -4998,7 +5031,8 @@ namespace dmGui
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
-        {"cancel_animation",LuaCancelAnimation},
+        {"cancel_animation",    LuaCancelAnimations}, // deprecated Lua function name
+        {"cancel_animations",   LuaCancelAnimations},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"new_pie_node",    LuaNewPieNode},

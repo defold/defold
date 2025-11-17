@@ -21,22 +21,33 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui]
+            [editor.util :as eutil]
             [internal.java :as java]
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [clojure.lang AFn Agent IFn IRef]
+           [com.defold.editor.localization MessagePattern]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
            [com.ibm.icu.util ULocale]
+           [com.sun.javafx.application PlatformImpl]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
+           [java.util.concurrent Executor]
            [javafx.application Platform]
            [javafx.beans.value WritableValue]
-           [javafx.scene.control Labeled Tab]
+           [javafx.scene.control Labeled MenuItem Tab TableColumnBase Tooltip]
            [javafx.scene.text Text]
            [org.apache.commons.io FilenameUtils]))
+
+;; Next line of code makes sure JavaFX is initialized, which is required during
+;; compilation even when we are not actually running the editor. To properly
+;; generate reflection-less code, clojure compiler loads classes and searches
+;; for fitting methods while compiling it. Loading javafx.scene.control.Control
+;; class requires application to be running, because it sets default platform
+;; stylesheet, and this requires Application to be running.
+(PlatformImpl/startup (fn []))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -74,6 +85,11 @@
 ;;        ;; - locale-specific date formatter (e.g. 2025-09-17 or 9/17/25)
 ;;        :date com.ibm.icu.text.DateFormat}))))
 
+(def javafx-executor
+  (reify Executor
+    (execute [_ command]
+      (Platform/runLater command))))
+
 (defonce/protocol Localizable
   (apply-localization [obj str] "Apply a localization string to object"))
 
@@ -90,15 +106,21 @@
   WritableValue
   (apply-localization [tab str]
     (.setValue tab str))
+  MenuItem
+  (apply-localization [menu-item str]
+    (.setText menu-item str))
+  Tooltip
+  (apply-localization [tooltip str]
+    (.setText tooltip str))
+  TableColumnBase
+  (apply-localization [column str]
+    (.setText column str))
   Object
   (apply-localization [unknown _]
     (throw (IllegalArgumentException. (format "%s does not implement Localizable protocol" unknown))))
   nil
   (apply-localization [_ _]
     (throw (IllegalArgumentException. "localized object must not be nil"))))
-
-(defonce/interface MessagePattern
-  (format [state]))
 
 (defn message-pattern? [x]
   (instance? MessagePattern x))
@@ -108,7 +130,12 @@
     (.format ^MessagePattern v state)
     (str v)))
 
-(defonce/record LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
+;; We use a deftype instead of a defrecord even though LocalizationState is a
+;; simple immutable data holder. This is useful because localization state is
+;; used in cljfx contexts as a cache entry key, and continuously checked for
+;; equality on update. Using deftype makes those checks very cheap — reference
+;; equality instead of structural equality.
+(defonce/type LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
   IFn
   (invoke [this v] (impl-format this v))
   (applyTo [this args] (AFn/applyToHelper this args)))
@@ -116,8 +143,8 @@
 (defn- localization-state? [x]
   (instance? LocalizationState x))
 
-(defn- refresh-messages! [^LocalizationState state]
-  (let [u-locale (ULocale/createCanonical ^String (.-locale state))
+(defn- make-localization-state [^String locale bundles listeners]
+  (let [u-locale (ULocale/createCanonical locale)
         u-locale-chain (vec
                          (e/distinct
                            (e/conj
@@ -125,8 +152,7 @@
                                   (iterate ^[] ULocale/.getFallback)
                                   (e/take-while #(not (coll/empty? (str %)))))
                              (ULocale/createCanonical "en"))))
-        u-locale->reader-fns (->> state
-                                  .-bundles
+        u-locale->reader-fns (->> bundles
                                   (e/mapcat val)
                                   (util/group-into
                                     {} []
@@ -158,17 +184,21 @@
                                                   (str "!" k "! `" v "`: " (or (ex-message e) (.getSimpleName (class e))))
                                                   v)))))))
                         (transient {}))
-                      persistent!)]
-    (assoc state
-      :messages messages
-      :date (DateFormat/getDateInstance DateFormat/SHORT u-locale)
-      :list-and (ListFormatter/getInstance u-locale ListFormatter$Type/AND ListFormatter$Width/WIDE)
-      :list-or (ListFormatter/getInstance u-locale ListFormatter$Type/OR ListFormatter$Width/WIDE)
-      :available-locales (->> u-locale->reader-fns
-                              (e/map #(-> % key str))
-                              (vec)
-                              (sort)
-                              (vec)))))
+                      persistent!)
+        available-locales (->> u-locale->reader-fns
+                               (e/map #(-> % key str))
+                               (vec)
+                               (sort)
+                               (vec))]
+    (->LocalizationState
+      locale
+      bundles
+      listeners
+      messages
+      available-locales
+      (ListFormatter/getInstance u-locale ListFormatter$Type/AND ListFormatter$Width/WIDE)
+      (ListFormatter/getInstance u-locale ListFormatter$Type/OR ListFormatter$Width/WIDE)
+      (DateFormat/getDateInstance DateFormat/SHORT u-locale))))
 
 (defonce/type Localization [prefs ^Agent agent]
   IRef
@@ -185,16 +215,17 @@
 (defn- localization? [x]
   (instance? Localization x))
 
-(defn- impl-set-bundle! [state key bundle]
-  (-> state
-      (update :bundles assoc key bundle)
-      refresh-messages!))
+(defn- impl-set-bundle [^LocalizationState state key bundle]
+  (let [bundles (.-bundles state)]
+    (if (= bundle (get bundles key))
+      state
+      (make-localization-state (.-locale state) (assoc bundles key bundle) (.-listeners state)))))
 
-(defn- impl-set-locale! [state prefs locale]
+(defn- impl-set-locale! [^LocalizationState state prefs locale]
   (prefs/set! prefs [:window :locale] locale)
-  (-> state
-      (assoc :locale locale)
-      refresh-messages!))
+  (if (= (.-locale state) locale)
+    state
+    (make-localization-state locale (.-bundles state) (.-listeners state))))
 
 (defn- impl-localize! [^LocalizationState state object message-pattern]
   (assert (Platform/isFxApplicationThread))
@@ -259,8 +290,8 @@
                     file"
   [^Localization localization bundle-key bundle]
   {:pre [(localization? localization)]}
-  (send-off (.-agent localization) impl-set-bundle! bundle-key bundle)
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-off (.-agent localization) impl-set-bundle bundle-key bundle)
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn set-locale!
   "Asynchronously set the active locale and notify listeners
@@ -274,7 +305,7 @@
   [^Localization localization locale]
   {:pre [(localization? localization) (string? locale)]}
   (send-off (.-agent localization) impl-set-locale! (.-prefs localization) locale)
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn localize!
   "Localize an object that implements Localizable protocol
@@ -295,8 +326,9 @@
   ([object ^Localization localization pattern]
    {:pre [(localization? localization)]}
    (apply-localization object (impl-format @localization pattern))
-   (when (message-pattern? pattern)
-     (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-localize! object pattern))
+   (if (message-pattern? pattern)
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-localize! object pattern)
+     (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-unlocalize! object))
    object))
 
 (defn unlocalize!
@@ -314,7 +346,7 @@
     localization    the localization instance created with [[make]]"
   [object ^Localization localization]
   {:pre [(some? object) (localization? localization)]}
-  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-unlocalize! object)
+  (send-without-thread-binding-reset javafx-executor (.-agent localization) impl-unlocalize! object)
   object)
 
 (defn make
@@ -332,12 +364,7 @@
   (->Localization
     prefs
     (agent
-      (impl-set-bundle!
-        (map->LocalizationState
-          {:locale (prefs/get prefs [:window :locale])
-           :bundles {}
-           :listeners (WeakHashMap.)})
-        initial-bundle-key initial-bundle)
+      (make-localization-state (prefs/get prefs [:window :locale]) {initial-bundle-key initial-bundle} (WeakHashMap.))
       :error-handler (fn report-localization-error [_ exception]
                        (error-reporting/report-exception! exception)))))
 
@@ -377,18 +404,19 @@
                       (.reset watch-key)))))))))
       localization)))
 
-(defn- impl-simple-message [k m ^LocalizationState state]
+(defn- impl-simple-message [k m fallback ^LocalizationState state]
   (if-let [format-fn (get (.-messages state) k)]
     (format-fn m)
-    (if (system/defold-dev?)
-      (str "!" k "!")
-      (camel/->TitleCase (peek (string/split k #"\."))))))
+    (or fallback
+        (if (system/defold-dev?)
+          (str "!" k "!")
+          (camel/->TitleCase (peek (string/split k #"\.")))))))
 
-(defonce/record SimpleMessage [k m]
+(defonce/record SimpleMessage [k m fallback]
   MessagePattern
-  (format [_ state] (impl-simple-message k m state)))
+  (format [_ state] (impl-simple-message k m fallback state)))
 
-(defonce/record MessageWithNestedPatterns [k m ks]
+(defonce/record MessageWithNestedPatterns [k m fallback ks]
   MessagePattern
   (format [_ state]
     (impl-simple-message
@@ -398,6 +426,7 @@
           #(assoc! %1 %2 (.format ^MessagePattern (m %2) state))
           (transient m)
           ks))
+      fallback
       state)))
 
 (defn message
@@ -406,34 +435,54 @@
   To actually format, invoke localization (or its state) with pattern
 
   Args:
-    k    localization key, a dot-separated string, e.g. \"some-dialog.title\"
-    m    optional map from string keys (variable names available for use in k's
-         localization message) to either strings, numbers, or message patterns"
-  ([k]
-   (message k {}))
-  ([k m]
-   (if-let [localizable-keys (when (pos? (count m))
+    key          localization key, a dot-separated string, e.g. \"dialog.title\"
+    variables    optional map from string keys (variable names available for
+                 use in key's localization message) to either strings, numbers,
+                 or message patterns
+    fallback     optional fallback string used in the case when localization key
+                 does not exist"
+  ([key]
+   (message key {} nil))
+  ([key variables]
+   (message key variables nil))
+  ([key variables fallback]
+   (if-let [localizable-keys (when (pos? (count variables))
                                (coll/not-empty
                                  (persistent!
                                    (reduce-kv
                                      #(cond-> %1 (message-pattern? %3) (conj! %2))
                                      (transient [])
-                                     m))))]
-     (->MessageWithNestedPatterns k m localizable-keys)
-     (->SimpleMessage k m))))
+                                     variables))))]
+     (->MessageWithNestedPatterns key variables fallback localizable-keys)
+     (->SimpleMessage key variables fallback))))
 
-(defn- impl-simple-list [list-k items state]
-  (.format ^ListFormatter (list-k state) ^Collection items))
+(defn vary-message-variables
+  "Transforms message variable map with a supplied function
 
-(defonce/record SimpleList [list-k items]
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    original    localization message created using [[message]] fn
+    f           fn that transforms the variable map, will receive it as a first
+                argument, and then the remaining arguments
+    args        the remaining arguments"
+  [original f & args]
+  {:pre [(or (instance? SimpleMessage original)
+             (instance? MessageWithNestedPatterns original))]}
+  (message (:k original) (apply f (:m original) args) (:fallback original)))
+
+(defn- impl-simple-list [list-f items state]
+  (.format ^ListFormatter (list-f state) ^Collection items))
+
+(defonce/record SimpleList [list-f items]
   MessagePattern
-  (format [_ state] (impl-simple-list list-k items state)))
+  (format [_ state] (impl-simple-list list-f items state)))
 
-(defonce/record ListWithNestedPatterns [list-k items localizable-indices]
+(defonce/record ListWithNestedPatterns [list-f items localizable-indices]
   MessagePattern
   (format [_ state]
     (impl-simple-list
-      list-k
+      list-f
       (persistent!
         (reduce
           #(assoc! %1 %2 (.format ^MessagePattern (items %2) state))
@@ -441,14 +490,17 @@
           localizable-indices))
       state)))
 
-(defn- impl-list [k items]
+(defn- impl-list [list-f items]
   (if-let [localizable-indices (when (pos? (count items))
                                  (coll/not-empty
                                    (into []
                                          (keep-indexed #(when (message-pattern? %2) %1))
                                          items)))]
-    (->ListWithNestedPatterns k items localizable-indices)
-    (->SimpleList k items)))
+    (->ListWithNestedPatterns list-f items localizable-indices)
+    (->SimpleList list-f items)))
+
+(defn- get-and-list-formatter [^LocalizationState state]
+  (.-list-and state))
 
 (defn and-list
   "Create a list message pattern using \"and\" conjunction (e.g., a, b, and c)
@@ -460,7 +512,10 @@
              messages"
   [items]
   {:pre [(vector? items)]}
-  (impl-list :list-and items))
+  (impl-list get-and-list-formatter items))
+
+(defn- get-or-list-formatter [^LocalizationState state]
+  (.-list-or state))
 
 (defn or-list
   "Create a list message pattern using \"or\" conjunction (e.g., a, b, or c)
@@ -472,7 +527,7 @@
              messages"
   [items]
   {:pre [(vector? items)]}
-  (impl-list :list-or items))
+  (impl-list get-or-list-formatter items))
 
 (defonce/record Date [date]
   MessagePattern
@@ -501,11 +556,102 @@
     [^String locale]
     (.localeDisplayName display-names locale)))
 
+(def empty-message
+  "Message pattern that always returns an empty string"
+  ;; We typically use records for patterns to define equality (for cljfx), but
+  ;; in this case it's okay to use a reified interface since it's a single value
+  ;; that we reuse as-is
+  (reify MessagePattern
+    (format [_ _] "")))
+
+(defonce/record Join [separator separator-localizable items localizable-indices]
+  MessagePattern
+  (format [_ state]
+    (coll/join-to-string
+      (if separator-localizable (.format ^MessagePattern separator state) separator)
+      (if localizable-indices
+        (persistent!
+          (reduce
+            #(assoc! %1 %2 (.format ^MessagePattern (items %2) state))
+            (transient items)
+            localizable-indices))
+        items))))
+
+(defn join
+  "Like clojure.string/join, but creates a message pattern
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    separator    optional, either string, number, or other localizable message
+    items        vector of items, either strings, numbers, or other localizable
+                 messages"
+  ([items]
+   (join "" items))
+  ([separator items]
+   {:pre [(vector? items)]}
+   (->Join separator
+           (message-pattern? separator)
+           items
+           (when (pos? (count items))
+             (coll/not-empty
+               (into []
+                     (keep-indexed #(when (message-pattern? %2) %1))
+                     items))))))
+
+(defonce/record Transform [message message-localizable f args]
+  MessagePattern
+  (format [_ state]
+    (str
+      (apply
+        f
+        (if message-localizable (.format ^MessagePattern message state) message)
+        args))))
+
+(defn transform
+  "Create a message pattern that transforms another message pattern
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    :message    any value, but preferably a MessagePattern instance, created
+                with, e.g., [[message]]
+    :f          transformer function, will receive localized string with the
+                rest of the args
+    :args       the rest of the args"
+  [message f & args]
+  (let [message-localizable (message-pattern? message)]
+    (->Transform (cond-> message (not message-localizable) str) message-localizable f args)))
+
+(defn annotate-as-sorted
+  "Annotate a vector of items as sorted with localization-aware sorting function
+
+  Args:
+    f        localization-aware sorting function, receive localization state,
+             items, and the rest of the arguments; see [[natural-sort-by-label]]
+    items    vector of items to annotate"
+  [f items]
+  {:pre [(vector? items)]}
+  (vary-meta items assoc ::sort f))
+
+(defn natural-sort-by-label
+  "Localization-aware function that sorts the items on their :label vals"
+  [localization-state items]
+  (->> items
+       (mapv #(coll/pair (localization-state (:label %)) %))
+       (sort-by key eutil/natural-order)
+       (mapv val)))
+
+(defn sort-if-annotated
+  "Perform a localization-aware sorting of the items if they were annotated"
+  [localization-state items]
+  {:pre [(localization-state? localization-state)]}
+  (if-let [f (::sort (meta items))]
+    (f localization-state items)
+    items))
+
 ;; TODO:
-;;  - notifications
-;;  - editor.progress
-;;  - loading project dialog
 ;;  - editor scripts localization
-;;  - menus
-;;  - all properties
+;;  - build errors view
 ;;  - missed things...
+;;  - extensions: resource types, properties, outlines...

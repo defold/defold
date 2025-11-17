@@ -169,9 +169,20 @@
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
                                                      :default true}
+                :save-on-app-focus-lost {:type :boolean
+                                         :default false}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
+                :last-selected-tabs {:type :object
+                                     :properties {:selected-pane {:type :integer}
+                                                  :tab-selection-by-pane {:type :array
+                                                                          :item {:type :integer}}}}
+                :open-tabs {:type :array
+                            :item {:type :array
+                                   :item {:type :tuple
+                                          :items [{:type :string} {:type :keyword}]}}
+                            :scope :project}
                 :saved-colors {:type :array
                                :item {:type :string}
                                :scope :project}}}

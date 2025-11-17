@@ -87,8 +87,8 @@
                         :doc (str "A table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "label"
-                                      :types ["string"]
-                                      :doc "required, user-visible command name"}
+                                      :types ["string" "message"]
+                                      :doc "required, user-visible command name, either a string or a localization message"}
                                      {:name "locations"
                                       :types ["string[]"]
                                       :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), or <code>\"Outline\"</code> (the outline pane)"}
@@ -559,7 +559,43 @@ http.server.route(
           :parameters [{:name "value"
                         :types ["any"]
                         :doc "any Lua value to pretty-print"}]}]
-        (when-not (System/getProperty "defold.version")
+        (let [message-pattern-ret {:name "message"
+                                   :types ["message"]
+                                   :doc "a userdata value that, when stringified with <code>tostring()</code>, will produce a localized text according to the currently selected language in the editor"}
+              localizable-value-doc "<code>nil</code>, <code>boolean</code>, <code>number</code>, <code>string</code>, or another <code>message</code> instance"
+              localizable-items-doc (str "array of values; each value may be " localizable-value-doc)]
+          [{:name "localization"
+            :type :module
+            :description "Module for producing localizable messages for editor localization"}
+           {:name "localization.message"
+            :type :function
+            :description "Create a message pattern for a localization key defined in an `.editor_localization` file; the actual localization happens when the returned value is stringified"
+            :parameters [{:name "key"
+                          :types ["string"]
+                          :doc "localization key defined in an <code>.editor_localization</code> file"}
+                         {:name "[vars]"
+                          :types ["table"]
+                          :doc (str "optional table with variables to be substituted in the localized string that uses <a href=\"https://unicode-org.github.io/icu/userguide/format_parse/messages/\">ICU Message Format</a> syntax; keys must be strings; values must be either " localizable-value-doc)}]
+            :returnvalues [message-pattern-ret]}
+           {:name "localization.and_list"
+            :type :function
+            :description "Create a message pattern that renders a list with the \"and\" conjunction (for example: a, b, and c) once it is stringified"
+            :parameters [{:name "items" :types ["any[]"] :doc localizable-items-doc}]
+            :returnvalues [message-pattern-ret]}
+           {:name "localization.or_list"
+            :type :function
+            :description "Create a message pattern that renders a list with the \"or\" conjunction (for example: a, b, or c) once it is stringified"
+            :parameters [{:name "items" :types ["any[]"] :doc localizable-items-doc}]
+            :returnvalues [message-pattern-ret]}
+           {:name "localization.concat"
+            :type :function
+            :description "Create a message pattern that concatenates values (similar to <code>table.concat</code>) and performs the actual concatenation when stringified"
+            :parameters [{:name "items" :types ["any[]"] :doc localizable-items-doc}
+                         {:name "[separator]"
+                          :types ["nil" "boolean" "number" "string" "message"]
+                          :doc "optional separator inserted between values; defaults to an empty string"}]
+            :returnvalues [message-pattern-ret]}])
+        (when (System/getProperty "defold.dev")
           ;; Dev-only docs
           [{:name "editor.bundle.abort_message"
             :type :variable

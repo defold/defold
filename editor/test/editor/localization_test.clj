@@ -1,8 +1,15 @@
 (ns editor.localization-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
+            [editor.code.lang.java-properties :as java-properties]
+            [editor.fs :as fs]
             [editor.localization :as localization]
             [integration.test-util :as test-util]
-            [util.coll :as coll])
+            [internal.java :as java]
+            [internal.util :as util]
+            [util.coll :as coll]
+            [util.eduction :as e])
   (:import [java.io StringReader]
            [java.time LocalDate]
            [javafx.scene.control Label]))
@@ -48,7 +55,16 @@
         (is (= "1, 2, or APPLE" (localization (localization/or-list [1 2 (localization/message "apple")])))))))
   (testing "date"
     (let [localization (make)]
-      (is (= "8/5/25" (localization (localization/date (LocalDate/of 2025 8 5))))))))
+      (is (= "8/5/25" (localization (localization/date (LocalDate/of 2025 8 5)))))))
+  (testing "join"
+    (let [localization (make {"en" "arrow = ->\n a = apple"})]
+      (is (= "a->b->c" (localization (localization/join "->" ["a" "b" "c"]))))
+      (is (= "a->b->c" (localization (localization/join (localization/message "arrow") ["a" "b" "c"]))))
+      (is (= "apple->b->c" (localization (localization/join "->" [(localization/message "a") "b" "c"]))))))
+  (testing "transform"
+    (let [localization (make {"en" "apple = APPLE"})]
+      (is (= "=huh=" (localization (localization/transform "huh" #(str "=" % "=")))))
+      (is (= "=APPLE=" (localization (localization/transform (localization/message "apple") #(str "=" % "="))))))))
 
 (deftest available-locales-test
   (is (= [] (localization/available-locales @(make))))
@@ -83,3 +99,21 @@
     (localization/await-for-updates localization)
     ;; no more updates: obj is garbage-collected
     (is (= 2 @update-count))))
+
+(deftest ellipsis-test
+  (let [errors (util/group-into
+                 {} []
+                 :path identity
+                 (coll/transfer (fs/class-path-walker java/class-loader "localization") :eduction
+                   (filter #(.endsWith (str %) ".editor_localization"))
+                   (mapcat (fn [path]
+                             (e/map #(-> {:path (str (.getFileName (fs/path path))) :key (key %) :string (val %)})
+                                    (java-properties/parse (io/reader path)))))
+                   (filter #(string/includes? (:string %) "..."))))]
+    (is (empty? errors)
+        (coll/join-to-string
+          "\n"
+          (coll/transfer errors :eduction
+            (map (fn [path+error]
+                   (str "Triple dots (...) instead of ellipsis (…) in " (key path+error) ":\n"
+                        (coll/join-to-string "\n" (e/map #(str (:key %) " = " (:string %)) (val path+error)))))))))))

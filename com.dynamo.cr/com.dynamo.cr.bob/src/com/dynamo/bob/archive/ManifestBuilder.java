@@ -28,6 +28,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -67,6 +69,8 @@ public class ManifestBuilder {
     private static Logger logger = Logger.getLogger(ManifestBuilder.class.getName());
 
     public static class CryptographicOperations {
+
+        static private final int RSA_KEY_SIZE = 4096;
 
         private CryptographicOperations() {
 
@@ -116,12 +120,12 @@ public class ManifestBuilder {
             return 0;
         }
 
-        public static byte[] encrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        public static byte[] decrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
             byte[] result = null;
             if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
                 try {
                     final Cipher cipher = Cipher.getInstance("RSA");
-                    cipher.init(Cipher.ENCRYPT_MODE, privateKey);
+                    cipher.init(Cipher.DECRYPT_MODE, privateKey);
                     result = cipher.doFinal(plaintext);
                 } finally {
                     if (privateKey != null) {
@@ -142,11 +146,11 @@ public class ManifestBuilder {
             return result;
         }
 
-        public static byte[] decrypt(byte[] ciphertext, SignAlgorithm algorithm, PublicKey publicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        public static byte[] encrypt(byte[] ciphertext, SignAlgorithm algorithm, PublicKey publicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
             byte[] result = null;
             if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
                 final Cipher cipher = Cipher.getInstance("RSA");
-                cipher.init(Cipher.DECRYPT_MODE, publicKey);
+                cipher.init(Cipher.ENCRYPT_MODE, publicKey);
                 result = cipher.doFinal(ciphertext);
             } else {
                 throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
@@ -155,10 +159,40 @@ public class ManifestBuilder {
             return result;
         }
 
-        public static byte[] sign(byte[] data, HashAlgorithm hashAlgorithm, SignAlgorithm signAlgorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException {
-            byte[] hash = CryptographicOperations.hash(data, hashAlgorithm);
-            byte[] ciphertext = CryptographicOperations.encrypt(hash, signAlgorithm, privateKey);
-            return ciphertext;
+        static private String getSignatureAlgorithm(HashAlgorithm hashAlgorithm) throws NoSuchAlgorithmException {
+            switch (hashAlgorithm) {
+                case HASH_SHA1:
+                    return "SHA1withRSA";
+                case HASH_SHA256:
+                    return "SHA256withRSA";
+                case HASH_SHA512:
+                    return "SHA512withRSA";
+                default:
+                    throw new NoSuchAlgorithmException("Specified hash algorithm is not supported for signing!");
+            }
+        }
+
+        public static byte[] sign(byte[] data, HashAlgorithm hashAlgorithm, SignAlgorithm signAlgorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+            if (!signAlgorithm.equals(SignAlgorithm.SIGN_RSA)) {
+                throw new NoSuchAlgorithmException("Specified sign algorithm is not supported!");
+            }
+            String signatureAlgorithm = getSignatureAlgorithm(hashAlgorithm);
+            Signature signature = Signature.getInstance(signatureAlgorithm);
+            signature.initSign(privateKey);
+            signature.update(data);
+            byte[] signBytes = signature.sign();
+            return signBytes;
+        }
+
+        public static boolean verify(byte[] data, byte[] signature, HashAlgorithm hashAlgorithm, SignAlgorithm signAlgorithm, PublicKey publicKey) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+            if (!signAlgorithm.equals(SignAlgorithm.SIGN_RSA)) {
+                throw new NoSuchAlgorithmException("Specified sign algorithm is not supported!");
+            }
+            String signatureAlgorithm = getSignatureAlgorithm(hashAlgorithm);
+            Signature signatureVerifier = Signature.getInstance(signatureAlgorithm);
+            signatureVerifier.initVerify(publicKey);
+            signatureVerifier.update(data);
+            return signatureVerifier.verify(signature);
         }
 
         public static HashDigest createHashDigest(byte[] data, HashAlgorithm algorithm) throws NoSuchAlgorithmException {
@@ -173,7 +207,7 @@ public class ManifestBuilder {
             byte[] publicKeyContent = null;
             if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
                 KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-                generator.initialize(1024);
+                generator.initialize(RSA_KEY_SIZE);
                 KeyPair keyPair = generator.generateKeyPair();
 
                 // Private key
@@ -546,22 +580,23 @@ public class ManifestBuilder {
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
         ManifestData manifestData = this.buildManifestData();
-        builder.setData(ByteString.copyFrom(manifestData.toByteArray()));
+        byte[] manifestDataAsBytes = manifestData.toByteArray();
+        builder.setData(ByteString.copyFrom(manifestDataAsBytes));
         builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
         builder.setVersion(ManifestBuilder.CONST_VERSION);
         PrivateKey privateKey = null;
         try {
             privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
-            byte[] signature = CryptographicOperations.sign(manifestData.toByteArray(), this.signatureHashAlgorithm, this.signatureSignAlgorithm, privateKey);
+            byte[] signature = CryptographicOperations.sign(manifestDataAsBytes, this.signatureHashAlgorithm, this.signatureSignAlgorithm, privateKey);
             builder.setSignature(ByteString.copyFrom(signature));
             if (this.outputManifestHash) {
-                this.manifestDataHash = CryptographicOperations.hash(manifestData.toByteArray(), this.signatureHashAlgorithm);
+                this.manifestDataHash = CryptographicOperations.hash(manifestDataAsBytes, this.signatureHashAlgorithm);
             }
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create ManifestFile, hashing algorithm is not supported!");
         } catch (InvalidKeySpecException | InvalidKeyException exception) {
             throw new IOException("Unable to create ManifestFile, private key has invalid format!");
-        } catch (IllegalBlockSizeException | BadPaddingException | NoSuchPaddingException exception) {
+        } catch (SignatureException exception) {
             throw new IOException("Unable to create ManifestFile, cryptographic error!");
         } finally {
             TimeProfiler.stop();

@@ -249,7 +249,7 @@ def apidoc_extract_task(bld, src):
     def _parse_source(source_path):
         resource = bld.path.find_resource(source_path)
         if not resource:
-            sys.exit("Couldn't find resource: %s" % s)
+            sys.exit("Couldn't find resource: %s" % resource)
             return
 
         elements = {}
@@ -439,13 +439,16 @@ def default_flags(self):
     # Common for all platforms
     flags = []
     if target_os not in (TargetOS.WINDOWS, TargetOS.XBONE):
-        build_script_path = self.path.abspath()
-        parts = build_script_path.split(os.sep)
-        index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
-        if index != -1 and (index + 1) < len(parts):
-            flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
-        flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
         flags += ["-Werror=return-type"]
+
+        # if we're building on CI, we want to setup special debug paths, as it makes it easier to use with extension builds
+        if os.environ.get('GITHUB_WORKFLOW', None) is not None:
+            build_script_path = self.path.abspath()
+            parts = build_script_path.split(os.sep)
+            index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
+            if index != -1 and (index + 1) < len(parts):
+                flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
+            flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
         flags += [self.env.DEFINES_ST % 'NDEBUG']
@@ -496,6 +499,7 @@ def default_flags(self):
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
+    # TODO: Remove the redundant lib folders ("win32") once we've moved fully to CMake
     if build_util.get_target_platform() == 'win32':
         alias = 'x86-win32' # used by the new/CMake code path
         # Includes under DYNAMO_HOME and DYNAMO_HOME/ext
@@ -652,7 +656,7 @@ def default_flags(self):
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             if 'wagyu' in Options.options.enable_features:
                 # When building the executable locally, targeting wagyu, we need to link with the stubs
-                wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
+                wagyu_port = '%s/ext/wagyu-port/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
                 linkflags += ['--use-port=%s' % wagyu_port]
             else:
                 emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
@@ -714,7 +718,7 @@ def default_flags(self):
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', "Bcrypt.lib", 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
         # Make sure we prefix with lib*.lib on windows, since this is not done
@@ -2053,7 +2057,7 @@ def detect(conf):
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     if TargetOS.MACOS == target_os:
-        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
+        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif TargetOS.WINDOWS == target_os:
@@ -2064,8 +2068,10 @@ def detect(conf):
 
     if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.IOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif TargetOS.LINUX == target_os:
@@ -2107,6 +2113,7 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STLIB_FONT']            = ['font']
+    conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'

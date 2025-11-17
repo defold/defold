@@ -1,0 +1,151 @@
+name: Build external package
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        type: string
+        default: ''
+        description: 'External package name'
+        required: true
+      result_folder_name:
+        type: string
+        default: ''
+        description: 'Folder name where build result is located'
+        required: true
+      result_lib_name:
+        type: string
+        default: ''
+        required: true
+      package_version:
+        type: string
+        default: ''
+        description: 'Package version'
+        required: true
+      android_abi_version:
+        type: number
+        default: 21
+        description: 'Minimum android ABI version'
+        required: false
+    secrets:
+      dm_packages_url:
+        required: true
+
+env:
+  DM_PACKAGES_URL: ${{ secrets.dm_packages_url }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platforms: [
+           { name: 'x86_64-linux', runner: 'ubuntu-22.04', target: 'linux' },
+           { name: 'arm64-linux', runner: 'ubuntu-22.04-arm', target: 'linux' },
+           { name: 'arm64-macos', runner: 'macOS-14', target: 'macos' },
+           { name: 'x86_64-macos', runner: 'macOS-14', target: 'macos' },
+           { name: 'arm64-ios', runner: 'macOS-14', target: 'macos' },
+           { name: 'x86_64-ios', runner: 'macOS-14', target: 'macos' },
+           { name: 'js-web', runner: 'ubuntu-22.04', target: 'web' },
+           { name: 'wasm-web', runner: 'ubuntu-22.04', target: 'web' },
+           { name: 'wasm_pthread-web', runner: 'ubuntu-22.04', target: 'web' },
+           { name: 'win32', runner: 'windows-2025', target: 'windows' },
+           { name: 'x86_64-win32', runner: 'windows-2025', target: 'windows' },
+           { name: 'arm64-android', runner: 'ubuntu-22.04', target: 'android' },
+           { name: 'armv7-android', runner: 'ubuntu-22.04', target: 'android' }
+        ]
+      fail-fast: false
+    runs-on: ${{ matrix.platforms.runner }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: "${{ env.BUILD_BRANCH }}"
+
+      - name: Setup NDK (r25b)
+        if: "${{ matrix.platforms.target == 'android' }}"
+        uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410 # v1.5.0
+        id: setup-ndk
+        with:
+          ndk-version: r25b
+          add-to-path: false
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: 3.13
+
+      - name: Setup emsdk
+        if: "${{ matrix.platforms.target == 'web' }}"
+        uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
+        with:
+          version: "4.0.6"
+
+      - name: Install dependencies
+        run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
+
+      - name: Build ${{ inputs.package_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/build.py --save-env-path=ci/env.sh save_env
+
+          if [ ${{ matrix.platforms.target }} == "windows" ]; then
+            ORIG_PATH="$PATH"
+            source ci/env.sh
+            export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin"
+          else
+            source ci/env.sh
+          fi
+
+          echo "DYNAMO_HOME=$DYNAMO_HOME"
+          if [ ${{ matrix.platforms.target }} == "web" ]; then 
+            source "$EMSDK/emsdk_env.sh"
+            export CC=emcc
+            export CXX=em++
+          fi
+
+          if [ ${{ matrix.platforms.target }} == "android" ]; then
+            export ANDROID_NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
+            export ANDROID_NDK_ROOT="${{ steps.setup-ndk.outputs.ndk-path }}"
+            export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
+            export ANDROID_HOME="$ANDROID_SDK_ROOT"
+            export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
+            if [[ "${{ matrix.platforms.name }}" == "arm64-android" ]]; then
+              export CC="aarch64-linux-android${{ inputs.android_abi_version }}-clang"
+              export CXX="aarch64-linux-android${{ inputs.android_abi_version }}-clang++"
+            else
+              export CC="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang"
+              export CXX="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang++"
+            fi
+
+            echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
+            $CC --version
+          fi
+          ./scripts/build.py install_waf
+          cd external/${{ inputs.package_name }}
+
+          waf distclean || true
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platforms.name }}
+          waf install
+
+          echo "Final package includes:"
+          tar -tzf "build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz" | grep -E '${{ inputs.result_lib_name }}\\.(a|lib)' || true
+
+      - name: Archive results (common)
+        # archive common package once
+        if: "${{ matrix.platforms.name == 'x86_64-linux' }}"
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
+        with:
+          name: ${{ inputs.package_name }}-${{ inputs.package_version }}-common.tar.gz
+          path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-common.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Archive results (platform-specific)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
+        with:
+          name: ${{ inputs.package_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
+          path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1

@@ -493,9 +493,8 @@ static void* EngineCreate(int argc, char** argv)
     dmPlatform::OpenWindow(engine->m_Window, window_params);
     dmPlatform::ShowWindow(engine->m_Window);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_jobs";
-    job_thread_create_param.m_ThreadCount    = 1;
+    dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+    job_thread_create_param.m_ThreadCount = 1;
     engine->m_JobThread = dmJobThread::Create(job_thread_create_param);
 
     dmGraphics::ContextParams graphics_context_params = {};

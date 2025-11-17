@@ -84,7 +84,7 @@
     (.setMax scroll m)
     (.setVisibleAmount scroll (/ (* m w) total-width))))
 
-(defn make-diff-viewer [left-name raw-str-left right-name raw-str-right]
+(defn make-diff-viewer [left-name raw-str-left right-name raw-str-right localization]
   (let [root ^Parent (ui/load-fxml "diff.fxml")
         stage (doto (ui/make-stage)
                 (.initOwner (ui/main-stage)))
@@ -93,11 +93,11 @@
         str-right (text-util/crlf->lf raw-str-right)
         {:keys [left-lines right-lines edits]} (diff/find-edits str-left str-right)]
 
-    (ui/title! stage "Diff")
+    (ui/title! stage (localization (localization/message "dialog.diff-view.title")))
     (.setOnKeyPressed scene (ui/event-handler event (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE) (.close stage))))
 
     (.setScene stage scene)
-    (ui/show! stage)
+    (ui/show! stage localization)
 
     (let [^Pane left (.lookup root "#left")
           ^Pane right (.lookup root "#right")
@@ -150,4 +150,4 @@
          :header (localization/message "dialog.diff-view.binary.header")})
 
       :else
-      (make-diff-viewer old-path old new-path new))))
+      (make-diff-viewer old-path old new-path new localization))))

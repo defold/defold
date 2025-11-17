@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.core :as core]
+            [editor.localization :as localization]
             [support.test-support :refer [with-clean-system tx-nodes]]
             [service.log :as log]
             [util.fn :as fn])
@@ -318,33 +319,33 @@
       (select! [lonely-i])
       (is (not (enabled? :string-command [global] {}))))))
 
-(def main-menu-data [{:label "File"
+(def main-menu-data [{:label (localization/message "command.file")
                       :id ::file
-                      :children [{:label "New"
+                      :children [{:label (localization/message "command.file.new")
                                   :id ::new
                                   :command :file.new}
-                                 {:label "Open"
+                                 {:label (localization/message "command.file.open")
                                   :id ::open
                                   :command :file.open}]}
-                     {:label "Edit"
+                     {:label (localization/message "command.edit")
                       :id ::edit
-                      :children [{:label "Undo"
+                      :children [{:label (localization/message "command.edit.undo")
                                   :icon "icons/undo.png"
                                   :command :edit.undo}
-                                 {:label "Redo"
+                                 {:label (localization/message "command.edit.redo")
                                   :icon "icons/redo.png"
                                   :command :edit.redo}]}
-                     {:label "Help"
-                      :children [{:label "About"
+                     {:label (localization/message "command.help")
+                      :children [{:label (localization/message "command.app.about")
                                   :command :app.about}]}])
 
-(def scene-menu-data [{:label "Scene"
-                       :children [{:label "Do stuff"}
+(def scene-menu-data [{:label (localization/message "handler-test.menu.scene")
+                       :children [{:label (localization/message "handler-test.menu.scene.do-stuff")}
                                   {:label :separator
                                    :id ::scene-end}]}])
 
-(def tile-map-data [{:label "Tile Map"
-                     :children [{:label "Erase Tile"}]}])
+(def tile-map-data [{:label (localization/message "handler-test.menu.tile-map")
+                     :children [{:label (localization/message "handler-test.menu.tile-map.erase-tile")}]}])
 
 (deftest main-menu
   (with-redefs [handler/state-atom (atom handler/empty-state)]

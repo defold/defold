@@ -110,11 +110,11 @@ union SaveLoadBuffer
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
      * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
+     * This function will raise a Lua error if an error occurs while saving the table.
      *
      * @name sys.save
      * @param filename [type:string] file to write to
      * @param table [type:table] lua table to save
-     * @return success [type:boolean] a boolean indicating if the table could be saved or not
      * @examples
      *
      * Save data:
@@ -123,9 +123,7 @@ union SaveLoadBuffer
      * local my_table = {}
      * table.insert(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * if not sys.save(my_file_path, my_table) then
-     *   -- Alert user that the data could not be saved
-     * end
+     * sys.save(my_file_path, my_table)
      * ```
      */
 
@@ -224,6 +222,7 @@ union SaveLoadBuffer
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
+     * This function will raise a Lua error if an error occurs while loading the file.
      *
      * @name sys.load
      * @param filename [type:string] file to read from
@@ -333,6 +332,7 @@ union SaveLoadBuffer
 
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
+     * This function will raise a Lua error if unable to get the save file path.
      *
      * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
      *
@@ -395,6 +395,7 @@ union SaveLoadBuffer
 
     /*# gets the application path
      * The path from which the application is run.
+     * This function will raise a Lua error if unable to get the application support path.
      *
      * @name sys.get_application_path
      * @return path [type:string] path to application executable
@@ -574,6 +575,46 @@ union SaveLoadBuffer
         {
             float value = dmConfigFile::GetFloat(config_file, key, default_value);
             lua_pushnumber(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    /*# get boolean config value with optional default value
+     * Get boolean config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_boolean
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:boolean] (optional) default value to return if the value does not exist
+     * @return value [type:boolean] config value as a boolean. default_value if the config key does not exist. false if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local vsync = sys.get_config_boolean("display.vsync", false)
+     * ```
+     */
+    static int Sys_GetConfigBoolean(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        bool default_value = false;
+        if (!lua_isnone(L, 2))
+        {
+            default_value = lua_toboolean(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int32_t int_value = dmConfigFile::GetInt(config_file, key, default_value ? 1 : 0);
+            bool value = int_value != 0;
+            lua_pushboolean(L, value);
         }
         else
         {
@@ -1344,7 +1385,8 @@ union SaveLoadBuffer
 
     /*# serializes a lua table to a buffer and returns it
      * The buffer can later deserialized by <code>sys.deserialize</code>.
-     * This method has all the same limitations as <code>sys.save</code>.
+     * This function has all the same limitations as <code>sys.save</code>.
+     * This function will raise a Lua error if an error occurs while serializing the table.
      *
      * @name sys.serialize
      * @param table [type:table] lua table to serialize
@@ -1380,6 +1422,7 @@ union SaveLoadBuffer
     }
 
     /*# deserializes buffer into a lua table
+     * This function will raise a Lua error if an error occurs while deserializing the buffer.
      *
      * @name sys.deserialize
      * @param buffer [type:string] buffer to deserialize from
@@ -1457,6 +1500,7 @@ union SaveLoadBuffer
         {"get_config_string", Sys_GetConfigString},
         {"get_config_int", Sys_GetConfigInt},
         {"get_config_number", Sys_GetConfigNumber},
+        {"get_config_boolean", Sys_GetConfigBoolean},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},

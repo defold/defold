@@ -351,6 +351,7 @@ nodes {
   enabled: false
   visible: false
   material: "first_material"
+  spine_create_bones: true
 }
 nodes {
   position {
@@ -716,12 +717,14 @@ nodes {
   overridden_fields: 45
   overridden_fields: 46
   overridden_fields: 47
+  overridden_fields: 48
   template_node_child: true
   spine_scene: "second_spinescene"
   spine_default_animation: "second_animation"
   spine_skin: "second_skin"
   custom_type: 405028931
   material: "second_material"
+  spine_create_bones: true
 }
 nodes {
   position {
@@ -1089,6 +1092,7 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
+    overridden_fields: 48
     spine_scene: "second_spinescene"
     spine_default_animation: "second_animation"
     spine_skin: "second_skin"
@@ -1457,12 +1461,14 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
+    overridden_fields: 48
     template_node_child: true
     spine_scene: "second_spinescene"
     spine_default_animation: "second_animation"
     spine_skin: "second_skin"
     custom_type: 405028931
     material: "second_material"
+    spine_create_bones: true
   }
   nodes {
     position {

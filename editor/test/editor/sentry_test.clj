@@ -63,7 +63,8 @@
                                            :fn fn
                                            :fn-list [fn]
                                            :fn-map {:key fn}})
-                                 (Thread/currentThread))
+                                 (Thread/currentThread)
+                                 {:id "test-user"})
         extra (:extra event)]
     (is (= json-class (:class extra)))
     (is (= [json-class] (:class-list extra)))

@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -203,15 +204,20 @@
      :style style}))
 
 (defn- find-outline-node [resource-node-id error-node-id]
-  (if-not (g/node-instance? outline/OutlineNode error-node-id)
-    resource-node-id
-    (some (fn [{:keys [node-id] :as node-outline}]
-            (when (or (= error-node-id node-id)
-                      (= error-node-id (:node-id (:alt-outline node-outline))))
-              node-id))
-          (tree-seq (comp sequential? :children)
-                    :children
-                    (g/node-value resource-node-id :node-outline)))))
+  (or (when error-node-id
+        (g/with-auto-evaluation-context evaluation-context
+          (let [basis (:basis evaluation-context)
+                error-node (g/node-by-id-at basis error-node-id)]
+            (when (and (some? error-node)
+                       (g/node-instance*? outline/OutlineNode error-node))
+              (some (fn [{:keys [node-id] :as node-outline}]
+                      (when (or (= error-node-id node-id)
+                                (= error-node-id (:node-id (:alt-outline node-outline))))
+                        node-id))
+                    (tree-seq (comp sequential? :children)
+                              :children
+                              (g/node-value resource-node-id :node-outline evaluation-context)))))))
+      resource-node-id))
 
 (defn error-item-open-info
   "Returns data describing how an error should be opened when double-clicked.
@@ -267,7 +273,7 @@
       (.setContent clipboard content))))
 
 (handler/register-menu! ::build-errors-menu
-  [{:label "Copy"
+  [{:label (localization/message "command.edit.copy")
     :command :edit.copy}])
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]

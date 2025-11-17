@@ -78,7 +78,7 @@ const uint32_t MAX_RESOURCE_TYPES = 128;
 struct ResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
-    dmHashTable64<ResourceDescriptor>*          m_Resources;
+    dmHashTable64<ResourceDescriptor>*           m_Resources;
     dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     // Used for reloading of resources
@@ -251,10 +251,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     archive_loader_params.m_HttpCache = params->m_HttpCache;
     dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "ResourceJobThread";
-    job_thread_create_param.m_ThreadCount    = 1;
-    factory->m_JobThreadContext              = dmJobThread::Create(job_thread_create_param);
+    factory->m_JobThreadContext = params->m_JobThreadContext;
 
     int num_mounted = 0;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
@@ -345,17 +342,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     factory->m_ResourceTypesCount = 0;
 
-    const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
     factory->m_Resources = new dmHashTable64<ResourceDescriptor>();
-    factory->m_Resources->SetCapacity(table_size, params->m_MaxResources);
+    factory->m_Resources->OffsetCapacity(params->m_MaxResources);
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
-    factory->m_ResourceToHash->SetCapacity(table_size, params->m_MaxResources);
+    factory->m_ResourceToHash->OffsetCapacity(params->m_MaxResources);
 
     if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
         factory->m_ResourceHashToFilename = new dmHashTable64<const char*>();
-        factory->m_ResourceHashToFilename->SetCapacity(table_size, params->m_MaxResources);
+        factory->m_ResourceHashToFilename->OffsetCapacity(params->m_MaxResources);
 
         factory->m_ResourceReloadedCallbacks = new dmArray<ResourceReloadedCallbackPair>();
         factory->m_ResourceReloadedCallbacks->SetCapacity(256);
@@ -383,11 +379,7 @@ static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescript
 
 void DeleteFactory(HFactory factory)
 {
-    if (factory->m_JobThreadContext)
-    {
-        dmJobThread::Destroy(factory->m_JobThreadContext);
-        factory->m_JobThreadContext = 0;
-    }
+    factory->m_JobThreadContext = 0;
 
     ReleaseBuiltinsArchive(factory);
 
@@ -460,7 +452,6 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
-    dmJobThread::Update(factory->m_JobThreadContext, 0);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
@@ -823,6 +814,8 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
             create_error = (Result)resource_type->m_PostCreateFunction(&params);
             if(create_error != RESULT_PENDING)
                 break;
+            // As we're stalling on the main thread here, we also need to finish any potential resource tasks here.
+            dmJobThread::Update(factory->m_JobThreadContext, 1000);
             dmTime::Sleep(1000);
         }
     }
@@ -915,15 +908,15 @@ static Result CheckAndGetResourceAndType(HFactory factory, const char* canonical
 }
 
 // Assumes m_LoadMutex is already held
-static Result CreateAndLoadResource(HFactory factory, const char* name, void** resource)
+static Result CreateAndLoadResource(HFactory factory, const char* path, void** resource)
 {
-    assert(name);
+    assert(path);
     assert(resource);
 
     DM_PROFILE(__FUNCTION__);
 
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
+    GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     ResourceType* resource_type;
@@ -947,14 +940,14 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
     void* buffer         = 0;
     uint32_t buffer_size = 0;
     uint32_t resource_size = 0;
-    Result result = LoadResource(factory, canonical_path, name, preload_size, &buffer, &buffer_size, &resource_size);
+    Result result = LoadResource(factory, canonical_path, path, preload_size, &buffer, &buffer_size, &resource_size);
     if (result != RESULT_OK)
     {
         return result;
     }
     assert(buffer == factory->m_Buffer.Begin());
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash,
+    return DoCreateResource(factory, resource_type, path, canonical_path, canonical_path_hash,
                                 buffer, buffer_size, resource_size, resource);
 }
 
@@ -996,15 +989,24 @@ Result CreateResource(HFactory factory, const char* name, void* data, uint32_t d
     return CreateResourcePartial(factory, 0, name, data, data_size, data_size, resource);
 }
 
-Result Get(HFactory factory, const char* name, void** resource)
+Result GetWithExt(HFactory factory, const char* path, const char* ext, void** resource)
 {
-    assert(name);
+    assert(path);
     assert(resource);
     *resource = 0;
 
-    Result chk = CheckSuppliedResourcePath(name);
+    Result chk = CheckSuppliedResourcePath(path);
     if (chk != RESULT_OK)
         return chk;
+
+    if (ext != 0)
+    {
+        const char* path_ext = GetExtFromPath(path);
+        if (strcmp(path_ext, ext) != 0)
+        {
+            return RESULT_INVALID_FILE_EXTENSION;
+        }
+    }
 
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
@@ -1019,7 +1021,7 @@ Result Get(HFactory factory, const char* name, void** resource)
     uint32_t n = stack.Size();
     for (uint32_t i=0;i<n;i++)
     {
-        if (strcmp(stack[i], name) == 0)
+        if (strcmp(stack[i], path) == 0)
         {
             dmLogError("Self referring resource detected");
             dmLogError("Reference chain:");
@@ -1027,7 +1029,7 @@ Result Get(HFactory factory, const char* name, void** resource)
             {
                 dmLogError("%d: %s", j, stack[j]);
             }
-            dmLogError("%d: %s", n, name);
+            dmLogError("%d: %s", n, path);
             --factory->m_RecursionDepth;
             return RESULT_RESOURCE_LOOP_ERROR;
         }
@@ -1037,11 +1039,16 @@ Result Get(HFactory factory, const char* name, void** resource)
     {
         stack.SetCapacity(stack.Capacity() + 16);
     }
-    stack.Push(name);
-    Result r = CreateAndLoadResource(factory, name, resource);
+    stack.Push(path);
+    Result r = CreateAndLoadResource(factory, path, resource);
     stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
+}
+
+Result Get(HFactory factory, const char* path, void** resource)
+{
+    return GetWithExt(factory, path, 0, resource);
 }
 
 ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
@@ -1049,16 +1056,25 @@ ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
     return factory->m_Resources->Get(canonical_path_hash);
 }
 
-Result Get(HFactory factory, dmhash_t name, void** resource)
+Result GetWithExt(HFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource)
 {
-    ResourceDescriptor* rd = FindByHash(factory, name);
+    ResourceDescriptor* rd = FindByHash(factory, path_hash);
     if (!rd)
     {
         return RESULT_RESOURCE_NOT_FOUND;
     }
+    if (ext_hash && rd->m_ResourceType->m_ExtensionHash != ext_hash)
+    {
+        return RESULT_INVALID_FILE_EXTENSION;
+    }
     dmResource::IncRef(factory, rd->m_Resource);
     *resource = rd->m_Resource;
     return RESULT_OK;
+}
+
+Result Get(HFactory factory, dmhash_t path_hash, void** resource)
+{
+    return GetWithExt(factory, path_hash, 0, resource);
 }
 
 Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, ResourceDescriptor* descriptor)
@@ -1698,14 +1714,24 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource)
    dmResource::RegisterResourceDecryptionFunction((dmResource::FDecryptResource)decrypt_resource);
 }
 
-ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** resource)
+ResourceResult ResourceGet(HResourceFactory factory, const char* path, void** resource)
 {
-    return (ResourceResult)dmResource::Get(factory, name, resource);
+    return (ResourceResult)dmResource::Get(factory, path, resource);
 }
 
-ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource)
+ResourceResult ResourceGetWithExt(HResourceFactory factory, const char* path, const char* ext, void** resource)
 {
-    return (ResourceResult)dmResource::Get(factory, name, resource);
+    return (ResourceResult)dmResource::GetWithExt(factory, path, ext, resource);
+}
+
+ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, path_hash, resource);
+}
+
+ResourceResult ResourceGetByHashAndExt(HResourceFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource)
+{
+    return (ResourceResult)dmResource::GetWithExt(factory, path_hash, ext_hash, resource);
 }
 
 ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size)

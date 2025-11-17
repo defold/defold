@@ -22,7 +22,8 @@
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace]
+            [util.coll :as coll]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -94,9 +95,10 @@
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
 
-(defn- make-form-field [setting]
+(defn- make-form-field [setting localization-prefix]
   (cond-> (assoc setting
             :label (or (:label setting) (settings-core/label (second (:path setting))))
+            :localization-key (cond->> (coll/join-to-string "." (:path setting)) localization-prefix (str localization-prefix "."))
             :optional true
             :hidden (:hidden setting false))
 
@@ -110,17 +112,18 @@
   (or (:title category-info)
       (settings-core/label category-name)))
 
-(defn- make-form-section [category-name category-info settings]
+(defn- make-form-section [localization-prefix category-name category-info settings]
   {:title (section-title category-name category-info)
+   :localization-key (cond->> category-name localization-prefix (str localization-prefix "."))
    :group (:group category-info "Other")
    :help (:help category-info)
-   :fields (mapv make-form-field settings)})
+   :fields (mapv #(make-form-field % localization-prefix) settings)})
 
 (defn- make-form-data [form-ops meta-info settings]
-  (let [meta-settings (:settings meta-info)
+  (let [{meta-settings :settings meta-categories :categories :keys [localization-prefix]} meta-info
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
-        sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
+        sections (mapv #(make-form-section localization-prefix % (get meta-categories %) (category->settings %)) categories)
         values (make-form-values-map settings)
         group-order (into {}
                           (map-indexed (fn [i v]

@@ -43,6 +43,8 @@ def build(bld):
         source += ['devices/device_ps4.cpp']
     elif bld.env.PLATFORM in ('x86_64-win32','win32',):
         source += ['devices/device_wasapi.cpp']
+    elif bld.env.PLATFORM in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
+        source += ['devices/device_avaudio.mm']
     else:
         source += ['devices/device_openal.cpp']
 

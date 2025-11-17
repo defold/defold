@@ -19,7 +19,22 @@ import com.dynamo.bob.bundle.ICanceled;
 public interface IProgress extends ICanceled {
     IProgress subProgress(int work);
     void worked(int amount);
-    void beginTask(String name, int work);
+    void beginTask(Task name, int work);
     void done();
     boolean isCanceled();
+
+    enum Task {
+        BUNDLING,
+        BUILDING_ENGINE,
+        CLEANING_ENGINE,
+        DOWNLOADING_SYMBOLS,
+        TRANSPILING_TO_LUA,
+        READING_TASKS,
+        BUILDING,
+        CLEANING,
+        GENERATING_REPORT,
+        WORKING,
+        READING_CLASSES,
+        DOWNLOADING_ARCHIVES
+    }
 }

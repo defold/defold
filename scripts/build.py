@@ -44,6 +44,20 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web', 'wasm_pthread-web']
 
+_CMAKE_FEATURE_FLAG_MAP = {
+    '--with-asan': 'WITH_ASAN',
+    '--with-ubsan': 'WITH_UBSAN',
+    '--with-tsan': 'WITH_TSAN',
+    '--with-valgrind': 'WITH_VALGRIND',
+    '--with-openal': 'WITH_OPENAL',
+    '--with-opengl': 'WITH_OPENGL',
+    '--with-vulkan': 'WITH_VULKAN',
+    '--with-vulkan-validation': 'WITH_VULKAN_VALIDATION',
+    '--with-dx12': 'WITH_DX12',
+    '--with-opus': 'WITH_OPUS',
+    '--with-webgpu': 'WITH_WEBGPU'
+}
+
 sys.dont_write_bytecode = True
 try:
     import build_vendor
@@ -118,7 +132,11 @@ PACKAGES_ALL=[
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -133,7 +151,11 @@ PACKAGES_IOS_X86_64=[
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
@@ -144,7 +166,11 @@ PACKAGES_IOS_64=[
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
@@ -152,7 +178,7 @@ PACKAGES_MACOS_X86_64=[
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
@@ -163,7 +189,11 @@ PACKAGES_MACOS_X86_64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -171,7 +201,7 @@ PACKAGES_MACOS_ARM64=[
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
@@ -181,7 +211,11 @@ PACKAGES_MACOS_ARM64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -192,7 +226,11 @@ PACKAGES_WIN32=[
     "glfw-3.4",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
@@ -201,7 +239,7 @@ PACKAGES_WIN32_64=[
     "sassc-5472db213ec223a67482df2226622be372921847",
     "bullet-2.77",
     "glslang-42d9adf5",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
@@ -211,14 +249,18 @@ PACKAGES_WIN32_64=[
     "directx-headers-1.611.0",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
     "luajit-2.1.0-a4f56a4",
     "bullet-2.77",
     "glslang-ba5c010c",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
     "vpx-1.7.0",
     "vulkan-v1.4.307",
@@ -230,14 +272,18 @@ PACKAGES_LINUX_X86_64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
     "luajit-2.1.0-a4f56a4",
     "bullet-2.77",
     "glslang-2fed4fc0",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-4fab7435",
     "vpx-1.7.0",
     "vulkan-v1.4.307",
@@ -248,7 +294,11 @@ PACKAGES_LINUX_ARM64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_ANDROID=[
 "protobuf-3.20.1",
@@ -260,7 +310,11 @@ PACKAGES_ANDROID=[
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
@@ -273,17 +327,25 @@ PACKAGES_ANDROID_64=[
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-39",
+    "wagyu-69",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -836,6 +898,14 @@ class Configuration(object):
     def has_sdk(self, sdkfolder, target_platform):
         return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
 
+    def _find_program(self, platform, name, paths):
+        name = format_exes(name, platform)[0]
+        for path in paths:
+            fullpath = os.path.join(path, name)
+            if os.path.isfile(fullpath):
+                return fullpath
+        return None
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -1155,6 +1225,12 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # new cmake support. it outputs to x86-win32 folder
+            if platform == 'win32':
+                libdir = os.path.join(self.dynamo_home, 'lib/x86-win32')
+                paths = _findlibs(libdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
                 wagyu_port_files = []
@@ -1368,7 +1444,8 @@ class Configuration(object):
         if self.is_desktop_target():
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
-            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+            gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1516,6 +1593,22 @@ class Configuration(object):
             return 'Debug'
         return 'RelWithDebInfo'
 
+    def _cmake_feature_defines(self):
+        defines = []
+        handled = set()
+        for option in self.waf_options:
+            if not option.startswith('--with-'):
+                continue
+            if option in handled:
+                continue
+            handled.add(option)
+            feature = _CMAKE_FEATURE_FLAG_MAP.get(option)
+            if feature:
+                defines.append(f"-D{feature}=ON")
+            else:
+                self._log(f"Warning: CMake build currently ignores '{option}'")
+        return defines
+
     def _build_engine_lib_cmake(self, lib, platform, directory):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
@@ -1547,6 +1640,7 @@ class Configuration(object):
         self.build_tracker.start_command(log_cmd_config)
 
         cmake_configure_args = f"cmake -S . -B build -GNinja {trace} -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS={cmake_build_tests}".split()
+        cmake_configure_args += self._cmake_feature_defines()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
         self.build_tracker.end_command(log_cmd_config)
@@ -1940,36 +2034,20 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when bundling the editor')
+
         cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
+               '--platform=%s' % self.target_platform,
+               '--version=%s' % self.version,
+               '--channel=%s' % self.channel,
                'build']
 
         if self.skip_tests:
             cmd.append("--skip-tests")
 
-        self.run_editor_script(cmd)
-
-    def bundle_editor2(self):
-        if not self.channel:
-            raise Exception('No channel provided when bundling the editor')
-
-        cmd = self.get_python() + ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts,
-               '--archive-domain=%s' % self.archive_domain,
-               'bundle']
-        self.run_editor_script(cmd)
-
-    def sign_editor2(self):
-        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = self.get_python() + ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--bundle-dir=%s' % editor_bundle_dir,
-               '--archive-domain=%s' % self.archive_domain,
-               'sign']
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:
@@ -1985,36 +2063,19 @@ class Configuration(object):
                 cmd.append("--gcloud-projectid=%s" % self.gcloud_projectid)
             if self.gcloud_keyringname:
                 cmd.append("--gcloud-keyringname=%s" % self.gcloud_keyringname)
+
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
+
+            if self.notarization_username:
+                cmd.append('--notarization-username=%s' % self.notarization_username)
+            if self.notarization_password:
+                cmd.append('--notarization-password=%s' % self.notarization_password)
+            if self.notarization_itc_provider:
+                cmd.append('--notarization-itc-provider=%s' % self.notarization_itc_provider)
+
         self.run_editor_script(cmd)
 
-    def notarize_editor2(self):
-        if self.target_platform not in ('x86_64-macos', 'arm64-macos'):
-            return
-
-        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        # create dmg installer
-        cmd = ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--bundle-dir=%s' % editor_bundle_dir,
-               '--archive-domain=%s' % self.archive_domain,
-               'installer']
-        if self.skip_codesign:
-            cmd.append('--skip-codesign')
-        else:
-            if self.codesigning_identity:
-                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
-        self.run_editor_script(cmd)
-
-        # notarize dmg
-        editor_dmg = join(editor_bundle_dir, 'Defold-%s.dmg' % self.target_platform)
-        cmd = ['./scripts/notarize.py',
-               editor_dmg,
-               self.notarization_username,
-               self.notarization_password,
-               self.notarization_itc_provider]
-        self.run_editor_script(cmd)
 #
 # END: EDITOR 2
 # ------------------------------------------------------------
@@ -2071,12 +2132,36 @@ class Configuration(object):
         self.check_python()
         print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
-        args = [SHELL, '-l']
+        # Many login shells (e.g. zsh on macOS) reset PATH via path_helper
+        # or user startup files (Homebrew shellenv), which can shadow our tools.
+        # On non-Windows, re-export our PATH after login init and exec an
+        # interactive shell to ensure our PATH takes precedence.
+        # On Windows/msys environments, keep previous behavior to avoid
+        # path translation issues and quoting of Windows paths.
+        env = self._form_env()
+
+        is_windows_host = (sys.platform == 'win32') or ('win32' in self.host)
+
+        if not is_windows_host:
+            env['DM_ENV_PATH'] = env['PATH']
+            # Use $SHELL inside the shell for portability instead of injecting
+            # a potentially platform-specific path from Python.
+            shell_name = os.path.basename(SHELL)
+            if shell_name == 'fish':
+                # Fish shell isn't POSIX compatible
+                reexport_cmd = 'set -gx PATH $DM_ENV_PATH; set -e DM_ENV_PATH; exec "$SHELL" -i'
+            else:
+                reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
+            args = [SHELL, '-l', '-c', reexport_cmd]
+        else:
+            # Keep legacy behavior on Windows/msys to preserve PATH rewriting
+            # performed by the environment at shell startup.
+            args = [SHELL, '-l']
 
         if os.path.exists("/nix"):
             args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
 
-        process = subprocess.Popen(args, env=self._form_env())
+        process = subprocess.Popen(args, env=env)
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:
@@ -2492,7 +2577,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-21.0.5+11'
+        jdk = 'jdk-25+36'
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -2789,11 +2874,8 @@ sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
-sign_editor2     - Sign editor
-bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
-notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path

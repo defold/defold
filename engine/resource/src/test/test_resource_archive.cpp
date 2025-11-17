@@ -47,8 +47,8 @@ extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 extern unsigned char RESOURCES_PUBLIC[];
 extern uint32_t RESOURCES_PUBLIC_SIZE;
-extern unsigned char RESOURCES_MANIFEST_HASH[];
-extern uint32_t RESOURCES_MANIFEST_HASH_SIZE;
+// extern unsigned char RESOURCES_MANIFEST_HASH[];
+// extern uint32_t RESOURCES_MANIFEST_HASH_SIZE;
 
 extern unsigned char RESOURCES_COMPRESSED_ARCI[];
 extern uint32_t RESOURCES_COMPRESSED_ARCI_SIZE;
@@ -467,9 +467,6 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     dmResource::HManifest manifest = new dmResource::Manifest();
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
-
     // We have an intermittent fail here, so let's output the info so we can start investigating it.
     // We always print these so that we can compare the failed build with a successful one
     {
@@ -496,22 +493,9 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
         printf("\nMANIFEST SIGNATURE (sz: %u):\n\n", signature_len);
         PrintArray(signature, signature_len);
         printf("\n");
-
-        printf("Expected digest (%u bytes):\n", expected_digest_len);
-        PrintHash((const uint8_t*)expected_digest, expected_digest_len);
     }
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
 
-    // debug prints to determine cause of intermittent test fail on both Linux/macOS
-    printf("Actual digest (%u bytes):\n", hex_digest_len);
-    PrintHash((const uint8_t*)hex_digest, hex_digest_len);
-    // end debug
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::MemCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
-
-    free(hex_digest);
     dmResource::DeleteManifest(manifest);
 }
 #endif
@@ -530,19 +514,11 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
     dmResource::HManifest manifest = new dmResource::Manifest();
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
+    manifest->m_DDF->m_Signature.m_Count *= 0.5f; // make the supplied hash shorter than expected
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
 
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
-    hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
-
-    free(hex_digest);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 #endif
 
@@ -559,19 +535,11 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     dmResource::HManifest manifest = new dmResource::Manifest();
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
+    memset(manifest->m_DDF->m_Signature.m_Data, 0x0, manifest->m_DDF->m_Signature.m_Count / 2); // NULL out the first half of hash
+    ASSERT_EQ(dmResource::RESULT_SIGNATURE_MISMATCH, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
 
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
-    memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_SIGNATURE_MISMATCH, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
-
-    free(hex_digest);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 #endif
 
@@ -583,15 +551,10 @@ TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
     resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::VerifySignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE));
 
-    free(hex_digest);
     free(resources_public_wrong);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 
 TEST(dmResourceArchive, ResourceEntries)
@@ -615,9 +578,7 @@ TEST(dmResourceArchive, ResourceEntries)
         ASSERT_ARRAY_EQ_LEN(content_hash[i], manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data, manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count);
     }
 
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 
 TEST(dmResourceArchive, ResourceEntries_Compressed)
@@ -642,9 +603,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
         ASSERT_ARRAY_EQ_LEN(compressed_content_hash[i], digest->m_Data.m_Data, digest->m_Data.m_Count);
     }
 
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 
 TEST(dmResourceArchive, Wrap)

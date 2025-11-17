@@ -502,27 +502,27 @@ namespace dmHID
     struct Touch
     {
         /// Single-click, double, etc
-        int32_t m_TapCount;
+        uint16_t m_TapCount;
         /// Begin, end, etc
         Phase   m_Phase;
         /// Current x
-        int32_t m_X;
+        int16_t m_X;
         /// Current y
-        int32_t m_Y;
+        int16_t m_Y;
         /// Current x, in screen space
-        int32_t m_ScreenX;
+        int16_t m_ScreenX;
         /// Current y, in screen space
-        int32_t m_ScreenY;
+        int16_t m_ScreenY;
         /// Current dx
-        int32_t m_DX;
+        int16_t m_DX;
         /// Current dy
-        int32_t m_DY;
+        int16_t m_DY;
         /// Current dx, in screen space
-        int32_t m_ScreenDX;
+        int16_t m_ScreenDX;
         /// Current dy, in screen space
-        int32_t m_ScreenDY;
+        int16_t m_ScreenDY;
         /// Touch id
-        int32_t m_Id;
+        int16_t m_Id;
     };
 
     /*# gets a keyboard handle

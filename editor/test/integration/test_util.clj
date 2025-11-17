@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
+            [clojure.test.check.clojure-test]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -88,6 +89,11 @@
 (set! *warn-on-reflection* true)
 
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
+(.setLevel ^Logger (LoggerFactory/getLogger "cognitect.aws.credentials") Level/ERROR)
+
+;; Disable defspec logs:
+;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
+(alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
 
 (def project-path "test/resources/test_project")
 
@@ -228,7 +234,7 @@
               :schemas [:default]))
 
 (def localization
-  (localization/make (make-test-prefs) ::test {}))
+  (localization/make (make-test-prefs) ::test {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}))
 
 (declare resolve-prop)
 
@@ -806,14 +812,14 @@
   :node-outline info at the resulting path. Throws an exception if the path does
   not lead up to a valid node."
   [node-id & outline-labels]
-  {:pre [(every? string? outline-labels)]}
+  {:pre [(every? (some-fn string? localization/message-pattern?) outline-labels)]}
   (reduce (fn [node-outline outline-label]
             (or (some (fn [child-outline]
                         (when (= outline-label (:label child-outline))
                           child-outline))
                       (:children node-outline))
                 (let [candidates (into (sorted-set)
-                                       (map :label)
+                                       (map (comp localization :label))
                                        (:children node-outline))]
                   (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
                                           (symbol (g/node-type-kw node-id))

@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [editor.fs :as fs]
+            [editor.localization :as localization]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
@@ -224,7 +225,7 @@
     fetch-library-raw!))
 
 (defn- fetch-library-update! [{:keys [tag uri] :as lib-state} resolver render-progress!]
-  (let [progress (progress/make (str "Fetching " uri))]
+  (let [progress (progress/make (localization/message "progress.fetching" {"uri" uri}))]
     (render-progress! progress)
     ;; tag may not be available ...
     (merge lib-state (fetch-library! resolver uri tag))))

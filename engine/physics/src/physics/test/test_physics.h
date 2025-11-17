@@ -38,16 +38,22 @@ bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, u
 bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);
 
 static const float PHYSICS_SCALE = 0.5f;
+static const float PRECISION_ROUNDING_PHYSICS_SCALE = 0.00999999978f;
 
 template<typename T>
 class PhysicsTest : public jc_test_base_class
 {
 protected:
 
-    virtual void SetUp()
+    void SetUp() override
+    {
+        SetupContextAndWorld(PHYSICS_SCALE);
+    }
+
+    void SetupContextAndWorld(float physics_scale)
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
-        context_params.m_Scale = PHYSICS_SCALE;
+        context_params.m_Scale = physics_scale;
         context_params.m_RayCastLimit2D = 64;
         context_params.m_RayCastLimit3D = 128;
         context_params.m_TriggerOverlapCapacity = 16;
@@ -70,7 +76,7 @@ protected:
         m_StepWorldContext.m_Box2DSubStepCount = 10;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         (*m_Test.m_DeleteWorldFunc)(m_Context, m_World);
         (*m_Test.m_DeleteContextFunc)(m_Context);
@@ -82,6 +88,17 @@ protected:
     dmPhysics::StepWorldContext m_StepWorldContext;
     int m_CollisionCount;
     int m_ContactPointCount;
+};
+
+template<typename T>
+class PhysicsPrecisionRoundingTest : public PhysicsTest<T>
+{
+protected:
+
+    virtual void SetUp()
+    {
+        this->SetupContextAndWorld(PRECISION_ROUNDING_PHYSICS_SCALE);
+    }
 };
 
 template<typename T>

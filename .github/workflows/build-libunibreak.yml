@@ -1,0 +1,15 @@
+name: Build libunibreak
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'libunibreak'
+      result_folder_name: 'libunibreak'
+      result_lib_name: 'libunibreak'
+      package_version: '6.1'
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

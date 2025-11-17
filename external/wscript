@@ -7,7 +7,7 @@ import os, sys, re
 import waf_dynamo, waf_package
 import waflib.Task
 
-PACKAGES='glfw bullet3d box2d box2d_v2 opus'.split()
+PACKAGES='glfw bullet3d box2d box2d_v2 opus harfbuzz sheenbidi'.split()
 
 def get_packages():
     return PACKAGES

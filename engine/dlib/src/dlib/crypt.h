@@ -20,17 +20,27 @@
 
 namespace dmCrypt
 {
+    enum HashAlgorithm
+    {
+        HASH_ALGORITHM_NONE,
+        HASH_ALGORITHM_MD5,
+        HASH_ALGORITHM_SHA1,
+        HASH_ALGORITHM_SHA256,
+        HASH_ALGORITHM_SHA512
+    };
+
     /**
-     * Decrypt data with a public hash
+     * Verify crypthographic signature for data with public key
+     * @param algorithm Hash algorithm used for data
      * @param key The public key
-     * @param keylen
-     * @param data The input data
-     * @param datalen
-     * @param output [out] The output. If the call was successful, the caller needs to free() this memory
-     * @param outputlen [out]
-     * @return RESULT_OK if decrypting went ok.
+     * @param keylen The public key length
+     * @param data Hashed data for verification
+     * @param data_len Hashed data length
+     * @param expected_signature Expected signature
+     * @param expected_signature_len Expected signature length
+     * @return RESULT_OK if verification went ok
      */
-    Result Decrypt(const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t datalen, uint8_t** output, uint32_t* outputlen);
+    Result Verify(HashAlgorithm algorithm, const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t data_len, unsigned const char* expected_signature, uint32_t expected_signature_len);
 }
 
 #endif /* DM_CRYPT_H */
