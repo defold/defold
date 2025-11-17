@@ -36,11 +36,11 @@
         -fx-padding: 2;
         -fx-min-width: 0;
         -fx-pref-width: 30;
-        -fx-background-color: -df-background-light;
+        -fx-background-color: derive(-df-component-dark, -10%);
         -fx-alignment: center;
 
         &:hover {
-            -fx-background-color: -df-background-lighter;
+            -fx-background-color: -df-component-light;
         }
 
         .icon-button-graphic {

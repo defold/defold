@@ -339,7 +339,7 @@
 
       :breakpoint-clicked
       (let [^MouseEvent e (:fx/event event)
-            {:keys [resource row]} (get (:breakpoints @state) (:clicked-breakpoint event))]
+            {:keys [resource row]} (:clicked-breakpoint event)]
         (swap! state assoc :edited-breakpoint nil)
         ;; TODO: Do we need to check primary?
         (when (and (= MouseButton/PRIMARY (.getButton e))
