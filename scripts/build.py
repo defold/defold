@@ -1440,7 +1440,8 @@ class Configuration(object):
         if self.is_desktop_target():
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
-            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+            gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
