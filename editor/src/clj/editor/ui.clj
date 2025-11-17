@@ -1062,6 +1062,31 @@
   (cell-factory! [this render-fn]
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
+(extend-type TableView
+  CollectionView
+  (selection [this]
+    (when-let [items (.getSelectedItems (.getSelectionModel this))]
+      items))
+  (select! [this item]
+    (doto (.getSelectionModel this)
+      (.select item)))
+  (select-index! [this index]
+    (doto (.getSelectionModel this)
+      (.select (int index))))
+  (selection-mode! [this mode]
+    (let [^SelectionMode mode (selection-mode mode)]
+      (.setSelectionMode (.getSelectionModel this) mode)))
+  (items [this]
+    (.getItems this))
+  (items! [this ^Collection items]
+    (let [l (.getItems this)]
+      (.clear l)
+      (.addAll l items)))
+  (cell-factory! [this render-fn]
+    ;; NOTE: TableView uses column-specific cell factories so leave this empty for now At the time
+    ;; of implementing this, it's only being used for the selection stuff in breakpoints-view
+    nil))
+
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
   (let [selection (.getSelectedItems (.getSelectionModel tree-view))]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))

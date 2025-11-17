@@ -244,11 +244,10 @@
                                          :describe (fn/partial column-cell-factory state ::action-btns)}}]}}]}})
 
 (handler/register-menu! ::breakpoint-menu
-  [menu-items/separator
-   {:label (localization/message "command.file.show-in-assets")
+  [{:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :contexts [:global]
     :command :file.show-in-assets}
+   menu-items/separator
    {:label (localization/message "breakpoints.context-menu.edit-selected")
     :command :breakpoints.edit-selected}
    {:label (localization/message "breakpoints.context-menu.toggle-selected-enabled")
@@ -456,12 +455,15 @@
                           :desc {:fx/type breakpoints-view
                                  :parent breakpoints-container
                                  :state state}})))
-
        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
         table (.lookup (ui/main-root) "#breakpoints-table-view")]
-    (ui/context! tab-pane :breakpoints-view {:project project :table table} nil)
-    (ui/register-context-menu table ::breakpoint-menu true))
+    (ui/context! table :breakpoints-view
+                 {:project project :table table}
+                 (ui/->selection-provider table)
+                 {}
+                 {resource/Resource (fn [idx] (-> @state :breakpoints (get idx) :resource))})
+    (ui/register-context-menu table ::breakpoint-menu))
   (let [timer (ui/->timer
                4
                "breakpoints-view-update-timer"
@@ -509,7 +511,14 @@
 
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
         table (.lookup (ui/main-root) "#breakpoints-table-view")]
-    (ui/context! tab-pane :breakpoints-view {:project (dev/project) :table table} nil))
+    (ui/context! table :breakpoints-view
+                 {:project (dev/project) :table table}
+                 (ui/->selection-provider table)
+                 {}
+                 {resource/Resource (fn [idx] (-> @state :breakpoints (get idx) :resource))}))
+
+  (let [table (.lookup (ui/main-root) "#breakpoints-table-view")]
+    (ui/register-context-menu table ::breakpoint-menu true))
 
   (g/with-auto-evaluation-context ec
     (let [bps-prefs [{:proj-path "/scripts/knight.script", :row 21, :enabled true}
@@ -541,7 +550,4 @@
                                              :debugger.toggle-breakpoint-enabled {:add #{"Shift+F9"}, :remove #{}},
                                              :scene.select-scale-tool {:add #{"D"}, :remove #{}},
                                              :scene.set-camera-type {:add #{}, :remove #{}}})
-
-  (let [table (.lookup (ui/main-root) "#breakpoints-container")]
-    (ui/register-context-menu table ::breakpoint-menu true))
   ,)
