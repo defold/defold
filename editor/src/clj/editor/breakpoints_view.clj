@@ -17,10 +17,7 @@
             [cljfx.ext.table-view :as fx.ext.table-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
-            [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.menu-item :as fx.menu-item]
-            [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.table-cell :as fx.table-cell]
@@ -28,6 +25,9 @@
             [cljfx.fx.table-row :as fx.table-row]
             [cljfx.fx.table-view :as fx.table-view]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
+            [cljfx.prop :as fx.prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -44,7 +44,10 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.fn :as fn])
-  (:import [javafx.scene.control TableView TextField]
+  (:import [javafx.beans.property ReadOnlyProperty]
+           [javafx.beans.value ChangeListener]
+           [javafx.scene Node]
+           [javafx.scene.control TableView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]))
 
 (set! *warn-on-reflection* true)
@@ -57,6 +60,20 @@
                       :edited-condition nil}))
 
 (defonce condition-text (atom nil))
+
+(def ext-with-focus-changed-handler
+  (fx/make-ext-with-props
+   {:on-focused-changed
+    (fx.prop/make
+      (fx.mutator/property-change-listener #(.focusedProperty ^TextField %))
+      (fx.lifecycle/wrap-coerce
+        fx.lifecycle/event-handler
+        (fn [f]
+          (reify ChangeListener
+            (changed [_ observable-value _ v]
+              (when-let [scene (.getScene ^Node (.getBean ^ReadOnlyProperty observable-value))]
+                (f {:window (.getWindow scene)
+                    :value v})))))))}))
 
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
@@ -109,7 +126,7 @@
             close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
         (if editing?
           {:graphic {:fx/type fxui/ext-focused-by-default
-                     :desc {:fx/type ui-components/ext-with-extra-value-field-props
+                     :desc {:fx/type ext-with-focus-changed-handler
                             :props {:on-focused-changed {:event-type :condition-focus-changed}}
                             :desc {:fx/type fx.text-field/lifecycle
                                    :text condition
