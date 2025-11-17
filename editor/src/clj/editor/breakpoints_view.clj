@@ -53,6 +53,7 @@
 (set! *warn-on-reflection* true)
 
 (defonce state (atom {:breakpoints []
+                      :scripts #{}
                       :selected-indices []
                       :hovered-condition nil
                       :hovered-row nil
@@ -474,9 +475,15 @@
                "breakpoints-view-update-timer"
                (fn [_ _ _]
                  (when-not (ui/ui-disabled?)
-                   (let [breakpoints (g/node-value project :breakpoints)]
+                   (let [breakpoints (g/node-value project :breakpoints)
+                         scripts (into #{} (map #(get-in % [:resource :project-path]) breakpoints))]
                      (save-breakpoints! prefs breakpoints)
-                     (swap! state assoc :breakpoints breakpoints)))))]
+                     ;; NOTE: We need to do this check because if a resource has been renamed
+                     ;; it does not trigger a re-render
+                     (swap! state assoc :breakpoints (if (not= scripts (:scripts @state))
+                                                       []
+                                                       breakpoints))
+                     (swap! state assoc :scripts scripts)))))]
     (ui/timer-start! timer)))
 
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
