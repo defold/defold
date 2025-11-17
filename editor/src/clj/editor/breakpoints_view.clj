@@ -321,20 +321,20 @@
 
 (defn- set-regions-with-action [project evaluation-context all-breakpoints breakpoints action-fn]
   ;; Any of these actions should disable editing
+  ;; TODO: This is ugly move it out of here
   (swap! state assoc :edited-breakpoint nil)
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
-        all-by-resource (group-by :resource all-breakpoints)
-        breakpoints-by-script (map (fn [{:keys [script-node resource breakpoints]}]
-                                     {:script script-node
-                                      :affected-bps breakpoints
-                                      :all-bps (get all-by-resource resource [])})
-                                   affected-scripts)
-        txs (mapcat (fn [{:keys [script affected-bps all-bps]}]
-                      (let [updated-bps (action-fn all-bps affected-bps)
-                            new-regions (update-script-regions-from-breakpoints script updated-bps evaluation-context)]
-                        (g/set-property script :regions new-regions)))
-                    breakpoints-by-script)]
-    (g/transact txs)))
+        ;; Apply action to get updated breakpoints
+        updated-breakpoints (action-fn all-breakpoints breakpoints)
+        updated-by-resource (group-by :resource updated-breakpoints)
+        ;; Use pre-collected scripts with updated breakpoints
+        txs (mapcat (fn [{:keys [script-node resource]}]
+                      (let [bps-for-script (get updated-by-resource resource [])
+                            new-regions (update-script-regions-from-breakpoints script-node bps-for-script evaluation-context)]
+                        (g/set-property script-node :regions new-regions)))
+                    affected-scripts)]
+    (g/transact txs)
+    (swap! state assoc :breakpoints updated-breakpoints)))
 
 (defn- handle-breakpoint-event! [project open-resource-fn event]
   ;; TODO: No all events need this, probably better to split between those that do and don't
@@ -355,6 +355,7 @@
             script-node (breakpoint->script-node project breakpoint evaluation-context)
             remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
             regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
+        (swap! state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
         (g/set-property! script-node :regions regions))
 
       :selected-items-changed
