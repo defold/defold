@@ -136,10 +136,9 @@ jobs:
       - name: Install platform SDK
         shell: bash
         run: |
-          printf '%s\n' \
-            "set -euo pipefail" \
-            "./scripts/build.py --platform=${{ matrix.platform }} install_sdk" \
-            | ./scripts/build.py shell
+          set -euo pipefail
+          source ci/env.sh
+          python ./scripts/build.py --platform=${{ matrix.platform }} install_sdk
       - name: Build ASTC
         shell: bash
         run: |
