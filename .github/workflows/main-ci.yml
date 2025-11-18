@@ -1,12 +1,5 @@
 name: CI - Main
 
-on:
-  push:
-    branches-ignore:
-      - 'skip-ci-*'
-      - 'DEFEDIT-*'
-      - 'editor-dev'
-
   repository_dispatch: {}
 
 env:
