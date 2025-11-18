@@ -553,12 +553,6 @@
   (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
 
   (prefs/get (dev/prefs) [:window :keymap])
-  (prefs/set! (dev/prefs) [:window :keymap] {:breakpoints.remove-selected {:add #{"Delete"}, :remove #{}},
-                                             :breakpoints.toggle-selected-enabled
-                                             {:add #{"Shift+F9"}, :remove #{}},
-                                             :debugger.toggle-breakpoint-enabled {:add #{"Shift+F9"}, :remove #{}},
-                                             :scene.select-scale-tool {:add #{"D"}, :remove #{}},
-                                             :scene.set-camera-type {:add #{}, :remove #{}}})
   (reset! state {:breakpoints [] :selected-indices [] :hovered-condition nil :hovered-row nil
                  :condition-text nil :edited-breakpoint nil :edited-condition nil})
   ,)
