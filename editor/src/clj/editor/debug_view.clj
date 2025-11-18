@@ -237,19 +237,6 @@
                                                      (ui/add-style! "equals"))
                                                    (Label. display-value)]))}))))
 
-(defn- setup-variables-view!
-  [^TreeView debugger-variables]
-  (doto debugger-variables
-    (ui/customize-tree-view! {:double-click-expand? true})
-    (.setShowRoot false)
-    (ui/cell-factory! (fn [{:keys [display-name display-value]}]
-                        {:graphic (doto (HBox.)
-                                    (ui/fill-control)
-                                    (ui/children! [(Label. display-name)
-                                                   (doto (Label. " = ")
-                                                     (ui/add-style! "equals"))
-                                                   (Label. display-value)]))}))))
-
 (defn- make-variable-tree-item
   [[name value]]
   (let [variable {:name name

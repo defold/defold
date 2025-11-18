@@ -33,7 +33,6 @@
             [dynamo.graph :as g]
             [editor.code.data :as code-data]
             [editor.defold-project :as project]
-            [editor.editor-extensions.ui-components :as ui-components]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
@@ -467,8 +466,7 @@
                                  :parent breakpoints-container
                                  :state state}})))
        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
-  (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
-        table (.lookup (ui/main-root) "#breakpoints-table-view")]
+  (let [table (.lookup (ui/main-root) "#breakpoints-table-view")]
     (ui/context! table :breakpoints-view
                  {:project project :table table}
                  (ui/->selection-provider table)
