@@ -146,7 +146,7 @@ case $PLATFORM in
         CMAKE_FLAGS+=(-DASTCENC_ISA_SSE41=ON)
         CMAKE_FLAGS+=(-DASTCENC_ISA_NATIVE=OFF)
         CMAKE_FLAGS+=(-DASTCENC_PACKAGE=x64)
-        BUILD_CMD=(cmake --build .)
+        BUILD_CMD=(cmake --build . --config $CONFIG)
         ;;
 esac
 
