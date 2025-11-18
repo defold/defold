@@ -135,9 +135,7 @@ jobs:
         shell: bash
       - name: Build ASTC
         run: |
-          set -euo pipefail
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
+          bash -lc "cd share/ext && ./build.sh astcenc ${{ matrix.platform }}"
         shell: bash
       - name: Check artifact
         run: |
