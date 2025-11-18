@@ -53,7 +53,6 @@
 (set! *warn-on-reflection* true)
 
 (defonce state (atom {:breakpoints []
-                      :scripts #{}
                       :selected-indices []
                       :hovered-condition nil
                       :hovered-row nil
@@ -93,22 +92,22 @@
    :on-action on-action-event})
 
 (defn- column-cell-factory [state column-id breakpoint-idx]
-  (let [breakpoint (get (:breakpoints state) breakpoint-idx)]
+  ;; NOTE: We receive nil sometimes
+  (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
     (case column-id
-      ::enabled
-      (when breakpoint
-        {:style-class ["enabled-cell"]
-         :alignment :center
-         :graphic {:fx/type fx.check-box/lifecycle
-                   :selected (:enabled breakpoint)
-                   :on-selected-changed {:event-type :toggle-enabled
-                                         :breakpoint breakpoint}}})
-      ::line
-      ;; NOTE: When we delete a breakpoint, we receive a nil
-      (when breakpoint
-        {:text (str (inc (:row breakpoint)))})
+      ::column-enabled
+      {:style-class ["enabled-cell"]
+       :alignment :center
+       :graphic {:fx/type fx.check-box/lifecycle
+                 :selected (:enabled breakpoint)
+                 :on-selected-changed {:event-type :toggle-enabled
+                                       :breakpoint breakpoint}}}
 
-      ::action-btns
+      ::colum-line {:text (str (inc (:row breakpoint)))}
+      ::column-name {:text (get-in breakpoint [:resource :name])}
+      ::column-path {:text (get-in breakpoint [:resource :project-path])}
+
+      ::column-actions
       (let [hovered? (= (:hovered-row state) breakpoint)]
         (when hovered?
           {:alignment :center
@@ -119,7 +118,7 @@
                                                      :breakpoint breakpoint})
                                        :style-class ["icon-button" "remove-button"])]}}))
 
-      ::condition
+      ::column-condition
       (let [condition (:condition breakpoint)
             editing? (= (:edited-breakpoint state) breakpoint)
             hovered? (= (:hovered-condition state) breakpoint)
@@ -215,7 +214,7 @@
                           :max-width 80
                           :cell-value-factory identity
                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                         :describe (fn/partial column-cell-factory state ::enabled)}}
+                                         :describe (fn/partial column-cell-factory state ::column-enabled)}}
                          {:fx/type fx.table-column/lifecycle
                           :text (localization-state (localization/message "breakpoints.column.line"))
                           :pref-width 50
@@ -223,22 +222,26 @@
                           :max-width 100
                           :cell-value-factory identity
                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                         :describe (fn/partial column-cell-factory state ::line)}}
+                                         :describe (fn/partial column-cell-factory state ::colum-line)}}
                          {:fx/type fx.table-column/lifecycle
                           :text (localization-state (localization/message "breakpoints.column.name"))
                           :pref-width 200
-                          :cell-value-factory #(-> (get (:breakpoints state) %) :resource :name)}
+                          :cell-value-factory identity
+                          :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                         :describe (fn/partial column-cell-factory state ::column-name)}}
                          {:fx/type fx.table-column/lifecycle
                           :text (localization-state (localization/message "breakpoints.column.condition"))
                           :pref-width 250
                           :cell-value-factory identity
                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                         :describe (fn/partial column-cell-factory state ::condition)}}
+                                         :describe (fn/partial column-cell-factory state ::column-condition)}}
                          {:fx/type fx.table-column/lifecycle
                           :text (localization-state (localization/message "breakpoints.column.path"))
                           :style-class ["path-cell"]
                           :pref-width 200
-                          :cell-value-factory #(-> (get (:breakpoints state) %) :resource :project-path)}
+                          :cell-value-factory identity
+                          :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                         :describe (fn/partial column-cell-factory state ::column-path)}}
                          {:fx/type fx.table-column/lifecycle
                           :pref-width 50
                           :reorderable false
@@ -246,7 +249,7 @@
                           :sortable false
                           :cell-value-factory identity
                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                         :describe (fn/partial column-cell-factory state ::action-btns)}}]}}]}})
+                                         :describe (fn/partial column-cell-factory state ::column-actions)}}]}}]}})
 
 (handler/register-menu! ::breakpoint-menu
   [{:label (localization/message "command.file.show-in-assets")
@@ -434,10 +437,11 @@
 
 (defn- restore-breakpoints! [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (let [bps-prefs (prefs/get prefs [:code :breakpoints])
-          workspace (project/workspace project)
-          breakpoints (mapv #(assoc % :resource (workspace/find-resource workspace (:proj-path %) evaluation-context))
-                            bps-prefs)
+    (let [breakpoints (keep #(when-some [resource (workspace/find-resource (project/workspace project)
+                                                                           (:proj-path %)
+                                                                           evaluation-context)]
+                               (assoc % :resource resource))
+                            (prefs/get prefs [:code :breakpoints]))
           script-bps (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)]
       (g/transact
         (for [{:keys [script-node breakpoints]} script-bps
@@ -471,19 +475,13 @@
                  {resource/Resource (fn [idx] (-> @state :breakpoints (get idx) :resource))})
     (ui/register-context-menu table ::breakpoint-menu))
   (let [timer (ui/->timer
-               4
+               5
                "breakpoints-view-update-timer"
                (fn [_ _ _]
                  (when-not (ui/ui-disabled?)
-                   (let [breakpoints (g/node-value project :breakpoints)
-                         scripts (into #{} (map #(get-in % [:resource :project-path]) breakpoints))]
+                   (let [breakpoints (g/node-value project :breakpoints)]
                      (save-breakpoints! prefs breakpoints)
-                     ;; NOTE: We need to do this check because if a resource has been renamed
-                     ;; it does not trigger a re-render
-                     (swap! state assoc :breakpoints (if (not= scripts (:scripts @state))
-                                                       []
-                                                       breakpoints))
-                     (swap! state assoc :scripts scripts)))))]
+                     (swap! state assoc :breakpoints breakpoints)))))]
     (ui/timer-start! timer)))
 
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
