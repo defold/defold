@@ -48,10 +48,17 @@ if [ "Darwin" == "${HOST_PLATFORM}" ]; then
     if [ "arm64" == "${HOST_ARCH}" ]; then
         HOST_PLATFORM="arm64-macos"
     fi
+elif [ "Linux" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-linux"
+    if [ "${HOST_ARCH}" == "aarch64" ] || [ "${HOST_ARCH}" == "arm64" ]; then
+        HOST_PLATFORM="arm64-linux"
+    fi
+elif [[ "${HOST_PLATFORM}" == MINGW* ]] || [[ "${HOST_PLATFORM}" == MSYS* ]] || [[ "${HOST_PLATFORM}" == CYGWIN* ]]; then
+    HOST_PLATFORM="x86_64-win32"
+    if [ "${HOST_ARCH}" == "i686" ] || [ "${HOST_ARCH}" == "i386" ]; then
+        HOST_PLATFORM="win32"
+    fi
 fi
-# if [ "Linux" == "${HOST_PLATFORM}" ]; then
-
-# fi
 
 if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
     echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"
