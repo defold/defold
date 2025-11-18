@@ -136,11 +136,12 @@ jobs:
       - name: Build ASTC
         run: |
           PLATFORM=${{ matrix.platform }}
-          ./scripts/build.py shell <<'EOF'
+          cat <<'EOS' > astc_build.sh
 set -euo pipefail
 cd share/ext
 ./build.sh astcenc ${PLATFORM}
-EOF
+EOS
+          bash -lc "./scripts/build.py shell < astc_build.sh"
         shell: bash
       - name: Check artifact
         run: |
