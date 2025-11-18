@@ -152,10 +152,10 @@ jobs:
         shell: bash
         run: |
           ./scripts/build.py shell <<'EOS'
-set -euo pipefail
-cd share/ext
-./build.sh astcenc ${{ matrix.platform }}
-EOS
+          set -euo pipefail
+          cd share/ext
+          ./build.sh astcenc ${{ matrix.platform }}
+          EOS
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
