@@ -16,7 +16,8 @@
 
 set -e
 
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPTDIR="$( cd "$( dirname "${_SOURCE}" )" >/dev/null 2>&1 && pwd )"
 
 eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
@@ -402,9 +403,9 @@ function cmi_setup_cc() {
 
 
         x86_64-linux)
-            export CFLAGS="${CFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
-            export CXXFLAGS="${CXXFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
-            export CPPFLAGS="${CPPFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CFLAGS="${CFLAGS} -fPIC"
+            export CXXFLAGS="${CXXFLAGS} -fPIC"
+            export CPPFLAGS="${CPPFLAGS} -fPIC"
 
             export CC=$(which clang)
             export CXX=$(which clang++)
@@ -414,9 +415,9 @@ function cmi_setup_cc() {
             ;;
 
         arm64-linux)
-            export CFLAGS="${CFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
-            export CXXFLAGS="${CXXFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
-            export CPPFLAGS="${CPPFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CFLAGS="${CFLAGS} -fPIC"
+            export CXXFLAGS="${CXXFLAGS} -fPIC"
+            export CPPFLAGS="${CPPFLAGS} -fPIC"
 
             export CC=$(which clang)
             export CXX=$(which clang++)
