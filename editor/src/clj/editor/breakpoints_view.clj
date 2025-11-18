@@ -344,7 +344,7 @@
     :toggle-enabled
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoint (:breakpoint event)
-            breakpoints-in-script (get-breakpoints-in-script breakpoint (:breakpoints @state))
+            breakpoints-in-script (get-breakpoints-in-script (:breakpoints @state) breakpoint)
             script-node (breakpoint->script-node project breakpoint evaluation-context)
             toggled-breakpoint (toggle-breakpoint-enabled breakpoints-in-script breakpoint)
             regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
@@ -354,7 +354,7 @@
     :remove-breakpoint
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoint (:breakpoint event)
-            breakpoints-in-script (get-breakpoints-in-script breakpoint (:breakpoints @state))
+            breakpoints-in-script (get-breakpoints-in-script (:breakpoints @state) breakpoint)
             script-node (breakpoint->script-node project breakpoint evaluation-context)
             remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
             regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
