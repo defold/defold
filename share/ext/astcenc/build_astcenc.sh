@@ -22,8 +22,10 @@ SOURCE_DIR=${PWD}/source
 SHA1=30aabb3f42406df45a910d8496f9bee17eeba9bb
 BUILD_DIR=${PWD}/build/${PLATFORM}
 
+unset CFLAGS
+unset CXXFLAGS
+unset CPPFLAGS
 . ../common.sh
-
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
