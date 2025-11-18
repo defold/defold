@@ -132,20 +132,17 @@ jobs:
           python-version: 3.13
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
-        shell: bash
       - name: Build ASTC
         run: |
           PLATFORM=${{ matrix.platform }}
-          printf '%s\n' \
-            "set -euo pipefail" \
-            "cd share/ext" \
-            "./build.sh astcenc ${PLATFORM}" \
-            | ./scripts/build.py shell
-        shell: bash
+          ./scripts/build.py shell <<'EOF'
+            set -euo pipefail
+            cd share/ext
+            ./build.sh astcenc ${PLATFORM}
+          EOF
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
-        shell: bash
       - name: Archive results
         uses: actions/upload-artifact@v4
         with:
