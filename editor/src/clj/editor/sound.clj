@@ -16,7 +16,6 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
@@ -33,22 +32,13 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob Platform]
-           [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [org.apache.commons.io IOUtils]))
+           [com.dynamo.gamesys.proto Sound$SoundDesc]))
 
 (set! *warn-on-reflection* true)
 
 (def sound-icon "icons/32/Icons_26-AT-Sound.png")
 
 (def supported-audio-formats #{"wav" "ogg" "opus"})
-
-(defn- resource->bytes [resource]
-  (with-open [in (io/input-stream resource)]
-    (IOUtils/toByteArray in)))
-
-(defn- build-sound-source
-  [resource dep-resources user-data]
-  {:resource resource :content (resource->bytes (:resource resource))})
 
 (defn oggz-validate-path []
   (let [platform (Platform/getHostPlatform)]
@@ -77,11 +67,7 @@
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
     (or (validate-if-ogg _node-id resource)
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-sound-source
-            :user-data {:content-hash (resource/resource->sha1-hex resource)}})])
+        [(pipeline/make-source-bytes-build-target _node-id resource)])
     (catch Exception _
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
