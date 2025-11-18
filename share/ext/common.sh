@@ -403,9 +403,9 @@ function cmi_setup_cc() {
 
 
         x86_64-linux)
-            export CFLAGS="${CFLAGS} -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -fPIC"
-            export CPPFLAGS="${CPPFLAGS} -fPIC"
+            export CFLAGS="${CFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
 
             export CC=$(which clang)
             export CXX=$(which clang++)
@@ -415,9 +415,9 @@ function cmi_setup_cc() {
             ;;
 
         arm64-linux)
-            export CFLAGS="${CFLAGS} -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -fPIC"
-            export CPPFLAGS="${CPPFLAGS} -fPIC"
+            export CFLAGS="${CFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
 
             export CC=$(which clang)
             export CXX=$(which clang++)
