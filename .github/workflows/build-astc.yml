@@ -147,7 +147,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          OLDPATH=$PATH
           source ci/env.sh
+          export PATH=$PATH:$OLDPATH
           cd share/ext
           ./build.sh astcenc ${{ matrix.platform }}
       - name: Check artifact
