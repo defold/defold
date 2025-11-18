@@ -129,11 +129,25 @@ jobs:
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
         shell: bash
-      - name: Build ASTC
+      - name: Install platform SDK
+        shell: bash
+        env:
+          DEFOLD_HOME: ${{ github.workspace }}
+          DYNAMO_HOME: ${{ github.workspace }}/tmp/dynamo_home
+          PYTHONPATH: ${{ github.workspace }}/tmp/dynamo_home/lib/python:${{ github.workspace }}/build_tools:${{ github.workspace }}/tmp/dynamo_home/ext/lib/python
+          JAVA_HOME: ${{ github.workspace }}/tmp/fake_java
         run: |
+          set -euo pipefail
+          python ./scripts/build.py --platform=${{ matrix.platform }} install_sdk
+      - name: Build ASTC
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLDPATH=$PATH
+          source ci/env.sh
+          export PATH=$PATH:$OLDPATH
           cd share/ext
           ./build.sh astcenc ${{ matrix.platform }}
-        shell: bash
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
@@ -145,4 +159,3 @@ jobs:
           path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
           if-no-files-found: error
           retention-days: 1
-
