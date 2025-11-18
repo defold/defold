@@ -1,7 +1,11 @@
 name: Build ASTC
 
 on:
-  workflow_dispatch:
+  push:
+    branches-ignore:
+      - 'skip-ci-*'
+      - 'DEFEDIT-*'
+      - 'editor-dev'
 
 env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
