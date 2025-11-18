@@ -133,29 +133,17 @@ jobs:
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
         shell: bash
-      - name: Resolve Windows toolset metadata
-        id: win_toolset
+      - name: Install platform SDK
+        run: ./scripts/build.py --platform=${{ matrix.platform }} install_sdk
         shell: bash
-        run: |
-          set -euo pipefail
-          eval "$(python build_tools/set_sdk_vars.py VERSION_WINDOWS_MSVC_2022)"
-          echo "Resolved MSVC toolset version: ${VERSION_WINDOWS_MSVC_2022}"
-          TOOLSET_SHORT="$(echo "${VERSION_WINDOWS_MSVC_2022}" | cut -d. -f1-2)"
-          echo "msvc_toolset=${TOOLSET_SHORT}" >> "$GITHUB_OUTPUT"
-      - name: Setup Visual Studio toolchain
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-          vsversion: '2022'
-          toolset: ${{ steps.win_toolset.outputs.msvc_toolset }}
       - name: Build ASTC
         shell: bash
         run: |
-          ./scripts/build.py shell <<'EOS'
-          set -euo pipefail
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
-          EOS
+          printf '%s\n' \
+            "set -euo pipefail" \
+            "cd share/ext" \
+            "./build.sh astcenc ${{ matrix.platform }}" \
+            | ./scripts/build.py shell
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true

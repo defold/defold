@@ -28,6 +28,28 @@ unset CPPFLAGS
 
 . ../common.sh
 
+function join_by() {
+    local IFS="$1"
+    shift
+    echo "$*"
+}
+
+function to_windows_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        echo "$1"
+    fi
+}
+
+function to_unix_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -u "$1"
+    else
+        echo "$1"
+    fi
+}
+
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
@@ -84,10 +106,43 @@ case $PLATFORM in
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-win32)
-        eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_WINDOWS_MSVC_2022)
+        eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_WINDOWS_MSVC_2022 VERSION_WINDOWS_SDK_10)
+        MSVC_ROOT="${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/${VERSION_WINDOWS_MSVC_2022}"
+        WINSDK_ROOT="${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10"
+        MSVC_BIN=$(to_unix_path "${MSVC_ROOT}/bin/Hostx64/x64")
+        WINSDK_BIN=$(to_unix_path "${WINSDK_ROOT}/bin/${VERSION_WINDOWS_SDK_10}/x64")
+        export PATH="${MSVC_BIN}:${WINSDK_BIN}:$PATH"
+
+        include_paths=(
+            "${MSVC_ROOT}/ATLMFC/include"
+            "${MSVC_ROOT}/include"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/ucrt"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/shared"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/um"
+            "${WINSDK_ROOT}/Include/${VERSION_WINDOWS_SDK_10}/winrt"
+        )
+        lib_paths=(
+            "${MSVC_ROOT}/ATLMFC/lib/x64"
+            "${MSVC_ROOT}/lib/x64"
+            "${WINSDK_ROOT}/Lib/${VERSION_WINDOWS_SDK_10}/ucrt/x64"
+            "${WINSDK_ROOT}/Lib/${VERSION_WINDOWS_SDK_10}/um/x64"
+        )
+
+        declare -a include_paths_win=()
+        declare -a lib_paths_win=()
+        for p in "${include_paths[@]}"; do
+            include_paths_win+=("$(to_windows_path "$p")")
+        done
+        for p in "${lib_paths[@]}"; do
+            lib_paths_win+=("$(to_windows_path "$p")")
+        done
+        export INCLUDE="$(join_by ';' "${include_paths_win[@]}")"
+        export LIB="$(join_by ';' "${lib_paths_win[@]}")"
+        export LIBPATH="$LIB"
+
         CMAKE_GENERATOR_ARGS=(-G "NMake Makefiles")
-        CMAKE_FLAGS+=(-DCMAKE_C_COMPILER=cl.exe)
-        CMAKE_FLAGS+=(-DCMAKE_CXX_COMPILER=cl.exe)
+        CMAKE_FLAGS+=(-DCMAKE_C_COMPILER="$(to_unix_path "${MSVC_ROOT}/bin/Hostx64/x64/cl.exe")")
+        CMAKE_FLAGS+=(-DCMAKE_CXX_COMPILER="$(to_unix_path "${MSVC_ROOT}/bin/Hostx64/x64/cl.exe")")
         CMAKE_FLAGS+=(-DASTCENC_ISA_SSE41=ON)
         CMAKE_FLAGS+=(-DASTCENC_ISA_NATIVE=OFF)
         CMAKE_FLAGS+=(-DASTCENC_PACKAGE=x64)
