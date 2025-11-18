@@ -135,9 +135,15 @@ jobs:
         shell: bash
       - name: Build ASTC
         run: |
-          set -euo pipefail
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
+          PLATFORM=${{ matrix.platform }}
+          printf '%s\n' \
+            'set -euo pipefail' \
+            'cd share/ext' \
+            "./build.sh astcenc ${PLATFORM}" \
+            'exit' \
+            > astc_build.sh
+          ./scripts/build.py shell < astc_build.sh
+          rm astc_build.sh
         shell: bash
       - name: Check artifact
         run: |

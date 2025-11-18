@@ -27,6 +27,7 @@ unset CXXFLAGS
 unset CPPFLAGS
 
 . ../common.sh
+
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
@@ -47,6 +48,8 @@ CMAKE_FLAGS+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded)
 if [ "$PLATFORM" != "x86_64-win32" ]; then
     CMAKE_FLAGS+=(-DCMAKE_BUILD_TYPE=${CONFIG})
 fi
+
+BUILD_CMD=(cmake --build . --config $CONFIG -j 8)
 
 case $PLATFORM in
     arm64-macos)
@@ -81,12 +84,14 @@ case $PLATFORM in
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-win32)
-        CMAKE_GENERATOR_ARGS=(-G "Visual Studio 17 2022" -A x64 -T ClangCL)
-        CMAKE_FLAGS+=(-DASTCENC_ISA_AVX2=ON)
+        eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_WINDOWS_MSVC_2022)
+        CMAKE_GENERATOR_ARGS=(-G "NMake Makefiles")
+        CMAKE_FLAGS+=(-DCMAKE_C_COMPILER=cl.exe)
+        CMAKE_FLAGS+=(-DCMAKE_CXX_COMPILER=cl.exe)
         CMAKE_FLAGS+=(-DASTCENC_ISA_SSE41=ON)
-        CMAKE_FLAGS+=(-DASTCENC_ISA_SSE2=ON)
         CMAKE_FLAGS+=(-DASTCENC_ISA_NATIVE=OFF)
         CMAKE_FLAGS+=(-DASTCENC_PACKAGE=x64)
+        BUILD_CMD=(cmake --build .)
         ;;
 esac
 
@@ -101,7 +106,7 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake "${CMAKE_GENERATOR_ARGS[@]}" "${CMAKE_FLAGS[@]}" "$SOURCE_DIR"
-cmake --build . --config $CONFIG -j 8
+"${BUILD_CMD[@]}"
 
 LIB_NAME=
 LIB_EXT=.a
@@ -120,7 +125,7 @@ case $PLATFORM in
         LIB_NAME=libastcenc-avx2-static.a
         ;;
     x86_64-win32)
-        LIB_NAME=$CONFIG/astcenc-avx2-static.lib
+        LIB_NAME=astcenc-sse4.1-static.lib
         LIB_EXT=.lib
         ;;
     *)
