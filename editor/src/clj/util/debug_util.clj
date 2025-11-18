@@ -302,7 +302,7 @@
         (array-map (keyword key-namespace "id") object-id)
         (let [seen (conj seen object-id)]
           (cond
-            (or (coll? class)
+            (or (coll? object)
                 (case (.getPackageName class)
                   ("java.lang" "java.io" "java.math" "java.net" "java.nio" "java.util.regex") true
                   (return-raw? object)))

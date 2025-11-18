@@ -156,8 +156,9 @@
   [f m]
   (reduce-kv (fn [m k v] (assoc m (f k) v)) (empty m) m))
 
-(defmacro map-vals [f m]
+(defmacro map-vals
   "DEPRECATED. Use coll/map-vals."
+  [f m]
   ;; TODO: Replace all calls so we can get rid of this macro.
   `(coll/map-vals ~f ~m))
 

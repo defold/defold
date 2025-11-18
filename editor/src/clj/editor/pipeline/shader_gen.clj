@@ -195,8 +195,8 @@
   all the information required to construct a ShaderLifecycle."
   [augmented-shader-infos]
   (let [max-page-count
-        (or (coll/consensus (e/map :max-page-count augmented-shader-infos))
-            (throw (ex-info "The shaders do not have a consensus max-page-count."
+        (or (coll/unanimous-value (e/map :max-page-count augmented-shader-infos))
+            (throw (ex-info "The max page counts differ among the shaders."
                             {:augmented-shader-infos augmented-shader-infos})))
 
         shader-type+source-pairs

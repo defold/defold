@@ -242,7 +242,7 @@
        0)))
 
 (definline empty? [^Buffer buffer]
-  `(pos? (item-count ~buffer)))
+  `(zero? (item-count ~buffer)))
 
 (definline flipped? [^Buffer buffer]
   `(zero? (.position ~(with-meta buffer {:tag `Buffer}))))
@@ -305,7 +305,9 @@
 (defn data-hash
   ^long [^Buffer buffer]
   (if (.hasArray buffer)
-    (array/hash-code (.array buffer) (.arrayOffset buffer) (.limit buffer))
+    (let [start (.arrayOffset buffer)
+          end (+ start (.limit buffer))]
+      (array/hash-code (.array buffer) start end))
     (let [original-position (.position buffer)]
       (.rewind buffer)
       (try

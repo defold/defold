@@ -14,6 +14,7 @@
 
 (ns editor.graphics.types-test
   (:require [clojure.test :refer :all]
+            [editor.buffers :as buffers]
             [editor.graphics.types :as graphics.types]
             [editor.protobuf :as protobuf])
   (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]))
@@ -37,7 +38,7 @@
           :float :type-float}
          (into {}
                (map (juxt identity graphics.types/buffer-data-type-data-type))
-               (disj editor.buffers/buffer-data-types :double :long)))))
+               (disj buffers/buffer-data-types :double :long)))))
 
 (deftest coordinate-space?-test
   (is (every? false? (map graphics.types/coordinate-space? random-values)))
@@ -70,8 +71,6 @@
          (into {}
                (map (juxt identity graphics.types/data-type-byte-size))
                graphics.types/data-types))))
-
-(pb-ints-by-val Graphics$CoordinateSpace)
 
 (deftest data-type-pb-int-test
   (is (= (pb-ints-by-val Graphics$VertexAttribute$DataType)

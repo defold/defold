@@ -154,6 +154,7 @@
 (def selection-instance-paged-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
+     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_view_proj" :view-proj}}
     "shaders/selection-instance-paged.vp"
     "shaders/selection-instance-paged.fp"))

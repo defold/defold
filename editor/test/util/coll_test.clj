@@ -125,10 +125,8 @@
       (testing "Single transducer."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (tap> (.getSimpleName (class coll)))
             (let [transformed-coll (coll/transform coll
                                      (map (fn [entry]
-                                            (tap> entry)
                                             [(key entry)
                                              (inc (long (val entry)))])))]
               (is (= (class coll) (class transformed-coll)))
@@ -1818,7 +1816,7 @@
 (deftest first-index-where-test
   (is (= 1 (coll/first-index-where even? (range 1 4))))
   (is (= 2 (coll/first-index-where nil? [:a :b nil :d])))
-  (is (= 3 (coll/first-index-where #(^[char] Character/isDigit %) "abc123def")))
+  (is (= 3 (coll/first-index-where ^[char] Character/isDigit "abc123def")))
   (is (= 3 (coll/first-index-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
   (is (= 4 (coll/first-index-where #(= :e %) (list :a nil :c nil :e))))
   (is (= 5 (coll/first-index-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
@@ -1887,17 +1885,17 @@
   (is (= "1,,2" (coll/join-to-string "," [1 nil 2])))
   (is (= "0, 1, 2, 3, 4" (coll/join-to-string ", " (range 5)))))
 
-(deftest consensus-test
-  (is (nil? (coll/consensus nil)))
-  (is (= ::no-consensus (coll/consensus nil ::no-consensus)))
-  (is (nil? (coll/consensus [])))
-  (is (= ::no-consensus (coll/consensus [] ::no-consensus)))
-  (is (= ::one-value (coll/consensus [::one-value])))
-  (is (= ::one-value (coll/consensus [::one-value] ::no-consensus)))
-  (is (= ::equal-value (coll/consensus [::equal-value ::equal-value])))
-  (is (= ::equal-value (coll/consensus [::equal-value ::equal-value] ::no-consensus)))
-  (is (nil? (coll/consensus [::one-value ::conflicting-value])))
-  (is (= ::no-consensus (coll/consensus [::one-value ::conflicting-value] ::no-consensus))))
+(deftest unanimous-value-test
+  (is (nil? (coll/unanimous-value nil)))
+  (is (= ::no-unanimous-value (coll/unanimous-value nil ::no-unanimous-value)))
+  (is (nil? (coll/unanimous-value [])))
+  (is (= ::no-unanimous-value (coll/unanimous-value [] ::no-unanimous-value)))
+  (is (= ::one-value (coll/unanimous-value [::one-value])))
+  (is (= ::one-value (coll/unanimous-value [::one-value] ::no-unanimous-value)))
+  (is (= ::equal-value (coll/unanimous-value [::equal-value ::equal-value])))
+  (is (= ::equal-value (coll/unanimous-value [::equal-value ::equal-value] ::no-unanimous-value)))
+  (is (nil? (coll/unanimous-value [::one-value ::conflicting-value])))
+  (is (= ::no-unanimous-value (coll/unanimous-value [::one-value ::conflicting-value] ::no-unanimous-value))))
 
 (deftest primitive-vector-type-test
   (is (nil? (coll/primitive-vector-type nil)))

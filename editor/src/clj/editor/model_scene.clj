@@ -191,9 +191,11 @@
                         :mesh-request-id mesh-request-id
                         :mesh mesh})])
                   (keep (fn [[attribute-pb-field ^long attribute-count]]
-                          (when (not= position-count attribute-count)
-                            (ex-info
-                              "Attribute count mismatch."
+                          (when (and (pos? attribute-count)
+                                     (not= position-count attribute-count))
+                            (g/error-fatal
+                              (format "Attribute count mismatch: Expected %d %s but got %d."
+                                      position-count (name attribute-pb-field) attribute-count)
                               {:position-count position-count
                                :attribute-count attribute-count
                                :attribute-pb-field attribute-pb-field
@@ -522,15 +524,16 @@
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
       renderable-mesh-set-or-error-value)))
 
-(defn- make-mesh-scene [renderable-mesh]
+(defn- make-mesh-scene [scene-node-id renderable-mesh]
+  {:pre [(g/node-id? scene-node-id)]}
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
         attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
-        attribute-bindings (model-util/make-attribute-bindings semantic-type->attribute-buffers attribute-reflection-infos)
+        attribute-bindings (model-util/make-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
         selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
-        selection-attribute-bindings (model-util/make-attribute-bindings semantic-type->attribute-buffers selection-attribute-reflection-infos)
+        selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-reflection-infos semantic-type->attribute-buffers {})
 
         user-data
         {:attribute-bindings attribute-bindings
@@ -553,24 +556,25 @@
     {:aabb aabb
      :renderable renderable}))
 
-(defn- make-model-scene [renderable-model]
+(defn- make-model-scene [scene-node-id renderable-model]
   (let [{:keys [transform aabb renderable-meshes]} renderable-model
-        mesh-scenes (mapv make-mesh-scene renderable-meshes)]
+        mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
+                          renderable-meshes)]
     {:transform transform
      :aabb aabb
      :children mesh-scenes}))
 
-(defn- make-scene [renderable-mesh-set model-scene-resource-node-id]
+(defn- make-scene [scene-node-id renderable-mesh-set]
   (let [{:keys [aabb renderable-models]} renderable-mesh-set
 
         child-scenes
-        (into [{:node-id model-scene-resource-node-id
+        (into [{:node-id scene-node-id
                 :aabb aabb
                 :renderable (render-util/make-aabb-outline-renderable #{:model})}]
-              (map make-model-scene)
+              (map #(make-model-scene scene-node-id %))
               renderable-models)]
 
-    {:node-id model-scene-resource-node-id
+    {:node-id scene-node-id
      :aabb aabb
      :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
@@ -578,7 +582,7 @@
      :children child-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]
-  (make-scene renderable-mesh-set _node-id))
+  (make-scene _node-id renderable-mesh-set))
 
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
   (update scene :children coll/mapv>
@@ -614,7 +618,7 @@
                         semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
                         combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos default-coordinate-space)
                         coordinate-space-info (graphics/coordinate-space-info combined-attribute-infos)
-                        attribute-bindings (model-util/make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos vertex-attribute-bytes new-node-id)]
+                        attribute-bindings (model-util/make-attribute-bindings new-node-id combined-attribute-infos semantic-type->attribute-buffers vertex-attribute-bytes)]
                     (assoc user-data
                       :attribute-bindings attribute-bindings
                       :coordinate-space-info coordinate-space-info

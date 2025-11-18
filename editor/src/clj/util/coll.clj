@@ -899,12 +899,12 @@
   ([sep coll]
    (transduce (interpose (str sep)) str-rf coll)))
 
-(defn consensus
+(defn unanimous-value
   "Iterates over all elements in the collection. If they are all equal, return
   the last element, otherwise return not-found. Returns not-found if the
   collection is empty. If no value is provided for not-found, use nil."
   ([coll]
-   (consensus coll nil))
+   (unanimous-value coll nil))
   ([coll not-found]
    (let [consensus (reduce
                      (fn [prev-value value]

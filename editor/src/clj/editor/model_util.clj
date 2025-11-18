@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.model-util
-  (:require [editor.buffers :as buffers]
+  (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.gl.attribute :as attribute]
             [editor.graphics.types :as graphics.types]
             [internal.graph.types :as gt]
@@ -26,7 +27,7 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- make-transformed-attribute-buffer
-  [untransformed-attribute-buffer-lifecycle attribute-transform scene-node-id]
+  [scene-node-id untransformed-attribute-buffer-lifecycle attribute-transform]
   {:pre [(gt/node-id? scene-node-id)]}
   (let [transform-render-arg-key (graphics.types/attribute-transform-render-arg-key attribute-transform)
         w-component (graphics.types/attribute-transform-w-component attribute-transform)
@@ -40,14 +41,14 @@
     (attribute/make-transformed-attribute-buffer request-id untransformed-buffer-data transform-render-arg-key w-component)))
 
 (defn- make-attribute-buffer-binding
-  [attribute-buffer-lifecycle attribute-info scene-node-id]
+  [scene-node-id attribute-buffer-lifecycle attribute-info]
   (let [{:keys [attribute-transform ^long location]} attribute-info]
     (case attribute-transform
       (:attribute-transform-none)
       (attribute/make-attribute-buffer-binding attribute-buffer-lifecycle location)
 
       (:attribute-transform-normal :attribute-transform-world)
-      (-> (make-transformed-attribute-buffer attribute-buffer-lifecycle attribute-transform scene-node-id)
+      (-> (make-transformed-attribute-buffer scene-node-id attribute-buffer-lifecycle attribute-transform)
           (attribute/make-attribute-buffer-binding location)))))
 
 (defn- make-attribute-value-binding
@@ -96,46 +97,45 @@
                  (make-attribute-render-arg-binding render-arg-key attribute-info))))))
 
 (defn- make-attribute-binding-entries
-  [attribute-infos attribute-buffers name-key->attribute-bytes scene-node-id]
-  (let [attribute-buffer-count (count attribute-buffers)]
-    (->> attribute-infos
-         (e/map-indexed
-           (fn [^long channel {:keys [name-key] :as attribute-info}]
-             {:pre [(keyword? name-key)]}
-             ;; Use attribute buffers from the mesh when available. Otherwise,
-             ;; use the overridden attribute value from the referencing
-             ;; component. If not overridden by the component, use the value
-             ;; specified for the attribute in the Material. Finally, if none of
-             ;; the above are available, use a suitable default value inferred
-             ;; from the semantic-type.
-             (pair name-key
-                   (if (< channel attribute-buffer-count)
-                     (let [attribute-buffer (attribute-buffers channel)]
-                       (make-attribute-buffer-binding attribute-buffer attribute-info scene-node-id))
-                     (let [attribute-bytes (or (name-key->attribute-bytes name-key) ; From the referencing component.
-                                               (:bytes attribute-info))] ; From the Material.
-                       (make-attribute-value-binding attribute-bytes attribute-info)))))))))
+  [scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes]
+  {:pre [(or (nil? attribute-buffers)
+             (vector? attribute-buffers))]}
+  (->> attribute-infos
+       (e/map-indexed
+         (fn [^long channel {:keys [name-key] :as attribute-info}]
+           {:pre [(keyword? name-key)]}
+           ;; Use attribute buffers from the mesh when available. Otherwise,
+           ;; use the overridden attribute value from the referencing
+           ;; component. If not overridden by the component, use the value
+           ;; specified for the attribute in the Material. Finally, if none of
+           ;; the above are available, use a suitable default value inferred
+           ;; from the semantic-type.
+           (pair name-key
+                 (if-some [attribute-buffer (get attribute-buffers channel)] ; The vector may contain nil if, for example, we only have UVs for texcoord1, but not for texcoord0.
+                   (make-attribute-buffer-binding scene-node-id attribute-buffer attribute-info)
+                   (let [attribute-bytes (or (name-key->attribute-bytes name-key) ; From the referencing component.
+                                             (:bytes attribute-info))] ; From the Material.
+                     (make-attribute-value-binding attribute-bytes attribute-info))))))))
 
 (defn make-attribute-bindings
-  ([semantic-type->attribute-buffers combined-attribute-infos]
-   (make-attribute-bindings semantic-type->attribute-buffers combined-attribute-infos {} nil))
-  ([semantic-type->attribute-buffers combined-attribute-infos name-key->attribute-bytes scene-node-id]
-   ;; Note: The combined-attribute-infos should be in the order they are
-   ;; declared in the Material. This becomes important when channels are
-   ;; assigned later in this function.
-   (->> combined-attribute-infos
-        (util/group-into {} [] :semantic-type)
-        (into {}
-              (mapcat
-                (fn [[semantic-type attribute-infos]]
-                  {:pre [(graphics.types/semantic-type? semantic-type)]}
-                  (case semantic-type
-                    :semantic-type-world-matrix
-                    (make-render-arg-attribute-binding-entries attribute-infos :world)
+  [scene-node-id combined-attribute-infos semantic-type->attribute-buffers name-key->attribute-bytes]
+  ;; Note: The combined-attribute-infos should be in the order they are declared
+  ;; in the Material. This becomes important when channels are assigned later in
+  ;; this function.
+  {:pre [(g/node-id? scene-node-id)]}
+  (->> combined-attribute-infos
+       (util/group-into {} [] :semantic-type)
+       (into {}
+             (mapcat
+               (fn [[semantic-type attribute-infos]]
+                 {:pre [(graphics.types/semantic-type? semantic-type)]}
+                 (case semantic-type
+                   :semantic-type-world-matrix
+                   (make-render-arg-attribute-binding-entries attribute-infos :world)
 
-                    :semantic-type-normal-matrix
-                    (make-render-arg-attribute-binding-entries attribute-infos :normal)
+                   :semantic-type-normal-matrix
+                   (make-render-arg-attribute-binding-entries attribute-infos :normal)
 
-                    ;; else
-                    (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
-                      (make-attribute-binding-entries attribute-infos attribute-buffers name-key->attribute-bytes scene-node-id)))))))))
+                   ;; else
+                   (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
+                     (make-attribute-binding-entries scene-node-id attribute-infos attribute-buffers name-key->attribute-bytes))))))))

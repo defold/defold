@@ -322,7 +322,7 @@
      :normalize false ; TODO: Figure out if this should be configurable.
      :coordinate-space :coordinate-space-default
      :step-function :vertex-step-function-vertex
-     :semantic-type (condp = attribute-key
+     :semantic-type (condp = attribute-name
                       position-stream-name :semantic-type-position
                       normal-stream-name :semantic-type-normal
                       (graphics.types/infer-semantic-type attribute-key))}))

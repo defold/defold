@@ -33,7 +33,7 @@
 (defonce ^long/1 empty-long-array (empty-of-type Long/TYPE))
 (defonce ^float/1 empty-float-array (empty-of-type Float/TYPE))
 (defonce ^double/1 empty-double-array (empty-of-type Double/TYPE))
-(defonce ^"[Ljava.lang.Object;" empty-object-array (empty-of-type Object))
+(defonce ^Object/1 empty-object-array (empty-of-type Object))
 
 (defn primitive-type [array]
   (condp = (class array)
@@ -65,7 +65,7 @@
     long/1 (alength ^long/1 array)
     float/1 (alength ^float/1 array)
     double/1 (alength ^double/1 array)
-    (alength ^"[Ljava.lang.Object;" array)))
+    (alength ^Object/1 array)))
 
 (defn- nth-boolean [^boolean/1 array ^long index] (aget array index))
 (defn- nth-char [^char/1 array ^long index] (aget array index))
@@ -75,7 +75,7 @@
 (defn- nth-long [^long/1 array ^long index] (aget array index))
 (defn- nth-float [^float/1 array ^long index] (aget array index))
 (defn- nth-double [^double/1 array ^long index] (aget array index))
-(defn- nth-object [^"[Ljava.lang.Object;" array ^long index] (aget array index))
+(defn- nth-object [^Object/1 array ^long index] (aget array index))
 
 (defn nth-fn [array]
   (condp = (class array)
@@ -115,25 +115,25 @@
        (LazilyPersistentVector/create items#))))
 
 (defn of
-  (^"[Ljava.lang.Object;" []
+  (^Object/1 []
    empty-object-array)
-  (^"[Ljava.lang.Object;" [a]
+  (^Object/1 [a]
    (of-type-impl Object 1 a))
-  (^"[Ljava.lang.Object;" [a b]
+  (^Object/1 [a b]
    (of-type-impl Object 2 a b))
-  (^"[Ljava.lang.Object;" [a b c]
+  (^Object/1 [a b c]
    (of-type-impl Object 3 a b c))
-  (^"[Ljava.lang.Object;" [a b c d]
+  (^Object/1 [a b c d]
    (of-type-impl Object 4 a b c d))
-  (^"[Ljava.lang.Object;" [a b c d e]
+  (^Object/1 [a b c d e]
    (of-type-impl Object 5 a b c d e))
-  (^"[Ljava.lang.Object;" [a b c d e f]
+  (^Object/1 [a b c d e f]
    (of-type-impl Object 6 a b c d e f))
-  (^"[Ljava.lang.Object;" [a b c d e f g]
+  (^Object/1 [a b c d e f g]
    (of-type-impl Object 7 a b c d e f g))
-  (^"[Ljava.lang.Object;" [a b c d e f g h]
+  (^Object/1 [a b c d e f g h]
    (of-type-impl Object 8 a b c d e f g h))
-  (^"[Ljava.lang.Object;" [a b c d e f g h & more]
+  (^Object/1 [a b c d e f g h & more]
    (let [more-count (count more)
          length (+ 8 more-count)
          array (of-type-impl Object length a b c d e f g h)]
@@ -141,25 +141,25 @@
      array)))
 
 (defn of-type
-  (^"[Ljava.lang.Object;" [^Class item-type]
+  (^Object/1 [^Class item-type]
    (empty-of-type item-type))
-  (^"[Ljava.lang.Object;" [^Class item-type a]
+  (^Object/1 [^Class item-type a]
    (of-type-impl item-type 1 a))
-  (^"[Ljava.lang.Object;" [^Class item-type a b]
+  (^Object/1 [^Class item-type a b]
    (of-type-impl item-type 2 a b))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c]
+  (^Object/1 [^Class item-type a b c]
    (of-type-impl item-type 3 a b c))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c d]
+  (^Object/1 [^Class item-type a b c d]
    (of-type-impl item-type 4 a b c d))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c d e]
+  (^Object/1 [^Class item-type a b c d e]
    (of-type-impl item-type 5 a b c d e))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c d e f]
+  (^Object/1 [^Class item-type a b c d e f]
    (of-type-impl item-type 6 a b c d e f))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c d e f g]
+  (^Object/1 [^Class item-type a b c d e f g]
    (of-type-impl item-type 7 a b c d e f g))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c d e f g h]
+  (^Object/1 [^Class item-type a b c d e f g h]
    (of-type-impl item-type 8 a b c d e f g h))
-  (^"[Ljava.lang.Object;" [^Class item-type a b c d e f g h & more]
+  (^Object/1 [^Class item-type a b c d e f g h & more]
    (let [more-count (count more)
          length (+ 8 more-count)
          array (of-type-impl item-type length a b c d e f g h)]
@@ -184,11 +184,11 @@
 ;; of-doubles
 
 (defn from
-  (^"[Ljava.lang.Object;" [items]
+  (^Object/1 [items]
    (let [items (ensure-counted items)
          length (count items)]
      (from length items)))
-  (^"[Ljava.lang.Object;" [length items]
+  (^Object/1 [length items]
    (let [length (int length)]
      (case length
        0 empty-object-array
@@ -197,11 +197,11 @@
          array)))))
 
 (defn from-type
-  (^"[Ljava.lang.Object;" [^Class item-type items]
+  (^Object/1 [^Class item-type items]
    (let [items (ensure-counted items)
          length (count items)]
      (from-type item-type length items)))
-  (^"[Ljava.lang.Object;" [^Class item-type length items]
+  (^Object/1 [^Class item-type length items]
    (let [length (int length)]
      (case length
        0 (empty-of-type item-type)
@@ -230,11 +230,12 @@
      long/1 (Arrays/hashCode ^longs array)
      float/1 (Arrays/hashCode ^floats array)
      double/1 (Arrays/hashCode ^doubles array)
-     (Arrays/hashCode ^"[Ljava.lang.Object;" array)))
+     (Arrays/hashCode ^Object/1 array)))
   (^long [array ^long start ^long end]
    (if (and (zero? start)
             (= (Array/getLength array) end))
      (hash-code array)
+     ;; TODO: Write non-allocating implementations for all these.
      (condp = (class array)
        boolean/1 (Arrays/hashCode (Arrays/copyOfRange ^booleans array start end))
        char/1 (Arrays/hashCode (Arrays/copyOfRange ^chars array start end))
@@ -244,4 +245,4 @@
        long/1 (Arrays/hashCode (Arrays/copyOfRange ^longs array start end))
        float/1 (Arrays/hashCode (Arrays/copyOfRange ^floats array start end))
        double/1 (Arrays/hashCode (Arrays/copyOfRange ^doubles array start end))
-       (Arrays/hashCode (Arrays/copyOfRange ^"[Ljava.lang.Object;" array start end))))))
+       (Arrays/hashCode (Arrays/copyOfRange ^Object/1 array start end))))))

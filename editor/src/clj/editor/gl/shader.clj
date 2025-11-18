@@ -737,26 +737,6 @@ These forms should be quoted, as if they came from a macro."
     (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
     (read-shader :classpath-shader shader-paths opts classpath-shader-path->source)))
 
-(defn workspace-shader
-  ^ShaderLifecycle [workspace opts & shader-proj-paths]
-  {:pre [(map? opts)]}
-  ;; Note: It's debatable if we should have this function at all. It might be
-  ;; better to have a `.material` in the workspace that we connect to resource
-  ;; nodes that require it. In fact, that is how we do it in our editor plugins
-  ;; that require specialized shaders for rendering or picking. Otherwise, the
-  ;; library of internal shaders in `editor.shaders` should cover most needs.
-  (if (coll/empty? shader-proj-paths)
-    (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
-    (let [resources-by-proj-path (g/valid-node-value workspace :resource-map)
-
-          shader-proj-path->source
-          (fn proj-path->source [proj-path]
-            (if-some [resource (resources-by-proj-path proj-path)]
-              (slurp resource)
-              (throw (FileNotFoundException. (format "'%s' was not found in the workspace." proj-path)))))]
-
-      (read-shader :workspace-shader shader-proj-paths opts shader-proj-path->source))))
-
 (defn is-using-array-samplers? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)
         array-sampler-name->uniform-names (.-array-sampler-name->uniform-names request-data)]

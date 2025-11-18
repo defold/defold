@@ -114,6 +114,7 @@
    :select-batch-key :not-rendered
    :passes [pass/outline]})
 
+;; SDK api
 (def ^{:arglists '([tags])} make-aabb-outline-renderable
   (fn/memoize make-aabb-outline-renderable-raw))
 
@@ -123,7 +124,7 @@
 
 (def ^:private textured-quad-shader shaders/basic-texture-paged-world-space)
 
-(defn make-textured-quad-vertex-buffer
+(defn- make-textured-quad-vertex-buffer
   [vertex-description renderables]
   (let [vertex-buffer-capacity (* (count renderables) 6)
         vertex-buffer (vtx/make-vertex-buffer vertex-description :stream vertex-buffer-capacity)
@@ -158,7 +159,7 @@
     (.position byte-buffer (* (.position float-buffer) Float/BYTES))
     (vtx/flip! vertex-buffer)))
 
-(defn render-textured-quad
+(defn- render-textured-quad
   [^GL2 gl render-args renderables _renderable-count]
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
@@ -170,7 +171,7 @@
       (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
       (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))
 
-(defn make-textured-quad-renderable
+(defn- make-textured-quad-renderable
   [tags x y width height gpu-texture page-index]
   {:pre [(graphics.types/renderable-tags? tags)
          (number? x)
@@ -190,6 +191,7 @@
                :page-index page-index
                :gpu-texture gpu-texture}})
 
+;; SDK api
 (defn make-outlined-textured-quad-scene
   [tags transform width height gpu-texture page-index]
   {:pre [(instance? Matrix4d transform)]}
