@@ -19,7 +19,7 @@
 PLATFORM=$1
 PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
-SHA1=8b0aa018558028b6475a83463e29d4b8cf27de8f
+SHA1=30aabb3f42406df45a910d8496f9bee17eeba9bb
 BUILD_DIR=${PWD}/build/${PLATFORM}
 
 . ../common.sh
@@ -36,6 +36,11 @@ CONFIG=Release
 
 CMAKE_FLAGS="-DASTCENC_CLI=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${CMAKE_FLAGS}"
+# The default Unix Makefile/Ninja generators build Debug unless build type is set explicitly.
+# Our macOS and Linux builds use single-config generators, so make sure we get an optimized lib.
+if [ "$PLATFORM" != "x86_64-win32" ]; then
+    CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=${CONFIG} ${CMAKE_FLAGS}"
+fi
 
 case $PLATFORM in
     arm64-macos)
