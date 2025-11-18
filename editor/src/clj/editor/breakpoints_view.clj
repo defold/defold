@@ -59,6 +59,7 @@
                       :edited-breakpoint nil
                       :edited-condition nil}))
 
+;; NOTE: Updating the state while editing text wasn't playing nice, maybe better to keep it out of the state
 (defonce condition-text (atom nil))
 
 (def ext-with-focus-changed-handler
@@ -136,7 +137,7 @@
                                    :text condition
                                    :on-text-changed {:event-type :condition-text-changed}
                                    :on-action {:event-type :save-condition}
-                                   :on-key-pressed {:event-type :key-pressed}}}}}
+                                   :on-key-pressed {:event-type :condition-key-pressed}}}}}
           {:graphic {:fx/type fx.stack-pane/lifecycle
                      :children [{:fx/type :label
                                  :max-width ##Inf
@@ -315,109 +316,109 @@
         bp-regions (map (partial breakpoint->region lines) breakpoints)]
     (vec (sort (concat non-bp-regions bp-regions)))))
 
+(defn- get-breakpoints-in-script [breakpoints breakpoint]
+  (filter #(= (:resource %) (:resource breakpoint)) breakpoints))
+
 (defn- set-breakpoint-condition! [project breakpoints breakpoint condition evaluation-context]
-  ;; TODO: Create a function for this filter thing
   (let [script-node (breakpoint->script-node project breakpoint evaluation-context)
-        breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) breakpoints)
+        breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
         updated-breakpoints (update-breakpoint-condition breakpoints-in-script breakpoint condition)
         regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
     (g/set-property! script-node :regions regions)))
 
-(defn- set-regions-with-action [project evaluation-context all-breakpoints breakpoints action-fn]
-  ;; Any of these actions should disable editing
-  ;; TODO: This is ugly move it out of here
-  (swap! state assoc :edited-breakpoint nil)
+(defn- set-regions-with-action! [project evaluation-context all-breakpoints breakpoints action-fn]
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
-        ;; Apply action to get updated breakpoints
         updated-breakpoints (action-fn all-breakpoints breakpoints)
         updated-by-resource (group-by :resource updated-breakpoints)
-        ;; Use pre-collected scripts with updated breakpoints
         txs (mapcat (fn [{:keys [script-node resource]}]
                       (let [bps-for-script (get updated-by-resource resource [])
                             new-regions (update-script-regions-from-breakpoints script-node bps-for-script evaluation-context)]
                         (g/set-property script-node :regions new-regions)))
                     affected-scripts)]
-    (g/transact txs)
-    (swap! state assoc :breakpoints updated-breakpoints)))
+    (g/transact txs) ;; Ignore the results
+    ;; All actions should disable editing
+    (swap! state assoc :edited-breakpoint nil :breakpoints updated-breakpoints)))
 
 (defn- handle-breakpoint-event! [project open-resource-fn event]
-  ;; TODO: No all events need this, probably better to split between those that do and don't
-  (g/with-auto-evaluation-context evaluation-context
-    (case (:event-type event)
-      :toggle-enabled
+  (case (:event-type event)
+    :toggle-enabled
+    (g/with-auto-evaluation-context evaluation-context
       (let [breakpoint (:breakpoint event)
-            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
+            breakpoints-in-script (get-breakpoints-in-script breakpoint (:breakpoints @state))
             script-node (breakpoint->script-node project breakpoint evaluation-context)
             toggled-breakpoint (toggle-breakpoint-enabled breakpoints-in-script breakpoint)
             regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
         (swap! state assoc :edited-breakpoint nil)
-        (g/set-property! script-node :regions regions))
+        (g/set-property! script-node :regions regions)))
 
-      :remove-breakpoint
+    :remove-breakpoint
+    (g/with-auto-evaluation-context evaluation-context
       (let [breakpoint (:breakpoint event)
-            breakpoints-in-script (filter #(= (:resource %) (:resource breakpoint)) (:breakpoints @state))
+            breakpoints-in-script (get-breakpoints-in-script breakpoint (:breakpoints @state))
             script-node (breakpoint->script-node project breakpoint evaluation-context)
             remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
             regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
         (swap! state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
-        (g/set-property! script-node :regions regions))
+        (g/set-property! script-node :regions regions)))
 
-      :selected-items-changed
-      (swap! state assoc :selected-indices (:fx/event event))
+    :selected-items-changed
+    (swap! state assoc :selected-indices (:fx/event event))
 
-      :condition-focus-changed
-      (when (not (get-in event [:fx/event :value]))
-        (swap! state assoc :edited-breakpoint nil))
+    :condition-focus-changed
+    (when (not (get-in event [:fx/event :value]))
+      (swap! state assoc :edited-breakpoint nil))
 
-      :breakpoint-clicked
-      (let [^MouseEvent e (:fx/event event)
-            {:keys [resource row]} (:clicked-breakpoint event)]
-        ;; TODO: Do we need to check primary?
-        (when (and (= MouseButton/PRIMARY (.getButton e))
-                   (= 2 (.getClickCount e)))
-          (open-resource-fn resource (inc row))))
+    :breakpoint-clicked
+    (let [^MouseEvent e (:fx/event event)
+          {:keys [resource row]} (:clicked-breakpoint event)]
+      (when (and (= MouseButton/PRIMARY (.getButton e))
+                 (= 2 (.getClickCount e)))
+        (open-resource-fn resource (inc row))))
 
-      :row-mouse-entered (swap! state assoc :hovered-row (:breakpoint event))
-      :row-mouse-exited  (swap! state assoc :hovered-row nil)
-      :condition-mouse-entered (swap! state assoc :hovered-condition (:breakpoint event))
-      :condition-mouse-exited  (swap! state assoc :hovered-condition nil)
+    :row-mouse-entered (swap! state assoc :hovered-row (:breakpoint event))
+    :row-mouse-exited  (swap! state assoc :hovered-row nil)
+    :condition-mouse-entered (swap! state assoc :hovered-condition (:breakpoint event))
+    :condition-mouse-exited  (swap! state assoc :hovered-condition nil)
 
-      :edit-condition
-      (let [^MouseEvent me (:fx/event event)]
-        (when (or (= (:source event) :button)
-                  (= 2 (.getClickCount me)))
-          (.consume me)
-          (swap! state assoc :edited-breakpoint (:breakpoint event))))
+    :edit-condition
+    (let [^MouseEvent me (:fx/event event)]
+      (when (or (= (:source event) :button)
+                (= 2 (.getClickCount me)))
+        ;; NOTE: If we don't consume this it'll fall through to the :breakpoint-clicked condition
+        (.consume me)
+        (swap! state assoc :edited-breakpoint (:breakpoint event))))
 
-      :remove-condition
+    :remove-condition
+    (g/with-auto-evaluation-context evaluation-context
       (let [breakpoint (:breakpoint event)]
         (set-breakpoint-condition! project (:breakpoints @state) breakpoint nil evaluation-context)
         (swap! state assoc :edited-breakpoint nil)
-        (reset! condition-text nil))
+        (reset! condition-text nil)))
 
-      :condition-text-changed (reset! condition-text (:fx/event event))
+    :condition-text-changed (reset! condition-text (:fx/event event))
 
-      :key-pressed
-      (when (= (.getCode ^KeyEvent (:fx/event event)) KeyCode/ESCAPE)
-        (reset! condition-text nil)
-        (swap! state assoc :edited-breakpoint nil))
+    :condition-key-pressed
+    (when (= (.getCode ^KeyEvent (:fx/event event)) KeyCode/ESCAPE)
+      (reset! condition-text nil)
+      (swap! state assoc :edited-breakpoint nil))
 
-      ;; TODO: When I hit enter on an empty string it doesn't just save with empty
-      :save-condition
+    :save-condition
+    (g/with-auto-evaluation-context evaluation-context
       (let [condition (or @condition-text (get-in @state [:edited-breakpoint :condition]))]
         (set-breakpoint-condition! project (:breakpoints @state) (:edited-breakpoint @state) condition evaluation-context)
         (swap! state assoc :edited-breakpoint nil)
-        (reset! condition-text nil))
+        (reset! condition-text nil)))
 
-      ;; default case
-      ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
-      ;; we can shorten this code quite a bit
+    ;; default case
+    ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
+    ;; we can shorten this code quite a bit
+    (g/with-auto-evaluation-context evaluation-context
       (let [[action scope] (string/split (name (:event-type event)) #"-")
             all-breakpoints (:breakpoints @state)
             breakpoints (if (= scope "selected")
-                               (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
-                               all-breakpoints)
-            handle-fn (partial set-regions-with-action project evaluation-context all-breakpoints breakpoints)]
+                          (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
+                          all-breakpoints)
+            handle-fn (partial set-regions-with-action! project evaluation-context all-breakpoints breakpoints)]
         (case action
           "remove" (do (handle-fn #(vec (remove (set %2) %1)))
                        (swap! state assoc :selected-indices []))
@@ -489,7 +490,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
-        (set-regions-with-action project
+        (set-regions-with-action! project
                                   evaluation-context
                                   breakpoints
                                   selected
@@ -500,7 +501,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
-        (set-regions-with-action project
+        (set-regions-with-action! project
                                   evaluation-context
                                   breakpoints
                                   selected
@@ -560,4 +561,6 @@
                                              :debugger.toggle-breakpoint-enabled {:add #{"Shift+F9"}, :remove #{}},
                                              :scene.select-scale-tool {:add #{"D"}, :remove #{}},
                                              :scene.set-camera-type {:add #{}, :remove #{}}})
+  (reset! state {:breakpoints [] :selected-indices [] :hovered-condition nil :hovered-row nil
+                 :condition-text nil :edited-breakpoint nil :edited-condition nil})
   ,)
