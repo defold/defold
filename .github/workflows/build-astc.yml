@@ -135,12 +135,10 @@ jobs:
         shell: bash
       - name: Build ASTC
         run: |
-          PLATFORM=${{ matrix.platform }}
-          printf '%s\n' \
-            "set -euo pipefail" \
-            "cd share/ext" \
-            "./build.sh astcenc ${PLATFORM}" \
-            | ./scripts/build.py shell
+          ./scripts/build.py --save-env-path=ci/env.sh save_env
+          source ci/env.sh
+          cd share/ext
+          ./build.sh astcenc ${{ matrix.platform }}
         shell: bash
       - name: Check artifact
         run: |
@@ -153,3 +151,4 @@ jobs:
           path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
           if-no-files-found: error
           retention-days: 1
+

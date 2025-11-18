@@ -54,11 +54,12 @@ case $PLATFORM in
         CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
     arm64-linux)
-        CMAKE_FLAGS="-DARCH=aarch64 -DASTCENC_ISA_NEON=ON ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DARCH=aarch64 -DASTCENC_ISA_NEON=ON -DASTCENC_ISA_SVE_128=ON -DASTCENC_ISA_SVE_256=ON -DASTCENC_PACKAGE=arm64 ${CMAKE_FLAGS}"
         # Need to setup clang on linux
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-linux)
+        CMAKE_FLAGS="-DASTCENC_ISA_AVX2=ON -DASTCENC_ISA_SSE41=ON -DASTCENC_ISA_SSE2=ON -DASTCENC_ISA_NATIVE=OFF -DASTCENC_PACKAGE=x64 ${CMAKE_FLAGS}"
         # Need to setup clang on linux
         cmi_setup_cc $PLATFORM
         ;;
@@ -101,7 +102,7 @@ case $PLATFORM in
         LIB_NAME=libastcenc-neon-static.a
         ;;
     x86_64-linux)
-        LIB_NAME=libastcenc-native-static.a
+        LIB_NAME=libastcenc-avx2-static.a
         ;;
     x86_64-win32)
         LIB_NAME=$CONFIG/astcenc-native-static.lib
