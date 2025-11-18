@@ -29,8 +29,12 @@ jobs:
         run: ci/ci.sh install --platform=${{ matrix.platform }}
       - name: Build ASTC
         run: |
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
+          PLATFORM=${{ matrix.platform }}
+          ./scripts/build.py shell <<EOF
+set -euo pipefail
+cd share/ext
+./build.sh astcenc ${PLATFORM}
+EOF
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
@@ -60,8 +64,12 @@ jobs:
         run: ci/ci.sh install --platform=${{ matrix.platform }}
       - name: Build ASTC
         run: |
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
+          PLATFORM=${{ matrix.platform }}
+          ./scripts/build.py shell <<EOF
+set -euo pipefail
+cd share/ext
+./build.sh astcenc ${PLATFORM}
+EOF
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
@@ -91,8 +99,12 @@ jobs:
         run: ci/ci.sh install --platform=${{ matrix.platform }}
       - name: Build ASTC
         run: |
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
+          PLATFORM=${{ matrix.platform }}
+          ./scripts/build.py shell <<EOF
+set -euo pipefail
+cd share/ext
+./build.sh astcenc ${PLATFORM}
+EOF
       - name: Check artifact
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
@@ -123,8 +135,12 @@ jobs:
         shell: bash
       - name: Build ASTC
         run: |
-          cd share/ext
-          ./build.sh astcenc ${{ matrix.platform }}
+          PLATFORM=${{ matrix.platform }}
+          ./scripts/build.py shell <<EOF
+set -euo pipefail
+cd share/ext
+./build.sh astcenc ${PLATFORM}
+EOF
         shell: bash
       - name: Check artifact
         run: |
