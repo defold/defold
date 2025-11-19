@@ -18,7 +18,7 @@
     }
 
     .table-cell {
-        -fx-padding: 5px 5px 5px 8px;
+        -fx-padding: 0px 5px;
         -fx-border-color: transparent;
         -fx-alignment: center-left;
     }
@@ -33,9 +33,7 @@
     }
 
     .icon-button {
-        -fx-padding: 2;
         -fx-min-width: 0;
-        -fx-pref-width: 30;
         -fx-background-color: derive(-df-component-dark, -10%);
         -fx-alignment: center;
 
@@ -61,12 +59,13 @@
 
 #breakpoints-tool-bar {
     -fx-background-color: -df-background-light;
-    -fx-padding: 16px;
+    -fx-padding: 0px 16px;
     -fx-spacing: 8px;
 }
 
 #breakpoints-enable-all,
 #breakpoints-disable-all,
-#breakpoints-toggle-all {
+#breakpoints-toggle-all,
+#breakpoints-remove-all {
     @extend .console-button-base;
 }

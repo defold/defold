@@ -17,6 +17,8 @@
             [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
@@ -43,8 +45,8 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
-            [editor.lsp :as lsp]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
@@ -3903,41 +3905,49 @@
             :children
             [{:fx/type fx.region/lifecycle
               :style-class "breakpoint-editor-background"}
-             {:fx/type fx.v-box/lifecycle
+             {:fx/type fx.grid-pane/lifecycle
               :style-class "breakpoint-editor-content"
-              :spacing padding
+              :column-constraints [{:fx/type fx.column-constraints/lifecycle :percent-width 20}
+                                   {:fx/type fx.column-constraints/lifecycle :percent-width 80 :fill-width true}]
               :children
               [{:fx/type fx.label/lifecycle
                 :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
-                :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
+                :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))
+                :grid-pane/column 0
+                :grid-pane/row 0
+                :grid-pane/column-span 2}
+               {:fx/type fx.label/lifecycle
+                :style-class ["label" "breakpoint-editor-label"]
+                :text "Enabled"
+                :grid-pane/column 0
+                :grid-pane/row 1}
                {:fx/type fx.check-box/lifecycle
-                  :style-class ["check-box" "breakpoint-editor-checkbox"]
-                  :text "Enabled"
-                  :selected (get edited-breakpoint :enabled true)
-                  :on-selected-changed {:event :toggle-enabled}}
-               {:fx/type fx.h-box/lifecycle
-                :spacing spacing
-                :alignment :baseline-left
-                :children
-                [{:fx/type fx.label/lifecycle
-                  :style-class ["label" "breakpoint-editor-label"]
-                  :text "Condition"}
-                 {:fx/type fxui/ext-focused-by-default
-                  :h-box/hgrow :always
-                  :desc {:fx/type fx.text-field/lifecycle
-                         :style-class ["text-field" "breakpoint-editor-label"]
-                         :prompt-text "e.g. i == 1"
-                         :text (:condition edited-breakpoint "")
-                         :on-text-changed {:event :edit}
-                         :on-action {:event :apply}}}]}
-               {:fx/type fx.h-box/lifecycle
-                :spacing spacing
-                :alignment :center-right
-                :children
-                [{:fx/type fx.button/lifecycle
-                  :style-class ["button" "breakpoint-editor-button"]
-                  :text "OK"
-                  :on-action {:event :apply}}]}]}]}]}]}]}}))
+                :style-class ["check-box" "breakpoint-editor-checkbox"]
+                :selected (get edited-breakpoint :enabled true)
+                :on-selected-changed {:event :toggle-enabled}
+                :grid-pane/column 1
+                :grid-pane/row 1}
+               {:fx/type fx.label/lifecycle
+                :style-class ["label" "breakpoint-editor-label"]
+                :text "Condition"
+                :grid-pane/column 0
+                :grid-pane/row 2}
+               {:fx/type fxui/ext-focused-by-default
+                :grid-pane/column 1
+                :grid-pane/row 2
+                :desc {:fx/type fx.text-field/lifecycle
+                       :style-class ["text-field" "breakpoint-editor-label"]
+                       :prompt-text "e.g. i == 1"
+                       :text (:condition edited-breakpoint "")
+                       :on-text-changed {:event :edit}
+                       :on-action {:event :apply}}}
+               {:fx/type fx.button/lifecycle
+                :style-class ["button" "breakpoint-editor-button"]
+                :text "OK"
+                :on-action {:event :apply}
+                :grid-pane/column 1
+                :grid-pane/row 3
+                :grid-pane/halignment :right}]}]}]}]}]}}))
 
 (defn- create-breakpoint-editor! [view-node canvas ^Tab tab]
   (let [state (atom nil)

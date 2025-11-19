@@ -51,6 +51,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private toolbar-height 57)
+
 (defonce state (atom {:breakpoints []
                       :selected-indices []
                       :hovered-condition nil
@@ -79,10 +81,8 @@
   {:fx/type fx.button/lifecycle
    :style-class ["icon-button"]
    :graphic {:fx/type fx.stack-pane/lifecycle
-             :min-width 12
-             :min-height 12
-             :max-width 12
-             :max-height 12
+             :min-width 20
+             :min-height 20
              :alignment :center
              :children [{:fx/type fx.svg-path/lifecycle
                          :content icon-path
@@ -137,13 +137,17 @@
                                    :on-text-changed {:event-type :condition-text-changed}
                                    :on-action {:event-type :save-condition}
                                    :on-key-pressed {:event-type :condition-key-pressed}}}}}
-          {:graphic {:fx/type fx.stack-pane/lifecycle
+          {:graphic {:fx/type fx.h-box/lifecycle
+                     :alignment :center-left
+                     :fill-height true
                      :children [{:fx/type :label
+                                 :h-box/hgrow :always
                                  :max-width ##Inf
                                  :text-overrun :ellipsis
                                  :text (or condition "")}
                                 {:fx/type fx.h-box/lifecycle
                                  :alignment :center-right
+                                 :spacing 3
                                  :children (concat
                                             (when (and hovered? condition)
                                               [(icon-button close-icon {:event-type :remove-condition
@@ -168,6 +172,8 @@
                        :anchor-pane/top 0
                        :anchor-pane/left 0
                        :anchor-pane/right 0
+                       :pref-height toolbar-height
+                       :alignment :center-left
                        :spacing 10
                        :children [{:fx/type fx.button/lifecycle
                                    :id "breakpoints-enable-all"
@@ -186,7 +192,7 @@
                                    :text (localization-state (localization/message "breakpoints.button.remove-all"))
                                    :on-action {:event-type :remove-all}}]}
                       {:fx/type fx.ext.table-view/with-selection-props
-                       :anchor-pane/top 57
+                       :anchor-pane/top toolbar-height
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
                        :anchor-pane/left 0
@@ -195,7 +201,7 @@
                        :desc
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
-                        :fixed-cell-size 35.0
+                        :fixed-cell-size 40.0
                         :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
                         :row-factory {:fx/cell-type fx.table-row/lifecycle
                                       :describe
