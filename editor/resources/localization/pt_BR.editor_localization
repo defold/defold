@@ -491,20 +491,7 @@ console.filter.enable-filtering = Ativar filtro
 console.filter.add-filter = Adicionar filtro (ex\: texto, \!excluir)
 console.search = Buscar
 
-# Breakpoints Tab
-
-breakpoints.button.enable-all = Ativar Tudo
-breakpoints.button.disable-all = Desativar Tudo
-breakpoints.button.toggle-all = Alternar Tudo
-breakpoints.button.remove-all = Remover Tudo
-breakpoints.column.enabled = Ativado
-breakpoints.column.line = Linha
-breakpoints.column.name = Nome
-breakpoints.column.condition = Condição
-breakpoints.column.path = Caminho
-breakpoints.context-menu.edit-selected = Editar Selecionado
-breakpoints.context-menu.remove-selected = Remover Selecionado
-breakpoints.context-menu.toggle-selected-enabled = Alternar Selecionado
+# TODO Breakpoints Tab
 
 # Changes view
 
