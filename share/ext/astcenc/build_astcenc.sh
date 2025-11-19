@@ -67,10 +67,7 @@ CMAKE_FLAGS+=(-DASTCENC_CLI=OFF)
 CMAKE_FLAGS+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded)
 # The default Unix Makefile/Ninja generators build Debug unless build type is set explicitly.
 # Our macOS and Linux builds use single-config generators, so make sure we get an optimized lib.
-if [ "$PLATFORM" != "x86_64-win32" ]; then
-    CMAKE_FLAGS+=(-DCMAKE_BUILD_TYPE=${CONFIG})
-fi
-
+CMAKE_FLAGS+=(-DCMAKE_BUILD_TYPE=${CONFIG})
 BUILD_CMD=(cmake --build . --config $CONFIG -j 8)
 
 case $PLATFORM in
