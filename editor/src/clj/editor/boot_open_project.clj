@@ -241,6 +241,7 @@
       (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
+      (localization/localize! (find-tab tool-tabs "breakpoints-tab") localization (localization/message "pane.breakpoints"))
       (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
       (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
 

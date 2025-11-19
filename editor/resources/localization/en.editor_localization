@@ -572,6 +572,7 @@ pane.console = Console
 pane.curve-editor = Curve Editor
 pane.build-errors = Build Errors
 pane.search-results = Search Results
+pane.breakpoints = Breakpoints
 
 # Console
 
