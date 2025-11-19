@@ -23,13 +23,13 @@
             [editor.game-project-core :as gpcore]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
+            [editor.pipeline :as pipeline]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [util.murmur :as murmur])
-  (:import [org.apache.commons.io IOUtils]))
+            [util.defonce :as defonce]))
 
 (set! *warn-on-reflection* true)
 
@@ -70,14 +70,7 @@
         user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
-(defn- resource-content [resource]
-  (with-open [s (io/input-stream resource)]
-    (IOUtils/toByteArray s)))
-
-(defn- build-custom-resource [resource dep-resources user-data]
-  {:resource resource :content (resource-content (:resource resource))})
-
-(defrecord CustomResource [resource]
+(defonce/record CustomResource [resource]
   ;; Only purpose is to provide resource-type with :build-ext = :ext
   resource/Resource
   (children [this] (resource/children resource))
@@ -105,14 +98,6 @@
   (make-reader        [this opts] (io/reader resource))
   (make-output-stream [this opts] (io/output-stream resource))
   (make-writer        [this opts] (io/writer resource)))
-
-(defn- make-custom-build-target [node-id resource]
-  (bt/with-content-hash
-    {:node-id node-id
-     :resource (workspace/make-build-resource (CustomResource. resource))
-     :build-fn build-custom-resource
-     ;; NOTE! Break build cache when resource content changes.
-     :user-data {:hash (murmur/hash64-bytes (resource-content resource))}}))
 
 (defn- strip-trailing-slash [path]
   (string/replace path #"/*$" ""))
@@ -202,7 +187,7 @@
                                       (conj custom-resources (resource/proj-path ssl-certificates))
                                       custom-resources)]
                    (try
-                     (map (partial make-custom-build-target _node-id)
+                     (map #(pipeline/make-source-bytes-build-target _node-id (->CustomResource %))
                           (find-custom-resources resource-map custom-paths))
                      (catch Throwable error
                        (g/map->error
