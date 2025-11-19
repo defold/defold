@@ -650,6 +650,14 @@ namespace dmGameObject
      */
     void ComponentTypeSetUpdateFn(HComponentType type, ComponentsUpdate fn);
 
+    /*# set the component late update callback
+     * Set the component late update callback. Called after regular update of all component instances but before render.
+     * @name ComponentTypeSetLateUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsUpdate] callback
+     */
+    void ComponentTypeSetLateUpdateFn(HComponentType type, ComponentsUpdate fn);
+
     /*# set the component update callback
      * Set the component update callback. Called when it's time to update all component instances.
      * @name ComponentTypeSetFixedUpdateFn

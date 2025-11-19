@@ -357,6 +357,17 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompLabelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        DM_PROFILE("LateUpdate");
+        LabelContext* label_context = (LabelContext*)params.m_Context;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+
+        UpdateTransforms(world, label_context->m_Subpixels);
+
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     static void CreateDrawTextParams(LabelComponent* component, dmRender::DrawTextParams& params)
     {
         dmGameSystemDDF::LabelDesc* ddf = component->m_Resource->m_DDF;

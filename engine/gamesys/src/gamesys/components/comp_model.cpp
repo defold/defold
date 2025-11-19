@@ -2286,6 +2286,13 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompModelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        ModelWorld* world = (ModelWorld*)params.m_World;
+        UpdateTransforms(world);
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
         DM_PROFILE("Model");
@@ -2366,9 +2373,6 @@ namespace dmGameSystem
         ModelContext* context = (ModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = (ModelWorld*)params.m_World;
-
-        // This is currently called after the rig update
-        UpdateTransforms(world); // TODO: Why can't we move this to the CompModelUpdate()?
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
 

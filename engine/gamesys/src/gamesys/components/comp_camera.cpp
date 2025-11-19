@@ -241,7 +241,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompCameraLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         CameraWorld* camera_world = (CameraWorld*) params.m_World;
         DM_PROPERTY_ADD_U32(rmtp_Camera, camera_world->m_Cameras.Size());

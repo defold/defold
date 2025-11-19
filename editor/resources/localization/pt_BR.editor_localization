@@ -6,6 +6,7 @@
 # 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = Abrir do Disco…
@@ -78,7 +79,7 @@ welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuld
 # Welcome -> New Project -> From Sample
 welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
 welcome.new-project.linker-sample-game.description = Este é um jogo de exemplo completo onde você clica e arraste para ligar peixes da mesma cor para removê-los do tabuleiro. Grandes correntes de peixes geram bônus.
-welcome.new-project.roids-sample-game.title = 
+welcome.new-project.roids-sample-game.title = Jogo de Exemplo Roids
 welcome.new-project.roids-sample-game.description = Este é um jogo de exemplo completo onde você dirige um navio espacial e avance através de uma tempestade de meteoros.
 welcome.new-project.pixel-line-platformer.title = Plataforma Pixel em Linha
 welcome.new-project.pixel-line-platformer.description = Este é um jogo de plataforma completo com um estilo de arte de pixel moderno criado por Kenney.
@@ -471,6 +472,59 @@ dialog.open-resource.open-file-failed.detail = Isso pode acontecer se o tipo de 
 # Loading project dialog
 
 dialog.loading-project.header = Carregando projeto
+
+# Bundle dialog
+
+dialog.bundle.title = Empacotar Aplicação
+dialog.bundle.button.create = Criar Pacote…
+dialog.bundle.hint.select-output-folder = Continuar para seleção da pasta de saída.
+dialog.bundle.header.linux = Empacotar Aplicação Linux
+dialog.bundle.header.macos = Empacotar Aplicação macOS
+dialog.bundle.header.html5 = Empacotar Aplicação HTML5
+dialog.bundle.header.windows = Empacotar Aplicação Windows
+dialog.bundle.header.ios = Empacotar Aplicação iOS
+dialog.bundle.header.android = Empacotar Aplicação Android
+dialog.bundle.label.variant = Variante
+dialog.bundle.option.variant.debug = Depuração
+dialog.bundle.option.variant.release = Lançamento
+dialog.bundle.option.variant.headless = Headless
+dialog.bundle.label.platform = Plataforma
+dialog.bundle.option.platform.x86_64-linux = X64
+dialog.bundle.option.platform.arm64-linux = Arm64
+dialog.bundle.option.platform.x86_64-win32 = 64-bit
+dialog.bundle.option.platform.x86-win32 = 32-bit
+dialog.bundle.option.identity.none = Nenhum
+dialog.bundle.label.architectures = Arquiteturas
+dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
+dialog.bundle.option.architecture.x86_64-macos = x86_64
+dialog.bundle.option.architecture.arm64-macos = arm64
+dialog.bundle.option.architecture.js-web = asm.js
+dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
+dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
+dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
+dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.label.sign-application = Assinar Aplicação
+dialog.bundle.label.code-signing-identity = Identidade de Assinatura de Código
+dialog.bundle.label.provisioning-profile = Perfil de Provisão
+dialog.bundle.title.choose-provisioning-profile = Escolher Perfil de Provisão
+dialog.bundle.filter.provisioning-profile = Perfis de Provisão (*.mobileprovision)
+dialog.bundle.label.on-bundled = No Pacote
+dialog.bundle.option.on-bundled.install = Instalar no dispositivo conectado
+dialog.bundle.option.on-bundled.launch = Iniciar aplicação instalada
+dialog.bundle.label.android.keystore = Keystore
+dialog.bundle.label.android.keystore-pass = Senha da keystore
+dialog.bundle.label.android.key-pass = Senha da chave
+dialog.bundle.label.android.bundle-format = Empacotar formato
+dialog.bundle.option.bundle-format.apk = APK
+dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-keystore = Escolher Keystore
+dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
+dialog.bundle.title.choose-keystore-pass = Escolher senha da keystore
+dialog.bundle.filter.keystore-pass = Senha da keystore (*.txt)
+dialog.bundle.title.choose-key-pass = Escolher senha da Chave
+dialog.bundle.filter.key-pass = Senha chave (*.txt)
+dialog.bundle.hint.android.keystore = Defina keystore, ou deixe em branco para assinar com um certificado de depuração gerado automaticamente.
 
 # Editor panes
 
@@ -950,6 +1004,7 @@ property.appmanifest.graphics-osx = Gráficos (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan é o renderizador padrão para o macOS
 property.appmanifest.graphics-web = Gráficos (HTML5)
 property.appmanifest.graphics-web.tooltip = O suporte para WebGPU está em BETA (plataformas web)
+property.appmanifest.use-font-layout = Usar sistema de layout de texto completo
 
 # Properties: atlas
 
@@ -1240,6 +1295,197 @@ resource.view.text = Texto
 
 resource.readonly.detail = Este arquivo é parte de uma biblioteca e não pode ser salvo.
 resource.readonly.button.read-more = Ler mais…
+
+resource.type.animationset = Conjunto de Animações
+resource.type.atlas = Atlas
+resource.type.buffer = Buffer
+resource.type.c = C
+resource.type.camera = Câmera
+resource.type.collection = Coleção
+resource.type.collection.non-editable = Coleção Não Editável
+resource.type.collectionfactory = Fábrica de Coleções
+resource.type.collectionproxy = Proxy da Coleção
+resource.type.collisionobject = Objeto de Colisão
+resource.type.compute = Calcular
+resource.type.convexshape = Formato de Convex
+resource.type.cpp = C++
+resource.type.custom = Recurso Personalizado
+resource.type.editor-script = Script do Editor
+resource.type.factory = Fábrica
+resource.type.font = Fonte
+resource.type.fp = Programa de Fragmento
+resource.type.gamepads = Gamepads
+resource.type.glsl = Incluir Shader
+resource.type.go = Objeto de Jogo
+resource.type.h = Cabeçalho C/C++
+resource.type.html = HTML
+resource.type.image = Imagem
+resource.type.json = JSON
+resource.type.label = Rótulo
+resource.type.light = Luz
+resource.type.lua = Módulo Lua
+resource.type.markdown = Markdown
+resource.type.material = Material
+resource.type.mesh = Malha
+resource.type.model = Modelo
+resource.type.model-scene = Cena do Modelo
+resource.type.objective-c = Objective-C
+resource.type.project = Projeto
+resource.type.properties = Propriedades
+resource.type.script = Script
+resource.type.script-api = API de Script
+resource.type.sound = Som
+resource.type.tilemap = Tile Map
+resource.type.unknown = Desconhecido
+resource.type.zig = Zig
+resource.type.zon = Notação de Objeto Zig
+
+# Forms
+
+
+
+form.group.other = Outros
+
+form.label.project.bootstrap.main_collection = Coleção Principal
+
+form.label.project.project = Projeto
+form.help.project.project = Configurações gerais do projeto
+form.label.project.project.title = Título
+form.help.project.project.title = O título da aplicação
+form.label.project.project.version = Versão
+form.help.project.project.version = Versão da aplicação
+form.label.project.project.publisher = Editora
+form.label.project.project.developer = Desenvolvedor
+form.help.project.project.developer = Nome do desenvolvedor
+form.help.project.project.minimum_log_level = Apenas o nível mínimo de log e níveis superiores serão exibidos
+form.label.project.project.compress_archive = Compactar Arquivo
+form.help.project.project.compress_archive = Compactar arquivo (não para Android)
+form.label.project.project.dependencies = Dependências
+form.label.project.project.custom_resources = Recursos Personalizados
+form.label.project.project.bundle_resources = Empacotar Recursos
+
+form.label.project.android = Android
+form.help.project.android = Configurações do Android
+form.label.project.android.app_icon_36x36 = Ícone do Aplicativo 36x36
+form.label.project.android.app_icon_48x48 = Ícone do Aplicativo 48x48
+form.label.project.android.app_icon_72x72 = Ícone do Aplicativo 72x72
+form.label.project.android.app_icon_96x96 = Ícone do Aplicativo 96x96
+form.label.project.android.app_icon_144x144 = Ícone do Aplicativo 144x144
+form.label.project.android.app_icon_192x192 = Ícone do Aplicativo 192x192
+form.help.project.android.package = Identificador do pacote
+form.label.project.android.gcm_sender_id = ID de Remetente GCM
+form.help.project.android.gcm_sender_id = ID de Remetente de Mensagem de Nuvem Firebase
+form.label.project.android.input_method = Método de Entrada
+form.label.project.android.immersive_mode = Modo Imersivo
+
+form.label.project.html5 = HTML5
+form.help.project.html5 = Configurações do HTML5
+form.label.project.html5.splash_image = Imagem Splash
+form.label.project.html5.show_fullscreen_button = Mostrar Botão de Tela Cheia
+form.label.project.html5.show_console_banner = Mostrar Banner do Console
+form.label.project.html5.scale_mode = Modo de Escala
+form.label.project.html5.retry_count = Retentativas
+
+
+form.label.project.osx.bundle_identifier = Identificador do Pacote
+form.help.project.osx.bundle_identifier = Identificador de pacote (CFBundleIdentifier)
+form.label.project.osx.bundle_name = Nome do Pacote
+form.help.project.osx.bundle_name = Nome curto do pacote (CFBundleName). Limite de 15 caracteres
+form.label.project.osx.bundle_version = Versão do Pacote
+form.help.project.osx.bundle_version = Número da compilação (CFBundleVersion). Numérico ou x.y.z
+form.label.project.osx.default_language = Idioma Padrão
+form.help.project.osx.default_language = Idioma e região padrão (CFBundleDevelopmentRegion)
+
+form.label.project.windows = Windows
+form.help.project.windows = Configurações do Windows
+
+form.label.project.collection = Coleção
+form.help.project.collection = Configurações de coleção
+form.label.project.collection.max_instances = Máximo de instâncias
+form.help.project.collection.max_instances = Máximo de instâncias por coleção, 1024 por padrão
+
+
+
+form.label.project.factory = Fábrica
+form.label.project.factory.max_count = Contagem Máxima
+form.help.project.factory.max_count = Máximo de fábricas, 128 por padrão
+
+
+form.label.project.label.subpixels = Subpixels
+
+
+form.label.project.model = Modelo
+
+
+form.label.project.script = Script
+
+form.label.project.sound = Som
+
+
+
+
+form.label.project.display.width = Largura
+form.label.project.display.height = Altura
+
+
+form.label.project.font = Fonte
+
+
+
+form.label.project.network = Rede
+form.help.project.network = Configurações de Rede
+
+form.label.project.physics = Física
+form.help.project.physics = Configurações de física
+form.label.project.physics.type = Tipo
+form.label.project.physics.scale = Escala
+
+form.label.project.profiler = Perfilador
+
+
+
+form.label.project.shader = Shader
+form.help.project.shader = Configurações de Shader
+form.label.project.shader.output_spirv = Saída SPIR-V
+
+
+
+
+
+form.label.camera = Câmera
+
+
+
+
+
+form.label.input-binding.key-trigger.action = Ação
+form.label.input-binding.mouse-trigger.action = Ação
+form.label.input-binding.gamepad-trigger.action = Ação
+form.label.input-binding.text-trigger.action = Ação
+
+form.label.gamepads.driver.map.scale = Escala
+
+
+form.label.factory = Fábrica
+
+
+form.label.sound = Som
+form.label.sound.sound = Som
+
+
+form.label.material.vertex-constants.name = Nome
+form.label.material.vertex-constants.type = Tipo
+form.label.material.vertex-constants.value = Valor
+form.label.material.fragment-constants.name = Nome
+form.label.material.fragment-constants.type = Tipo
+form.label.material.fragment-constants.value = Valor
+form.label.material.samplers.name = Nome
+
+form.label.compute.constants = Constantes
+form.label.compute.constants.name = Nome
+form.label.compute.constants.type = Tipo
+form.label.compute.constants.value = Valor
+form.label.compute.samplers.name = Nome
 
 # Quick Help
 

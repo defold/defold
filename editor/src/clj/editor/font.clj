@@ -33,6 +33,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
             [editor.validation :as validation]
@@ -60,6 +61,7 @@
 
 (def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
+(def ^:private font-label (localization/message "resource.type.font"))
 
 (def ^:private alpha-slider-edit-type {:type :slider
                                        :min 0.0
@@ -539,7 +541,7 @@
   (let [base-path (resource/parent-proj-path (resource/proj-path font))]
     (fn [path]
       (let [proj-path (str base-path "/" path)]
-        (resource-map proj-path)))))
+        (get resource-map proj-path)))))
 
 (g/defnk produce-font-map [_node-id font type font-resource-map save-value]
   ;; TODO(save-value-cleanup): make-font-map expects all values to be present.
@@ -561,20 +563,15 @@
      :build-fn build-glyph-bank
      :user-data user-data}))
 
-(g/defnk produce-build-targets [_node-id resource font-map material dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font-map material dep-build-targets runtime-generation-build-target]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
       (let [workspace (resource/workspace resource)
-            glyph-bank-pb-fields (protobuf/field-key-set Font$GlyphBank)
-            glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
-            glyph-bank-build-target (make-glyph-bank-build-target workspace _node-id glyph-bank-user-data)
-            dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
             pb-map (protobuf/make-map-without-defaults Font$FontMap
                      :material material
-                     :glyph-bank (:resource glyph-bank-build-target)
                      :size (:size font-map)
                      :antialias (:antialias font-map)
                      :shadow-x (:shadow-x font-map)
@@ -593,10 +590,22 @@
                      :cache-height (:cache-height font-map)
                      :sdf-spread (:sdf-spread font-map)
                      :sdf-outline (:sdf-outline font-map)
-                     :sdf-shadow (:sdf-shadow font-map))]
-        [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets+glyph-bank)])))
+                     :sdf-shadow (:sdf-shadow font-map))
 
-(g/defnode FontSourceNode
+            [pb-map dep-build-targets]
+            (if (and runtime-generation-build-target
+                     (= :type-distance-field (:output-format font-map))) ; Currently, only distance field fonts can be runtime-generated.
+              [(assoc pb-map :font (:resource runtime-generation-build-target))
+               (conj dep-build-targets runtime-generation-build-target)]
+              (let [glyph-bank-pb-fields (protobuf/field-key-set Font$GlyphBank)
+                    glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
+                    glyph-bank-build-target (make-glyph-bank-build-target workspace _node-id glyph-bank-user-data)]
+                [(assoc pb-map :glyph-bank (:resource glyph-bank-build-target))
+                 (conj dep-build-targets glyph-bank-build-target)]))]
+
+        [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets)])))
+
+(g/defnode BitmapFontSourceNode
   (inherits resource-node/ResourceNode)
   (property texture resource/Resource ; Nil is valid default.
             (value (gu/passthrough texture-resource))
@@ -606,33 +615,47 @@
                                             [:size :texture-size]))))
   (input texture-resource resource/Resource)
   (input texture-size g/Any) ; we pipe in size to provoke errors, for instance if the texture node is defective / non-existant
-  (output font-resource-map g/Any (g/fnk [texture-resource texture-size]
-                                         (if texture-resource
-                                           {(resource/proj-path texture-resource) texture-resource}
-                                           {}))))
+  (output font-resource-map g/Any
+          (g/fnk [texture-resource texture-size]
+            (when texture-resource
+              {(resource/proj-path texture-resource) texture-resource}))))
 
 (defn- read-bm-font
   ^BMFont [^InputStream input-stream]
   (doto (BMFont.)
     (.parse input-stream)))
 
-(defn load-font-source [_project self resource]
-  (when (= (resource/type-ext resource) "fnt")
-    (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
-      (let [;; this weird dance stolen from Fontc.java
-            texture-file-name (-> bm-font
-                                  (.page)
-                                  (.get 0)
-                                  (FilenameUtils/normalize)
-                                  (Paths/get (into-array String []))
-                                  (.getFileName)
-                                  (.toString))
-            texture-resource (workspace/resolve-resource resource texture-file-name)]
-        (concat
-          (g/set-property self :texture texture-resource)
-          (when disk-sha256
-            (let [workspace (resource/workspace resource)]
-              (workspace/set-disk-sha256 workspace self disk-sha256))))))))
+(defn load-bitmap-font-source [_project self resource]
+  (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
+    (let [;; this weird dance stolen from Fontc.java
+          texture-file-name (-> bm-font
+                                (.page)
+                                (.get 0)
+                                (FilenameUtils/normalize)
+                                (Paths/get (into-array String []))
+                                (.getFileName)
+                                (.toString))
+          texture-resource (workspace/resolve-resource resource texture-file-name)]
+      (concat
+        (g/set-property self :texture texture-resource)
+        (when disk-sha256
+          (let [workspace (resource/workspace resource)]
+            (workspace/set-disk-sha256 workspace self disk-sha256)))))))
+
+(g/defnode TrueTypeFontSourceNode
+  (inherits resource-node/ResourceNode)
+  (input project-settings g/Any)
+  (output runtime-generation-build-target g/Any :cached
+          (g/fnk [_node-id project-settings resource]
+            (when (get project-settings ["font" "runtime_generation"])
+              (resource-io/with-error-translation resource _node-id :runtime-generation-build-target
+                (pipeline/make-source-bytes-build-target _node-id resource))))))
+
+(defn load-true-type-font-source [project self _resource]
+  (g/connect project :settings self :project-settings))
+
+(g/defnode OpenTypeFontSourceNode
+  (inherits resource-node/ResourceNode))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
@@ -682,7 +705,8 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :font-resource]
-                                            [:font-resource-map :font-resource-map])))
+                                            [:font-resource-map :font-resource-map]
+                                            [:runtime-generation-build-target :runtime-generation-build-target])))
             (dynamic error (g/fnk [_node-id font-resource]
                              (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource "Font")
                                  (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font"))))
@@ -788,6 +812,7 @@
             (dynamic label (properties/label-dynamic :font :all-chars))
             (dynamic tooltip (properties/tooltip-dynamic :font :all-chars)))
 
+  (input runtime-generation-build-target g/Any)
   (input dep-build-targets g/Any :array)
   (input font-resource resource/Resource)
   (input material-resource resource/Resource)
@@ -796,7 +821,6 @@
   (input font-resource-map g/Any)
 
   (output save-value g/Any :cached produce-save-value)
-  (output font-resource-hashes g/Any (g/fnk [font-resource-map] (map resource/resource->sha1-hex (vals font-resource-map))))
   (output build-targets g/Any :cached produce-build-targets)
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
@@ -882,7 +906,7 @@
     (resource-node/register-ddf-resource-type workspace
       :textual? true
       :ext "font"
-      :label (localization/message "resource.type.font")
+      :label font-label
       :node-type FontNode
       :ddf-type Font$FontDesc
       :load-fn load-font
@@ -893,10 +917,25 @@
     (workspace/register-resource-type workspace
       :ext "glyph_bank")
     (workspace/register-resource-type workspace
-      :ext font-file-extensions
-      :label (localization/message "resource.type.font")
-      :node-type FontSourceNode
-      :load-fn load-font-source
+      :ext "fnt"
+      :label font-label
+      :node-type BitmapFontSourceNode
+      :load-fn load-bitmap-font-source
+      :icon font-icon
+      :view-types [:default])
+    (workspace/register-resource-type workspace
+      :ext "ttf"
+      :build-ext "ttf"
+      :label font-label
+      :node-type TrueTypeFontSourceNode
+      :load-fn load-true-type-font-source
+      :stateless? true
+      :icon font-icon
+      :view-types [:default])
+    (workspace/register-resource-type workspace
+      :ext "otf"
+      :label font-label
+      :node-type OpenTypeFontSourceNode
       :icon font-icon
       :view-types [:default])))
 

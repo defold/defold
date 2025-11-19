@@ -35,6 +35,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptPreUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
     UpdateResult CompScriptFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
+    UpdateResult CompScriptLateUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params);
 

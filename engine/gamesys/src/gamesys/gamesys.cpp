@@ -190,7 +190,7 @@ namespace dmGameSystem
 
 #define REGISTER_COMPONENT_TYPE(extension, prio, context, new_world_func, delete_world_func, \
                                 create_func, destroy_func, init_func, final_func, add_to_update_func, get_func, \
-                                update_func, fixed_update_func, render_func, post_update_func, on_message_func, on_input_func, \
+                                update_func, late_update_func, fixed_update_func, render_func, post_update_func, on_message_func, on_input_func, \
                                 on_reload_func, get_property_func, set_property_func, \
                                 iter_child_func, iter_property_func, \
                                 set_reads_transforms)\
@@ -214,6 +214,7 @@ namespace dmGameSystem
     component_type.m_GetFunction = get_func;\
     component_type.m_RenderFunction = render_func;\
     component_type.m_UpdateFunction = update_func;\
+    component_type.m_LateUpdateFunction = late_update_func;\
     component_type.m_FixedUpdateFunction = fixed_update_func;\
     component_type.m_PostUpdateFunction = post_update_func;\
     component_type.m_OnMessageFunction = on_message_func;\
@@ -238,7 +239,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("collectionproxyc", 100, collection_proxy_context,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
                 &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, &CompCollectionProxyFinal, &CompCollectionProxyAddToUpdate, 0,
-                &CompCollectionProxyUpdate, 0, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput,
+                &CompCollectionProxyUpdate, 0, 0, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput,
                 0, 0, 0,
                 &CompCollectionProxyIterChildren, 0,
                 0);
@@ -252,7 +253,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, CompCollisionObjectGetComponent,
-                &CompCollisionObjectUpdate, CompCollisionObjectFixedUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
+                &CompCollisionObjectUpdate, 0, CompCollisionObjectFixedUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
                 &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
                 0, CompCollisionIterProperties,
                 1);
@@ -260,7 +261,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate, CompCameraGetComponent,
-                &CompCameraUpdate, 0, 0, 0, &CompCameraOnMessage, 0,
+                0, &CompCameraLateUpdate, 0, 0, 0, &CompCameraOnMessage, 0,
                 &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
                 1);
@@ -268,7 +269,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("modelc", 700, model_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate, CompModelGetComponent,
-                CompModelUpdate, 0, CompModelRender, 0, CompModelOnMessage, 0,
+                CompModelUpdate, CompModelLateUpdate, 0, CompModelRender, 0, CompModelOnMessage, 0,
                 0, CompModelGetProperty, CompModelSetProperty,
                 0, CompModelIterProperties,
                 0);
@@ -278,7 +279,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
                 &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
                 &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, CompParticleFXGetComponent,
-                &CompParticleFXUpdate, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
+                &CompParticleFXUpdate, 0, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
                 &CompParticleFXOnReload, 0, 0,
                 0, 0,
                 1);
@@ -286,7 +287,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
                 CompFactoryCreate, CompFactoryDestroy, 0, 0, CompFactoryAddToUpdate, CompFactoryGetComponent,
-                CompFactoryUpdate, 0, 0, 0, CompFactoryOnMessage, 0,
+                CompFactoryUpdate, 0, 0, 0, 0, CompFactoryOnMessage, 0,
                 0, CompFactoryGetProperty, 0,
                 0, 0,
                 0);
@@ -294,7 +295,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("collectionfactoryc", 950, collectionfactory_context,
                 CompCollectionFactoryNewWorld, CompCollectionFactoryDeleteWorld,
                 CompCollectionFactoryCreate, CompCollectionFactoryDestroy, 0, 0, CompCollectionFactoryAddToUpdate, 0,
-                CompCollectionFactoryUpdate, 0, 0, 0, 0, 0,
+                CompCollectionFactoryUpdate, 0, 0, 0, 0, 0, 0,
                 0, CompCollectionFactoryGetProperty, 0,
                 0, 0,
                 0);
@@ -302,7 +303,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,
                 CompLightCreate, CompLightDestroy, 0, 0, CompLightAddToUpdate, CompLightGetComponent,
-                CompLightUpdate, 0, 0, 0, CompLightOnMessage, 0,
+                0, CompLightLateUpdate, 0, 0, 0, CompLightOnMessage, 0,
                 0, 0, 0,
                 0, 0,
                 1);
@@ -310,7 +311,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate, CompSpriteGetComponent,
-                CompSpriteUpdate, 0, CompSpriteRender, 0, CompSpriteOnMessage, 0,
+                CompSpriteUpdate, CompSpriteLateUpdate, 0, CompSpriteRender, 0, CompSpriteOnMessage, 0,
                 CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
                 0, CompSpriteIterProperties,
                 1);
@@ -318,7 +319,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, tilemap_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, CompTileGridGetComponent,
-                CompTileGridUpdate, 0, CompTileGridRender, 0, CompTileGridOnMessage, 0,
+                0, CompTileGridLateUpdate, 0, CompTileGridRender, 0, CompTileGridOnMessage, 0,
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
                 0, CompTileGridIterProperties,
                 1);
@@ -326,7 +327,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate, CompLabelGetComponent,
-                CompLabelUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, 0,
+                CompLabelUpdate, CompLabelLateUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, 0,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
                 0, CompLabelIterProperties,
                 1);

@@ -1896,19 +1896,12 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_OK;
         }
 
-        bool sub_pixels = sprite_context->m_Subpixels;
-
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* component = &components[i];
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
             Animate(component, params.m_UpdateContext->m_DT);
-            UpdateTransform(component, sub_pixels);
-            // we need to consider the full scale here
-            // I.e. we want the length of the diagonal C, where C = X + Y
-            float radius_sq = dmVMath::LengthSqr((component->m_World.getCol(0).getXYZ() + component->m_World.getCol(1).getXYZ()) * 0.5f);
-            world->m_BoundingVolumes[i] = radius_sq;
 
             HComponentRenderConstants constants = GetRenderConstants(component);
             if (component->m_ReHash || (constants && dmGameSystem::AreRenderConstantsUpdated(constants)))
@@ -1943,6 +1936,34 @@ namespace dmGameSystem
 
         world->m_DispatchCount = 0;
 
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmGameObject::UpdateResult CompSpriteLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        dmArray<SpriteComponent>& components = world->m_Components.GetRawObjects();
+        uint32_t n = components.Size();
+
+        if (n == 0)
+        {
+            return dmGameObject::UPDATE_RESULT_OK;
+        }
+
+        bool sub_pixels = sprite_context->m_Subpixels;
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            SpriteComponent* component = &components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate)
+                continue;
+            UpdateTransform(component, sub_pixels);
+            // we need to consider the full scale here
+            // I.e. we want the length of the diagonal C, where C = X + Y
+            float radius_sq = dmVMath::LengthSqr((component->m_World.getCol(0).getXYZ() + component->m_World.getCol(1).getXYZ()) * 0.5f);
+            world->m_BoundingVolumes[i] = radius_sq;
+        }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

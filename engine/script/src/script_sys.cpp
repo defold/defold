@@ -110,11 +110,11 @@ union SaveLoadBuffer
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
      * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
+     * This function will raise a Lua error if an error occurs while saving the table.
      *
      * @name sys.save
      * @param filename [type:string] file to write to
      * @param table [type:table] lua table to save
-     * @return success [type:boolean] a boolean indicating if the table could be saved or not
      * @examples
      *
      * Save data:
@@ -123,9 +123,7 @@ union SaveLoadBuffer
      * local my_table = {}
      * table.insert(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * if not sys.save(my_file_path, my_table) then
-     *   -- Alert user that the data could not be saved
-     * end
+     * sys.save(my_file_path, my_table)
      * ```
      */
 
@@ -224,6 +222,7 @@ union SaveLoadBuffer
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
+     * This function will raise a Lua error if an error occurs while loading the file.
      *
      * @name sys.load
      * @param filename [type:string] file to read from
@@ -333,6 +332,7 @@ union SaveLoadBuffer
 
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
+     * This function will raise a Lua error if unable to get the save file path.
      *
      * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
      *
@@ -395,6 +395,7 @@ union SaveLoadBuffer
 
     /*# gets the application path
      * The path from which the application is run.
+     * This function will raise a Lua error if unable to get the application support path.
      *
      * @name sys.get_application_path
      * @return path [type:string] path to application executable
@@ -1384,7 +1385,8 @@ union SaveLoadBuffer
 
     /*# serializes a lua table to a buffer and returns it
      * The buffer can later deserialized by <code>sys.deserialize</code>.
-     * This method has all the same limitations as <code>sys.save</code>.
+     * This function has all the same limitations as <code>sys.save</code>.
+     * This function will raise a Lua error if an error occurs while serializing the table.
      *
      * @name sys.serialize
      * @param table [type:table] lua table to serialize
@@ -1420,6 +1422,7 @@ union SaveLoadBuffer
     }
 
     /*# deserializes buffer into a lua table
+     * This function will raise a Lua error if an error occurs while deserializing the buffer.
      *
      * @name sys.deserialize
      * @param buffer [type:string] buffer to deserialize from
