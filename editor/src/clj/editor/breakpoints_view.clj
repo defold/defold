@@ -104,8 +104,8 @@
                                        :breakpoint breakpoint}}}
 
       ::colum-line {:text (str (inc (:row breakpoint)))}
-      ::column-name {:text (get-in breakpoint [:resource :name])}
-      ::column-path {:text (get-in breakpoint [:resource :project-path])}
+      ::column-name {:text (:name (:resource breakpoint))}
+      ::column-path {:text (:project-path (:resource breakpoint))}
 
       ::column-actions
       (let [hovered? (= (:hovered-row state) breakpoint)]
@@ -370,7 +370,7 @@
     (swap! state assoc :selected-indices (:fx/event event))
 
     :condition-focus-changed
-    (when (not (get-in event [:fx/event :value]))
+    (when (not (:value (:fx/event event)))
       (swap! state assoc :edited-breakpoint nil))
 
     :breakpoint-clicked
@@ -409,7 +409,7 @@
 
     :save-condition
     (g/with-auto-evaluation-context evaluation-context
-      (let [condition (or @condition-text (get-in @state [:edited-breakpoint :condition]))]
+      (let [condition (or @condition-text (:condition (:edited-breakpoint @state)))]
         (set-breakpoint-condition! project (:breakpoints @state) (:edited-breakpoint @state) condition evaluation-context)
         (swap! state assoc :edited-breakpoint nil)
         (reset! condition-text nil)))

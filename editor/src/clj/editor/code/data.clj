@@ -2530,7 +2530,7 @@
 
 (defn get-breakpoint-region [lines regions ^long row]
   (some #(when (and (= (:type %) :breakpoint)
-                    (= (get-in % [:from :row]) row))
+                    (= (:row (:from %)) row))
            %)
         regions))
 
