@@ -177,7 +177,7 @@ case $PLATFORM in
         LIB_NAME=libastcenc-neon-static.a
         ;;
     x86_64-linux)
-        LIB_NAME=libastcenc-avx2-static.a
+        LIB_NAME=libastcenc-sse4.1-static.a
         ;;
     x86_64-win32)
         LIB_NAME=astcenc-sse4.1-static.lib
