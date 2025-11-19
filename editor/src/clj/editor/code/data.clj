@@ -17,10 +17,10 @@
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]:as coll])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
-           [java.util Collections]
+           [java.util Collections Comparator]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -2528,11 +2528,17 @@
       :type :breakpoint
       :enabled true)))
 
-(defn get-breakpoint-region [lines regions ^long row]
-  (some #(when (and (= (:type %) :breakpoint)
-                    (= (:row (:from %)) row))
-           %)
-        regions))
+(def ^:private row-region-comparator
+  (reify Comparator
+    (compare [_ region row]
+      (Long/compare row (:row (:from region))))))
+
+(defn get-breakpoint-region [regions ^long row]
+  (let [bp-regions (filterv #(= (:type %) :breakpoint) regions)
+        search-result (Collections/binarySearch bp-regions row row-region-comparator)]
+    (when-not (neg? search-result)
+      (let [region (nth bp-regions search-result)]
+        region))))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))

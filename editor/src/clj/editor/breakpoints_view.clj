@@ -208,9 +208,9 @@
                                       (fn [idx]
                                         (let [bp (get (:breakpoints state) idx)]
                                           {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
-                                          :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
-                                          :on-mouse-clicked {:event-type :breakpoint-clicked
-                                                             :clicked-breakpoint bp}}))}
+                                           :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
+                                           :on-mouse-clicked {:event-type :breakpoint-clicked
+                                                              :clicked-breakpoint bp}}))}
                         :items (range (count (:breakpoints state)))
                         :columns
                         [{:fx/type fx.table-column/lifecycle
