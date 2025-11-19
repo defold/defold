@@ -593,9 +593,9 @@ breakpoints.column.line = Line
 breakpoints.column.name = Name
 breakpoints.column.condition = Condition
 breakpoints.column.path = Path
-breakpoints.context-menu.edit-selected = Edit Selected
-breakpoints.context-menu.remove-selected = Remove Selected
-breakpoints.context-menu.toggle-selected-enabled = Toggle Selected
+breakpoints.context-menu.edit-selected = Edit Condition
+breakpoints.context-menu.remove-selected = Remove Selected Breakpoint
+breakpoints.context-menu.toggle-selected-enabled = Toggle Selected Breakpoint
 
 # Changes view
 

@@ -20,7 +20,7 @@
             [util.coll :refer [pair]:as coll])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
-           [java.util Collections Comparator]
+           [java.util Collections]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -2528,17 +2528,11 @@
       :type :breakpoint
       :enabled true)))
 
-(def ^:private row-region-comparator
-  (reify Comparator
-    (compare [_ region row]
-      (Long/compare row (:row (:from region))))))
-
 (defn get-breakpoint-region [regions ^long row]
-  (let [bp-regions (filterv #(= (:type %) :breakpoint) regions)
-        search-result (Collections/binarySearch bp-regions row row-region-comparator)]
-    (when-not (neg? search-result)
-      (let [region (nth bp-regions search-result)]
-        region))))
+  (coll/some #(when (and (= (:type %) :breakpoint)
+                    (= (:row (:from %)) row))
+           %)
+        regions))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))

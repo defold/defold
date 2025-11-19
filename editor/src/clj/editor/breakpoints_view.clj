@@ -278,13 +278,6 @@
               bp))
           breakpoints)))
 
-(defn- update-breakpoint [breakpoints breakpoint f]
-  (mapv (fn [bp]
-          (if (= bp breakpoint)
-            (f bp)
-            bp))
-        breakpoints))
-
 (defn- toggle-breakpoints-enabled [breakpoints breakpoint-batch]
   (update-breakpoints breakpoints breakpoint-batch #(assoc % :enabled (not (:enabled %)))))
 
@@ -293,9 +286,6 @@
 
 (defn- update-breakpoints-enabled-state [breakpoints breakpoint-batch enabled]
   (update-breakpoints breakpoints breakpoint-batch #(assoc % :enabled enabled)))
-
-(defn- update-breakpoint-enabled-state [breakpoints breakpoint enabled]
-  (update-breakpoints breakpoints [breakpoint] enabled))
 
 (defn- update-breakpoint-condition [breakpoints breakpoint condition]
   (update-breakpoints breakpoints [breakpoint] #(if (not (string/blank? condition))
@@ -322,7 +312,7 @@
     (vec (sort (concat non-bp-regions bp-regions)))))
 
 (defn- get-breakpoints-in-script [breakpoints breakpoint]
-  (filter #(= (:resource %) (:resource breakpoint)) breakpoints))
+  (filterv #(= (:resource %) (:resource breakpoint)) breakpoints))
 
 (defn- set-breakpoint-condition! [project breakpoints breakpoint condition evaluation-context]
   (let [script-node (breakpoint->script-node project breakpoint evaluation-context)
