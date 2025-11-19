@@ -396,7 +396,9 @@
       nil)))
 
 (defn- collect-enabled-breakpoints [project]
-  (filter :enabled (g/node-value project :breakpoints)))
+  (into #{}
+        (filter :enabled)
+        (g/node-value project :breakpoints)))
 
 (defn- set-breakpoint!
   [debug-session {:keys [resource row condition] :as _breakpoint}]
@@ -428,7 +430,7 @@
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.
                     (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (let [breakpoints (set (collect-enabled-breakpoints project))]
+                      (let [breakpoints (collect-enabled-breakpoints project)]
                         (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
                         (vreset! state {:breakpoints breakpoints})))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
