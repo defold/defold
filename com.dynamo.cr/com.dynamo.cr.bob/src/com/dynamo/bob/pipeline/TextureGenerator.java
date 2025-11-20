@@ -203,11 +203,6 @@ public class TextureGenerator {
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_ETC2;
             }
-            case TEXTURE_FORMAT_RGBA_ASTC_4X4 -> {
-                if (componentCount < 4)
-                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
-                return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4;
-            }
             case TEXTURE_FORMAT_RGBA_BC3 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;

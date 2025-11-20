@@ -36,7 +36,7 @@
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.render :as render]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rulers :as rulers]
@@ -216,15 +216,24 @@
     (pass/prepare-gl pass gl glu)))
 
 (defn- render-nodes
-  [^GL2 gl render-args renderables count]
-  (when-let [render-fn (:render-fn (first renderables))]
+  [^GL2 gl render-args [first-renderable :as renderables] count]
+  (when-let [render-fn (:render-fn first-renderable)]
     (try
-      (let [shared-world-transform (or (:world-transform (first renderables)) geom/Identity4d) ; rulers apparently don't have world-transform
-            shared-render-args (merge render-args
-                                      (math/derive-render-transforms shared-world-transform
-                                                                     (:view render-args)
-                                                                     (:projection render-args)
-                                                                     (:texture render-args)))]
+      (let [shared-world-transform (:world-transform first-renderable math/identity-mat4) ; rulers apparently don't have world-transform
+            shared-world-rotation (:world-rotation first-renderable math/identity-quat)
+
+            shared-render-args
+            (-> render-args
+                (assoc
+                  :actual/world-rotation shared-world-rotation
+                  :world-rotation shared-world-rotation)
+                (coll/merge
+                  (math/derive-render-transforms
+                    shared-world-transform
+                    (:view render-args)
+                    (:projection render-args)
+                    (:texture render-args))))]
+
         (render-fn gl shared-render-args renderables count))
       (catch Exception e
         (log/error :message "skipping renderable"
@@ -311,15 +320,10 @@
                             :picking-color :select-batch-key
                             :picking-rect :select-batch-key})
 
-(defn- render-aabb [^GL2 gl render-args renderables rcount]
-  (render/render-aabb-outline gl render-args ::renderable-aabb renderables rcount))
-
 (defn- make-aabb-renderables [renderables]
-  (into []
-        (comp
-          (filter :aabb)
-          (map #(assoc % :render-fn render-aabb)))
-        renderables))
+  (coll/transfer renderables []
+    (keep :aabb)
+    (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
 (defn render! [^GLContext context render-mode renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
@@ -594,7 +598,7 @@
           [(get renderables-by-pass pass/selection)
            (get renderables-by-pass pass/opaque-selection)])))
 
-(defn- calculate-scene-aabb
+(defn calculate-scene-aabb
   ^AABB [^AABB union-aabb ^Matrix4d parent-world-transform scene]
   (let [local-transform ^Matrix4d (:transform scene)
         world-transform (if (nil? local-transform)
@@ -692,7 +696,7 @@
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
-(defn claim-child-scene [old-node-id new-node-id new-node-outline-key child-scene]
+(defn claim-child-scene [child-scene old-node-id new-node-id new-node-outline-key]
   (if (= old-node-id (:node-id child-scene))
     (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
     (assoc child-scene :picking-node-id new-node-id)))
@@ -704,10 +708,12 @@
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
   (let [old-node-id (:node-id scene)
-        children (:children scene)]
+        children (:children scene)
+        finalize-claim-fn (:finalize-claim-fn scene)]
     (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
-            children (assoc :children (mapv (partial map-scene (partial claim-child-scene old-node-id new-node-id new-node-outline-key))
-                                            children)))))
+            children (assoc :children (mapv (partial map-scene #(claim-child-scene % old-node-id new-node-id new-node-outline-key))
+                                            children))
+            finalize-claim-fn (finalize-claim-fn old-node-id new-node-id))))
 
 (defn- box-selection? [^Rect picking-rect]
   (or (> (.width picking-rect) selection/min-pick-size)
@@ -1358,18 +1364,19 @@
           tool-user-data (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
           play-mode (g/node-value view-id :play-mode evaluation-context)
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
+          has-active-updatables (not (coll/empty? active-updatables))
           updatable-states (g/node-value view-id :updatable-states evaluation-context)
-          new-updatable-states (if (seq active-updatables)
+          new-updatable-states (if has-active-updatables
                                  (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
                                  updatable-states)
           renderables (g/node-value view-id :all-renderables evaluation-context)
           last-renderables (ui/user-data image-view ::last-renderables)
           last-frame-version (ui/user-data image-view ::last-frame-version)
           frame-version (cond-> (or last-frame-version 0)
-                          (or (nil? last-renderables)
-                              (not (identical? last-renderables renderables))
-                              (and (= :playing play-mode) (seq active-updatables)))
-                          inc)]
+                                (or (nil? last-renderables)
+                                    (not (identical? last-renderables renderables))
+                                    (and has-active-updatables (= :playing play-mode)))
+                                inc)]
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
       (profiler/profile "input-dispatch" -1
@@ -1378,12 +1385,11 @@
             (dispatch-input input-handlers action tool-user-data))
           (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
             (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-      (when (seq active-updatables)
+      (when has-active-updatables
         (g/set-property! view-id :updatable-states new-updatable-states))
       (profiler/profile "render" -1
-        (gl/with-drawable-as-current drawable
-          (if (= last-frame-version frame-version)
-            (reset! async-copy-state-atom (scene-async/finish-image! @async-copy-state-atom gl))
+        (when (not= last-frame-version frame-version)
+          (gl/with-drawable-as-current drawable
             (let [viewport (g/node-value view-id :viewport evaluation-context)
                   pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
               (scene-cache/process-pending-deletions! gl)
@@ -1786,9 +1792,8 @@
     num))
 
 (defn non-zeroify-scale [scale]
-  (into (coll/empty-with-meta scale)
-        (map non-zeroify-component)
-        scale))
+  (coll/transform scale
+    (map non-zeroify-component)))
 
 (g/defnode SceneNode
   (property position types/Vec3 (default default-position)

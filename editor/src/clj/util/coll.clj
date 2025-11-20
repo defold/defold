@@ -14,20 +14,24 @@
 
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
-  (:import [clojure.core Eduction]
+  (:import [clojure.core Eduction Vec]
            [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
-           [java.util ArrayList]))
+           [java.util ArrayList Arrays List]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def empty-map {})
 (def empty-sorted-map (sorted-map))
+(def empty-set #{})
+(def empty-sorted-set (sorted-set))
 
 (defmacro transfer
   "Transfer the sequence supplied as the first argument into the destination
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
-  as the destination returns an eduction instead."
+  as the destination returns an eduction instead. See also: transform."
   ([from to]
    (case to
      :eduction `(->Eduction identity ~from)
@@ -45,6 +49,13 @@
      `(into ~to
             (comp ~xform ~@xforms)
             ~from))))
+
+(defn comparable-value?
+  "Returns true if the value is compatible with the default comparator used with
+  sorted maps and sets."
+  [value]
+  (or (nil? value)
+      (instance? Comparable value)))
 
 (defn key-set
   "Returns an unordered set with all keys from the supplied map."
@@ -224,6 +235,34 @@
 (defonce into-set (fnil into #{}))
 
 (defonce into-vector (fnil into []))
+
+(defn transform
+  "Transform the collection supplied as the first argument into a new collection
+  of the same type, using a transducer composed of the remaining arguments.
+  Preserves metadata. Returns coll unaltered if empty or if no transducers are
+  supplied. See also: transfer."
+  ([coll] coll)
+  ([coll xform]
+   (cond
+     (empty? coll)
+     coll
+
+     (record? coll)
+     (transduce xform
+                (fn
+                  ([coll] coll)
+                  ([coll [key value]] (assoc coll key value)))
+                coll
+                coll)
+
+     :else
+     (into (empty-with-meta coll)
+           xform
+           coll)))
+  ([coll xform & xforms]
+   (if (empty? coll)
+     coll
+     (transform coll (apply comp xform xforms)))))
 
 (defn update-vals
   "Like core.update-vals, but retains the type of the input map or record. Also
@@ -413,6 +452,40 @@
            (deep-merge a b)
            maps)))
 
+(defn partition-all-float-arrays
+  "Returns a lazy sequence of float arrays. Like core.partition-all, but creates
+  new float arrays for each partition. Returns a stateful transducer when no
+  collection is provided."
+  ([^long partition-length]
+   (fn [rf]
+     (let [in-progress (float-array partition-length)
+           in-progress-index (AtomicInteger.)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [finished-length (.getAndSet in-progress-index 0)
+                result (if (zero? finished-length)
+                         result
+                         (let [finished (Arrays/copyOf in-progress finished-length)]
+                           (unreduced (rf result finished))))]
+            (rf result)))
+         ([result input]
+          (let [written-index (.getAndIncrement in-progress-index)
+                finished-length (inc written-index)]
+            (aset-float in-progress written-index input)
+            (if (= partition-length finished-length)
+              (let [finished (Arrays/copyOf in-progress partition-length)]
+                (.set in-progress-index 0)
+                (rf result finished))
+              result)))))))
+  ([^long partition-length coll]
+   (partition-all-float-arrays partition-length partition-length coll))
+  ([^long partition-length ^long step coll]
+   (lazy-seq
+     (when-let [in-progress (seq coll)]
+       (let [finished (float-array (take partition-length in-progress))]
+         (cons finished (partition-all-float-arrays partition-length step (nthrest in-progress step))))))))
+
 (defn partition-all-primitives
   "Returns a lazy sequence of primitive vectors. Like core.partition-all, but
   creates a new vector of a single primitive-type for each partition. The
@@ -463,6 +536,18 @@
       init
       coll)
     (throw (IllegalArgumentException. "The partition-length must be positive."))))
+
+(definline index-of
+  "Returns the index of the first item in the supplied java.util.List that
+  equals the specified value. Returns -1 if there is no match."
+  [^List coll value]
+  `(List/.indexOf ~coll ~value))
+
+(definline last-index-of
+  "Returns the index of the last item in the supplied java.util.List that equals
+  the specified value. Returns -1 if there is no match."
+  [^List coll value]
+  `(List/.lastIndexOf ~coll ~value))
 
 (defn remove-index
   "Removes an item at the specified position in a vector"
@@ -673,9 +758,7 @@
   values."
   [nested-map]
   {:pre [(map? nested-map)]}
-  (into (empty nested-map)
-        xform-nested-map->path-map
-        nested-map))
+  (transform nested-map xform-nested-map->path-map))
 
 (defn path-map->nested-map
   "Takes a flat map of vector paths to values and returns a nested map to the
@@ -718,6 +801,54 @@
          (if (or (reduced? result) (not (branch? input)))
            result
            (reduce (preserving-reduced xf) result (children input))))))))
+
+(defn find-values
+  "Performs a recursive search in the supplied collection. Returns a sequence of
+  all values that match the specified predicate. If the predicate returns true
+  for a collection, it will be included in the result. Otherwise, its values
+  will be recursively traversed to find additional matches. For maps, the
+  predicate will be called on the value of each entry, and the key is ignored.
+  Returns a stateless transducer if no input collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn xf
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (cond
+          (pred input) (rf result input)
+          (nil? input) result
+          (map? input) (reduce (preserving-reduced xf) result (vals input))
+          (seqable? input) (reduce (preserving-reduced xf) result input)
+          :else result)))))
+  ([pred coll]
+   (sequence (find-values pred) coll)))
+
+(defn first-where
+  "Returns the first element in coll where pred returns true, or nil if there
+  was no matching element. If coll is a map, the elements are key-value pairs."
+  [pred coll]
+  (reduce
+    (fn [_ item]
+      (when (pred item)
+        (reduced item)))
+    nil
+    coll))
+
+(defn first-index-where
+  "Returns the index of the first element in coll where pred returns true,
+  or nil if there was no matching element. If coll is a map, the elements are
+  key-value pairs."
+  [pred coll]
+  (let [index (reduce
+                (fn [^long index item]
+                  (if (pred item)
+                    (reduced (reduced index))
+                    (inc index)))
+                0
+                coll)]
+    (when (reduced? index)
+      (unreduced index))))
 
 (defn some
   "Like clojure.core/some, but uses reduce instead of lazy sequences."
@@ -767,3 +898,48 @@
    (transduce identity str-rf coll))
   ([sep coll]
    (transduce (interpose (str sep)) str-rf coll)))
+
+(defn unanimous-value
+  "Iterates over all elements in the collection. If they are all equal, return
+  the last element, otherwise return not-found. Returns not-found if the
+  collection is empty. If no value is provided for not-found, use nil."
+  ([coll]
+   (unanimous-value coll nil))
+  ([coll not-found]
+   (let [consensus (reduce
+                     (fn [prev-value value]
+                       (if (or (= prev-value value)
+                               (= ::undefined prev-value))
+                         value
+                         (reduced not-found)))
+                     ::undefined
+                     coll)]
+     (if (= ::undefined consensus)
+       not-found
+       consensus))))
+
+(defonce ^:private primitive-types-by-array-manager-id
+  (into {}
+        (map (fn [primitive-type]
+               (let [^Vec primitive-vector (vector-of primitive-type)
+                     array-manager (.am primitive-vector)
+                     array-manager-id (System/identityHashCode array-manager)]
+                 (pair array-manager-id primitive-type))))
+        [:boolean :char :byte :short :int :long :float :double]))
+
+(defn primitive-vector-type
+  "Returns a keyword reflecting the primitive type stored in the specified
+  primitive vector, or nil if coll is not a primitive collection."
+  [^Vec coll]
+  (when (instance? Vec coll)
+    (let [array-manager-id (System/identityHashCode (.am coll))]
+      (primitive-types-by-array-manager-id array-manager-id))))
+
+(defn mapv>
+  "Like core.mapv, but takes the input sequence as the first argument and
+  supplies any arguments following the transform function to it after the item
+  argument. Useful with various core functions such as update."
+  ([coll f]
+   (mapv f coll))
+  ([coll f & args]
+   (mapv #(apply f % args) coll)))

@@ -17,19 +17,19 @@
             [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl.vertex2 :as vtx]
+            [editor.graphics.types :as graphics.types]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.types :as types]
+            [editor.types :as t]
             [editor.util :as eutil]
             [editor.validation :as validation]
             [internal.util :as iutil]
-            [potemkin.namespaces :as namespaces]
             [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.bob.pipeline GraphicsUtil]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType]
+  (:import [com.dynamo.graphics.proto Graphics$VertexAttribute]
            [com.google.protobuf ByteString]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]
@@ -38,39 +38,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
-
-(def ^:private scalar-zero (vector-of :double 0.0))
-(def ^:private scalar-one (vector-of :double 1.0))
-
-(def ^:private vec2-zero (vector-of :double 0.0 0.0))
-(def ^:private vec2-one (vector-of :double 1.0 1.0))
-
-(def ^:private vec3-zero (vector-of :double 0.0 0.0 0.0))
-(def ^:private vec3-one (vector-of :double 1.0 1.0 1.0))
-
-(def ^:private vec4-zero (vector-of :double 0.0 0.0 0.0 0.0))
-(def ^:private vec4-one (vector-of :double 1.0 1.0 1.0 1.0))
-(def ^:private vec4-xyz-zero-w-one (vector-of :double 0.0 0.0 0.0 1.0))
-
-(def ^:private mat2-identity
-  (vector-of :double
-    1.0 0.0
-    0.0 1.0))
-
-(def ^:private mat3-identity
-  (vector-of :double
-    1.0 0.0 0.0
-    0.0 1.0 0.0
-    0.0 0.0 1.0))
-
-(def ^:private mat4-identity
-  (vector-of :double
-    1.0 0.0 0.0 0.0
-    0.0 1.0 0.0 0.0
-    0.0 0.0 1.0 0.0
-    0.0 0.0 0.0 1.0))
-
 (def default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
 
 (def default-attribute-semantic-type (protobuf/default Graphics$VertexAttribute :semantic-type))
@@ -78,40 +45,6 @@
 (def default-attribute-vector-type (protobuf/default Graphics$VertexAttribute :vector-type))
 
 (def default-attribute-step-function (protobuf/default Graphics$VertexAttribute :step-function))
-
-(def ^:private attribute-data-type-infos
-  [{:data-type :type-byte
-    :value-keyword :long-values
-    :byte-size 1}
-   {:data-type :type-unsigned-byte
-    :value-keyword :long-values
-    :byte-size 1}
-   {:data-type :type-short
-    :value-keyword :long-values
-    :byte-size 2}
-   {:data-type :type-unsigned-short
-    :value-keyword :long-values
-    :byte-size 2}
-   {:data-type :type-int
-    :value-keyword :long-values
-    :byte-size 4}
-   {:data-type :type-unsigned-int
-    :value-keyword :long-values
-    :byte-size 4}
-   {:data-type :type-float
-    :value-keyword :double-values
-    :byte-size 4}])
-
-(def attribute-data-type?
-  (into #{}
-        (map :data-type)
-        attribute-data-type-infos))
-
-(def coordinate-space? (protobuf/valid-enum-values Graphics$CoordinateSpace))
-
-(def semantic-type? (protobuf/valid-enum-values Graphics$VertexAttribute$SemanticType))
-
-(def vector-type? (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
 
 (defn- disambiguating-vector-type? [vector-type]
   ;; Can this vector-type disambiguate between two vector-types guessed sorely
@@ -123,33 +56,21 @@
     :vector-type-mat2 true
     false))
 
-(def ^:private engine-provided-semantic-types
-  (into #{}
-        (keep (fn [^Graphics$VertexAttribute$SemanticType pb-semantic-type]
-                (when (GraphicsUtil/isEngineProvidedAttributeSemanticType pb-semantic-type)
-                  (protobuf/pb-enum->val pb-semantic-type))))
-        (protobuf/protocol-message-enums Graphics$VertexAttribute$SemanticType)))
-
 (defn engine-provided-attribute? [attribute]
   {:pre [(map? attribute)] ; Graphics$VertexAttribute in map format.
    :post [(boolean? %)]}
-  (contains? engine-provided-semantic-types (:semantic-type attribute default-attribute-semantic-type)))
+  (graphics.types/engine-provided-semantic-type? (:semantic-type attribute default-attribute-semantic-type)))
 
-(def ^:private attribute-data-type->attribute-value-keyword
-  (fn/make-case-fn (map (juxt :data-type :value-keyword)
-                        attribute-data-type-infos)))
+(defn- attribute-data-type->attribute-value-keyword [attribute-data-type]
+  (case attribute-data-type
+    (:type-byte :type-unsigned-byte :type-short :type-unsigned-short :type-int :type-unsigned-int) :long-values
+    (:type-float) :double-values))
 
 (defn attribute-value-keyword [attribute-data-type normalize]
-  {:pre [(attribute-data-type? attribute-data-type)]}
+  {:pre [(graphics.types/data-type? attribute-data-type)]}
   (if normalize
     :double-values
     (attribute-data-type->attribute-value-keyword attribute-data-type)))
-
-(def ^:private attribute-data-type->byte-size
-  (fn/make-case-fn (map (juxt :data-type :byte-size)
-                        attribute-data-type-infos)))
-
-(declare default-attribute-doubles)
 
 (defn attribute->doubles [attribute]
   (let [data-type (:data-type attribute default-attribute-data-type)
@@ -158,7 +79,7 @@
                         (:v (:double-values attribute))
                         (:v (:long-values attribute)))]
     (if (coll/empty? source-values)
-      (default-attribute-doubles
+      (graphics.types/default-attribute-doubles
         (:semantic-type attribute default-attribute-semantic-type)
         (:vector-type attribute default-attribute-vector-type))
       (into (vector-of :double)
@@ -228,7 +149,7 @@
   (into {}
         (map (fn [vertex-attribute]
                (let [attribute-name (:name vertex-attribute)
-                     attribute-key (attribute-name->key attribute-name)
+                     attribute-key (graphics.types/attribute-name-key attribute-name)
                      values (attribute->any-doubles vertex-attribute)
                      value-keyword (attribute->value-keyword vertex-attribute)
 
@@ -269,56 +190,15 @@
 (defn validate-doubles [double-values attribute node-id prop-kw]
   (validation/prop-error :fatal node-id prop-kw doubles-outside-attribute-range-error-message double-values attribute))
 
-(defn vector-type->component-count
-  ^long [attribute-vector-type]
-  (case attribute-vector-type
-    :vector-type-scalar 1
-    :vector-type-vec2 2
-    :vector-type-vec3 3
-    :vector-type-vec4 4
-    :vector-type-mat2 4
-    :vector-type-mat3 9
-    :vector-type-mat4 16))
-
-(defn- shader-uniform-type->vector-type [shader-uniform-type]
-  (case shader-uniform-type
-    :float :vector-type-scalar
-    :float-vec2 :vector-type-vec2
-    :float-vec3 :vector-type-vec3
-    :float-vec4 :vector-type-vec4
-    :float-mat2 :vector-type-mat2
-    :float-mat3 :vector-type-mat3
-    :float-mat4 :vector-type-mat4))
-
-(defn default-attribute-doubles [semantic-type vector-type]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color scalar-one
-                          scalar-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color vec2-one
-                        vec2-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color vec3-one
-                        vec3-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position vec4-xyz-zero-w-one
-                        :semantic-type-color vec4-one
-                        :semantic-type-tangent vec4-xyz-zero-w-one
-                        vec4-zero)
-    :vector-type-mat2 mat2-identity
-    :vector-type-mat3 mat3-identity
-    :vector-type-mat4 mat4-identity))
-
 (defn- semantic-type->w [semantic-type]
-  (nth (default-attribute-doubles semantic-type :vector-type-vec4) 3))
+  (nth (graphics.types/default-attribute-doubles semantic-type :vector-type-vec4) 3))
 
 (defn convert-double-values [double-values semantic-type old-vector-type new-vector-type]
-  {:pre [(semantic-type? semantic-type)
-         (or (nil? old-vector-type) (vector-type? old-vector-type))
-         (vector-type? new-vector-type)]}
+  {:pre [(graphics.types/semantic-type? semantic-type)
+         (or (nil? old-vector-type) (graphics.types/vector-type? old-vector-type))
+         (graphics.types/vector-type? new-vector-type)]}
   (if (coll/empty? double-values)
-    (default-attribute-doubles semantic-type new-vector-type)
+    (graphics.types/default-attribute-doubles semantic-type new-vector-type)
     (case (or old-vector-type
               (guess-old-vector-type (count double-values) new-vector-type))
 
@@ -493,40 +373,20 @@
                               i j k))
         :vector-type-mat4 double-values))))
 
-(defn- attribute-data-type->buffer-data-type [attribute-data-type]
-  (case attribute-data-type
-    :type-byte :byte
-    :type-unsigned-byte :ubyte
-    :type-short :short
-    :type-unsigned-short :ushort
-    :type-int :int
-    :type-unsigned-int :uint
-    :type-float :float))
-
-(defn- buffer-data-type->attribute-data-type [buffer-data-type]
-  (case buffer-data-type
-    :byte :type-byte
-    :ubyte :type-unsigned-byte
-    :short :type-short
-    :ushort :type-unsigned-short
-    :int :type-int
-    :uint :type-unsigned-int
-    :float :type-float))
-
-(defn attribute-values+data-type->byte-size [attribute-values attribute-data-type]
-  (* (count attribute-values) (int (attribute-data-type->byte-size attribute-data-type))))
+(defn- attribute-values+data-type->byte-size [attribute-values attribute-data-type]
+  (* (count attribute-values) (graphics.types/data-type-byte-size attribute-data-type)))
 
 (defn- make-attribute-bytes
   ^bytes [attribute-data-type normalize attribute-values]
   (let [attribute-value-byte-count (attribute-values+data-type->byte-size attribute-values attribute-data-type)
         attribute-bytes (byte-array attribute-value-byte-count)
         byte-buffer (vtx/wrap-buf attribute-bytes)
-        buffer-data-type (attribute-data-type->buffer-data-type attribute-data-type)]
+        buffer-data-type (graphics.types/data-type-buffer-data-type attribute-data-type)]
     (vtx/buf-push! byte-buffer buffer-data-type normalize attribute-values)
     attribute-bytes))
 
 (defn- default-attribute-bytes-raw [semantic-type attribute-data-type vector-type normalize]
-  (let [default-values (default-attribute-doubles semantic-type vector-type)]
+  (let [default-values (graphics.types/default-attribute-doubles semantic-type vector-type)]
     (make-attribute-bytes attribute-data-type normalize default-values)))
 
 (def default-attribute-bytes (memoize default-attribute-bytes-raw))
@@ -536,7 +396,7 @@
    (attribute->bytes+error-message attribute nil))
   ([{:keys [data-type vector-type normalize] :as attribute} override-values]
    {:pre [(map? attribute)
-          (attribute-data-type? data-type)
+          (graphics.types/data-type? data-type)
           (keyword? vector-type)
           (contains? attribute :values)
           (or (nil? override-values) (sequential? override-values))]}
@@ -561,27 +421,27 @@
         (assoc :name-hash (murmur/hash64 (:name attribute-info))
                :binary-values (ByteString/copyFrom attribute-bytes)))))
 
-(defn- attribute-info->vtx-attribute [{:keys [coordinate-space data-type name name-key normalize semantic-type vector-type] :as attribute-info}]
-  {:pre [(map? attribute-info)
-         (coordinate-space? coordinate-space)
-         (attribute-data-type? data-type)
-         (vector-type? vector-type)
-         (string? name)
-         (keyword? name-key)
-         (or (nil? normalize) (boolean? normalize))
-         (semantic-type? semantic-type)]}
-  {:name name
-   :name-key name-key
-   :semantic-type semantic-type
-   :coordinate-space coordinate-space
-   :vector-type vector-type
-   :type (attribute-data-type->buffer-data-type data-type)
-   :components (vector-type->component-count vector-type)
-   :normalize (true? normalize)})
+(defn combined-attribute-infos [shader-attribute-reflection-infos material-attribute-infos default-coordinate-space]
+  ;; Note: The order of the supplied shader-attribute-reflection-infos and
+  ;; material-attribute-infos will dictate the order in which the
+  ;; attribute-buffers will be assigned to attributes that share the same
+  ;; semantic-type.
+  (let [shader-attribute-reflection-infos-by-name-key
+        (coll/pair-map-by :name-key shader-attribute-reflection-infos)
 
-(defn make-vertex-description [attribute-infos]
-  (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
-    (vtx/make-vertex-description nil vtx-attributes)))
+        decorated-material-attribute-infos
+        (e/keep (fn [{:keys [name-key] :as material-attribute-info}]
+                  (when-some [shader-attribute-reflection-info (shader-attribute-reflection-infos-by-name-key name-key)]
+                    (graphics.types/attribute-info-with-reflection-info material-attribute-info shader-attribute-reflection-info)))
+                material-attribute-infos)]
+
+    (coll/transfer
+      [decorated-material-attribute-infos
+       shader-attribute-reflection-infos]
+      []
+      cat
+      (iutil/distinct-by :name-key)
+      (map #(graphics.types/assign-attribute-transform % default-coordinate-space)))))
 
 (defn coordinate-space-info
   "Returns a map of coordinate-space to sets of semantic-type that expect that
@@ -668,106 +528,6 @@
       (sanitize-attribute-value-field :double-values)
       (sanitize-attribute-value-field :long-values)))
 
-(def attribute-key->default-attribute-info
-  (fn/make-case-fn
-    (into {}
-          (map (fn [{:keys [data-type name normalize semantic-type vector-type] :as attribute}]
-                 (let [attribute-key (attribute-name->key name)
-                       values (default-attribute-doubles semantic-type vector-type)
-                       bytes (default-attribute-bytes semantic-type data-type vector-type normalize)
-                       attribute-info (assoc attribute
-                                        :name-key attribute-key
-                                        :values values
-                                        :bytes bytes)]
-                   [attribute-key attribute-info])))
-          [{:name "position"
-            :semantic-type :semantic-type-position
-            :coordinate-space :default ; Assigned default-coordinate-space parameter.
-            :data-type :type-float
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec4}
-           {:name "color"
-            :semantic-type :semantic-type-color
-            :coordinate-space :coordinate-space-local
-            :data-type :type-float
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec4}
-           {:name "texcoord0"
-            :semantic-type :semantic-type-texcoord
-            :coordinate-space :coordinate-space-local
-            :data-type :type-float
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec2}
-           {:name "page_index"
-            :semantic-type :semantic-type-page-index
-            :coordinate-space :coordinate-space-local
-            :data-type :type-float
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-scalar}
-           {:name "normal"
-            :semantic-type :semantic-type-normal
-            :coordinate-space :default ; Assigned default-coordinate-space parameter.
-            :data-type :type-float
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec3}
-           {:name "tangent"
-            :semantic-type :semantic-type-tangent
-            :coordinate-space :default ; Assigned default-coordinate-space parameter.
-            :data-type :type-float
-            :step-function :vertex-step-function-vertex
-            :vector-type :vector-type-vec4}
-           {:name "mtx_world"
-            :semantic-type :semantic-type-world-matrix
-            :coordinate-space :coordinate-space-world
-            :data-type :type-float
-            :step-function :vertex-step-function-instance
-            :vector-type :vector-type-mat4}
-           {:name "mtx_normal"
-            :semantic-type :semantic-type-normal-matrix
-            :coordinate-space :coordinate-space-world
-            :data-type :type-float
-            :step-function :vertex-step-function-instance
-            :vector-type :vector-type-mat4}])))
-
-(defn- compatible-vector-type [vector-type-value vector-type-container]
-  (let [vector-type-value-comp-count (vector-type->component-count vector-type-value)
-        vector-type-container-comp-count (vector-type->component-count vector-type-container)]
-    (if (<= vector-type-value-comp-count vector-type-container-comp-count)
-      vector-type-value
-      vector-type-container)))
-
-(defn shader-bound-attributes [shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys default-coordinate-space]
-  {:pre [(or (nil? shader-attribute-infos-by-name) (map? shader-attribute-infos-by-name))
-         (seqable? material-attribute-infos)
-         (coordinate-space? default-coordinate-space)]}
-  (let [shader-bound-attribute-info?
-        (comp boolean shader-attribute-infos-by-name :name)
-
-        declared-material-attribute-key?
-        (coll/transfer material-attribute-infos #{}
-          (map :name-key))
-
-        manufactured-attribute-infos
-        (coll/transfer manufactured-attribute-keys :eduction
-          (remove declared-material-attribute-key?)
-          (map attribute-key->default-attribute-info)
-          (map (fn [attribute-info]
-                 (cond-> attribute-info
-                         (= :default (:coordinate-space attribute-info))
-                         (assoc :coordinate-space default-coordinate-space)))))
-
-        ensure-compatible-vector-type
-        (fn ensure-correct-vector-type [attribute-info]
-          (let [shader-attribute-info (get shader-attribute-infos-by-name (:name attribute-info))
-                shader-attribute-vector-type (shader-uniform-type->vector-type (:type shader-attribute-info))]
-            (update attribute-info :vector-type compatible-vector-type shader-attribute-vector-type)))]
-
-    ;; TODO(instancing): This needs to separate the attribute-infos into per-vertex and per-instance attributes.
-    (coll/transfer [manufactured-attribute-infos material-attribute-infos] []
-      cat
-      (filter shader-bound-attribute-info?)
-      (map ensure-compatible-vector-type))))
-
 (defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
 
@@ -786,7 +546,7 @@
                   (let [{:keys [data-type name normalize semantic-type]} material-attribute-info
                         material-attribute-vector-type (:vector-type material-attribute-info)
                         override-attribute-vector-type (:vector-type override-info)
-                        _ (assert (vector-type? override-attribute-vector-type))
+                        _ (assert (graphics.types/vector-type? override-attribute-vector-type))
                         converted-values (convert-double-values override-values semantic-type override-attribute-vector-type material-attribute-vector-type)
                         [attribute-value-keyword stored-values] (doubles->storage converted-values data-type normalize)
                         explicit-vector-type (when (disambiguating-vector-type? material-attribute-vector-type)
@@ -806,7 +566,7 @@
                   (let [attribute-name (:name override-info)
                         attribute-value-keyword (:value-keyword override-info)
                         override-attribute-vector-type (:vector-type override-info)
-                        _ (assert (vector-type? override-attribute-vector-type))
+                        _ (assert (graphics.types/vector-type? override-attribute-vector-type))
                         explicit-vector-type (when (disambiguating-vector-type? override-attribute-vector-type)
                                                override-attribute-vector-type)]
                     (protobuf/make-map-without-defaults Graphics$VertexAttribute
@@ -836,20 +596,17 @@
                       (assoc attribute-info :bytes attribute-bytes))))))
         material-attribute-infos))
 
-(defn contains-semantic-type? [attributes semantic-type]
-  (true? (some #(= semantic-type (:semantic-type %)) attributes)))
-
 (defn- attribute-property-type [attribute]
   (case (:semantic-type attribute)
-    :semantic-type-color types/Color
+    :semantic-type-color t/Color
     (case (:vector-type attribute)
       :vector-type-scalar g/Num
-      :vector-type-vec2 types/Vec2
-      :vector-type-vec3 types/Vec3
-      :vector-type-vec4 types/Vec4
-      :vector-type-mat2 types/Mat2
-      :vector-type-mat3 types/Mat3
-      :vector-type-mat4 types/Mat4)))
+      :vector-type-vec2 t/Vec2
+      :vector-type-vec3 t/Vec3
+      :vector-type-vec4 t/Vec4
+      :vector-type-mat2 t/Mat2
+      :vector-type-mat3 t/Mat3
+      :vector-type-mat4 t/Mat4)))
 
 (defn- attribute-update-property [current-property-value attribute-info new-value]
   (let [name-key (:name-key attribute-info)
@@ -874,7 +631,7 @@
 
 (defn- attribute-override-property-edit-type [{:keys [semantic-type vector-type] :as attribute-info} property-type]
   {:pre [(keyword? vector-type)
-         (semantic-type? semantic-type)]}
+         (graphics.types/semantic-type? semantic-type)]}
   (let [attribute-update-fn (fn attribute-update-fn [_evaluation-context self _old-value new-value]
                               (let [values (if (= g/Num property-type)
                                              (vector-of :double new-value)
@@ -907,7 +664,7 @@
                       material-values (:values material-attribute-info)
                       attribute-values (or override-values material-values)
                       attribute-values-vector-type (:vector-type (or override-attribute-info material-attribute-info))
-                      _ (assert (vector-type? attribute-values-vector-type))
+                      _ (assert (graphics.types/vector-type? attribute-values-vector-type))
                       property-type (attribute-property-type material-attribute-info)
                       property-vector-type (case semantic-type
                                              :semantic-type-color :vector-type-vec4
@@ -938,7 +695,7 @@
                   values (:values vertex-override-info)
                   semantic-type :semantic-type-none
                   vector-type (:vector-type vertex-override-info)
-                  _ (assert (vector-type? vector-type))
+                  _ (assert (graphics.types/vector-type? vector-type))
                   assumed-attribute-info {:name name
                                           :name-key name-key
                                           :semantic-type semantic-type
@@ -963,7 +720,7 @@
                                            (pair (:bytes attribute-info) (:error attribute-info))
                                            (let [{:keys [semantic-type vector-type]} attribute-info
                                                  override-vector-type (:vector-type override-info)
-                                                 _ (assert (vector-type? override-vector-type))
+                                                 _ (assert (graphics.types/vector-type? override-vector-type))
                                                  converted-values (convert-double-values override-values semantic-type override-vector-type vector-type)
                                                  [bytes error-message :as bytes+error-message] (attribute->bytes+error-message attribute-info converted-values)]
                                              (if (nil? error-message)
@@ -979,7 +736,7 @@
 (defn- decorate-attribute-exception [exception attribute vertex]
   (ex-info "Failed to encode vertex attribute."
            (-> attribute
-               (select-keys [:name :semantic-type :type :components :normalize :coordinate-space])
+               (select-keys [:name :semantic-type :data-type :vector-type :normalize :coordinate-space])
                (assoc :vertex vertex)
                (assoc :vertex-elements (count vertex)))
            exception))
@@ -1108,9 +865,10 @@
 
     (reduce (fn [reduce-info attribute]
               (let [semantic-type (:semantic-type attribute)
-                    buffer-data-type (:type attribute)
-                    element-count (long (:components attribute))
+                    data-type (:data-type attribute)
                     vector-type (:vector-type attribute)
+                    buffer-data-type (graphics.types/data-type-buffer-data-type data-type)
+                    element-count (graphics.types/vector-type-component-count vector-type)
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
                     attribute-byte-offset (long (:attribute-byte-offset reduce-info))
@@ -1188,7 +946,7 @@
                   ;; attribute bound by the shader, use a default that makes
                   ;; sense for the attribute.
                   (let [attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))
-                        attribute-data-type (buffer-data-type->attribute-data-type buffer-data-type)
+                        attribute-data-type (graphics.types/buffer-data-type-data-type buffer-data-type)
                         default-attribute-bytes (default-attribute-bytes semantic-type attribute-data-type vector-type normalize)]
                     (put-renderables!
                       attribute-byte-offset put-attribute-bytes!
@@ -1204,16 +962,16 @@
                 (-> reduce-info
                     (update semantic-type inc)
                     (assoc :attribute-byte-offset (+ attribute-byte-offset
-                                                     (vtx/attribute-size attribute))))))
+                                                     (graphics.types/attribute-info-byte-size attribute))))))
             ;; The reduce-info is a map of how many times we've encountered an
             ;; attribute of a particular semantic-type. We also include a
             ;; special key, :attribute-byte-offset, to keep track of where the
             ;; next encountered attribute will start writing its data to the
             ;; vertex buffer.
             (into {:attribute-byte-offset 0}
-                  (map (fn [[semantic-type]]
+                  (map (fn [semantic-type]
                          (pair semantic-type 0)))
-                  (protobuf/enum-values Graphics$VertexAttribute$SemanticType))
+                  graphics.types/semantic-types)
             (:attributes vertex-description))
     (.position buf (.limit buf))
     (vtx/flip! vbuf)))

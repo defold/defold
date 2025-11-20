@@ -23,7 +23,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
@@ -38,29 +37,30 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :as coll]
             [util.digestable :as digestable]
             [util.eduction :as e]
             [util.fn :as fn]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
+  (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
-           [editor.gl.vertex2 VertexBuffer]
-           [editor.types AABB Animation Image]
+           [editor.types Animation Image]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [java.util List]
@@ -74,50 +74,6 @@
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
 
-(vtx/defvertex texture-vtx
-  (vec4 position)
-  (vec2 texcoord0)
-  (vec1 page_index))
-
-(vtx/defvertex color-vtx
-  (vec3 position)
-  (vec4 color))
-
-(shader/defshader pos-uv-vert
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute float page_index)
-  (varying vec2 var_texcoord0)
-  (varying float var_page_index)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)
-    (setq var_page_index page_index)))
-
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (varying float var_page_index)
-  (uniform sampler2DArray texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2DArray texture_sampler (vec3 var_texcoord0.xy var_page_index)))))
-
-(shader/defshader outline-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader outline-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-; TODO - macro of this
-; JG: This is copied from sprite, but does the same thing - merge them?
-(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
-
 (defn- get-rect-page-offset [layout-width page-index]
   (let [page-margin 32]
     (+ (* page-margin page-index) (* layout-width page-index))))
@@ -127,22 +83,6 @@
     (doto (Matrix4d.)
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
-
-; TODO - macro of this
-(def atlas-shader
-  ;; TODO(instancing): Shouldn't we be transforming all shaders like this, really?
-  (let [transformed-shader-result (ShaderUtil$VariantTextureArrayFallback/transform pos-uv-frag ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
-        augmented-fragment-shader-source (.source transformed-shader-result)
-
-        array-sampler-name->uniform-names
-        (into {}
-              (map (fn [array-sampler-name]
-                     (pair array-sampler-name
-                           (mapv #(str array-sampler-name "_" %)
-                                 (range ShaderUtil$Common/MAX_ARRAY_SAMPLERS)))))
-              (.arraySamplers transformed-shader-result))]
-
-    (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-shader-source {} array-sampler-name->uniform-names)))
 
 (defn- render-rect
   [^GL2 gl rect color offset-x]
@@ -185,8 +125,9 @@
 
 (defn- gen-outline-vertex-buffer [renderables count]
   (let [tmp-point (Point3d.)
-        ^VertexBuffer vbuf (->color-vtx count)
-        ^ByteBuffer buf (.buf vbuf)]
+        vertex-description (shaders/vertex-description shaders/basic-color-local-space)
+        vbuf (vtx/make-vertex-buffer vertex-description :stream count)
+        buf (vtx/buf vbuf)]
     (doseq [renderable renderables]
       (let [[cr cg cb] (colors/renderable-outline-color renderable)
             world-transform (:world-transform renderable)
@@ -198,18 +139,19 @@
     (vtx/flip! vbuf)))
 
 (defn- render-image-outlines
-  [^GL2 gl render-args renderables n]
+  [^GL2 gl render-args renderables _renderable-count]
   (condp = (:pass render-args)
     pass/outline
     (let [vertex-count (renderables->outline-vertex-component-count renderables)
-          outline-vertex-binding (vtx/use-with ::atlas-image-outline (gen-outline-vertex-buffer renderables vertex-count) outline-shader)]
-      (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
+          vertex-buffer (gen-outline-vertex-buffer renderables vertex-count)
+          outline-vertex-binding (vtx/use-with ::atlas-image-outline vertex-buffer shaders/basic-color-local-space)]
+      (gl/with-gl-bindings gl render-args [shaders/basic-color-local-space outline-vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 vertex-count)))))
 
 (defn- render-image-selection
-  [^GL2 gl render-args renderables n]
+  [^GL2 gl render-args renderables renderable-count]
   (assert (= (:pass render-args) pass/selection))
-  (assert (= n 1))
+  (assert (= renderable-count 1))
   (let [renderable (first renderables)
         picking-id (:picking-id renderable)
         id-color (scene-picking/picking-id->color picking-id)
@@ -435,8 +377,8 @@
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
-  [^GL2 gl render-args renderables n]
-  (texture-set/render-animation-overlay gl render-args renderables n ->texture-vtx atlas-shader))
+  [^GL2 gl render-args renderables _renderable-count]
+  (texture-set/render-animation-overlay gl render-args renderables))
 
 (g/defnk produce-animation-updatable
   [_node-id id anim-data]
@@ -593,81 +535,20 @@
         content-pb        (protobuf/map->bytes TextureSetProto$TextureSet (assoc pb-msg :texture texture-path))]
     content-pb))
 
-(defn gen-renderable-vertex-buffer
-  [width height page-index]
-  (let [page-offset-x (get-rect-page-offset width page-index)
-        x0 page-offset-x
-        y0 0
-        x1 (+ width page-offset-x)
-        y1 height
-        v0 [x0 y0 0 1 0 0 page-index]
-        v1 [x0 y1 0 1 0 1 page-index]
-        v2 [x1 y1 0 1 1 1 page-index]
-        v3 [x1 y0 0 1 1 0 page-index]
-        ^VertexBuffer vbuf (->texture-vtx 6)
-        ^ByteBuffer buf (.buf vbuf)]
-    (doto buf
-      (vtx/buf-push-floats! v0)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v0))
-    (vtx/flip! vbuf)))
-
-;; This is for rendering atlas texture pages!
-(defn- render-atlas
-  [^GL2 gl render-args [renderable] n]
-  (let [{:keys [pass]} render-args]
-    (condp = pass
-      pass/transparent
-      (let [{:keys [user-data]} renderable
-            {:keys [vbuf gpu-texture]} user-data
-            vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
-        (gl/with-gl-bindings gl render-args [atlas-shader vertex-binding gpu-texture]
-          (shader/set-samplers-by-index atlas-shader gl 0 (:texture-units gpu-texture))
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
-
-(defn- render-atlas-outline
-  [^GL2 gl render-args [renderable] n]
-  (let [{:keys [pass]} render-args]
-    (condp = pass
-      pass/outline
-      (let [{:keys [aabb]} renderable
-            [x0 y0] (math/vecmath->clj (types/min-p aabb))
-            [x1 y1] (math/vecmath->clj (types/max-p aabb))
-            [cr cg cb ca] colors/outline-color]
-        (.glColor4d gl cr cg cb ca)
-        (.glBegin gl GL2/GL_QUADS)
-        (.glVertex3d gl x0 y0 0)
-        (.glVertex3d gl x0 y1 0)
-        (.glVertex3d gl x1 y1 0)
-        (.glVertex3d gl x1 y0 0)
-        (.glEnd gl)))))
-
-(defn- produce-page-renderables
-  [aabb layout-width layout-height page-index page-rects gpu-texture]
-  {:aabb aabb
-   :transform (get-rect-transform layout-width page-index)
-   :renderable {:render-fn render-atlas
-                :user-data {:gpu-texture gpu-texture
-                            :vbuf (gen-renderable-vertex-buffer layout-width layout-height page-index)}
-                :tags #{:atlas}
-                :passes [pass/transparent]}
-   :children [{:aabb aabb
-               :renderable {:render-fn render-atlas-outline
-                            :tags #{:atlas :outline}
-                            :passes [pass/outline]}}]})
+(defn- make-page-scene
+  [layout-width layout-height page-index gpu-texture]
+  (let [page-offset-transform (get-rect-transform layout-width page-index)]
+    (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-transform layout-width layout-height gpu-texture page-index)))
 
 (g/defnk produce-scene
-  [_node-id aabb layout-rects layout-size gpu-texture child-scenes texture-profile]
+  [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
-        child-renderables (into [] (for [[page-index page-rects] pages] (produce-page-renderables aabb width height page-index page-rects gpu-texture)))]
-    {:aabb aabb
-     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
-     :children (into child-renderables
-                     child-scenes)}))
+        page-scenes (mapv (fn [^long page-index]
+                            (make-page-scene width height page-index gpu-texture))
+                          (range (count pages)))]
+    {:info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+     :children (into page-scenes child-scenes)}))
 
 (defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
   (try
@@ -887,16 +768,8 @@
                                                    texture/non-paged-page-count)))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
-
   (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-images-generator] (call-generator packed-page-images-generator)))
-
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
-
-  (output aabb             AABB                (g/fnk [layout-size layout-rects]
-                                                 (if (or (= [0 0] layout-size) (empty? layout-rects))
-                                                   geom/null-aabb
-                                                   (let [[w h] layout-size]
-                                                     (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-page-images texture-profile]
                                                          (let [page-texture-images+texture-bytes

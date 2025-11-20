@@ -181,6 +181,7 @@ namespace dmSound
         dmhash_t m_NameHash;
         Value    m_Gain;
         float    m_GainParameter;
+        bool     m_IsMuted;
         float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
@@ -315,6 +316,7 @@ namespace dmSound
         group->m_NameHash = group_hash;
         group->m_GainParameter = 1.0f;
         group->m_Gain.Reset(GainToScale(group->m_GainParameter));
+        group->m_IsMuted = false;
 
         for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
         {
@@ -463,6 +465,7 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[master_index];
         master->m_GainParameter = master_gain;
         master->m_Gain.Reset(GainToScale(master->m_GainParameter));
+        master->m_IsMuted = false;
 
         dmAtomicStore32(&sound->m_IsRunning, 1);
         dmAtomicStore32(&sound->m_IsPaused, 0);
@@ -891,6 +894,7 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[*index];
         group->m_Gain.Set(GainToScale(gain), reset);
         group->m_GainParameter = gain;
+
         return RESULT_OK;
     }
 
@@ -906,6 +910,45 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[*index];
         *gain = group->m_GainParameter;
         return RESULT_OK;
+    }
+
+    Result SetGroupMute(dmhash_t group_hash, bool mute)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+
+        SoundSystem* sound = g_SoundSystem;
+
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+            int* index = sound->m_GroupMap.Get(group_hash);
+            if (!index)
+                return RESULT_NO_SUCH_GROUP;
+
+            SoundGroup* group = &sound->m_Groups[*index];
+            group->m_IsMuted = mute;
+        }
+
+        return RESULT_OK;
+    }
+
+    Result ToggleGroupMute(dmhash_t group_hash)
+    {
+        return SetGroupMute(group_hash, !IsGroupMuted(group_hash));
+    }
+
+    bool IsGroupMuted(dmhash_t group_hash)
+    {
+        if (!g_SoundSystem)
+            return false;
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index)
+            return false;
+
+        return sound->m_Groups[*index].m_IsMuted;
     }
 
     Result GetGroupHashes(uint32_t* count, dmhash_t* buffer)
@@ -1315,7 +1358,7 @@ namespace dmSound
         int* group_index = sound->m_GroupMap.Get(instance->m_Group);
         if (group_index != NULL) {
             SoundGroup* group = &sound->m_Groups[*group_index];
-            if (group->m_Gain.IsZero()) {
+            if (group->m_IsMuted || group->m_Gain.IsZero()) {
                 return true;
             }
         }
@@ -1323,7 +1366,7 @@ namespace dmSound
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         if (master_index != NULL) {
             SoundGroup* master = &sound->m_Groups[*master_index];
-            if (master->m_Gain.IsZero()) {
+            if (master->m_IsMuted || master->m_Gain.IsZero()) {
                 return true;
             }
         }

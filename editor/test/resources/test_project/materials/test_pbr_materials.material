@@ -1,4 +1,4 @@
 name: "test_pbr_materials"
 tags: "test_pbr_materials"
-vertex_program: "/materials/test.vp"
+vertex_program: "/materials/test_pbr_parameters.vp"
 fragment_program: "/materials/test_pbr_parameters.fp"

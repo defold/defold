@@ -30,6 +30,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.localization :as localization]
@@ -450,15 +451,14 @@
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
-        (let [shader-attribute-infos-by-name (shader/attribute-infos shader gl)
-              manufactured-attribute-keys [:position :texcoord0 :page-index :color]
-              shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys :coordinate-space-world)
-              vertex-description (graphics/make-vertex-description shader-bound-attributes)
+        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+              combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
+              vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
               pfx-sim-request-id (some-> renderable :updatable :node-id)]
           (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
                                     (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
             (let [pfx-sim @pfx-sim-atom
-                  raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
+                  raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes)
                   context (:context pfx-sim)
                   vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
                   all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]

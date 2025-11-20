@@ -367,7 +367,7 @@
             {:keys [node-id vbuf shader gpu-texture blend-mode]} user-data]
         (when vbuf
           (let [render-args (merge render-args
-                                   (math/derive-render-transforms
+                                   (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                                      world-transform
                                      (:view render-args)
                                      (:projection render-args)
