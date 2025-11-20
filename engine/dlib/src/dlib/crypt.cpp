@@ -27,6 +27,7 @@
 #include <mbedtls/sha256.h>
 #include <mbedtls/sha512.h>
 #include <mbedtls/pk.h>
+#include <mbedtls/pk_internal.h>
 #include <mbedtls/rsa.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
@@ -91,6 +92,21 @@ namespace dmCrypt
         return RESULT_OK;
     }
 
+    // Same as rsa_alt_decrypt_wrap() except with a MBEDTLS_RSA_PUBLIC
+    static int rsa_alt_decrypt_public_wrap( void *ctx,
+                        const unsigned char *input, size_t ilen,
+                        unsigned char *output, size_t *olen, size_t osize,
+                        int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
+    {
+        mbedtls_rsa_context * rsa = (mbedtls_rsa_context *) ctx;
+
+        if( ilen != mbedtls_rsa_get_len( rsa ) )
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+        return( mbedtls_rsa_pkcs1_decrypt( rsa, f_rng, p_rng,
+                    MBEDTLS_RSA_PUBLIC, olen, input, output, osize ) );
+    }
+
     static void LogMbedTlsError(int result)
     {
         char buffer[512] = "";
@@ -98,69 +114,57 @@ namespace dmCrypt
         dmLogError("mbedtls: %s0x%04x - %s", result < 0 ? "-":"", result < 0 ? -result:result, buffer);
     }
 
-    static mbedtls_md_type_t HashAlgoritmToMbAlgorithm(HashAlgorithm algorithm)
+    Result Decrypt(const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t datalen, uint8_t** output, uint32_t* outputlen)
     {
-        switch(algorithm)
-        {
-            case HASH_ALGORITHM_MD5: return MBEDTLS_MD_MD5;
-            case HASH_ALGORITHM_SHA1: return MBEDTLS_MD_SHA1;
-            case HASH_ALGORITHM_SHA256: return MBEDTLS_MD_SHA256;
-            case HASH_ALGORITHM_SHA512: return MBEDTLS_MD_SHA512;
-            default: return MBEDTLS_MD_NONE;
-        }
-    }
-
-    Result Verify(HashAlgorithm algorithm, const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t data_len, const unsigned char* expected_signature, uint32_t expected_signature_len)
-    {
+        // https://tls.mbed.org/discussions/generic/parsing-public-key-from-memory
         Result result = RESULT_OK;
 
+        const char* pers = "defold_pk_decrypt";
         mbedtls_pk_context pk;
+        mbedtls_entropy_context entropy;
+        mbedtls_ctr_drbg_context ctr_drbg;
         mbedtls_pk_init(&pk);
+        mbedtls_ctr_drbg_init( &ctr_drbg );
+        mbedtls_entropy_init( &entropy );
 
-        mbedtls_md_type_t mb_algo = HashAlgoritmToMbAlgorithm(algorithm);
+        uint32_t signature_hash_len = MBEDTLS_MD_MAX_SIZE;
 
         int ret;
+        if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen(pers) ) ) != 0 )
+        {
+            LogMbedTlsError(ret);
+            dmLogError("Decrypt: mbedtls_ctr_drbg_seed failed: %d", ret);
+            result = RESULT_ERROR;
+            goto exit;
+        }
+
         if ((ret = mbedtls_pk_parse_public_key(&pk, key, keylen) != 0))
         {
             LogMbedTlsError(ret);
-            dmLogError("Verify: mbedtls_pk_parse_public_key failed: %d", ret);
-            mbedtls_pk_free(&pk);
-            return RESULT_ERROR;
+            dmLogError("Decrypt: mbedtls_pk_parse_public_key failed: %d", ret);
+            result = RESULT_ERROR;
+            goto exit;
         }
 
-        if (mb_algo == MBEDTLS_MD_NONE)
-        {
-            dmLogError("Verify: mb_algo == MBEDTLS_MD_NONE");
-            mbedtls_pk_free(&pk);
-            return RESULT_ERROR;
-        }
-        if(mbedtls_pk_get_type(&pk) != MBEDTLS_PK_RSA)
-        {
-            mbedtls_pk_free(&pk);
-            return RESULT_ERROR;
-        }
-
-        mbedtls_rsa_context* rsa = mbedtls_pk_rsa(pk);
-
-        if (mbedtls_rsa_get_len(rsa) != expected_signature_len)
-        {
-            mbedtls_pk_free(&pk);
-            return RESULT_INVALID_LENGTH; 
-        }
-
-        if ((ret = mbedtls_rsa_pkcs1_verify(rsa, mb_algo, data_len, data, expected_signature)) != 0)
+        *output = (uint8_t*)malloc(signature_hash_len);
+        size_t _outputlen;
+        if ((ret = rsa_alt_decrypt_public_wrap(pk.pk_ctx,
+                    data, datalen,
+                    (uint8_t*)*output, &_outputlen, signature_hash_len,
+                    mbedtls_ctr_drbg_random, &ctr_drbg )) != 0)
         {
             LogMbedTlsError(ret);
-            dmLogError("Verify: mbedtls_rsa_pkcs1_verify failed: %d", ret);
-            if (ret == MBEDTLS_ERR_RSA_VERIFY_FAILED)
-            {
-                result = RESULT_SIGNATURE_MISMATCH;
-            }
-            else
-            {
-                result = RESULT_ERROR;
-            }
+            dmLogError("Decrypt: rsa_alt_decrypt_public_wrap failed: %d", ret);
+            free(*output);
+            result = RESULT_ERROR;
+            goto exit;
         }
+
+        *outputlen = (uint32_t)_outputlen;
+
+    exit:
+        mbedtls_ctr_drbg_free( &ctr_drbg );
+        mbedtls_entropy_free( &entropy );
         mbedtls_pk_free(&pk);
         return result;
     }
@@ -169,9 +173,9 @@ namespace dmCrypt
     {
         mbedtls_sha1_context ctx;
         mbedtls_sha1_init(&ctx);
-        mbedtls_sha1_starts(&ctx);
-        mbedtls_sha1_update(&ctx, (const unsigned char*)buf, (size_t)buflen);
-        int ret = mbedtls_sha1_finish(&ctx, (unsigned char*)digest);
+        mbedtls_sha1_starts_ret(&ctx);
+        mbedtls_sha1_update_ret(&ctx, (const unsigned char*)buf, (size_t)buflen);
+        int ret = mbedtls_sha1_finish_ret(&ctx, (unsigned char*)digest);
         mbedtls_sha1_free(&ctx);
         if (ret != 0) {
             memset(digest, 0, 20);
@@ -180,25 +184,25 @@ namespace dmCrypt
 
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        int ret = mbedtls_sha256((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
+        int ret = mbedtls_sha256_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
         if (ret != 0) {
-            memset(digest, 0, 32);
+            memset(digest, 0, 20);
         }
     }
 
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        int ret = mbedtls_sha512((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
+        int ret = mbedtls_sha512_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
         if (ret != 0) {
-            memset(digest, 0, 64);
+            memset(digest, 0, 20);
         }
     }
 
     void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        int ret = mbedtls_md5((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest);
+        int ret = mbedtls_md5_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest);
         if (ret != 0) {
-            memset(digest, 0, 16);
+            memset(digest, 0, 20);
         }
     }
 

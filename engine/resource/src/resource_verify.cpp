@@ -111,19 +111,22 @@ namespace dmResource
         return engine_version_supported;
     }
 
-    static Result VerifyManifestHash(const char* public_key_path, const HManifest manifest)
+    static Result VerifyManifestHash(const char* public_key_path, const HManifest manifest, const uint8_t* expected_digest, uint32_t expected_len)
     {
         Result res = RESULT_OK;
-        uint32_t pub_key_size = 0, out_resource_size = 0;
+        //char public_key_path[DMPATH_MAX_PATH];
+        uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
         uint8_t* pub_key_buf = 0x0;
+        uint8_t* hash_decrypted = 0x0;
 
         // Load public key
+        //dmPath::Concat(app_path, "game.public.der", public_key_path, DMPATH_MAX_PATH);
         dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
         if (sys_res != dmSys::RESULT_OK)
         {
             dmLogError("Failed to get size of public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-            res = RESULT_IO_ERROR;
-            goto cleanup;
+            free(pub_key_buf);
+            return RESULT_IO_ERROR;
         }
         pub_key_buf = (uint8_t*)malloc(pub_key_size);
         assert(pub_key_buf);
@@ -132,26 +135,38 @@ namespace dmResource
         if (sys_res != dmSys::RESULT_OK)
         {
             dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-            res = RESULT_IO_ERROR;
-            goto cleanup;
+            free(pub_key_buf);
+            return RESULT_IO_ERROR;
         }
 
         if (out_resource_size != pub_key_size)
         {
             dmLogError("Failed to load public key for manifest verification at path: %s, tried reading %d bytes, got %d bytes", public_key_path, pub_key_size, out_resource_size);
-            res = RESULT_IO_ERROR;
-            goto cleanup;
+            free(pub_key_buf);
+            return RESULT_IO_ERROR;
         }
 
-        res = dmResource::VerifySignatureHash(manifest, pub_key_buf, pub_key_size);
-cleanup:
+        res = dmResource::DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, &hash_decrypted, &hash_decrypted_len);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+        res = dmResource::MemCompare(hash_decrypted, hash_decrypted_len, expected_digest, expected_len);
+
+        free(hash_decrypted);
         free(pub_key_buf);
         return res;
     }
 
     static Result VerifyManifestSignature(const dmResource::HManifest manifest, const char* public_key_path)
     {
-        return dmResource::VerifyManifestHash(public_key_path, manifest);
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
+        uint32_t digest_len = dmResource::HashLength(algorithm);
+        uint8_t* digest = (uint8_t*) alloca(digest_len * sizeof(uint8_t));
+
+        dmResource::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
+
+        return dmResource::VerifyManifestHash(public_key_path, manifest, digest, digest_len);
     }
 
     Result VerifyManifest(const dmResource::HManifest manifest, const char* public_key_path)
