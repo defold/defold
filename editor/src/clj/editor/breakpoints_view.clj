@@ -137,17 +137,17 @@
                                    :on-text-changed {:event-type :condition-text-changed}
                                    :on-action {:event-type :save-condition}
                                    :on-key-pressed {:event-type :condition-key-pressed}}}}}
-          {:graphic {:fx/type fx.h-box/lifecycle
-                     :alignment :center-left
-                     :fill-height true
+          {:graphic {:fx/type fx.stack-pane/lifecycle
                      :children [{:fx/type :label
-                                 :h-box/hgrow :always
-                                 :max-width ##Inf
+                                 :stack-pane/alignment :center-left
                                  :text-overrun :ellipsis
                                  :text (or condition "")}
                                 {:fx/type fx.h-box/lifecycle
-                                 :alignment :center-right
-                                 :spacing 3
+                                 :stack-pane/alignment :center-right
+                                 :fill-height false
+                                 :max-width :use-pref-size
+                                 :max-height :use-pref-size
+                                 :spacing 5
                                  :children (concat
                                             (when (and hovered? condition)
                                               [(icon-button close-icon {:event-type :remove-condition
@@ -201,7 +201,7 @@
                        :desc
                        {:fx/type fx.table-view/lifecycle
                         :id "breakpoints-table-view"
-                        :fixed-cell-size 40.0
+                        :fixed-cell-size 33.0
                         :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
                         :row-factory {:fx/cell-type fx.table-row/lifecycle
                                       :describe
