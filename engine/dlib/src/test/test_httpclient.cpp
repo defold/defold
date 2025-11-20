@@ -272,7 +272,7 @@ public:
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
         bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
-        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure, 0);
+        m_Client = dmHttpClient::New(&params, &m_URI, 0);
         ASSERT_NE((void*) 0, m_Client);
 
         m_XScale = 1;
@@ -537,7 +537,7 @@ struct HttpStressHelper
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
-        m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure, 0);
+        m_Client = dmHttpClient::New(&params, &uri, 0);
     }
 
     ~HttpStressHelper()
@@ -892,7 +892,7 @@ TEST_P(dmHttpClientTest, Cache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
     ASSERT_NE((void*) 0, m_Client);
 
     for (int i = 0; i < NUM_ITERATIONS; ++i)
@@ -936,7 +936,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
     ASSERT_NE((void*) 0, m_Client);
 
     dmHttpClient::Result r = HttpGet("/max-age-cached");
@@ -1192,7 +1192,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
     uint32_t count = 50;
@@ -1244,7 +1244,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
@@ -1280,7 +1280,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
     // Warmup cache
@@ -1292,7 +1292,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
 
@@ -1366,15 +1366,21 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_va
 
 TEST(dmHttpClient, HostNotFound)
 {
+    dmURI::Parts uri;
+    dmURI::Parse("http://host_not_found", &uri);
+
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", g_HttpPort);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
     ASSERT_EQ((void*) 0, client);
 }
 
 TEST(dmHttpClient, ConnectionRefused)
 {
+    dmURI::Parts uri;
+    dmURI::Parse("http://0.0.0.0:9999", &uri);
+
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "0.0.0.0", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);

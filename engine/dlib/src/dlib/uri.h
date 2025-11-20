@@ -17,4 +17,9 @@
 
 #include <dmsdk/dlib/uri.h>
 
+namespace dmURI
+{
+    bool Compare(Parts* a, Parts* b);
+}
+
 #endif // DM_URI_H

@@ -129,6 +129,7 @@ namespace dmHttpClient
         dmConnectionPool::HConnection   m_Connection;
         dmSocket::Socket                m_Socket;
         dmSSLSocket::Socket             m_SSLSocket;
+        bool                            m_ForceUnsecure;
 
         Response(HClient client)
         {
@@ -151,6 +152,7 @@ namespace dmHttpClient
             m_Connection = 0;
             m_Socket = 0;
             m_SSLSocket = 0;
+            m_ForceUnsecure = false;
         }
         Result Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled);
         ~Response();
@@ -169,8 +171,10 @@ namespace dmHttpClient
 
     struct Client
     {
-        char*               m_Hostname;
-        char                m_URI[dmURI::MAX_URI_LEN];
+        dmURI::Parts        m_HostURI;
+        dmURI::Parts        m_ProxyURI;
+
+        // char                m_URI[dmURI::MAX_URI_LEN];
         char                m_CacheKey[dmURI::MAX_URI_LEN];
         dmSocket::Result    m_SocketResult;
 
@@ -188,7 +192,6 @@ namespace dmHttpClient
         dmHttpCache::HCache m_HttpCache;
 
         bool                m_Secure;
-        uint16_t            m_Port;
         uint16_t            m_IgnoreCache:1;
         uint16_t            m_ChunkedTransfer:1;
         int*                m_CancelFlag;
@@ -253,17 +256,16 @@ namespace dmHttpClient
         params->m_RequestTimeout = 0;
     }
 
-    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure, int* cancelflag)
+    HClient New(const NewParams* params, dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI)
     {
         dmSocket::Address address;
-        if (dmSocket::GetHostByNameT(hostname, &address, params->m_RequestTimeout, cancelflag) != dmSocket::RESULT_OK)
+        if (dmSocket::GetHostByNameT(hostURI->m_Hostname, &address, params->m_RequestTimeout, cancelflag) != dmSocket::RESULT_OK)
         {
             return 0;
         }
 
         Client* client = new Client();
 
-        client->m_Hostname = strdup(hostname);
         client->m_SocketResult = dmSocket::RESULT_OK;
 
         client->m_Userdata = params->m_Userdata;
@@ -277,17 +279,24 @@ namespace dmHttpClient
         client->m_RequestStart = 0;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
-        client->m_Secure = secure;
-        client->m_Port = port;
+        client->m_Secure = (strcmp(hostURI->m_Scheme, "https") == 0) || (strcmp(hostURI->m_Scheme, "wss") == 0);
         client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
         client->m_CancelFlag = cancelflag;
+
+        memcpy(&client->m_HostURI, hostURI, sizeof(*hostURI));
+        memcpy(&client->m_ProxyURI, proxyURI, sizeof(*proxyURI));
 
         return client;
     }
 
-    HClient New(const NewParams* params, const char* hostname, uint16_t port)
+    HClient New(const NewParams* params, dmURI::Parts* hostURI, int* cancelflag)
     {
-        return New(params, hostname, port, false, 0);
+        return New(params, hostURI, cancelflag, 0);
+    }
+
+    HClient New(const NewParams* params, dmURI::Parts* hostURI)
+    {
+        return New(params, hostURI, 0, 0);
     }
 
     Result SetOptionInt(HClient client, Option option, int64_t value)
@@ -315,7 +324,6 @@ namespace dmHttpClient
 
     void Delete(HClient client)
     {
-        free(client->m_Hostname);
         delete client;
     }
 
@@ -569,7 +577,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL(encoded_path)
         HTTP_CLIENT_SENDALL_AND_BAIL(" HTTP/1.1\r\n")
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: ");
-        HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Hostname);
+        HTTP_CLIENT_SENDALL_AND_BAIL(client->m_HostURI.m_Hostname);
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
 
         if (client->m_HttpWriteHeaders) {
@@ -854,10 +862,11 @@ bail:
 
         client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0, 0, 0, 0, 0);
 
-        if (strcmp(method, "HEAD") == 0) {
-            // A response from a HEAD request should not attempt to read any body despite
-            // content length being non-zero, but we still call DoTransfer (with a
-            // content length of 0) to ensure that the response is setup properly
+        if ((strcmp(method, "HEAD") == 0) || (strcmp(method, "CONNECT") == 0)) {
+            // A response from a HEAD or CONNECT request should not attempt to read
+            // any body despite content length being non-zero, but we still call
+            // DoTransfer (with a content length of 0) to ensure that the response
+            // is setup properly
             r = DoTransfer(client, response, 0, client->m_HttpContent, false, method);
         }
         else if (response->m_Chunked)
@@ -951,6 +960,7 @@ bail:
         sock_res = SendRequest(client, &response, path, method);
 
         bool method_is_head = strcmp(method, "HEAD") == 0;
+        bool method_is_connect = strcmp(method, "CONNECT") == 0;
 
         if (sock_res != dmSocket::RESULT_OK)
         {
@@ -1013,7 +1023,7 @@ bail:
 
             // Non-cached response
             bool is_ok = response.m_Status == 200 || response.m_Status == 206;
-            if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && is_ok)
+            if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && !method_is_connect && is_ok)
             {
                 uint32_t document_size = dmMath::Max(response.m_ContentLength, response.m_DocumentSize);
                 uint32_t range_start = response.m_RangeStart != -1 ? response.m_RangeStart : 0;
@@ -1056,6 +1066,20 @@ bail:
 
     static Result DoRequest(HClient client, const char* path, const char* method)
     {
+        bool use_proxy = (client->m_ProxyURI.m_Hostname != 0);
+        dmLogInfo("DoRequest using proxy: %s", use_proxy ? "true" : "false");
+
+        // for proxy connections:
+        // client -> CONNECT -> proxy
+        // proxy -> TCP connect -> server
+        // proxy -> 200 OK -> client
+        // client -> TCP send -> proxy -> forward -> server
+        //
+        // CONNECT requests should be sent to the proxy
+        // CONNECT requests are always done using http
+        // CONNECT server.com:1234 HTTP/1.1
+        // CONNECT request should respond with a 200 OK without content
+
         // Theoretically we can be in a state where every
         // connections in the pool is closed by the remote peer
         // but not yet closed on the client side (max-keep-alive)
@@ -1063,31 +1087,40 @@ bail:
         // The assumption holds only for a single-threaded environment though
         // but as network errors will occur in practice the heuristic is probably
         // "good enough".
-        for (uint32_t i = 0; i < MAX_POOL_CONNECTIONS + 1; ++i) {
-            Response response(client);
+        Response response = Response(client);
+        Result r;
+        for (uint32_t i = 0; i < MAX_POOL_CONNECTIONS + 1; ++i)
+        {
             client->m_Statistics.m_Responses++;
 
             client->m_SocketResult = dmSocket::RESULT_OK;
 
-            // This call wraps the dmSocket::GetHostByName() (one for each ipv4/ipv6)
-            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure, client->m_RequestTimeout, client->m_CancelFlag);
-            if (r != RESULT_OK) {
-                return r;
+            r = response.Connect(use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname,
+                                 use_proxy ? client->m_ProxyURI.m_Port : client->m_HostURI.m_Port,
+                                 client->m_Secure,
+                                 client->m_RequestTimeout,
+                                 client->m_CancelFlag);
+            if (r != RESULT_OK)
+            {
+                break;
             }
 
             if( HasRequestTimedOut(client) )
             {
-                return r;
+                break;
             }
 
-            r = DoDoRequest(client, response, path, method);
-            if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
-
+            r = DoDoRequest(client,
+                            response,
+                            use_proxy ? client->m_HostURI.m_Location : path,
+                            use_proxy ? "CONNECT" : method);
+            if (r != RESULT_OK && r != RESULT_NOT_200_OK)
+            {
                 response.m_CloseConnection = 1;
 
                 if( HasRequestTimedOut(client) )
                 {
-                    return r;
+                    break;
                 }
 
                 uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
@@ -1102,15 +1135,37 @@ bail:
                     // an error.
 
                     // implicit continue here
-                } else {
-                    return r;
                 }
-            } else {
-                return r;
+                else
+                {
+                    break;
+                }
+            }
+            else
+            {
+                break;
+            }
+            response = Response(client);
+        }
+
+        if (r == RESULT_OK && use_proxy)
+        {
+            r = DoDoRequest(client,
+                            response,
+                            path,
+                            method);
+            if (r != RESULT_OK && r != RESULT_NOT_200_OK)
+            {
+                response.m_CloseConnection = 1;
+
+                if( HasRequestTimedOut(client) )
+                {
+                    dmLogInfo("DoRequest HasRequestTimedOut");
+                }
             }
         }
-        dmLogWarning("All connection attempts to remote host are prematurely closed. This error is very unlikely.");
-        return RESULT_UNKNOWN;
+
+        return r;
     }
 
     static Result HandleCachedVerified(HClient client, const dmHttpCache::EntryInfo* info)
@@ -1159,7 +1214,7 @@ bail:
 
     Result GetURI(HClient client, const char* path, char* uri, uint32_t uri_length)
     {
-        uint32_t n = dmSnPrintf(uri, uri_length, "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+        uint32_t n = dmSnPrintf(uri, uri_length, "%s://%s:%d%s", client->m_Secure ? "https" : "http", client->m_HostURI.m_Hostname, (int) client->m_HostURI.m_Port, path);
         if (n < uri_length)
             return RESULT_OK;
         return RESULT_INVAL;
@@ -1167,7 +1222,7 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
-        GetURI(client, path, client->m_URI, sizeof(client->m_URI));
+        // GetURI(client, path, client->m_URI, sizeof(client->m_URI));
         client->m_RequestStart = dmTime::GetMonotonicTime();
 
         Result r;
@@ -1229,7 +1284,8 @@ bail:
         if (strcmp(method, "GET") == 0) {
             return Get(client, path);
         } else {
-            dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+            // GetURI(client, path, client->m_URI, sizeof(client->m_URI));
+            // dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_HostURI.m_Hostname, (int) client->m_HostURI.m_Port, path);
             client->m_RequestStart = dmTime::GetMonotonicTime();
             Result r = DoRequest(client, path, method);
             return r;

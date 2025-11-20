@@ -37,6 +37,8 @@ message HttpRequest
     optional bool   chunked_transfer   = 10 [default=true];
 
     optional bool report_progress = 11;
+
+    optional string proxy = 12;
 }
 
 message HttpRequestProgress

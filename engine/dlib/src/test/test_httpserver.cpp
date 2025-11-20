@@ -318,10 +318,14 @@ TEST_F(dmHttpServerTest, TestServerClient)
         dmTime::Sleep(10 * 1000);
     }
 
+    dmURI::Parts uri;
+    uri.m_Hostname = DM_LOOPBACK_ADDRESS_IPV4;
+    uri.m_Port = 8500;
+
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
-    dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
+    dmHttpClient::HClient client = dmHttpClient::New(&client_params, &uri);
 
     dmHttpClient::Result r;
     m_ClientData = "";
