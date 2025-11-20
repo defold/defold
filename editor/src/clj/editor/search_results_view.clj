@@ -557,7 +557,7 @@
                :type :icon/refresh
                :size 20.0}}
     {:fx/type fx.separator/lifecycle}
-    {:fx/type fxui/menu-button
+    {:fx/type fxui/legacy-menu-button
      :variant :icon
      :graphic {:fx/type fxui/icon-graphic
                :type :icon/pull-up-override
@@ -565,7 +565,7 @@
      :popup-side :right
      :disable (coll/empty? pull-up-overrides-menu-items)
      :items pull-up-overrides-menu-items}
-    {:fx/type fxui/menu-button
+    {:fx/type fxui/legacy-menu-button
      :variant :icon
      :graphic {:fx/type fxui/icon-graphic
                :type :icon/push-down-override

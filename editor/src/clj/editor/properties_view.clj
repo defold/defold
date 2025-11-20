@@ -1158,10 +1158,13 @@
   "If property has validation message, set :color and :tooltip input-desc props"
   [input-desc property localization-state]
   (if-let [{:keys [severity message]} (properties/validation-message property)]
-    (-> input-desc
-        (assoc :tooltip (localization-state message))
-        (cond-> (identical? severity :fatal) (assoc :color :error)
-                (identical? severity :warning) (assoc :warning :warning)))
+    (let [severity (case severity
+                     :fatal :error
+                     :warning :warning
+                     :info)]
+      (-> input-desc
+          (assoc :tooltip {:severity severity :message (localization-state message)})
+          (cond-> (not= severity :info) (assoc :color severity))))
     input-desc))
 
 (defn- resolve-script-property-style-class [input-desc property]
@@ -1248,9 +1251,9 @@
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]
                                (coll/pair
-                                 {:fx/type fx.menu-button/lifecycle
+                                 {:fx/type fxui/menu-button
                                   :min-width :use-pref-size
-                                  :style-class (cond-> ["menu-button" "property-label"] overridden (conj "overridden"))
+                                  :style-class (cond-> ["property-label"] overridden (conj "overridden"))
                                   :grid-pane/column 0
                                   :grid-pane/row i
                                   :grid-pane/fill-width true
@@ -1258,12 +1261,11 @@
                                   :mnemonic-parsing false
                                   :focus-traversable false
                                   :text (localization-state (properties/label property))
-                                  fxui/prop-tooltip {:fx/type fxui/tooltip
-                                                     :text (localization-state
-                                                             (localization/message
-                                                               "property.tooltip"
-                                                               {"help" (properties/tooltip property)
-                                                                "id" (string/replace (name property-keyword) \- \_)}))}
+                                  :tooltip (localization-state
+                                             (localization/message
+                                               "property.tooltip"
+                                               {"help" (properties/tooltip property)
+                                                "id" (string/replace (name property-keyword) \- \_)}))
                                   prop-button-menu ::property-menu
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}

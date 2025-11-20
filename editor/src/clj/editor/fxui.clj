@@ -20,6 +20,7 @@
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
@@ -51,16 +52,17 @@
   (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
            [java.util Collection]
-           [javafx.animation Animation SequentialTransition TranslateTransition]
+           [javafx.animation Animation KeyFrame KeyValue SequentialTransition Timeline TranslateTransition]
            [javafx.application Platform]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
+           [javafx.beans.property ReadOnlyBooleanProperty]
            [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds]
            [javafx.scene Node]
-           [javafx.scene.control ListView ScrollPane TextInputControl Tooltip]
+           [javafx.scene.control ChoiceBox ComboBoxBase ListView MenuButton ScrollPane TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region]
@@ -467,54 +469,128 @@
       :right (assoc props :alignment :center-right)
       :bottom (assoc props :alignment :bottom-center))))
 
-(defn tooltip
-  "Generic `:tooltip` with sensible defaults."
-  [props]
+(defn tooltip [props]
   (-> props
       (assoc :fx/type fx.tooltip/lifecycle)
-      (util/provide-defaults
-        :wrap-text true
-        :max-width 600
-        :hide-delay [200 :ms]
-        :show-delay [200 :ms]
-        :show-duration [30 :s])))
+      (util/provide-defaults :wrap-text true :max-width 600)))
 
-;; TODO tooltip refactoring
-;;  1. important tooltips: shown immediately on hover, keep being show when focused
-;;  2. info tooltips: shown with delay
-;;  problem with tooltips obstructing the view, e.g. for menu buttons and combo boxes what are solutions?
-;;    always hide if showing a drop down? not configurable, should be inferred.
+(defn- node-showing-property
+  ^ReadOnlyBooleanProperty [^Node node]
+  (condp instance? node
+    ComboBoxBase (.showingProperty ^ComboBoxBase node)
+    MenuButton (.showingProperty ^MenuButton node)
+    ChoiceBox (.showingProperty ^ChoiceBox node)
+    nil))
 
-(def prop-tooltip
-  (fx.prop/make
-    (fx.mutator/adder-remover
-      #(do (.addEventHandler ^Node %1 MouseEvent/MOUSE_ENTERED (key %2))
-           (.addEventHandler ^Node %1 MouseEvent/MOUSE_EXITED (val %2)))
-      #(do (.removeEventHandler ^Node %1 MouseEvent/MOUSE_ENTERED (key %2))
-           (.removeEventHandler ^Node %1 MouseEvent/MOUSE_EXITED (val %2))))
-    (fx.lifecycle/wrap-coerce
-      fx.lifecycle/dynamic
-      (fn [^Tooltip tooltip]
-        (coll/pair
-          ;; show on mouse enter
-          (reify EventHandler
-            (handle [_ e]
-              (let [^Node node (.getSource e)
-                    screen-bounds (.localToScreen node (.getBoundsInLocal node))]
-                (.show tooltip node (.getMinX screen-bounds) (+ 8.0 (.getMaxY screen-bounds))))))
-          ;; hide on mouse exit
-          (reify EventHandler
-            (handle [_ _]
-              (.hide tooltip))))))))
+(defn- show-tooltip! [^Tooltip tooltip ^Node node]
+  (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))]
+    (.show tooltip node (.getMinX screen-bounds) (+ 8.0 (.getMaxY screen-bounds)))))
 
-(defn- resolve-tooltip [props]
-  (if-let [tooltip-value (:tooltip props)]
-    (let [tooltip (if (string? tooltip-value)
-                    {:fx/type tooltip :text tooltip-value}
-                    tooltip-value)]
-      (-> props
-          (dissoc :tooltip)
-          (assoc prop-tooltip tooltip)))
+(def prop-immediate-tooltip
+  (fx/make-binding-prop
+    (fn bind-immediate-tooltip [^Node node ^Tooltip tooltip]
+      (let [showing-property (node-showing-property node)
+            show! (fn show! []
+                    (when (and (not (.isShowing tooltip))
+                               (or (not showing-property)
+                                   (not (.get showing-property))))
+                      (show-tooltip! tooltip node)))
+            ^EventHandler on-enter (fn [_] (show!))
+            ^EventHandler on-exit (fn [_] (.hide tooltip))
+            ^ChangeListener showing-property-listener (when showing-property
+                                                        (fn [_ _ showing]
+                                                          (if showing
+                                                            (.hide tooltip)
+                                                            (when (.isHover node) (show!)))))]
+        (when (.isHover node) (show!))
+        (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+        (.addEventHandler node MouseEvent/MOUSE_EXITED on-exit)
+        (when showing-property
+          (.addListener showing-property showing-property-listener))
+        #(do
+           (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+           (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
+           (when showing-property
+             (.removeListener showing-property showing-property-listener)))))
+    fx.lifecycle/dynamic))
+
+
+(def ^:private prop-delayed-tooltip
+  (fx/make-binding-prop
+    (fn bind-delayed-tooltip [^Node node ^Tooltip tooltip]
+      (let [showing-property (node-showing-property node)
+            ^Timeline show-timeline (doto (Timeline.
+                                            ^KeyFrame/1 (into-array
+                                                          KeyFrame
+                                                          [(KeyFrame.
+                                                             (Duration/millis 200)
+                                                             ^KeyValue/1 (into-array KeyValue []))]))
+                                      (.setOnFinished
+                                        (fn [_]
+                                          (show-tooltip! tooltip node))))
+            show! (fn show! []
+                    (when (and (not (.isShowing tooltip))
+                               (or (not showing-property)
+                                   (not (.get showing-property))))
+                      (.playFromStart show-timeline)))
+            hide! (fn hide! []
+                    (.stop show-timeline)
+                    (.hide tooltip))
+            ^EventHandler on-enter (fn [_] (show!))
+            ^EventHandler on-exit (fn [_] (hide!))
+            ^ChangeListener showing-property-listener (when showing-property
+                                                        (fn [_ _ showing]
+                                                          (if showing
+                                                            (hide!)
+                                                            (when (.isHover node) (show!)))))]
+        (when (.isHover node) (show!))
+        (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+        (.addEventHandler node MouseEvent/MOUSE_EXITED on-exit)
+        (when showing-property
+          (.addListener showing-property showing-property-listener))
+        #(do
+           (.stop show-timeline)
+           (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
+           (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
+           (when showing-property
+             (.removeListener showing-property showing-property-listener)))))
+    fx.lifecycle/dynamic))
+
+(defn- resolve-tooltip
+  "Replace :tooltip prop with prop-tooltip2. Works on any Node, not just
+  Controls.
+
+  The tooltip may work in the following modes:
+    immediate    shown on hover and when the input becomes focused, used for
+                 important information (e.g. errors, warnings)
+    delayed      shown after a delay, used for hints. This prevents clutter and
+                 tooltip noize when moving the mouse around
+
+  Supports the following values:
+  - cljfx desc (used as is and delayed mode)
+  - string (tooltip text, used in delayed mode)
+  - map with the following keys (all required):
+      :severity    :error, :warning or :info
+      :message     string"
+  [props]
+  (if-let [v (:tooltip props)]
+    (let [props (dissoc props :tooltip)]
+      (cond
+        (:fx/type v)
+        (assoc props prop-delayed-tooltip v)
+
+        (string? v)
+        (assoc props prop-delayed-tooltip {:fx/type tooltip :text v})
+
+        (and (map? v)
+             (string? (:message v))
+             (case (:severity v) (:error :warning :info) true false))
+        (assoc props
+          (case (:severity v) :info prop-delayed-tooltip prop-immediate-tooltip)
+          {:fx/type tooltip :text (:message v)})
+
+        :else
+        (throw (ex-info (str "Unexpected tooltip value: " v) {:tooltip v}))))
     props))
 
 (defn button
@@ -538,7 +614,25 @@
       resolve-tooltip))
 
 (defn menu-button
+  "Generic menu button
+
+  Supports all :menu-button props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string"
+  [props]
+  (-> props
+      (assoc :fx/type fx.menu-button/lifecycle)
+      (prepend-style-classes "menu-button")
+      resolve-alignment
+      resolve-tooltip))
+
+(defn ^:deprecated legacy-menu-button
   "Generic `:menu-button` with styling determined by `:variant`.
+
+  Deprecated: use [[menu-button]]
 
   Additional keys:
   - `:variant` (optional, default `:secondary`) - a styling variant, either
@@ -871,7 +965,10 @@
   Supports all :label props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
     :color        either :text, :hint, :override, :warning or :error
-    :tooltip      additionally supports string values"
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string"
   [props]
   (-> props
       (assoc :fx/type fx.label/lifecycle)
@@ -897,7 +994,10 @@
 
   Supports all :check-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :tooltip      additionally supports string values
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string
     :color        either :warning or :error"
   [props]
   (-> props
@@ -918,7 +1018,10 @@
 
   Supports all :text-field props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :tooltip      additionally supports string values
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string
     :color        either :warning or :error"
   [props]
   (-> props
@@ -933,7 +1036,10 @@
 
   Supports all :password-field props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :tooltip      additionally supports string values
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string
     :color        either :warning or :error"
   [props]
   (-> props
@@ -944,11 +1050,33 @@
       resolve-tooltip))
 
 (defn text-area
+  "Text field
+
+  Supports all :text-area props, plus:
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string
+    :color        either :warning or :error"
   [props]
   (-> props
       (assoc :fx/type fx.text-area/lifecycle)
       (prepend-style-classes "text-input" "text-area" "ext-text-area")
       resolve-input-color
+      resolve-tooltip))
+
+(defn combo-box
+  "Combo box
+
+  Supports all :combo-box props, plus:
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string"
+  [props]
+  (-> props
+      (assoc :fx/type fx.combo-box/lifecycle)
+      (prepend-style-classes "combo-box" "combo-box-base")
       resolve-tooltip))
 
 (defn play-invalid-value-animation! [^Node node]
@@ -1196,7 +1324,10 @@
   Supports all :label props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
     :color        either :text, :hint, :override, :warning or :error
-    :tooltip      additionally supports string values"
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string"
   [props]
   (-> props
       (assoc :fx/type fx.label/lifecycle)

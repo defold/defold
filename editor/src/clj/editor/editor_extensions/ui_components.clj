@@ -224,11 +224,6 @@
     (fn apply-label-color [props color]
       (fxui/add-style-classes props (color->style-class color)))))
 
-(defn- apply-tooltip [props text localization-state]
-  {:pre [(some? text)]}
-  (assoc props fxui/prop-tooltip {:fx/type fxui/tooltip
-                                  :text (localization-state text)}))
-
 (fxui/defc label-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
   [{:keys [alignment text text_alignment color tooltip localization-state]
@@ -400,19 +395,13 @@
                             (fx.mutator/property-change-listener #(.selectedProperty ^CheckBox %))
                             property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- apply-tooltip-and-issue [props tooltip issue localization-state]
-  (let [message (:message issue)]
-    (cond-> props (or message tooltip) (apply-tooltip (if (and message tooltip)
-                                                        (localization/join "\n\n" [message tooltip])
-                                                        (or message tooltip))
-                                                      localization-state))))
-
 (defn- set-tooltip-and-issue [props tooltip issue localization-state]
   (let [message (:message issue)]
-    (cond-> props (or message tooltip) (assoc :tooltip (localization-state
-                                                         (if (and message tooltip)
-                                                           (localization/join "\n\n" [message tooltip])
-                                                           (or message tooltip)))))))
+    (cond-> props (or message tooltip) (assoc :tooltip {:severity (:severity issue :info)
+                                                        :message (localization-state
+                                                                   (if (and message tooltip)
+                                                                     (localization/join "\n\n" [message tooltip])
+                                                                     (or message tooltip)))}))))
 
 (fxui/defc check-box-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
@@ -478,8 +467,8 @@
             :fn create-select-box-string-converter
             :args [rt to_string localization-state]
             :key :converter
-            :desc (apply-tooltip-and-issue
-                    {:fx/type fx.combo-box/lifecycle
+            :desc (set-tooltip-and-issue
+                    {:fx/type fxui/combo-box
                      :value value
                      :pseudo-classes (or (some-> issue :severity hash-set) #{})
                      :on-key-pressed on-select-box-key-pressed
