@@ -195,11 +195,6 @@
                  (= 2 (.getClickCount e)))
         (open-resource-fn resource (inc row))))
 
-    :row-mouse-entered (swap! state assoc :hovered-row (:breakpoint event))
-    :row-mouse-exited  (swap! state assoc :hovered-row nil)
-    :condition-mouse-entered (swap! state assoc :hovered-condition (:breakpoint event))
-    :condition-mouse-exited  (swap! state assoc :hovered-condition nil)
-
     :edit-condition
     (let [^MouseEvent me (:fx/event event)]
       (when (or (= (:source event) :button)
@@ -317,9 +312,7 @@
                     :describe
                     (fn [idx]
                       (when-let [bp (get breakpoints idx)]
-                        {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
-                         :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
-                         :on-mouse-clicked {:event-type :breakpoint-clicked :clicked-breakpoint bp}}))}
+                        {:on-mouse-clicked {:event-type :breakpoint-clicked :clicked-breakpoint bp}}))}
       :items (range (count breakpoints))
       :columns
       [{:fx/type fx.table-column/lifecycle
@@ -372,12 +365,12 @@
         :cell-value-factory identity
         :cell-factory
         {:fx/cell-type fx.table-cell/lifecycle
+         :style-class ["condition-cell"]
          :describe
          (fn [idx]
            (when-let [breakpoint (get breakpoints idx)]
              (let [condition (:condition breakpoint)
-                   editing? (= (:edited-breakpoint state) breakpoint)
-                   hovered? (= (:hovered-condition state) breakpoint)]
+                   editing? (= (:edited-breakpoint state) breakpoint)]
                (if editing?
                  {:graphic
                   {:fx/type fx/ext-on-instance-lifecycle
@@ -404,15 +397,12 @@
                               :spacing 5
                               :children
                               (concat
-                               (when (and hovered? condition)
+                               (when condition
                                  [(icon-button close-icon-path {:event-type :remove-condition
                                                                 :breakpoint breakpoint})])
-                               (when hovered?
-                                 [(icon-button edit-icon-path {:event-type :edit-condition
-                                                               :source :button
-                                                               :breakpoint breakpoint})]))}]}
-                  :on-mouse-entered {:event-type :condition-mouse-entered :breakpoint breakpoint}
-                  :on-mouse-exited {:event-type :condition-mouse-exited :breakpoint breakpoint}
+                               [(icon-button edit-icon-path {:event-type :edit-condition
+                                                             :source :button
+                                                             :breakpoint breakpoint})])}]}
                   :on-mouse-clicked {:event-type :edit-condition
                                      :source :double-click
                                      :breakpoint breakpoint}}))))}}
@@ -436,24 +426,23 @@
          :describe
          (fn [idx]
            (when-let [breakpoint (get breakpoints idx)]
-             (let [hovered? (= (:hovered-row state) breakpoint)]
-               {:alignment :center
-                :graphic
-                {:fx/type fx.h-box/lifecycle
-                 :alignment :center-left
-                 :children
-                 ;; TODO: Organize this a bit better
-                 [(assoc (icon-button
-                          delete-icon-path
-                          (fn [event]
-                            (g/with-auto-evaluation-context evaluation-context
-                              (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                                    script-node (breakpoint->script-node project breakpoint evaluation-context)
-                                    remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
-                                    regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
-                                (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
-                                (g/set-property! script-node :regions regions)))))
-                         :style-class ["icon-button" "remove-button"])]}})))}}]}}))
+             {:alignment :center
+              :graphic
+              {:fx/type fx.h-box/lifecycle
+               :alignment :center-left
+               :children
+               ;; TODO: Organize this a bit better
+               [(assoc (icon-button
+                        delete-icon-path
+                        (fn [event]
+                          (g/with-auto-evaluation-context evaluation-context
+                            (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
+                                  script-node (breakpoint->script-node project breakpoint evaluation-context)
+                                  remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
+                                  regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
+                              (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
+                              (g/set-property! script-node :regions regions)))))
+                       :style-class ["icon-button" "remove-button"])]}}))}}]}}))
 
 (fxui/defc breakpoints-view
   {:compose [{:fx/type fx/ext-watcher
@@ -462,8 +451,6 @@
              {:fx/type fx/ext-state
               :initial-state {:breakpoints (:breakpoints (:context props))
                               :selected-indices []
-                              :hovered-condition nil
-                              :hovered-row nil
                               :edited-breakpoint nil
                               :edited-condition nil}}]}
   [{:keys [context localization-state parent state swap-state]}]
@@ -591,8 +578,7 @@
   (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
 
   (prefs/get (dev/prefs) [:window :keymap])
-  (reset! state {:breakpoints [] :selected-indices [] :hovered-condition nil :hovered-row nil
-                 :condition-text nil :edited-breakpoint nil :edited-condition nil})
+  (reset! state {:breakpoints [] :selected-indices [] :condition-text nil :edited-breakpoint nil :edited-condition nil})
 
   (defn print-scene-graph
     ([node]

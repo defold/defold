@@ -15,6 +15,14 @@
         &:focused {
             -fx-border-color: transparent transparent transparent -df-defold-orange;
         }
+
+        .remove-button {
+            -fx-opacity: 0;
+        }
+
+        &:hover .remove-button {
+            -fx-opacity: 1;
+        }
     }
 
     .table-cell {
@@ -43,6 +51,16 @@
 
         .icon-button-graphic {
             -fx-fill: -fx-text-base-color;
+        }
+    }
+
+    .condition-cell {
+        .condition-buttons {
+            -fx-opacity: 0;
+        }
+
+        &:hover .condition-buttons {
+            -fx-opacity: 1;
         }
     }
 
