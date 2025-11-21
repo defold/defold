@@ -350,13 +350,12 @@
                               :source :double-click
                               :breakpoint breakpoint}})))))
 
-(fxui/defc breakpoints-toolbar-view
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization (:context props))
-              :key :localization-state}]}
-  [{:keys [localization-state state swap-state]}]
+(defn- breakpoints-toolbar-view [localization-state state swap-state]
   {:fx/type fx.h-box/lifecycle
    :id "breakpoints-tool-bar"
+   :anchor-pane/top 0
+   :anchor-pane/left 0
+   :anchor-pane/right 0
    :pref-height toolbar-height
    :alignment :center-left
    :spacing 10
@@ -377,13 +376,13 @@
                :text (localization-state (localization/message "breakpoints.button.remove-all"))
                :on-action {:event-type :remove-all}}]})
 
-(fxui/defc breakpoints-table-view
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization (:context props))
-              :key :localization-state}]}
-  [{:keys [localization-state context state swap-state]}]
-  (let [{:keys [breakpoints selected-indices]} context]
+(defn- breakpoints-table-view [localization-state state swap-state]
+  (let [{:keys [breakpoints selected-indices]} state]
     {:fx/type fx.ext.table-view/with-selection-props
+     :anchor-pane/top toolbar-height
+     :anchor-pane/right 0
+     :anchor-pane/bottom 0
+     :anchor-pane/left 0
      :props {:selection-mode :multiple
              :on-selected-indices-changed #(swap-state assoc :selected-indices %)}
      :desc
@@ -456,24 +455,11 @@
                               :hovered-row nil
                               :edited-breakpoint nil
                               :edited-condition nil}}]}
-  [{:keys [props context parent state swap-state]}]
+  [{:keys [localization-state parent state swap-state]}]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value :value parent}
-   :props {:children [{:fx/type breakpoints-toolbar-view
-                       :anchor-pane/top 0
-                       :anchor-pane/left 0
-                       :anchor-pane/right 0
-                       :state state
-                       :swap-state swap-state
-                       :context context}
-                      {:fx/type breakpoints-table-view
-                       :anchor-pane/top toolbar-height
-                       :anchor-pane/right 0
-                       :anchor-pane/bottom 0
-                       :anchor-pane/left 0
-                       :state state
-                       :swap-state swap-state
-                       :context context}]}})
+   :props {:children [(breakpoints-toolbar-view localization-state state swap-state)
+                      (breakpoints-table-view localization-state state swap-state)]}})
 
 (g/defnk produce-breakpoints-ui [parent-view breakpoints workspace project prefs localization]
   (let [context {:workspace workspace
