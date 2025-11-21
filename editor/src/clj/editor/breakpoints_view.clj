@@ -48,7 +48,7 @@
            [javafx.scene Node Parent]
            [javafx.scene.control TableView TabPane TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
-           [javafx.scene.layout Pane]))
+           [javafx.scene.layout AnchorPane]))
 
 (set! *warn-on-reflection* true)
 
@@ -91,273 +91,6 @@
                          :scale-y 0.5
                          :style-class ["icon-button-graphic"]}]}
    :on-action on-action-event})
-
-(defn- column-cell-factory [state column-id breakpoint-idx]
-  ;; NOTE: We receive nil sometimes
-  (when-let [breakpoint (get (:breakpoints state) breakpoint-idx)]
-    (case column-id
-      ::column-enabled
-      {:style-class ["enabled-cell"]
-       :alignment :center
-       :graphic {:fx/type fx.check-box/lifecycle
-                 :selected (:enabled breakpoint)
-                 :on-selected-changed {:event-type :toggle-enabled
-                                       :breakpoint breakpoint}}}
-
-      ::colum-line {:text (str (inc (:row breakpoint)))}
-      ::column-name {:text (:name (:resource breakpoint))}
-      ::column-path {:text (:project-path (:resource breakpoint))}
-
-      ::column-actions
-      (let [hovered? (= (:hovered-row state) breakpoint)]
-        (when hovered?
-          {:alignment :center
-           :graphic {:fx/type fx.h-box/lifecycle
-                     :alignment :center-left
-                     :children [(assoc (icon-button "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
-                                                    {:event-type :remove-breakpoint
-                                                     :breakpoint breakpoint})
-                                       :style-class ["icon-button" "remove-button"])]}}))
-
-      ::column-condition
-      (let [condition (:condition breakpoint)
-            editing? (= (:edited-breakpoint state) breakpoint)
-            hovered? (= (:hovered-condition state) breakpoint)
-            edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-            close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
-        (if editing?
-          ;; NOTE: There's `ext-focused-by-default` which does something similar, but it's aggressive
-          ;; and steals focus when modifying breakpoints from the code view
-          {:graphic {:fx/type fx/ext-on-instance-lifecycle
-                     :on-created (fn [^TextField node]
-                                   (ui/run-later (.requestFocus node)))
-                     :desc {:fx/type ext-with-focus-changed-handler
-                            :props {:on-focused-changed {:event-type :condition-focus-changed}}
-                            :desc {:fx/type fx.text-field/lifecycle
-                                   :text condition
-                                   :on-text-changed {:event-type :condition-text-changed}
-                                   :on-action {:event-type :save-condition}
-                                   :on-key-pressed {:event-type :condition-key-pressed}}}}}
-          {:graphic {:fx/type fx.stack-pane/lifecycle
-                     :children [{:fx/type :label
-                                 :stack-pane/alignment :center-left
-                                 :text-overrun :ellipsis
-                                 :text (or condition "")}
-                                {:fx/type fx.h-box/lifecycle
-                                 :stack-pane/alignment :center-right
-                                 :fill-height false
-                                 :max-width :use-pref-size
-                                 :max-height :use-pref-size
-                                 :spacing 5
-                                 :children (concat
-                                            (when (and hovered? condition)
-                                              [(icon-button close-icon {:event-type :remove-condition
-                                                                        :breakpoint breakpoint})])
-                                            (when hovered?
-                                              [(icon-button edit-icon {:event-type :edit-condition
-                                                                       :source :button
-                                                                       :breakpoint breakpoint})]))}]}
-           :on-mouse-entered {:event-type :condition-mouse-entered  :breakpoint breakpoint}
-           :on-mouse-exited  {:event-type :condition-mouse-exited   :breakpoint breakpoint}
-           :on-mouse-clicked {:event-type :edit-condition
-                              :source :double-click
-                              :breakpoint breakpoint}})))))
-
-(fxui/defc breakpoints-view
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization (:context props))
-              :key :localization-state}]}
-  [{:keys [parent localization-state state]}]
-  {:fx/type fx.ext.table-view/with-selection-props
-   :anchor-pane/top toolbar-height
-   :anchor-pane/right 0
-   :anchor-pane/bottom 0
-   :anchor-pane/left 0
-   :props {:selection-mode :multiple
-           :on-selected-indices-changed {:event-type :selected-items-changed}}
-   :desc
-   {:fx/type fx.table-view/lifecycle
-    :id "breakpoints-table-view"
-    :fixed-cell-size 33.0
-    :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
-    :row-factory {:fx/cell-type fx.table-row/lifecycle
-                  :describe
-                  (fn [idx]
-                    (let [bp (get (:breakpoints state) idx)]
-                      {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
-                       :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
-                       :on-mouse-clicked {:event-type :breakpoint-clicked
-                                          :clicked-breakpoint bp}}))}
-    :items (range (count (:breakpoints state)))
-    :columns
-    [{:fx/type fx.table-column/lifecycle
-      :text (localization-state (localization/message "breakpoints.column.enabled"))
-      :pref-width 60
-      :min-width 60
-      :max-width 80
-      :cell-value-factory identity
-      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-cell-factory state ::column-enabled)}}
-     {:fx/type fx.table-column/lifecycle
-      :text (localization-state (localization/message "breakpoints.column.line"))
-      :pref-width 50
-      :min-width 50
-      :max-width 100
-      :cell-value-factory identity
-      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-cell-factory state ::colum-line)}}
-     {:fx/type fx.table-column/lifecycle
-      :text (localization-state (localization/message "breakpoints.column.name"))
-      :pref-width 200
-      :cell-value-factory identity
-      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-cell-factory state ::column-name)}}
-     {:fx/type fx.table-column/lifecycle
-      :text (localization-state (localization/message "breakpoints.column.condition"))
-      :pref-width 250
-      :cell-value-factory identity
-      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-cell-factory state ::column-condition)}}
-     {:fx/type fx.table-column/lifecycle
-      :text (localization-state (localization/message "breakpoints.column.path"))
-      :style-class ["path-cell"]
-      :pref-width 200
-      :cell-value-factory identity
-      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-cell-factory state ::column-path)}}
-     {:fx/type fx.table-column/lifecycle
-      :pref-width 50
-      :reorderable false
-      :resizable false
-      :sortable false
-      :cell-value-factory identity
-      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-cell-factory state ::column-actions)}}]}})
-
-(defn cljfx-view [{:keys [parent context state localization-state]}]
-  {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value
-          :value parent}
-   :props {:children [{:fx/type fx.h-box/lifecycle
-                       :id "breakpoints-tool-bar"
-                       :anchor-pane/top 0
-                       :anchor-pane/left 0
-                       :anchor-pane/right 0
-                       :pref-height toolbar-height
-                       :alignment :center-left
-                       :spacing 10
-                       :children [{:fx/type fx.button/lifecycle
-                                   :id "breakpoints-enable-all"
-                                   :text (localization-state (localization/message "breakpoints.button.enable-all"))
-                                   :on-action {:event-type :enable-all}}
-                                  {:fx/type fx.button/lifecycle
-                                   :id "breakpoints-disable-all"
-                                   :text (localization-state (localization/message "breakpoints.button.disable-all"))
-                                   :on-action {:event-type :disable-all}}
-                                  {:fx/type fx.button/lifecycle
-                                   :id "breakpoints-toggle-all"
-                                   :text (localization-state (localization/message "breakpoints.button.toggle-all"))
-                                   :on-action {:event-type :toggle-all}}
-                                  {:fx/type fx.button/lifecycle
-                                   :id "breakpoints-remove-all"
-                                   :text (localization-state (localization/message "breakpoints.button.remove-all"))
-                                   :on-action {:event-type :remove-all}}]}
-                      {:fx/type breakpoints-view
-                       :context context}]}})
-
-;; (defn- breakpoints-view [{:keys [parent localization-state state]}]
-;;   {:fx/type fxui/ext-with-anchor-pane-props
-;;    :desc {:fx/type fxui/ext-value
-;;           :value parent}
-;;    :props {:children [{:fx/type fx.h-box/lifecycle
-;;                        :id "breakpoints-tool-bar"
-;;                        :anchor-pane/top 0
-;;                        :anchor-pane/left 0
-;;                        :anchor-pane/right 0
-;;                        :pref-height toolbar-height
-;;                        :alignment :center-left
-;;                        :spacing 10
-;;                        :children [{:fx/type fx.button/lifecycle
-;;                                    :id "breakpoints-enable-all"
-;;                                    :text (localization-state (localization/message "breakpoints.button.enable-all"))
-;;                                    :on-action {:event-type :enable-all}}
-;;                                   {:fx/type fx.button/lifecycle
-;;                                    :id "breakpoints-disable-all"
-;;                                    :text (localization-state (localization/message "breakpoints.button.disable-all"))
-;;                                    :on-action {:event-type :disable-all}}
-;;                                   {:fx/type fx.button/lifecycle
-;;                                    :id "breakpoints-toggle-all"
-;;                                    :text (localization-state (localization/message "breakpoints.button.toggle-all"))
-;;                                    :on-action {:event-type :toggle-all}}
-;;                                   {:fx/type fx.button/lifecycle
-;;                                    :id "breakpoints-remove-all"
-;;                                    :text (localization-state (localization/message "breakpoints.button.remove-all"))
-;;                                    :on-action {:event-type :remove-all}}]}
-;;                       {:fx/type fx.ext.table-view/with-selection-props
-;;                        :anchor-pane/top toolbar-height
-;;                        :anchor-pane/right 0
-;;                        :anchor-pane/bottom 0
-;;                        :anchor-pane/left 0
-;;                        :props {:selection-mode :multiple
-;;                                :on-selected-indices-changed {:event-type :selected-items-changed}}
-;;                        :desc
-;;                        {:fx/type fx.table-view/lifecycle
-;;                         :id "breakpoints-table-view"
-;;                         :fixed-cell-size 33.0
-;;                         :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
-;;                         :row-factory {:fx/cell-type fx.table-row/lifecycle
-;;                                       :describe
-;;                                       (fn [idx]
-;;                                         (let [bp (get (:breakpoints state) idx)]
-;;                                           {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
-;;                                            :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
-;;                                            :on-mouse-clicked {:event-type :breakpoint-clicked
-;;                                                               :clicked-breakpoint bp}}))}
-;;                         :items (range (count (:breakpoints state)))
-;;                         :columns
-;;                         [{:fx/type fx.table-column/lifecycle
-;;                           :text (localization-state (localization/message "breakpoints.column.enabled"))
-;;                           :pref-width 60
-;;                           :min-width 60
-;;                           :max-width 80
-;;                           :cell-value-factory identity
-;;                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-;;                                          :describe (fn/partial column-cell-factory state ::column-enabled)}}
-;;                          {:fx/type fx.table-column/lifecycle
-;;                           :text (localization-state (localization/message "breakpoints.column.line"))
-;;                           :pref-width 50
-;;                           :min-width 50
-;;                           :max-width 100
-;;                           :cell-value-factory identity
-;;                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-;;                                          :describe (fn/partial column-cell-factory state ::colum-line)}}
-;;                          {:fx/type fx.table-column/lifecycle
-;;                           :text (localization-state (localization/message "breakpoints.column.name"))
-;;                           :pref-width 200
-;;                           :cell-value-factory identity
-;;                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-;;                                          :describe (fn/partial column-cell-factory state ::column-name)}}
-;;                          {:fx/type fx.table-column/lifecycle
-;;                           :text (localization-state (localization/message "breakpoints.column.condition"))
-;;                           :pref-width 250
-;;                           :cell-value-factory identity
-;;                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-;;                                          :describe (fn/partial column-cell-factory state ::column-condition)}}
-;;                          {:fx/type fx.table-column/lifecycle
-;;                           :text (localization-state (localization/message "breakpoints.column.path"))
-;;                           :style-class ["path-cell"]
-;;                           :pref-width 200
-;;                           :cell-value-factory identity
-;;                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-;;                                          :describe (fn/partial column-cell-factory state ::column-path)}}
-;;                          {:fx/type fx.table-column/lifecycle
-;;                           :pref-width 50
-;;                           :reorderable false
-;;                           :resizable false
-;;                           :sortable false
-;;                           :cell-value-factory identity
-;;                           :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-;;                                          :describe (fn/partial column-cell-factory state ::column-actions)}}]}}]}})
 
 (handler/register-menu! ::breakpoint-menu
   [{:label (localization/message "command.file.show-in-assets")
@@ -546,40 +279,324 @@
               :let [updated-regions (update-script-regions-from-breakpoints script-node breakpoints evaluation-context)]]
           (g/set-property script-node :regions updated-regions))))))
 
-(defn create-breakpoint-view-renderer [project localization prefs breakpoints-container open-resource-fn]
-  (restore-breakpoints! project prefs)
-  (let [open-res-fn (make-open-resource-fn open-resource-fn)]
-    (fx/mount-renderer
-      state
-      (fx/create-renderer
-       :error-handler #'error-reporting/report-exception!
-       :middleware (comp
+(comment
+  (defn- breakpoints-view [{:keys [parent localization-state state]}]
+    {:fx/type fxui/ext-with-anchor-pane-props
+     :desc {:fx/type fxui/ext-value
+            :value parent}
+     :props {:children [{:fx/type fx.h-box/lifecycle
+                         :id "breakpoints-tool-bar"
+                         :anchor-pane/top 0
+                         :anchor-pane/left 0
+                         :anchor-pane/right 0
+                         :pref-height toolbar-height
+                         :alignment :center-left
+                         :spacing 10
+                         :children [{:fx/type fx.button/lifecycle
+                                     :id "breakpoints-enable-all"
+                                     :text (localization-state (localization/message "breakpoints.button.enable-all"))
+                                     :on-action {:event-type :enable-all}}
+                                    {:fx/type fx.button/lifecycle
+                                     :id "breakpoints-disable-all"
+                                     :text (localization-state (localization/message "breakpoints.button.disable-all"))
+                                     :on-action {:event-type :disable-all}}
+                                    {:fx/type fx.button/lifecycle
+                                     :id "breakpoints-toggle-all"
+                                     :text (localization-state (localization/message "breakpoints.button.toggle-all"))
+                                     :on-action {:event-type :toggle-all}}
+                                    {:fx/type fx.button/lifecycle
+                                     :id "breakpoints-remove-all"
+                                     :text (localization-state (localization/message "breakpoints.button.remove-all"))
+                                     :on-action {:event-type :remove-all}}]}
+                        {:fx/type fx.ext.table-view/with-selection-props
+                         :anchor-pane/top toolbar-height
+                         :anchor-pane/right 0
+                         :anchor-pane/bottom 0
+                         :anchor-pane/left 0
+                         :props {:selection-mode :multiple
+                                 :on-selected-indices-changed {:event-type :selected-items-changed}}
+                         :desc
+                         {:fx/type fx.table-view/lifecycle
+                          :id "breakpoints-table-view"
+                          :fixed-cell-size 33.0
+                          :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
+                          :row-factory {:fx/cell-type fx.table-row/lifecycle
+                                        :describe
+                                        (fn [idx]
+                                          (let [bp (get (:breakpoints state) idx)]
+                                            {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
+                                             :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
+                                             :on-mouse-clicked {:event-type :breakpoint-clicked
+                                                                :clicked-breakpoint bp}}))}
+                          :items (range (count (:breakpoints state)))
+                          :columns
+                          [{:fx/type fx.table-column/lifecycle
+                            :text (localization-state (localization/message "breakpoints.column.enabled"))
+                            :pref-width 60
+                            :min-width 60
+                            :max-width 80
+                            :cell-value-factory identity
+                            :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                           :describe (fn/partial column-cell-factory state ::column-enabled)}}
+                           {:fx/type fx.table-column/lifecycle
+                            :text (localization-state (localization/message "breakpoints.column.line"))
+                            :pref-width 50
+                            :min-width 50
+                            :max-width 100
+                            :cell-value-factory identity
+                            :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                           :describe (fn/partial column-cell-factory state ::colum-line)}}
+                           {:fx/type fx.table-column/lifecycle
+                            :text (localization-state (localization/message "breakpoints.column.name"))
+                            :pref-width 200
+                            :cell-value-factory identity
+                            :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                           :describe (fn/partial column-cell-factory state ::column-name)}}
+                           {:fx/type fx.table-column/lifecycle
+                            :text (localization-state (localization/message "breakpoints.column.condition"))
+                            :pref-width 250
+                            :cell-value-factory identity
+                            :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                           :describe (fn/partial column-cell-factory state ::column-condition)}}
+                           {:fx/type fx.table-column/lifecycle
+                            :text (localization-state (localization/message "breakpoints.column.path"))
+                            :style-class ["path-cell"]
+                            :pref-width 200
+                            :cell-value-factory identity
+                            :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                           :describe (fn/partial column-cell-factory state ::column-path)}}
+                           {:fx/type fx.table-column/lifecycle
+                            :pref-width 50
+                            :reorderable false
+                            :resizable false
+                            :sortable false
+                            :cell-value-factory identity
+                            :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                                           :describe (fn/partial column-cell-factory state ::column-actions)}}]}}]}})
+  (defn create-breakpoint-view-renderer [project localization prefs breakpoints-container open-resource-fn]
+    (restore-breakpoints! project prefs)
+    (let [open-res-fn (make-open-resource-fn open-resource-fn)]
+      (fx/mount-renderer
+       state
+       (fx/create-renderer
+        :error-handler #'error-reporting/report-exception!
+        :middleware (comp
                      fxui/wrap-dedupe-desc
                      (fx/wrap-map-desc
-                       (fn [state]
-                         {:fx/type fx/ext-watcher
-                          :ref localization
-                          :key :localization-state
-                          :desc {:fx/type breakpoints-view
-                                 :parent breakpoints-container
-                                 :state state}})))
-       :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
-  (let [table (.lookup (ui/main-root) "#breakpoints-table-view")]
-    (ui/context! table :breakpoints-view
-                 {:project project :table table}
-                 (ui/->selection-provider table)
-                 {}
-                 {resource/Resource (fn [idx] (-> @state :breakpoints (get idx) :resource))})
-    (ui/register-context-menu table ::breakpoint-menu))
-  (let [timer (ui/->timer
-               5
-               "breakpoints-view-update-timer"
-               (fn [_ _ _]
-                 (when-not (ui/ui-disabled?)
-                   (let [breakpoints (g/node-value project :breakpoints)]
-                     (save-breakpoints! prefs breakpoints)
-                     (swap! state assoc :breakpoints breakpoints)))))]
-    (ui/timer-start! timer)))
+                      (fn [state]
+                        {:fx/type fx/ext-watcher
+                         :ref localization
+                         :key :localization-state
+                         :desc {:fx/type breakpoints-view
+                                :parent breakpoints-container
+                                :state state}})))
+        :opts {:fx.opt/map-event-handler #(handle-breakpoint-event! project open-res-fn %)})))
+    (let [table (.lookup (ui/main-root) "#breakpoints-table-view")]
+      (ui/context! table :breakpoints-view
+                   {:project project :table table}
+                   (ui/->selection-provider table)
+                   {}
+                   {resource/Resource (fn [idx] (-> @state :breakpoints (get idx) :resource))})
+      (ui/register-context-menu table ::breakpoint-menu))
+    (let [timer (ui/->timer
+                 5
+                 "breakpoints-view-update-timer"
+                 (fn [_ _ _]
+                   (when-not (ui/ui-disabled?)
+                     (let [breakpoints (g/node-value project :breakpoints)]
+                       (save-breakpoints! prefs breakpoints)
+                       (swap! state assoc :breakpoints breakpoints)))))]
+      (ui/timer-start! timer))))
+
+(defn- column-cell-factory [state column-id breakpoint-idx]
+  ;; NOTE: We receive nil sometimes
+  (when-let [breakpoint (get state breakpoint-idx)]
+    (println state column-id breakpoint-idx)
+    (case column-id
+      ::column-enabled
+      {:style-class ["enabled-cell"]
+       :alignment :center
+       :graphic {:fx/type fx.check-box/lifecycle
+                 :selected (:enabled breakpoint)
+                 :on-selected-changed {:event-type :toggle-enabled
+                                       :breakpoint breakpoint}}}
+
+      ::colum-line {:text (str (inc (:row breakpoint)))}
+      ::column-name {:text (:name (:resource breakpoint))}
+      ::column-path {:text (:project-path (:resource breakpoint))}
+
+      ::column-actions
+      (let [hovered? (= (:hovered-row state) breakpoint)]
+        (when hovered?
+          {:alignment :center
+           :graphic {:fx/type fx.h-box/lifecycle
+                     :alignment :center-left
+                     :children [(assoc (icon-button "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                                                    {:event-type :remove-breakpoint
+                                                     :breakpoint breakpoint})
+                                       :style-class ["icon-button" "remove-button"])]}}))
+
+      ::column-condition
+      (let [condition (:condition breakpoint)
+            editing? (= (:edited-breakpoint state) breakpoint)
+            hovered? (= (:hovered-condition state) breakpoint)
+            edit-icon "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+            close-icon "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"]
+        (if editing?
+          ;; NOTE: There's `ext-focused-by-default` which does something similar, but it's aggressive
+          ;; and steals focus when modifying breakpoints from the code view
+          {:graphic {:fx/type fx/ext-on-instance-lifecycle
+                     :on-created (fn [^TextField node]
+                                   (ui/run-later (.requestFocus node)))
+                     :desc {:fx/type ext-with-focus-changed-handler
+                            :props {:on-focused-changed {:event-type :condition-focus-changed}}
+                            :desc {:fx/type fx.text-field/lifecycle
+                                   :text condition
+                                   :on-text-changed {:event-type :condition-text-changed}
+                                   :on-action {:event-type :save-condition}
+                                   :on-key-pressed {:event-type :condition-key-pressed}}}}}
+          {:graphic {:fx/type fx.stack-pane/lifecycle
+                     :children [{:fx/type :label
+                                 :stack-pane/alignment :center-left
+                                 :text-overrun :ellipsis
+                                 :text (or condition "")}
+                                {:fx/type fx.h-box/lifecycle
+                                 :stack-pane/alignment :center-right
+                                 :fill-height false
+                                 :max-width :use-pref-size
+                                 :max-height :use-pref-size
+                                 :spacing 5
+                                 :children (concat
+                                            (when (and hovered? condition)
+                                              [(icon-button close-icon {:event-type :remove-condition
+                                                                        :breakpoint breakpoint})])
+                                            (when hovered?
+                                              [(icon-button edit-icon {:event-type :edit-condition
+                                                                       :source :button
+                                                                       :breakpoint breakpoint})]))}]}
+           :on-mouse-entered {:event-type :condition-mouse-entered  :breakpoint breakpoint}
+           :on-mouse-exited  {:event-type :condition-mouse-exited   :breakpoint breakpoint}
+           :on-mouse-clicked {:event-type :edit-condition
+                              :source :double-click
+                              :breakpoint breakpoint}})))))
+
+(fxui/defc breakpoints-toolbar-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization (:context props))
+              :key :localization-state}]}
+  [{:keys [localization-state]}]
+  {:fx/type fx.h-box/lifecycle
+   :id "breakpoints-tool-bar"
+   :pref-height toolbar-height
+   :alignment :center-left
+   :spacing 10
+   :children [{:fx/type fx.button/lifecycle
+               :id "breakpoints-enable-all"
+               :text (localization-state (localization/message "breakpoints.button.enable-all"))
+               :on-action {:event-type :enable-all}}
+              {:fx/type fx.button/lifecycle
+               :id "breakpoints-disable-all"
+               :text (localization-state (localization/message "breakpoints.button.disable-all"))
+               :on-action {:event-type :disable-all}}
+              {:fx/type fx.button/lifecycle
+               :id "breakpoints-toggle-all"
+               :text (localization-state (localization/message "breakpoints.button.toggle-all"))
+               :on-action {:event-type :toggle-all}}
+              {:fx/type fx.button/lifecycle
+               :id "breakpoints-remove-all"
+               :text (localization-state (localization/message "breakpoints.button.remove-all"))
+               :on-action {:event-type :remove-all}}]})
+
+(fxui/defc breakpoints-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization (:context props))
+              :key :localization-state}]}
+  [{:keys [localization-state context state]}]
+  (let [breakpoints (:breakpoints context)]
+    {:fx/type fx.ext.table-view/with-selection-props
+     :props {:selection-mode :multiple
+             :on-selected-indices-changed {:event-type :selected-items-changed}}
+     :desc
+     {:fx/type fx.table-view/lifecycle
+      :id "breakpoints-table-view"
+      :fixed-cell-size 33.0
+      :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
+      :row-factory {:fx/cell-type fx.table-row/lifecycle
+                    :describe
+                    (fn [idx]
+                      (when-let [bp (get breakpoints idx)]
+                        {:on-mouse-entered {:event-type :row-mouse-entered  :breakpoint bp}
+                         :on-mouse-exited  {:event-type :row-mouse-exited   :breakpoint bp}
+                         :on-mouse-clicked {:event-type :breakpoint-clicked
+                                            :clicked-breakpoint bp}}))}
+      :items (range (count breakpoints))
+      :columns
+      [{:fx/type fx.table-column/lifecycle
+        :text (localization-state (localization/message "breakpoints.column.enabled"))
+        :pref-width 60
+        :min-width 60
+        :max-width 80
+        :cell-value-factory identity
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-cell-factory breakpoints ::column-enabled)}}
+       {:fx/type fx.table-column/lifecycle
+        :text (localization-state (localization/message "breakpoints.column.line"))
+        :pref-width 50
+        :min-width 50
+        :max-width 100
+        :cell-value-factory identity
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-cell-factory breakpoints ::colum-line)}}
+       {:fx/type fx.table-column/lifecycle
+        :text (localization-state (localization/message "breakpoints.column.name"))
+        :pref-width 200
+        :cell-value-factory identity
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-cell-factory breakpoints ::column-name)}}
+       {:fx/type fx.table-column/lifecycle
+        :text (localization-state (localization/message "breakpoints.column.condition"))
+        :pref-width 250
+        :cell-value-factory identity
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-cell-factory breakpoints ::column-condition)}}
+       {:fx/type fx.table-column/lifecycle
+        :text (localization-state (localization/message "breakpoints.column.path"))
+        :style-class ["path-cell"]
+        :pref-width 200
+        :cell-value-factory identity
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-cell-factory breakpoints ::column-path)}}
+       {:fx/type fx.table-column/lifecycle
+        :pref-width 50
+        :reorderable false
+        :resizable false
+        :sortable false
+        :cell-value-factory identity
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-cell-factory breakpoints ::column-actions)}}]}}))
+
+(g/defnk produce-breakpoints-ui [parent-view breakpoints workspace project prefs localization]
+  (println "Advanced")
+  (let [context {:workspace workspace
+                 :project project
+                 :prefs prefs
+                 :breakpoints breakpoints
+                 :localization localization}]
+    (fxui/advance-ui-user-data-component!
+      parent-view ::breakpoints
+      {:fx/type fxui/ext-with-anchor-pane-props
+       :desc {:fx/type fxui/ext-value :value parent-view}
+       :props {:children [{:fx/type breakpoints-toolbar-view
+                           :anchor-pane/top 0
+                           :anchor-pane/left 0
+                           :anchor-pane/right 0
+                           :context context}
+                          {:fx/type breakpoints-view
+                           :anchor-pane/top toolbar-height
+                           :anchor-pane/right 0
+                           :anchor-pane/bottom 0
+                           :anchor-pane/left 0
+                           :context context}]}})))
 
 (g/defnode BreakpointsView
   (property parent-view Parent)
@@ -588,19 +605,9 @@
   (input workspace g/Any)
   (input localization g/Any)
   (input project g/Any)
-  (input breakpoints g/Any :array)
+  (input breakpoints g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view breakpoints workspace project prefs localization]
-                                 (let [context {:workspace workspace
-                                                :project project
-                                                :prefs prefs
-                                                :breakpoints breakpoints
-                                                :localization localization}]
-                                   (fxui/advance-ui-user-data-component! parent-view ::breakpoints ;; What was this ::tree keyword?
-                                                                         {:fx/type breakpoints-view
-                                                                          :parent parent-view
-                                                                          :context context})))))
-
+  (output anchor-pane AnchorPane :cached produce-breakpoints-ui))
 
 (defn make-breakpoints-view [workspace project app-view view-graph prefs ^Node parent]
   (first
@@ -642,10 +649,19 @@
         (swap! state assoc :edited-breakpoint (get breakpoints selected))))))
 
 (comment
-  (let [tab-pane (.lookup (ui/main-root) "#breakpoints-container")]
-    (make-breakpoints-view (dev/workspace) (dev/project) (dev/app-view)
-                           editor.boot-open-project/*view-graph*
-                           (dev/prefs) tab-pane))
+  (g/node-value @the-view :breakpoints)
+  (ui/run-now
+    (g/node-value @the-view :anchor-pane))
+  (g/node-value (dev/app-view) :auto-pulls)
+  (g/node-value (dev/project) :breakpoints)
+  (def the-view (atom nil))
+  (let [bp-container (.lookup (ui/main-root) "#breakpoints-container")
+        bp-view (make-breakpoints-view (dev/workspace) (dev/project) (dev/app-view)
+                                       editor.boot-open-project/*view-graph*
+                                       (dev/prefs) bp-container)
+        auto-pulls [[bp-view :anchor-pane]]]
+    (reset! the-view bp-view)
+    (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
 
   (g/node-value (dev/project) :breakpoints)
 
@@ -691,4 +707,29 @@
   (prefs/get (dev/prefs) [:window :keymap])
   (reset! state {:breakpoints [] :selected-indices [] :hovered-condition nil :hovered-row nil
                  :condition-text nil :edited-breakpoint nil :edited-condition nil})
+
+  (defn print-scene-graph
+    ([node]
+     (print-scene-graph node 0))
+    ([node depth]
+     (let [indent (apply str (repeat depth "  "))
+           node-type (-> node .getClass .getSimpleName)
+           node-id (.getId node)
+           node-style-class (when (instance? javafx.scene.Node node)
+                              (.getStyleClass node))]
+       (println (str indent node-type
+                     (when node-id (str " [id=" node-id "]"))
+                     (when (seq node-style-class) (str " " node-style-class))))
+
+       ;; Recursively print children
+       (cond
+         (instance? javafx.scene.Parent node)
+         (doseq [child (.getChildrenUnmodifiable node)]
+           (print-scene-graph child (inc depth)))
+
+         (instance? javafx.scene.control.Control node)
+         (when-let [skin (.getSkin node)]
+           (when (instance? javafx.scene.Parent (.getNode skin))
+             (print-scene-graph (.getNode skin) (inc depth))))))))
+  (print-scene-graph (.lookup (ui/main-root) "#breakpoints-container"))
   ,)
