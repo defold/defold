@@ -70,17 +70,17 @@
 
 (def ext-with-focus-changed-handler
   (fx/make-ext-with-props
-   {:on-focused-changed
-    (fx.prop/make
-      (fx.mutator/property-change-listener #(.focusedProperty ^TextField %))
-      (fx.lifecycle/wrap-coerce
-        fx.lifecycle/event-handler
-        (fn [f]
-          (reify ChangeListener
-            (changed [_ observable-value _ v]
-              (when-let [scene (.getScene ^Node (.getBean ^ReadOnlyProperty observable-value))]
-                (f {:window (.getWindow scene)
-                    :value v})))))))}))
+    {:on-focused-changed
+     (fx.prop/make
+       (fx.mutator/property-change-listener #(.focusedProperty ^TextField %))
+       (fx.lifecycle/wrap-coerce
+         fx.lifecycle/event-handler
+         (fn [f]
+           (reify ChangeListener
+             (changed [_ observable-value _ v]
+               (when-let [scene (.getScene ^Node (.getBean ^ReadOnlyProperty observable-value))]
+                 (f {:window (.getWindow scene)
+                     :value v})))))))}))
 
 (defn- icon-button [icon-path on-action-event]
   {:fx/type fx.button/lifecycle
@@ -397,12 +397,12 @@
                               :spacing 5
                               :children
                               (concat
-                               (when condition
-                                 [(icon-button close-icon-path {:event-type :remove-condition
-                                                                :breakpoint breakpoint})])
-                               [(icon-button edit-icon-path {:event-type :edit-condition
-                                                             :source :button
-                                                             :breakpoint breakpoint})])}]}
+                                (when condition
+                                  [(icon-button close-icon-path {:event-type :remove-condition
+                                                                 :breakpoint breakpoint})])
+                                [(icon-button edit-icon-path {:event-type :edit-condition
+                                                              :source :button
+                                                              :breakpoint breakpoint})])}]}
                   :on-mouse-clicked {:event-type :edit-condition
                                      :source :double-click
                                      :breakpoint breakpoint}}))))}}
@@ -433,15 +433,15 @@
                :children
                ;; TODO: Organize this a bit better
                [(assoc (icon-button
-                        delete-icon-path
-                        (fn [event]
-                          (g/with-auto-evaluation-context evaluation-context
-                            (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                                  script-node (breakpoint->script-node project breakpoint evaluation-context)
-                                  remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
-                                  regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
-                              (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
-                              (g/set-property! script-node :regions regions)))))
+                         delete-icon-path
+                         (fn [event]
+                           (g/with-auto-evaluation-context evaluation-context
+                             (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
+                                   script-node (breakpoint->script-node project breakpoint evaluation-context)
+                                   remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
+                                   regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
+                               (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
+                               (g/set-property! script-node :regions regions)))))
                        :style-class ["icon-button" "remove-button"])]}}))}}]}}))
 
 (fxui/defc breakpoints-view
