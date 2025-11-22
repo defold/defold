@@ -1,0 +1,4 @@
+{:clean {:ns-inner-blocks-indentation :same-line
+         :ns-import-classes-indentation :same-line
+          ;; -1 for all in single line
+         :sort {:import-classes {:classes-per-line -1}}}}

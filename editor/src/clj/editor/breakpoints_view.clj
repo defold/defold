@@ -28,12 +28,10 @@
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
-            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as code-data]
             [editor.defold-project :as project]
-            [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.localization :as localization]
@@ -46,7 +44,7 @@
   (:import [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.scene Node Parent]
-           [javafx.scene.control TableView TabPane TextField]
+           [javafx.scene.control TableView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane]))
 
