@@ -217,4 +217,22 @@ $ext-line-height: 26px;
             }
         }
     }
+    &-hover-overlay {
+        & > * {
+            visibility: hidden;
+        }
+        &:hover > *, &:pressed > * {
+            visibility: visible;
+        }
+    }
+    &-scrubber {
+        -fx-cursor: v-resize;
+        -fx-pref-height: $ext-line-height;
+        &:hover > .image-view {
+            -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+        }
+        &:pressed > .image-view {
+            -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
+        }
+    }
 }

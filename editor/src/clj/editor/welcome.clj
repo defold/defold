@@ -25,7 +25,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.game-project-core :as game-project-core]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -53,7 +53,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListCell ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input KeyEvent KeyCode MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Text TextFlow]
@@ -363,7 +363,7 @@
                 (ui/on-action!
                   (fn [_]
                     (on-remove)))
-                (.setGraphic (jfx/get-image-view "icons/32/Icons_S_01_SmallClose.png" 10)))
+                (.setGraphic (icons/get-image-view "icons/32/Icons_S_01_SmallClose.png" 10)))
               (timestamp-label timestamp localization)]))
          (timestamp-label timestamp localization))])))
 

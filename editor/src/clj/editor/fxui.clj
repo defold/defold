@@ -23,12 +23,15 @@
             [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-button :as fx.menu-button]
+            [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text-area :as fx.text-area]
@@ -59,13 +62,14 @@
            [javafx.beans.property ReadOnlyBooleanProperty]
            [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
+           [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.geometry Bounds]
+           [javafx.geometry Bounds Insets]
            [javafx.scene Node]
-           [javafx.scene.control ChoiceBox ComboBoxBase ListView MenuButton ScrollPane TextInputControl Tooltip]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextField TextInputControl Tooltip]
+           [javafx.scene.control.skin ScrollPaneSkin TextFieldSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
-           [javafx.scene.layout Region]
+           [javafx.scene.layout Region StackPane VBox]
            [javafx.scene.shape SVGPath]
            [javafx.stage PopupWindow Window]
            [javafx.util Callback Duration]))
@@ -468,6 +472,18 @@
       :left (assoc props :alignment :center-left)
       :right (assoc props :alignment :center-right)
       :bottom (assoc props :alignment :bottom-center))))
+
+(defn- invert-alignment [alignment]
+  (case alignment
+    :top-left :bottom-right
+    (:top :top-center) :bottom-center
+    :top-right :bottom-left
+    (:right :center-right) :center-left
+    :bottom-right :top-left
+    (:bottom :bottom-center) :top-center
+    :bottom-left :top-right
+    (:left :center-left) :center-right
+    :center :center))
 
 (defn tooltip [props]
   (-> props
@@ -1079,6 +1095,157 @@
       (prepend-style-classes "combo-box" "combo-box-base")
       resolve-tooltip))
 
+(defn- hover-overlay-view
+  "Private overlay that should be used by other views to shows content on hover
+
+  Supports all :v-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom"
+  [props]
+  {:pre [(:content props)]}
+  (-> props
+      (add-style-classes "ext-hover-overlay")
+      (assoc :fx/type fx.v-box/lifecycle
+             :children [(:content props)])
+      (dissoc :content)
+      (util/provide-defaults
+        :fill-width false)
+      resolve-alignment))
+
+(def ^:private prop-hover-overlay
+  (fx/make-binding-prop
+    (fn bind-hover-overlay [^Control instance ^Region overlay]
+      (let [children (ControlHelper/getChildren instance)
+            instance-insets (.insetsProperty instance)
+            instance-focused (.focusedProperty instance)
+            container (doto (StackPane.)
+                        (.setViewOrder -1.0)
+                        (-> .getChildren (.add overlay)))
+            container-padding (Bindings/createObjectBinding
+                                #(let [^Insets insets (.get instance-insets)]
+                                   (Insets. (- (.getTop insets))
+                                            (- (.getRight insets))
+                                            (- (.getBottom insets))
+                                            (- (.getLeft insets))))
+                                (into-array Observable [instance-insets]))
+            container-visible (Bindings/createBooleanBinding
+                                #(and (not (.get instance-focused)))
+                                (into-array Observable [instance-focused]))]
+        (.add children container)
+        (.bind (.paddingProperty container) container-padding)
+        (.bind (.visibleProperty container) container-visible)
+        #(do (.remove children container)
+             (.unbind (.paddingProperty container))
+             (.unbind (.visibleProperty container)))))
+    fx.lifecycle/dynamic))
+
+(def ^:private prop-on-scrubbed
+  (fx/make-binding-prop
+    (fn bind-on-scrubbed [^Node node on-scrubbed]
+      (let [f-vol (volatile! nil)
+            prev-x-vol (volatile! nil)
+            prev-y-vol (volatile! nil)
+            ^EventHandler on-mouse-pressed (fn [^MouseEvent e]
+                                             (when @f-vol
+                                               (throw (IllegalStateException. "Attempting to start scrubbing while another scrubbing is in-progress")))
+                                             (let [f (on-scrubbed)]
+                                               (when-not (fn? f)
+                                                 (throw (IllegalStateException. "The on-scrubbed callback must return a function")))
+                                               (vreset! f-vol f)
+                                               (vreset! prev-x-vol (.getX e))
+                                               (vreset! prev-y-vol (.getY e)))
+                                             (.consume e))
+            ^EventHandler on-mouse-dragged (fn [^MouseEvent e]
+                                             (let [f @f-vol]
+                                               (when-not f
+                                                 (throw (IllegalStateException. "Attempting to scrub while it's not started")))
+                                               (.consume e)
+                                               (let [x (.getX e)
+                                                     y (.getY e)
+                                                     delta-x (- x @prev-x-vol)
+                                                     delta-y (- @prev-y-vol y)
+                                                     max-delta (if (< (abs delta-y) (abs delta-x)) delta-x delta-y)]
+                                                 (vreset! prev-x-vol x)
+                                                 (vreset! prev-y-vol y)
+                                                 (when (<= 1.0 (abs max-delta))
+                                                   (f (cond-> 1.0
+                                                              (.isShiftDown e) (* 10.0)
+                                                              (.isControlDown e) (* 0.1)
+                                                              (neg? max-delta) -))))))
+            ^EventHandler on-mouse-released (fn [^MouseEvent e]
+                                              (when-not @f-vol
+                                                (throw (IllegalStateException. "Attempting to finish scrubbing while it's not started")))
+                                              (vreset! f-vol nil)
+                                              (.consume e))]
+        (.addEventHandler node MouseEvent/MOUSE_PRESSED on-mouse-pressed)
+        (.addEventHandler node MouseEvent/MOUSE_DRAGGED on-mouse-dragged)
+        (.addEventHandler node MouseEvent/MOUSE_RELEASED on-mouse-released)
+        #(do
+           (.removeEventHandler node MouseEvent/MOUSE_PRESSED on-mouse-pressed)
+           (.removeEventHandler node MouseEvent/MOUSE_DRAGGED on-mouse-dragged)
+           (.removeEventHandler node MouseEvent/MOUSE_RELEASED on-mouse-released))))
+    fx.lifecycle/callback))
+
+(defn scrubber
+  "Scrubber component, i.e. draggable handle for numeric inputs
+
+  Accepts :stack-pane props, plus:
+    :on-scrubbed    a function that's used for scrubbing notifications; when
+                    scrubbing starts, gets called with 0 args and should return
+                    a scrubbing callback."
+  [{:keys [on-scrubbed] :as props}]
+  (-> props
+      (add-style-classes "ext-scrubber")
+      (assoc
+        :fx/type fx.stack-pane/lifecycle
+        :on-mouse-pressed (fn [^MouseEvent e]
+                            (.consume e))
+        :children [{:fx/type ui/image-icon
+                    :path "icons/32/Icons_X_11_scaleupdown.png"
+                    :size 14.0}])
+      (cond-> on-scrubbed (-> (dissoc :on-scrubbed)
+                              (assoc prop-on-scrubbed on-scrubbed)))))
+
+
+;; TODO remove
+#_(fx/on-fx-thread
+    (fx/create-component
+      {:fx/type :stage
+       :width 500
+       :height 500
+       :showing true
+       :scene {:fx/type :scene
+               :stylesheets [(str (clojure.java.io/resource "dialogs.css"))]
+               :on-key-pressed (fn [^KeyEvent e]
+                                 (if (= KeyCode/ESCAPE (.getCode e))
+                                   (.hide (.getWindow ^javafx.scene.Scene (.getSource e)))))
+               :root {:fx/type :v-box
+                      :style {:-fx-background-color :-df-background}
+                      :padding 20
+                      :spacing 10
+                      :children [{:fx/type text-field}
+                                 {:fx/type value-field
+                                  :value 5
+                                  :to-string str
+                                  :to-value parse-long
+                                  prop-hover-overlay {:fx/type hover-overlay-view
+                                                      :alignment :right
+                                                      :padding 1
+                                                      :content {:fx/type scrubber
+                                                                :on-scrubbed (fn []
+                                                                               (tap> [:start-scrubbing])
+                                                                               (fn [f]
+                                                                                 (tap> [:scrub f])))}}}
+                                 {:fx/type value-field
+                                  :editable false
+                                  :value 5
+                                  :to-string str
+                                  :to-value parse-long
+                                  prop-hover-overlay {:fx/type hover-overlay-view
+                                                      :alignment :right
+                                                      :disable true
+                                                      :padding 1
+                                                      :content {:fx/type scrubber}}}]}}}))
+
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]
     (if-let [^SequentialTransition animation (.get properties ::invalid-value-animation)]
@@ -1152,15 +1319,17 @@
 (defn- filter-select-all-text-on-mouse-released [^MouseEvent e]
   (let [^TextInputControl text-input (.getSource e)
         properties (.getProperties text-input)]
-    (when (and (.get properties ::selection-at-focus)
+    (when (and (.isFocused text-input)
+               (.get properties ::selection-at-focus)
                (string/blank? (.getSelectedText text-input)))
       (.consume e)
       (fx/run-later (.selectAll text-input)))
     (.remove properties ::selection-at-focus)))
 
-(defn- value-field-impl-final-step [{:keys [state swap-state text on-value-changed to-value component commit-on-enter]
-                                     :or {to-value identity}
-                                     :as props}]
+(defn- value-field-impl-final-step
+  [{:keys [state swap-state text on-value-changed to-value component commit-on-enter hover-overlay]
+    :or {to-value identity}
+    :as props}]
   (let [edit (:edit state text)]
     (-> props
         (assoc :fx/type component
@@ -1172,6 +1341,13 @@
                prop-filter-mouse-pressed filter-select-all-text-on-mouse-pressed
                ;; Filter is necessary because the TextArea captures the event
                prop-filter-mouse-released filter-select-all-text-on-mouse-released)
+        (cond-> hover-overlay
+                (-> (dissoc :hover-overlay)
+                    (assoc prop-hover-overlay {:fx/type hover-overlay-view
+                                               :disable (not (:editable props true))
+                                               :padding 1
+                                               :alignment (invert-alignment (:alignment props :left))
+                                               :content hover-overlay})))
         (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))))
 
 (defn- stringify-value [f v]
@@ -1203,7 +1379,8 @@
     :on-value-changed    value change callback
     :to-string           value->string converter, default str
     :to-value            string->value converter, default identity, returning
-                         nil implies value could not be converted"
+                         nil implies value could not be converted
+    :hover-overlay       node description shown on hover"
   [props]
   (make-value-field text-field true props))
 

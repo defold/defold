@@ -16,7 +16,6 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.menu-button :as fx.menu-button]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -27,7 +26,7 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
@@ -227,7 +226,8 @@
                 new-values (mapv (fn [value]
                                    (cond-> (drag-update-fn value update-val)
                                            min-val (max min-val)
-                                           max-val (min max-val))) values)]
+                                           max-val (min max-val)))
+                                 values)]
             (properties/set-values! property values op-seq)
             (ui/user-data! target ::position [x y])
             (ui/user-data! target ::values new-values)
@@ -259,7 +259,7 @@
   (^AnchorPane [^Node control drag-event-handler]
    (make-control-draggable control drag-event-handler true))
   (^AnchorPane [^Node control drag-event-handler is-left-aligned]
-   (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_11_scaleupdown.png" 14))
+   (let [drag-icon (doto (Button. "" (icons/get-image-view "icons/32/Icons_X_11_scaleupdown.png" 14))
                      (ui/add-styles! ["action-button" "drag-handle"])
                      (.setFocusTraversable false)
                      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
@@ -476,7 +476,7 @@
 
 (defn- make-curve-toggler
   ^ToggleButton [property-fn]
-  (let [^ToggleButton toggle-button (doto (ToggleButton. nil (jfx/get-image-view "icons/32/Icons_X_03_Bezier.png" 12.0))
+  (let [^ToggleButton toggle-button (doto (ToggleButton. nil (icons/get-image-view "icons/32/Icons_X_03_Bezier.png" 12.0))
                                       (.setFocusTraversable false)
                                       (ui/add-styles! ["embedded-properties-button"]))]
     (doto toggle-button
@@ -587,7 +587,7 @@
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
         saved-colors ^Collection (get-saved-colors prefs)
-        color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
+        color-dropper (doto (Button. "" (icons/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-styles! ["action-button" "color-dropper"])
                         (AnchorPane/setRightAnchor 0.0)
                         (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
@@ -653,7 +653,7 @@
                         (.setPrefHeight 27)
                         (.setFocusTraversable false)
                         (ui/add-style! "button-small"))
-        open-button (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+        open-button (doto (Button. "" (icons/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
                       (.setPrefWidth 26)
                       (.setPrefHeight 27)
                       (.setFocusTraversable false)
@@ -1186,6 +1186,11 @@
   (-> {:fx/type fxui/value-field
        :to-string field-expression/format-int
        :to-value field-expression/to-int
+       :hover-overlay {:fx/type fxui/scrubber
+                       :on-scrubbed (fn []
+                                      (tap> [:scrub :start])
+                                      (fn [delta]
+                                        (tap> [:scrub delta])))}
        :value (properties/unify-values (properties/values property))
        :on-value-changed #(properties/set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
