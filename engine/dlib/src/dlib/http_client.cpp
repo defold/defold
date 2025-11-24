@@ -129,7 +129,6 @@ namespace dmHttpClient
         dmConnectionPool::HConnection   m_Connection;
         dmSocket::Socket                m_Socket;
         dmSSLSocket::Socket             m_SSLSocket;
-        bool                            m_ForceUnsecure;
 
         Response(HClient client)
         {
@@ -152,9 +151,9 @@ namespace dmHttpClient
             m_Connection = 0;
             m_Socket = 0;
             m_SSLSocket = 0;
-            m_ForceUnsecure = false;
         }
         Result Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled);
+        Result UpgradeToSSLSocket(const char* host, int timeout);
         ~Response();
     };
 
@@ -215,6 +214,25 @@ namespace dmHttpClient
 
             return RESULT_OK;
         } else {
+            return RESULT_SOCKET_ERROR;
+        }
+    }
+
+    Result Response::UpgradeToSSLSocket(const char* host, int timeout)
+    {
+        if (m_Socket == 0)
+        {
+            return RESULT_SOCKET_ERROR;
+        }
+        
+        dmConnectionPool::Result r = dmConnectionPool::CreateSSLSocket(m_Pool, m_Connection, host, timeout);
+        if (r == dmConnectionPool::RESULT_OK)
+        {
+            m_SSLSocket = dmConnectionPool::GetSSLSocket(m_Pool, m_Connection);
+            return RESULT_OK;
+        }
+        else
+        {
             return RESULT_SOCKET_ERROR;
         }
     }
@@ -1066,8 +1084,7 @@ bail:
 
     static Result DoRequest(HClient client, const char* path, const char* method)
     {
-        bool use_proxy = (client->m_ProxyURI.m_Hostname != 0);
-        dmLogInfo("DoRequest using proxy: %s", use_proxy ? "true" : "false");
+        bool use_proxy = strlen(client->m_ProxyURI.m_Hostname) > 0;
 
         // for proxy connections:
         // client -> CONNECT -> proxy
@@ -1097,7 +1114,7 @@ bail:
 
             r = response.Connect(use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname,
                                  use_proxy ? client->m_ProxyURI.m_Port : client->m_HostURI.m_Port,
-                                 client->m_Secure,
+                                 use_proxy ? false : client->m_Secure,
                                  client->m_RequestTimeout,
                                  client->m_CancelFlag);
             if (r != RESULT_OK)
@@ -1148,20 +1165,31 @@ bail:
             response = Response(client);
         }
 
-        if (r == RESULT_OK && use_proxy)
+        if (r != RESULT_OK || !use_proxy)
         {
-            r = DoDoRequest(client,
-                            response,
-                            path,
-                            method);
-            if (r != RESULT_OK && r != RESULT_NOT_200_OK)
-            {
-                response.m_CloseConnection = 1;
+            return r;
+        }
 
-                if( HasRequestTimedOut(client) )
-                {
-                    dmLogInfo("DoRequest HasRequestTimedOut");
-                }
+        if (client->m_Secure)
+        {
+            r = response.UpgradeToSSLSocket(client->m_HostURI.m_Hostname, client->m_RequestTimeout);
+            if (r != RESULT_OK)
+            {
+                return r;
+            }
+        }
+        
+        r = DoDoRequest(client,
+                        response,
+                        path,
+                        method);
+        if (r != RESULT_OK && r != RESULT_NOT_200_OK)
+        {
+            response.m_CloseConnection = 1;
+
+            if( HasRequestTimedOut(client) )
+            {
+                dmLogInfo("DoRequest HasRequestTimedOut");
             }
         }
 

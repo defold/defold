@@ -59,6 +59,8 @@ namespace dmConnectionPool
      * during testing, or subsequent tests will break when the pool has been put in shutdown mode.
      */
     void Reopen(HPool pool);
+
+    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout);
 }
 
 #endif // #ifndef DM_CONNECTION_POOL
