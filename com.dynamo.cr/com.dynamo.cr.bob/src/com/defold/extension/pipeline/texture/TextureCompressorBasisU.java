@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 
 import java.util.ArrayList;
@@ -105,7 +106,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
 
-        settings.numThreads = 4;
+        settings.numThreads = TextureGenerator.maxThreads;
         settings.debug = false;
         settings.data = input;
 

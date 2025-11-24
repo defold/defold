@@ -58,7 +58,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 public class TextureGenerator {
 
     // specify what is maximum of threads TextureGenerator may use
-    public static int maxThreads = Project.getDefaultMaxCpuThreads();
+    public static int maxThreads = 4; // set to getHalfThreads() in Project.java
 
     public static class GenerateResult {
         public TextureImage textureImage;
