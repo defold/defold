@@ -53,6 +53,7 @@
            [javafx.util Duration]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^{:private true :const true} grid-hgap 4)
 (def ^{:private true :const true} grid-vgap 6)
@@ -1180,20 +1181,51 @@
       (resolve-validation property localization-state)
       (resolve-script-property-style-class property)))
 
+#_(let [edit-type (:edit-type property)
+        min-val (:min edit-type)
+        max-val (:max edit-type)
+        delta (cond-> (or (:precision edit-type) 1.0)
+                      (.isShiftDown event) (* 10.0)
+                      (.isControlDown event) (* 0.1)
+                      (neg? max-delta) -)]
+    (when (> (abs max-delta) 1)
+      (let [values (or (ui/user-data target ::values)
+                       (properties/values property))
+            new-values (mapv (fn [value]
+                               (cond-> (drag-update-fn value delta)
+                                       min-val (max min-val)
+                                       max-val (min max-val)))
+                             values)]
+        (properties/set-values! property values op-seq)
+        (ui/user-data! target ::values new-values))))
+
+(defn- resolve-scrubber [input-desc property update-fn]
+  (cond-> input-desc
+          (not (properties/read-only? property))
+          (assoc :hover-overlay {:fx/type fxui/scrubber
+                                 :on-scrubbed (fn []
+                                                (let [{min-value :min
+                                                       max-value :max
+                                                       :keys [precision]
+                                                       :or {precision 1.0}} (:edit-type property)
+                                                      opseq (gensym)
+                                                      values-vol (volatile! (properties/values property))]
+                                                  (fn [^double delta]
+                                                    (vswap! values-vol coll/map)
+                                                    (tap> [:scrub (* delta (double precision)) opseq]))))})))
+
+(defn- scrub-int [^long v ^double delta]
+  (int (+ v (if (pos? delta) (Math/ceil delta) (Math/floor delta)))))
+
 (defmethod cljfx-component-view g/Int [property _context localization-state]
   ;; todo draggable
-  ;; #_ drag-update-fn (fn [v update-val] (int (+ v update-val)))
   (-> {:fx/type fxui/value-field
        :to-string field-expression/format-int
        :to-value field-expression/to-int
-       :hover-overlay {:fx/type fxui/scrubber
-                       :on-scrubbed (fn []
-                                      (tap> [:scrub :start])
-                                      (fn [delta]
-                                        (tap> [:scrub delta])))}
        :value (properties/unify-values (properties/values property))
        :on-value-changed #(properties/set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
+      (resolve-scrubber property scrub-int)
       (resolve-validation property localization-state)
       (resolve-script-property-style-class property)))
 

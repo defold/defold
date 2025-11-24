@@ -1191,7 +1191,9 @@
   Accepts :stack-pane props, plus:
     :on-scrubbed    a function that's used for scrubbing notifications; when
                     scrubbing starts, gets called with 0 args and should return
-                    a scrubbing callback."
+                    a scrubbing callback. A scrubbing callback then will be
+                    invoked 0 or more times with a double delta (either -10.0,
+                    -1.0, -0.1, 0.1, 1.0, or 10.0)"
   [{:keys [on-scrubbed] :as props}]
   (-> props
       (add-style-classes "ext-scrubber")
@@ -1204,7 +1206,6 @@
                     :size 14.0}])
       (cond-> on-scrubbed (-> (dissoc :on-scrubbed)
                               (assoc prop-on-scrubbed on-scrubbed)))))
-
 
 ;; TODO remove
 #_(fx/on-fx-thread
@@ -1344,7 +1345,7 @@
         (cond-> hover-overlay
                 (-> (dissoc :hover-overlay)
                     (assoc prop-hover-overlay {:fx/type hover-overlay-view
-                                               :disable (not (:editable props true))
+                                               #_#_:disable (not (:editable props true))
                                                :padding 1
                                                :alignment (invert-alignment (:alignment props :left))
                                                :content hover-overlay})))
