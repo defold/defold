@@ -48,6 +48,11 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
 
 public class TextureUtil {
+
+    static {
+        ImageIO.setUseCache(false);
+    }
+
     public static int closestPOT(int i) {
         int nextPow2 = 1;
         while (nextPow2 < i) {
