@@ -174,40 +174,24 @@
         ()
 
         :condition-focus-changed
-        (when (not (:value (:fx/event event)))
-        (swap! state assoc :edited-breakpoint nil))
+        ()
 
         :breakpoint-clicked
         ()
 
         :edit-condition
-        (let [^MouseEvent me (:fx/event event)]
-        (when (or (= (:source event) :button)
-                    (= 2 (.getClickCount me)))
-            ;; NOTE: If we don't consume this it'll fall through to the :breakpoint-clicked condition
-            (.consume me)
-            (swap! state assoc :edited-breakpoint (:breakpoint event))))
+        ()
 
         :remove-condition
-        (g/with-auto-evaluation-context evaluation-context
-        (let [breakpoint (:breakpoint event)]
-            (set-breakpoint-condition! project (:breakpoints @state) breakpoint nil evaluation-context)
-            (swap! state assoc :edited-breakpoint nil)
-            (reset! condition-text nil)))
+        ()
 
         :condition-text-changed (reset! condition-text (:fx/event event))
 
         :condition-key-pressed
-        (when (= (.getCode ^KeyEvent (:fx/event event)) KeyCode/ESCAPE)
-        (reset! condition-text nil)
-        (swap! state assoc :edited-breakpoint nil))
+        ()
 
         :save-condition
-        (g/with-auto-evaluation-context evaluation-context
-        (let [condition (or @condition-text (:condition (:edited-breakpoint @state)))]
-            (set-breakpoint-condition! project (:breakpoints @state) (:edited-breakpoint @state) condition evaluation-context)
-            (swap! state assoc :edited-breakpoint nil)
-            (reset! condition-text nil)))
+        ()
 
         ;; default case
         ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
@@ -332,12 +316,22 @@
           :on-created (fn [^TextField node]
                         (ui/run-later (.requestFocus node)))
           :desc {:fx/type ext-with-focus-changed-handler
-                 :props {:on-focused-changed {:event-type :condition-focus-changed}}
+                 :props {:on-focused-changed (fn [event]
+                                               (when (not (:value event))
+                                                 (swap-state assoc :edited-breakpoint nil)))}
                  :desc {:fx/type fx.text-field/lifecycle
                         :text condition
-                        :on-text-changed {:event-type :condition-text-changed}
-                        :on-action {:event-type :save-condition}
-                        :on-key-pressed {:event-type :condition-key-pressed}}}}}
+                        :on-text-changed (fn [_] ())
+                        :on-action (fn [_]
+                                     (g/with-auto-evaluation-context evaluation-context
+                                       (let [condition (or nil (:condition (:edited-breakpoint state)))]
+                                         (set-breakpoint-condition! project breakpoints (:edited-breakpoint state) condition evaluation-context)
+                                         (swap-state assoc :edited-breakpoint nil)
+                                         #_(reset! condition-text nil))))
+                        :on-key-pressed (fn [event]
+                                          (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE)
+                                            #_(reset! condition-text nil)
+                                            (swap-state assoc :edited-breakpoint nil)))}}}}
         {:graphic {:fx/type fx.stack-pane/lifecycle
                    :children
                    [{:fx/type :label
@@ -353,14 +347,19 @@
                      :children
                      (concat
                        (when condition
-                         [(icon-button close-icon-path {:event-type :remove-condition
-                                                        :breakpoint breakpoint})])
-                       [(icon-button edit-icon-path {:event-type :edit-condition
-                                                     :source :button
-                                                     :breakpoint breakpoint})])}]}
-         :on-mouse-clicked {:event-type :edit-condition
-                            :source :double-click
-                            :breakpoint breakpoint}}))))
+                         [(icon-button close-icon-path
+                                       (fn [_]
+                                         (g/with-auto-evaluation-context evaluation-context
+                                           (set-breakpoint-condition! project breakpoints breakpoint nil evaluation-context)
+                                           (swap-state assoc :edited-breakpoint nil)
+                                           (reset! condition-text nil))))])
+                       [(icon-button edit-icon-path (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
+         :on-mouse-clicked (fn [event]
+                             (let [^MouseEvent me event]
+                               (when (= 2 (.getClickCount me))
+                                 ;; NOTE: If we don't consume this it'll fall through to the :breakpoint-clicked condition
+                                 (.consume me)
+                                 (swap-state assoc :edited-breakpoint breakpoint))))}))))
 
 (defn- column-remove-btn-cell-factory [swap-state project breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
@@ -406,9 +405,8 @@
         :min-width 60
         :max-width 80
         :cell-value-factory identity
-        :cell-factory
-        {:fx/cell-type fx.table-cell/lifecycle
-         :describe (fn/partial column-enabled-cell-factory project breakpoints)}}
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-enabled-cell-factory project breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.line"))
         :pref-width 50
@@ -427,10 +425,9 @@
         :text (localization-state (localization/message "breakpoints.column.condition"))
         :pref-width 250
         :cell-value-factory identity
-        :cell-factory
-        {:fx/cell-type fx.table-cell/lifecycle
-         :style-class ["condition-cell"]
-         :describe (fn [idx])}}
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :style-class ["condition-cell"]
+                       :describe (fn/partial column-condition-cell-factory state swap-state project breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.path"))
         :style-class ["path-cell"]
@@ -444,9 +441,8 @@
         :resizable false
         :sortable false
         :cell-value-factory identity
-        :cell-factory
-        {:fx/cell-type fx.table-cell/lifecycle
-         :describe (fn/partial column-remove-btn-cell-factory state swap-state project breakpoints)}}]}}))
+        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                       :describe (fn/partial column-remove-btn-cell-factory swap-state project breakpoints)}}]}}))
 
 (fxui/defc breakpoints-view
   {:compose [{:fx/type fx/ext-watcher
