@@ -263,9 +263,6 @@
                  :text (localization-state (localization/message "breakpoints.button.remove-all"))
                  :on-action (fn/partial action-all-fn #(vec (remove (set %2) %1)))}]}))
 
-(defn- something-text-field-factory [swap-state breakpoints idx]
-  {:on-mouse-clicked #(swap-state assoc :edited-breakpoint (get breakpoints idx))})
-
 (defn- table-row-factory [open-resource-fn breakpoints idx]
   (when-let [bp (get breakpoints idx)]
     {:on-mouse-clicked
@@ -357,7 +354,7 @@
          :on-mouse-clicked (fn [event]
                              (let [^MouseEvent me event]
                                (when (= 2 (.getClickCount me))
-                                 ;; NOTE: If we don't consume this it'll fall through to the :breakpoint-clicked condition
+                                 ;; NOTE: If we don't consume this it'll fall through to the row double click
                                  (.consume me)
                                  (swap-state assoc :edited-breakpoint breakpoint))))}))))
 
@@ -380,6 +377,20 @@
                (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
                (g/set-property! script-node :regions regions)))))]}}))
 
+(def ^:private prop-table-context-menu
+  (fx.prop/make (fx.mutator/setter ui/register-context-menu) fx.lifecycle/scalar))
+
+(def ^:private prop-property-context
+  (fx.prop/make
+    (fx.mutator/setter
+      (fn [table-view [project]]
+        (ui/context! table-view ::breakpoint-menu
+                     {:project project :table table-view}
+                     (ui/->selection-provider table-view)
+                     {}
+                     {resource/Resource (fn [idx] (-> (g/node-value project :breakpoints) (get idx) :resource))})))
+    fx.lifecycle/scalar))
+
 (defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
   (let [{:keys [breakpoints selected-indices]} state]
     {:fx/type fx.ext.table-view/with-selection-props
@@ -392,6 +403,8 @@
      :desc
      {:fx/type fx.table-view/lifecycle
       :id "breakpoints-table-view"
+      prop-table-context-menu ::breakpoint-menu
+      prop-property-context [project]
       :fixed-cell-size 33.0
       :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
       :row-factory {:fx/cell-type fx.table-row/lifecycle
@@ -453,10 +466,12 @@
                               :edited-breakpoint nil
                               :edited-condition nil}}]}
   [{:keys [context localization-state parent state swap-state]}]
-  {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value :value parent}
-   :props {:children [(breakpoints-toolbar-view (:project context) localization-state state swap-state)
-                      (breakpoints-table-view (:project context) (:open-resource-fn context) localization-state state swap-state)]}})
+  (let [project (:project context)
+        open-resource-fn (:open-resource-fn context)]
+    {:fx/type fxui/ext-with-anchor-pane-props
+     :desc {:fx/type fxui/ext-value :value parent}
+     :props {:children [(breakpoints-toolbar-view project localization-state state swap-state)
+                        (breakpoints-table-view project open-resource-fn localization-state state swap-state)]}}))
 
 (g/defnk produce-breakpoints-ui [parent-view open-resource-fn breakpoints workspace project prefs localization]
   (let [context {:workspace workspace
