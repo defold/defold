@@ -292,6 +292,96 @@
                     (= 2 (.getClickCount e)))
            (open-resource-fn resource (inc row)))))}))
 
+(defn- column-enabled-cell-factory [project breakpoints idx]
+  (when-let [breakpoint (get breakpoints idx)]
+    {:style-class ["enabled-cell"]
+     :alignment :center
+     :graphic
+     {:fx/type fx.check-box/lifecycle
+      :selected (:enabled breakpoint)
+      :on-selected-changed
+      (fn [enabled?]
+        ;; TODO: I think we can somewhat generalize this?
+        (g/with-auto-evaluation-context evaluation-context
+          (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
+                script-node (breakpoint->script-node project breakpoint evaluation-context)
+                toggled-breakpoint (toggle-breakpoint-enabled breakpoints-in-script breakpoint)
+                regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
+            ;; (swap-state assoc :edited-breakpoint nil)
+            (g/set-property! script-node :regions regions))))}}))
+
+(defn- column-line-cell-factory [breakpoints idx]
+  (when-let [breakpoint (get breakpoints idx)]
+    {:text (str (inc (:row breakpoint)))}))
+
+(defn- column-name-cell-factory [breakpoints idx]
+  (when-let [breakpoint (get breakpoints idx)]
+    {:text (:name (:resource breakpoint))}))
+
+(defn- column-path-cell-factory [breakpoints idx]
+  (when-let [breakpoint (get breakpoints idx)]
+    {:text (:project-path (:resource breakpoint))}))
+
+(defn- column-condition-cell-factory [state swap-state project breakpoints idx]
+  (when-let [breakpoint (get breakpoints idx)]
+    (let [condition (:condition breakpoint)
+          editing? (= (:edited-breakpoint state) breakpoint)]
+      (if editing?
+        {:graphic
+         {:fx/type fx/ext-on-instance-lifecycle
+          :on-created (fn [^TextField node]
+                        (ui/run-later (.requestFocus node)))
+          :desc {:fx/type ext-with-focus-changed-handler
+                 :props {:on-focused-changed {:event-type :condition-focus-changed}}
+                 :desc {:fx/type fx.text-field/lifecycle
+                        :text condition
+                        :on-text-changed {:event-type :condition-text-changed}
+                        :on-action {:event-type :save-condition}
+                        :on-key-pressed {:event-type :condition-key-pressed}}}}}
+        {:graphic {:fx/type fx.stack-pane/lifecycle
+                   :children
+                   [{:fx/type :label
+                     :stack-pane/alignment :center-left
+                     :text-overrun :ellipsis
+                     :text (or condition "")}
+                    {:fx/type fx.h-box/lifecycle
+                     :stack-pane/alignment :center-right
+                     :fill-height false
+                     :max-width :use-pref-size
+                     :max-height :use-pref-size
+                     :spacing 5
+                     :children
+                     (concat
+                       (when condition
+                         [(icon-button close-icon-path {:event-type :remove-condition
+                                                        :breakpoint breakpoint})])
+                       [(icon-button edit-icon-path {:event-type :edit-condition
+                                                     :source :button
+                                                     :breakpoint breakpoint})])}]}
+         :on-mouse-clicked {:event-type :edit-condition
+                            :source :double-click
+                            :breakpoint breakpoint}}))))
+
+(defn- column-remove-btn-cell-factory [swap-state project breakpoints idx]
+  (when-let [breakpoint (get breakpoints idx)]
+    {:alignment :center
+     :graphic
+     {:fx/type fx.h-box/lifecycle
+      :alignment :center-left
+      :children
+      ;; TODO: Organize this a bit better
+      [(assoc (icon-button
+                delete-icon-path
+                (fn [event]
+                  (g/with-auto-evaluation-context evaluation-context
+                    (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
+                          script-node (breakpoint->script-node project breakpoint evaluation-context)
+                          remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
+                          regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
+                      (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
+                      (g/set-property! script-node :regions regions)))))
+              :style-class ["icon-button" "remove-button"])]}}))
+
 (defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
   (let [{:keys [breakpoints selected-indices]} state]
     {:fx/type fx.ext.table-view/with-selection-props
@@ -318,24 +408,7 @@
         :cell-value-factory identity
         :cell-factory
         {:fx/cell-type fx.table-cell/lifecycle
-         :describe
-         (fn [idx]
-           (when-let [breakpoint (get breakpoints idx)]
-             {:style-class ["enabled-cell"]
-              :alignment :center
-              :graphic
-              {:fx/type fx.check-box/lifecycle
-               :selected (:enabled breakpoint)
-               :on-selected-changed
-               (fn [enabled?]
-                 ;; TODO: I think we can somewhat generalize this?
-                 (g/with-auto-evaluation-context evaluation-context
-                   (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                         script-node (breakpoint->script-node project breakpoint evaluation-context)
-                         toggled-breakpoint (toggle-breakpoint-enabled breakpoints-in-script breakpoint)
-                         regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
-                     ;; (swap-state assoc :edited-breakpoint nil)
-                     (g/set-property! script-node :regions regions))))}}))}}
+         :describe (fn/partial column-enabled-cell-factory project breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.line"))
         :pref-width 50
@@ -343,17 +416,13 @@
         :max-width 100
         :cell-value-factory identity
         :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn [idx]
-                                   (when-let [breakpoint (get breakpoints idx)]
-                                     {:text (str (inc (:row breakpoint)))}))}}
+                       :describe (fn/partial column-line-cell-factory breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.name"))
         :pref-width 200
         :cell-value-factory identity
         :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn [idx]
-                                   (when-let [breakpoint (get breakpoints idx)]
-                                     {:text (:name (:resource breakpoint))}))}}
+                       :describe (fn/partial column-name-cell-factory breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.condition"))
         :pref-width 250
@@ -361,55 +430,14 @@
         :cell-factory
         {:fx/cell-type fx.table-cell/lifecycle
          :style-class ["condition-cell"]
-         :describe
-         (fn [idx]
-           (when-let [breakpoint (get breakpoints idx)]
-             (let [condition (:condition breakpoint)
-                   editing? (= (:edited-breakpoint state) breakpoint)]
-               (if editing?
-                 {:graphic
-                  {:fx/type fx/ext-on-instance-lifecycle
-                   :on-created (fn [^TextField node]
-                                 (ui/run-later (.requestFocus node)))
-                   :desc {:fx/type ext-with-focus-changed-handler
-                          :props {:on-focused-changed {:event-type :condition-focus-changed}}
-                          :desc {:fx/type fx.text-field/lifecycle
-                                 :text condition
-                                 :on-text-changed {:event-type :condition-text-changed}
-                                 :on-action {:event-type :save-condition}
-                                 :on-key-pressed {:event-type :condition-key-pressed}}}}}
-                 {:graphic {:fx/type fx.stack-pane/lifecycle
-                            :children
-                            [{:fx/type :label
-                              :stack-pane/alignment :center-left
-                              :text-overrun :ellipsis
-                              :text (or condition "")}
-                             {:fx/type fx.h-box/lifecycle
-                              :stack-pane/alignment :center-right
-                              :fill-height false
-                              :max-width :use-pref-size
-                              :max-height :use-pref-size
-                              :spacing 5
-                              :children
-                              (concat
-                                (when condition
-                                  [(icon-button close-icon-path {:event-type :remove-condition
-                                                                 :breakpoint breakpoint})])
-                                [(icon-button edit-icon-path {:event-type :edit-condition
-                                                              :source :button
-                                                              :breakpoint breakpoint})])}]}
-                  :on-mouse-clicked {:event-type :edit-condition
-                                     :source :double-click
-                                     :breakpoint breakpoint}}))))}}
+         :describe (fn [idx])}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.path"))
         :style-class ["path-cell"]
         :pref-width 200
         :cell-value-factory identity
         :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn [idx]
-                                   (when-let [breakpoint (get breakpoints idx)]
-                                     {:text (:project-path (:resource breakpoint))}))}}
+                       :describe (fn/partial column-path-cell-factory breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :pref-width 50
         :reorderable false
@@ -418,26 +446,7 @@
         :cell-value-factory identity
         :cell-factory
         {:fx/cell-type fx.table-cell/lifecycle
-         :describe
-         (fn [idx]
-           (when-let [breakpoint (get breakpoints idx)]
-             {:alignment :center
-              :graphic
-              {:fx/type fx.h-box/lifecycle
-               :alignment :center-left
-               :children
-               ;; TODO: Organize this a bit better
-               [(assoc (icon-button
-                         delete-icon-path
-                         (fn [event]
-                           (g/with-auto-evaluation-context evaluation-context
-                             (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                                   script-node (breakpoint->script-node project breakpoint evaluation-context)
-                                   remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
-                                   regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
-                               (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
-                               (g/set-property! script-node :regions regions)))))
-                       :style-class ["icon-button" "remove-button"])]}}))}}]}}))
+         :describe (fn/partial column-remove-btn-cell-factory state swap-state project breakpoints)}}]}}))
 
 (fxui/defc breakpoints-view
   {:compose [{:fx/type fx/ext-watcher
@@ -596,7 +605,6 @@
                      (when node-id (str " [id=" node-id "]"))
                      (when (seq node-style-class) (str " " node-style-class))))
 
-       ;; Recursively print children
        (cond
          (instance? javafx.scene.Parent node)
          (doseq [child (.getChildrenUnmodifiable node)]
