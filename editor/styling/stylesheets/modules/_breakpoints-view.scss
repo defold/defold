@@ -16,12 +16,12 @@
             -fx-border-color: transparent transparent transparent -df-defold-orange;
         }
 
-        .remove-button {
-            -fx-opacity: 0;
+        .icon-button {
+            visibility: hidden;
         }
 
-        &:hover .remove-button {
-            -fx-opacity: 1;
+        &:hover .icon-button {
+            visibility: visible;
         }
     }
 
@@ -51,16 +51,6 @@
 
         .icon-button-graphic {
             -fx-fill: -fx-text-base-color;
-        }
-    }
-
-    .condition-cell {
-        .condition-buttons {
-            -fx-opacity: 0;
-        }
-
-        &:hover .condition-buttons {
-            -fx-opacity: 1;
         }
     }
 

@@ -369,17 +369,16 @@
       :alignment :center-left
       :children
       ;; TODO: Organize this a bit better
-      [(assoc (icon-button
-                delete-icon-path
-                (fn [event]
-                  (g/with-auto-evaluation-context evaluation-context
-                    (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                          script-node (breakpoint->script-node project breakpoint evaluation-context)
-                          remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
-                          regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
-                      (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
-                      (g/set-property! script-node :regions regions)))))
-              :style-class ["icon-button" "remove-button"])]}}))
+      [(icon-button
+         delete-icon-path
+         (fn [event]
+           (g/with-auto-evaluation-context evaluation-context
+             (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
+                   script-node (breakpoint->script-node project breakpoint evaluation-context)
+                   remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
+                   regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
+               (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
+               (g/set-property! script-node :regions regions)))))]}}))
 
 (defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
   (let [{:keys [breakpoints selected-indices]} state]
@@ -611,4 +610,5 @@
            (when (instance? javafx.scene.Parent (.getNode skin))
              (print-scene-graph (.getNode skin) (inc depth))))))))
   (print-scene-graph (.lookup (ui/main-root) "#breakpoints-container"))
+  (ui/run-now (ui/reload-root-styles!))
   :-)
