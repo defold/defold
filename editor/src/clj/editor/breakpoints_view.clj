@@ -56,13 +56,6 @@
 (def ^:private delete-icon-path "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z")
 (def ^:private close-icon-path "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z")
 
-(defonce state (atom {:breakpoints []
-                      :selected-indices []
-                      :hovered-condition nil
-                      :hovered-row nil
-                      :edited-breakpoint nil
-                      :edited-condition nil}))
-
 ;; NOTE: Updating the state while editing text wasn't playing nice, maybe better to keep it out of the state
 (defonce condition-text (atom nil))
 
@@ -158,7 +151,7 @@
         regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
     (g/set-property! script-node :regions regions)))
 
-(defn- set-regions-with-action! [project evaluation-context all-breakpoints breakpoints action-fn]
+(defn- set-regions-with-action! [swap-state project evaluation-context all-breakpoints breakpoints action-fn]
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
         updated-breakpoints (action-fn all-breakpoints breakpoints)
         updated-by-resource (group-by :resource updated-breakpoints)
@@ -169,75 +162,69 @@
                     affected-scripts)]
     (g/transact txs) ;; Ignore the results
     ;; All actions should disable editing
-    (swap! state assoc :edited-breakpoint nil :breakpoints updated-breakpoints)))
+    (swap-state assoc :edited-breakpoint nil :breakpoints updated-breakpoints)))
 
-(defn- handle-breakpoint-event! [project open-resource-fn event]
-  (case (:event-type event)
-    :toggle-enabled
-    ()
+(comment
+  (defn- handle-breakpoint-event! [project open-resource-fn event]
+    (case (:event-type event)
+        :toggle-enabled
+        ()
 
-    :remove-breakpoint
-    ()
+        :remove-breakpoint
+        ()
 
-    :selected-items-changed
-    (swap! state assoc :selected-indices (:fx/event event))
+        :condition-focus-changed
+        (when (not (:value (:fx/event event)))
+        (swap! state assoc :edited-breakpoint nil))
 
-    :condition-focus-changed
-    (when (not (:value (:fx/event event)))
-      (swap! state assoc :edited-breakpoint nil))
+        :breakpoint-clicked
+        ()
 
-    :breakpoint-clicked
-    (let [^MouseEvent e (:fx/event event)
-          {:keys [resource row]} (:clicked-breakpoint event)]
-      (when (and (= MouseButton/PRIMARY (.getButton e))
-                 (= 2 (.getClickCount e)))
-        (open-resource-fn resource (inc row))))
+        :edit-condition
+        (let [^MouseEvent me (:fx/event event)]
+        (when (or (= (:source event) :button)
+                    (= 2 (.getClickCount me)))
+            ;; NOTE: If we don't consume this it'll fall through to the :breakpoint-clicked condition
+            (.consume me)
+            (swap! state assoc :edited-breakpoint (:breakpoint event))))
 
-    :edit-condition
-    (let [^MouseEvent me (:fx/event event)]
-      (when (or (= (:source event) :button)
-                (= 2 (.getClickCount me)))
-        ;; NOTE: If we don't consume this it'll fall through to the :breakpoint-clicked condition
-        (.consume me)
-        (swap! state assoc :edited-breakpoint (:breakpoint event))))
+        :remove-condition
+        (g/with-auto-evaluation-context evaluation-context
+        (let [breakpoint (:breakpoint event)]
+            (set-breakpoint-condition! project (:breakpoints @state) breakpoint nil evaluation-context)
+            (swap! state assoc :edited-breakpoint nil)
+            (reset! condition-text nil)))
 
-    :remove-condition
-    (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoint (:breakpoint event)]
-        (set-breakpoint-condition! project (:breakpoints @state) breakpoint nil evaluation-context)
-        (swap! state assoc :edited-breakpoint nil)
-        (reset! condition-text nil)))
+        :condition-text-changed (reset! condition-text (:fx/event event))
 
-    :condition-text-changed (reset! condition-text (:fx/event event))
+        :condition-key-pressed
+        (when (= (.getCode ^KeyEvent (:fx/event event)) KeyCode/ESCAPE)
+        (reset! condition-text nil)
+        (swap! state assoc :edited-breakpoint nil))
 
-    :condition-key-pressed
-    (when (= (.getCode ^KeyEvent (:fx/event event)) KeyCode/ESCAPE)
-      (reset! condition-text nil)
-      (swap! state assoc :edited-breakpoint nil))
+        :save-condition
+        (g/with-auto-evaluation-context evaluation-context
+        (let [condition (or @condition-text (:condition (:edited-breakpoint @state)))]
+            (set-breakpoint-condition! project (:breakpoints @state) (:edited-breakpoint @state) condition evaluation-context)
+            (swap! state assoc :edited-breakpoint nil)
+            (reset! condition-text nil)))
 
-    :save-condition
-    (g/with-auto-evaluation-context evaluation-context
-      (let [condition (or @condition-text (:condition (:edited-breakpoint @state)))]
-        (set-breakpoint-condition! project (:breakpoints @state) (:edited-breakpoint @state) condition evaluation-context)
-        (swap! state assoc :edited-breakpoint nil)
-        (reset! condition-text nil)))
-
-    ;; default case
-    ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
-    ;; we can shorten this code quite a bit
-    (g/with-auto-evaluation-context evaluation-context
-      (let [[action scope] (string/split (name (:event-type event)) #"-")
-            all-breakpoints (:breakpoints @state)
-            breakpoints (if (= scope "selected")
-                          (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
-                          all-breakpoints)
-            handle-fn (partial set-regions-with-action! project evaluation-context all-breakpoints breakpoints)]
-        (case action
-          "remove" (do (handle-fn #(vec (remove (set %2) %1)))
-                       (swap! state assoc :selected-indices []))
-          "toggle" (handle-fn toggle-breakpoints-enabled)
-          "enable" (handle-fn #(update-breakpoints-enabled-state %1 %2 true))
-          "disable" (handle-fn #(update-breakpoints-enabled-state %1 %2 false)))))))
+        ;; default case
+        ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
+        ;; we can shorten this code quite a bit
+        (g/with-auto-evaluation-context evaluation-context
+        (let [[action scope] (string/split (name (:event-type event)) #"-")
+                all-breakpoints (:breakpoints @state)
+                breakpoints (if (= scope "selected")
+                            (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
+                            all-breakpoints)
+                handle-fn (partial set-regions-with-action! project evaluation-context all-breakpoints breakpoints)]
+            (case action
+            "remove" (do (handle-fn #(vec (remove (set %2) %1)))
+                        (swap! state assoc :selected-indices []))
+            "toggle" (handle-fn toggle-breakpoints-enabled)
+            "enable" (handle-fn #(update-breakpoints-enabled-state %1 %2 true))
+            "disable" (handle-fn #(update-breakpoints-enabled-state %1 %2 false))))))))
 
 (defn- make-open-resource-fn [open-resource-fn]
   (fn [resource line]
@@ -266,7 +253,7 @@
   (let [breakpoints (:breakpoints state)
         action-all-fn (fn [action-fn _]
                         (g/with-auto-evaluation-context evaluation-context
-                          (set-regions-with-action! project evaluation-context breakpoints breakpoints action-fn)))]
+                          (set-regions-with-action! swap-state project evaluation-context breakpoints breakpoints action-fn)))]
     {:fx/type fx.h-box/lifecycle
      :id "breakpoints-tool-bar"
      :anchor-pane/top 0
@@ -292,7 +279,20 @@
                  :text (localization-state (localization/message "breakpoints.button.remove-all"))
                  :on-action (fn/partial action-all-fn #(vec (remove (set %2) %1)))}]}))
 
-(defn- breakpoints-table-view [project localization-state state swap-state]
+(defn- something-text-field-factory [swap-state breakpoints idx]
+  {:on-mouse-clicked #(swap-state assoc :edited-breakpoint (get breakpoints idx))})
+
+(defn- table-row-factory [open-resource-fn breakpoints idx]
+  (when-let [bp (get breakpoints idx)]
+    {:on-mouse-clicked
+     (fn [event]
+       (let [^MouseEvent e event
+             {:keys [resource row]} bp]
+         (when (and (= MouseButton/PRIMARY (.getButton e))
+                    (= 2 (.getClickCount e)))
+           (open-resource-fn resource (inc row)))))}))
+
+(defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
   (let [{:keys [breakpoints selected-indices]} state]
     {:fx/type fx.ext.table-view/with-selection-props
      :anchor-pane/top toolbar-height
@@ -307,10 +307,7 @@
       :fixed-cell-size 33.0
       :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
       :row-factory {:fx/cell-type fx.table-row/lifecycle
-                    :describe
-                    (fn [idx]
-                      (when-let [bp (get breakpoints idx)]
-                        {:on-mouse-clicked {:event-type :breakpoint-clicked :clicked-breakpoint bp}}))}
+                    :describe (fn/partial table-row-factory open-resource-fn breakpoints)}
       :items (range (count breakpoints))
       :columns
       [{:fx/type fx.table-column/lifecycle
@@ -455,13 +452,14 @@
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value :value parent}
    :props {:children [(breakpoints-toolbar-view (:project context) localization-state state swap-state)
-                      (breakpoints-table-view (:project context) localization-state state swap-state)]}})
+                      (breakpoints-table-view (:project context) (:open-resource-fn context) localization-state state swap-state)]}})
 
-(g/defnk produce-breakpoints-ui [parent-view breakpoints workspace project prefs localization]
+(g/defnk produce-breakpoints-ui [parent-view open-resource-fn breakpoints workspace project prefs localization]
   (let [context {:workspace workspace
                  :project project
                  :prefs prefs
                  :breakpoints breakpoints
+                 :open-resource-fn open-resource-fn
                  :localization localization}]
     (fxui/advance-ui-user-data-component!
       parent-view ::breakpoints
@@ -472,6 +470,7 @@
 (g/defnode BreakpointsView
   (property parent-view Parent)
   (property prefs g/Any)
+  (property open-resource-fn g/Any)
 
   (input workspace g/Any)
   (input localization g/Any)
@@ -480,22 +479,24 @@
 
   (output anchor-pane AnchorPane :cached produce-breakpoints-ui))
 
-(defn make-breakpoints-view [workspace project app-view view-graph prefs ^Node parent]
+(defn make-breakpoints-view [workspace project open-resource-fn app-view view-graph prefs ^Node parent]
   (first
     (g/tx-nodes-added
       (g/transact
-        (g/make-nodes view-graph [view [BreakpointsView :parent-view parent :prefs prefs]]
-          (g/connect workspace :_node-id view :workspace)
-          (g/connect workspace :localization view :localization)
-          (g/connect project :breakpoints view :breakpoints)
-          (g/connect project :_node-id view :project))))))
+        (let [open-res-fn (make-open-resource-fn open-resource-fn)]
+          (g/make-nodes view-graph [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
+            (g/connect workspace :_node-id view :workspace)
+            (g/connect workspace :localization view :localization)
+            (g/connect project :breakpoints view :breakpoints)
+            (g/connect project :_node-id view :project)))))))
 
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoints (:breakpoints @state)
+      #_(let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
-        (set-regions-with-action! project
+        (set-regions-with-action! nil
+                                  project
                                   evaluation-context
                                   breakpoints
                                   selected
@@ -504,9 +505,10 @@
 (handler/defhandler :breakpoints.remove-selected :breakpoints-view
   (run [project]
     (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoints (:breakpoints @state)
+      #_(let [breakpoints (:breakpoints @state)
             selected (map #(get breakpoints %) (:selected-indices @state))]
-        (set-regions-with-action! project
+        (set-regions-with-action! nil
+                                  project
                                   evaluation-context
                                   breakpoints
                                   selected
@@ -515,8 +517,9 @@
 (handler/defhandler :breakpoints.edit-selected :breakpoints-view
   (run []
     (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoints (:breakpoints @state)
+      #_(let [breakpoints (:breakpoints @state)
             selected (last (:selected-indices @state))]
+        ;; TODO: wat do
         (swap! state assoc :edited-breakpoint (get breakpoints selected))))))
 
 (comment
@@ -527,7 +530,9 @@
   (g/node-value (dev/project) :breakpoints)
   (def the-view (atom nil))
   (let [bp-container (.lookup (ui/main-root) "#breakpoints-container")
-        bp-view (make-breakpoints-view (dev/workspace) (dev/project) (dev/app-view)
+        open-resource (partial #'editor.app-view/open-resource
+                               (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
+        bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource (dev/app-view)
                                        editor.boot-open-project/*view-graph*
                                        (dev/prefs) bp-container)
         auto-pulls [[bp-view :anchor-pane]]]
@@ -602,4 +607,4 @@
            (when (instance? javafx.scene.Parent (.getNode skin))
              (print-scene-graph (.getNode skin) (inc depth))))))))
   (print-scene-graph (.lookup (ui/main-root) "#breakpoints-container"))
-  ,)
+  :-)
