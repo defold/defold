@@ -206,8 +206,8 @@
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs)
                                                       localization)
-          breakpoints-container  (.lookup root "#breakpoints-container")
-          ;; _                      (breakpoints-view/create-breakpoint-view-renderer project localization prefs breakpoints-container open-resource)
+
+          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource app-view *view-graph* prefs (.lookup root "#breakpoints-container"))
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
@@ -381,7 +381,8 @@
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]
                             [debug-view :update-available-controls]
-                            [debug-view :update-call-stack]]]
+                            [debug-view :update-call-stack]
+                            [breakpoints-view :anchor-pane]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
 
       (reset! the-root root)
