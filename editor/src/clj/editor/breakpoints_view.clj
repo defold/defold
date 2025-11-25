@@ -279,6 +279,30 @@
   (when-let [breakpoint (get breakpoints idx)]
     {:text (:project-path (:resource breakpoint))}))
 
+(defn- condition-value-field [{:keys [state swap-state value on-value-changed on-focused-changed] :as props}]
+  (let [current (:value state value)]
+    {:fx/type fx.text-field/lifecycle
+     :text current
+     #_#_:on-focused-changed (fn [focused?]
+                           (when-not focused?
+                             (swap-state assoc :edited-breakpoint nil)))
+     :on-focused-changed on-focused-changed ;; <--- This line doesn't work, why?
+     :on-text-changed (fn [new-text]
+                        (swap-state assoc :value new-text))
+     :on-key-pressed (fn [^KeyEvent e]
+                       (condp = (.getCode e)
+                         KeyCode/ENTER
+                         (do (.consume e)
+                             (when on-value-changed
+                               (on-value-changed current)))
+
+                         KeyCode/ESCAPE
+                         (do (.consume e)
+                             (when on-value-changed
+                               (on-value-changed nil)))
+
+                         nil))}))
+
 (defn- column-condition-cell-factory [state swap-state project breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
     (let [condition (:condition breakpoint)
@@ -288,23 +312,18 @@
          {:fx/type fx/ext-on-instance-lifecycle
           :on-created (fn [^TextField node]
                         (ui/run-later (.requestFocus node)))
-          :desc {:fx/type ext-with-focus-changed-handler
-                 :props {:on-focused-changed (fn [event]
-                                               (when (not (:value event))
-                                                 (swap-state assoc :edited-breakpoint nil)))}
-                 :desc {:fx/type fx.text-field/lifecycle
-                        :text condition
-                        :on-text-changed (fn [_] ())
-                        :on-action (fn [_]
-                                     (g/with-auto-evaluation-context evaluation-context
-                                       (let [condition (or nil (:condition (:edited-breakpoint state)))]
-                                         (set-breakpoint-condition! project breakpoints (:edited-breakpoint state) condition evaluation-context)
-                                         (swap-state assoc :edited-breakpoint nil)
-                                         #_(reset! condition-text nil))))
-                        :on-key-pressed (fn [event]
-                                          (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE)
-                                            #_(reset! condition-text nil)
-                                            (swap-state assoc :edited-breakpoint nil)))}}}}
+          :desc {:fx/type fx/ext-state
+                 :initial-state {:value condition}
+                 :desc {:fx/type condition-value-field
+                        :value condition
+                        :on-focused-changed (fn [focused]
+                                              (when-not focused (swap-state assoc :edited-breakpoint nil)))
+                        :on-value-changed
+                        (fn [new-condition]
+                          (g/with-auto-evaluation-context evaluation-context
+                            (when new-condition
+                              (set-breakpoint-condition! project breakpoints breakpoint new-condition evaluation-context))
+                            (swap-state assoc :edited-breakpoint nil)))}}}}
         {:graphic {:fx/type fx.stack-pane/lifecycle
                    :children
                    [{:fx/type :label
