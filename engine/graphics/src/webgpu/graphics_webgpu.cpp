@@ -1122,7 +1122,7 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU_USE_DEPTHSTENCIL)
         WGPUWagyuDeviceDescriptor wagyuDescriptor = WGPU_WAGYU_DEVICE_DESCRIPTOR_INIT;
-        wagyuDescriptor.wantsIndirectRendering = WGPUOptionalBool_True;
+        wagyuDescriptor.wantsIndirectRendering = WGPUOptionalBool_False;
         descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct *>(&wagyuDescriptor);
 #endif
 #if defined(DM_GRAPHICS_WEBGPU2)

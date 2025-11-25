@@ -68,17 +68,17 @@ platforms:
             libs: [physics_2d, box2d, script_box2d]
     x86-win32:
         context:
-            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeLibs: [libphysics, libLinearMath, libBulletDynamics, libBulletCollision, libbox2d_defold, libscript_box2d_defold]
             excludeSymbols: []
             symbols: []
-            libs: [physics_2d, box2d, script_box2d]
+            libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
             linkFlags: []
     x86_64-win32:
         context:
-            excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, box2d_defold, script_box2d_defold]
+            excludeLibs: [libphysics, libLinearMath, libBulletDynamics, libBulletCollision, libbox2d_defold, libscript_box2d_defold]
             excludeSymbols: []
             symbols: []
-            libs: [physics_2d, box2d, script_box2d]
+            libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
             linkFlags: []
     js-web:
         context:

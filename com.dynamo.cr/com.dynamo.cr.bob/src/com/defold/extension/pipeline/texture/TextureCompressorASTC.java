@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
@@ -138,11 +139,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.height = params.getHeight();
         settings.pixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormat());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
-        // The library doesn't create threads for us. To use the multithreaded version, we need to spawn our own threads or workers.
-        // Because we encode many images in parallel, we can stick to single threaded encoding and still achieve parallelisation
-        // by processing multiple images simultaneously.
-         // https://github.com/ARM-software/astc-encoder/blob/701503966b1ac2ebd2616cba94adee5ae8ba6363/Source/astcenc.h#L37C2-L78C41
-        settings.numThreads = 1;
+        settings.numThreads = TextureGenerator.maxThreads;
         settings.data = input;
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 

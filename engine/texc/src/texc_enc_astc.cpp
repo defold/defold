@@ -14,6 +14,9 @@
 
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/array.h>
+#include <dlib/dstrings.h>
+#include <dlib/thread.h>
 
 #include <stdio.h>
 
@@ -24,6 +27,23 @@
 
 namespace dmTexc
 {
+    struct ASTCCompressJob
+    {
+        astcenc_context*      m_Context;
+        astcenc_image*        m_Image;
+        const astcenc_swizzle* m_Swizzle;
+        uint8_t*              m_OutData;
+        size_t                m_OutLength;
+        uint32_t              m_ThreadIndex;
+        astcenc_error         m_Status;
+    };
+
+    static void ASTCCompressWorker(void* arg)
+    {
+        ASTCCompressJob* job = (ASTCCompressJob*)arg;
+        job->m_Status = astcenc_compress_image(job->m_Context, job->m_Image, job->m_Swizzle, job->m_OutData, job->m_OutLength, job->m_ThreadIndex);
+    }
+
     static bool ParseBlockSizes(PixelFormat pf, uint32_t* x, uint32_t* y)
     {
     #define CASE_AND_SET(a,b) \
@@ -134,7 +154,53 @@ namespace dmTexc
         uint32_t comp_len   = aligned_width * aligned_height * 16 / (block_x * block_y); // Approximate size
         uint8_t* comp_data  = (uint8_t*)malloc(comp_len);
 
-        status = astcenc_compress_image(context, &image, &swizzle, comp_data, comp_len, 0);
+        if (thread_count == 1)
+        {
+            status = astcenc_compress_image(context, &image, &swizzle, comp_data, comp_len, 0);
+        }
+        else
+        {
+            dmArray<ASTCCompressJob> jobs;
+            jobs.SetCapacity(thread_count);
+            jobs.SetSize(thread_count);
+
+            dmArray<dmThread::Thread> threads;
+            threads.SetCapacity(thread_count);
+            threads.SetSize(thread_count);
+
+            const uint32_t STACK_SIZE = 0x80000;
+
+            for (uint32_t i = 0; i < thread_count; ++i)
+            {
+                ASTCCompressJob& job = jobs[i];
+                job.m_Context      = context;
+                job.m_Image        = &image;
+                job.m_Swizzle      = &swizzle;
+                job.m_OutData      = comp_data;
+                job.m_OutLength    = comp_len;
+                job.m_ThreadIndex  = i;
+                job.m_Status       = ASTCENC_SUCCESS;
+
+                char thread_name[16];
+                dmSnPrintf(thread_name, sizeof(thread_name), "astcenc_%u", i);
+                threads[i] = dmThread::New(ASTCCompressWorker, STACK_SIZE, (void*)&job, thread_name);
+            }
+
+            for (uint32_t i = 0; i < thread_count; ++i)
+            {
+                dmThread::Join(threads[i]);
+            }
+
+            status = ASTCENC_SUCCESS;
+            for (uint32_t i = 0; i < thread_count; ++i)
+            {
+                if (jobs[i].m_Status != ASTCENC_SUCCESS)
+                {
+                    status = jobs[i].m_Status;
+                    break;
+                }
+            }
+        }
 
         if (create_padded_data)
         {

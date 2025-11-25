@@ -57,15 +57,31 @@
     :js-web :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
-  {:x86-win32 {"vulkan" "vulkan-1"}
-   :x86_64-win32 {"vulkan" "vulkan-1"}})
+  {:x86-win32 {"hid" "hid"
+               "hid_null" "hid_null"
+               "input" "input"
+               "platform" "platform"
+               "platform_null" "platform_null"
+               "platform_vulkan" "platform_vulkan"
+               "vpx" "vpx"
+               "vulkan" "vulkan-1"}
+   :x86_64-win32 {"hid" "hid"
+                  "hid_null" "hid_null"
+                  "input" "input"
+                  "platform" "platform"
+                  "platform_null" "platform_null"
+                  "platform_vulkan" "platform_vulkan"
+                  "vpx" "vpx"
+                  "vulkan" "vulkan-1"}})
 
 (defn platformify-excluded-lib [platform lib]
   (or (-> custom-lib-names platform (get lib))
+      (and (contains? windows platform) (str "lib" lib))
       lib))
 
 (defn platformify-lib [platform lib]
-  (or (some-> custom-lib-names platform (get lib))
+  (or (some-> custom-lib-names platform (get lib) (str ".lib"))
+      (and (contains? windows platform) (str "lib" lib ".lib"))
       lib))
 
 ;; region toggles
