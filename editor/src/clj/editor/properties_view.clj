@@ -1303,6 +1303,157 @@
 (defmethod cljfx-component-view types/Vec4 [property _context localization-state]
   (make-number-tuple-view (:labels (:edit-type property) ["X" "Y" "Z" "W"]) property localization-state))
 
+#_(defn- make-multi-keyed-text-field! [fields property-fn]
+    (let [text-fields (mapv (fn [_] (TextField.)) fields)
+          box (doto (GridPane.)
+                (.setPrefWidth Double/MAX_VALUE))
+          get-fns (mapv (fn [f] (or (:get-fn f) #(get-in % (:path f)))) fields)
+          update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
+      (dorun
+        (map
+          (fn [index ^TextField text-field field get-fn]
+            (let [^String label-text (:label field)
+                  ^Control control (:control field)
+                  children (cond-> []
+
+                                   label-text
+                                   (conj (doto (Label. label-text)
+                                           (.setMinWidth Region/USE_PREF_SIZE)))
+
+                                   control
+                                   (conj (doto control
+                                           (.setMinWidth Region/USE_PREF_SIZE)))
+
+                                   :always
+                                   (conj text-field))
+                  comp (doto (make-grid-pane children)
+                         (GridPane/setConstraints index 0)
+                         (GridPane/setHgrow Priority/ALWAYS))
+                  set-fn (or (:set-fn field)
+                             (let [path (:path field)]
+                               (fn [e v]
+                                 (assoc-in e path v))))
+                  cancel-fn (fn [_]
+                              (let [property (property-fn)
+                                    current-vals (properties/values property)]
+                                (update-ui-fn current-vals
+                                              (properties/validation-message property)
+                                              (properties/read-only? property))))
+                  update-fn (fn update-fn [_]
+                              (let [property (property-fn)
+                                    current-vals (properties/values property)
+                                    old-num (get-fn (first current-vals))
+                                    num (parse-num (.getText text-field) old-num)]
+                                (if num
+                                  (properties/set-values! property (mapv #(set-fn % num) current-vals))
+                                  (cancel-fn nil))))]
+              (ui/customize! text-field update-fn cancel-fn)
+              (ui/add-child! box comp)))
+          (range)
+          text-fields
+          fields
+          get-fns))
+      [box update-ui-fn]))
+
+#_(defn- make-curve-update-ui-fn [^ToggleButton editor-toggle-button ^TextField value-text-field update-ui-fn]
+    (fn curve-update-ui-fn [values message is-read-only]
+      (update-ui-fn values message is-read-only)
+      (let [is-curved (< 1 (properties/curve-point-count (first values)))]
+        (.setSelected editor-toggle-button is-curved)
+        (ui/editable! editor-toggle-button (some? (first values)))
+        (ui/disable! value-text-field is-curved))))
+
+#_(defmethod make-property-control CurveSpread [_edit-type _context property-fn]
+    (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
+          fields [{:get-fn curve-get-fn
+                   :set-fn curve-spread-set-fn
+                   :control editor-toggle-button}
+                  {:label "+/-" :path [:spread]}]
+          [^HBox box update-ui-fn] (make-multi-keyed-text-field! fields property-fn)
+          ^TextField value-text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
+          update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
+      [box update-ui-fn]))
+
+(defn curved-values? [property-values]
+  (< 1 (properties/curve-point-count (first property-values))))
+
+(defn- curve-toggler [{:keys [property]}]
+  (let [values (properties/values property)]
+    {:fx/type fxui/toggle-button
+     :selected (curved-values? values)
+     :disable (or (properties/read-only? property) (nil? (first values)))
+     :focus-traversable false
+     :graphic {:fx/type ui/image-icon
+               :path "icons/32/Icons_X_03_Bezier.png"
+               :size 12.0}
+     :on-selected-changed
+     (fn [selected]
+       (properties/set-values!
+         property
+         (mapv
+           (fn [curve]
+             (let [v (-> curve properties/curve-vals first)
+                   points (iv/iv-vec (cond-> [v] selected (conj (assoc v 0 (float 1.0)))))]
+               (assoc curve :points points)))
+           values)))}))
+
+(defn- curve-component-view [{:keys [property localization-state set-fn]}]
+  (let [values (properties/values property)]
+    {:fx/type fxui/horizontal
+     :spacing :small
+     :children
+     [{:fx/type curve-toggler
+       :property property}
+      (-> {:fx/type fxui/value-field
+           :alignment :right
+           :h-box/hgrow :always
+           :to-string field-expression/format-number
+           :to-value field-expression/to-float
+           :value (properties/unify-values (mapv curve-get-fn values))
+           :editable (not (properties/read-only? property))
+           :disable (curved-values? values)
+           :on-value-changed (fn [new-num]
+                               (properties/set-values! property (mapv #(set-fn % new-num) (properties/values property))))}
+          (resolve-validation property localization-state)
+          (resolve-scrubber property #(set-fn %1 (properties/round-scalar-float %2)) curve-get-fn))]}))
+
+(defmethod cljfx-component-view Curve [property _context localization-state]
+  {:fx/type curve-component-view
+   :property property
+   :localization-state localization-state
+   :set-fn curve-set-fn})
+
+(defmethod cljfx-component-view CurveSpread [property _context localization-state]
+  (let [values (properties/values property)]
+    {:fx/type fxui/grid
+     :spacing :small
+     :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                           :percent-width 55}
+                          {:fx/type fx.column-constraints/lifecycle
+                           :percent-width 45}]
+     :children
+     [{:fx/type curve-component-view
+       :grid-pane/column 0
+       :property property
+       :localization-state localization-state
+       :set-fn curve-spread-set-fn}
+      {:fx/type fxui/horizontal
+       :grid-pane/column 1
+       :spacing :small
+       :children
+       [{:fx/type fxui/label :text "+/-" :color :hint}
+        (-> {:fx/type fxui/value-field
+             :alignment :right
+             :h-box/hgrow :always
+             :to-string field-expression/format-number
+             :to-value field-expression/to-float
+             :value (properties/unify-values (map :spread values))
+             :editable (not (properties/read-only? property))
+             :on-value-changed (fn [spread]
+                                 (properties/set-values! property (mapv #(assoc % :spread spread) (properties/values property))))}
+            (resolve-validation property localization-state)
+            (resolve-scrubber property #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
+
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO delete
   {:fx/type fxui/paragraph

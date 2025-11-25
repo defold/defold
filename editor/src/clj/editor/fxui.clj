@@ -23,11 +23,9 @@
             [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-button :as fx.menu-button]
-            [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
@@ -36,6 +34,7 @@
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text-area :as fx.text-area]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -66,10 +65,10 @@
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
            [javafx.scene Node]
-           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextField TextInputControl Tooltip]
-           [javafx.scene.control.skin ScrollPaneSkin TextFieldSkin]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
+           [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
-           [javafx.scene.layout Region StackPane VBox]
+           [javafx.scene.layout Region StackPane]
            [javafx.scene.shape SVGPath]
            [javafx.stage PopupWindow Window]
            [javafx.util Callback Duration]))
@@ -573,8 +572,9 @@
     fx.lifecycle/dynamic))
 
 (defn- resolve-tooltip
-  "Replace :tooltip prop with prop-tooltip2. Works on any Node, not just
-  Controls.
+  "Replace :tooltip prop with prop-delayed-tooltip or prop-immediate-tooltip
+
+  Works on any Node, not just Controls
 
   The tooltip may work in the following modes:
     immediate    shown on hover and when the input becomes focused, used for
@@ -642,6 +642,23 @@
   (-> props
       (assoc :fx/type fx.menu-button/lifecycle)
       (prepend-style-classes "menu-button")
+      resolve-alignment
+      resolve-tooltip))
+
+(defn toggle-button
+  "Toggle button
+
+  Supports all :toggle-button props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values and (preferably) maps with
+                  the following keys:
+                    :severity    :error, :warning, or :info
+                    :message     string"
+  [props]
+  (-> props
+      (assoc :fx/type fx.toggle-button/lifecycle)
+      (prepend-style-classes "toggle-button")
+      (add-style-classes "ext-toggle-button")
       resolve-alignment
       resolve-tooltip))
 
@@ -1145,8 +1162,6 @@
             prev-x-vol (volatile! nil)
             prev-y-vol (volatile! nil)
             ^EventHandler on-mouse-pressed (fn [^MouseEvent e]
-                                             (when @f-vol
-                                               (throw (IllegalStateException. "Attempting to start scrubbing while another scrubbing is in-progress")))
                                              (let [f (on-scrubbed)]
                                                (when-not (fn? f)
                                                  (throw (IllegalStateException. "The on-scrubbed callback must return a function")))
@@ -1155,15 +1170,13 @@
                                                (vreset! prev-y-vol (.getY e)))
                                              (.consume e))
             ^EventHandler on-mouse-dragged (fn [^MouseEvent e]
-                                             (let [f @f-vol]
-                                               (when-not f
-                                                 (throw (IllegalStateException. "Attempting to scrub while it's not started")))
-                                               (.consume e)
+                                             (when-let [f @f-vol]
                                                (let [x (.getX e)
                                                      y (.getY e)
                                                      delta-x (- x @prev-x-vol)
                                                      delta-y (- @prev-y-vol y)
                                                      max-delta (if (< (abs delta-y) (abs delta-x)) delta-x delta-y)]
+                                                 (.consume e)
                                                  (vreset! prev-x-vol x)
                                                  (vreset! prev-y-vol y)
                                                  (when (<= 1.0 (abs max-delta))
@@ -1171,10 +1184,9 @@
                                                               (.isShiftDown e) (* 10.0)
                                                               (.isControlDown e) (* 0.1)))))))
             ^EventHandler on-mouse-released (fn [^MouseEvent e]
-                                              (when-not @f-vol
-                                                (throw (IllegalStateException. "Attempting to finish scrubbing while it's not started")))
-                                              (vreset! f-vol nil)
-                                              (.consume e))]
+                                              (when @f-vol
+                                                (vreset! f-vol nil)
+                                                (.consume e)))]
         (.addEventHandler node MouseEvent/MOUSE_PRESSED on-mouse-pressed)
         (.addEventHandler node MouseEvent/MOUSE_DRAGGED on-mouse-dragged)
         (.addEventHandler node MouseEvent/MOUSE_RELEASED on-mouse-released)

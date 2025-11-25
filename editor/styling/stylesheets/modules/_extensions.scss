@@ -237,4 +237,12 @@ $ext-line-height: 26px;
             -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
         }
     }
+    &-toggle-button {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px;
+        -fx-border-width: 0;
+        -fx-min-width: $ext-line-height;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
 }

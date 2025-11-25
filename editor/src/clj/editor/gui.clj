@@ -3514,6 +3514,7 @@
             (dynamic label (properties/label-dynamic :gui :current-nodes))
             (dynamic tooltip (properties/tooltip-dynamic :gui :current-nodes)))
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
+            (dynamic edit-type (g/constantly {:type g/Int :min 1 :max 8192}))
             (dynamic error (g/fnk [_node-id max-nodes ^:try node-ids]
                              (when-not (g/error-value? node-ids)
                                (validate-max-nodes _node-id max-nodes node-ids))))
