@@ -345,7 +345,11 @@
       (fn [table-view [project breakpoints swap-state]]
         (let [selection-provider (->breakpoints-selection-provider table-view breakpoints)]
           (ui/context! table-view :breakpoints-view
-                       {:project project :table-view table-view :swap-state swap-state :selection-provider selection-provider}
+                       {:project project
+                        :table-view table-view
+                        :swap-state swap-state
+                        :breakpoints breakpoints
+                        :selection-provider selection-provider}
                        selection-provider
                        {}
                        {resource/Resource #(:resource %)}))))
@@ -472,37 +476,20 @@
             (g/connect project :_node-id view :project)))))))
 
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
-  (run [project swap-state selection-provider]
+  (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoints (g/node-value project :breakpoints)
-            selected (mapv #(get breakpoints %) (handler/selection selection-provider))]
-        (set-regions-with-action! swap-state
-                                  project
-                                  evaluation-context
-                                  breakpoints
-                                  selected
-                                  toggle-breakpoints-enabled)))))
+      (set-regions-with-action! swap-state project evaluation-context breakpoints selection toggle-breakpoints-enabled))))
 
-;; TODO: Look into other defhandlers that inject a selection
-;; TODO: Don't call node-value, pass in breakpoints from context
 (handler/defhandler :breakpoints.remove-selected :breakpoints-view
-  (run [project swap-state selection-provider]
+  (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoints (g/node-value project :breakpoints)
-            selected (mapv #(get breakpoints %) (handler/selection selection-provider))]
-        (set-regions-with-action! swap-state
-                                  project
-                                  evaluation-context
-                                  breakpoints
-                                  selected
-                                  #(vec (remove (set %2) %1)))))))
+      (set-regions-with-action! swap-state project evaluation-context breakpoints selection #(vec (remove (set %2) %1))))))
 
 (handler/defhandler :breakpoints.edit-selected :breakpoints-view
-  (run [project swap-state selection-provider]
+  (enabled? [selection] (= (count selection) 1))
+  (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (let [breakpoints (g/node-value project :breakpoints)
-            selected (last (handler/selection selection-provider))]
-        (swap-state assoc :edited-breakpoint (get breakpoints selected))))))
+      (swap-state assoc :edited-breakpoint (first selection)))))
 
 (comment
   (g/node-value @the-view :breakpoints)
