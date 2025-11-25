@@ -106,7 +106,8 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
 
-        settings.numThreads = TextureGenerator.maxThreads;
+        // increasing of threads count for basisu isn't that efficient, so keep it 4 for now
+        settings.numThreads = 4;
         settings.debug = false;
         settings.data = input;
 
