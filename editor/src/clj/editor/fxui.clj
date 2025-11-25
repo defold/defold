@@ -1206,49 +1206,6 @@
       (cond-> on-scrubbed (-> (dissoc :on-scrubbed)
                               (assoc prop-on-scrubbed on-scrubbed)))))
 
-;; TODO remove
-#_(fx/on-fx-thread
-    (fx/instance
-      (fx/create-component
-        {:fx/type :stage
-         :width 500
-         :height 500
-         :showing true
-         :scene {:fx/type :scene
-                 :stylesheets [(str (clojure.java.io/resource "dialogs.css"))]
-                 :on-key-pressed (fn [^KeyEvent e]
-                                   (if (= KeyCode/ESCAPE (.getCode e))
-                                     (.hide (.getWindow ^javafx.scene.Scene (.getSource e)))))
-                 :root {:fx/type horizontal
-                        :style {:-fx-background-color :-df-background}
-                        :padding 20
-                        :spacing :small
-                        :children [{:fx/type text-field}
-                                   {:fx/type value-field
-                                    :value 5
-                                    :to-string str
-                                    :to-value parse-long
-                                    prop-hover-overlay {:fx/type fx/ext-on-instance-lifecycle
-                                                        :on-created tap>
-                                                        :desc {:fx/type hover-overlay-view
-                                                               :alignment :right
-                                                               :padding 1
-                                                               :content {:fx/type scrubber
-                                                                         :on-scrubbed (fn []
-                                                                                        (tap> [:start-scrubbing])
-                                                                                        (fn [f]
-                                                                                          (tap> [:scrub f])))}}}}
-                                   {:fx/type value-field
-                                    :editable false
-                                    :value 5
-                                    :to-string str
-                                    :to-value parse-long
-                                    prop-hover-overlay {:fx/type hover-overlay-view
-                                                        :alignment :right
-                                                        :disable true
-                                                        :padding 1
-                                                        :content {:fx/type scrubber}}}]}}})))
-
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]
     (if-let [^SequentialTransition animation (.get properties ::invalid-value-animation)]
@@ -1299,34 +1256,35 @@
           (.selectAll text-input))))
     fx.lifecycle/scalar))
 
-(def ^:private prop-filter-mouse-pressed
-  (fx.prop/make
-    (fx.mutator/adder-remover
-      #(.addEventFilter ^Node %1 MouseEvent/MOUSE_PRESSED %2)
-      #(.removeEventFilter ^Node %1 MouseEvent/MOUSE_PRESSED %2))
-    (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler fx.coerce/event-handler)))
-
-(def ^:private prop-filter-mouse-released
-  (fx.prop/make
-    (fx.mutator/adder-remover
-      #(.addEventFilter ^Node %1 MouseEvent/MOUSE_RELEASED %2)
-      #(.removeEventFilter ^Node %1 MouseEvent/MOUSE_RELEASED %2))
-    (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler fx.coerce/event-handler)))
-
-(defn- filter-select-all-text-on-mouse-pressed [^MouseEvent e]
-  (let [^TextInputControl text-input (.getSource e)]
-    (when-not (.isFocused text-input)
-      (.deselect text-input)
-      (.put (.getProperties text-input) ::selection-at-focus true))))
-
-(defn- filter-select-all-text-on-mouse-released [^MouseEvent e]
-  (let [^TextInputControl text-input (.getSource e)
-        properties (.getProperties text-input)]
-    (when (and (.isFocused text-input)
-               (.get properties ::selection-at-focus)
-               (string/blank? (.getSelectedText text-input)))
-      (fx/run-later (.selectAll text-input)))
-    (.remove properties ::selection-at-focus)))
+(def ^:private prop-select-all-text-on-click
+  (fx/make-binding-prop
+    (fn [^TextInputControl text-input enabled]
+      (when enabled
+        (let [select-on-release (volatile! false)
+              ^EventHandler on-pressed (fn [_]
+                                         (when-not (.isFocused text-input)
+                                           (.deselect text-input)
+                                           (vreset! select-on-release true)))
+              ^EventHandler on-released (fn [_]
+                                          (when @select-on-release
+                                            (vreset! select-on-release false)
+                                            (when (and (.isFocused text-input)
+                                                       (string/blank? (.getSelectedText text-input)))
+                                              (fx/run-later (.selectAll text-input)))))
+              ;; sometimes it remains pressed...
+              pressed-pseudo-class (PseudoClass/getPseudoClass "pressed")
+              ^ChangeListener on-blur (fn [_ _ focused]
+                                        (when-not focused
+                                          (.pseudoClassStateChanged text-input pressed-pseudo-class false)))]
+          (.addListener (.focusedProperty text-input) on-blur)
+          ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
+          (.addEventFilter text-input MouseEvent/MOUSE_PRESSED on-pressed)
+          ;; Filter is necessary because the TextArea captures the event
+          (.addEventFilter text-input MouseEvent/MOUSE_RELEASED on-released)
+          #(do (.removeListener (.focusedProperty text-input) on-blur)
+               (.removeEventFilter text-input MouseEvent/MOUSE_PRESSED on-pressed)
+               (.removeEventFilter text-input MouseEvent/MOUSE_RELEASED on-released)))))
+    fx.lifecycle/scalar))
 
 (defn- value-field-impl-final-step
   [{:keys [state swap-state text on-value-changed to-value component commit-on-enter hover-overlay]
@@ -1339,10 +1297,7 @@
                :on-key-pressed (fn/partial handle-value-field-key-pressed edit text swap-state on-value-changed to-value commit-on-enter)
                :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value)
                prop-value-field-text edit
-               ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
-               #_#_prop-filter-mouse-pressed filter-select-all-text-on-mouse-pressed
-               ;; Filter is necessary because the TextArea captures the event
-               #_#_prop-filter-mouse-released filter-select-all-text-on-mouse-released)
+               prop-select-all-text-on-click true)
         (cond-> hover-overlay
                 (-> (dissoc :hover-overlay)
                     (assoc prop-hover-overlay {:fx/type hover-overlay-view

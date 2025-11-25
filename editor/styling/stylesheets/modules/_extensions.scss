@@ -223,8 +223,8 @@ $ext-line-height: 26px;
         }
         &:hover > *, &:pressed > * {
             visibility: visible;
-//             -fx-background-color: -df-background-input;
-//             -fx-background-radius: 1px;
+            -fx-background-color: -df-background-input;
+            -fx-background-radius: 1px;
         }
     }
     &-scrubber {
