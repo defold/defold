@@ -301,7 +301,10 @@ namespace dmHttpClient
         client->m_CancelFlag = cancelflag;
 
         memcpy(&client->m_HostURI, hostURI, sizeof(*hostURI));
-        memcpy(&client->m_ProxyURI, proxyURI, sizeof(*proxyURI));
+        if (proxyURI)
+        {
+            memcpy(&client->m_ProxyURI, proxyURI, sizeof(*proxyURI));
+        }
 
         return client;
     }
