@@ -323,10 +323,6 @@ namespace dmHttpService
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
             memcpy(&worker->m_CurrentProxyURL, &proxy_url, sizeof(proxy_url));
         }
-        else
-        {
-            dmLogInfo("HandleRequest reusing dmHttpClient");
-        }
 
         worker->m_Response.SetSize(0);
         worker->m_Response.SetCapacity(DEFAULT_RESPONSE_BUFFER_SIZE);

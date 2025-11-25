@@ -60,6 +60,15 @@ namespace dmConnectionPool
      */
     void Reopen(HPool pool);
 
+    /**
+     * Create an SSL Socket for the specified connection. The socket perform an
+     * SSL handshake with the specified host.
+     * @param pool [type:dmConnectionPool::HPool] pool
+     * @param connection [type:dmConnectionPool::HConnection] connection
+     * @param host [type:const char*] host
+     * @param timeout [type:int] The timeout (micro seconds) for the connection and ssl handshake
+     * @return dmConnectionPool::RESULT_OK on success
+     */
     Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout);
 }
 

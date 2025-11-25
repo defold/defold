@@ -421,7 +421,6 @@ namespace dmConnectionPool
             {
                 c->m_State = STATE_FREE;
                 DoClose(pool, c);
-                return r;
             }
         }
 

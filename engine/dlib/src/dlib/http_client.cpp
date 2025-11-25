@@ -153,7 +153,7 @@ namespace dmHttpClient
             m_SSLSocket = 0;
         }
         Result Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled);
-        Result UpgradeToSSLSocket(const char* host, int timeout);
+        Result CreateSSLSocket(const char* host, int timeout);
         ~Response();
     };
 
@@ -173,7 +173,6 @@ namespace dmHttpClient
         dmURI::Parts        m_HostURI;
         dmURI::Parts        m_ProxyURI;
 
-        // char                m_URI[dmURI::MAX_URI_LEN];
         char                m_CacheKey[dmURI::MAX_URI_LEN];
         dmSocket::Result    m_SocketResult;
 
@@ -218,7 +217,7 @@ namespace dmHttpClient
         }
     }
 
-    Result Response::UpgradeToSSLSocket(const char* host, int timeout)
+    Result Response::CreateSSLSocket(const char* host, int timeout)
     {
         if (m_Socket == 0)
         {
@@ -1087,10 +1086,11 @@ bail:
         bool use_proxy = strlen(client->m_ProxyURI.m_Hostname) > 0;
 
         // for proxy connections:
-        // client -> CONNECT -> proxy
-        // proxy -> TCP connect -> server
-        // proxy -> 200 OK -> client
-        // client -> TCP send -> proxy -> forward -> server
+        // client -> CONNECT  -> proxy
+        //                       proxy -> TCP connect -> server
+        // client <- 200 OK   <- proxy
+        // client -> TCP send -> proxy -> TCP recv -> server
+        // client <- TCP recv <- proxy <- TCP send <- server
         //
         // CONNECT requests should be sent to the proxy
         // CONNECT requests are always done using http
@@ -1112,6 +1112,7 @@ bail:
 
             client->m_SocketResult = dmSocket::RESULT_OK;
 
+            // host, port, secure, timeout, cancel
             r = response.Connect(use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname,
                                  use_proxy ? client->m_ProxyURI.m_Port : client->m_HostURI.m_Port,
                                  use_proxy ? false : client->m_Secure,
@@ -1127,6 +1128,7 @@ bail:
                 break;
             }
 
+            // client, response, path, method
             r = DoDoRequest(client,
                             response,
                             use_proxy ? client->m_HostURI.m_Location : path,
@@ -1165,32 +1167,23 @@ bail:
             response = Response(client);
         }
 
-        if (r != RESULT_OK || !use_proxy)
-        {
-            return r;
-        }
 
-        if (client->m_Secure)
+        if (r == RESULT_OK && use_proxy)
         {
-            r = response.UpgradeToSSLSocket(client->m_HostURI.m_Hostname, client->m_RequestTimeout);
-            if (r != RESULT_OK)
+            if (client->m_Secure)
             {
-                return r;
+                r = response.CreateSSLSocket(client->m_HostURI.m_Hostname, client->m_RequestTimeout);
+            }
+            
+            if (r == RESULT_OK)
+            {
+                r = DoDoRequest(client, response, path, method);
             }
         }
-        
-        r = DoDoRequest(client,
-                        response,
-                        path,
-                        method);
+
         if (r != RESULT_OK && r != RESULT_NOT_200_OK)
         {
             response.m_CloseConnection = 1;
-
-            if( HasRequestTimedOut(client) )
-            {
-                dmLogInfo("DoRequest HasRequestTimedOut");
-            }
         }
 
         return r;
@@ -1250,7 +1243,6 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
-        // GetURI(client, path, client->m_URI, sizeof(client->m_URI));
         client->m_RequestStart = dmTime::GetMonotonicTime();
 
         Result r;
@@ -1312,8 +1304,6 @@ bail:
         if (strcmp(method, "GET") == 0) {
             return Get(client, path);
         } else {
-            // GetURI(client, path, client->m_URI, sizeof(client->m_URI));
-            // dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_HostURI.m_Hostname, (int) client->m_HostURI.m_Port, path);
             client->m_RequestStart = dmTime::GetMonotonicTime();
             Result r = DoRequest(client, path, method);
             return r;
