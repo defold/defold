@@ -167,45 +167,21 @@
 (comment
   (defn- handle-breakpoint-event! [project open-resource-fn event]
     (case (:event-type event)
-        :toggle-enabled
-        ()
+      :condition-text-changed (reset! condition-text (:fx/event event))
 
-        :remove-breakpoint
-        ()
-
-        :condition-focus-changed
-        ()
-
-        :breakpoint-clicked
-        ()
-
-        :edit-condition
-        ()
-
-        :remove-condition
-        ()
-
-        :condition-text-changed (reset! condition-text (:fx/event event))
-
-        :condition-key-pressed
-        ()
-
-        :save-condition
-        ()
-
-        ;; default case
-        ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
-        ;; we can shorten this code quite a bit
-        (g/with-auto-evaluation-context evaluation-context
+      ;; default case
+      ;; The rest of the actions share a similar enough `action-scope` pattern that by deconstructing this way
+      ;; we can shorten this code quite a bit
+      (g/with-auto-evaluation-context evaluation-context
         (let [[action scope] (string/split (name (:event-type event)) #"-")
-                all-breakpoints (:breakpoints @state)
-                breakpoints (if (= scope "selected")
+              all-breakpoints (:breakpoints @state)
+              breakpoints (if (= scope "selected")
                             (mapv #(get (:breakpoints @state) %) (:selected-indices @state))
                             all-breakpoints)
-                handle-fn (partial set-regions-with-action! project evaluation-context all-breakpoints breakpoints)]
-            (case action
+              handle-fn (partial set-regions-with-action! project evaluation-context all-breakpoints breakpoints)]
+          (case action
             "remove" (do (handle-fn #(vec (remove (set %2) %1)))
-                        (swap! state assoc :selected-indices []))
+                         (swap! state assoc :selected-indices []))
             "toggle" (handle-fn toggle-breakpoints-enabled)
             "enable" (handle-fn #(update-breakpoints-enabled-state %1 %2 true))
             "disable" (handle-fn #(update-breakpoints-enabled-state %1 %2 false))))))))
@@ -543,8 +519,7 @@
 
 (comment
   (g/node-value @the-view :breakpoints)
-  (ui/run-now
-    (g/node-value @the-view :anchor-pane))
+  (handler/selection (ui/->selection-provider (.lookup (ui/main-root) "#breakpoints-table-view")))
   (g/node-value (dev/app-view) :auto-pulls)
   (g/node-value (dev/project) :breakpoints)
   (def the-view (atom nil))
