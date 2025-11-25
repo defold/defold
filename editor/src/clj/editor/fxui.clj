@@ -1167,10 +1167,9 @@
                                                  (vreset! prev-x-vol x)
                                                  (vreset! prev-y-vol y)
                                                  (when (<= 1.0 (abs max-delta))
-                                                   (f (cond-> 1.0
+                                                   (f (cond-> max-delta
                                                               (.isShiftDown e) (* 10.0)
-                                                              (.isControlDown e) (* 0.1)
-                                                              (neg? max-delta) -))))))
+                                                              (.isControlDown e) (* 0.1)))))))
             ^EventHandler on-mouse-released (fn [^MouseEvent e]
                                               (when-not @f-vol
                                                 (throw (IllegalStateException. "Attempting to finish scrubbing while it's not started")))
@@ -1209,43 +1208,46 @@
 
 ;; TODO remove
 #_(fx/on-fx-thread
-    (fx/create-component
-      {:fx/type :stage
-       :width 500
-       :height 500
-       :showing true
-       :scene {:fx/type :scene
-               :stylesheets [(str (clojure.java.io/resource "dialogs.css"))]
-               :on-key-pressed (fn [^KeyEvent e]
-                                 (if (= KeyCode/ESCAPE (.getCode e))
-                                   (.hide (.getWindow ^javafx.scene.Scene (.getSource e)))))
-               :root {:fx/type :v-box
-                      :style {:-fx-background-color :-df-background}
-                      :padding 20
-                      :spacing 10
-                      :children [{:fx/type text-field}
-                                 {:fx/type value-field
-                                  :value 5
-                                  :to-string str
-                                  :to-value parse-long
-                                  prop-hover-overlay {:fx/type hover-overlay-view
-                                                      :alignment :right
-                                                      :padding 1
-                                                      :content {:fx/type scrubber
-                                                                :on-scrubbed (fn []
-                                                                               (tap> [:start-scrubbing])
-                                                                               (fn [f]
-                                                                                 (tap> [:scrub f])))}}}
-                                 {:fx/type value-field
-                                  :editable false
-                                  :value 5
-                                  :to-string str
-                                  :to-value parse-long
-                                  prop-hover-overlay {:fx/type hover-overlay-view
-                                                      :alignment :right
-                                                      :disable true
-                                                      :padding 1
-                                                      :content {:fx/type scrubber}}}]}}}))
+    (fx/instance
+      (fx/create-component
+        {:fx/type :stage
+         :width 500
+         :height 500
+         :showing true
+         :scene {:fx/type :scene
+                 :stylesheets [(str (clojure.java.io/resource "dialogs.css"))]
+                 :on-key-pressed (fn [^KeyEvent e]
+                                   (if (= KeyCode/ESCAPE (.getCode e))
+                                     (.hide (.getWindow ^javafx.scene.Scene (.getSource e)))))
+                 :root {:fx/type horizontal
+                        :style {:-fx-background-color :-df-background}
+                        :padding 20
+                        :spacing :small
+                        :children [{:fx/type text-field}
+                                   {:fx/type value-field
+                                    :value 5
+                                    :to-string str
+                                    :to-value parse-long
+                                    prop-hover-overlay {:fx/type fx/ext-on-instance-lifecycle
+                                                        :on-created tap>
+                                                        :desc {:fx/type hover-overlay-view
+                                                               :alignment :right
+                                                               :padding 1
+                                                               :content {:fx/type scrubber
+                                                                         :on-scrubbed (fn []
+                                                                                        (tap> [:start-scrubbing])
+                                                                                        (fn [f]
+                                                                                          (tap> [:scrub f])))}}}}
+                                   {:fx/type value-field
+                                    :editable false
+                                    :value 5
+                                    :to-string str
+                                    :to-value parse-long
+                                    prop-hover-overlay {:fx/type hover-overlay-view
+                                                        :alignment :right
+                                                        :disable true
+                                                        :padding 1
+                                                        :content {:fx/type scrubber}}}]}}})))
 
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]
@@ -1323,7 +1325,6 @@
     (when (and (.isFocused text-input)
                (.get properties ::selection-at-focus)
                (string/blank? (.getSelectedText text-input)))
-      (.consume e)
       (fx/run-later (.selectAll text-input)))
     (.remove properties ::selection-at-focus)))
 
@@ -1339,13 +1340,12 @@
                :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value)
                prop-value-field-text edit
                ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
-               prop-filter-mouse-pressed filter-select-all-text-on-mouse-pressed
+               #_#_prop-filter-mouse-pressed filter-select-all-text-on-mouse-pressed
                ;; Filter is necessary because the TextArea captures the event
-               prop-filter-mouse-released filter-select-all-text-on-mouse-released)
+               #_#_prop-filter-mouse-released filter-select-all-text-on-mouse-released)
         (cond-> hover-overlay
                 (-> (dissoc :hover-overlay)
                     (assoc prop-hover-overlay {:fx/type hover-overlay-view
-                                               #_#_:disable (not (:editable props true))
                                                :padding 1
                                                :alignment (invert-alignment (:alignment props :left))
                                                :content hover-overlay})))

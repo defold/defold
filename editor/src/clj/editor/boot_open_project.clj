@@ -371,8 +371,7 @@
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
-          (let [auto-pulls [[properties-view :pane]
-                            [app-view :refresh-tab-panes]
+          (let [auto-pulls [[app-view :refresh-tab-panes]
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]

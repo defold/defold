@@ -48,7 +48,7 @@
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label MenuButton Slider TextArea TextField TextInputControl ToggleButton Tooltip]
            [javafx.scene.input MouseDragEvent MouseEvent]
-           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region StackPane VBox]
+           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.util Duration]))
 
@@ -88,6 +88,12 @@
   (if (math/float32? old-num)
     field-expression/to-float
     field-expression/to-double))
+
+(defn- old-num->round-num-fn [old-num]
+  {:pre [(or (number? old-num) (nil? old-num))]}
+  (if (math/float32? old-num)
+    properties/round-scalar-float
+    properties/round-scalar))
 
 (defn- coalesced-property->any-value [{:keys [values] :as coalesced-property}]
   {:pre [(vector? values)]}
@@ -917,14 +923,14 @@
 
 (handler/defhandler :private/clear-override :property
   (label [property]
-    (localization/message "command.private.clear-override" {"property" (properties/label property)}))
+         (localization/message "command.private.clear-override" {"property" (properties/label property)}))
   (active? [property]
-    (not (coll/empty? (:original-values property))))
+           (not (coll/empty? (:original-values property))))
   (run [property property-control]
-    (properties/clear-override! property)
-    ;; TODO: no :property-control handler context value any more — clear-override doesn't work now...
-    ;;       probably safe to just remove
-    (ui/clear-auto-commit! property-control)))
+       (properties/clear-override! property)
+       ;; TODO: no :property-control handler context value any more — clear-override doesn't work now...
+       ;;       probably safe to just remove
+       (ui/clear-auto-commit! property-control)))
 
 (handler/register-menu! ::property-menu
   [menu-items/show-overrides
@@ -1140,17 +1146,6 @@
 
 ;; NEW VIEW BEGIN
 
-#_(defn- make-property-grid-row [context property-keyword edit-type row property-keyword->property]
-    (let [{:keys [localization]} context
-          property-fn #(property-keyword->property property-keyword)
-          [^Node control update-ctrl-fn drag-update-fn] (make-property-control edit-type context property-fn)
-
-          control
-          (cond-> control
-                  drag-update-fn
-                  (make-control-draggable
-                    (partial handle-control-drag-event! property-fn drag-update-fn update-ctrl-fn)))]))
-
 (defmulti cljfx-component-view
   (fn [property _context _localization-state]
     (edit-type->type (:edit-type property))))
@@ -1173,61 +1168,140 @@
     (update input-desc :style-class coll/conj-vector style-class)
     input-desc))
 
+(defn- resolve-value [input-desc property]
+  (assoc input-desc :value (properties/unify-values (properties/values property))))
+
 (defmethod cljfx-component-view g/Str [property _context localization-state]
   (-> {:fx/type fxui/value-field
-       :value (properties/unify-values (properties/values property))
        :on-value-changed #(properties/set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
+      (resolve-value property)
       (resolve-validation property localization-state)
       (resolve-script-property-style-class property)))
 
-#_(let [edit-type (:edit-type property)
-        min-val (:min edit-type)
-        max-val (:max edit-type)
-        delta (cond-> (or (:precision edit-type) 1.0)
-                      (.isShiftDown event) (* 10.0)
-                      (.isControlDown event) (* 0.1)
-                      (neg? max-delta) -)]
-    (when (> (abs max-delta) 1)
-      (let [values (or (ui/user-data target ::values)
-                       (properties/values property))
-            new-values (mapv (fn [value]
-                               (cond-> (drag-update-fn value delta)
-                                       min-val (max min-val)
-                                       max-val (min max-val)))
-                             values)]
-        (properties/set-values! property values op-seq)
-        (ui/user-data! target ::values new-values))))
+(defn- resolve-scrubber
+  "Adds a scrubber to a text field
 
-(defn- resolve-scrubber [input-desc property update-fn]
-  (cond-> input-desc
-          (not (properties/read-only? property))
-          (assoc :hover-overlay {:fx/type fxui/scrubber
-                                 :on-scrubbed (fn []
-                                                (let [{min-value :min
-                                                       max-value :max
-                                                       :keys [precision]
-                                                       :or {precision 1.0}} (:edit-type property)
-                                                      opseq (gensym)
-                                                      values-vol (volatile! (properties/values property))]
-                                                  (fn [^double delta]
-                                                    (vswap! values-vol coll/map)
-                                                    (tap> [:scrub (* delta (double precision)) opseq]))))})))
+  Args:
+    input-desc    cljfx view description
+    property      coalesced property
+    ->value       2-arg function that receives a value of a single uncoalesced
+                  property and a new scrubbed value (double), should return the
+                  new value
+    ->number      1-arg function that converts a value of a single uncoalesced
+                  property and extracts a numeric value from it"
+  ([input-desc property ->value]
+   (resolve-scrubber input-desc property ->value identity))
+  ([input-desc property ->value ->number]
+   (cond-> input-desc
+           (not (properties/read-only? property))
+           (assoc
+             :hover-overlay
+             {:fx/type fxui/scrubber
+              :on-scrubbed
+              (fn []
+                (let [{min-value :min
+                       max-value :max
+                       :keys [precision]
+                       :or {precision 1.0}} (:edit-type property)
+                      opseq (gensym)
+                      initial-values (properties/values property)
+                      doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
+                  (fn [^double delta]
+                    (let [new-doubles (vswap!
+                                        doubles-vol
+                                        coll/mapv>
+                                        #(cond-> (+ ^double % delta)
+                                                 min-value (max (double min-value))
+                                                 max-value (min (double max-value))))
+                          new-values (mapv #(->value (initial-values %) (new-doubles %))
+                                           (range (count new-doubles)))]
+                      (properties/set-values! property new-values opseq)))))}))))
 
-(defn- scrub-int [^long v ^double delta]
-  (int (+ v (if (pos? delta) (Math/ceil delta) (Math/floor delta)))))
+(defn- scrubbed-int [_ ^double n]
+  (int (Math/round n)))
 
 (defmethod cljfx-component-view g/Int [property _context localization-state]
-  ;; todo draggable
   (-> {:fx/type fxui/value-field
        :to-string field-expression/format-int
        :to-value field-expression/to-int
-       :value (properties/unify-values (properties/values property))
        :on-value-changed #(properties/set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
-      (resolve-scrubber property scrub-int)
+      (resolve-value property)
+      (resolve-scrubber property scrubbed-int)
       (resolve-validation property localization-state)
       (resolve-script-property-style-class property)))
+
+(defmethod cljfx-component-view g/Num [property _context localization-state]
+  (let [old-num (coalesced-property->old-num property)
+        is-float (math/float32? old-num)]
+    (-> {:fx/type fxui/value-field
+         :to-string field-expression/format-number
+         :to-value field-expression/to-double
+         :on-value-changed #(properties/set-values! property (repeat (cond-> % is-float float)))
+         :editable (not (properties/read-only? property))}
+        (resolve-value property)
+        (resolve-scrubber property #((old-num->round-num-fn old-num) %2))
+        (resolve-validation property localization-state)
+        (resolve-script-property-style-class property))))
+
+(defmethod cljfx-component-view g/Bool [property _context localization-state]
+  (let [value (properties/unify-values (properties/values property))]
+    ;; Wrap in h-box so it's not extended right with a hoverable empty space
+    {:fx/type fxui/horizontal
+     :children
+     [(-> {:fx/type fxui/check-box
+           :indeterminate (nil? value)
+           :selected (boolean value)
+           :on-selected-changed #(properties/set-values! property (repeat %))
+           :disable (properties/read-only? property)}
+          (resolve-validation property localization-state))]}))
+
+(defn- make-number-tuple-view [labels property localization-state]
+  (let [old-num (coalesced-property->old-num property)
+        is-float (math/float32? old-num)
+        values (properties/values property)]
+    {:fx/type fxui/grid
+     :spacing :medium
+     :column-constraints (vec
+                           (repeat
+                             (count labels)
+                             {:fx/type fx.column-constraints/lifecycle
+                              :percent-width (* 100 (double (/ (count labels) 1)))}))
+     :children
+     (coll/transfer labels []
+       (map-indexed
+         (fn [i label]
+           {:fx/type fxui/horizontal
+            :grid-pane/column i
+            :spacing :small
+            :children
+            [{:fx/type fxui/label
+              :color :hint
+              :text label}
+             (-> {:fx/type fxui/value-field
+                  :alignment :right
+                  :h-box/hgrow :always
+                  :to-string field-expression/format-number
+                  :to-value field-expression/to-double
+                  :value (properties/unify-values (mapv #(% i) values))
+                  :on-value-changed (fn [new-num]
+                                      (properties/set-values! property (mapv #(assoc % i (cond-> new-num is-float float)) values)))
+                  :editable (not (properties/read-only? property))}
+                 (resolve-validation property localization-state)
+                 (resolve-scrubber
+                   property
+                   #(assoc %1 i ((old-num->round-num-fn old-num) %2))
+                   #(% i)))]})))}))
+
+(defmethod cljfx-component-view types/Vec2 [property _context localization-state]
+  (make-number-tuple-view (:labels (:edit-type property) ["X" "Y"]) property localization-state))
+
+(defmethod cljfx-component-view types/Vec3 [property _context localization-state]
+  (make-number-tuple-view (:labels (:edit-type property) ["X" "Y" "Z"]) property localization-state))
+
+(defmethod cljfx-component-view types/Vec4 [property _context localization-state]
+  (make-number-tuple-view (:labels (:edit-type property) ["X" "Y" "Z" "W"]) property localization-state))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO delete
@@ -1357,33 +1431,32 @@
   (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
-                              (let [context {:workspace workspace
-                                             :project project
-                                             :app-view app-view
-                                             :prefs prefs
-                                             :localization localization
-                                             :search-results-view search-results-view
-                                             :color-dropper-view color-dropper-view}]
-                                (fxui/advance-ui-user-data-component! parent-view ::tree
-                                                                      {:fx/type cljfx-view
-                                                                       :parent parent-view
-                                                                       :context context
-                                                                       :selected-node-properties selected-node-properties})
-                                ;; Collecting the properties and then updating the view takes some time, but has no immediacy
-                                ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
-                                #_(ui/run-later
-                                    (update-pane! parent-view context selected-node-properties))))))
+  (output description g/Any :cached
+          (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
+            {:fx/type cljfx-view
+             :parent parent-view
+             :context {:workspace workspace
+                       :project project
+                       :app-view app-view
+                       :prefs prefs
+                       :localization localization
+                       :search-results-view search-results-view
+                       :color-dropper-view color-dropper-view}
+             :selected-node-properties selected-node-properties})))
 
 (defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
-  (first
-    (g/tx-nodes-added
-      (g/transact
-        (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
-          (g/connect workspace :_node-id view :workspace)
-          (g/connect workspace :localization view :localization)
-          (g/connect project :_node-id view :project)
-          (g/connect app-view :_node-id view :app-view)
-          (g/connect app-view :selected-node-properties view :selected-node-properties)
-          (g/connect search-results-view :_node-id view :search-results-view)
-          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))
+  (let [properties-view (first
+                          (g/tx-nodes-added
+                            (g/transact
+                              (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
+                                (g/connect workspace :_node-id view :workspace)
+                                (g/connect workspace :localization view :localization)
+                                (g/connect project :_node-id view :project)
+                                (g/connect app-view :_node-id view :app-view)
+                                (g/connect app-view :selected-node-properties view :selected-node-properties)
+                                (g/connect search-results-view :_node-id view :search-results-view)
+                                (g/connect color-dropper-view :_node-id view :color-dropper-view)))))]
+    (ui/node-timer!
+      parent 30 "refresh-properties-view"
+      #(fxui/advance-ui-user-data-component! parent ::properties-view (g/node-value properties-view :description)))
+    properties-view))
