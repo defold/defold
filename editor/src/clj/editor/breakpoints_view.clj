@@ -330,20 +330,25 @@
                (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
                (g/set-property! script-node :regions regions)))))]}}))
 
+(defn- ->breakpoints-selection-provider [table-view breakpoints]
+  (reify handler/SelectionProvider
+    (selection [this] (mapv #(get breakpoints %) (ui/selection table-view)))
+    (succeeding-selection [this] [])
+    (alt-selection [this] [])))
+
 (def ^:private prop-table-context-menu
   (fx.prop/make (fx.mutator/setter ui/register-context-menu) fx.lifecycle/scalar))
 
 (def ^:private prop-property-context
   (fx.prop/make
     (fx.mutator/setter
-      (fn [table-view [project swap-state]]
-        (let [breakpoints (g/node-value project :breakpoints)
-              selection-provider (ui/->selection-provider table-view)]
+      (fn [table-view [project breakpoints swap-state]]
+        (let [selection-provider (->breakpoints-selection-provider table-view breakpoints)]
           (ui/context! table-view :breakpoints-view
                        {:project project :table-view table-view :swap-state swap-state :selection-provider selection-provider}
                        selection-provider
                        {}
-                       {resource/Resource (fn [idx] (-> breakpoints (get idx) :resource))}))))
+                       {resource/Resource #(:resource %)}))))
     fx.lifecycle/scalar))
 
 (defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
@@ -358,7 +363,7 @@
      :desc
      {:fx/type fx.table-view/lifecycle
       :id "breakpoints-table-view"
-      prop-property-context [project swap-state]
+      prop-property-context [project breakpoints swap-state]
       prop-table-context-menu ::breakpoint-menu
       :fixed-cell-size 33.0
       :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
@@ -478,6 +483,8 @@
                                   selected
                                   toggle-breakpoints-enabled)))))
 
+;; TODO: Look into other defhandlers that inject a selection
+;; TODO: Don't call node-value, pass in breakpoints from context
 (handler/defhandler :breakpoints.remove-selected :breakpoints-view
   (run [project swap-state selection-provider]
     (g/with-auto-evaluation-context evaluation-context
