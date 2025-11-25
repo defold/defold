@@ -52,9 +52,9 @@
 
 (def ^:private toolbar-height 57)
 
-(def ^:private edit-icon-path "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z")
-(def ^:private delete-icon-path "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z")
-(def ^:private close-icon-path "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z")
+(def ^:private edit-bp-icon-path "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z")
+(def ^:private delete-bp-icon-path "M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm6.36-13.64L15.41 12l2.95 2.95-2.95 2.95L12 15.41l-3.41 3.41-2.95-2.95L8.59 12 5.64 9.05l2.95-2.95L12 8.59l3.41-3.41z")
+(def ^:private remove-condition-icon-path "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z")
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
@@ -195,8 +195,8 @@
              :alignment :center
              :children [{:fx/type fx.svg-path/lifecycle
                          :content icon-path
-                         :scale-x 0.5
-                         :scale-y 0.5
+                         :scale-x 0.6
+                         :scale-y 0.6
                          :style-class ["icon-button-graphic"]}]}
    :on-action on-action-event})
 
@@ -244,10 +244,7 @@
   (let [current (:value state value)]
     {:fx/type fx.text-field/lifecycle
      :text current
-     #_#_:on-focused-changed (fn [focused?]
-                           (when-not focused?
-                             (swap-state assoc :edited-breakpoint nil)))
-     :on-focused-changed on-focused-changed ;; <--- This line doesn't work, why?
+     :on-focused-changed on-focused-changed
      :on-text-changed (fn [new-text]
                         (swap-state assoc :value new-text))
      :on-key-pressed (fn [^KeyEvent e]
@@ -300,12 +297,12 @@
                      :children
                      (concat
                        (when condition
-                         [(icon-button close-icon-path []
+                         [(icon-button remove-condition-icon-path []
                                        (fn [_]
                                          (g/with-auto-evaluation-context evaluation-context
                                            (set-breakpoint-condition! project breakpoints breakpoint nil evaluation-context)
                                            (swap-state assoc :edited-breakpoint nil))))])
-                       [(icon-button edit-icon-path [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
+                       [(icon-button edit-bp-icon-path [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
          :on-mouse-clicked (fn [event]
                              (let [^MouseEvent me event]
                                (when (= 2 (.getClickCount me))
@@ -322,7 +319,7 @@
       :children
       ;; TODO: Organize this a bit better
       [(icon-button
-         delete-icon-path
+         delete-bp-icon-path
          ["remove-button"]
          (fn [event]
            (g/with-auto-evaluation-context evaluation-context
