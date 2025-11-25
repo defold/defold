@@ -959,26 +959,28 @@
     Cursor/DEFAULT))
 
 (defn refresh-scene-view! [node-id dt]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [image-view (g/node-value node-id :image-view evaluation-context)]
-      (when-not (ui/inside-hidden-tab? image-view)
-        (let [drawable (g/node-value node-id :drawable evaluation-context)
-              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
-          (when (and (some? drawable) (some? async-copy-state-atom))
-            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)
-            (when-let [cursor-type (g/maybe-node-value node-id :cursor-type evaluation-context)]
-              (ui/set-cursor image-view (cursor cursor-type)))))
-        (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
-          (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props evaluation-context)]
-            (advance-user-data-component!
-              node-id :overlay-anchor-pane
-              {:fx/type fxui/ext-with-anchor-pane-props
-               :props overlay-anchor-pane-props
-               :desc {:fx/type fxui/ext-value
-                      :value overlay-anchor-pane}})))))))
+  (let [basis (g/now)
+        node (g/node-by-id-at basis node-id)
+        image-view (g/raw-property-value* basis node :image-view)]
+    (when-not (ui/inside-hidden-tab? image-view)
+      (let [drawable (g/raw-property-value* basis node :drawable)
+            async-copy-state-atom (g/raw-property-value* basis node :async-copy-state)]
+        (when (and (some? drawable)
+                   (some? async-copy-state-atom))
+          (update-image-view! image-view drawable async-copy-state-atom dt)
+          (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
+            (ui/set-cursor image-view (cursor cursor-type)))))
+      (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
+        (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
+          (advance-user-data-component!
+            node-id :overlay-anchor-pane
+            {:fx/type fxui/ext-with-anchor-pane-props
+             :props overlay-anchor-pane-props
+             :desc {:fx/type fxui/ext-value
+                    :value overlay-anchor-pane}}))))))
 
 (defn dispose-scene-view! [node-id]
-  (when-let [scene (g/node-by-id node-id)]
+  (when (g/node-by-id node-id)
     (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
       (gl/with-drawable-as-current drawable
         (scene-cache/drop-context! gl)
@@ -1002,8 +1004,11 @@
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
-(defn- view->camera [view]
-  (g/node-feeding-into view :camera))
+(defn- view->camera
+  ([view]
+   (view->camera (g/now) view))
+  ([basis view]
+   (g/node-feeding-into basis view :camera)))
 
 (defn augment-action [view action]
   (let [x          (:x action)
@@ -1108,16 +1113,28 @@
                           (cond-> (.y max-p) zero-y inc)
                           (cond-> (.z max-p) zero-z inc)]))))
 
-(defn frame-selection
-  ([view animate?]
-   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))]
-     (frame-selection view animate? aabb)))
-  ([view animate? aabb]
-   (let [camera (view->camera view)
-         viewport (g/node-value view :viewport)
-         local-cam (g/node-value camera :local-camera)
-         end-camera (c/camera-frame-aabb local-cam viewport aabb)]
-     (set-camera! camera local-cam end-camera animate?))))
+(defn- aabb-framing-info [view-node-id aabb evaluation-context]
+  (let [basis (:basis evaluation-context)
+        camera-node-id (view->camera basis view-node-id)
+        viewport (g/node-value view-node-id :viewport evaluation-context)
+        start-camera (g/node-value camera-node-id :local-camera evaluation-context)
+        end-camera (c/camera-frame-aabb start-camera viewport aabb)]
+    {:camera-node-id camera-node-id
+     :start-camera start-camera
+     :end-camera end-camera}))
+
+(defn- selection-framing-info [view-node-id evaluation-context]
+  (let [aabb (fudge-empty-aabb (g/node-value view-node-id :selected-aabb evaluation-context))]
+    (aabb-framing-info view-node-id aabb evaluation-context)))
+
+(defn- apply-framing-info! [framing-info animate?]
+  (let [{:keys [camera-node-id start-camera end-camera]} framing-info]
+    (set-camera! camera-node-id start-camera end-camera animate?)))
+
+(defn- frame-selection! [view-node-id animate?]
+  (let [framing-info (g/with-auto-evaluation-context evaluation-context
+                       (selection-framing-info view-node-id evaluation-context))]
+    (apply-framing-info! framing-info animate?)))
 
 (defn set-camera-type! [view projection-type]
   (let [camera-controller (view->camera view)
@@ -1146,25 +1163,24 @@
       (= (:type camera-a) :perspective)
       (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
 
-(defn- get-3d-camera
-  [camera]
-  (or (g/node-value camera :cached-3d-camera)
-      (c/tumble (g/node-value camera :local-camera) 200.0 -100.0)))
-
 (defn- camera-2d?
-  [view]
-  (some-> (view->camera view)
-          (g/node-value :local-camera)
+  [view evaluation-context]
+  (some-> (view->camera (:basis evaluation-context) view)
+          (g/node-value :local-camera evaluation-context)
           (c/mode-2d?)))
 
-(defmulti realign-camera (fn [view _animate?] (if (camera-2d? view) :2d :3d)))
+(defmulti realign-camera
+  (fn [view _animate?]
+    (g/with-auto-evaluation-context evaluation-context
+      (if (camera-2d? view evaluation-context) :2d :3d))))
 
 (defmethod realign-camera :2d
   [view animate?]
   (let [camera-node (view->camera view)
         local-cam (g/node-value camera-node :local-camera)
         viewport (g/node-value view :viewport)
-        camera-3d (-> (get-3d-camera camera-node)
+        camera-3d (-> (or (g/node-value camera-node :cached-3d-camera)
+                          (c/tumble (g/node-value camera-node :local-camera) 200.0 -100.0))
                       (sync-camera-position local-cam viewport))
         local-cam (cond-> local-cam
                     (= (:type camera-3d) :perspective)
@@ -1191,18 +1207,18 @@
               (let [selected (g/node-value view :selection evaluation-context)]
                 (not (empty? selected)))))
   (run [app-view] (some-> (active-scene-view app-view)
-                          (frame-selection true))))
+                          (frame-selection! true))))
 
 (defn- camera-animating?
-  [app-view]
-  (some-> (active-scene-view app-view)
-          (view->camera)
-          (g/node-value :animating)))
+  [app-view evaluation-context]
+  (when-some [active-scene-view (active-scene-view app-view evaluation-context)]
+    (some-> (view->camera (:basis evaluation-context) active-scene-view)
+            (g/node-value :animating evaluation-context))))
 
 (handler/defhandler :scene.realign-camera :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (enabled? [app-view] (not (camera-animating? app-view)))
+  (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
   (run [app-view] (some-> (active-scene-view app-view) 
                           (realign-camera true))))
 
@@ -1227,34 +1243,38 @@
        {:label (localization/message "command.scene.set-camera-type.option.perspective")
         :command :scene.set-camera-type
         :user-data {:camera-type :perspective}}]))
-  (state [app-view user-data]
-         (some-> (active-scene-view app-view)
-                 (g/node-value :camera-type)
+  (state [app-view user-data evaluation-context]
+         (some-> (active-scene-view app-view evaluation-context)
+                 (g/node-value :camera-type evaluation-context)
                  (= (:camera-type user-data)))))
 
 (handler/defhandler :scene.toggle-interaction-mode :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (enabled? [app-view] (not (camera-animating? app-view)))
+  (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
   (run [app-view] (some-> (active-scene-view app-view) 
                           (realign-camera true)))
-  (state [app-view] (camera-2d? (active-scene-view app-view))))
+  (state [app-view evaluation-context]
+         (camera-2d? (active-scene-view app-view evaluation-context)
+                     evaluation-context)))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :scene.toggle-camera-type :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
-  (enabled? [app-view] (and (not (camera-2d? (active-scene-view app-view)))
-                            (not (camera-animating? app-view))))
+  (enabled? [app-view evaluation-context]
+            (and (not (camera-2d? (active-scene-view app-view evaluation-context)
+                                  evaluation-context))
+                 (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
          (set-camera-type! view
                            (case (g/node-value view :camera-type)
                              :orthographic :perspective
                              :perspective :orthographic))))
-  (state [app-view]
-         (some-> (active-scene-view app-view)
-                 (g/node-value :camera-type)
+  (state [app-view evaluation-context]
+         (some-> (active-scene-view app-view evaluation-context)
+                 (g/node-value :camera-type evaluation-context)
                  (= :perspective))))
 
 (defn- set-manip-space! [app-view manip-space]
@@ -1357,19 +1377,22 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context dt]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
-    (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
-          render-mode (g/node-value view-id :render-mode evaluation-context)
-          tool-user-data (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
-          play-mode (g/node-value view-id :play-mode evaluation-context)
-          active-updatables (g/node-value view-id :active-updatables evaluation-context)
+    (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
+          (g/with-auto-evaluation-context evaluation-context
+            [(g/node-value view-id :input-action-queue evaluation-context)
+             (g/node-value view-id :render-mode evaluation-context)
+             (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
+             (g/node-value view-id :play-mode evaluation-context)
+             (g/node-value view-id :active-updatables evaluation-context)
+             (g/node-value view-id :updatable-states evaluation-context)])
+
           has-active-updatables (not (coll/empty? active-updatables))
-          updatable-states (g/node-value view-id :updatable-states evaluation-context)
           new-updatable-states (if has-active-updatables
                                  (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
                                  updatable-states)
-          renderables (g/node-value view-id :all-renderables evaluation-context)
+          renderables (g/node-value view-id :all-renderables)
           last-renderables (ui/user-data image-view ::last-renderables)
           last-frame-version (ui/user-data image-view ::last-frame-version)
           frame-version (cond-> (or last-frame-version 0)
@@ -1380,7 +1403,7 @@
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
       (profiler/profile "input-dispatch" -1
-        (let [input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)]
+        (let [input-handlers (g/sources-of view-id :input-handlers)]
           (doseq [action action-queue]
             (dispatch-input input-handlers action tool-user-data))
           (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
@@ -1390,8 +1413,10 @@
       (profiler/profile "render" -1
         (when (not= last-frame-version frame-version)
           (gl/with-drawable-as-current drawable
-            (let [viewport (g/node-value view-id :viewport evaluation-context)
-                  pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
+            (let [[viewport pass->render-args]
+                  (g/with-auto-evaluation-context evaluation-context
+                    [(g/node-value view-id :viewport evaluation-context)
+                     (g/node-value view-id :pass->render-args evaluation-context)])]
               (scene-cache/process-pending-deletions! gl)
               (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
               (ui/user-data! image-view ::last-renderables renderables)
@@ -1400,13 +1425,20 @@
               (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
       ;; call frame-selection if it's the very first aabb change for the scene
       (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
-            scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
-            reframe? (and prev-aabb
-                          (geom/predefined-aabb? prev-aabb)
-                          (not (geom/predefined-aabb? scene-aabb)))]
+
+            [scene-aabb reframing-info]
+            (g/with-auto-evaluation-context evaluation-context
+              (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
+                    reframing-info (when (and prev-aabb
+                                              (geom/predefined-aabb? prev-aabb)
+                                              (not (geom/predefined-aabb? scene-aabb)))
+                                     (aabb-framing-info view-id scene-aabb evaluation-context))]
+                (pair scene-aabb
+                      reframing-info)))]
+
         (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
-        (when reframe?
-          (frame-selection view-id true scene-aabb)))
+        (when reframing-info
+          (apply-framing-info! reframing-info true)))
       (let [new-image (scene-async/image @async-copy-state-atom)]
         (when-not (identical? (.getImage image-view) new-image)
           (.setImage image-view new-image))))))
@@ -1550,7 +1582,7 @@
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
                              (g/set-properties! view-id :drawable drawable :picking-drawable picking-drawable :async-copy-state (atom (scene-async/make-async-copy-state width height)))
-                             (frame-selection view-id false)))))
+                             (frame-selection! view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
@@ -1736,7 +1768,7 @@
                  (dissoc :grid))]
     (g/transact
       (setup-view view-id resource-node opts))
-    (frame-selection view-id false)
+    (frame-selection! view-id false)
     view-id))
 
 (defn dispose-preview [node-id]

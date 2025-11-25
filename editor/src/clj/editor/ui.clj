@@ -30,6 +30,7 @@
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
+            [util.defonce :as defonce]
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
@@ -164,30 +165,30 @@
   (remove-watch focus-state key)
   nil)
 
-(defprotocol Text
+(defonce/protocol Text
   (text ^String [this])
   (text! [this ^String val]))
 
-(defprotocol HasAction
+(defonce/protocol HasAction
   (on-action! [this fn]))
 
-(defprotocol Cancellable
+(defonce/protocol Cancellable
   (on-cancel! [this cancel-fn]))
 
-(defprotocol HasValue
+(defonce/protocol HasValue
   (value [this])
   (value! [this val]))
 
-(defprotocol HasUserData
+(defonce/protocol HasUserData
   (user-data [this key])
   (user-data! [this key val]))
 
-(defprotocol Editable
+(defonce/protocol Editable
   (editable [this])
   (editable! [this val])
   (on-edit! [this fn]))
 
-(defprotocol HasSelectionModel
+(defonce/protocol HasSelectionModel
   (^SelectionModel selection-model [this]))
 
 (def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
@@ -749,11 +750,11 @@
     (when (not= (.getText this) val)
       (.setText this val))))
 
-(defprotocol HasChildren
+(defonce/protocol HasChildren
   (children! [this c])
   (add-child! [this c]))
 
-(defprotocol CollectionView
+(defonce/protocol CollectionView
   (selection [this])
   (select! [this item])
   (select-index! [this index])
@@ -1278,7 +1279,7 @@
       (nil? handler-ctx)
       ::not-active
 
-      (not (handler/enabled? handler-ctx))
+      (not (handler/enabled? handler-ctx)) ; Safe to not supply evaluation-context - we're executing a command.
       ::not-enabled
 
       :else
@@ -1379,7 +1380,7 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(deftype MenuEventHandler [^Scene scene command user-data ^:unsynchronized-mutable suppress?]
+(defonce/type MenuEventHandler [^Scene scene command user-data ^:unsynchronized-mutable suppress?]
   EventHandler
   (handle [_this event]
     (condp = (.getEventType event)
@@ -1452,10 +1453,10 @@
               user-data (:user-data item)
               check (:check item)]
           (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-            (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
+            (let [label (or (handler/label handler-ctx evaluation-context) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx evaluation-context)
                   key-combo (first (keymap/shortcuts keymap command))]
-              (if-let [options (handler/options handler-ctx)]
+              (if-let [options (handler/options handler-ctx evaluation-context)]
                 (if (and key-combo (not (:expand item)))
                   (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)
                   (make-submenu id
@@ -1606,7 +1607,7 @@
         command-contexts (node-contexts node true)
         handler-ctx (handler/active command command-contexts user-data)
         enabled (and handler-ctx
-                     (handler/enabled? handler-ctx))]
+                     (handler/enabled? handler-ctx))] ; TODO: This really should supply the same evaluation-context we use to refresh the menus and so on.
     (disable! node (not enabled))))
 
 (defn bind-double-click!
@@ -1679,7 +1680,7 @@
   []
   (reset! invalid-menubar-items #{}))
 
-(defprotocol HasMenuItemList
+(defonce/protocol HasMenuItemList
   (menu-items ^ObservableList [this] "returns a ObservableList of MenuItems or nil"))
 
 (extend-protocol HasMenuItemList
@@ -1821,7 +1822,7 @@
           handler-ctx (handler/active command command-contexts user-data evaluation-context)]
       (doto check-menu-item
         (.setDisable (not (handler/enabled? handler-ctx evaluation-context)))
-        (.setSelected (boolean (handler/state handler-ctx)))))
+        (.setSelected (boolean (handler/state handler-ctx evaluation-context)))))
 
     MenuItem
     (let [handler-ctx (handler/active (user-data menu-item ::command)
@@ -1868,9 +1869,9 @@
 (declare refresh)
 
 (defn- toolbar-control
-  [scene menu-item handler-ctx localization]
+  [scene menu-item handler-ctx localization evaluation-context]
   (let [separator? (= :separator (:label menu-item))
-        opts (handler/options handler-ctx)]
+        opts (handler/options handler-ctx evaluation-context)]
     (cond
       separator?
       (doto (Separator. Orientation/VERTICAL)
@@ -1892,7 +1893,7 @@
 
       :else
       (let [{:keys [graphic-fn label icon tooltip more]} menu-item
-            label (or (handler/label handler-ctx) label)
+            label (or (handler/label handler-ctx evaluation-context) label)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
                      (tooltip! tooltip localization))]
@@ -1949,7 +1950,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization)]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization evaluation-context)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
@@ -1968,12 +1969,12 @@
                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]]
       (disable! n (not (handler/enabled? handler-ctx evaluation-context)))
       (when (instance? ToggleButton n)
-        (if (handler/state handler-ctx)
+        (if (handler/state handler-ctx evaluation-context)
           (.setSelected ^Toggle n true)
           (.setSelected ^Toggle n false)))
       (when (instance? HBox n)
         (let [^HBox box n
-              state (handler/state handler-ctx)
+              state (handler/state handler-ctx evaluation-context)
               second-child (.get (.getChildren box) 1)]
           (cond
             (instance? ChoiceBox second-child)
@@ -1981,7 +1982,7 @@
               (when (not (.isShowing cb))
                 (let [items (.getItems cb)
                       opts (vec items)
-                      new-opts (vec (handler/options handler-ctx))]
+                      new-opts (vec (handler/options handler-ctx evaluation-context))]
                   (when (not= opts new-opts)
                     (.setAll items ^Collection new-opts)))
                 (let [selection-model (.getSelectionModel cb)
@@ -1992,7 +1993,7 @@
 
             :else
             (let [toggle-button (.get (.getChildren box) 0)]
-              (if (handler/state handler-ctx)
+              (if (handler/state handler-ctx evaluation-context)
                 (.setSelected ^Toggle toggle-button true)
                 (.setSelected ^Toggle toggle-button false)))))))))
 
@@ -2059,14 +2060,16 @@
     (keymap/install! keymap scene execute-accelerator-commands)))
 
 (defn refresh
-  [^Scene scene]
-  (g/with-auto-or-fake-evaluation-context evaluation-context
-    (let [keymap (or (user-data scene :keymap) keymap/empty)
-          localization (user-data scene :localization)]
-      (assert (some? localization))
-      (refresh-accelerators! scene keymap)
-      (refresh-menus! scene keymap localization evaluation-context)
-      (refresh-toolbars! scene localization evaluation-context))))
+  ([^Scene scene]
+   (g/with-auto-or-fake-evaluation-context evaluation-context
+     (refresh scene evaluation-context)))
+  ([^Scene scene evaluation-context]
+   (let [keymap (or (user-data scene :keymap) keymap/empty)
+         localization (user-data scene :localization)]
+     (assert (some? localization))
+     (refresh-accelerators! scene keymap)
+     (refresh-menus! scene keymap localization evaluation-context)
+     (refresh-toolbars! scene localization evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (.setProgress
@@ -2140,7 +2143,7 @@
   (reify EventHandler
     (handle [this event] (f event))))
 
-(defprotocol Future
+(defonce/protocol Future
   (cancel [this])
   (restart [this]))
 
@@ -2229,7 +2232,7 @@
                  (when existing-handler
                    (.handle existing-handler e))))
 
-(defprotocol CloseRequestable
+(defonce/protocol CloseRequestable
   (on-closing [this])
   (on-closing! [this f]))
 
@@ -2243,7 +2246,7 @@
                                   (.consume e)))
                               (on-closing this)))))
 
-(defprotocol Closeable
+(defonce/protocol Closeable
   (on-closed [this])
   (on-closed! [this f]))
 

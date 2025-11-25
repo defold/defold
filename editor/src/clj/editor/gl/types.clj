@@ -28,8 +28,14 @@
   (bind! [this gl render-args] "Bind this object to the GPU context.")
   (unbind! [this gl render-args] "Unbind this object from the GPU context."))
 
-(defn gl-binding? [value]
-  (satisfies? GLBinding value))
+(def
+  ^{:doc "Returns true if the value satisfies the GLBinding protocol."
+    :arglists '([value])}
+  gl-binding?
+  ;; This is quite a bit faster than the satisfies? function.
+  (let [gl-binding-class (:on-interface GLBinding)]
+    (fn gl-binding? [value]
+      (instance? gl-binding-class value))))
 
 (defn data-type-gl-type
   ^long [data-type]

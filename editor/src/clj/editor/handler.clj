@@ -22,6 +22,7 @@
             [editor.util :as util]
             [plumbing.core :refer [fnk]]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [clojure.lang RT]))
 
@@ -288,12 +289,12 @@
 
 (defonce ^:dynamic *adapters* nil)
 
-(defprotocol SelectionProvider
+(defonce/protocol SelectionProvider
   (selection [this])
   (succeeding-selection [this])
   (alt-selection [this]))
 
-(defrecord Context [name env selection-provider dynamics adapters])
+(defonce/record Context [name env selection-provider dynamics adapters])
 
 (defn ->context
   ([name env]
@@ -364,29 +365,45 @@
   ;; TODO distinguish between scene/form etc when workbench is the context
   (name (:name ctx)))
 
+(defn- invoke-fnk-ec [handler fsym command-context default evaluation-context]
+  (if (= ::auto-evaluation-context evaluation-context)
+    (g/with-auto-evaluation-context evaluation-context
+      (let [ctx (assoc-in command-context [:env :evaluation-context] evaluation-context)]
+        (invoke-fnk handler fsym ctx default)))
+    (let [ctx (assoc-in command-context [:env :evaluation-context] evaluation-context)]
+      (invoke-fnk handler fsym ctx default))))
+
 (defn run [[handler command-context]]
   (analytics/track-screen! (ctx->screen-name command-context))
   (invoke-fnk handler :run command-context nil))
 
-(defn state [[handler command-context]]
-  (invoke-fnk handler :state command-context nil))
+(defn state
+  ([[handler command-context]]
+   (invoke-fnk-ec handler :state command-context nil ::auto-evaluation-context))
+  ([[handler command-context] evaluation-context]
+   (invoke-fnk-ec handler :state command-context nil evaluation-context)))
 
 (defn enabled?
-  ([handler+command-context]
-   (g/with-auto-evaluation-context evaluation-context
-     (enabled? handler+command-context evaluation-context)))
+  ([[handler command-context]]
+   (boolean (invoke-fnk-ec handler :enabled? command-context true ::auto-evaluation-context)))
   ([[handler command-context] evaluation-context]
-   (let [ctx (assoc-in command-context [:env :evaluation-context] evaluation-context)]
-     (boolean (invoke-fnk handler :enabled? ctx true)))))
+   (boolean (invoke-fnk-ec handler :enabled? command-context true evaluation-context))))
 
-(defn label [[handler command-context]]
-  (let [label (:label handler)]
-    (if (or (string? label) (localization/message-pattern? label))
-      label
-      (invoke-fnk handler :label command-context nil))))
+(defn label
+  ([handler+command-context]
+   (label handler+command-context ::auto-evaluation-context))
+  ([[handler command-context] evaluation-context]
+   (let [label (:label handler)]
+     (if (or (string? label)
+             (localization/message-pattern? label))
+       label
+       (invoke-fnk-ec handler :label command-context nil evaluation-context)))))
 
-(defn options [[handler command-context]]
-  (invoke-fnk handler :options command-context nil))
+(defn options
+  ([[handler command-context]]
+   (invoke-fnk-ec handler :options command-context nil ::auto-evaluation-context))
+  ([[handler command-context] evaluation-context]
+   (invoke-fnk-ec handler :options command-context nil evaluation-context)))
 
 (defn- flatten-menu-item-tree [item]
   (->> item
@@ -402,7 +419,7 @@
 
   Returns either a non-empty vector or nil"
   [[{:keys [command]} :as handler+command-context]]
-  (when-let [opts (options handler+command-context)]
+  (when-let [opts (options handler+command-context)] ; Safe to not supply evaluation-context - we're executing a command.
     (when-let [flat-opts (->> opts
                               (e/mapcat flatten-menu-item-tree)
                               (e/remove #(= :separator (:label %)))

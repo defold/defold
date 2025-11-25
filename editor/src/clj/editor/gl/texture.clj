@@ -21,6 +21,7 @@
             [editor.scene-cache :as scene-cache]
             [internal.util :as util]
             [service.log :as log]
+            [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
@@ -136,6 +137,11 @@
 
 (defn- texture-lifecycle->texture
   ^Texture [^TextureLifecycle texture-lifecycle gl texture-array-index]
+  ;; A note about equality: The TextureData class, which constitutes the data
+  ;; for the scene-cache request, is only reference-equatable. To avoid churn,
+  ;; you should make sure the TextureData is produced once and cached somewhere.
+  ;; If new TextureData instances are created with each request, you will be
+  ;; continuously re-uploading new texture buffers to VRAM.
   (let [request-id (.-request-id texture-lifecycle)
         cache-id (.-cache-id texture-lifecycle)
         texture-datas (.-texture-datas texture-lifecycle)
@@ -190,7 +196,8 @@
    :wrap-s     gl/clamp
    :wrap-t     gl/clamp})
 
-(defn- data-format->internal-format [data-format]
+(defn- data-format->internal-format
+  ^long [data-format]
   ;; Internal format signifies only color content, not channel order.
   (case data-format
     :gray GL2/GL_LUMINANCE
@@ -199,7 +206,8 @@
     :rgb  GL2/GL_RGB
     :rgba GL2/GL_RGBA))
 
-(defn- data-format->pixel-format [data-format]
+(defn- data-format->pixel-format
+  ^long [data-format]
   ;; Pixel format signifies channel order.
   (case data-format
     :gray GL2/GL_LUMINANCE
@@ -208,7 +216,8 @@
     :rgb  GL2/GL_RGB
     :rgba GL2/GL_RGBA))
 
-(defn- data-format->type [data-format]
+(defn- data-format->type
+  ^long [data-format]
   ;; Type signifies packing / endian order.
   (case data-format
     :gray GL2/GL_UNSIGNED_BYTE
@@ -224,14 +233,16 @@
     BufferedImage/TYPE_4BYTE_ABGR :abgr
     BufferedImage/TYPE_4BYTE_ABGR_PRE :abgr))
 
-(defn- ->texture-data [width height data-format data mipmap]
+(defn make-texture-data
+  ^TextureData [^Buffer data width height data-format mipmap]
   (let [internal-format (data-format->internal-format data-format)
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
     (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil)))
 
-(defn- image->texture-data ^TextureData [img mipmap]
+(defn image->texture-data
+  ^TextureData [^BufferedImage img mipmap]
   (let [channels (image-util/image-color-components img)
         type (case channels
                4 BufferedImage/TYPE_4BYTE_ABGR_PRE
@@ -240,9 +251,30 @@
         img (image-util/image-convert-type img type)
         data-type (image-type->data-format type)
         data (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster img))))]
-    (->texture-data (.getWidth img) (.getHeight img) data-type data mipmap)))
+    (make-texture-data data (.getWidth img) (.getHeight img) data-type mipmap)))
 
-(defn- flip-y [^BufferedImage img]
+(def ^:private placeholder-texture-datas
+  [(image->texture-data (:contents image-util/placeholder-image) true)])
+
+(defn- make-gpu-texture-impl
+  ^TextureLifecycle [request-id cache-id params texture-datas texture-units]
+  {:pre [(graphics.types/request-id? request-id)
+         (keyword? cache-id)
+         (map? params)
+         (= :int (coll/primitive-vector-type texture-units))
+         (= (count texture-datas) (count texture-units))]}
+  (->TextureLifecycle request-id cache-id params texture-datas texture-units))
+
+(defn make-gpu-texture
+  "Create a 2D TextureLifecycle from the supplied vector of TextureDatas and the
+  supplied int primitive vector of texture units to assign them to."
+  ^TextureLifecycle [request-id texture-datas texture-units texture-params]
+  {:pre [(vector? texture-datas)
+         (every? #(instance? TextureData %) texture-datas)]}
+  (make-gpu-texture-impl request-id ::texture texture-params texture-datas texture-units))
+
+(defn- flip-y
+  ^BufferedImage [^BufferedImage img]
   ;; Flip the image before we create a OGL texture, to mimic how UVs are handled in engine.
   ;; We do this since all our generated UVs are based on bottom-left being texture coord (0,0).
   (let [cm (.getColorModel img)
@@ -268,11 +300,12 @@
   ([request-id img params]
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
-   {:pre [(graphics.types/request-id? request-id)]}
-   (let [texture-datas [(image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)]
-         texture-units (vector-of :int unit-index)]
-     (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
-
+   (let [texture-datas (if img
+                         [(image->texture-data (flip-y img) true)]
+                         placeholder-texture-datas)
+         texture-units (vector-of :int unit-index)
+         texture-params (or params default-image-texture-params)]
+     (make-gpu-texture request-id texture-datas texture-units texture-params))))
 
 (def format->gl-format
   {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
@@ -301,7 +334,7 @@
           (recur (inc i)))
         bufs))))
 
-(defn- texture-image->texture-data
+(defn texture-image->texture-data
   ^TextureData [^TextureGenerator$GenerateResult texture-generate-result]
   (let [texture-image (.textureImage texture-generate-result)
         mip-image-byte-arrays (.imageDatas texture-generate-result)
@@ -321,18 +354,17 @@
                   mipmap-buffers
                   nil)))
 
-
 (defn texture-images->gpu-texture
   ([request-id texture-images]
    (texture-images->gpu-texture request-id texture-images default-image-texture-params 0))
   ([request-id texture-images params]
    (texture-images->gpu-texture request-id texture-images params 0))
   ([request-id texture-images params ^long start-texture-unit]
-   {:pre [(graphics.types/request-id? request-id)]}
    (let [texture-datas (mapv texture-image->texture-data texture-images)
          texture-units (into (vector-of :int)
-                             (range start-texture-unit (+ start-texture-unit (count texture-images))))]
-     (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
+                             (range start-texture-unit (+ start-texture-unit (count texture-images))))
+         texture-params (or params default-image-texture-params)]
+     (make-gpu-texture request-id texture-datas texture-units texture-params))))
 
 (defn texture-image->gpu-texture
   "Create an image texture from a generated `TextureImage`. The returned value
@@ -352,16 +384,16 @@
   ([request-id img params]
    (texture-image->gpu-texture request-id img params 0))
   ([request-id ^Graphics$TextureImage img params unit-index]
-   {:pre [(graphics.types/request-id? request-id)]}
    (let [texture-datas [(texture-image->texture-data img)]
-         texture-units (vector-of :int unit-index)]
-      (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
+         texture-units (vector-of :int unit-index)
+         texture-params (or params default-image-texture-params)]
+     (make-gpu-texture request-id texture-datas texture-units texture-params))))
 
 (defn empty-texture [request-id width height data-format params unit-index]
   {:pre [(graphics.types/request-id? request-id)]}
-  (let [texture-datas [(->texture-data width height data-format nil false)]
+  (let [texture-datas [(make-texture-data nil width height data-format false)]
         texture-units (vector-of :int unit-index)]
-    (->TextureLifecycle request-id ::texture params texture-datas texture-units)))
+    (make-gpu-texture request-id texture-datas texture-units params)))
 
 (defonce white-pixel
   (delay
@@ -385,7 +417,7 @@
 
 (defn tex-sub-image [^GL2 gl ^TextureLifecycle texture page-index data x y w h data-format]
   (let [tex (->texture texture gl page-index)
-        data (->texture-data w h data-format data false)]
+        data (make-texture-data data w h data-format false)]
     (.updateSubImage tex gl data 0 x y)))
 
 (def default-cubemap-texture-params
@@ -395,16 +427,42 @@
    :wrap-s     gl/clamp-to-edge
    :wrap-t     gl/clamp-to-edge})
 
+(def ^:private cubemap-gl-targets-by-side-kw
+  {:px GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X
+   :nx GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X
+   :py GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y
+   :ny GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
+   :pz GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+   :nz GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z})
+
+(defn- texture-datas-by-side-kw-map? [value]
+  (and (map? value)
+       (every? (fn [[side-kw texture-data]]
+                 (and (contains? cubemap-gl-targets-by-side-kw side-kw)
+                      (instance? TextureData texture-data)))
+               value)))
+
+(defn make-gpu-cubemap-texture
+  "Create a cubemap TextureLifecycle from the supplied vector of maps of cubemap
+  side keywords to TextureDatas. The texture-units should be an int primitive
+  vector of texture units to assign the cubemaps to."
+  ^TextureLifecycle [request-id vector-of-texture-datas-by-side-kw-maps texture-units texture-params]
+  {:pre [(vector? vector-of-texture-datas-by-side-kw-maps)
+         (every? texture-datas-by-side-kw-map? vector-of-texture-datas-by-side-kw-maps)]}
+  (make-gpu-texture-impl request-id ::cubemap-texture texture-params vector-of-texture-datas-by-side-kw-maps texture-units))
+
 (defn cubemap-texture-images->gpu-texture
   ([request-id texture-images]
    (cubemap-texture-images->gpu-texture request-id texture-images default-cubemap-texture-params))
   ([request-id texture-images params]
    (cubemap-texture-images->gpu-texture request-id texture-images params 0))
   ([request-id texture-images params unit-index]
-   {:pre [(graphics.types/request-id? request-id)]}
-   (let [texture-datas [(util/map-vals texture-image->texture-data texture-images)]
-         texture-units (vector-of :int unit-index)]
-     (->TextureLifecycle request-id ::cubemap-texture params texture-datas texture-units))))
+   {:pre [(graphics.types/request-id? request-id)
+          (or (nil? params) (map? params))]}
+   (let [vector-of-texture-datas-by-side-kw-maps [(util/map-vals texture-image->texture-data texture-images)]
+         texture-units (vector-of :int unit-index)
+         texture-params (or params default-cubemap-texture-params)]
+     (make-gpu-cubemap-texture request-id vector-of-texture-datas-by-side-kw-maps texture-units texture-params))))
 
 (defn- make-texture [^GL2 gl ^TextureData texture-data]
   (Texture. gl texture-data))
@@ -419,21 +477,13 @@
 
 (scene-cache/register-object-cache! ::texture make-texture update-texture destroy-textures)
 
-(def ^:private cubemap-targets
-  {:px GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X
-   :nx GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X
-   :py GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y
-   :ny GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
-   :pz GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-   :nz GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z})
-
-(defn- update-cubemap-texture [^GL2 gl ^Texture texture texture-datas]
-  (doseq [[target-key target] cubemap-targets]
-    (.updateImage texture gl ^TextureData (target-key texture-datas) target))
+(defn- update-cubemap-texture [^GL2 gl ^Texture texture texture-datas-by-side-kw]
+  (doseq [[side-kw gl-target] cubemap-gl-targets-by-side-kw]
+    (.updateImage texture gl ^TextureData (side-kw texture-datas-by-side-kw) gl-target))
   texture)
 
-(defn- make-cubemap-texture [^GL2 gl texture-datas]
+(defn- make-cubemap-texture [^GL2 gl texture-datas-by-side-kw]
   (let [^Texture texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
-    (update-cubemap-texture gl texture texture-datas)))
+    (update-cubemap-texture gl texture texture-datas-by-side-kw)))
 
 (scene-cache/register-object-cache! ::cubemap-texture make-cubemap-texture update-cubemap-texture destroy-textures)

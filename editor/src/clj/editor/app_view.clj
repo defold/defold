@@ -84,6 +84,7 @@
             [service.log :as log]
             [service.smoke-log :as slog]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
             [util.http-server :as http-server]
@@ -406,15 +407,15 @@
 
 (handler/defhandler :scene.select-move-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
-  (state [app-view] (= (g/node-value app-view :active-tool) :move)))
+  (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
 
 (handler/defhandler :scene.select-scale-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
-  (state [app-view] (= (g/node-value app-view :active-tool) :scale)))
+  (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
-  (state [app-view] (= (g/node-value app-view :active-tool) :rotate)))
+  (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view scene-visibility]
@@ -424,8 +425,8 @@
                            (.lookup "#visibility-settings-graphic")
                            .getParent)]
       (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
-  (state [app-view scene-visibility]
-    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+  (state [app-view scene-visibility evaluation-context]
+    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane evaluation-context)
                            ui/selected-tab
                            .getContent
                            (.lookup "#visibility-settings-graphic")
@@ -433,25 +434,29 @@
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
-      (if (scene-visibility/filters-appear-active? scene-visibility)
+      (if (scene-visibility/filters-appear-active? scene-visibility evaluation-context)
         (ui/add-style! btn "filters-active")
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
 (defn get-grid-settings-button
-  [app-view]
-  (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+  [^TabPane tab-pane]
+  (some-> tab-pane
           ui/selected-tab
           .getContent
           (.lookup "#show-grid-settings")))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs]
-       (when-let [btn (get-grid-settings-button app-view)]
-         (grid/show-settings! app-view btn prefs)))
-  (state [app-view scene-visibility]
-         (when-let [btn (get-grid-settings-button app-view)]
-           (scene-visibility/settings-visible? btn))))
+       (let [active-tab-pane (g/node-value app-view :active-tab-pane)
+             btn (get-grid-settings-button active-tab-pane)]
+         (when btn
+           (grid/show-settings! app-view btn prefs))))
+  (state [app-view scene-visibility evaluation-context]
+         (let [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
+           (some-> active-tab-pane
+                   (get-grid-settings-button)
+                   (scene-visibility/settings-visible?)))))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
@@ -1909,7 +1914,7 @@
    menu-items/pull-up-overrides
    menu-items/push-down-overrides])
 
-(defrecord SelectionProvider [app-view]
+(defonce/record SelectionProvider [app-view]
   handler/SelectionProvider
   (selection [_] (g/node-value app-view :selected-node-ids))
   (succeeding-selection [_] [])
@@ -1956,22 +1961,25 @@
         "Defold"))
   ([project-title] (str project-title " - " (make-title))))
 
-(defn- refresh-app-title! [^Stage stage project]
-  (let [settings      (g/node-value project :settings)
-        project-title (settings ["project" "title"])
-        new-title     (make-title project-title)]
+(defn- refresh-app-title! [^Stage stage project evaluation-context]
+  (let [project-title (some-> (g/maybe-node-value project :settings evaluation-context)
+                              (get ["project" "title"]))
+        new-title (if project-title
+                    (make-title project-title)
+                    (make-title))]
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
-(defn- refresh-menus-and-toolbars! [app-view ^Scene scene]
-  (ui/user-data! scene :keymap (g/node-value app-view :keymap))
-  (ui/refresh scene))
+(defn- refresh-menus-and-toolbars! [app-view ^Scene scene evaluation-context]
+  (ui/user-data! scene :keymap (g/node-value app-view :keymap evaluation-context))
+  (ui/refresh scene evaluation-context))
 
-(defn- refresh-views! [app-view]
-  (let [auto-pulls (g/node-value app-view :auto-pulls)]
-    (doseq [[node label] auto-pulls]
-      (profiler/profile "view" (:name @(g/node-type* node))
-        (g/node-value node label)))))
+(defn- refresh-views! [app-view evaluation-context]
+  (let [basis (:basis evaluation-context)
+        auto-pulls (g/node-value app-view :auto-pulls evaluation-context)]
+    (doseq [[node-id label] auto-pulls]
+      (profiler/profile "view" (:name @(g/node-type* basis node-id))
+        (g/node-value node-id label evaluation-context)))))
 
 (defn- refresh-scene-view! [scene-view-id dt]
   (try
@@ -2089,22 +2097,24 @@
       (let [prev-localization-bundle (volatile! nil)
             refresh-timer (ui/->timer
                             "refresh-app-view"
-                            (fn [_ elapsed dt]
+                            (fn [_animation-timer _elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
+                                    (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (g/with-auto-evaluation-context evaluation-context
                                       (let [localization-bundle (-> project
                                                                     (project/editor-localization-bundle evaluation-context)
                                                                     (editor-localization-bundle/bundle evaluation-context))]
                                         (when-not (identical? @prev-localization-bundle localization-bundle)
                                           (vreset! prev-localization-bundle localization-bundle)
-                                          (localization/set-bundle! localization ::project localization-bundle))))
-                                    (ui/user-data! app-scene ::ui/refresh-requested? false)
-                                    (refresh-menus-and-toolbars! app-view app-scene)
-                                    (refresh-views! app-view))
-                                  (refresh-scene-views! app-view dt)
-                                  (refresh-app-title! stage project)))))]
+                                          (localization/set-bundle! localization ::project localization-bundle)))
+                                      (refresh-menus-and-toolbars! app-view app-scene evaluation-context)
+                                      (refresh-views! app-view evaluation-context)
+                                      (refresh-app-title! stage project evaluation-context)))
+                                  ;; Scene views are always refreshed, since they may play animations.
+                                  ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
+                                  (refresh-scene-views! app-view dt)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         [app-view refresh-timer]))))
 
@@ -2886,23 +2896,23 @@
       (search-results-view/show-search-in-files-dialog! search-results-view project prefs localization show-search-results-tab!))))
 
 (handler/defhandler :project.bundle :global
-  (options [user-data _context]
+  (options [user-data _context evaluation-context]
     (when-not user-data
       (let [contexts [_context]]
         (into []
               (keep
                 (fn [{:keys [command]}]
                   (when command
-                    (when-let [handler+context (handler/active command contexts true)]
+                    (when-let [handler+context (handler/active command contexts true evaluation-context)]
                       {:command :project.bundle
-                       :label (handler/label handler+context)
+                       :label (handler/label handler+context evaluation-context)
                        :user-data {:command command
                                    :handler+context handler+context}}))))
               (handler/realize-menu :editor.bundle/menu)))))
   (run [prefs user-data]
     (let [{:keys [command handler+context]} user-data]
       (prefs/set! prefs [:bundle :last-bundle-command] (if (handler/synthetic-command? command) nil command))
-      (when (handler/enabled? handler+context)
+      (when (handler/enabled? handler+context) ; Safe to not supply evaluation-context - we're executing a command.
         (handler/run handler+context)))))
 
 (handler/defhandler :project.rebundle :global
