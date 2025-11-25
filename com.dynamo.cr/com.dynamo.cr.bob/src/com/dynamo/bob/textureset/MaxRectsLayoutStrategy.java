@@ -15,6 +15,7 @@
 package com.dynamo.bob.textureset;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import static com.dynamo.bob.textureset.TextureSetLayout.MAX_ATLAS_DIMENSION;
@@ -80,7 +81,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             }
             int layoutWidth = 1 << getExponentNextOrMatchingPowerOfTwo(page.width);
             int layoutHeight = 1 << getExponentNextOrMatchingPowerOfTwo(page.height);
-            
+
             // Validate atlas size limits
             if (layoutWidth > MAX_ATLAS_DIMENSION || layoutHeight > MAX_ATLAS_DIMENSION) {
                 throw new CompileExceptionError(String.format(
@@ -100,10 +101,16 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         // Find min size.
         int minWidth = Integer.MAX_VALUE;
         int minHeight = Integer.MAX_VALUE;
+        int maxRectWidth = 0;
+        int maxRectHeight = 0;
+        long totalRectArea = 0L;
         for (int i = 0, nn = inputRects.size(); i < nn; i++) {
             Rect rect = inputRects.get(i).rect;
             minWidth = Math.min(minWidth, rect.getWidth());
             minHeight = Math.min(minHeight, rect.getHeight());
+            maxRectWidth = Math.max(maxRectWidth, rect.getWidth());
+            maxRectHeight = Math.max(maxRectHeight, rect.getHeight());
+            totalRectArea += (long)rect.getWidth() * (long)rect.getHeight();
             if (settings.rotation) {
                 if ((rect.getWidth() > settings.maxPageWidth - settings.paddingX || rect.getHeight() > settings.maxPageHeight - settings.paddingY)
                     && (rect.getWidth() > settings.maxPageHeight - settings.paddingY || rect.getHeight() > settings.maxPageWidth - settings.paddingX)) {
@@ -123,6 +130,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         }
         minWidth = Math.max(minWidth + settings.paddingX, settings.minPageWidth);
         minHeight = Math.max(minHeight + settings.paddingY, settings.minPageHeight);
+        RectStats rectStats = new RectStats(maxRectWidth, maxRectHeight, totalRectArea);
 
         // Find the minimal page size that fits all rects.
         Page bestResult = null;
@@ -132,14 +140,14 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             BinarySearch sizeSearch = new BinarySearch(minSize, maxSize);
             int size = sizeSearch.reset();
             while (size != -1) {
-                Page result = packAtSize(true, size - settings.paddingX, size - settings.paddingY, inputRects);
+                Page result = packAtSize(true, size - settings.paddingX, size - settings.paddingY, inputRects, rectStats);
                 bestResult = getBest(bestResult, result);
                 size = sizeSearch.next(result == null);
             }
 
             // Rects don't fit on one page. Fill a whole page and return.
             if (bestResult == null) {
-                bestResult = packAtSize(false, maxSize - settings.paddingX, maxSize - settings.paddingY, inputRects);
+                bestResult = packAtSize(false, maxSize - settings.paddingX, maxSize - settings.paddingY, inputRects, rectStats);
             }
 
              bestResult.width = Math.max(bestResult.width, bestResult.height);
@@ -152,7 +160,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             while (true) {
                 Page bestWidthResult = null;
                 while (width != -1) {
-                    Page result = packAtSize(true, width - settings.paddingX, height - settings.paddingY, inputRects);
+                    Page result = packAtSize(true, width - settings.paddingX, height - settings.paddingY, inputRects, rectStats);
                     bestWidthResult = getBest(bestWidthResult, result);
                     width = widthSearch.next(result == null);
                 }
@@ -165,7 +173,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             }
             // Rects don't fit on one page. Fill a whole page and return.
             if (bestResult == null) {
-                bestResult = packAtSize(false, settings.maxPageWidth - settings.paddingX, settings.maxPageHeight - settings.paddingY, inputRects);
+                bestResult = packAtSize(false, settings.maxPageWidth - settings.paddingX, settings.maxPageHeight - settings.paddingY, inputRects, rectStats);
             }
         }
         return bestResult;
@@ -174,7 +182,11 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     /** @param fully If true, the only results that pack all rects will be considered. If false, all results are considered, not all
      *           rects may be packed.
      **/
-    private Page packAtSize(boolean fully, int width, int height, ArrayList<RectNode> inputRects) {
+    private Page packAtSize(boolean fully, int width, int height, ArrayList<RectNode> inputRects, RectStats rectStats) {
+        if (!canFitInPage(width, height, rectStats, fully)) {
+            return null;
+        }
+
         Page bestResult = null;
         for (int i = 0, n = methods.length; i < n; i++) {
             maxRects.init(width, height);
@@ -215,6 +227,21 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             ++exponent;
         }
         return exponent;
+    }
+
+    private boolean canFitInPage(int width, int height, RectStats stats, boolean fully) {
+        long availableArea = (long)width * (long)height;
+        if (fully && availableArea < stats.totalArea) {
+            return false;
+        }
+
+        if (!settings.rotation) {
+            return width >= stats.maxWidth && height >= stats.maxHeight;
+        }
+
+        boolean fitsUpright = width >= stats.maxWidth && height >= stats.maxHeight;
+        boolean fitsRotated = width >= stats.maxHeight && height >= stats.maxWidth;
+        return fitsUpright || fitsRotated;
     }
 
     static class BinarySearch {
@@ -284,6 +311,18 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         public int width, height;
     }
 
+    static class RectStats {
+        final int maxWidth;
+        final int maxHeight;
+        final long totalArea;
+
+        RectStats(int maxWidth, int maxHeight, long totalArea) {
+            this.maxWidth = maxWidth;
+            this.maxHeight = maxHeight;
+            this.totalArea = totalArea;
+        }
+    }
+
     /** Maximal rectangles bin packing algorithm. Adapted from this C++ public domain source:
      * http://clb.demon.fi/projects/even-more-rectangle-bin-packing
      * @author Jukka Jyl�nki
@@ -295,6 +334,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         private final ArrayList<RectNode> usedRectangles = new ArrayList<RectNode>();
         private final ArrayList<RectNode> freeRectangles = new ArrayList<RectNode>();
         private final ArrayList<RectNode> newFreeRectangles = new ArrayList<RectNode>();
+        private final HashMap<Integer, ArrayList<RectNode>> verticalEdges = new HashMap<Integer, ArrayList<RectNode>>();
+        private final HashMap<Integer, ArrayList<RectNode>> horizontalEdges = new HashMap<Integer, ArrayList<RectNode>>();
 
         public void init (int width, int height) {
             binWidth = width;
@@ -303,6 +344,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             usedRectangles.clear();
             freeRectangles.clear();
             newFreeRectangles.clear();
+            verticalEdges.clear();
+            horizontalEdges.clear();
             RectNode n = new RectNode(new Rect(null, 0, 0, 0, width, height));
             freeRectangles.add(n);
         }
@@ -330,7 +373,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             bestNode.rect.setId(rect.rect.getId());
             bestNode.rect.setIndex(rect.rect.getIndex());
 
-            usedRectangles.add(bestNode);
+            addUsedRectangle(bestNode);
             return bestNode;
         }
 
@@ -400,7 +443,29 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
             pruneFreeList();
 
+            addUsedRectangle(node);
+        }
+
+        private void addUsedRectangle(RectNode node) {
             usedRectangles.add(node);
+            registerEdges(node);
+        }
+
+        private void registerEdges(RectNode node) {
+            Rect rect = node.rect;
+            addEdge(verticalEdges, rect.getX(), node);
+            addEdge(verticalEdges, rect.getX() + rect.getWidth(), node);
+            addEdge(horizontalEdges, rect.getY(), node);
+            addEdge(horizontalEdges, rect.getY() + rect.getHeight(), node);
+        }
+
+        private void addEdge(HashMap<Integer, ArrayList<RectNode>> edges, int key, RectNode node) {
+            ArrayList<RectNode> list = edges.get(key);
+            if (list == null) {
+                list = new ArrayList<RectNode>();
+                edges.put(key, list);
+            }
+            list.add(node);
         }
 
         private RectNode scoreRect (RectNode node, FreeRectChoiceHeuristic method) {
@@ -452,6 +517,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = Integer.MAX_VALUE; // best y, score2 is best x
 
+            boolean doRotate = rotate && width != height;
+
             for (int i = 0; i < freeRectangles.size(); i++) {
                 // Try to place the rectangle in upright (non-rotated) orientation.
                 RectNode currentNode = freeRectangles.get(i);
@@ -463,7 +530,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                         bestNode.score2 = currentNode.rect.getX();
                     }
                 }
-                if (rotate && currentNode.rect.getWidth() >= rotatedWidth && currentNode.rect.getHeight() >= rotatedHeight) {
+                if (doRotate && currentNode.rect.getWidth() >= rotatedWidth && currentNode.rect.getHeight() >= rotatedHeight) {
                     int topSideY = currentNode.rect.getY() + rotatedHeight;
                     if (topSideY < bestNode.score1 || (topSideY == bestNode.score1 && currentNode.rect.getX() < bestNode.score2)) {
                         bestNode.rect = new Rect(currentNode.rect.getId(), currentNode.rect.getIndex(), currentNode.rect.getX(), currentNode.rect.getY(), rotatedWidth, rotatedHeight);
@@ -482,6 +549,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = Integer.MAX_VALUE;
 
+            boolean doRotate = rotate && width != height;
+
             for (int i = 0; i < freeRectangles.size(); i++) {
                 // Try to place the rectangle in upright (non-rotated) orientation.
                 RectNode currentNode = freeRectangles.get(i);
@@ -498,7 +567,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     }
                 }
 
-                if (rotate && currentNode.rect.getWidth() >= rotatedWidth && currentNode.rect.getHeight() >= rotatedHeight) {
+                if (doRotate && currentNode.rect.getWidth() >= rotatedWidth && currentNode.rect.getHeight() >= rotatedHeight) {
                     int flippedLeftoverHoriz = Math.abs(currentNode.rect.getWidth() - rotatedWidth);
                     int flippedLeftoverVert = Math.abs(currentNode.rect.getHeight() - rotatedHeight);
                     int flippedShortSideFit = Math.min(flippedLeftoverHoriz, flippedLeftoverVert);
@@ -607,14 +676,48 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             if (x == 0 || x + width == binWidth) score += height;
             if (y == 0 || y + height == binHeight) score += width;
 
-            for (int i = 0; i < usedRectangles.size(); i++) {
-                RectNode currentNode = usedRectangles.get(i);
-                if (currentNode.rect.getX() == x + width || currentNode.rect.getX() + currentNode.rect.getWidth() == x)
-                    score += commonIntervalLength(currentNode.rect.getY(), currentNode.rect.getY() + currentNode.rect.getHeight(), y,
-                        y + height);
-                if (currentNode.rect.getY() == y + height || currentNode.rect.getY() + currentNode.rect.getHeight() == y)
-                    score += commonIntervalLength(currentNode.rect.getX(), currentNode.rect.getX() + currentNode.rect.getWidth(), x, x
-                        + width);
+            ArrayList<RectNode> rightEdgeNodes = verticalEdges.get(x + width);
+            if (rightEdgeNodes != null) {
+                for (int i = 0; i < rightEdgeNodes.size(); i++) {
+                    RectNode currentNode = rightEdgeNodes.get(i);
+                    if (currentNode.rect.getX() == x + width) {
+                        score += commonIntervalLength(currentNode.rect.getY(), currentNode.rect.getY() + currentNode.rect.getHeight(), y,
+                            y + height);
+                    }
+                }
+            }
+
+            ArrayList<RectNode> leftEdgeNodes = verticalEdges.get(x);
+            if (leftEdgeNodes != null) {
+                for (int i = 0; i < leftEdgeNodes.size(); i++) {
+                    RectNode currentNode = leftEdgeNodes.get(i);
+                    if (currentNode.rect.getX() + currentNode.rect.getWidth() == x) {
+                        score += commonIntervalLength(currentNode.rect.getY(), currentNode.rect.getY() + currentNode.rect.getHeight(), y,
+                            y + height);
+                    }
+                }
+            }
+
+            ArrayList<RectNode> topEdgeNodes = horizontalEdges.get(y + height);
+            if (topEdgeNodes != null) {
+                for (int i = 0; i < topEdgeNodes.size(); i++) {
+                    RectNode currentNode = topEdgeNodes.get(i);
+                    if (currentNode.rect.getY() == y + height) {
+                        score += commonIntervalLength(currentNode.rect.getX(), currentNode.rect.getX() + currentNode.rect.getWidth(), x, x
+                            + width);
+                    }
+                }
+            }
+
+            ArrayList<RectNode> bottomEdgeNodes = horizontalEdges.get(y);
+            if (bottomEdgeNodes != null) {
+                for (int i = 0; i < bottomEdgeNodes.size(); i++) {
+                    RectNode currentNode = bottomEdgeNodes.get(i);
+                    if (currentNode.rect.getY() + currentNode.rect.getHeight() == y) {
+                        score += commonIntervalLength(currentNode.rect.getX(), currentNode.rect.getX() + currentNode.rect.getWidth(), x, x
+                            + width);
+                    }
+                }
             }
             return score;
         }

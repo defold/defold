@@ -746,12 +746,9 @@ public class TextureSetGenerator {
 
         AnimDesc animDesc = null;
         while ((animDesc = iterator.nextAnim()) != null) {
-            String animId = animDesc.getId();
-
             Rect ref = null;
             Integer index = null;
             int startIndex = quadIndex;
-            int localIndex = 0; // 0 .. num_frames(anim)-1
             while ((index = iterator.nextFrameIndex()) != null) {
 
                 String frameId = iterator.getFrameId(); // either "id" or "anim./id"
@@ -769,7 +766,6 @@ public class TextureSetGenerator {
                 textureSet.addPageIndices(r.getPage());
 
                 ++quadIndex;
-                ++localIndex;
             }
             if (ref == null) {
                 continue;
