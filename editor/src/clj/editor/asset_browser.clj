@@ -549,19 +549,20 @@
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
     (when (not user-data)
-      (sort-by (comp string/lower-case :label)
-               (into [{:label (localization/message "command.file.new.option.any-file")
-                       :icon "icons/64/Icons_29-AT-Unknown.png"
-                       :command :file.new
-                       :user-data {:any-file true}}]
-                     (keep (fn [[_ext resource-type]]
-                             (when (workspace/has-template? workspace resource-type)
-                               {:label (or (:label resource-type) (:ext resource-type))
-                                :icon (:icon resource-type)
-                                :style (resource/type-style-classes resource-type)
-                                :command :file.new
-                                :user-data {:resource-type resource-type}})))
-                     (workspace/get-resource-type-map workspace))))))
+      (localization/annotate-as-sorted
+        localization/natural-sort-by-label
+        (into [{:label (localization/message "command.file.new.option.any-file")
+                :icon "icons/64/Icons_29-AT-Unknown.png"
+                :command :file.new
+                :user-data {:any-file true}}]
+              (keep (fn [[_ext resource-type]]
+                      (when (workspace/has-template? workspace resource-type)
+                        {:label (or (:label resource-type) (:ext resource-type))
+                         :icon (:icon resource-type)
+                         :style (resource/type-style-classes resource-type)
+                         :command :file.new
+                         :user-data {:resource-type resource-type}})))
+              (workspace/get-resource-type-map workspace))))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))

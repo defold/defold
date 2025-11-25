@@ -14,11 +14,11 @@
 
 (ns editor.scene-cache
   (:require [clojure.core.cache :as cache]
+            [editor.graphics.types :as graphics.types]
             [editor.volatile-cache :as volatile-cache]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.thread-util :as thread-util])
-  (:import [clojure.lang IHashEq]))
+            [util.thread-util :as thread-util]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -26,14 +26,6 @@
 ;; Map of cache-id->cache-meta maps, where (:cache cache-meta) is a nested map
 ;; of context -> request-id -> [cached-object request-data].
 (defonce ^:private object-caches-atom (atom {}))
-
-(defn valid-request-id? [value]
-  ;; TODO(instancing): A good request-id should implement efficient hashing.
-  ;; Enable stricter check and fix call sites in all extensions.
-  #_ (or (number? value)
-         (keyword? value)
-         (instance? IHashEq value))
-  (any? value))
 
 (defn- make-deletion [destroyed-object+request-data-pairs destroy-batch-fn]
   {:pre [(ifn? destroy-batch-fn)]}
@@ -151,8 +143,7 @@
   nil)
 
 (defn request-object! [cache-id request-id context request-data]
-  {:pre [(valid-request-id? request-id)]}
-  ;; TODO(instancing): Should we change the argument order?
+  {:pre [(graphics.types/request-id? request-id)]}
   (let [cache-meta (get @object-caches-atom cache-id)]
     (if (nil? cache-meta)
       (throw (ex-info (str "Unknown scene cache id: " cache-id)
@@ -163,7 +154,6 @@
       (if-some [[old-object old-request-data]
                 (some-> (get-in cache-meta [:caches context])
                         (cache/lookup request-id))]
-        ; TODO(instancing): Potentially expensive comparison. Can we do better?
         (if (= old-request-data request-data)
           (do
             (swap!

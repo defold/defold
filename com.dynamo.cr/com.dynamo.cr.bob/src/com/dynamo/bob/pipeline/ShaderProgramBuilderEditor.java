@@ -56,7 +56,7 @@ public class ShaderProgramBuilderEditor {
     static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {
         if (shaderType == Graphics.ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             return switch (shaderLanguage) {
-                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL, LANGUAGE_HLSL_51, LANGUAGE_HLSL_50 -> true;
+                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL, LANGUAGE_HLSL_51, LANGUAGE_HLSL_50, LANGUAGE_MSL_22 -> true;
                 default -> false;
             };
         } else {

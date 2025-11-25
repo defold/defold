@@ -975,7 +975,7 @@
     (attachment/define-alternative workspace CollectionInstanceNode source-id)
     (resource-node/register-ddf-resource-type workspace
       :ext "collection"
-      :label "Collection"
+      :label (localization/message "resource.type.collection")
       :node-type CollectionNode
       :ddf-type GameObject$CollectionDesc
       :load-fn load-collection

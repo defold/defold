@@ -22,16 +22,19 @@
         green (bit-shift-right (bit-and picking-id 0xff00) 8)
         blue (bit-and picking-id 0xff)
         alpha 1.0]
-    [(/ red 255.0) (/ green 255.0) (/ blue 255.0) alpha]))
+    (vector-of :float (/ red 255.0) (/ green 255.0) (/ blue 255.0) alpha)))
+
+(defn picking-id->float-array
+  ^floats [^long picking-id]
+  (let [id-color (picking-id->color picking-id)]
+    (float-array 4 id-color)))
 
 (defn argb->picking-id [^long argb]
   (bit-and argb 0x00ffffff))
 
-(defn renderable-picking-id-uniform [renderable]
-  (assert (some? (:picking-id renderable)))
-  (let [picking-id (:picking-id renderable)
-        id-color (picking-id->color picking-id)]
-    (float-array id-color)))
+(defn renderable-picking-id-uniform
+  ^floats [renderable]
+  (picking-id->float-array (:picking-id renderable)))
 
 (defn top-nodes
   [nodes]

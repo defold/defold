@@ -90,7 +90,7 @@
 (def ^:private material-icon "icons/32/Icons_25-AT-Image.png")
 
 (def pb-def {:ext "gui"
-             :label "Gui"
+             :label (localization/message "resource.type.gui")
              :icon gui-icon
              :icon-class :design
              :pb-class Gui$SceneDesc
@@ -3632,11 +3632,10 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id default-node-outline child-outlines own-build-errors]
                  (let [node-outline default-node-outline
-                       label (:label pb-def)
                        icon (:icon pb-def)]
                    {:node-id _node-id
-                    :node-outline-key label
-                    :label label
+                    :node-outline-key (:ext pb-def)
+                    :label (:label pb-def)
                     :icon icon
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
                     :outline-error? (g/error-fatal? own-build-errors)})))

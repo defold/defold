@@ -537,7 +537,7 @@ namespace dmHttpClient
         // DEF-2889 most webservers have a header length limit of 8096 bytes
         char buf[8096];
         const int bufsize = sizeof(buf);
-        if(dmSnPrintf(buf, bufsize, "%s: %s\r\n", name, value) > bufsize) {
+        if(dmSnPrintf(buf, bufsize, "%s: %s\r\n", name, value) == -1) {
             dmLogWarning("Truncated HTTP request header %s since it was larger than %d", name, bufsize);
         }
 

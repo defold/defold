@@ -744,6 +744,7 @@
       :get attachment/nodes-getter)
     (resource-node/register-ddf-resource-type workspace
       :ext "collisionobject"
+      :label (localization/message "resource.type.collisionobject")
       :node-type CollisionObjectNode
       :ddf-type Physics$CollisionObjectDesc
       :load-fn load-collision-object
@@ -753,8 +754,7 @@
       :view-types [:scene :text]
       :view-opts {:scene {:grid true}}
       :tags #{:component}
-      :tag-opts {:component {:transform-properties #{}}}
-      :label "Collision Object")))
+      :tag-opts {:component {:transform-properties #{}}})))
 
 ;; outline context menu
 

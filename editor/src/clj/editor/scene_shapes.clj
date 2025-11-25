@@ -260,7 +260,7 @@
         color (float-array (or (colors/selection-color selected)
                                (colors/alpha color 1.0)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                              world-transform
                              (:view render-args)
                              (:projection render-args)
@@ -295,7 +295,7 @@
                   :else
                   (colors/alpha color shape-alpha)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                              world-transform
                              (:view render-args)
                              (:projection render-args)
@@ -323,7 +323,7 @@
         color (float-array (or (colors/selection-color selected)
                                (colors/alpha color 1.0)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                             world-transform
                             (:view render-args)
                             (:projection render-args)

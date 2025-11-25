@@ -22,7 +22,9 @@
             [clojure.main :as m]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.code.data]
+            [editor.gl.vertex2]
             [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -35,6 +37,7 @@
   (:import [clojure.core.async.impl.channels ManyToManyChannel]
            [clojure.lang IRef]
            [editor.code.data Cursor CursorRange]
+           [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
            [internal.graph.types Arc Endpoint]
@@ -343,26 +346,85 @@
                                        :v-box/vgrow :always
                                        :value state}]})})})))
 
+(defn- bytes-to-primitive-vec [^bytes bytes byte-order data-type]
+  (let [primitive-type (buffers/primitive-type-kw data-type)]
+    (-> (buffers/wrap-byte-array bytes byte-order)
+        (buffers/as-typed-buffer primitive-type)
+        (buffers/reducible)
+        (coll/transfer (vector-of primitive-type)))))
+
+(defn- bytes-to-primitive-vec-action [value byte-order primitive-type]
+  (when (bytes? value)
+    #(bytes-to-primitive-vec value byte-order primitive-type)))
+
+(r/defaction ::bytes:to-big-endian-shorts [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :short))
+
+(r/defaction ::bytes:to-big-endian-ints [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :int))
+
+(r/defaction ::bytes:to-big-endian-longs [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :long))
+
+(r/defaction ::bytes:to-big-endian-floats [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :float))
+
+(r/defaction ::bytes:to-big-endian-doubles [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :double))
+
+(r/defaction ::bytes:to-little-endian-shorts [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :short))
+
+(r/defaction ::bytes:to-little-endian-ints [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :int))
+
+(r/defaction ::bytes:to-little-endian-longs [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :long))
+
+(r/defaction ::bytes:to-little-endian-floats [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :float))
+
+(r/defaction ::bytes:to-little-endian-doubles [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :double))
+
+(r/defstream VertexBuffer [^VertexBuffer vertex-buffer]
+  (let [vertex-description (.vertex-description vertex-buffer)
+        usage (.usage vertex-buffer)
+        buf (.buf vertex-buffer)
+        buf-items-per-vertex (.buf-items-per-vertex vertex-buffer)
+        version (.version vertex-buffer)]
+    (r/type-tagged
+      'vtx/VertexBuffer {:fill :object}
+      (r/horizontal
+        (r/raw-string "{" {:fill :object})
+        (r/entries
+          {:usage usage
+           :version version
+           :buf-items-per-vertex buf-items-per-vertex
+           :buf buf
+           :vertex-description vertex-description})
+        (r/raw-string "}" {:fill :object})))))
+
 (defn- vecmath-matrix-sf [matrix]
   (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)]
-    (r/horizontal
-      (r/raw-string "#v/" {:fill :object})
-      (r/raw-string (.getSimpleName (class matrix)) {:fill :object})
-      (r/raw-string " [" {:fill :object})
-      (apply
-        r/vertical
-        (coll/transfer row-col-strs :eduction
-          (map (fn [col-strs]
-                 (apply
-                   r/horizontal
-                   (coll/transfer col-strs :eduction
-                     (map (fn [col-str]
-                            (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
-                                          {:fill :util}
-                                          {:fill :scalar})]
-                              (r/raw-string col-str style))))
-                     (interpose r/separator)))))))
-      (r/raw-string "]" {:fill :object}))))
+    (r/type-tagged
+      (symbol "v" (.getSimpleName (class matrix))) {:fill :object}
+      (r/horizontal
+        (r/raw-string "[" {:fill :object})
+        (apply
+          r/vertical
+          (coll/transfer row-col-strs :eduction
+            (map (fn [col-strs]
+                   (apply
+                     r/horizontal
+                     (coll/transfer col-strs :eduction
+                       (map (fn [col-str]
+                              (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
+                                            {:fill :util}
+                                            {:fill :scalar})]
+                                (r/raw-string col-str style))))
+                       (interpose r/separator)))))))
+        (r/raw-string "]" {:fill :object})))))
 
 (r/defstream Matrix3d [^Matrix3d matrix]
   (vecmath-matrix-sf matrix))
@@ -377,16 +439,16 @@
   (vecmath-matrix-sf matrix))
 
 (defn- vecmath-tuple-sf [^Class tuple-class & component-values]
-  (apply
-    r/horizontal
-    (r/raw-string "#v/" {:fill :object})
-    (r/raw-string (.getSimpleName tuple-class) {:fill :object})
-    (r/raw-string " [" {:fill :object})
-    (-> component-values
-        (coll/transfer :eduction
-          (map r/stream)
-          (interpose r/separator))
-        (e/conj (r/raw-string "]" {:fill :object})))))
+  (r/type-tagged
+    (symbol "v" (.getSimpleName tuple-class)) {:fill :object}
+    (apply
+      r/horizontal
+      (r/raw-string "[" {:fill :object})
+      (-> component-values
+          (coll/transfer :eduction
+            (map r/stream)
+            (interpose r/separator))
+          (e/conj (r/raw-string "]" {:fill :object}))))))
 
 (r/defstream Tuple2d [^Tuple2d tuple]
   (vecmath-tuple-sf (class tuple) (.getX tuple) (.getY tuple)))

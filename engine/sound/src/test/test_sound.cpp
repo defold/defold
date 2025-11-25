@@ -2512,3 +2512,136 @@ const TestParams params_starttime_play_test[] = {
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestStartTimePlayTest, dmSoundTestStartTimePlayTest, jc_test_values_in(params_starttime_play_test));
 #endif
+
+TEST(SoundSdk, MasterMuteSilencesWithoutChangingGain)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    const dmhash_t master_hash = dmHashString64("master");
+    float master_gain = 0.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(1.0f, master_gain, 1e-6f);
+    EXPECT_FALSE(dmSound::IsGroupMuted(master_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(master_hash, true));
+    EXPECT_TRUE(dmSound::IsGroupMuted(master_hash));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(1.0f, master_gain, 1e-6f);
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::ToggleGroupMute(master_hash));
+    EXPECT_FALSE(dmSound::IsGroupMuted(master_hash));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(1.0f, master_gain, 1e-6f);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, MasterMuteRestoresPreviousGain)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    const dmhash_t master_hash = dmHashString64("master");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupGain(master_hash, 0.35f));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(master_hash, true));
+    EXPECT_TRUE(dmSound::IsGroupMuted(master_hash));
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(master_hash, false));
+    EXPECT_FALSE(dmSound::IsGroupMuted(master_hash));
+
+    float master_gain = 0.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(0.35f, master_gain, 1e-6f);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, GroupMuteSilencesWithoutChangingGain)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("ads"));
+    const dmhash_t group_hash = dmHashString64("ads");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupGain(group_hash, 0.25f));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(group_hash, true));
+    float gain = 1.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(group_hash, &gain));
+    EXPECT_NEAR(0.25f, gain, 1e-6f);
+    EXPECT_TRUE(dmSound::IsGroupMuted(group_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(group_hash, false));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(group_hash, &gain));
+    EXPECT_NEAR(0.25f, gain, 1e-6f);
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, GroupMuteDefaultsToUnityGainWhenMuted)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("ui"));
+    const dmhash_t group_hash = dmHashString64("ui");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupGain(group_hash, 0.0f));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(group_hash, false));
+    float gain = 0.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(group_hash, &gain));
+    EXPECT_NEAR(0.0f, gain, 1e-6f);
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, GroupToggleMute)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("amb"));
+    const dmhash_t group_hash = dmHashString64("amb");
+
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::ToggleGroupMute(group_hash));
+    EXPECT_TRUE(dmSound::IsGroupMuted(group_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::ToggleGroupMute(group_hash));
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    const dmhash_t missing_hash = dmHashString64("missing-group");
+    EXPECT_EQ(dmSound::RESULT_NO_SUCH_GROUP, dmSound::ToggleGroupMute(missing_hash));
+    EXPECT_FALSE(dmSound::IsGroupMuted(missing_hash));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}

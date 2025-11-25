@@ -17,8 +17,9 @@
             [editor.buffers :as buffers]
             [editor.code.lang.json :as json]
             [editor.code.resource :as r]
-            [util.murmur :as murmur]
-            [editor.pipeline :as pipeline])
+            [editor.localization :as localization]
+            [editor.pipeline :as pipeline]
+            [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
 (def ^:private buffer-icon "icons/32/Icons_61-Buffer.png")
@@ -116,7 +117,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
     :ext "buffer"
-    :label "Buffer"
+    :label (localization/message "resource.type.buffer")
     :icon buffer-icon
     :view-types [:code :default]
     :view-opts {:code {:grammar json/grammar}}

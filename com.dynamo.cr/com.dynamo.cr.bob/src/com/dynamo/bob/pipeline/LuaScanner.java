@@ -141,6 +141,7 @@ public class LuaScanner {
             "init",
             "final",
             "update",
+            "late_update",
             "fixed_update",
             "on_message",
             "on_input",

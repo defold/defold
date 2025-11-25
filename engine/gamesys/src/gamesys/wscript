@@ -122,5 +122,6 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/include/gamesys/components', 'components/comp_gui.h')
+    bld.install_files('${PREFIX}/include/gamesys/fontgen', 'fontgen/fontgen.h')
     for x in proto_files:
         bld.install_files('${PREFIX}/share/proto/gamesys', x)

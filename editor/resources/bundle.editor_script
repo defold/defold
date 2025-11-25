@@ -3,11 +3,17 @@ local M = {}
 -- LINUX
 
 local linux_platforms = {"x86_64-linux", "arm64-linux"}
-local linux_platform_to_string = editor.bundle.make_to_string_lookup({["x86_64-linux"] = "X64", ["arm64-linux"] = "Arm64"})
+local linux_platform_to_string = editor.bundle.make_to_string_lookup({
+    ["x86_64-linux"] = localization.message("dialog.bundle.option.platform.x86_64-linux"),
+    ["arm64-linux"] = localization.message("dialog.bundle.option.platform.arm64-linux")
+})
 local linux_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
-    return editor.bundle.dialog("Bundle linux Application", config, nil, nil, {
-        editor.bundle.grid_row("Platform", editor.bundle.select_box(config, set_config, "platform", linux_platforms, linux_platform_to_string)),
+    return editor.bundle.dialog(localization.message("dialog.bundle.header.linux"), config, nil, nil, {
+        editor.bundle.grid_row(
+            localization.message("dialog.bundle.label.platform"),
+            editor.bundle.select_box(config, set_config, "platform", linux_platforms, linux_platform_to_string)
+        ),
         editor.bundle.desktop_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
         editor.bundle.check_boxes_grid_row(config, set_config)
@@ -24,17 +30,17 @@ end
 
 local function macos_errors(config)
     if not next(config.architectures) then
-        return "At least one architecture must be selected."
+        return localization.message("dialog.bundle.error.architectures-required")
     end
 end
 
 local macos_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
     local architecture_error = macos_errors(config)
-    return editor.bundle.dialog("Bundle macOS Application", config, nil, architecture_error, {
-        editor.bundle.grid_row("Architectures", {
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-macos", "x86_64", architecture_error),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-macos", "arm64", architecture_error)
+    return editor.bundle.dialog(localization.message("dialog.bundle.header.macos"), config, nil, architecture_error, {
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-macos", localization.message("dialog.bundle.option.architecture.x86_64-macos"), architecture_error),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-macos", localization.message("dialog.bundle.option.architecture.arm64-macos"), architecture_error)
         }),
         editor.bundle.desktop_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
@@ -56,18 +62,18 @@ end
 
 local function html5_errors(config)
     if not next(config.architectures) then
-        return "At least one architecture must be selected."
+        return localization.message("dialog.bundle.error.architectures-required")
     end
 end
 
 local html5_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
     local architecture_error = html5_errors(config)
-    return editor.bundle.dialog("Bundle HTML5 Application", config, nil, architecture_error, {
-        editor.bundle.grid_row("Architectures", {
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "js-web", "asm.js", architecture_error),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", "WebAssembly (wasm)", architecture_error),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", "WebAssembly (wasm) + Thread support", architecture_error)
+    return editor.bundle.dialog(localization.message("dialog.bundle.header.html5"), config, nil, architecture_error, {
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "js-web", localization.message("dialog.bundle.option.architecture.js-web"), architecture_error),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", localization.message("dialog.bundle.option.architecture.wasm-web"), architecture_error),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", localization.message("dialog.bundle.option.architecture.wasm_pthread-web"), architecture_error)
         }),
         editor.bundle.common_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
@@ -94,11 +100,14 @@ end
 --- WINDOWS
 
 local windows_platforms = {"x86_64-win32", "x86-win32"}
-local windows_platform_to_string = editor.bundle.make_to_string_lookup({["x86_64-win32"] = "64-bit", ["x86-win32"] = "32-bit"})
+local windows_platform_to_string = editor.bundle.make_to_string_lookup({
+    ["x86_64-win32"] = localization.message("dialog.bundle.option.platform.x86_64-win32"),
+    ["x86-win32"] = localization.message("dialog.bundle.option.platform.x86-win32")
+})
 local windows_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
-    return editor.bundle.dialog("Bundle Windows Application", config, nil, nil, {
-        editor.bundle.grid_row("Platform", editor.bundle.select_box(config, set_config, "platform", windows_platforms, windows_platform_to_string)),
+    return editor.bundle.dialog(localization.message("dialog.bundle.header.windows"), config, nil, nil, {
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.platform"), editor.bundle.select_box(config, set_config, "platform", windows_platforms, windows_platform_to_string)),
         editor.bundle.desktop_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
         editor.bundle.check_boxes_grid_row(config, set_config)
@@ -196,7 +205,9 @@ local function launch_ios_app(ios_deploy, device_id, app_path)
     end
 end
 
-local identity_to_string = editor.bundle.make_to_string_lookup({[""] = "None"})
+local identity_to_string = editor.bundle.make_to_string_lookup({
+    [""] = localization.message("dialog.bundle.option.identity.none")
+})
 
 local function bundle_ios(show_dialog)
     local identities_string = editor.execute("security", "find-identity", "-v", "-p", "codesigning", {
@@ -214,27 +225,27 @@ local function bundle_ios(show_dialog)
     local function ios_errors(config)
         local ret = {}
         if config.sign and #identities == 0 then
-            ret.sign = "No code signing identities found on this computer."
+            ret.sign = localization.message("dialog.bundle.error.identity.not-found")
         end
         if config.sign and #config["code-signing-identity"] == 0 then
-            ret.identity = "Code signing identity must be set to sign the application."
+            ret.identity = localization.message("dialog.bundle.error.identity.required")
         end
         if config.sign then
             if #config["provisioning-profile"] == 0 then
-                ret.mobileprovisioning = "Provisioning profile must be set to sign the application."
+                ret.mobileprovisioning = localization.message("dialog.bundle.error.provisioning.required")
             elseif config["provisioning-profile"]:sub(-#".mobileprovision") ~= ".mobileprovision" then
-                ret.mobileprovisioning = "Invalid provisioning profile."
+                ret.mobileprovisioning = localization.message("dialog.bundle.error.provisioning.invalid")
             else
                 local attrs = editor.external_file_attributes(config["provisioning-profile"])
                 if not attrs.exists then
-                    ret.mobileprovisioning = "Provisioning profile file not found."
+                    ret.mobileprovisioning = localization.message("dialog.bundle.error.provisioning.not-found")
                 elseif not attrs.is_file then
-                    ret.mobileprovisioning = "Provisioning profile must be a file."
+                    ret.mobileprovisioning = localization.message("dialog.bundle.error.provisioning.not-file")
                 end
             end
         end
         if not next(config.architectures) then
-            ret.architectures = "At least one architecture must be selected."
+            ret.architectures = localization.message("dialog.bundle.error.architectures-required")
         end
         if next(ret) then
             return ret
@@ -250,39 +261,39 @@ local function bundle_ios(show_dialog)
         local config, set_config_raw = editor.ui.use_state(props.config)
         local errors, set_errors = editor.ui.use_state(props.errors)
         local set_config = editor.ui.use_memo(make_setter_with_validation, set_config_raw, set_errors, ios_errors)
-        return editor.bundle.dialog("Bundle iOS Application", config, nil, errors and select(2, next(errors)), {
-            editor.bundle.grid_row("Sign Application", editor.bundle.check_box(config, set_config, "sign", nil, {
+        return editor.bundle.dialog(localization.message("dialog.bundle.header.ios"), config, nil, errors and select(2, next(errors)), {
+            editor.bundle.grid_row(localization.message("dialog.bundle.label.sign-application"), editor.bundle.check_box(config, set_config, "sign", nil, {
                 issue = errors and errors.sign and {
                     severity = editor.ui.ISSUE_SEVERITY.ERROR,
                     message = errors.sign
                 }
             })),
-            editor.bundle.grid_row("Code signing identity", editor.bundle.select_box(config, set_config, "code-signing-identity", identity_options, identity_to_string, {
+            editor.bundle.grid_row(localization.message("dialog.bundle.label.code-signing-identity"), editor.bundle.select_box(config, set_config, "code-signing-identity", identity_options, identity_to_string, {
                 enabled = config.sign and #identities > 0,
                 issue = errors and errors.identity and {
                     severity = editor.ui.ISSUE_SEVERITY.ERROR,
                     message = errors.identity
                 }
             })),
-            editor.bundle.grid_row("Provisioning profile", editor.bundle.external_file_field(config, set_config, "provisioning-profile", errors and errors.mobileprovisioning, {
+            editor.bundle.grid_row(localization.message("dialog.bundle.label.provisioning-profile"), editor.bundle.external_file_field(config, set_config, "provisioning-profile", errors and errors.mobileprovisioning, {
                 enabled = config.sign,
-                title = "Choose Provisioning Profile",
+                title = localization.message("dialog.bundle.title.choose-provisioning-profile"),
                 filters = {{
-                    description = "Provisioning Profiles (*.mobileprovision)",
+                    description = localization.message("dialog.bundle.filter.provisioning-profile"),
                     extensions = {"*.mobileprovision"}
                 }}
             })),
-            editor.bundle.grid_row("Architectures", {
-                editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-ios", "64-bit (arm64)", errors and errors.architectures),
-                editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-ios", "Simulator (x86_64)", errors and errors.architectures)
+            editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+                editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-ios", localization.message("dialog.bundle.option.architecture.arm64-ios"), errors and errors.architectures),
+                editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-ios", localization.message("dialog.bundle.option.architecture.x86_64-ios"), errors and errors.architectures)
             }),
             editor.bundle.common_variant_grid_row(config, set_config),
             editor.bundle.texture_compression_grid_row(config, set_config),
             editor.bundle.check_boxes_grid_row(config, set_config),
             {editor.ui.separator({column_span=2})},
-            editor.bundle.grid_row("On Bundled", {
-                editor.bundle.check_box(config, set_config, "install", "Install on connected device"),
-                editor.bundle.check_box(config, set_config, "launch", "Launch installed app", { enabled = config.install })
+            editor.bundle.grid_row(localization.message("dialog.bundle.label.on-bundled"), {
+                editor.bundle.check_box(config, set_config, "install", localization.message("dialog.bundle.option.on-bundled.install")),
+                editor.bundle.check_box(config, set_config, "launch", localization.message("dialog.bundle.option.on-bundled.launch"), { enabled = config.install })
             })
         })
     end)
@@ -328,32 +339,32 @@ local function android_errors(config)
     local keystore = #config.keystore > 0 and config.keystore or nil
     local keystore_pass = #config["keystore-pass"] > 0 and config["keystore-pass"] or nil
     if keystore and not editor.external_file_attributes(keystore).exists then
-        errors.keystore = "Keystore file not found."
+        errors.keystore = localization.message("dialog.bundle.error.keystore.not-found")
     elseif keystore and keystore:sub(-#".keystore") ~= ".keystore" and keystore:sub(-#".jks") ~= ".jks" then
-        errors.keystore = "Invalid keystore."
+        errors.keystore = localization.message("dialog.bundle.error.keystore.invalid")
     elseif not keystore and keystore_pass then
-        errors.keystore = "Keystore must be set if keystore password is specified."
+        errors.keystore = localization.message("dialog.bundle.error.keystore.required-with-pass")
     end
     if keystore_pass and not editor.external_file_attributes(keystore_pass).exists then
-        errors.keystore_pass = "Keystore password file not found."
+        errors.keystore_pass = localization.message("dialog.bundle.error.keystore-pass.not-found")
     elseif keystore_pass and keystore_pass:sub(-#".txt") ~= ".txt" then
-        errors.keystore_pass = "Invalid keystore password file."
+        errors.keystore_pass = localization.message("dialog.bundle.error.keystore-pass.invalid")
     elseif keystore and not keystore_pass then
-        errors.keystore_pass = "Keystore password must be set if keystore is specified."
+        errors.keystore_pass = localization.message("dialog.bundle.error.keystore-pass.required-with-keystore")
     end
     local key_pass = #config["key-pass"] > 0 and config["key-pass"] or nil
     if key_pass and not editor.external_file_attributes(key_pass).exists then
-        errors.key_pass = "Key password file not found."
+        errors.key_pass = localization.message("dialog.bundle.error.key-pass.not-found")
     elseif key_pass and key_pass:sub(-#".txt") ~= ".txt" then
-        errors.key_pass = "Invalid key password file."
+        errors.key_pass = localization.message("dialog.bundle.error.key-pass.invalid")
     elseif key_pass and not keystore then
-        errors.key_pass = "Keystore must be set if key password is specified."
+        errors.key_pass = localization.message("dialog.bundle.error.key-pass.required-with-keystore")
     end
     if not next(config.architectures) then
-        errors.architectures = "At least one architecture must be selected."
+        errors.architectures = localization.message("dialog.bundle.error.architectures-required")
     end
     if not next(config.bundle_format) then
-        errors.bundle_format = "No bundle format selected."
+        errors.bundle_format = localization.message("dialog.bundle.error.bundle-format.required")
     end
     if next(errors) then
         return errors
@@ -364,45 +375,45 @@ local android_dialog = editor.ui.component(function(props)
     local config, set_config_raw = editor.ui.use_state(props.config)
     local errors, set_errors = editor.ui.use_state(props.errors)
     local set_config = editor.ui.use_memo(make_setter_with_validation, set_config_raw, set_errors, android_errors)
-    local hint = #config.keystore == 0 and "Set keystore, or leave blank to sign with an auto-generated debug certificate." or nil
+    local hint = #config.keystore == 0 and localization.message("dialog.bundle.hint.android.keystore") or nil
     local can_install_and_launch = config.bundle_format.apk or false -- may be nil, but we need a boolean
-    return editor.bundle.dialog("Bundle Android Application", config, hint, errors and select(2, next(errors)), {
-        editor.bundle.grid_row("Keystore", editor.bundle.external_file_field(config, set_config, "keystore", errors and errors.keystore, {
-            title = "Choose Keystore",
+    return editor.bundle.dialog(localization.message("dialog.bundle.header.android"), config, hint, errors and select(2, next(errors)), {
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.android.keystore"), editor.bundle.external_file_field(config, set_config, "keystore", errors and errors.keystore, {
+            title = localization.message("dialog.bundle.title.choose-keystore"),
             filters = {{
-                description = "Keystore (*.keystore, *.jks)",
+                description = localization.message("dialog.bundle.filter.keystore"),
                 extensions = {"*.keystore", "*.jks"}
             }}
         })),
-        editor.bundle.grid_row("Keystore Password", editor.bundle.external_file_field(config, set_config, "keystore-pass", errors and errors.keystore_pass, {
-            title = "Choose Keystore password",
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.android.keystore-pass"), editor.bundle.external_file_field(config, set_config, "keystore-pass", errors and errors.keystore_pass, {
+            title = localization.message("dialog.bundle.title.choose-keystore-pass"),
             filters = {{
-                description = "Keystore password (*.txt)",
+                description = localization.message("dialog.bundle.filter.keystore-pass"),
                 extensions = {"*.txt"}
             }}
         })),
-        editor.bundle.grid_row("Key Password", editor.bundle.external_file_field(config, set_config, "key-pass", errors and errors.key_pass, {
-            title = "Choose Key password",
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.android.key-pass"), editor.bundle.external_file_field(config, set_config, "key-pass", errors and errors.key_pass, {
+            title = localization.message("dialog.bundle.title.choose-key-pass"),
             filters = {{
-                description = "Key password (*.txt)",
+                description = localization.message("dialog.bundle.filter.key-pass"),
                 extensions = {"*.txt"}
             }}
         })),
-        editor.bundle.grid_row("Architectures", {
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "armv7-android", "32-bit (armv7)", errors and errors.architectures),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-android", "64-bit (arm64)", errors and errors.architectures)
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "armv7-android", localization.message("dialog.bundle.option.architecture.armv7-android"), errors and errors.architectures),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-android", localization.message("dialog.bundle.option.architecture.arm64-android"), errors and errors.architectures)
         }),
-        editor.bundle.grid_row("Bundle Format", {
-            editor.bundle.set_element_check_box(config, set_config, "bundle_format", "apk", "APK", errors and errors.bundle_format),
-            editor.bundle.set_element_check_box(config, set_config, "bundle_format", "aab", "AAB", errors and errors.bundle_format)
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.android.bundle-format"), {
+            editor.bundle.set_element_check_box(config, set_config, "bundle_format", "apk", localization.message("dialog.bundle.option.bundle-format.apk"), errors and errors.bundle_format),
+            editor.bundle.set_element_check_box(config, set_config, "bundle_format", "aab", localization.message("dialog.bundle.option.bundle-format.aab"), errors and errors.bundle_format)
         }),
         editor.bundle.common_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
         editor.bundle.check_boxes_grid_row(config, set_config),
         {editor.ui.separator({column_span=2})},
-        editor.bundle.grid_row("On Bundled", {
-            editor.bundle.check_box(config, set_config, "install", "Install on connected device", {enabled = can_install_and_launch}),
-            editor.bundle.check_box(config, set_config, "launch", "Launch installed app", { enabled = config.install and can_install_and_launch })
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.on-bundled"), {
+            editor.bundle.check_box(config, set_config, "install", localization.message("dialog.bundle.option.on-bundled.install"), {enabled = can_install_and_launch}),
+            editor.bundle.check_box(config, set_config, "launch", localization.message("dialog.bundle.option.on-bundled.launch"), { enabled = config.install and can_install_and_launch })
         })
     })
 end)
@@ -525,14 +536,14 @@ local is_macos = editor.platform:sub(-#"macos") == "macos"
 
 function M.get_commands()
     return {
-        editor.bundle.command("iOS Application...", "project.bundle-ios", bundle_ios, {
+        editor.bundle.command(localization.message("command.project.bundle-ios"), "project.bundle-ios", bundle_ios, {
             active = function() return is_macos end
         }),
-        editor.bundle.command("Android Application...", "project.bundle-android", bundle_android),
-        editor.bundle.command("macOS Application...", "project.bundle-macos", bundle_macos),
-        editor.bundle.command("Windows Application...", "project.bundle-windows", bundle_windows),
-        editor.bundle.command("Linux Application...", "project.bundle-linux", bundle_linux),
-        editor.bundle.command("HTML5 Application...", "project.bundle-html5", bundle_html5),
+        editor.bundle.command(localization.message("command.project.bundle-android"), "project.bundle-android", bundle_android),
+        editor.bundle.command(localization.message("command.project.bundle-macos"), "project.bundle-macos", bundle_macos),
+        editor.bundle.command(localization.message("command.project.bundle-windows"), "project.bundle-windows", bundle_windows),
+        editor.bundle.command(localization.message("command.project.bundle-linux"), "project.bundle-linux", bundle_linux),
+        editor.bundle.command(localization.message("command.project.bundle-html5"), "project.bundle-html5", bundle_html5),
     }
 end
 

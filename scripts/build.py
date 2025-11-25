@@ -44,6 +44,20 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web', 'wasm_pthread-web']
 
+_CMAKE_FEATURE_FLAG_MAP = {
+    '--with-asan': 'WITH_ASAN',
+    '--with-ubsan': 'WITH_UBSAN',
+    '--with-tsan': 'WITH_TSAN',
+    '--with-valgrind': 'WITH_VALGRIND',
+    '--with-openal': 'WITH_OPENAL',
+    '--with-opengl': 'WITH_OPENGL',
+    '--with-vulkan': 'WITH_VULKAN',
+    '--with-vulkan-validation': 'WITH_VULKAN_VALIDATION',
+    '--with-dx12': 'WITH_DX12',
+    '--with-opus': 'WITH_OPUS',
+    '--with-webgpu': 'WITH_WEBGPU'
+}
+
 sys.dont_write_bytecode = True
 try:
     import build_vendor
@@ -109,7 +123,7 @@ PACKAGES_ALL=[
     "maven-3.0.1",
     "vecmath",
     "vpx-1.7.0",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "bullet-2.77",
@@ -118,41 +132,53 @@ PACKAGES_ALL=[
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "moltenvk-1474891",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
@@ -160,65 +186,81 @@ PACKAGES_MACOS_X86_64=[
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "bullet-2.77",
     "vulkan-v1.4.307",
     "glfw-3.4",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "bullet-2.77",
     "glslang-42d9adf5",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "directx-headers-1.611.0",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-ba5c010c",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
     "vpx-1.7.0",
     "vulkan-v1.4.307",
@@ -227,17 +269,21 @@ PACKAGES_LINUX_X86_64=[
     "glfw-3.4",
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-2fed4fc0",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-4fab7435",
     "vpx-1.7.0",
     "vulkan-v1.4.307",
@@ -245,45 +291,61 @@ PACKAGES_LINUX_ARM64=[
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_ANDROID=[
 "protobuf-3.20.1",
     "android-support-multidex",
     "androidx-multidex",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
 "protobuf-3.20.1",
     "android-support-multidex",
     "androidx-multidex",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-39",
+    "wagyu-69",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -1159,6 +1221,12 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # new cmake support. it outputs to x86-win32 folder
+            if platform == 'win32':
+                libdir = os.path.join(self.dynamo_home, 'lib/x86-win32')
+                paths = _findlibs(libdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
                 wagyu_port_files = []
@@ -1372,7 +1440,8 @@ class Configuration(object):
         if self.is_desktop_target():
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
-            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+            gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1520,6 +1589,22 @@ class Configuration(object):
             return 'Debug'
         return 'RelWithDebInfo'
 
+    def _cmake_feature_defines(self):
+        defines = []
+        handled = set()
+        for option in self.waf_options:
+            if not option.startswith('--with-'):
+                continue
+            if option in handled:
+                continue
+            handled.add(option)
+            feature = _CMAKE_FEATURE_FLAG_MAP.get(option)
+            if feature:
+                defines.append(f"-D{feature}=ON")
+            else:
+                self._log(f"Warning: CMake build currently ignores '{option}'")
+        return defines
+
     def _build_engine_lib_cmake(self, lib, platform, directory):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
@@ -1548,6 +1633,7 @@ class Configuration(object):
         self.build_tracker.start_command(log_cmd_config)
 
         cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
+        cmake_configure_args += self._cmake_feature_defines()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
         self.build_tracker.end_command(log_cmd_config)

@@ -16,7 +16,7 @@
   (:require [editor.localization :as localization]
             [util.coll :refer [pair]]
             [util.defonce :as defonce])
-  (:import [editor.localization MessagePattern]))
+  (:import [com.defold.editor.localization MessagePattern]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)

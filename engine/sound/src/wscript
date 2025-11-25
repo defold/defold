@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, sys, re
 import waflib.Options
+from waf_dynamo import dmsdk_add_files
 
 def configure(conf):
     pass
@@ -132,6 +133,7 @@ def build(bld):
                            source   = source_null)
 
     bld.install_files('${PREFIX}/include/sound', 'sound.h')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

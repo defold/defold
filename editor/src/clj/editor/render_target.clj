@@ -17,6 +17,7 @@
             [editor.build-target :as bt]
             [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -35,31 +36,31 @@
 (def form-data
   {:navigation false
    :sections
-   [{:title "Render Target"
+   [{:localization-key "render-target"
      :fields [{:path [:color-attachments]
-               :label "Color Attachments"
+               :localization-key "render-target.color-attachments"
                :type :table
                :columns [{:path [:width]
-                          :label "width"
+                          :localization-key "render-target.color-attachments.width"
                           :type :integer
                           :default 128}
                          {:path [:height]
-                          :label "height"
+                          :localization-key "render-target.color-attachments.height"
                           :type :integer
                           :default 128}
                          {:path [:format]
-                          :label "format"
+                          :localization-key "render-target.color-attachments.format"
                           :type :choicebox
                           :options (protobuf-forms/make-enum-options Graphics$TextureImage$TextureFormat)
                           :default :texture-format-rgba}]}
               {:path [:depth-stencil-attachment-width]
-               :label "Depth/Stencil Width"
+               :localization-key "render-target.depth-stencil-attachment-width"
                :type :integer}
               {:path [:depth-stencil-attachment-height]
-               :label "Depth/Stencil Height"
+               :localization-key "render-target.depth-stencil-attachment-height"
                :type :integer}
               {:path [:depth-stencil-attachment-texture-storage]
-               :label "Depth Texture Storage"
+               :localization-key "render-target.depth-stencil-attachment-texture-storage"
                :type :boolean}]}]})
 
 (g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
@@ -188,4 +189,4 @@
     :icon-class :design
     :view-types [:cljfx-form-view :text]
     :view-opts {}
-    :label "Render Target"))
+    :label (localization/message "resource.type.render-target")))

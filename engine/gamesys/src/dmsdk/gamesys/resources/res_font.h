@@ -15,9 +15,10 @@
 #ifndef DMSDK_GAMESYS_RES_FONT_H
 #define DMSDK_GAMESYS_RES_FONT_H
 
-#include <dmsdk/resource/resource.h>
 #include <render/font_ddf.h>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/font/font.h>
+#include <dmsdk/font/fontcollection.h>
 #include <dmsdk/render/render.h>
 
 namespace dmGameSystem
@@ -78,137 +79,110 @@ namespace dmGameSystem
     };
 
     /*#
-     * Represents a glyph.
-     * If there's an associated image, it is of size width * height * channels.
-     * @struct
-     * @name FontGlyph
-     * @member m_Width [type: float] The glyph bounding width
-     * @member m_Height [type: float] The glyph bounding height
-     * @member m_ImageWidth [type: int16_t] The glyph image width
-     * @member m_ImageHeight [type: int16_t] The glyph image height
-     * @member m_Channels [type: int16_t] The glyph image height
-     * @member m_Advance [type: float] The advance step of the glyph (in pixels)
-     * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
-     * @member m_Ascent [type: float] The ascent of the glyph. (in pixels)
-     * @member m_Descent [type: float] The descent of the glyph. Positive! (in pixels)
-     */
-    struct FontGlyph
-    {
-        float   m_Width;
-        float   m_Height;
-        int16_t m_ImageWidth;
-        int16_t m_ImageHeight;
-        int16_t m_Channels;
-        float   m_Advance;
-        float   m_LeftBearing;
-        float   m_Ascent;
-        float   m_Descent;
-    };
-
-    /*#
-     * Describes what compression is used for the glyph image
-     * @enum
-     * @name FontGlyphCompression
-     * @member FONT_GLYPH_COMPRESSION_NONE      No compression
-     * @member FONT_GLYPH_COMPRESSION_DEFLATE   Data is compressed using the deflate() algorithm
-     */
-    enum FontGlyphCompression
-    {
-        FONT_GLYPH_COMPRESSION_NONE = dmFont::GLYPH_BM_FLAG_COMPRESSION_NONE,
-        FONT_GLYPH_COMPRESSION_DEFLATE = dmFont::GLYPH_BM_FLAG_COMPRESSION_DEFLATE,
-    };
-
-    static const uint32_t WHITESPACE_TAB               = 0x09;      // '\t'
-    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;      // '\n'
-    static const uint32_t WHITESPACE_CARRIAGE_RETURN   = 0x0D;      // '\r'
-    static const uint32_t WHITESPACE_SPACE             = 0x20;      // ' '
-    static const uint32_t WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
-    static const uint32_t WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
-    static const uint32_t WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
-
-    /*#
-     * Checks if a codepoint is a whitespace
-     * @name IsWhiteSpace
-     * @param c [type: uint32_t] the codepoint
-     * @return result [type: bool] true if it's a whitespace
-     */
-    inline bool IsWhiteSpace(uint32_t c)
-    {
-        return c == WHITESPACE_SPACE ||
-               c == WHITESPACE_NEW_LINE ||
-               c == WHITESPACE_ZERO_WIDTH_SPACE ||
-               c == WHITESPACE_NO_BREAK_SPACE ||
-               c == WHITESPACE_IDEOGRAPHIC_SPACE ||
-               c == WHITESPACE_TAB ||
-               c == WHITESPACE_CARRIAGE_RETURN;
-    }
-
-    /*#
      * @name ResFontGetHandle
      * @param font [type: FontResource*] The font resource
-     * @return result [type: dmRender::HFont] Handle to a font if successful. 0 otherwise.
+     * @return result [type: dmRender::HFontMap] Handle to a font if successful. 0 otherwise.
      */
-    dmRender::HFont ResFontGetHandle(FontResource* font);
+    dmRender::HFontMap ResFontGetHandle(FontResource* font);
 
     /*#
-     * @name ResFontGetTTFResourceFromCodepoint
+     * @name FPrewarmTextCallback
+     * @typedef
+     * @param ctx [type: void*] The callback context
+     * @param result [type: int] The result of the prewarming. Non zero if successful
+     * @param errmsg [type: const char*] An error message if not successful.
+     */
+    typedef void (*FPrewarmTextCallback)(void* ctx, int result, const char* errmsg);
+
+    /*# Make sure each glyph in the text gets rasterized and put into the glyph cache
+     * @name PrewarmText
      * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The codepoint to query
-     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
-     */
-    TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
-
-    /*#
-     * @name ResFontGetInfo
-     * @param font [type: FontResource*] The font resource to modify
-     * @param info [type: FontInfo*] The output info
+     * @param text [type: const char*] The text (utf8)
+     * @param cbk [type: FPrewarmTextCallback] The callback is called when the last item is done
+     * @param cbk_ctx [type: void*] The callback context
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
+    dmResource::Result ResFontPrewarmText(FontResource* font, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx);
+
+    /*#
+     * @name ResFontGetTTFResourceFromFont
+     * @param resource [type: FontResource*] The font resource
+     * @param font [type: HFont] The font
+     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
+     */
+    TTFResource* ResFontGetTTFResourceFromFont(FontResource* resource, HFont font);
+
+    /*#
+     * @name ResFontGetPathHashFromFont
+     * @param resource [type: FontResource*] The font resource
+     * @param font [type: HFont] The font
+     * @return path_hash [type: dmhash_t] The path hash to the associated TTFresource*
+     */
+    dmhash_t ResFontGetPathHashFromFont(FontResource* resource, HFont font);
+
+    /*#
+     * @name ResFontGetFontCollection
+     * @param resource [type: FontResource*] The font resource
+     * @return font_collection [type: HFontCollection*] The font collection if successful. 0 otherwise.
+     */
+    HFontCollection ResFontGetFontCollection(FontResource* resource);
 
     // FontGen API
 
     /*#
-     * @name ResFontAddGlyph
-     * @param font [type: FontResource*] The font resource to modify
-     * @param codepoint [type: uint32_t] The glyph codepoint
-     * @param glyph [type: FontGlyph*] The glyph meta data
-     * @param imagedata [type: void*] The bitmap or sdf data. May be null for e.g. white space characters. The font will now own this data.
+     * @name ResFontGetInfo
+     * @param font [type: FontResource*] The font resource to query
+     * @param info [type: FontInfo*] The output info (out)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontAddGlyph(FontResource* font, uint32_t codepoint, FontGlyph* glyph, void* imagedata, uint32_t imagedatasize);
+    dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
 
     /*#
-     * @name ResFontRemoveGlyph
+     * @name ResFontAddGlyph
      * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The glyph codepoint
+     * @param hfont [type: HFont] The font the glyph was created from
+     * @param glyph_index [type: uint32_t] The glyph index
+     * @return result [type: bool] true if the glyph already has rasterized bitmap data
+     */
+    bool ResFontIsGlyphIndexCached(FontResource* font, HFont hfont, uint32_t glyph_index);
+
+    /*#
+     * @name ResFontAddGlyph
+     * @param font [type: FontResource*] The font resource
+     * @param hfont [type: HFont] The font the glyph was created from
+     * @param glyph [type: FontGlyph*] The glyph
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontRemoveGlyph(FontResource* font, uint32_t codepoint);
+    dmResource::Result ResFontAddGlyph(FontResource* font, HFont hfont, FontGlyph* glyph);
 
-    /*# add a new glyph range
-     * Add a new glyph range
-     * @name ResFontAddGlyphSource
+    /*# add a ttf font to a font collection
+     * @note Loads the resource if not already loaded
+     * @name ResFontAddFontByPath
      * @param factory [type: dmResource::HFactory] The factory
-     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
-     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
-     * @param codepoint_min [type: uint32_t] The glyph minimum codepoint (inclusive)
-     * @param codepoint_max [type: uint32_t] The glyph maximum codepoint (inclusive)
+     * @param font [type: FontResource*] The font collection (.fontc)
+     * @param ttf_path [type: const char*] The .ttf path
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontAddGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash, uint32_t codepoint_min, uint32_t codepoint_max);
+    dmResource::Result ResFontAddFontByPath(dmResource::HFactory factory, FontResource* font, const char* ttf_path);
 
-
-    /*# removes all glyph ranges associated with a ttfresource
-     * Removes all glyph ranges associated with a ttfresource
-     *
-     * @name ResFontRemoveGlyphSource
+    /*# add a ttf font to a font collection
+     * @note the ttf resource must already be loaded
+     * @name ResFontAddFontByPathHash
      * @param factory [type: dmResource::HFactory] The factory
-     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
-     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
+     * @param font [type: FontResource*] The font collection (.fontc)
+     * @param ttf_hash [type: dmhash_t] The ttf path hash (.ttf)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontRemoveGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash);
+    dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
+
+    /*# remove a ttf font from a font collection
+     * @name ResFontRemoveFont
+     * @param factory [type: dmResource::HFactory] The factory
+     * @param font [type: FontResource*] The font collection (.fontc)
+     * @param ttf_hash [type: dmhash_t] The ttf path hash (.ttf)
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
 }
 
 #endif // DMSDK_GAMESYS_RES_FONT_H

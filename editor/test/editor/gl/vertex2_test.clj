@@ -15,6 +15,7 @@
 (ns editor.gl.vertex2-test
   (:require [clojure.test :refer :all]
             [editor.gl.vertex2 :as v]
+            [editor.graphics.types :as graphics.types]
             [support.test-support :refer [array=]])
   (:import [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]))
@@ -61,11 +62,14 @@
                (is (array= (byte-array [42])
                            (contents-of final)))))))
 
+(def ^:private attribute-component-count
+  (comp graphics.types/vector-type-component-count :vector-type))
+
 (defn- laid-out-as [def into-seq expected-vec]
-  (let [ctor  (symbol (str "->" (:name def)))
-        dims  (reduce + (map :components (:attributes def)))
+  (let [ctor (symbol (str "->" (:defvertex-name-sym def)))
+        dims (reduce + (map attribute-component-count (:attributes def)))
         buf ((ns-resolve 'editor.gl.vertex2-test ctor) (/ (count into-seq) ^long dims))
-        put! (ns-resolve 'editor.gl.vertex2-test (symbol (str (:name def) "-put!")))]
+        put! (ns-resolve 'editor.gl.vertex2-test (symbol (str (:defvertex-name-sym def) "-put!")))]
     (doseq [x (partition dims into-seq)]
       (apply put! buf x))
     (array= (byte-array expected-vec) (contents-of buf))))
@@ -84,11 +88,11 @@
 (deftest attributes-compiled-correctly
   (is (= [{:name "position"
            :name-key :position
-           :type :byte
+           :data-type :type-byte
            :vector-type :vector-type-scalar
-           :components 1
            :normalize false
            :semantic-type :semantic-type-position
+           :step-function :vertex-step-function-vertex
            :coordinate-space :coordinate-space-world}]
          (:attributes pos-1b))))
 

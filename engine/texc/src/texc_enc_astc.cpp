@@ -131,8 +131,8 @@ namespace dmTexc
         image.data          = reinterpret_cast<void**>(&padded_data);
 
         // Space needed for 16 bytes of output per compressed block
-        size_t comp_len    = aligned_width * aligned_height * 16 / (block_x * block_y); // Approximate size
-        uint8_t* comp_data = new uint8_t[comp_len];
+        uint32_t comp_len   = aligned_width * aligned_height * 16 / (block_x * block_y); // Approximate size
+        uint8_t* comp_data  = (uint8_t*)malloc(comp_len);
 
         status = astcenc_compress_image(context, &image, &swizzle, comp_data, comp_len, 0);
 
@@ -140,6 +140,8 @@ namespace dmTexc
         {
             free(padded_data);
         }
+
+        astcenc_context_free(context);
 
         if (status != ASTCENC_SUCCESS)
         {

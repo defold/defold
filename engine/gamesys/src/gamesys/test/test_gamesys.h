@@ -563,6 +563,7 @@ void GamesysTest<T>::SetUp()
     m_Params.m_ConfigFile = m_Config;
     ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
     ExtensionParamsSetContext(&m_Params, "config", m_Config);
+    ExtensionParamsSetContext(&m_Params, "job_thread", m_JobThread);
 
     dmExtension::AppInitialize(&m_AppParams);
     dmExtension::Initialize(&m_Params);

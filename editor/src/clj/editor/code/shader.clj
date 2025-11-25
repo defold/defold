@@ -18,6 +18,7 @@
             [editor.code.resource :as r]
             [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.types :as types]
@@ -78,27 +79,27 @@
 
 (def shader-defs [{:ext "vp"
                    :language "glsl"
-                   :label "Vertex Program"
+                   :label (localization/message "resource.type.vp")
                    :icon "icons/32/Icons_32-Vertex-shader.png"
                    :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
                    :language "glsl"
-                   :label "Fragment Program"
+                   :label (localization/message "resource.type.fp")
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "cp"
                    :language "glsl"
-                   :label "Compute Program"
+                   :label (localization/message "resource.type.cp")
                    :icon "icons/64/Icons_29-AT-Unknown.png"
                    :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "glsl"
-                   :label "Shader Include"
+                   :label (localization/message "resource.type.glsl")
                    :icon "icons/64/Icons_29-AT-Unknown.png"
                    :icon-class :script
                    :view-types [:code :default]

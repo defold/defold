@@ -210,7 +210,8 @@
     (if (contains? requests responses-ch)
       (let [remaining-responses (dec (requests responses-ch))]
         (cond
-          (:error response) (log/warn :message "Language server responded with error" :server server :error (:error response))
+          (:error response) (when-not (Boolean/getBoolean "defold.tests")
+                              (log/warn :message "Language server responded with error" :server server :error (:error response)))
           (some? (:result response)) (a/put! responses-ch (server-response-value (:result response))))
         (let [state (if (zero? remaining-responses)
                       (do (a/close! responses-ch)

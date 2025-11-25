@@ -36,6 +36,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/graphics/graphics_native.h>
 #include <dmsdk/graphics/graphics.h>
+#include <dmsdk/sound/sound.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
 

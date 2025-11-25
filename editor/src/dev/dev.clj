@@ -32,8 +32,8 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
@@ -240,9 +240,8 @@
     (exclude-keys-deep-helper excluded-map-entry? value)
 
     (coll? value)
-    (into (empty value)
-          (map (partial exclude-keys-deep-value-helper excluded-map-entry?))
-          value)
+    (coll/transform value
+      (map (partial exclude-keys-deep-value-helper excluded-map-entry?)))
 
     :else
     value))
@@ -963,7 +962,7 @@
         occupancy-factor (/ (double entry-count) (double capacity))
 
         next-capacity
-        (util/first-where
+        (coll/first-where
           (fn [^long num]
             (< capacity num))
           (:growth-sequence info))
@@ -1063,12 +1062,12 @@
 
 (set! *warn-on-reflection* false)
 
-(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size component-data-type]
-  (let [primitive-type-kw (buffers/primitive-type-kw component-data-type)
+(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size buffer-data-type]
+  (let [primitive-type-kw (buffers/primitive-type-kw buffer-data-type)
         read-buf (-> buf
                      (.slice buf-vertex-attribute-offset attribute-byte-size)
                      (.order (.order buf))
-                     (buffers/as-typed-buffer component-data-type))]
+                     (buffers/as-typed-buffer buffer-data-type))]
     (loop [clj-vector (vector-of primitive-type-kw)]
       (if (.hasRemaining read-buf)
         (let [attribute-component (.get read-buf) ; Return type differs by Buffer subclass.
@@ -1086,9 +1085,9 @@
               (val
                 (reduce (fn [[^long buf-vertex-attribute-offset clj-vertex] vertex-attribute]
                           (let [attribute-key (:name-key vertex-attribute)
-                                attribute-byte-size (vtx/attribute-size vertex-attribute)
-                                component-data-type (:type vertex-attribute)
-                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size component-data-type)
+                                attribute-byte-size (graphics.types/attribute-info-byte-size vertex-attribute)
+                                buffer-data-type (graphics.types/data-type-buffer-data-type (:data-type vertex-attribute))
+                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size buffer-data-type)
                                 clj-vertex-attribute (pair attribute-key clj-vertex-attribute-data)
                                 clj-vertex (conj! clj-vertex clj-vertex-attribute)
                                 buf-vertex-attribute-offset (+ buf-vertex-attribute-offset attribute-byte-size)]

@@ -61,6 +61,7 @@
             [editor.fs :as fs]
             [editor.os :as os]
             [service.log :as log]
+            [util.array :as array]
             [util.coll :as coll]
             [util.crypto :as crypto]
             [util.eduction :as e]
@@ -174,6 +175,15 @@
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
+                :last-selected-tabs {:type :object
+                                     :properties {:selected-pane {:type :integer}
+                                                  :tab-selection-by-pane {:type :array
+                                                                          :item {:type :integer}}}}
+                :open-tabs {:type :array
+                            :item {:type :array
+                                   :item {:type :tuple
+                                          :items [{:type :string} {:type :keyword}]}}
+                            :scope :project}
                 :saved-colors {:type :array
                                :item {:type :string}
                                :scope :project}}}
@@ -365,9 +375,6 @@
           ::not-found)))
     ::not-found))
 
-(defn- array? [x]
-  (and (some? x) (.isArray (class x))))
-
 (defn- write-config! [path config]
   (fs/create-path-parent-directories! path)
   (with-open [w (io/writer path)]
@@ -391,7 +398,7 @@
                                    (write! (val x) indent))
                 (clojure.core/set? x) (write-contents-indented! "#{" "}" (sort x) indent)
                 (map? x) (write-contents-indented! "{" "}" (sort-by key x) indent)
-                (or (vector? x) (array? x)) (write-contents-indented! "[" "]" x indent)
+                (or (vector? x) (array/array? x)) (write-contents-indented! "[" "]" x indent)
                 :else (.write w (pr-str x))))]
       (write! config 0))))
 

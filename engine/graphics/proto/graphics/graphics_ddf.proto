@@ -318,6 +318,7 @@ message ShaderDesc
         LANGUAGE_WGSL       = 8;  // WebGPU
         LANGUAGE_HLSL_50    = 9;  // Windows / XBox compatible (also used for cross compiling)
         LANGUAGE_HLSL_51    = 10; // Windows / XBox compatible (also used for cross compiling)
+        LANGUAGE_MSL_22     = 11; // MacOS / iOS compatible
     }
 
     enum ShaderType

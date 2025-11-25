@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <dlib/log.h>
+#include <dlib/static_assert.h>
 #include "image.h"
 
 //#define STBI_NO_JPEG
@@ -158,5 +159,42 @@ namespace dmImage
         return image->m_Buffer;
     }
 
+    static bool IsAstc(const void* mem, uint32_t memsize)
+    {
+        DM_STATIC_ASSERT(sizeof(struct AstcHeader) == 16, Invalid_Struct_Size);
+
+        if (memsize < 16)
+            return false;
+
+        AstcHeader* header = (AstcHeader*)mem;
+        return header->m_Magic[0] == 0x13
+            && header->m_Magic[1] == 0xAB
+            && header->m_Magic[2] == 0xA1
+            && header->m_Magic[3] == 0x5C;
+    }
+
+    bool GetAstcBlockSize(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth)
+    {
+        if (!IsAstc(mem, memsize))
+            return false;
+
+        AstcHeader* header = (AstcHeader*)mem;
+        *width  = header->m_BlockSizes[0];
+        *height = header->m_BlockSizes[1];
+        *depth  = header->m_BlockSizes[2];
+        return true;
+    }
+
+    bool GetAstcDimensions(const void* mem, uint32_t memsize, uint32_t* width, uint32_t* height, uint32_t* depth)
+    {
+        if (!IsAstc(mem, memsize))
+            return false;
+
+        AstcHeader* header = (AstcHeader*)mem;
+        *width  = header->m_DimensionX[0] + (header->m_DimensionX[1] << 8) + (header->m_DimensionX[2] << 16);
+        *height = header->m_DimensionY[0] + (header->m_DimensionY[1] << 8) + (header->m_DimensionY[2] << 16);
+        *depth  = header->m_DimensionZ[0] + (header->m_DimensionZ[1] << 8) + (header->m_DimensionZ[2] << 16);
+        return true;
+    }
 }
 

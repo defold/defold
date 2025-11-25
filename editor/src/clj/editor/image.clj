@@ -18,6 +18,7 @@
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -150,7 +151,7 @@
   (concat
     (workspace/register-resource-type workspace
                                       :ext exts
-                                      :label "Image"
+                                      :label (localization/message "resource.type.image")
                                       :icon "icons/32/Icons_25-AT-Image.png"
                                       :build-ext "texturec"
                                       :node-type ImageNode

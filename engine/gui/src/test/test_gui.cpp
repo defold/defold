@@ -81,9 +81,9 @@ dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path);
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source);
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
 static const float EPSILON = 0.000001f;
 static const float TEXT_GLYPH_WIDTH = 1.0f;
@@ -208,7 +208,7 @@ public:
 private:
 };
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
     return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
@@ -220,7 +220,7 @@ static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui:
     self->m_DynamicTextures.Delete(texture_source);
 }
 
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
 {
     dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
     self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
@@ -679,16 +679,16 @@ TEST_F(dmGuiTest, DynamicTexture)
 
     // Test creation/deletion in the same frame (case 2355)
     dmGui::Result r;
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);
     dmGui::RenderScene(m_Scene, rp, &count);
 
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
@@ -707,21 +707,21 @@ TEST_F(dmGuiTest, DynamicTexture)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Recreate the texture again (without RenderScene)
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Set data on deleted texture
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
     // test create same texture twice
     // https://github.com/defold/defold/issues/9893
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_TEXTURE_ALREADY_EXISTS);
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);
@@ -771,7 +771,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
 
     // Create and upload RGB image + flip
     dmGui::Result r;
-    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, true, data_rgb, sizeof(data_rgb));
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, dmImage::COMPRESSION_TYPE_NONE, true, data_rgb, sizeof(data_rgb));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Get buffer, verify same as input but flipped
@@ -784,7 +784,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
     ASSERT_BUFFER(data_rgb_flip, (uint8_t*) t1->m_Buffer, width*height*3);
 
     // Upload RGBA data and flip
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGBA, true, data_rgba, sizeof(data_rgba));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGBA, dmImage::COMPRESSION_TYPE_NONE, true, data_rgba, sizeof(data_rgba));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
@@ -794,7 +794,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
     ASSERT_BUFFER(data_rgba_flip, (uint8_t*) t1->m_Buffer, width*height*4);
 
     // Upload luminance data and flip
-    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_LUMINANCE, true, data_lum, sizeof(data_lum));
+    r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_LUMINANCE, dmImage::COMPRESSION_TYPE_NONE, true, data_lum, sizeof(data_lum));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result

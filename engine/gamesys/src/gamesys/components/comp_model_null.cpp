@@ -52,6 +52,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompModelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompModelRender(const dmGameObject::ComponentsRenderParams& params)
     {
         return dmGameObject::UPDATE_RESULT_OK;
@@ -59,7 +64,6 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

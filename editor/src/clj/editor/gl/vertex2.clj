@@ -16,74 +16,18 @@
   (:require [clojure.string :as str]
             [editor.buffers :as buffers]
             [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
-            [editor.protobuf :as protobuf]
+            [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
             [editor.scene-cache :as scene-cache]
             [util.coll :as coll]
-            [util.defonce :as defonce]
-            [util.eduction :as e])
+            [util.defonce :as defonce])
   (:import [clojure.lang Counted]
-           [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
-           [java.nio Buffer ByteBuffer IntBuffer]))
+           [java.nio Buffer ByteBuffer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(def gl-types
-  {:ubyte   GL/GL_UNSIGNED_BYTE
-   :byte    GL/GL_BYTE
-   :ushort  GL/GL_UNSIGNED_SHORT
-   :short   GL/GL_SHORT
-   :uint    GL/GL_UNSIGNED_INT
-   :int     GL2/GL_INT
-   :float   GL/GL_FLOAT
-   :double  GL2/GL_DOUBLE})
-
-(def usage-types
-  {:static GL2/GL_STATIC_DRAW
-   :dynamic GL2/GL_DYNAMIC_DRAW})
-
-(defn type->stream-type [type]
-  (case type
-    :float :value-type-float32
-    :ubyte :value-type-uint8
-    :ushort :value-type-uint16
-    :uint :value-type-uint32
-    :byte :value-type-int8
-    :short :value-type-int16
-    :int :value-type-int32))
-
-;; TODO: Might need to add support for uint64/int64 in the future.
-;;       (OpenGL ES 2 doesn't support this currently, but Vulkan might.)
-(defn stream-type->type [stream-type]
-  (case stream-type
-    :value-type-float32 :float
-    :value-type-uint8 :ubyte
-    :value-type-uint16 :ushort
-    :value-type-uint32 :uint
-    :value-type-int8 :byte
-    :value-type-int16 :short
-    :value-type-int32 :int))
-
-(defn attribute-name->key [^String name]
-  (protobuf/field-name->key name))
-
-(defn attribute-key->semantic-type [attribute-key]
-  (case attribute-key
-    :position :semantic-type-position
-    :normal :semantic-type-normal
-    :tangent :semantic-type-tangent
-    :binormal :semantic-type-binormal
-    :color :semantic-type-color
-    (:texcoord :texcoord0) :semantic-type-texcoord
-    :page-index :semantic-type-page-index
-    :blend-indices :semantic-type-blend-indices
-    :blend-weights :semantic-type-blend-weights
-    :mtx-world :semantic-type-world-matrix
-    :mtx-normal :semantic-type-normal-matrix
-    :semantic-type-none))
 
 ;; VertexBuffer object
 
@@ -105,7 +49,7 @@
   Counted
   (count [_this]
     (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
-      (/ item-count buf-items-per-vertex))))
+      (quot item-count buf-items-per-vertex))))
 
 (defn- buffer-items-per-vertex
   ^long [^Buffer buffer vertex-description]
@@ -118,16 +62,19 @@
 
 (defn wrap-vertex-buffer
   [vertex-description usage ^Buffer buffer]
+  {:pre [(graphics.types/vertex-description? vertex-description)
+         (graphics.types/usage? usage)
+         (instance? Buffer buffer)]}
   (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
     (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
 (defn wrap-buf
   ^ByteBuffer [^bytes byte-array]
-  (buffers/wrap-byte-array byte-array :byte-order/little-endian))
+  (buffers/wrap-byte-array byte-array :byte-order/native))
 
 (defn make-buf
   ^ByteBuffer [byte-capacity]
-  (buffers/new-byte-buffer byte-capacity :byte-order/little-endian))
+  (buffers/new-byte-buffer byte-capacity :byte-order/native))
 
 (defn make-vertex-buffer
   [vertex-description usage ^long vertex-capacity]
@@ -137,6 +84,10 @@
         byte-buffer (make-buf byte-capacity)]
     (wrap-vertex-buffer vertex-description usage byte-buffer)))
 
+(definline buf
+  ^ByteBuffer [^VertexBuffer vertex-buffer]
+  `~(with-meta `(.buf ~(with-meta vertex-buffer {:tag `VertexBuffer})) {:tag `ByteBuffer}))
+
 ;; low-level access
 
 (definline buf-blit! [buffer byte-offset bytes]
@@ -145,113 +96,89 @@
 (definline buf-put-floats! [buffer byte-offset numbers]
   `(buffers/put-floats! ~buffer ~byte-offset ~numbers))
 
-(definline buf-put! [buf byte-offset data-type normalize numbers]
-  `(buffers/put! ~buf ~byte-offset ~data-type ~normalize ~numbers))
-
-(defn put!
-  ^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
-  (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
-  vbuf)
+(definline buf-put! [buf byte-offset buffer-data-type normalize numbers]
+  `(buffers/put! ~buf ~byte-offset ~buffer-data-type ~normalize ~numbers))
 
 (definline buf-push-floats! [buffer numbers]
   `(buffers/push-floats! ~buffer ~numbers))
 
-(definline buf-push! [buf data-type normalize numbers]
-  `(buffers/push! ~buf ~data-type ~normalize ~numbers))
-
-(defn push!
-  ^VertexBuffer [^VertexBuffer vbuf data-type normalize numbers]
-  (buf-push! (.buf vbuf) data-type normalize numbers)
-  vbuf)
-
-;; vertex description
-
-(defn attribute-size
-  ^long [{:keys [^long components type]}]
-  (* components (buffers/type-size type)))
-
-(defn- vertex-size
-  ^long [attributes]
-  (transduce (map attribute-size) + 0 attributes))
-
-(defn make-vertex-description
-  [name attributes]
-  {:name name
-   :attributes attributes
-   :size (vertex-size attributes)})
-
+(definline buf-push! [buf buffer-data-type normalize numbers]
+  `(buffers/push! ~buf ~buffer-data-type ~normalize ~numbers))
 
 ;; defvertex macro
 
-(defn- attribute-components
-  [attributes]
-  (for [{:keys [components] :as attribute} attributes
-        n (range components)]
-    (-> attribute
-        (update :name str (nth ["-x" "-y" "-z" "-w"] n))
-        (dissoc :components))))
+(defn- attribute-components [attribute-infos]
+  (for [{attribute-name :name :keys [name-key vector-type] :as attribute-info} attribute-infos
+        n (range (graphics.types/vector-type-component-count vector-type))]
+    (let [suffix (nth ["-x" "-y" "-z" "-w"] n)
+          attribute-name (str attribute-name suffix)
+          attribute-key (keyword (str (name name-key) suffix))]
+      (assoc attribute-info
+        :name attribute-name
+        :name-key attribute-key
+        :vector-type :vector-type-scalar))))
 
-(defn make-put-fn
-  [attributes]
-  (let [args (for [{:keys [name] :as component} (attribute-components attributes)]
+(defn make-put-fn [attribute-infos]
+  (let [args (for [{:keys [name] :as component} (attribute-components attribute-infos)]
                (assoc component :arg (symbol name)))]
     `(fn [~(with-meta 'vbuf {:tag `VertexBuffer}) ~@(map :arg args)]
        (doto ~(with-meta '(.buf vbuf) {:tag `ByteBuffer})
-         ~@(for [{:keys [arg type]} args]
-             (let [arg (with-meta arg {:tag (case type
-                                              :byte   `Byte
-                                              :short  `Short
-                                              :int    `Integer
-                                              :float  `Float
-                                              :double `Double
-                                              :ubyte  `Byte
-                                              :ushort `Short
-                                              :uint   `Integer)})]
-               (case type
-                 :byte   `(.put       ~arg)
-                 :short  `(.putShort  ~arg)
-                 :int    `(.putInt    ~arg)
-                 :float  `(.putFloat  ~arg)
-                 :double `(.putDouble ~arg)
-                 :ubyte  `(.put       (.byteValue  (Long/valueOf (bit-and ~arg 0xff))))
-                 :ushort `(.putShort  (.shortValue (Long/valueOf (bit-and ~arg 0xffff))))
-                 :uint   `(.putInt    (.intValue   (Long/valueOf (bit-and ~arg 0xffffffff))))))))
+         ~@(for [{:keys [arg data-type]} args]
+             (let [arg (with-meta arg {:tag (case data-type
+                                              :type-byte `Byte
+                                              :type-short `Short
+                                              :type-int `Integer
+                                              :type-float `Float
+                                              :type-double `Double
+                                              :type-unsigned-byte `Byte
+                                              :type-unsigned-short `Short
+                                              :type-unsigned-int `Integer)})]
+               (case data-type
+                 :type-byte `(.put ~arg)
+                 :type-short `(.putShort ~arg)
+                 :type-int `(.putInt ~arg)
+                 :type-float `(.putFloat ~arg)
+                 :type-double `(.putDouble ~arg)
+                 :type-unsigned-byte `(.put (.byteValue (Long/valueOf (bit-and ~arg 0xff))))
+                 :type-unsigned-short `(.putShort (.shortValue (Long/valueOf (bit-and ~arg 0xffff))))
+                 :type-unsigned-int `(.putInt (.intValue (Long/valueOf (bit-and ~arg 0xffffffff))))))))
        ~'vbuf)))
 
-(defn- parse-attribute-definition
-  [form]
+(defn- parse-attribute-definition [form]
+  {:post [(graphics.types/attribute-info? %)]}
   (let [[type nm & [normalize]] form
         [prefix suffix]  (str/split (name type) #"\.")
         prefix           (keyword prefix)
         suffix           (keyword (or suffix "float"))
-        num-components   (case prefix
-                           :vec1 1
-                           :vec2 2
-                           :vec3 3
-                           :vec4 4)
+        vector-type      (case prefix
+                           :vec1 :vector-type-scalar
+                           :vec2 :vector-type-vec2
+                           :vec3 :vector-type-vec3
+                           :vec4 :vector-type-vec4)
+        data-type        (graphics.types/buffer-data-type-data-type suffix)
         attribute-name   (name nm)
-        attribute-key    (attribute-name->key attribute-name)
-        semantic-type    (attribute-key->semantic-type attribute-key)
-        vector-type      (case num-components
-                           1 :vector-type-scalar
-                           2 :vector-type-vec2
-                           3 :vector-type-vec3
-                           4 :vector-type-vec4)]
-    (assert num-components (str type " is not a valid type name. It must start with vec1, vec2, vec3, or vec4."))
-    (assert (get gl-types suffix) (str type " is not a valid type name. It must end with byte, short, int, float, or double. (Defaults to float if no suffix.)"))
+        attribute-key    (graphics.types/attribute-name-key attribute-name)
+        semantic-type    (graphics.types/infer-semantic-type attribute-key)
+
+        ;; TODO: You can't define a local-space attribute using defvertex.
+        coordinate-space (case semantic-type
+                           (:semantic-type-position :semantic-type-normal :semantic-type-tangent) :coordinate-space-world
+                           :coordinate-space-local)]
     {:name attribute-name
      :name-key attribute-key
-     :type suffix
-     :components num-components
-     :normalize (true? normalize)
-     :coordinate-space :coordinate-space-world
+     :normalize (boolean normalize)
+     :coordinate-space coordinate-space
+     :step-function :vertex-step-function-vertex
      :vector-type vector-type
+     :data-type data-type
      :semantic-type semantic-type}))
 
 (defmacro defvertex
   [name & attribute-definitions]
   (let [attributes         (mapv parse-attribute-definition attribute-definitions)
-        vertex-description (make-vertex-description name attributes)
+        vertex-description (-> attributes
+                               (graphics.types/make-vertex-description)
+                               (assoc :defvertex-name-sym name)) ;
         ctor-name          (symbol (str "->" name))
         put-name           (symbol (str name "-put!"))
         gen-put?           (not (:no-put (meta name)))]
@@ -261,10 +188,9 @@
          ([capacity#]
           (make-vertex-buffer '~vertex-description :static capacity#))
          ([capacity# usage#]
-          (assert (contains? usage-types usage#) (format "usage must be %s" (str/join " or " (map str (keys usage-types)))))
           (make-vertex-buffer '~vertex-description usage# capacity#)))
        ~(when gen-put?
-          `(def ~put-name ~(make-put-fn (:attributes vertex-description)))))))
+          `(def ~put-name ~(make-put-fn attributes))))))
 
 
 ;; GL stuff
@@ -274,7 +200,7 @@
          (vector? attribute-locations)]}
   (let [attribute-count (count attributes)
         attribute-sizes (into (vector-of :int)
-                              (map attribute-size)
+                              (map graphics.types/attribute-info-byte-size)
                               attributes)
         ^int stride (reduce + attribute-sizes)]
     (assert (= attribute-count (count attribute-locations)))
@@ -284,8 +210,8 @@
               ^int attribute-size (attribute-sizes attribute-index)]
           (when-not (neg? attribute-location)
             (let [attribute (attributes attribute-index)
-                  ^int component-count (:components attribute)
-                  ^int gl-type (gl-types (:type attribute))
+                  component-count (graphics.types/vector-type-component-count (:vector-type attribute))
+                  gl-type (gl.types/data-type-gl-type (:data-type attribute))
                   ^boolean normalize (:normalize attribute)]
               (gl/gl-enable-vertex-attrib-array gl attribute-location)
               (gl/gl-vertex-attrib-pointer gl attribute-location component-count gl-type normalize stride buffer-offset)))
@@ -299,21 +225,20 @@
           :when (not= location -1)]
     (gl/gl-disable-vertex-attrib-array gl location)))
 
-(defn vertex-attribute->row-column-count [vertex-attribute]
-  (case (:vector-type vertex-attribute)
-    :vector-type-mat2 2
-    :vector-type-mat3 3
-    :vector-type-mat4 4
-    (case (long (:components vertex-attribute -1))
-      9 3
-      16 4
-      nil)))
+(defn- attribute-info->row-column-count [{:keys [vector-type] :as _attribute-info}]
+  {:pre [(graphics.types/vector-type? vector-type)]}
+  (let [vector-type-row-column-count (graphics.types/vector-type-row-column-count vector-type)]
+    (when (pos? vector-type-row-column-count)
+      vector-type-row-column-count)))
 
 ;; Takes a list of vertex attribute and a matching list of its attribute locations
 ;; and expands these if the attribute vector type is a matrix.
 ;; This is needed because to bind a matrix as attribute in OpenGL, we need
 ;; to bind each column of the vector type individually.
 (defn- expand-attributes+locations [attributes attribute-locations]
+  ;; TODO(instancing): No need to "expand" the attributes - we should just move
+  ;; this logic into the assign-attributes! and clear-attributes! functions and
+  ;; avoid creating these temporary collections.
   {:pre [(vector? attributes)
          (vector? attribute-locations)
          (= (count attributes) (count attribute-locations))]}
@@ -321,8 +246,8 @@
         (coll/transfer attributes (empty attributes)
           (mapcat
             (fn [attribute]
-              (if-let [row-column-count (vertex-attribute->row-column-count attribute)]
-                (repeat row-column-count (assoc attribute :components row-column-count))
+              (if-let [row-column-count (attribute-info->row-column-count attribute)]
+                (repeat row-column-count (assoc attribute :vector-type (graphics.types/component-count-vector-type row-column-count false)))
                 [attribute]))))
 
         expanded-attribute-locations
@@ -330,7 +255,7 @@
           (coll/mapcat-indexed
             (fn [^long attribute-index ^long base-location]
               (let [attribute (attributes attribute-index)
-                    row-column-count (vertex-attribute->row-column-count attribute)]
+                    row-column-count (attribute-info->row-column-count attribute)]
                 (if (nil? row-column-count)
                   [base-location]
                   (range base-location
@@ -345,55 +270,38 @@
         [expanded-attributes expanded-attribute-locations] (expand-attributes+locations attributes attribute-locations)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (assign-attributes! gl expanded-attributes expanded-attribute-locations)
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     expanded-attribute-locations))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl expanded-attribute-locations]
-  (clear-attributes! gl expanded-attribute-locations)
-  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
-
-(defn- bind-index-buffer! [^GL2 gl request-id ^IntBuffer index-buffer]
-  ;; TODO: Feed in actual version. Perhaps deftype IndexBuffer with IntBuffer + version?
-  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl {:index-buffer index-buffer :version 0})]
-    (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
-
-(defn- unbind-index-buffer! [^GL2 gl]
-  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
+  (clear-attributes! gl expanded-attribute-locations))
 
 (defonce/type VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
-  GlBind
-  (bind [_this gl _render-args]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
-  (unbind [_this gl _render-args]
+  (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
     (set! expanded-attribute-locations nil)))
 
-(defonce/type VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader ^:unsynchronized-mutable expanded-attribute-locations]
-  GlBind
-  (bind [_this gl _render-args]
-    (set! expanded-attribute-locations (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
-    (bind-index-buffer! gl request-id index-buffer))
-
-  (unbind [_this gl _render-args]
-    (unbind-vertex-buffer-with-shader! gl expanded-attribute-locations)
-    (set! expanded-attribute-locations nil)
-    (unbind-index-buffer! gl)))
-
-(defn use-with
-  ([request-id ^VertexBuffer vertex-buffer shader]
-   (->VertexBufferShaderLink request-id vertex-buffer shader nil))
-  ([request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
-   (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader nil)))
+(defn use-with [request-id ^VertexBuffer vertex-buffer shader]
+  {:pre [(graphics.types/request-id? request-id)
+         (instance? VertexBuffer vertex-buffer)
+         (satisfies? shader/ShaderVariables shader)]}
+  (->VertexBufferShaderLink request-id vertex-buffer shader nil))
 
 (defn- update-vbo [^GL2 gl [vbo _] data]
-  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo) ; TODO(instancing): Move to right before gl-buffer-data call?
   (let [^VertexBuffer vbuf (:vertex-buffer data)
         ^Buffer buf (.buf vbuf)
         shader (:shader data)
-        attribute-names (e/map :name (:attributes (.vertex-description vbuf)))
-        attribute-locations (shader/attribute-locations shader gl attribute-names)]
+        attribute-infos (:attributes (.vertex-description vbuf))
+        attribute-locations (shader/attribute-locations shader gl attribute-infos)
+        gl-usage (gl.types/usage-gl-usage (.usage vbuf))]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
-    (gl/gl-buffer-data gl GL/GL_ARRAY_BUFFER (buffers/total-byte-size buf) buf (usage-types (.usage vbuf)))
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+    (gl/gl-buffer-data gl GL/GL_ARRAY_BUFFER (buffers/total-byte-size buf) buf gl-usage)
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     [vbo attribute-locations]))
 
 (defn- make-vbo [^GL2 gl data]
@@ -404,20 +312,3 @@
   (gl/gl-delete-buffers gl (mapv first objs)))
 
 (scene-cache/register-object-cache! ::vbo2 make-vbo update-vbo destroy-vbos)
-
-(defn- update-ibo [^GL2 gl ibo data]
-  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
-  (let [^IntBuffer int-buffer (:index-buffer data)
-        count (.remaining int-buffer)
-        size (* count Buffers/SIZEOF_INT)]
-    (gl/gl-buffer-data gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
-  ibo)
-
-(defn- make-ibo [^GL2 gl data]
-  (let [ibo (gl/gl-gen-buffer gl)]
-    (update-ibo gl ibo data)))
-
-(defn- destroy-ibos [^GL2 gl ibos _]
-  (gl/gl-delete-buffers gl ibos))
-
-(scene-cache/register-object-cache! ::ibo2 make-ibo update-ibo destroy-ibos)
