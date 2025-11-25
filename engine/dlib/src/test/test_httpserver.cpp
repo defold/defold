@@ -319,8 +319,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
     }
 
     dmURI::Parts uri;
-    uri.m_Hostname = DM_LOOPBACK_ADDRESS_IPV4;
-    uri.m_Port = 8500;
+    dmURI::Parse("http://127.0.0.1:8500", &uri);
 
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
