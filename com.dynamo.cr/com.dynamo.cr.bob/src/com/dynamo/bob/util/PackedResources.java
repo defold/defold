@@ -2,6 +2,9 @@ package com.dynamo.bob.util;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.ModelImporterJni;
+import com.dynamo.bob.pipeline.ShadercJni;
+import com.dynamo.bob.pipeline.TexcLibraryJni;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +21,12 @@ public class PackedResources {
 
     private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
         TimeProfiler.start("runUnpackAllLibsAsync");
+        // unpacking for these happens in static initializers
+        new TexcLibraryJni();
+        new ShadercJni();
+        new ModelImporterJni();
+
+        // regular libs
         String platformPair = platform.getPair();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
 
