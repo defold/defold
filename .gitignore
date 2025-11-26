@@ -81,3 +81,5 @@ editor/.lsp/sqlite.db
 
 # ChatGPT
 AGENTS.md
+/share/ext/astcenc/build/
+/share/ext/astcenc/source
