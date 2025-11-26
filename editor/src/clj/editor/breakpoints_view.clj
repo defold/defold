@@ -212,7 +212,7 @@
                     (= 2 (.getClickCount e)))
            (open-resource-fn resource (inc row)))))}))
 
-(defn- column-enabled-cell-factory [project breakpoints idx]
+(defn- column-enabled-cell-factory [project swap-state breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
     {:style-class ["enabled-cell"]
      :alignment :center
@@ -221,14 +221,8 @@
       :selected (:enabled breakpoint)
       :on-selected-changed
       (fn [enabled?]
-        ;; TODO: I think we can somewhat generalize this?
         (g/with-auto-evaluation-context evaluation-context
-          (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                script-node (breakpoint->script-node project breakpoint evaluation-context)
-                toggled-breakpoint (toggle-breakpoint-enabled breakpoints-in-script breakpoint)
-                regions (update-script-regions-from-breakpoints script-node toggled-breakpoint evaluation-context)]
-            ;; (swap-state assoc :edited-breakpoint nil)
-            (g/set-property! script-node :regions regions))))}}))
+          (set-regions-with-action! swap-state project evaluation-context breakpoints [breakpoint] toggle-breakpoints-enabled)))}}))
 
 (defn- column-line-cell-factory [breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
@@ -319,13 +313,13 @@
      {:fx/type fx.h-box/lifecycle
       :alignment :center-left
       :children
-      ;; TODO: Organize this a bit better
       [(icon-button
          delete-bp-icon-path
          ["remove-button"]
          (fn [event]
            (g/with-auto-evaluation-context evaluation-context
-             (.lookup (ui/main-root) "#breakpoints-table-view")
+             ;; NOTE: Sometimes the editor's top menu disappears if we don't request focus here
+             (.requestFocus (.lookup (ui/main-root) "#breakpoints-table-view"))
              (set-regions-with-action! swap-state project evaluation-context
                                        breakpoints
                                        [breakpoint]
@@ -378,7 +372,7 @@
         :max-width 80
         :cell-value-factory identity
         :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn/partial column-enabled-cell-factory project breakpoints)}}
+                       :describe (fn/partial column-enabled-cell-factory project swap-state breakpoints)}}
        {:fx/type fx.table-column/lifecycle
         :text (localization-state (localization/message "breakpoints.column.line"))
         :pref-width 50
@@ -486,7 +480,7 @@
       (swap-state assoc :edited-breakpoint (first selection)))))
 
 (handler/defhandler :breakpoints.jump-to-line :breakpoints-view
-  (enabled? [selection] (= (count selection) 1))
+  (enabled? [selection] (= 1 (count selection)))
   (run [project swap-state open-resource-fn selection]
     (g/with-auto-evaluation-context evaluation-context
       (let [{:keys [resource row]} (first selection)]
