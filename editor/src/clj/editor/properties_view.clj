@@ -1421,7 +1421,7 @@
         (resolve-validation property localization-state))))
 
 (defmethod cljfx-component-view :default [property _ _]
-  ;; TODO delete
+  ;; TODO...
   {:fx/type fxui/paragraph
    :text (str "TODO: " (pr-str (properties/edit-type-id (:edit-type property))))})
 

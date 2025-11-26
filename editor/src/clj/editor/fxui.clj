@@ -1406,6 +1406,14 @@
 
 (def ^:private saved-colors-prefs-path [:workflow :saved-colors])
 
+(defn- handle-color-picker-shown [^MouseEvent e]
+  (when-let [overlay (.lookup (.getRoot (.getScene ^Node (.getSource e))) "#overlay")]
+    (.setVisible overlay true)))
+
+(defn- handle-color-picker-hidden [^MouseEvent e]
+  (when-let [overlay (.lookup (.getRoot (.getScene ^Node (.getSource e))) "#overlay")]
+    (.setVisible overlay false)))
+
 (defn color-picker
   "Color picker component
 
@@ -1445,7 +1453,9 @@
                      (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))})))
     (cond-> {:fx/type fx.color-picker/lifecycle
              :disable (not editable)
-             :style-class ["ext-color-picker"]}
+             :style-class ["ext-color-picker"]
+             :on-shown handle-color-picker-shown
+             :on-hidden handle-color-picker-hidden}
             value (assoc :value value)
             on-value-changed (assoc :on-value-changed on-value-changed)
             prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
