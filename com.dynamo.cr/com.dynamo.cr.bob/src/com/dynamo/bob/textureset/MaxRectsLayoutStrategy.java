@@ -62,7 +62,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         }
 
         ArrayList<Page> pages = new ArrayList<Page>();
-        while (srcNodes.size() > 0) {
+        while (!srcNodes.isEmpty()) {
             Page result = packPage(srcNodes);
             pages.add(result);
             srcNodes = result.remainingRects;
@@ -140,14 +140,14 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             BinarySearch sizeSearch = new BinarySearch(minSize, maxSize);
             int size = sizeSearch.reset();
             while (size != -1) {
-                Page result = packAtSize(true, size - settings.paddingX, size - settings.paddingY, inputRects, rectStats);
+                Page result = packAtSize(true, size - settings.paddingX, size - settings.paddingY, inputRects, rectStats, settings.rotation);
                 bestResult = getBest(bestResult, result);
                 size = sizeSearch.next(result == null);
             }
 
             // Rects don't fit on one page. Fill a whole page and return.
             if (bestResult == null) {
-                bestResult = packAtSize(false, maxSize - settings.paddingX, maxSize - settings.paddingY, inputRects, rectStats);
+                bestResult = packAtSize(false, maxSize - settings.paddingX, maxSize - settings.paddingY, inputRects, rectStats, settings.rotation);
             }
 
              bestResult.width = Math.max(bestResult.width, bestResult.height);
@@ -160,7 +160,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             while (true) {
                 Page bestWidthResult = null;
                 while (width != -1) {
-                    Page result = packAtSize(true, width - settings.paddingX, height - settings.paddingY, inputRects, rectStats);
+                    Page result = packAtSize(true, width - settings.paddingX, height - settings.paddingY, inputRects, rectStats, settings.rotation);
                     bestWidthResult = getBest(bestWidthResult, result);
                     width = widthSearch.next(result == null);
                 }
@@ -173,7 +173,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             }
             // Rects don't fit on one page. Fill a whole page and return.
             if (bestResult == null) {
-                bestResult = packAtSize(false, settings.maxPageWidth - settings.paddingX, settings.maxPageHeight - settings.paddingY, inputRects, rectStats);
+                bestResult = packAtSize(false, settings.maxPageWidth - settings.paddingX, settings.maxPageHeight - settings.paddingY, inputRects, rectStats, settings.rotation);
             }
         }
         return bestResult;
@@ -182,8 +182,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     /** @param fully If true, the only results that pack all rects will be considered. If false, all results are considered, not all
      *           rects may be packed.
      **/
-    private Page packAtSize(boolean fully, int width, int height, ArrayList<RectNode> inputRects, RectStats rectStats) {
-        if (!canFitInPage(width, height, rectStats, fully)) {
+    private Page packAtSize(boolean fully, int width, int height, ArrayList<RectNode> inputRects, RectStats rectStats, boolean checkRotation) {
+        if (!canFitInPage(width, height, rectStats, fully, checkRotation)) {
             return null;
         }
 
@@ -204,10 +204,10 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             result = maxRects.getResult();
             result.remainingRects = remaining;
 
-            if (fully && result.remainingRects.size() > 0) {
+            if (fully && !result.remainingRects.isEmpty()) {
                 continue;
             }
-            if (result.outputRects.size() == 0) {
+            if (result.outputRects.isEmpty()) {
                 continue;
             }
             bestResult = getBest(bestResult, result);
@@ -229,13 +229,13 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         return exponent;
     }
 
-    private boolean canFitInPage(int width, int height, RectStats stats, boolean fully) {
+    private boolean canFitInPage(int width, int height, RectStats stats, boolean fully, boolean checkRotation) {
         long availableArea = (long)width * (long)height;
         if (fully && availableArea < stats.totalArea) {
             return false;
         }
 
-        if (!settings.rotation) {
+        if (!checkRotation) {
             return width >= stats.maxWidth && height >= stats.maxHeight;
         }
 
@@ -286,12 +286,6 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             this.rect = new Rect(rect);
             this.score1 = 0;
             this.score2 = 0;
-        }
-
-        public RectNode(Rect rect, int score1, int score2) {
-            this.rect = new Rect(rect);
-            this.score1 = score1;
-            this.score2 = score2;
         }
 
         public RectNode(RectNode other) {
@@ -380,7 +374,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         /** For each rectangle, packs each one then chooses the best and packs that. Slow! */
         public Page pack (ArrayList<RectNode> rects, FreeRectChoiceHeuristic method) {
             rects = new ArrayList<RectNode>(rects);
-            while (rects.size() > 0) {
+            while (!rects.isEmpty()) {
                 int bestRectIndex = -1;
                 RectNode bestNode = new RectNode(new Rect(null, 0, 0, 0, 0, 0));
                 bestNode.score1 = Integer.MAX_VALUE;
@@ -886,5 +880,5 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         BottomLeftRule,
         // CP: Choosest the placement where the rectangle touches other rects as much as possible.
         ContactPointRule
-    };
+    }
 }
