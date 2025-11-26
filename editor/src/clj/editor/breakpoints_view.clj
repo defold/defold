@@ -53,7 +53,7 @@
 (def ^:private toolbar-height 57)
 
 (def ^:private edit-bp-icon-path "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z")
-(def ^:private delete-bp-icon-path "M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm6.36-13.64L15.41 12l2.95 2.95-2.95 2.95L12 15.41l-3.41 3.41-2.95-2.95L8.59 12 5.64 9.05l2.95-2.95L12 8.59l3.41-3.41z")
+(def ^:private delete-bp-icon-path "M16.417 10.283A7.917 7.917 0 1 1 8.5 2.366a7.916 7.916 0 0 1 7.917 7.917zm-6.804.01 3.032-3.033a.792.792 0 0 0-1.12-1.12L8.494 9.173 5.46 6.14a.792.792 0 0 0-1.12 1.12l3.034 3.033-3.033 3.033a.792.792 0 0 0 1.12 1.119l3.032-3.033 3.033 3.033a.792.792 0 0 0 1.12-1.12z")
 (def ^:private remove-condition-icon-path "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z")
 
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
@@ -188,7 +188,7 @@
                  :text (localization-state (localization/message "breakpoints.button.remove-all"))
                  :on-action (fn/partial action-all-fn #(vec (remove (set %2) %1)))}]}))
 
-(defn- icon-button [icon-path classes on-action-event]
+(defn- icon-button [icon-path scale classes on-action-event]
   {:fx/type fx.button/lifecycle
    :style-class (concat ["icon-button"] classes)
    :graphic {:fx/type fx.stack-pane/lifecycle
@@ -197,8 +197,8 @@
              :alignment :center
              :children [{:fx/type fx.svg-path/lifecycle
                          :content icon-path
-                         :scale-x 0.6
-                         :scale-y 0.6
+                         :scale-x scale
+                         :scale-y scale
                          :style-class ["icon-button-graphic"]}]}
    :on-action on-action-event})
 
@@ -293,12 +293,12 @@
                      :children
                      (concat
                        (when condition
-                         [(icon-button remove-condition-icon-path []
+                         [(icon-button remove-condition-icon-path 0.6 []
                                        (fn [_]
                                          (g/with-auto-evaluation-context evaluation-context
                                            (set-breakpoint-condition! project breakpoints breakpoint nil evaluation-context)
                                            (swap-state assoc :edited-breakpoint nil))))])
-                       [(icon-button edit-bp-icon-path [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
+                       [(icon-button edit-bp-icon-path 0.6 [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
          :on-mouse-clicked (fn [event]
                              (let [^MouseEvent me event]
                                (when (= 2 (.getClickCount me))
@@ -315,6 +315,7 @@
       :children
       [(icon-button
          delete-bp-icon-path
+         0.8
          ["remove-button"]
          (fn [event]
            (g/with-auto-evaluation-context evaluation-context
