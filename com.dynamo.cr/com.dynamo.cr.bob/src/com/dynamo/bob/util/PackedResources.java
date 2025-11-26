@@ -77,7 +77,6 @@ public class PackedResources {
 
     private static void runUnpackAllLibsAsync(Platform platform, Thread[] nativeLibThreads, AtomicReference<Throwable> nativeLibError) throws IOException {
         TimeProfiler.start("runUnpackAllLibsAsync");
-        // regular libs
         String platformPair = platform.getPair();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
 
@@ -160,7 +159,6 @@ public class PackedResources {
         } else {
             throw new IOException("Unsupported protocol for /libexec/" + platformPair + ": " + libexecRoot.getProtocol());
         }
-        awaitNativeLibLoads(nativeLibThreads, nativeLibError);
         TimeProfiler.stop();
     }
 
@@ -179,6 +177,7 @@ public class PackedResources {
         Thread unpackThread = new Thread(() -> {
             try {
                 runUnpackAllLibsAsync(platform, nativeLibThreads, nativeLibError);
+                awaitNativeLibLoads(nativeLibThreads, nativeLibError);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to unpack tools", e);
             } finally {
