@@ -8,8 +8,10 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.JarURLConnection;
 import java.net.URL;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
 
 public class PackedResources {
@@ -18,14 +20,63 @@ public class PackedResources {
     private static volatile boolean unpackDone = false;
     private static final Object unpackLock = new Object();
     private static JarFile jarFile;
+    private static final Class<?>[] NATIVE_LIB_CLASSES = new Class<?>[] {
+            TexcLibraryJni.class,
+            ShadercJni.class,
+            ModelImporterJni.class
+    };
 
-    private static void runUnpackAllLibsAsync(Platform platform) throws IOException {
+    private static void loadNativeLib(Class<?> libClass) {
+        TimeProfiler.start("loadNativeLib %s", libClass.getSimpleName());
+        try {
+            libClass.getDeclaredConstructor().newInstance();
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new RuntimeException("Failed to load native library: " + libClass.getSimpleName(), cause);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to load native library: " + libClass.getSimpleName(), e);
+        } finally {
+            TimeProfiler.stop();
+        }
+    }
+
+    private static Thread[] startNativeLibLoads(AtomicReference<Throwable> nativeLibError) {
+        Thread[] threads = new Thread[NATIVE_LIB_CLASSES.length];
+        for (int i = 0; i < NATIVE_LIB_CLASSES.length; i++) {
+            final Class<?> libClass = NATIVE_LIB_CLASSES[i];
+            threads[i] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        loadNativeLib(libClass);
+                    } catch (Throwable t) {
+                        nativeLibError.compareAndSet(null, t);
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        return threads;
+    }
+
+    private static void awaitNativeLibLoads(Thread[] threads, AtomicReference<Throwable> nativeLibError) {
+        for (Thread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while loading native libraries", e);
+            }
+        }
+
+        Throwable loadError = nativeLibError.get();
+        if (loadError != null) {
+            throw new RuntimeException("Failed to load native libraries", loadError);
+        }
+    }
+
+    private static void runUnpackAllLibsAsync(Platform platform, Thread[] nativeLibThreads, AtomicReference<Throwable> nativeLibError) throws IOException {
         TimeProfiler.start("runUnpackAllLibsAsync");
-        // unpacking for these happens in static initializers
-        new TexcLibraryJni();
-        new ShadercJni();
-        new ModelImporterJni();
-
         // regular libs
         String platformPair = platform.getPair();
         File targetDir = new File(Bob.getRootFolder(), platformPair);
@@ -109,6 +160,7 @@ public class PackedResources {
         } else {
             throw new IOException("Unsupported protocol for /libexec/" + platformPair + ": " + libexecRoot.getProtocol());
         }
+        awaitNativeLibLoads(nativeLibThreads, nativeLibError);
         TimeProfiler.stop();
     }
 
@@ -122,9 +174,11 @@ public class PackedResources {
             }
             unpackStarted = true;
         }
+        final AtomicReference<Throwable> nativeLibError = new AtomicReference<>();
+        final Thread[] nativeLibThreads = startNativeLibLoads(nativeLibError);
         Thread unpackThread = new Thread(() -> {
             try {
-                runUnpackAllLibsAsync(platform);
+                runUnpackAllLibsAsync(platform, nativeLibThreads, nativeLibError);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to unpack tools", e);
             } finally {
