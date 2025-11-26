@@ -323,12 +323,11 @@
          ["remove-button"]
          (fn [event]
            (g/with-auto-evaluation-context evaluation-context
-             (let [breakpoints-in-script (get-breakpoints-in-script breakpoints breakpoint)
-                   script-node (breakpoint->script-node project breakpoint evaluation-context)
-                   remaining (filterv #(not (= breakpoint %)) breakpoints-in-script)
-                   regions (update-script-regions-from-breakpoints script-node remaining evaluation-context)]
-               (swap-state #(assoc % :breakpoints (vec (remove #{breakpoint} (:breakpoints %)))))
-               (g/set-property! script-node :regions regions)))))]}}))
+             (.lookup (ui/main-root) "#breakpoints-table-view"))
+             (set-regions-with-action! swap-state project evaluation-context
+                                       breakpoints
+                                       [breakpoint]
+                                       #(vec (remove (set %2) %1))))))]}}))
 
 (defn- ->breakpoints-selection-provider [table-view breakpoints]
   (reify handler/SelectionProvider
@@ -345,25 +344,20 @@
       (fn [table-view [project breakpoints swap-state]]
         (let [selection-provider (->breakpoints-selection-provider table-view breakpoints)]
           (ui/context! table-view :breakpoints-view
-                       {:project project
-                        :table-view table-view
-                        :swap-state swap-state
-                        :breakpoints breakpoints
-                        :selection-provider selection-provider}
+                       {:project project :swap-state swap-state :breakpoints breakpoints}
                        selection-provider
                        {}
                        {resource/Resource #(:resource %)}))))
     fx.lifecycle/scalar))
 
 (defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
-  (let [{:keys [breakpoints selected-indices]} state]
+  (let [{:keys [breakpoints]} state]
     {:fx/type fx.ext.table-view/with-selection-props
      :anchor-pane/top toolbar-height
      :anchor-pane/right 0
      :anchor-pane/bottom 0
      :anchor-pane/left 0
-     :props {:selection-mode :multiple
-             :on-selected-indices-changed #(swap-state assoc :selected-indices %)}
+     :props {:selection-mode :multiple}
      :desc
      {:fx/type fx.table-view/lifecycle
       :id "breakpoints-table-view"
@@ -426,9 +420,7 @@
               :key :localization-state}
              {:fx/type fx/ext-state
               :initial-state {:breakpoints (:breakpoints (:context props))
-                              :selected-indices []
-                              :edited-breakpoint nil
-                              :edited-condition nil}}]}
+                              :edited-breakpoint nil}}]}
   [{:keys [context localization-state parent state swap-state]}]
   (let [project (:project context)
         open-resource-fn (:open-resource-fn context)]
@@ -529,7 +521,7 @@
   (save-breakpoints! (dev/prefs) (g/node-value (dev/project) :breakpoints))
   (restore-breakpoints! (dev/project) (dev/prefs))
 
-  (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints-view.edit-breakpoint)
+  (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints.toggle-selected-enabled)
 
   (prefs/get (dev/prefs) [:window :keymap])
 
