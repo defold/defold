@@ -15,9 +15,7 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
-            [cljfx.fx.color-picker :as fx.color-picker]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.pane :as fx.pane]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -42,10 +40,10 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
-            [util.fn :as fn]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
-  (:import [editor.properties Curve CurveSpread]
+  (:import [com.defold.control DefoldStringConverter]
+           [editor.properties Curve CurveSpread]
            [java.util Collection]
            [javafx.geometry Insets Point2D VPos]
            [javafx.scene Node Parent]
@@ -1418,6 +1416,29 @@
          :prefs prefs
          :editable (not (properties/read-only? property))}
         (resolve-validation property localization-state))))
+
+#_(defmethod make-property-control :choicebox [{:keys [options]} _context property-fn]
+    (let [combo-box (fuzzy-combo-box/make options)]))
+;; todo: why doesn't it support keyboard normally????
+
+(defn- make-choicebox-options-converter [options]
+  (let [options (into {} options)]
+    (DefoldStringConverter. #(or (options %) (str %)))))
+
+(defmethod cljfx-component-view :choicebox [property _context localization-state]
+  (let [options (:options (:edit-type property))]
+    {:fx/type fxui/label
+     :text "TODO: combo box..."}
+    #_{:fx/type fxui/ext-memo
+       :fn make-choicebox-options-converter
+       :args [options]
+       :key :converter
+       :desc (-> {:fx/type fxui/combo-box
+                  :disable (properties/read-only? property)
+                  :value (properties/unify-values (properties/values property))
+                  :on-value-changed #(properties/set-values! property (repeat %))
+                  :items (mapv first options)}
+                 (resolve-validation property localization-state))}))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...

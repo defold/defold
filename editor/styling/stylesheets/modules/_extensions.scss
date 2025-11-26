@@ -252,10 +252,26 @@ $ext-line-height: 26px;
         -fx-min-height: $ext-line-height;
         -fx-max-height: $ext-line-height;
         -fx-background-color: -df-component-dark;
-        -fx-background-radius: 2px;
+        -fx-background-radius: 0 2px 2px 0;
         -fx-alignment: center;
+        &-field {
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+            &:focused {
+                -fx-border-radius: 2px 0 0 2px;
+                -fx-border-width: 1px 0 2px 1px;
+            }
+        }
         &:hover {
             -fx-background-color: -df-component-light;
+        }
+        &:warning {
+            -fx-background-color: -df-error-severity-warning-dim;
+            &:hover { -fx-background-color: -df-error-severity-warning; }
+        }
+        &:error {
+            -fx-background-color: -df-error-severity-fatal-dim;
+            &:hover { -fx-background-color: -df-error-severity-fatal; }
         }
         & > .arrow-button { visibility: hidden; }
         & > .color-picker-label {

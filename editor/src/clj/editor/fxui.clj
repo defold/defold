@@ -52,6 +52,7 @@
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.ui :as ui]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
@@ -68,15 +69,16 @@
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
-           [javafx.scene Node Parent]
-           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
+           [javafx.scene Node Parent TraversalDirection]
+           [javafx.scene.control ChoiceBox ComboBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape SVGPath]
            [javafx.stage PopupWindow Window]
-           [javafx.util Callback Duration]))
+           [javafx.util Callback Duration StringConverter]
+           [javafx.util.converter DefaultStringConverter]))
 
 (set! *warn-on-reflection* true)
 
@@ -1247,7 +1249,7 @@
         (.put properties ::invalid-value-animation animation)
         (.play animation)))))
 
-(defn- handle-value-field-key-pressed [edit text swap-state on-value-changed to-value commit-on-enter ^KeyEvent e]
+(defn- handle-value-field-key-pressed [edit text swap-state on-value-changed on-invalid-value to-value commit-on-enter ^KeyEvent e]
   (condp = (.getCode e)
     KeyCode/ENTER
     (when (and (or commit-on-enter (.isShortcutDown e))
@@ -1256,7 +1258,7 @@
       (if-some [value (to-value edit)]
         (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
             (when on-value-changed (on-value-changed value)))
-        (play-invalid-value-animation! (.getSource e))))
+        (on-invalid-value (.getSource e))))
 
     KeyCode/ESCAPE
     (when-not (= edit text)
@@ -1313,21 +1315,22 @@
     fx.lifecycle/scalar))
 
 (defn- value-field-impl-final-step
-  [{:keys [state swap-state text on-value-changed to-value component commit-on-enter hover-overlay]
-    :or {to-value identity}
+  [{:keys [state swap-state text on-value-changed on-invalid-value to-value component commit-on-enter hover-overlay]
+    :or {to-value identity
+         on-invalid-value play-invalid-value-animation!}
     :as props}]
   (let [edit (:edit state text)]
     (-> props
         (assoc :fx/type component
-               :on-text-changed (fn/partial swap-state assoc :edit)
-               :on-key-pressed (fn/partial handle-value-field-key-pressed edit text swap-state on-value-changed to-value commit-on-enter)
-               :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value)
+               :on-text-changed #(swap-state assoc :edit %)
+               :on-key-pressed #(handle-value-field-key-pressed edit text swap-state on-value-changed on-invalid-value to-value commit-on-enter %)
+               :on-focused-changed #(handle-value-field-focused-changed edit text swap-state on-value-changed to-value %)
                prop-value-field-text edit
                prop-select-all-text-on-click true)
         (cond-> hover-overlay
                 (-> (dissoc :hover-overlay)
                     (assoc prop-hover-overlay hover-overlay)))
-        (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))))
+        (dissoc :state :swap-state :on-value-changed :on-invalid-value :to-value :text :component :commit-on-enter))))
 
 (defn- stringify-value [f v]
   (if (nil? v)
@@ -1356,6 +1359,8 @@
   Supports all :text-field props, plus:
     :value               the edited value
     :on-value-changed    value change callback
+    :on-invalid-value    called when invalid value is submitted, wiggles the
+                         view by default
     :to-string           value->string converter, default str
     :to-value            string->value converter, default identity, returning
                          nil implies value could not be converted
@@ -1414,6 +1419,9 @@
   (when-let [overlay (.lookup (.getRoot (.getScene ^Node (.getSource e))) "#overlay")]
     (.setVisible overlay false)))
 
+(defn- on-color-picker-invalid-value [^Node text-field]
+  (play-invalid-value-animation! (.getParent text-field)))
+
 (defn color-picker
   "Color picker component
 
@@ -1422,19 +1430,21 @@
                            false
     :color-dropper-view    node id of a color dropper component, enables color
                            dropper if provided
-    :prefs                 if provided, loads/persists custom colors"
-  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable]
+    :prefs                 if provided, loads/persists custom colors
+    :color                 either :warning or :error"
+  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable color]
     :or {editable true}
     :as props}]
   {:fx/type horizontal
-   :spacing :small
    :children
    [(-> props
         (dissoc :ignore-alpha :color-dropper-view :prefs)
         (assoc :fx/type value-field
+               :style-class ["ext-color-picker-field"]
                :h-box/hgrow :always
                :to-string (fn/partial color->web-string ignore-alpha)
-               :to-value web-string->color)
+               :to-value web-string->color
+               :on-invalid-value on-color-picker-invalid-value)
         (cond-> (and color-dropper-view editable)
                 (assoc
                   :hover-overlay
@@ -1452,10 +1462,12 @@
                      on-value-changed
                      (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))})))
     (cond-> {:fx/type fx.color-picker/lifecycle
+             :focus-traversable false
              :disable (not editable)
              :style-class ["ext-color-picker"]
              :on-shown handle-color-picker-shown
              :on-hidden handle-color-picker-hidden}
+            color (assoc :pseudo-classes #{color})
             value (assoc :value value)
             on-value-changed (assoc :on-value-changed on-value-changed)
             prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)

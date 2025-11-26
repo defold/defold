@@ -17,7 +17,6 @@
             [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.combo-box :as fx.combo-box]
-            [cljfx.fx.combo-box-list-cell :as fx.combo-box-list-cell]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.list-cell :as fx.list-cell]
