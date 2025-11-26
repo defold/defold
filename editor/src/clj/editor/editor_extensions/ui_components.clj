@@ -678,7 +678,7 @@
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
   [{:keys [enabled text result cancel default localization-state]
     :or {enabled true cancel false default false}}]
-  (let [button {:fx/type fxui/button
+  (let [button {:fx/type fxui/legacy-button
                 :disable (not enabled)
                 :variant (if default :primary :secondary)
                 :cancel-button cancel

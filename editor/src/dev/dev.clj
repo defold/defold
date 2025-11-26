@@ -1457,7 +1457,7 @@
                          :progress (or (progress/fraction progress)
                                        -1.0)}]} ; Indeterminate.
    :footer {:fx/type dialogs/dialog-buttons
-            :children [{:fx/type fxui/button
+            :children [{:fx/type fxui/legacy-button
                         :text "Cancel"
                         :cancel-button true
                         :on-action {:event-type :cancel}}]}})

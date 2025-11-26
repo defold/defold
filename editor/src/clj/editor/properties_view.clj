@@ -15,7 +15,9 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.fx.color-picker :as fx.color-picker]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.pane :as fx.pane]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -40,6 +42,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
+            [util.fn :as fn]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
@@ -592,7 +595,7 @@
 (defmethod make-property-control types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
-        pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
+        pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha edit-type) c))
         saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (icons/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
                         (ui/add-styles! ["action-button" "color-dropper"])
@@ -600,7 +603,7 @@
                         (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
         text (TextField.)
         color-picker (ColorPicker.)
-        ignore-alpha (:ignore-alpha? edit-type)
+        ignore-alpha (:ignore-alpha edit-type)
         value->display-color #(some-> % value->color (color->web-string ignore-alpha))
         get-overlay #(.lookup (ui/main-root) "#overlay")
         pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
@@ -1185,38 +1188,43 @@
   Args:
     input-desc    cljfx view description
     property      coalesced property
+    alignment     hover overlay alignment
     ->value       2-arg function that receives a value of a single uncoalesced
                   property and a new scrubbed value (double), should return the
                   new value
     ->number      1-arg function that converts a value of a single uncoalesced
                   property and extracts a numeric value from it"
-  ([input-desc property ->value]
-   (resolve-scrubber input-desc property ->value identity))
-  ([input-desc property ->value ->number]
+  ([input-desc property alignment ->value]
+   (resolve-scrubber input-desc property alignment ->value identity))
+  ([input-desc property alignment ->value ->number]
    (cond-> input-desc
            (not (properties/read-only? property))
            (assoc
              :hover-overlay
-             {:fx/type fxui/scrubber
-              :on-scrubbed
-              (fn []
-                (let [{min-value :min
-                       max-value :max
-                       :keys [precision]
-                       :or {precision 1.0}} (:edit-type property)
-                      opseq (gensym)
-                      initial-values (properties/values property)
-                      doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
-                  (fn [^double delta]
-                    (let [new-doubles (vswap!
-                                        doubles-vol
-                                        coll/mapv>
-                                        #(cond-> (+ ^double % delta)
-                                                 min-value (max (double min-value))
-                                                 max-value (min (double max-value))))
-                          new-values (mapv #(->value (initial-values %) (new-doubles %))
-                                           (range (count new-doubles)))]
-                      (properties/set-values! property new-values opseq)))))}))))
+             {:fx/type fxui/hover-overlay
+              :padding 1
+              :alignment alignment
+              :content
+              {:fx/type fxui/scrubber
+               :on-scrubbed
+               (fn []
+                 (let [{min-value :min
+                        max-value :max
+                        :keys [precision]
+                        :or {precision 1.0}} (:edit-type property)
+                       opseq (gensym)
+                       initial-values (properties/values property)
+                       doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
+                   (fn [^double delta]
+                     (let [new-doubles (vswap!
+                                         doubles-vol
+                                         coll/mapv>
+                                         #(cond-> (+ ^double % delta)
+                                                  min-value (max (double min-value))
+                                                  max-value (min (double max-value))))
+                           new-values (mapv #(->value (initial-values %) (new-doubles %))
+                                            (range (count new-doubles)))]
+                       (properties/set-values! property new-values opseq)))))}}))))
 
 (defn- scrubbed-int [_ ^double n]
   (int (Math/round n)))
@@ -1228,7 +1236,7 @@
        :on-value-changed #(properties/set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
       (resolve-value property)
-      (resolve-scrubber property scrubbed-int)
+      (resolve-scrubber property :right scrubbed-int)
       (resolve-validation property localization-state)
       (resolve-script-property-style-class property)))
 
@@ -1241,7 +1249,7 @@
          :on-value-changed #(properties/set-values! property (repeat (cond-> % is-float float)))
          :editable (not (properties/read-only? property))}
         (resolve-value property)
-        (resolve-scrubber property #((old-num->round-num-fn old-num) %2))
+        (resolve-scrubber property :right #((old-num->round-num-fn old-num) %2))
         (resolve-validation property localization-state)
         (resolve-script-property-style-class property))))
 
@@ -1291,6 +1299,7 @@
                  (resolve-validation property localization-state)
                  (resolve-scrubber
                    property
+                   :left
                    #(assoc %1 i ((old-num->round-num-fn old-num) %2))
                    #(% i)))]})))}))
 
@@ -1344,7 +1353,7 @@
            :on-value-changed (fn [new-num]
                                (properties/set-values! property (mapv #(set-fn % new-num) (properties/values property))))}
           (resolve-validation property localization-state)
-          (resolve-scrubber property #(set-fn %1 (properties/round-scalar-float %2)) curve-get-fn))]}))
+          (resolve-scrubber property :left #(set-fn %1 (properties/round-scalar-float %2)) curve-get-fn))]}))
 
 (defmethod cljfx-component-view Curve [property _context localization-state]
   {:fx/type curve-component-view
@@ -1381,7 +1390,35 @@
              :on-value-changed (fn [spread]
                                  (properties/set-values! property (mapv #(assoc % :spread spread) (properties/values property))))}
             (resolve-validation property localization-state)
-            (resolve-scrubber property #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
+            (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
+
+(defn- color->vec [^Color color]
+  [(float (.getRed color))
+   (float (.getGreen color))
+   (float (.getBlue color))
+   (float (.getOpacity color))])
+
+(defn- vec->color [[r g b a]]
+  (Color. (float r) (float g) (float b) (float a)))
+
+(defn- set-color-vector! [property new-value]
+  (properties/set-values!
+    property
+    (if (:ignore-alpha (:edit-type property))
+      (mapv #(assoc new-value 3 (% 3)) (properties/values property))
+      (repeat new-value))))
+
+(defmethod cljfx-component-view types/Color [property {:keys [color-dropper-view prefs]} localization-state]
+  (let [values (properties/values property)
+        value (properties/unify-values values)]
+    (-> {:fx/type fxui/color-picker
+         :value (some-> value vec->color)
+         :on-value-changed #(set-color-vector! property (color->vec %))
+         :ignore-alpha (:ignore-alpha (:edit-type property))
+         :color-dropper-view color-dropper-view
+         :prefs prefs
+         :editable (not (properties/read-only? property))}
+        (resolve-validation property localization-state))))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO delete

@@ -64,6 +64,15 @@
             visibility: visible;
         }
     }
+
+    .color-dropper-icon {
+        &:hover {
+            -fx-cursor: hand;
+            & > .image-view {
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+            }
+        }
+    }
 }
 @mixin script-property-text-field-icon-template($icon) {
   -fx-background-image: url('icons/32/Icons_#{$icon}.png');

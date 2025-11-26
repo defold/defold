@@ -550,7 +550,7 @@
   {:fx/type fx.v-box/lifecycle
    :style-class "override-inspector-tool-bar"
    :children
-   [{:fx/type fxui/button
+   [{:fx/type fxui/legacy-button
      :variant :icon
      :on-action {:event-type :on-refresh-view}
      :graphic {:fx/type fxui/icon-graphic

@@ -644,7 +644,7 @@
              :clear-fn attribute-clear-fn}
 
             (= semantic-type :semantic-type-color)
-            (assoc :ignore-alpha? (not= :vector-type-vec4 vector-type)))))
+            (assoc :ignore-alpha (not= :vector-type-vec4 vector-type)))))
 
 (defn- attribute-property-value [attribute-values property-type semantic-type source-vector-type target-vector-type]
   (if (= g/Num property-type)

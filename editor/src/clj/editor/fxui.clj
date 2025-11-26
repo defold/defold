@@ -19,6 +19,7 @@
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.color-picker :as fx.color-picker]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.grid-pane :as fx.grid-pane]
@@ -26,6 +27,7 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-button :as fx.menu-button]
+            [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
@@ -42,11 +44,13 @@
             [cljfx.prop :as fx.prop]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.color-dropper :as color-dropper]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
             [editor.localization :as localization]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.ui :as ui]
             [editor.util :as util]
             [util.coll :as coll]
@@ -64,11 +68,12 @@
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
-           [javafx.scene Node]
+           [javafx.scene Node Parent]
            [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
+           [javafx.scene.paint Color]
            [javafx.scene.shape SVGPath]
            [javafx.stage PopupWindow Window]
            [javafx.util Callback Duration]))
@@ -472,18 +477,6 @@
       :right (assoc props :alignment :center-right)
       :bottom (assoc props :alignment :bottom-center))))
 
-(defn- invert-alignment [alignment]
-  (case alignment
-    :top-left :bottom-right
-    (:top :top-center) :bottom-center
-    :top-right :bottom-left
-    (:right :center-right) :center-left
-    :bottom-right :top-left
-    (:bottom :bottom-center) :top-center
-    :bottom-left :top-right
-    (:left :center-left) :center-right
-    :center :center))
-
 (defn tooltip [props]
   (-> props
       (assoc :fx/type fx.tooltip/lifecycle)
@@ -609,8 +602,10 @@
         (throw (ex-info (str "Unexpected tooltip value: " v) {:tooltip v}))))
     props))
 
-(defn button
+(defn ^:deprecated legacy-button
   "Generic `:button` with styling determined by `:variant`.
+
+  Deprecated: use [[button]]
 
   Additional keys:
   - `:variant` (optional, default `:secondary`) - a styling variant, either
@@ -1112,10 +1107,11 @@
       (prepend-style-classes "combo-box" "combo-box-base")
       resolve-tooltip))
 
-(defn- hover-overlay-view
-  "Private overlay that should be used by other views to shows content on hover
+(defn hover-overlay
+  "Overlay that should be used as :hover-overlay component of a value field
 
   Supports all :v-box props, plus:
+    :content      a single child description
     :alignment    additionally supports :top, :left, :right and :bottom"
   [props]
   {:pre [(:content props)]}
@@ -1124,9 +1120,9 @@
       (assoc :fx/type fx.v-box/lifecycle
              :children [(:content props)])
       (dissoc :content)
-      (util/provide-defaults
-        :fill-width false)
-      resolve-alignment))
+      (util/provide-defaults :fill-width false)
+      resolve-alignment
+      resolve-padding))
 
 (def ^:private prop-hover-overlay
   (fx/make-binding-prop
@@ -1218,6 +1214,23 @@
       (cond-> on-scrubbed (-> (dissoc :on-scrubbed)
                               (assoc prop-on-scrubbed on-scrubbed)))))
 
+(defn button
+  "Button component"
+  [props]
+  (let [has-text (not (string/blank? (:text props "")))
+        has-icon (some? (:graphic props))]
+    (-> props
+        (assoc :fx/type fx.button/lifecycle)
+        (util/provide-defaults
+          :style-class (cond
+                         (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
+                         has-text ["ext-button" "ext-button-text"]
+                         has-icon ["ext-button" "ext-button-icon"]
+                         :else ["ext-button"])
+          :alignment :center
+          :focus-traversable false)
+        resolve-alignment)))
+
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]
     (if-let [^SequentialTransition animation (.get properties ::invalid-value-animation)]
@@ -1277,24 +1290,25 @@
                                          (when-not (.isFocused text-input)
                                            (.deselect text-input)
                                            (vreset! select-on-release true)))
+              ;; sometimes its children remain pressed...
+              pressed-pseudo-class (PseudoClass/getPseudoClass "pressed")
               ^EventHandler on-released (fn [_]
+                                          (run!
+                                            #(.pseudoClassStateChanged ^Node % pressed-pseudo-class false)
+                                            (eduction
+                                              (coll/tree-xf #(instance? Parent %) Parent/.getChildrenUnmodifiable)
+                                              [text-input]))
                                           (when @select-on-release
                                             (vreset! select-on-release false)
                                             (when (and (.isFocused text-input)
                                                        (string/blank? (.getSelectedText text-input)))
-                                              (fx/run-later (.selectAll text-input)))))
-              ;; sometimes it remains pressed...
-              pressed-pseudo-class (PseudoClass/getPseudoClass "pressed")
-              ^ChangeListener on-blur (fn [_ _ focused]
-                                        (when-not focused
-                                          (.pseudoClassStateChanged text-input pressed-pseudo-class false)))]
-          (.addListener (.focusedProperty text-input) on-blur)
+                                              (fx/run-later (.selectAll text-input)))))]
+
           ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
           (.addEventFilter text-input MouseEvent/MOUSE_PRESSED on-pressed)
           ;; Filter is necessary because the TextArea captures the event
           (.addEventFilter text-input MouseEvent/MOUSE_RELEASED on-released)
-          #(do (.removeListener (.focusedProperty text-input) on-blur)
-               (.removeEventFilter text-input MouseEvent/MOUSE_PRESSED on-pressed)
+          #(do (.removeEventFilter text-input MouseEvent/MOUSE_PRESSED on-pressed)
                (.removeEventFilter text-input MouseEvent/MOUSE_RELEASED on-released)))))
     fx.lifecycle/scalar))
 
@@ -1312,14 +1326,11 @@
                prop-select-all-text-on-click true)
         (cond-> hover-overlay
                 (-> (dissoc :hover-overlay)
-                    (assoc prop-hover-overlay {:fx/type hover-overlay-view
-                                               :padding 1
-                                               :alignment (invert-alignment (:alignment props :left))
-                                               :content hover-overlay})))
+                    (assoc prop-hover-overlay hover-overlay)))
         (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))))
 
 (defn- stringify-value [f v]
-  (if (identical? v ::not-found)
+  (if (nil? v)
     ""
     (str (f v))))
 
@@ -1334,7 +1345,7 @@
 
 (defn- make-value-field [component commit-on-enter props]
   {:fx/type fx/ext-state
-   :initial-state {:value (:value props ::not-found)}
+   :initial-state {:value (:value props)}
    :desc (assoc props :fx/type value-field-impl-stringify-step
                       :component component
                       :commit-on-enter commit-on-enter)})
@@ -1375,6 +1386,70 @@
                          nil implies value could not be converted"
   [props]
   (make-value-field text-area false props))
+
+(defn- color->web-string
+  ([color]
+   (color->web-string false color))
+  ([ignore-alpha ^Color color]
+   (let [nr (Math/round (* (float 255.0) (float (.getRed color))))
+         ng (Math/round (* (float 255.0) (float (.getGreen color))))
+         nb (Math/round (* (float 255.0) (float (.getBlue color))))
+         na (Math/round (* (float 255.0) (float (.getOpacity color))))]
+     (if (or ignore-alpha (= 255 na))
+       (format "#%02x%02x%02x" nr ng nb)
+       (format "#%02x%02x%02x%02x" nr ng nb na)))))
+
+(defn- web-string->color [^String s]
+  (try (Color/valueOf s) (catch IllegalArgumentException _)))
+
+(def ^:private on-color-dropper-mouse-pressed MouseEvent/.consume)
+
+(def ^:private saved-colors-prefs-path [:workflow :saved-colors])
+
+(defn color-picker
+  "Color picker component
+
+  Accepts :text-field props, plus:
+    :ignore-alpha          whether the view should ignore the alpha, default
+                           false
+    :color-dropper-view    node id of a color dropper component, enables color
+                           dropper if provided
+    :prefs                 if provided, loads/persists custom colors"
+  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable]
+    :or {editable true}
+    :as props}]
+  {:fx/type horizontal
+   :spacing :small
+   :children
+   [(-> props
+        (dissoc :ignore-alpha :color-dropper-view :prefs)
+        (assoc :fx/type value-field
+               :h-box/hgrow :always
+               :to-string (fn/partial color->web-string ignore-alpha)
+               :to-value web-string->color)
+        (cond-> (and color-dropper-view editable)
+                (assoc
+                  :hover-overlay
+                  {:fx/type hover-overlay
+                   :alignment :right
+                   :padding 4
+                   :content
+                   (cond->
+                     {:fx/type fx.pane/lifecycle
+                      :style-class "color-dropper-icon"
+                      :children [{:fx/type ui/image-icon
+                                  :path "icons/32/Icons_M_03_colorpicker.png"
+                                  :size 16.0}]
+                      :on-mouse-pressed on-color-dropper-mouse-pressed}
+                     on-value-changed
+                     (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))})))
+    (cond-> {:fx/type fx.color-picker/lifecycle
+             :disable (not editable)
+             :style-class ["ext-color-picker"]}
+            value (assoc :value value)
+            on-value-changed (assoc :on-value-changed on-value-changed)
+            prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                         :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))]})
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
   (fx/make-ext-with-props
