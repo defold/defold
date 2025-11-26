@@ -146,7 +146,7 @@
 (handler/register-menu! ::breakpoint-menu
   [{:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.show-in-assets}
+    :command :breakpoints.show-in-assets}
    {:label (localization/message "breakpoints.context-menu.jump-to-line")
     :command :breakpoints.jump-to-line}
    menu-items/separator
@@ -341,7 +341,11 @@
       (fn [table-view [project open-resource-fn breakpoints swap-state]]
         (let [selection-provider (->breakpoints-selection-provider table-view breakpoints)]
           (ui/context! table-view :breakpoints-view
-                       {:project project :swap-state swap-state :breakpoints breakpoints :open-resource-fn open-resource-fn}
+                       {:project project
+                        :table-view table-view
+                        :swap-state swap-state
+                        :breakpoints breakpoints
+                        :open-resource-fn open-resource-fn}
                        selection-provider
                        {}
                        {resource/Resource #(:resource %)}))))
@@ -487,6 +491,11 @@
       (let [{:keys [resource row]} (first selection)]
         (open-resource-fn resource (inc row))))))
 
+(handler/defhandler :breakpoints.show-in-assets :breakpoints-view
+  (enabled? [selection] (= 1 (count selection)))
+  (run [table-view]
+    (ui/run-command table-view :file.show-in-assets)))
+
 (comment
   (g/node-value @the-view :breakpoints)
   (handler/selection (ui/->selection-provider (.lookup (ui/main-root) "#breakpoints-table-view")))
@@ -502,6 +511,8 @@
         auto-pulls [[bp-view :anchor-pane]]]
     (reset! the-view bp-view)
     (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
+
+  (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints.show-in-assets)
 
   (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
         table (.lookup (ui/main-root) "#breakpoints-table-view")]
