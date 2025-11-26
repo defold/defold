@@ -28,6 +28,9 @@
 
 #include "text_layout.h"
 
+static const uint32_t CHAR_NEWLINE = '\n';
+static const uint32_t CHAR_FALLBACK = '~'; // 126
+
 static inline uint32_t NextBreak(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* cursor, uint32_t* n)
 {
     uint32_t c = 0;
@@ -90,7 +93,7 @@ void Layout(TextLayout*     layout,
                     last_n = n - trim;
                     last_w = w;
                     last_cursor = cursor;
-                    if (c != '\n' && !measure_trailing_space)
+                    if (c != CHAR_NEWLINE && !measure_trailing_space)
                         c = SkipWS(glyphs, num_glyphs, &cursor, &n);
                 }
                 else if (last_n != 0)
@@ -100,7 +103,7 @@ void Layout(TextLayout*     layout,
                     c = glyphs[last_cursor++].m_Codepoint;
                 }
             }
-        } while (dmMath::Abs(w) <= width && c != 0 && c != '\n');
+        } while (dmMath::Abs(w) <= width && c != 0 && c != CHAR_NEWLINE);
         if (dmMath::Abs(w) > width && last_n == 0)
         {
             int trim = 0;
@@ -213,24 +216,30 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     // Lay them all out in a single line, using points
     uint32_t x = 0;
     uint32_t y = 0; // the legacy "shaping" doesn't support Y offsets
-    uint32_t fallback_codepoint = 126; // '~'   ;
     FontGlyph font_glyph;
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
         uint32_t c = codepoints[i];
         FontResult r = FontGetGlyph(font, c, &options, &font_glyph);
 
-        if (FONT_RESULT_OK != r && fallback_codepoint)
+        if (FONT_RESULT_OK != r && CHAR_FALLBACK)
         {
-            r = FontGetGlyph(font, fallback_codepoint, &options, &font_glyph);
+            r = FontGetGlyph(font, CHAR_FALLBACK, &options, &font_glyph);
         }
 
         TextGlyph g = {0};
         g.m_Font = font;
+        g.m_Codepoint = c;
+
+        uint32_t whitespace = dmUtf8::IsWhiteSpace(c);
+        num_whitespaces += whitespace;
+
         if (FONT_RESULT_OK == r)
         {
-            g.m_Cluster = i;
-            g.m_Codepoint = font_glyph.m_Codepoint;
+            if (!whitespace)
+            {
+                g.m_Codepoint = font_glyph.m_Codepoint;   // may be the correct one, or the fallback one
+            }
             g.m_GlyphIndex = font_glyph.m_GlyphIndex;
             g.m_X = x;
             g.m_Y = y;
@@ -241,8 +250,6 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
 
             x += g.m_Advance;
         }
-
-        num_whitespaces += dmUtf8::IsWhiteSpace(c);
 
         layout->m_Glyphs[i] = g;
     }

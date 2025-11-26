@@ -58,6 +58,11 @@ static bool LayoutText(LayoutContext* ctx,
     HFontCollection font_collection = layout->m_FontCollection;
 
     float line_width = settings->m_Width;
+    // Ensure explicit line breaks are honored without forcing word-wrap.
+    // When auto line breaking is disabled or width is zero, use a very large width
+    // and keep wrap enabled so the layout engine can still split on '\n'.
+    if (!settings->m_LineBreak || line_width <= 0.0f)
+        line_width = 1000000.0f;
     skb_layout_params_t params = {0};
     params.font_collection    = FontCollectionGetSkribidiPtr(font_collection),
     params.lang               = "en-us",                  // TODO: support setting
@@ -65,7 +70,9 @@ static bool LayoutText(LayoutContext* ctx,
     params.layout_width       = line_width,
     params.layout_height      = 1000000.0f,
     params.base_direction     = SKB_DIRECTION_AUTO,
-    params.text_wrap          = (uint8_t)(settings->m_LineBreak ? SKB_WRAP_WORD : SKB_WRAP_NONE),
+    // Always allow wrapping in the layout engine. With a very large width, this
+    // does not introduce automatic wraps, but it lets explicit '\n' split lines.
+    params.text_wrap          = (uint8_t)SKB_WRAP_WORD,
     params.text_overflow      = SKB_OVERFLOW_NONE,
     params.vertical_trim      = SKB_VERTICAL_TRIM_DEFAULT,
     params.horizontal_align   = SKB_ALIGN_START,          // TODO: support the other way around (ask author for SKB_ALIGN_RIGHT/LEFT ?)
@@ -152,13 +159,21 @@ static bool LayoutText(LayoutContext* ctx,
                 max_glyph_bounds_height = dmMath::Max(max_glyph_bounds_height, -bounds.height);
 
                 uint32_t codepoint_index = skbglyph->text_range.start;
+                uint32_t cp = codepoints[codepoint_index];
+
+                // Skip explicit line break codepoints. They should not
+                // contribute a visible glyph nor count towards line length.
+                if (cp == dmUtf8::UTF_WHITESPACE_NEW_LINE || cp == dmUtf8::UTF_WHITESPACE_CARRIAGE_RETURN)
+                {
+                    continue;
+                }
 
                 TextGlyph glyph = {0};
                 glyph.m_X           = gx;
                 glyph.m_Y           = gy;
                 glyph.m_GlyphIndex  = skbglyph->gid;
                 glyph.m_Cluster     = codepoint_index;
-                glyph.m_Codepoint   = codepoints[codepoint_index];
+                glyph.m_Codepoint   = cp;
                 glyph.m_Width       = bounds.width;
                 glyph.m_Height      = bounds.height;
                 glyph.m_Font        = FontCollectionGetFontFromHandle(font_collection, skbglyph->font_handle);
@@ -248,4 +263,3 @@ TextResult TextLayoutSkribidiCreate(HFontCollection collection,
 }
 
 #endif // FONT_USE_SKRIBIDI
-
