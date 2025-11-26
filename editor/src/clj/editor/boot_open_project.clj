@@ -207,7 +207,7 @@
                                                       (partial app-view/debugger-state-changed! scene tool-tabs)
                                                       localization)
 
-          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource app-view *view-graph* prefs (.lookup root "#breakpoints-container"))
+          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource *view-graph* prefs (.lookup root "#breakpoints-container"))
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
