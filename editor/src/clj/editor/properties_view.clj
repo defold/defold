@@ -1401,20 +1401,19 @@
 (defn- vec->color [[r g b a]]
   (Color. (float r) (float g) (float b) (float a)))
 
-(defn- set-color-vector! [property new-value]
-  (properties/set-values!
-    property
-    (if (:ignore-alpha (:edit-type property))
-      (mapv #(assoc new-value 3 (% 3)) (properties/values property))
-      (repeat new-value))))
-
 (defmethod cljfx-component-view types/Color [property {:keys [color-dropper-view prefs]} localization-state]
   (let [values (properties/values property)
-        value (properties/unify-values values)]
+        value (properties/unify-values values)
+        ignore-alpha (:ignore-alpha (:edit-type property))]
     (-> {:fx/type fxui/color-picker
          :value (some-> value vec->color)
-         :on-value-changed #(set-color-vector! property (color->vec %))
-         :ignore-alpha (:ignore-alpha (:edit-type property))
+         :on-value-changed
+         (fn [new-color]
+           (let [new-value (color->vec new-color)]
+             (properties/set-values! property (if ignore-alpha
+                                                (mapv #(assoc new-value 3 (% 3)) values)
+                                                (repeat new-value)))))
+         :ignore-alpha ignore-alpha
          :color-dropper-view color-dropper-view
          :prefs prefs
          :editable (not (properties/read-only? property))}
