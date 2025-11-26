@@ -41,9 +41,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.fn :as fn])
-  (:import [javafx.beans.property ReadOnlyProperty]
-           [javafx.beans.value ChangeListener]
-           [javafx.scene Node Parent]
+  (:import [javafx.scene Node Parent]
            [javafx.scene.control TableView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane]))
@@ -66,9 +64,6 @@
 
 (defn- toggle-breakpoints-enabled [breakpoints breakpoint-batch]
   (update-breakpoints breakpoints breakpoint-batch #(assoc % :enabled (not (:enabled %)))))
-
-(defn- toggle-breakpoint-enabled [breakpoints breakpoint]
-  (toggle-breakpoints-enabled breakpoints [breakpoint]))
 
 (defn- update-breakpoints-enabled-state [breakpoints breakpoint-batch enabled]
   (update-breakpoints breakpoints breakpoint-batch #(assoc % :enabled enabled)))
@@ -220,7 +215,7 @@
      {:fx/type fx.check-box/lifecycle
       :selected (:enabled breakpoint)
       :on-selected-changed
-      (fn [enabled?]
+      (fn [_]
         (g/with-auto-evaluation-context evaluation-context
           (set-regions-with-action! swap-state project evaluation-context breakpoints [breakpoint] toggle-breakpoints-enabled)))}}))
 
@@ -236,7 +231,7 @@
   (when-let [breakpoint (get breakpoints idx)]
     {:text (:project-path (:resource breakpoint))}))
 
-(defn- condition-value-field [{:keys [state swap-state value on-value-changed on-focused-changed] :as props}]
+(defn- condition-value-field [{:keys [state swap-state value on-value-changed on-focused-changed]}]
   (let [current (:value state value)]
     {:fx/type fx.text-field/lifecycle
      :text current
@@ -317,7 +312,7 @@
          delete-bp-icon-path
          0.8
          ["remove-button"]
-         (fn [event]
+         (fn [_]
            (g/with-auto-evaluation-context evaluation-context
              ;; NOTE: Sometimes the editor's top menu disappears if we don't request focus here
              (.requestFocus (.lookup (ui/main-root) "#breakpoints-table-view"))
@@ -328,9 +323,9 @@
 
 (defn- ->breakpoints-selection-provider [table-view breakpoints]
   (reify handler/SelectionProvider
-    (selection [this] (mapv #(get breakpoints %) (ui/selection table-view)))
-    (succeeding-selection [this] [])
-    (alt-selection [this] [])))
+    (selection [_] (mapv #(get breakpoints %) (ui/selection table-view)))
+    (succeeding-selection [_] [])
+    (alt-selection [_] [])))
 
 (def ^:private prop-table-context-menu
   (fx.prop/make (fx.mutator/setter ui/register-context-menu) fx.lifecycle/scalar))
@@ -456,7 +451,7 @@
 
   (output anchor-pane AnchorPane :cached produce-breakpoints-ui))
 
-(defn make-breakpoints-view [workspace project open-resource-fn app-view view-graph prefs ^Node parent]
+(defn make-breakpoints-view [workspace project open-resource-fn view-graph prefs ^Node parent]
   (restore-breakpoints! project prefs)
   (first
     (g/tx-nodes-added
@@ -505,7 +500,7 @@
   (let [bp-container (.lookup (ui/main-root) "#breakpoints-container")
         open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
-        bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource (dev/app-view)
+        bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource
                                        editor.boot-open-project/*view-graph*
                                        (dev/prefs) bp-container)
         auto-pulls [[bp-view :anchor-pane]]]
