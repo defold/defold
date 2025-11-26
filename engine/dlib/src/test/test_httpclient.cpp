@@ -737,6 +737,9 @@ static void ShutdownThread(void *args)
 
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
     char buf[128];
     ShutdownThreadContext ctx;
     ctx.m_GotIt = 0;
