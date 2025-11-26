@@ -147,6 +147,8 @@
   [{:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
+   {:label (localization/message "breakpoints.context-menu.jump-to-line")
+    :command :breakpoints.jump-to-line}
    menu-items/separator
    {:label (localization/message "breakpoints.context-menu.edit-selected")
     :command :breakpoints.edit-selected}
@@ -323,7 +325,7 @@
          ["remove-button"]
          (fn [event]
            (g/with-auto-evaluation-context evaluation-context
-             (.lookup (ui/main-root) "#breakpoints-table-view"))
+             (.lookup (ui/main-root) "#breakpoints-table-view")
              (set-regions-with-action! swap-state project evaluation-context
                                        breakpoints
                                        [breakpoint]
@@ -341,10 +343,10 @@
 (def ^:private prop-property-context
   (fx.prop/make
     (fx.mutator/setter
-      (fn [table-view [project breakpoints swap-state]]
+      (fn [table-view [project open-resource-fn breakpoints swap-state]]
         (let [selection-provider (->breakpoints-selection-provider table-view breakpoints)]
           (ui/context! table-view :breakpoints-view
-                       {:project project :swap-state swap-state :breakpoints breakpoints}
+                       {:project project :swap-state swap-state :breakpoints breakpoints :open-resource-fn open-resource-fn}
                        selection-provider
                        {}
                        {resource/Resource #(:resource %)}))))
@@ -361,7 +363,7 @@
      :desc
      {:fx/type fx.table-view/lifecycle
       :id "breakpoints-table-view"
-      prop-property-context [project breakpoints swap-state]
+      prop-property-context [project open-resource-fn breakpoints swap-state]
       prop-table-context-menu ::breakpoint-menu
       :fixed-cell-size 33.0
       :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
@@ -482,6 +484,13 @@
   (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
       (swap-state assoc :edited-breakpoint (first selection)))))
+
+(handler/defhandler :breakpoints.jump-to-line :breakpoints-view
+  (enabled? [selection] (= (count selection) 1))
+  (run [project swap-state open-resource-fn selection]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [{:keys [resource row]} (first selection)]
+        (open-resource-fn resource (inc row))))))
 
 (comment
   (g/node-value @the-view :breakpoints)

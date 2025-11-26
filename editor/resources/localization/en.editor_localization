@@ -596,6 +596,7 @@ breakpoints.column.path = Path
 breakpoints.context-menu.edit-selected = Edit Condition
 breakpoints.context-menu.remove-selected = Remove Selected Breakpoint
 breakpoints.context-menu.toggle-selected-enabled = Toggle Selected Breakpoint
+breakpoints.context-menu.jump-to-line = Jump to Line
 
 # Changes view
 
