@@ -224,7 +224,7 @@ namespace dmHttpClient
             return RESULT_SOCKET_ERROR;
         }
         
-        dmConnectionPool::Result r = dmConnectionPool::CreateSSLSocket(m_Pool, m_Connection, host, timeout);
+        dmConnectionPool::Result r = dmConnectionPool::CreateSSLSocket(m_Pool, m_Connection, host, timeout, &m_Client->m_SocketResult);
         if (r == dmConnectionPool::RESULT_OK)
         {
             m_SSLSocket = dmConnectionPool::GetSSLSocket(m_Pool, m_Connection);

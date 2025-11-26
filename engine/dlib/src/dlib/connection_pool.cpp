@@ -301,24 +301,33 @@ namespace dmConnectionPool
         return RESULT_OK;
     }
 
-    static Result CreateSSLSocket(dmSocket::Socket socket, const char* host, int timeout, dmSSLSocket::Socket* sslsocket)
+
+    static Result CreateSSLSocket(dmSocket::Socket socket, const char* host, int timeout, dmSSLSocket::Socket* sslsocket, dmSocket::Result* sock_res)
     {
         dmSSLSocket::Result result = dmSSLSocket::New(socket, host, timeout, sslsocket);
         if (dmSSLSocket::RESULT_OK != result)
         {
+            if (dmSSLSocket::RESULT_WOULDBLOCK == result)
+            {
+                *sock_res = dmSocket::RESULT_WOULDBLOCK;
+            }
+            else
+            {
+                *sock_res = dmSocket::RESULT_UNKNOWN;
+            }
             return RESULT_HANDSHAKE_FAILED;
         }
         return RESULT_OK;
     }
 
 
-    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout)
+    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout, dmSocket::Result* sock_res)
     {
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
         Connection* c = GetConnection(pool, connection);
 
-        return CreateSSLSocket(c->m_Socket, host, timeout, &c->m_SSLSocket);
+        return CreateSSLSocket(c->m_Socket, host, timeout, &c->m_SSLSocket, sock_res);
     }
 
     static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, int timeout,
@@ -398,7 +407,7 @@ namespace dmConnectionPool
         Result r = Connect(pool, host, address, port, timeout, &socket, sock_res);
         if ((r == RESULT_OK) && ssl)
         {
-            r = CreateSSLSocket(socket, host, timeout, &sslsocket);
+            r = CreateSSLSocket(socket, host, timeout, &sslsocket, sock_res);
         }
 
         {
@@ -519,7 +528,13 @@ namespace dmConnectionPool
                     // Due to threaded behavior, the connection may be in use,
                     // but the socket's haven't been assigned yet
                     if(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
-                        dmSocket::Shutdown(c->m_Socket, how);
+                    {
+                        dmSocket::Result r = dmSocket::Shutdown(c->m_Socket, how);
+                        if (r == dmSocket::RESULT_OK)
+                        {
+                            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                        }
+                    }
                     c->m_WasShutdown = 1;
                 }
             }
@@ -537,12 +552,9 @@ namespace dmConnectionPool
         uint32_t n = pool->m_Connections.Size();
         for (uint32_t i=0; i != n; i++) {
             Connection* c = &pool->m_Connections[i];
-            if (c->m_State == STATE_CONNECTED)
-            {
-                dmSSLSocket::Delete(c->m_SSLSocket);
-                dmSocket::Delete(c->m_Socket);
-                c->Clear();
-            }
+            dmSSLSocket::Delete(c->m_SSLSocket);
+            dmSocket::Delete(c->m_Socket);
+            c->Clear();
         }
         pool->m_AllowNewConnections = 1;
     }

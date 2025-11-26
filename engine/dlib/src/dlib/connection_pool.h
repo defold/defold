@@ -67,9 +67,10 @@ namespace dmConnectionPool
      * @param connection [type:dmConnectionPool::HConnection] connection
      * @param host [type:const char*] host
      * @param timeout [type:int] The timeout (micro seconds) for the connection and ssl handshake
+     * @param sock_res [type:int] Pointer to write a dmSocket::Result to
      * @return dmConnectionPool::RESULT_OK on success
      */
-    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout);
+    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout, dmSocket::Result* sock_res);
 }
 
 #endif // #ifndef DM_CONNECTION_POOL

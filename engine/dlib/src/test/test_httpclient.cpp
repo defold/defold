@@ -271,7 +271,6 @@ public:
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
-        bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
         m_Client = dmHttpClient::New(&params, &m_URI, 0);
         ASSERT_NE((void*) 0, m_Client);
 
@@ -537,7 +536,7 @@ struct HttpStressHelper
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
-        m_Client = dmHttpClient::New(&params, &uri, 0);
+        m_Client = dmHttpClient::New(&params, (dmURI::Parts*)&uri);
     }
 
     ~HttpStressHelper()
@@ -725,7 +724,7 @@ static void ShutdownThread(void *args)
             continue;
         }
 
-        // There is a small gap between it it in use and it is connected
+        // There is a small gap between it is in use and it is connected
         dmTime::Sleep(100);
 
         if (dmHttpClient::ShutdownConnectionPool() > 0) {
@@ -749,7 +748,7 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 
     for (int i=0;i<5;i++) {
         // Create a request that proceeds for a long time and cancel it in-flight with the
-        // shutdown thread. If it managed to get the conneciton it will set gotit to true.
+        // shutdown thread. If it managed to get the connection it will set m_GotIt to true.
         dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts");
         dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms);
         dmHttpClient::Result r = HttpGet(buf);
