@@ -3389,6 +3389,7 @@
    {:command :code.show-references :label (localization/message "command.code.show-references")}
    {:label :separator}
    {:command :debugger.toggle-breakpoint :label (localization/message "command.debugger.toggle-breakpoint")}
+   {:command :debugger.toggle-breakpoint-enabled :label (localization/message "command.debugger.toggle-breakpoint-enabled")}
    {:command :debugger.edit-breakpoint :label (localization/message "command.debugger.edit-breakpoint")}])
 
 (handler/register-menu! ::menubar-view :editor.app-view/view-end

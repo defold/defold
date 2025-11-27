@@ -910,6 +910,7 @@ command.debugger.step-out = Step Out
 command.debugger.detach = Detach Debugger
 command.debugger.stop = Stop Debugger
 command.debugger.toggle-breakpoint = Toggle Breakpoint
+command.debugger.toggle-breakpoint-enabled = Toggle Breakpoint Enabled
 command.debugger.edit-breakpoint = Edit Breakpoint
 command.scene.set-manipulator-space = Set Manipulator Space
 command.scene.set-manipulator-space.option.world = World Space
