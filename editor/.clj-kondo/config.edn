@@ -1,0 +1,7 @@
+{:hooks {:analyze-call {dynamo.graph/with-auto-evaluation-context hooks.kondo-hooks/with-auto-evaluation-context
+                        editor.fxui/defc hooks.kondo-hooks/defc
+                        dynamo.graph/defnode hooks.kondo-hooks/defnode}}
+ :lint-as {util.defonce/protocol clojure.core/defprotocol
+           editor.fxui/defc clojure.core/defn
+           dynamo.graph/Any clojure.core/any?
+           dynamo.graph/defnk clojure.core/defn}}
