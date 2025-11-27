@@ -288,7 +288,13 @@ def check_commit_branches(commit, branches):
     return True
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
-    closed_issues = [ "#" + str(x) for x in issue["closed_issues"]]
+    closed_issues = []
+    for x in issue["closed_issues"]:
+        if issue.get("repository") == "defold":
+            closed_issues.append("#" + str(x))
+        else:
+            closed_issues.append(issue.get("repository") + "#" + str(x))
+
     if title_only:
         md = ("* __%s__: ([%s](%s)) %s (by %s)\n" % (issue["type"], ",".join(closed_issues), issue["url"], issue["title"], issue["author"]))
 
@@ -481,13 +487,13 @@ def check_issue_commits(issues):
                 missing_beta_count = missing_beta_count + 1
 
     print("\nSummary (%d issues)" % len(issues))
+    print("  %d issue(s) from external repositories not checked" % ignored_count)
     green("  %d issue(s) present on dev+beta via merge commits" % merge_dev_beta_count)
     green("  %d issue(s) present on dev+beta via reference commits" % merge_dev_beta_count)
     yellow("  %d issue(s) present on dev via merge commits" % merge_dev_count)
     yellow("  %d issue(s) present on beta via merge commits" % merge_beta_count)
     yellow("  %d issue(s) present on dev via reference commits" % merge_dev_count)
     yellow("  %d issue(s) present on beta via reference commits" % merge_beta_count)
-    yellow("  %d issue(s) ignored" % ignored_count)
     red("  %d issue(s) not present on dev" % missing_dev_count)
     red("  %d issue(s) not present on beta" % missing_beta_count)
     red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)

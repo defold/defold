@@ -258,7 +258,7 @@ static int PrewarmText(lua_State* L)
 /*#
  * Gets information about a font, such as the associated font files
  *
- * @name font.get_font_info
+ * @name font.get_info
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @return info [type:table] the information table contains these fields:
  *
