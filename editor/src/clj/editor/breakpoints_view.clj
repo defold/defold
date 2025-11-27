@@ -233,24 +233,25 @@
 
 (defn- condition-value-field [{:keys [state swap-state value on-value-changed on-focused-changed]}]
   (let [current (:value state value)]
-    {:fx/type fx.text-field/lifecycle
-     :text current
-     :on-focused-changed on-focused-changed
-     :on-text-changed (fn [new-text]
-                        (swap-state assoc :value new-text))
-     :on-key-pressed (fn [^KeyEvent e]
-                       (condp = (.getCode e)
-                         KeyCode/ENTER
-                         (do (.consume e)
-                             (when on-value-changed
-                               (on-value-changed current)))
+    {:fx/type fxui/ext-focused-by-default
+     :desc {:fx/type fx.text-field/lifecycle
+            :text current
+            :on-focused-changed on-focused-changed
+            :on-text-changed (fn [new-text]
+                               (swap-state assoc :value new-text))
+            :on-key-pressed (fn [^KeyEvent e]
+                              (condp = (.getCode e)
+                                KeyCode/ENTER
+                                (do (.consume e)
+                                    (when on-value-changed
+                                      (on-value-changed current)))
 
-                         KeyCode/ESCAPE
-                         (do (.consume e)
-                             (when on-value-changed
-                               (on-value-changed nil)))
+                                KeyCode/ESCAPE
+                                (do (.consume e)
+                                    (when on-value-changed
+                                      (on-value-changed nil)))
 
-                         nil))}))
+                                nil))}}))
 
 (defn- column-condition-cell-factory [state swap-state project breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
@@ -258,21 +259,18 @@
           editing? (= (:edited-breakpoint state) breakpoint)]
       (if editing?
         {:graphic
-         {:fx/type fx/ext-on-instance-lifecycle
-          :on-created (fn [^TextField node]
-                        (ui/run-later (.requestFocus node)))
-          :desc {:fx/type fx/ext-state
-                 :initial-state {:value condition}
-                 :desc {:fx/type condition-value-field
-                        :value condition
-                        :on-focused-changed (fn [focused]
-                                              (when-not focused (swap-state assoc :edited-breakpoint nil)))
-                        :on-value-changed
-                        (fn [new-condition]
-                          (g/with-auto-evaluation-context evaluation-context
-                            (when new-condition
-                              (set-breakpoint-condition! project breakpoints breakpoint new-condition evaluation-context))
-                            (swap-state assoc :edited-breakpoint nil)))}}}}
+         {:fx/type fx/ext-state
+          :initial-state {:value condition}
+          :desc {:fx/type condition-value-field
+                 :value condition
+                 :on-focused-changed (fn [focused]
+                                       (when-not focused (swap-state assoc :edited-breakpoint nil)))
+                 :on-value-changed
+                 (fn [new-condition]
+                   (g/with-auto-evaluation-context evaluation-context
+                     (when new-condition
+                       (set-breakpoint-condition! project breakpoints breakpoint new-condition evaluation-context))
+                     (swap-state assoc :edited-breakpoint nil)))}}}
         {:graphic {:fx/type fx.stack-pane/lifecycle
                    :children
                    [{:fx/type :label
