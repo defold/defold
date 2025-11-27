@@ -809,7 +809,7 @@ def asan_cxxflags(self):
         return
     build_util = create_build_utility(self.env)
     if Options.options.with_asan:
-        if build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+        if build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
             self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -817,11 +817,11 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5','nx64'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5','nx64'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
-    elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+    elif Options.options.with_tsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])

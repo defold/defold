@@ -933,11 +933,15 @@ class Configuration(object):
         if not result:
             self.fatal("Failed sdk check")
 
-        paths = os.environ['PATH'].split(os.path.pathsep)
-        cmake = self._find_program(get_host_platform(), 'cmake', paths)
+        cmake = shutil.which('cmake')
         if not cmake:
             self.fatal("CMake not found in PATH")
         self._log(f"Found CMake: {cmake}")
+
+        ninja = shutil.which('ninja')
+        if not ninja:
+            self.fatal("Ninja not found in PATH")
+        self._log(f"Found Ninja: {ninja}")
 
         args = ["cmake", f"-DTARGET_PLATFORM={target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
         if self.verbose:
@@ -1625,14 +1629,17 @@ class Configuration(object):
         verbose = '-v' if is_verbose else ''
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
+        cmake_build_tests = 'ON' if build_tests else 'OFF'
         install = 'install'
+
+        trace = '' #'--trace-expand'
 
         # ***************************************************************************************
         # generate the build script
         log_cmd_config = f'CMake configure {lib}'
         self.build_tracker.start_command(log_cmd_config)
 
-        cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
+        cmake_configure_args = f"cmake -S . -B build -GNinja {trace} -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS={cmake_build_tests}".split()
         cmake_configure_args += self._cmake_feature_defines()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
@@ -2040,7 +2047,7 @@ class Configuration(object):
 
         if self.skip_tests:
             cmd.append("--skip-tests")
-            
+
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:

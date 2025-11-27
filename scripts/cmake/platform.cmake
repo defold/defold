@@ -87,6 +87,7 @@ else()
     target_compile_options(defold_sdk INTERFACE
         -Wall
         -Werror=format
+        -Werror=return-type
         -fPIC
         -fvisibility=hidden
         -fno-exceptions
@@ -108,8 +109,10 @@ if(MSVC_CL)
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:/Od>")
 else()
     target_compile_options(defold_sdk INTERFACE
-        "$<${_DEFOLD_OPT_CONFIG_EXPR}:-O3>"
+        "$<${_DEFOLD_OPT_CONFIG_EXPR}:-O2>"
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
+    target_compile_options(defold_sdk INTERFACE -g)
+    target_link_options(defold_sdk INTERFACE -g)
 endif()
 
 defold_log("CC: ${CMAKE_C_COMPILER}")
