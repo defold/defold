@@ -15,7 +15,6 @@
 (ns editor.image
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
             [editor.localization :as localization]
@@ -23,6 +22,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.texture-util :as texture-util]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]))
@@ -88,20 +88,6 @@
                   :compress? (:compress-textures? build-settings false)
                   :texture-profile texture-profile}})])
 
-;; TODO: Remove _ignored-request-id parameter from calls everywhere.
-(defn- generate-gpu-texture [{:keys [_node-id texture-data-delay]} _ignored-request-id params unit]
-  (let [texture-data (force texture-data-delay)]
-    (if (g/error-value? texture-data)
-      texture-data
-      (let [texture-datas [texture-data]
-            texture-units (vector-of :int unit)
-            texture-params (or params texture/default-image-texture-params)]
-        (texture/make-gpu-texture _node-id texture-datas texture-units texture-params)))))
-
-(defn- generate-content [{:keys [digest-ignored/error-node-id resource]}]
-  (resource-io/with-error-translation resource error-node-id :resource
-    (image-util/read-image resource)))
-
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
 
@@ -115,27 +101,17 @@
                                (resource-io/with-error-translation resource _node-id :size
                                  (image-util/read-size resource))))
 
-  (output content-generator g/Any
-          (g/fnk [_node-id resource :as args]
-            (let [sha1 (resource-io/with-error-translation resource _node-id :content-generator
-                         (resource/resource->path-inclusive-sha1-hex resource))]
-              (if (g/error-value? sha1)
-                sha1
-                {:f generate-content
-                 :args (-> args
-                           (dissoc :_node-id)
-                           (assoc :digest-ignored/error-node-id _node-id))
-                 :sha1 sha1}))))
+  (output content-generator g/Any :cached
+          (g/fnk [_node-id resource]
+            (texture-util/make-buffered-image-generator resource _node-id :content-generator)))
 
-  (output texture-data-delay g/Any :cached
+  (output gpu-texture-generator g/Any :cached
           (g/fnk [_node-id content-generator texture-profile]
-            (let [result (delay
-                           (let [content ((:f content-generator) (:args content-generator))]
-                             (if (g/error-value? content)
-                               content
-                               (let [texture-image (tex-gen/make-preview-texture-image content texture-profile)]
-                                 (texture/texture-image->texture-data texture-image)))))]
-              result)))
+            (texture-util/make-gpu-texture-generator _node-id content-generator texture-profile)))
+
+  (output gpu-texture g/Any :cached
+          (g/fnk [gpu-texture-generator]
+            (texture-util/generate-gpu-texture gpu-texture-generator)))
 
   ;; NOTE: The anim-data and gpu-texture outputs allow standalone images to be used in place of texture sets in legacy projects.
   (output anim-data g/Any (g/fnk [size]
@@ -144,22 +120,6 @@
                                    :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
 
   (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))
-
-  (output gpu-texture g/Any
-          (g/fnk [_node-id gpu-texture-generator]
-            (let [tex-fn (:f gpu-texture-generator)
-                  args (:args gpu-texture-generator)
-                  request-id _node-id
-                  texture-unit 0
-                  texture-params {:min-filter gl/nearest
-                                  :mag-filter gl/nearest}]
-              (tex-fn args request-id texture-params texture-unit))))
-
-  (output gpu-texture-generator g/Any
-          (g/fnk [_node-id texture-data-delay :as args]
-            {:f generate-gpu-texture
-             :args args}))
-
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image

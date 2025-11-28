@@ -44,6 +44,7 @@
             [editor.scene :as scene]
             [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
+            [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -53,7 +54,6 @@
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
-           [java.awt.image BufferedImage]
            [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -604,9 +604,6 @@
       buffered-image
       (texture-set-gen/tile-source->texture-set-data layout-result tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
 
-(defn- call-generator [generator]
-  ((:f generator) (:args generator)))
-
 (defn- generate-packed-image [{:keys [digest-ignored/error-node-id layout-result image-resource tile-source-attributes]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
@@ -724,28 +721,30 @@
                                                               (assoc :animation-ddfs animation-ddfs
                                                                      :digest-ignored/error-node-id _node-id))}))))
 
-  (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
+  (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (texture-util/call-generator texture-set-data-generator)))
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))
   (output texture-set g/Any (g/fnk [texture-set-data] (:texture-set texture-set-data)))
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output texture-page-count g/Int (g/constantly 0)) ; We do not use pages. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
-  (output packed-image-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes]
-                                         (let [packed-image-sha1 (digestable/sha1-hash
-                                                                   {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
-                                                                    :tile-source-attributes tile-source-attributes
-                                                                    :type :packed-tile-source-image})]
-                                           {:f generate-packed-image
-                                            :sha1 packed-image-sha1
-                                            :args {:digest-ignored/error-node-id _node-id
-                                                   :layout-result layout-result
-                                                   :image-resource image-resource
-                                                   :tile-source-attributes tile-source-attributes}})))
-
-  (output packed-image BufferedImage (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
-
-  (output texture-image g/Any (g/fnk [packed-image texture-profile]
-                                (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output packed-image-generator g/Any
+          (g/fnk [_node-id layout-result image-resource tile-source-attributes]
+            (let [image-sha1
+                  (resource-io/with-error-translation image-resource _node-id :packed-image-generator
+                    (resource/resource->path-inclusive-sha1-hex image-resource))]
+              (if (g/error-value? image-sha1)
+                image-sha1
+                (let [packed-image-sha1
+                      (digestable/sha1-hash
+                        {:image-sha1 image-sha1
+                         :tile-source-attributes tile-source-attributes
+                         :type :packed-tile-source-image})]
+                  {:f generate-packed-image
+                   :sha1 packed-image-sha1
+                   :args {:digest-ignored/error-node-id _node-id
+                          :layout-result layout-result
+                          :image-resource image-resource
+                          :tile-source-attributes tile-source-attributes}})))))
 
   (output convex-hull-points g/Any :cached produce-convex-hull-points)
   (output convex-hulls g/Any :cached produce-convex-hulls)
@@ -755,14 +754,14 @@
   (output node-outline outline/OutlineData :cached produce-tile-source-outline)
   (output pb g/Any :cached produce-pb)
   (output save-value g/Any (g/fnk [pb] (dissoc pb :convex-hull-points)))
-
-
   (output build-targets g/Any :cached produce-build-targets)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
-                                      (texture/texture-image->gpu-texture _node-id
-                                                                          texture-image
-                                                                          {:min-filter gl/nearest
-                                                                           :mag-filter gl/nearest})))
+
+  (output gpu-texture g/Any :cached
+          (g/fnk [_node-id packed-image-generator texture-profile]
+            (-> (texture-util/construct-gpu-texture _node-id packed-image-generator texture-profile)
+                (texture/set-params {:min-filter gl/nearest
+                                     :mag-filter gl/nearest}))))
+
   (output anim-data g/Any :cached produce-anim-data)
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 

@@ -22,6 +22,7 @@
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
@@ -36,10 +37,11 @@
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
+            [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [util.coll :as coll])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -148,11 +150,14 @@
             :deps dep-build-targets})])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
-  (into {} (map (fn [unit-index sampler {tex-fn :f tex-args :args}]
-                  (let [request-id [_node-id unit-index]
-                        params     (material/sampler->tex-params sampler)
-                        texture    (tex-fn tex-args request-id params unit-index)]
-                    [(:name sampler) texture]))
+  (into {} (map (fn [unit-index sampler gpu-texture-generator]
+                  (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
+                    (pair (:name sampler)
+                          (-> (if (g/error-value? gpu-texture)
+                                @texture/placeholder
+                                gpu-texture)
+                              (texture/set-params (material/sampler->tex-params sampler))
+                              (texture/set-base-unit unit-index)))))
                 (range)
                 samplers
                 gpu-texture-generators)))
