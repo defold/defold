@@ -26,9 +26,12 @@
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.menu-button :as fx.menu-button]
             [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.password-field :as fx.password-field]
+            [cljfx.fx.popup :as fx.popup]
+            [cljfx.fx.popup-control :as fx.popup-control]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stack-pane :as fx.stack-pane]
@@ -70,13 +73,13 @@
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
            [javafx.scene Node Parent TraversalDirection]
-           [javafx.scene.control ChoiceBox ComboBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
+           [javafx.scene.control ChoiceBox ComboBox ComboBoxBase Control ControlHelper ListView MenuButton PopupControl ScrollPane TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape SVGPath]
-           [javafx.stage PopupWindow Window]
+           [javafx.stage Popup PopupWindow Window]
            [javafx.util Callback Duration StringConverter]
            [javafx.util.converter DefaultStringConverter]))
 
@@ -1017,7 +1020,7 @@
   (let [color (:color props ::not-found)]
     (case color
       ::not-found props
-      (:warning :error) (-> props (dissoc :color) (update :pseudo-classes (fnil conj #{}) color)))))
+      (:warning :error) (-> props (dissoc :color) (update :pseudo-classes coll/conj-set color)))))
 
 (defn check-box
   "Check box
@@ -1095,7 +1098,7 @@
       resolve-input-color
       resolve-tooltip))
 
-(defn combo-box
+(defn old-combo-box
   "Combo box
 
   Supports all :combo-box props, plus:
@@ -1107,6 +1110,7 @@
   (-> props
       (assoc :fx/type fx.combo-box/lifecycle)
       (prepend-style-classes "combo-box" "combo-box-base")
+      resolve-input-color
       resolve-tooltip))
 
 (defn hover-overlay
@@ -1392,6 +1396,155 @@
   [props]
   (make-value-field text-area false props))
 
+#_(defn combo-box
+    "Combo box
+
+    Supports all :combo-box props, plus:
+      :tooltip      additionally supports string values and (preferably) maps with
+                    the following keys:
+                      :severity    :error, :warning, or :info
+                      :message     string"
+    [props]
+    (-> props
+        (assoc :fx/type fx.combo-box/lifecycle)
+        (prepend-style-classes "combo-box" "combo-box-base")
+        resolve-input-color
+        resolve-tooltip))
+
+;; todo new combo-box...
+;;  1. ✅ a label with a drop-down icon
+;;  2. resolves input color
+;;  3. resolves tooltip (tooltip needs to handle the new combo-box!)
+;;  4. ✅ shows on click
+;;  5. ✅ shows and space and enter
+;;  6. ✅ doesn't show bold orange when showing
+;;  7. shows items in a list view
+;;  8. shows "type to filter" above the list
+
+(def ^:private prop-combo-box-popup
+  (fx/make-binding-prop
+    (fn [^Node node ^Popup popup]
+      (let [bounds (.localToScreen node (.getBoundsInLocal node))
+            ^Region root (-> popup .getContent .getFirst)]
+        (doto root
+          (.setMinWidth (.getWidth bounds))
+          (.setMaxWidth (.getWidth bounds)))
+        (.show popup node (- (.getMinX bounds) 12.0) (- (.getMaxY bounds) 5.0))
+        #(.hide popup)))
+    fx.lifecycle/dynamic))
+
+(defn- handle-combo-box-mouse-pressed [swap-state ^MouseEvent e]
+  (.requestFocus ^Node (.getSource e))
+  (.consume e)
+  (swap-state update :showing not))
+
+(defn- handle-combo-box-key-pressed [showing swap-state ^KeyEvent e]
+  (when-not showing
+    (let [key-code (.getCode e)]
+      (when (or (= KeyCode/ENTER key-code)
+                (= KeyCode/SPACE key-code))
+        (.consume e)
+        (swap-state assoc :showing true)))))
+
+(def ^:private prop-filter-key-pressed
+  (fx/make-binding-prop
+    (fn [^Node node callback]
+      (let [^EventHandler handler callback]
+        (.addEventFilter node KeyEvent/KEY_PRESSED handler)
+        #(.removeEventFilter node KeyEvent/KEY_PRESSED handler)))
+    fx.lifecycle/callback))
+
+(defn- handle-combo-box-field-key-pressed [on-value-changed swap-state ^KeyEvent e]
+  (condp = (.getCode e)
+    nil))
+
+(defn- combo-box-impl [{:keys [value on-value-changed items to-string state swap-state]
+                        :or {to-string str}}]
+  (let [{:keys [showing filter-text]} state]
+    (cond->
+      {:fx/type horizontal
+       :style-class "ext-combo-box"
+       :pseudo-classes (if showing #{:showing} #{})
+       :on-focused-changed (fn [_] (swap-state assoc :showing false))
+       :on-mouse-pressed #(handle-combo-box-mouse-pressed swap-state %)
+       :on-key-pressed #(handle-combo-box-key-pressed showing swap-state %)
+       :focus-traversable true
+       :children
+       [{:fx/type fx.label/lifecycle
+         :h-box/hgrow :always
+         :text (if (some? value) (to-string value) "")}
+        {:fx/type fx.stack-pane/lifecycle
+         :style-class "ext-combo-box-arrow-button"
+         :children [{:fx/type fx.region/lifecycle
+                     :style-class ["ext-combo-box-arrow"]}]}]}
+      showing
+      (assoc
+        prop-combo-box-popup
+        {:fx/type fx.popup/lifecycle
+         :auto-hide true
+         :on-hidden (fn [_] (swap-state assoc :showing false))
+         :content [{:fx/type fx.stack-pane/lifecycle
+                    :on-key-pressed #(tap> [:popup %])
+                    :children [{:fx/type fx.region/lifecycle
+                                :on-mouse-pressed (fn [_] (swap-state assoc :showing false))
+                                :style-class "ext-combo-box-popup-background"}
+                               {:fx/type vertical
+                                :padding 1.0
+                                :children [{:fx/type text-field
+                                            :style-class "ext-combo-box-popup-field"
+                                            :prompt-text "Type to filter..."
+                                            :text filter-text
+                                            prop-filter-key-pressed #(handle-combo-box-field-key-pressed on-value-changed swap-state %)
+                                            :on-text-changed #(swap-state assoc :filter-text %)}
+                                           {:fx/type fx.list-view/lifecycle
+                                            :focus-traversable false
+                                            :style-class "ext-combo-box-popup-list"
+                                            :items items
+                                            :fixed-cell-size 27.0
+                                            :max-height (* 27.0 (double (min 10 (count items))))
+                                            :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                           :describe (fn [item]
+                                                                       {:text (if (some? item)
+                                                                                (to-string item)
+                                                                                "")})}}]}]}]}))))
+
+(defn combo-box
+  "Combo box control
+
+  Props:
+    :value               current value, doesn't have to be present in items
+    :on-value-changed    callback that will receive a new value on change
+    :items               available items
+    :to-string           a function that stringifies an item, default str"
+  [props]
+  {:fx/type fx/ext-state
+   :initial-state {:showing false :filter-text ""}
+   :desc (assoc props :fx/type combo-box-impl)})
+
+(comment
+  @(fx/on-fx-thread
+     (fx/instance
+       (fx/create-component
+         {:fx/type :stage
+          :width 500
+          :height 500
+          :showing true
+          :scene {:fx/type :scene
+                  :stylesheets [(str (clojure.java.io/resource "dialogs.css"))]
+                  :on-key-pressed (fn [^KeyEvent e]
+                                    (if (= KeyCode/ESCAPE (.getCode e))
+                                      (.hide (.getWindow ^javafx.scene.Scene (.getSource e)))))
+                  :root {:fx/type :v-box
+                         :style {:-fx-background-color :-df-background-light}
+                         :padding 20
+                         :spacing 10
+                         :children [{:fx/type text-field
+                                     :text "huh"}
+                                    {:fx/type combo-box
+                                     :to-string name
+                                     :value :a
+                                     :items [:a :b :c :d :e :f :g :h :i :j :k :l :m :n :o :p :q]}]}}}))))
+
 (defn- color->web-string
   ([color]
    (color->web-string false color))
@@ -1435,43 +1588,43 @@
   [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable color]
     :or {editable true}
     :as props}]
-  {:fx/type horizontal
-   :children
-   [(-> props
-        (dissoc :ignore-alpha :color-dropper-view :prefs)
-        (assoc :fx/type value-field
-               :style-class ["ext-color-picker-field"]
-               :h-box/hgrow :always
-               :to-string (fn/partial color->web-string ignore-alpha)
-               :to-value web-string->color
-               :on-invalid-value on-color-picker-invalid-value)
-        (cond-> (and color-dropper-view editable)
-                (assoc
-                  :hover-overlay
-                  {:fx/type hover-overlay
-                   :alignment :right
-                   :padding 4
-                   :content
-                   (cond->
-                     {:fx/type fx.pane/lifecycle
-                      :style-class "color-dropper-icon"
-                      :children [{:fx/type ui/image-icon
-                                  :path "icons/32/Icons_M_03_colorpicker.png"
-                                  :size 16.0}]
-                      :on-mouse-pressed on-color-dropper-mouse-pressed}
-                     on-value-changed
-                     (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))})))
-    (cond-> {:fx/type fx.color-picker/lifecycle
-             :focus-traversable false
-             :disable (not editable)
-             :style-class ["ext-color-picker"]
-             :on-shown handle-color-picker-shown
-             :on-hidden handle-color-picker-hidden}
-            color (assoc :pseudo-classes #{color})
-            value (assoc :value value)
-            on-value-changed (assoc :on-value-changed on-value-changed)
-            prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
-                         :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))]})
+  (-> {:fx/type horizontal
+       :style-class "ext-color-picker"
+       :children [(-> props
+                      (dissoc :ignore-alpha :color-dropper-view :prefs :color)
+                      (assoc :fx/type value-field
+                             :style-class "ext-color-picker-field"
+                             :h-box/hgrow :always
+                             :to-string (fn/partial color->web-string ignore-alpha)
+                             :to-value web-string->color
+                             :on-invalid-value on-color-picker-invalid-value)
+                      (cond-> (and color-dropper-view editable)
+                              (assoc
+                                :hover-overlay
+                                {:fx/type hover-overlay
+                                 :alignment :right
+                                 :padding 4
+                                 :content
+                                 (cond->
+                                   {:fx/type fx.pane/lifecycle
+                                    :style-class "color-dropper-icon"
+                                    :children [{:fx/type ui/image-icon
+                                                :path "icons/32/Icons_M_03_colorpicker.png"
+                                                :size 16.0}]
+                                    :on-mouse-pressed on-color-dropper-mouse-pressed}
+                                   on-value-changed
+                                   (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))})))
+                  (cond-> {:fx/type fx.color-picker/lifecycle
+                           :focus-traversable false
+                           :disable (not editable)
+                           :style-class "ext-color-picker-icon"
+                           :on-shown handle-color-picker-shown
+                           :on-hidden handle-color-picker-hidden}
+                          value (assoc :value value)
+                          on-value-changed (assoc :on-value-changed on-value-changed)
+                          prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                                       :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))]}
+      (cond-> color (assoc :pseudo-classes #{color}))))
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
   (fx/make-ext-with-props

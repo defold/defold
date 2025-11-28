@@ -1433,7 +1433,7 @@
        :fn make-choicebox-options-converter
        :args [options]
        :key :converter
-       :desc (-> {:fx/type fxui/combo-box
+       :desc (-> {:fx/type fxui/old-combo-box
                   :disable (properties/read-only? property)
                   :value (properties/unify-values (properties/values property))
                   :on-value-changed #(properties/set-values! property (repeat %))

@@ -118,10 +118,10 @@ $ext-line-height: 26px;
         -fx-pref-width: 160px;
         -fx-max-width: Infinity;
         -fx-border-radius: 2px;
-        -fx-background-radius: 2px;
+        -fx-background-radius: 3px;
         &:focused {
             -fx-border-radius: 2px;
-            -fx-background-radius: 2px;
+            -fx-background-radius: 3px;
         }
         &:warning {
             -fx-border-color: -df-error-severity-warning-dim;
@@ -247,35 +247,152 @@ $ext-line-height: 26px;
         -fx-max-height: $ext-line-height;
     }
     &-color-picker {
-        -fx-min-width: $ext-line-height;
-        -fx-max-width: $ext-line-height;
-        -fx-min-height: $ext-line-height;
-        -fx-max-height: $ext-line-height;
-        -fx-background-color: -df-component-dark;
-        -fx-background-radius: 0 2px 2px 0;
-        -fx-alignment: center;
+        &-icon {
+            -fx-min-width: $ext-line-height;
+            -fx-max-width: $ext-line-height;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-border-width: 1px 1px 1px 0;
+            -fx-padding: 0 0 0 1px; // compensate for arrow button not having a left border
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0 3px 3px 0;
+            & > .arrow-button { visibility: hidden; }
+            & > .color-picker-label { -fx-content-display: graphic-only; }
+        }
         &-field {
+            -fx-background-radius: 3px 0 0 3px;
             -fx-border-radius: 2px 0 0 2px;
             -fx-border-width: 1px 0 1px 1px;
             &:focused {
-                -fx-border-radius: 2px 0 0 2px;
                 -fx-border-width: 1px 0 2px 1px;
+                -fx-border-radius: 2px 0 0 2px;
             }
         }
         &:hover {
-            -fx-background-color: -df-component-light;
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:focus-within {
+            & > .ext-color-picker-field {
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            }
+            & > .ext-color-picker-icon {
+                -fx-border-color: -df-component-light;
+            }
         }
         &:warning {
-            -fx-background-color: -df-error-severity-warning-dim;
-            &:hover { -fx-background-color: -df-error-severity-warning; }
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-error-severity-warning-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                    -fx-border-color: -df-error-severity-warning;
+                }
+            }
         }
         &:error {
-            -fx-background-color: -df-error-severity-fatal-dim;
-            &:hover { -fx-background-color: -df-error-severity-fatal; }
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-error-severity-fatal-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                    -fx-border-color: -df-error-severity-fatal;
+                }
+            }
         }
-        & > .arrow-button { visibility: hidden; }
-        & > .color-picker-label {
-            -fx-content-display: graphic-only;
+    }
+    &-combo-box {
+        & > .label {
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+            -fx-background-color: -df-background-input;
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            -fx-max-width: Infinity;
+            -fx-text-fill: -df-text-selected;
+            -fx-padding: 1px 8px 1px 8px;
+        }
+        &:hover {
+            & > .label { -fx-border-color: -df-component-light; }
+            & > .ext-combo-box-arrow-button {
+                -fx-border-color: -df-component-light;
+                & > .ext-combo-box-arrow {
+                    -fx-background-color: -df-text-selected;
+                }
+            }
+        }
+        &:focused {
+            & > .label {
+                -fx-background-color: -df-background;
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+                -fx-border-width: 1px 0 2px 1px;
+                -fx-padding: 1px 8px 0px 8px;
+            }
+            & > .ext-combo-box-arrow-button {
+                -fx-border-color: -df-component-light;
+                & > .ext-combo-box-arrow {
+                    -fx-background-color: -df-text-selected;
+                }
+            }
+            &:showing {
+                & > .label {
+                    -fx-border-color: -df-component-light;
+                    -fx-border-width: 1px 0 1px 1px;
+                    -fx-padding: 1px 8px 1px 8px;
+                }
+            }
+        }
+        &:showing {
+            & > .ext-combo-box-arrow-button {
+                & > .ext-combo-box-arrow {
+                    -fx-scale-y: -1.0;
+                }
+                -fx-border-radius: 0 2px 0 0;
+                -fx-background-radius: 0 3px 0 0;
+            }
+            & > .label {
+                -fx-border-radius: 2px 0 0 0;
+                -fx-background-radius: 3px 0 0 0;
+            }
+        }
+        &-arrow-button {
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0 3px 3px 0;
+            -fx-border-color: -df-component-dark;
+            -fx-border-width: 1px 1px 1px 0;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-min-width: $ext-line-height;
+            -fx-max-width: $ext-line-height;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+        }
+        &-arrow {
+            -fx-shape: "M 0 0 h 10 l -5 6 z";
+            -fx-scale-shape: false;
+            -fx-background-color: -df-text;
+            -fx-background-insets: 0 -0.5px 0 0.5px; // compensate for arrow button not having a left border
+        }
+        &-popup {
+            &-background {
+                -fx-background-color: -df-background;
+                -fx-border-color: -df-component-light;
+                -fx-border-width: 1px;
+                -fx-border-radius: 0 0 2px 2px;
+                -fx-background-radius: 0 0 3px 3px;
+                -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0, 0, 8);
+            }
+            &-field, &-field:focused {
+                -fx-border-radius: 0;
+                -fx-background-radius: 0;
+                -fx-border-width: 0 0 1px 0;
+                -fx-border-color: -df-component-light;
+                -fx-padding: 4px 8px;
+            }
         }
     }
 }

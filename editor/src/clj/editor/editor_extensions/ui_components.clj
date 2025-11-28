@@ -468,7 +468,7 @@
             :args [rt to_string localization-state]
             :key :converter
             :desc (set-tooltip-and-issue
-                    {:fx/type fxui/combo-box
+                    {:fx/type fxui/old-combo-box
                      :value value
                      :pseudo-classes (or (some-> issue :severity hash-set) #{})
                      :on-key-pressed on-select-box-key-pressed
