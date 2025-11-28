@@ -3984,17 +3984,18 @@
                          :toggle-enabled
                          (let [edited-breakpoint (assoc edited-breakpoint :enabled (:fx/event event))]
                            (assoc (data/ensure-breakpoint-region
-                                   (g/node-value view-node :lines evaluation-context)
-                                   (g/node-value view-node :regions evaluation-context)
-                                   edited-breakpoint)
-                             :edited-breakpoint edited-breakpoint))
+                                    (g/node-value view-node :lines evaluation-context)
+                                    (g/node-value view-node :regions evaluation-context)
+                                    edited-breakpoint)
+                                  :edited-breakpoint edited-breakpoint))
 
                          :apply
                          (assoc (data/ensure-breakpoint-region
                                   (g/node-value view-node :lines evaluation-context)
                                   (g/node-value view-node :regions evaluation-context)
                                   edited-breakpoint)
-                           :edited-breakpoint nil))))))}
+                                :edited-breakpoint nil)))
+                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))}
         :middleware (comp
                       fxui/wrap-dedupe-desc
                       (fx/wrap-map-desc #(breakpoint-editor-view canvas %)))))
