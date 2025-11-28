@@ -92,7 +92,6 @@ else()
         -fvisibility=hidden
         -fno-exceptions
         $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
-        -flto
         -g)
 endif()
 
