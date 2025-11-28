@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 4.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/cmake")
 include(defold)
 
-#================================ Test Data ================================
+#******************************* Test Data *******************************
 
 defold_protoc_encode(
   "${CMAKE_CURRENT_BINARY_DIR}/build/test.input_bindingc"           # OUT_FILE
@@ -46,7 +46,7 @@ defold_protoc_encode(
   INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../../proto"
 )
 
-#===========================================================================
+#***********************************************************************
 
 # Build the input test executable
 defold_add_executable(test_input "${CMAKE_CURRENT_LIST_DIR}/test_input.cpp")

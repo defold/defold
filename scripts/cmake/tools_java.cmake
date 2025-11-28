@@ -1,7 +1,7 @@
 defold_log("tools_java.cmake:")
 
-# Require Java 21+ (both Runtime and Development components)
-find_package(Java 21 COMPONENTS Runtime Development REQUIRED)
+# Require Java 25+ (both Runtime and Development components)
+find_package(Java 25 COMPONENTS Runtime Development REQUIRED)
 
 # Cache paths and version for visibility and reuse
 set(DEFOLD_JAVA_EXECUTABLE  "${Java_JAVA_EXECUTABLE}"  CACHE FILEPATH "Java runtime executable (java)" FORCE)

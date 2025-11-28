@@ -2124,7 +2124,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
-                
+
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {
@@ -2471,13 +2471,13 @@ void dmEngineInitialize()
     dLib::SetDebugMode(false);
 #endif
 
+    ProfileInitialize();
+
 #if defined(__EMSCRIPTEN__)
     dmEngineSetUpdateEnabled(1);
     dmEngineSetRenderEnabled(1);
 #endif
 
-    if (dLib::IsDebugMode())
-        ProfileInitialize();
     dmEngine::PlatformInitialize();
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
@@ -2513,8 +2513,7 @@ void dmEngineFinalize()
 
     dmEngine::PlatformFinalize();
 
-    if (dLib::IsDebugMode())
-        ProfileFinalize();
+    ProfileFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])

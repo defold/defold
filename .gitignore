@@ -17,7 +17,12 @@
 .java
 .oracle*
 .bash*
+.lldb
 *.pyc
+__pycache__
+.python_history
+.wget-hsts
+.m2
 
 /.ccache
 *.iml

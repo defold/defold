@@ -251,6 +251,105 @@ TEST_F(FontTest, LayoutMultiLine)
     ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
 }
 
+TEST_F(FontTest, LayoutExplicitLineBreaks)
+{
+    dmArray<uint32_t> codepoints;
+
+    // Explicit line break should always split into multiple lines,
+    // even when automatic line breaking is disabled.
+    const char* original_text = "Hello World!\nHow are you?  ";
+    const char* expected_text_1 = "Hello World!";
+    const char* expected_text_2 = "How are you?  ";
+
+    TextToCodePoints(original_text, codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false; // do not auto-wrap; rely on explicit '\n'
+    settings.m_Width = 0.0f;
+    settings.m_Size = 28.0f;
+
+    HTextLayout layout = 0;
+    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((TextLayout*)0, layout);
+
+    DebugPrintLayout(layout);
+    ASSERT_EQ(2u, layout->m_Lines.Size());
+
+    TextLine& line1 = layout->m_Lines[0];
+    TextLine& line2 = layout->m_Lines[1];
+
+    // Collect laid out codepoints back into a contiguous buffer for comparison
+    dmArray<char> outtext;
+    outtext.SetCapacity(layout->m_Glyphs.Size()+1);
+    for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
+    {
+        TextGlyph& g = layout->m_Glyphs[i];
+        outtext.Push((char)g.m_Codepoint);
+    }
+    outtext.Push(0);
+
+    ASSERT_EQ((uint32_t)strlen(expected_text_1), line1.m_Length);
+    ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + line1.m_Index, line1.m_Length);
+
+    ASSERT_EQ((uint32_t)strlen(expected_text_2), line2.m_Length);
+    ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
+
+    TextLayoutFree(layout);
+}
+
+TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
+{
+    dmArray<uint32_t> codepoints;
+
+    // Two consecutive newlines create an empty middle line
+    const char* original_text = "abc\n\nbar";
+    const char* expected_text_1 = "abc";
+    const char* expected_text_2 = "";   // empty line
+    const char* expected_text_3 = "bar";
+
+    TextToCodePoints(original_text, codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false; // do not auto-wrap; rely on explicit '\n'
+    settings.m_Width = 0.0f;
+    settings.m_Size = 28.0f;
+
+    HTextLayout layout = 0;
+    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((TextLayout*)0, layout);
+
+    DebugPrintLayout(layout);
+    ASSERT_EQ(3u, layout->m_Lines.Size());
+
+    TextLine& line1 = layout->m_Lines[0];
+    TextLine& line2 = layout->m_Lines[1];
+    TextLine& line3 = layout->m_Lines[2];
+
+    dmArray<char> outtext;
+    outtext.SetCapacity(layout->m_Glyphs.Size()+1);
+    for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
+    {
+        TextGlyph& g = layout->m_Glyphs[i];
+        outtext.Push((char)g.m_Codepoint);
+    }
+    outtext.Push(0);
+
+    ASSERT_EQ((uint32_t)strlen(expected_text_1), line1.m_Length);
+    ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + line1.m_Index, line1.m_Length);
+
+    ASSERT_EQ((uint32_t)strlen(expected_text_2), line2.m_Length);
+    // Only compare when there is content
+    if (line2.m_Length > 0)
+        ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
+
+    ASSERT_EQ((uint32_t)strlen(expected_text_3), line3.m_Length);
+    ASSERT_ARRAY_EQ_LEN(expected_text_3, outtext.Begin() + line3.m_Index, line3.m_Length);
+
+    TextLayoutFree(layout);
+}
+
 
 #if !defined(FONT_USE_SKRIBIDI) && defined(FOO)
 static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_step, dmArray<uint32_t>& codepoints)

@@ -1,113 +1,111 @@
-# App manifest generated Fri Sep 02 2022 16:18:07 GMT+0200 (Central European Summer Time)
-# Settings: Record,Profiler,Sound,Input,LiveUpdate,Basis Transcoder,OpenGL
 platforms:
     armv7-ios:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             frameworks: []
             linkFlags: []
     arm64-ios:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             frameworks: []
             linkFlags: []
     x86_64-ios:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             frameworks: []
             linkFlags: []
     armv7-android:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
             excludeJars: []
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []
             jetifier: true
     arm64-android:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu,    basis_transcoder]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
             excludeJars: []
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []
             jetifier: true
     arm64-osx:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu,    basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             frameworks: []
             linkFlags: []
     x86_64-osx:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu,    basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             frameworks: []
             linkFlags: []
     x86_64-linux:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu,    basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []
     arm64-linux:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_remotery, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu,    basis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []
     x86-win32:
         context:
-            excludeLibs: [librecord, vpx, libprofile, libprofilerext, libprofiler_remotery, libsound, libtremolo, hid, libliveupdate,    libgraphics_transcoder_basisu, libbasis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [librecord, vpx, libsound, libtremolo, hid, libliveupdate, libgraphics_transcoder_basisu, libbasis_transcoder, libprofile, libprofilerext, libprofiler_remotery, libprofiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [librecord_null.lib, libprofile_null.lib, libprofilerext_null.lib, libsound_null.lib, hid_null.lib,    libliveupdate_null.lib, libgraphics_transcoder_null.lib]
+            libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, libgraphics_transcoder_null.lib, libprofile_null.lib, libprofilerext_null.lib]
             linkFlags: []
     x86_64-win32:
         context:
-            excludeLibs: [librecord, vpx, libprofile, libprofilerext, libprofiler_remotery, libsound, libtremolo, hid, libliveupdate,    libgraphics_transcoder_basisu, libbasis_transcoder]
-            excludeSymbols: [ProfilerBasic, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo]
+            excludeLibs: [librecord, vpx, libsound, libtremolo, hid, libliveupdate, libgraphics_transcoder_basisu, libbasis_transcoder, libprofile, libprofilerext, libprofiler_remotery, libprofiler_js]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [librecord_null.lib, libprofile_null.lib, libprofilerext_null.lib, libsound_null.lib, hid_null.lib,    libliveupdate_null.lib, libgraphics_transcoder_null.lib]
+            libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, libgraphics_transcoder_null.lib, libprofile_null.lib, libprofilerext_null.lib]
             linkFlags: []
     js-web:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_js, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
             excludeJsLibs: []
-            excludeSymbols: [ProfilerBasic, ProfilerJS, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis,  AudioDecoderTremolo]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []
     wasm-web:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_js, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
             excludeJsLibs: []
-            excludeSymbols: [ProfilerBasic, ProfilerJS, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis,  AudioDecoderTremolo]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []
     wasm_pthread-web:
         context:
-            excludeLibs: [record, vpx, profile, profilerext, profiler_js, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder]
+            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
             excludeJsLibs: []
-            excludeSymbols: [ProfilerBasic, ProfilerJS, ProfilerRemotery, DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis,  AudioDecoderTremolo]
+            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [record_null, profile_null, profilerext_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null]
+            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             linkFlags: []

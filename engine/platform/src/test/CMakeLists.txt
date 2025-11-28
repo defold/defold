@@ -30,7 +30,7 @@ endif()
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
-# =============================================================
+# ******************************************************************
 # test_platform_app (windowed test application)
 
 if (NOT (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web"))
