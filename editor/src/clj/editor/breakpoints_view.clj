@@ -139,11 +139,11 @@
           (g/set-property script-node :regions updated-regions))))))
 
 (handler/register-menu! ::breakpoint-menu
-  [{:label (localization/message "command.file.show-in-assets")
+  [{:label (localization/message "breakpoints.context-menu.go-to-line")
+    :command :breakpoints.go-to-line}
+   {:label (localization/message "command.file.show-in-assets")
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :breakpoints.show-in-assets}
-   {:label (localization/message "breakpoints.context-menu.jump-to-line")
-    :command :breakpoints.jump-to-line}
    menu-items/separator
    {:label (localization/message "breakpoints.context-menu.edit-selected")
     :command :breakpoints.edit-selected}
@@ -477,7 +477,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (swap-state assoc :edited-breakpoint (first selection)))))
 
-(handler/defhandler :breakpoints.jump-to-line :breakpoints-view
+(handler/defhandler :breakpoints.go-to-line :breakpoints-view
   (enabled? [selection] (= 1 (count selection)))
   (run [project swap-state open-resource-fn selection]
     (g/with-auto-evaluation-context evaluation-context

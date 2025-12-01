@@ -1331,7 +1331,7 @@
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
-  (property hovered-row g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property hovered-row g/Num (default 0) (dynamic visible (g/constantly false)))
   (property edited-breakpoint r/Region (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))

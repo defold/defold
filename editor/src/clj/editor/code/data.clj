@@ -17,7 +17,7 @@
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
-            [util.coll :refer [pair] :as coll])
+            [util.coll :as coll] :refer [pair])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
            [java.util Collections]
@@ -2530,9 +2530,9 @@
 
 (defn get-breakpoint-region [regions ^long row]
   (coll/some #(when (and (= (:type %) :breakpoint)
-                    (= (:row (:from %)) row))
-           %)
-        regions))
+                         (= (:row (:from %)) row))
+                %)
+             regions))
 
 (defn breakpoint-region? [region]
   (= :breakpoint (:type region)))
