@@ -382,7 +382,7 @@
                             [curve-view :update-list-view]
                             [debug-view :update-available-controls]
                             [debug-view :update-call-stack]
-                            [breakpoints-view :anchor-pane]]]
+                            [breakpoints-view :breakpoints-anchor-pane]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
 
       (reset! the-root root)
@@ -403,6 +403,8 @@
               (open-resource readme-resource))
             (g/with-auto-evaluation-context evaluation-context
               (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
+
+          (breakpoints-view/restore-breakpoints! project prefs)
 
           ;; Ensure .gitignore is configured to ignore build output and metadata
           ;; files.

@@ -271,27 +271,28 @@
                      (when new-condition
                        (set-breakpoint-condition! project breakpoints breakpoint new-condition evaluation-context))
                      (swap-state assoc :edited-breakpoint nil)))}}}
-        {:graphic {:fx/type fx.stack-pane/lifecycle
-                   :children
-                   [{:fx/type :label
-                     :stack-pane/alignment :center-left
-                     :text-overrun :ellipsis
-                     :text (or condition "")}
-                    {:fx/type fx.h-box/lifecycle
-                     :stack-pane/alignment :center-right
-                     :fill-height false
-                     :max-width :use-pref-size
-                     :max-height :use-pref-size
-                     :spacing 5
-                     :children
-                     (concat
-                       (when condition
-                         [(icon-button remove-condition-icon-path 0.6 []
-                                       (fn [_]
-                                         (g/with-auto-evaluation-context evaluation-context
-                                           (set-breakpoint-condition! project breakpoints breakpoint nil evaluation-context)
-                                           (swap-state assoc :edited-breakpoint nil))))])
-                       [(icon-button edit-bp-icon-path 0.6 [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
+        {:graphic
+         {:fx/type fx.stack-pane/lifecycle
+          :children
+          [{:fx/type :label
+            :stack-pane/alignment :center-left
+            :text-overrun :ellipsis
+            :text (or condition "")}
+           {:fx/type fx.h-box/lifecycle
+            :stack-pane/alignment :center-right
+            :fill-height false
+            :max-width :use-pref-size
+            :max-height :use-pref-size
+            :spacing 5
+            :children
+            (concat
+              (when condition
+                [(icon-button remove-condition-icon-path 0.6 []
+                              (fn [_]
+                                (g/with-auto-evaluation-context evaluation-context
+                                  (set-breakpoint-condition! project breakpoints breakpoint nil evaluation-context)
+                                  (swap-state assoc :edited-breakpoint nil))))])
+              [(icon-button edit-bp-icon-path 0.6 [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
          :on-mouse-clicked (fn [event]
                              (let [^MouseEvent me event]
                                (when (= 2 (.getClickCount me))
@@ -423,7 +424,7 @@
      :props {:children [(breakpoints-toolbar-view project localization-state state swap-state)
                         (breakpoints-table-view project open-resource-fn localization-state state swap-state)]}}))
 
-(g/defnk produce-breakpoints-ui [parent-view open-resource-fn breakpoints workspace project prefs localization]
+(g/defnk produce-breakpoints-anchor-pane [parent-view open-resource-fn breakpoints workspace project prefs localization]
   (save-breakpoints! prefs breakpoints)
   (let [context {:workspace workspace
                  :project project
@@ -447,10 +448,9 @@
   (input project g/Any)
   (input breakpoints g/Any)
 
-  (output anchor-pane AnchorPane :cached produce-breakpoints-ui))
+  (output breakpoints-anchor-pane AnchorPane :cached produce-breakpoints-anchor-pane))
 
 (defn make-breakpoints-view [workspace project open-resource-fn view-graph prefs ^Node parent]
-  (restore-breakpoints! project prefs)
   (first
     (g/tx-nodes-added
       (g/transact
@@ -497,7 +497,7 @@
         bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource
                                        editor.boot-open-project/*view-graph*
                                        (dev/prefs) bp-container)
-        auto-pulls [[bp-view :anchor-pane]]]
+        auto-pulls [[bp-view :breakpoints-anchor-pane]]]
     (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
 
   (defn print-scene-graph
