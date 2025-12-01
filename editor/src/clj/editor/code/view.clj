@@ -2787,9 +2787,9 @@
           regions (get-property view-node :regions)
           breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)
           updated-regions (coll/transfer breakpoint-rows {}
-                                         (keep #(data/get-breakpoint-region regions %))
-                                         (map #(assoc % :enabled (not (:enabled %))))
-                                         (map #(data/ensure-breakpoint-region lines regions %)))]
+                            (keep #(data/get-breakpoint-region regions %))
+                            (map #(assoc % :enabled (not (:enabled %))))
+                            (map #(data/ensure-breakpoint-region lines regions %)))]
       (when (coll/not-empty updated-regions)
         (set-properties! view-node nil updated-regions)))))
 
@@ -3709,10 +3709,10 @@
             indicator-offset 3.0
             indicator-diameter (- line-height indicator-offset indicator-offset)
             breakpoint-row->condition (coll/transfer regions {}
-                                                     (filter data/breakpoint-region?)
-                                                     (map (juxt data/breakpoint-row
-                                                                #(-> {:condition (:condition % true)
-                                                                      :enabled (:enabled %)}))))
+                                        (filter data/breakpoint-region?)
+                                        (map (juxt data/breakpoint-row
+                                                   #(-> {:condition (:condition % true)
+                                                         :enabled (:enabled %)}))))
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
             execution-marker-frame-rows (data/cursor-ranges->start-rows lines (:current-frame execution-markers-by-type))]

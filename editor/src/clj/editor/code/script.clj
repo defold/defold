@@ -27,7 +27,8 @@
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.types :as types]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -410,7 +411,9 @@
     (partial project/get-resource-node (project/get-project _node-id))))
 
 (g/defnk produce-breakpoints [resource regions]
-  (into [] (comp (filter data/breakpoint-region?) (map (partial data/region->breakpoint resource))) regions))
+  (coll/transfer regions []
+    (filter data/breakpoint-region?)
+    (map (partial data/region->breakpoint resource)) regions))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
