@@ -972,6 +972,12 @@ override.aspect.generic.kind = {count, plural, one {# Aspect} other {# Aspects}}
 
 gui.layout.default = Default
 
+# UI
+
+ui.combo-box.filter-prompt = Type to filter
+ui.combo-box.no-items = No items available
+ui.combo-box.not-found = No items found
+
 # Editing operations
 
 operation.atlas.add-animation = Add Animation

@@ -1431,7 +1431,10 @@
                 :disable (properties/read-only? property)
                 :value (properties/unify-values (properties/values property))
                 :on-value-changed #(properties/set-values! property (repeat %))
-                :items (mapv first options)}
+                :items (mapv first options)
+                :filter-prompt-text (localization-state (localization/message "ui.combo-box.filter-prompt"))
+                :no-items-text (localization-state (localization/message "ui.combo-box.no-items"))
+                :not-found-text (localization-state (localization/message "ui.combo-box.not-found"))}
                (resolve-validation property localization-state))}))
 
 (defmethod cljfx-component-view :default [property _ _]

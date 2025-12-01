@@ -1417,7 +1417,8 @@
 ;;  18. ✅ disable support
 ;;  19. ✅ styling
 ;;  20. ✅ tab navigation...
-;;  21. 🟨 localized texts
+;;  21. ✅ localized texts in properties view
+;;  21. 🟨 localized texts in editor scripts
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
