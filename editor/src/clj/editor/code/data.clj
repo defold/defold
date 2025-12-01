@@ -17,7 +17,7 @@
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
-            [util.coll :as coll] :refer [pair])
+            [util.coll :as coll :refer [pair]])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
            [java.util Collections]

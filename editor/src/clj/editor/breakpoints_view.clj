@@ -125,7 +125,7 @@
   (let [bps-prefs (mapv #(dissoc (assoc % :proj-path (resource/proj-path (:resource %))) :resource) breakpoints)]
     (prefs/set! prefs [:code :breakpoints] bps-prefs)))
 
-(defn- restore-breakpoints! [project prefs]
+(defn restore-breakpoints! [project prefs]
   (g/with-auto-evaluation-context evaluation-context
     (let [breakpoints (keep #(when-some [resource (workspace/find-resource (project/workspace project)
                                                                            (:proj-path %)
@@ -343,7 +343,7 @@
                         :open-resource-fn open-resource-fn}
                        selection-provider
                        {}
-                       {resource/Resource #(:resource %)}))))
+                       {resource/Resource :resource}))))
     fx.lifecycle/scalar))
 
 (defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
