@@ -1117,21 +1117,6 @@
       resolve-input-color
       resolve-tooltip))
 
-(defn old-combo-box
-  "Combo box
-
-  Supports all :combo-box props, plus:
-    :tooltip      additionally supports string values and (preferably) maps with
-                  the following keys:
-                    :severity    :error, :warning, or :info
-                    :message     string"
-  [props]
-  (-> props
-      (assoc :fx/type fx.combo-box/lifecycle)
-      (prepend-style-classes "combo-box" "combo-box-base")
-      resolve-input-color
-      resolve-tooltip))
-
 (defn hover-overlay
   "Overlay that should be used as :hover-overlay component of a value field
 
@@ -1414,30 +1399,6 @@
                          nil implies value could not be converted"
   [props]
   (make-value-field text-area false props))
-
-;; todo new combo-box...
-;;   1. ✅ a label with a drop-down icon
-;;   2. ✅ resolves input color
-;;   3. ✅ resolves tooltip (tooltip needs to handle the new combo-box!)
-;;   4. ✅ shows on click
-;;   5. ✅ shows and space and enter
-;;   6. ✅ doesn't show bold orange when showing
-;;   7. ✅ shows items in a list view
-;;   8. ✅ shows "type to filter" above the list
-;;   9. ✅ special label when no items visible
-;;  10. ✅ scroll behavior on select
-;;  11. ✅ scroll view: selected item
-;;  12. ✅ scroll view: no horizontal bar
-;;  13. ✅ on click submit
-;;  14. ✅ on enter submit
-;;  15. ✅ hide filter text if 5 or less items
-;;  16. ✅ make page up / page down work
-;;  17. 🟨 remove old combo-box
-;;  18. ✅ disable support
-;;  19. ✅ styling
-;;  20. ✅ tab navigation...
-;;  21. ✅ localized texts in properties view
-;;  21. 🟨 localized texts in editor scripts
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))

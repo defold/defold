@@ -438,44 +438,48 @@
      ""
      (localization-state (rt/->clj rt message-or-to-string-coercer (rt/invoke-immediate-1 rt to_string maybe-lua-value))))))
 
-(defn- create-select-box-string-converter [rt to_string localization-state]
+(defn- create-select-box-to-string [rt to_string localization-state]
   ;; Note: if a combo box has no value provided, the default is JVM null
-  (DefoldStringConverter.
-    (if to_string
-      #(stringify-lua-value rt to_string % localization-state)
-      #(stringify-lua-value rt % localization-state))))
+  (if to_string
+    #(stringify-lua-value rt to_string % localization-state)
+    #(stringify-lua-value rt % localization-state)))
 
-(defn- on-select-box-key-pressed [^KeyEvent event]
-  (when (= KeyCode/SPACE (.getCode event))
-    (.show ^ComboBox (.getSource event))
-    (.consume event)))
+(def ^:private ext-with-extra-props
+  (fx/make-ext-with-props {}))
 
-(def ^:private ext-with-extra-combo-box-props
-  (fx/make-ext-with-props
-    {:on-value-changed (fx.prop/make
-                         (fx.mutator/property-change-listener #(.valueProperty ^ComboBox %))
-                         property-change-listener-with-source-owner-window-lifecycle)}))
+(def ^:private prop-instance-ref
+  (fx/make-prop
+    (fx.mutator/setter (fn [v a] (reset! a v)))
+    fx.lifecycle/scalar))
+
+(defn- ref->window-fn [ref]
+  (fn [_event]
+    (.getWindow (.getScene ^Node (deref ref)))))
 
 (fxui/defc select-box-view
-  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
-  [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string localization-state]
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}
+             {:fx/type fxui/ext-memo :fn atom :args [nil] :key :ref}]}
+  [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string localization-state ref]
     :or {options []
          enabled true}}]
   (wrap-in-alignment-container
-    {:fx/type ext-with-extra-combo-box-props
+    {:fx/type ext-with-extra-props
      :desc {:fx/type fxui/ext-memo
-            :fn create-select-box-string-converter
+            :fn create-select-box-to-string
             :args [rt to_string localization-state]
-            :key :converter
-            :desc (set-tooltip-and-issue
-                    {:fx/type fxui/old-combo-box
-                     :value value
-                     :pseudo-classes (or (some-> issue :severity hash-set) #{})
-                     :on-key-pressed on-select-box-key-pressed
-                     :items options
-                     :disable (not enabled)}
-                    tooltip issue localization-state)}
-     :props (cond-> {} on_value_changed (assoc :on-value-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
+            :key :to-string
+            :desc (-> {:fx/type fxui/combo-box
+                       :value value
+                       :items options
+                       :disable (not enabled)
+                       :filter-prompt-text (localization-state (localization/message "ui.combo-box.filter-prompt"))
+                       :no-items-text (localization-state (localization/message "ui.combo-box.no-items"))
+                       :not-found-text (localization-state (localization/message "ui.combo-box.not-found"))}
+                      (cond->
+                        on_value_changed (assoc :on-value-changed (make-event-handler-1 (ref->window-fn ref) identity rt "on_value_changed" on_value_changed))
+                        issue (assoc :color (:severity issue)))
+                      (set-tooltip-and-issue tooltip issue localization-state))}
+     :props (cond-> {prop-instance-ref ref})}
     alignment
     true))
 
