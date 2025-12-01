@@ -581,8 +581,6 @@ console.filter.enable-filtering = 启用过滤
 console.filter.add-filter = 添加过滤器 (例如 text, \!exclude)
 console.search = 搜索
 
-# TODO Breakpoints Tab
-
 # Changes view
 
 changes-view.button.diff = 差异

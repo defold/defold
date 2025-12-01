@@ -580,8 +580,6 @@ console.filter.enable-filtering = Включить фильтрацию
 console.filter.add-filter = Новый фильтр ("текст" или "\!убрать")
 console.search = Поиск
 
-# TODO Breakpoints Tab
-
 # Changes view
 
 changes-view.button.diff = Сравнить
