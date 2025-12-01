@@ -31,7 +31,6 @@
             [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.popup :as fx.popup]
-            [cljfx.fx.popup-control :as fx.popup-control]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stack-pane :as fx.stack-pane]
@@ -58,6 +57,7 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
@@ -71,17 +71,16 @@
            [javafx.collections ObservableList]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.geometry Bounds Insets]
-           [javafx.scene Node Parent TraversalDirection]
-           [javafx.scene.control ChoiceBox ComboBox ComboBoxBase Control ControlHelper ListView MenuButton PopupControl ScrollPane TextInputControl Tooltip]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.geometry Bounds Insets Orientation]
+           [javafx.scene Node Parent]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollBar ScrollPane TextInputControl Tooltip]
+           [javafx.scene.control.skin DefoldComboBoxListViewSkin ScrollPaneSkin VirtualFlow]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape SVGPath]
            [javafx.stage Popup PopupWindow Window]
-           [javafx.util Callback Duration StringConverter]
-           [javafx.util.converter DefaultStringConverter]))
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -1412,14 +1411,23 @@
         resolve-tooltip))
 
 ;; todo new combo-box...
-;;  1. ✅ a label with a drop-down icon
-;;  2. resolves input color
-;;  3. resolves tooltip (tooltip needs to handle the new combo-box!)
-;;  4. ✅ shows on click
-;;  5. ✅ shows and space and enter
-;;  6. ✅ doesn't show bold orange when showing
-;;  7. shows items in a list view
-;;  8. shows "type to filter" above the list
+;;   1. ✅ a label with a drop-down icon
+;;   2. resolves input color
+;;   3. resolves tooltip (tooltip needs to handle the new combo-box!)
+;;   4. ✅ shows on click
+;;   5. ✅ shows and space and enter
+;;   6. ✅ doesn't show bold orange when showing
+;;   7. ✅shows items in a list view
+;;   8. ✅ shows "type to filter" above the list
+;;   9. ✅ special label when no items visible
+;;  10. ✅ scroll behavior on select
+;;  11. ✅ scroll view: selected item
+;;  12. ✅ scroll view: no horizontal bar
+;;  13. ✅ on click submit
+;;  14. ✅ on enter submit
+
+(def ^:private ext-with-list-view-props
+  (fx/make-ext-with-props fx.list-view/props))
 
 (def ^:private prop-combo-box-popup
   (fx/make-binding-prop
@@ -1433,10 +1441,27 @@
         #(.hide popup)))
     fx.lifecycle/dynamic))
 
+(defn- hide-combo-box [state]
+  (-> state
+      (assoc :showing false :filter-text "")
+      (dissoc :selected-item)))
+
+(defn- show-combo-box [state]
+  (assoc state :showing true))
+
+(defn- toggle-combo-box [state]
+  ((if (:showing state) hide-combo-box show-combo-box) state))
+
+(defn- set-combo-box-filter-text [state text]
+  (assoc state :filter-text text))
+
+(defn- set-combo-box-selected-item [state item]
+  (assoc state :selected-item item))
+
 (defn- handle-combo-box-mouse-pressed [swap-state ^MouseEvent e]
   (.requestFocus ^Node (.getSource e))
   (.consume e)
-  (swap-state update :showing not))
+  (swap-state toggle-combo-box))
 
 (defn- handle-combo-box-key-pressed [showing swap-state ^KeyEvent e]
   (when-not showing
@@ -1444,7 +1469,7 @@
       (when (or (= KeyCode/ENTER key-code)
                 (= KeyCode/SPACE key-code))
         (.consume e)
-        (swap-state assoc :showing true)))))
+        (swap-state show-combo-box)))))
 
 (def ^:private prop-filter-key-pressed
   (fx/make-binding-prop
@@ -1454,18 +1479,69 @@
         #(.removeEventFilter node KeyEvent/KEY_PRESSED handler)))
     fx.lifecycle/callback))
 
-(defn- handle-combo-box-field-key-pressed [on-value-changed swap-state ^KeyEvent e]
-  (condp = (.getCode e)
-    nil))
+(defn- filter-combo-box-field-key-pressed [on-value-changed swap-state items item ^KeyEvent e]
+  (let [key-code (.getCode e)]
+    (cond
+      (or (= KeyCode/UP key-code)
+          (= KeyCode/DOWN key-code))
+      (let [direction (if (= KeyCode/UP key-code) dec inc)
+            item (-> (coll/index-of items item)
+                     direction
+                     (max 0)
+                     (min (dec (count items)))
+                     items)]
+        (.consume e)
+        (swap-state set-combo-box-selected-item item))
+
+      (= KeyCode/ENTER key-code)
+      (do (.consume e)
+          (swap-state hide-combo-box)
+          (when on-value-changed (on-value-changed item))))))
+
+(defn- describe-combo-box-list-cell [on-value-changed swap-state to-string filtered-item->matching-indices item]
+  (when (some? item)
+    {:graphic (fuzzy-choices/make-matched-text-flow-cljfx
+                (to-string item)
+                (filtered-item->matching-indices item))
+     :on-mouse-pressed (fn [_]
+                         (swap-state hide-combo-box)
+                         (on-value-changed item))}))
+
+(def ^:private prop-combo-box-list-items+selected-item
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^ListView list-view [items selected-item]]
+        (.setAll (.getItems list-view) ^Collection items)
+        (when (some? selected-item)
+          (let [selection-model (.getSelectionModel list-view)]
+            (.select selection-model selected-item)
+            (fx/run-later
+              (-> list-view
+                  ^DefoldComboBoxListViewSkin .getSkin
+                  .getVirtualFlowInstance
+                  (.scrollTo (.getSelectedIndex selection-model))))))))
+    fx.lifecycle/scalar))
+
+(defn- create-combo-box-list-view []
+  (let [view (ListView.)
+        skin (DefoldComboBoxListViewSkin. view)]
+    (.setSkin view skin)
+    (run!
+      (fn [^ScrollBar bar]
+        (when (= Orientation/HORIZONTAL (.getOrientation bar))
+          (.setVisible bar false)
+          (.setMaxHeight bar 0.0)))
+      (.lookupAll (.getVirtualFlowInstance skin) ".scroll-bar"))
+    view))
 
 (defn- combo-box-impl [{:keys [value on-value-changed items to-string state swap-state]
                         :or {to-string str}}]
-  (let [{:keys [showing filter-text]} state]
+  (let [{:keys [showing filter-text selected-item]} state]
     (cond->
       {:fx/type horizontal
        :style-class "ext-combo-box"
        :pseudo-classes (if showing #{:showing} #{})
-       :on-focused-changed (fn [_] (swap-state assoc :showing false))
+       :on-focused-changed (fn [_] (swap-state hide-combo-box))
        :on-mouse-pressed #(handle-combo-box-mouse-pressed swap-state %)
        :on-key-pressed #(handle-combo-box-key-pressed showing swap-state %)
        :focus-traversable true
@@ -1476,37 +1552,59 @@
         {:fx/type fx.stack-pane/lifecycle
          :style-class "ext-combo-box-arrow-button"
          :children [{:fx/type fx.region/lifecycle
-                     :style-class ["ext-combo-box-arrow"]}]}]}
+                     :style-class "ext-combo-box-arrow"}]}]}
       showing
       (assoc
         prop-combo-box-popup
-        {:fx/type fx.popup/lifecycle
-         :auto-hide true
-         :on-hidden (fn [_] (swap-state assoc :showing false))
-         :content [{:fx/type fx.stack-pane/lifecycle
-                    :on-key-pressed #(tap> [:popup %])
-                    :children [{:fx/type fx.region/lifecycle
-                                :on-mouse-pressed (fn [_] (swap-state assoc :showing false))
-                                :style-class "ext-combo-box-popup-background"}
-                               {:fx/type vertical
-                                :padding 1.0
-                                :children [{:fx/type text-field
-                                            :style-class "ext-combo-box-popup-field"
-                                            :prompt-text "Type to filter..."
-                                            :text filter-text
-                                            prop-filter-key-pressed #(handle-combo-box-field-key-pressed on-value-changed swap-state %)
-                                            :on-text-changed #(swap-state assoc :filter-text %)}
-                                           {:fx/type fx.list-view/lifecycle
-                                            :focus-traversable false
-                                            :style-class "ext-combo-box-popup-list"
-                                            :items items
-                                            :fixed-cell-size 27.0
-                                            :max-height (* 27.0 (double (min 10 (count items))))
-                                            :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                           :describe (fn [item]
-                                                                       {:text (if (some? item)
-                                                                                (to-string item)
-                                                                                "")})}}]}]}]}))))
+        (let [option->text #(to-string (% 0))
+              filtered-item+matching-indices (->> items
+                                                  (mapv vector)
+                                                  (fuzzy-choices/filter-options option->text option->text filter-text)
+                                                  (e/map #(coll/pair (% 0) (:matching-indices (meta %))))
+                                                  vec)
+              filtered-items (mapv key filtered-item+matching-indices)
+              filtered-item->matching-indices (into {} filtered-item+matching-indices)
+
+              ;; If no item is selected, default to value
+              selected-item (if (some? selected-item) selected-item value)
+              ;; selected item has to be in items (but value doesn't have to be!)
+              selected-item (when (some? selected-item) (coll/first-where #(= selected-item %) filtered-items))
+              ;; if selected value is not in items, default to first item (items can
+              ;; be empty though, so selected item may still be nil)
+              selected-item (if (nil? selected-item) (first filtered-items) selected-item)]
+          {:fx/type fx.popup/lifecycle
+           :auto-hide true
+           :on-hidden (fn [_] (swap-state hide-combo-box))
+           :content
+           [{:fx/type fx.stack-pane/lifecycle
+             :children
+             [{:fx/type fx.region/lifecycle
+               :on-mouse-pressed (fn [_] (swap-state hide-combo-box))
+               :style-class "ext-combo-box-popup-background"}
+              {:fx/type vertical
+               :padding 1.0
+               :children
+               [{:fx/type text-field
+                 :style-class "ext-combo-box-popup-field"
+                 :prompt-text "Type to filter..."
+                 :text filter-text
+                 prop-filter-key-pressed #(filter-combo-box-field-key-pressed on-value-changed swap-state filtered-items selected-item %)
+                 :on-text-changed #(swap-state set-combo-box-filter-text %)}
+                (if (zero? (count filtered-items))
+                  {:fx/type label
+                   :alignment :center
+                   :color :hint
+                   :text (if (pos? (count items)) "No items found" "No items available")}
+                  {:fx/type ext-with-list-view-props
+                   :desc {:fx/type fx/ext-instance-factory
+                          :create create-combo-box-list-view}
+                   :props {:focus-traversable false
+                           :style-class "ext-combo-box-popup-list"
+                           prop-combo-box-list-items+selected-item [filtered-items selected-item]
+                           :fixed-cell-size 27.0
+                           :max-height (* 27.0 (double (min 10 (count filtered-items))))
+                           :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                          :describe (fn/partial describe-combo-box-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})]}]}]})))))
 
 (defn combo-box
   "Combo box control
@@ -1522,6 +1620,7 @@
    :desc (assoc props :fx/type combo-box-impl)})
 
 (comment
+
   @(fx/on-fx-thread
      (fx/instance
        (fx/create-component
@@ -1542,8 +1641,12 @@
                                      :text "huh"}
                                     {:fx/type combo-box
                                      :to-string name
-                                     :value :a
-                                     :items [:a :b :c :d :e :f :g :h :i :j :k :l :m :n :o :p :q]}]}}}))))
+                                     :value :p
+                                     :on-value-changed tap>
+                                     :items [:a :b :c :d :e :f :g :h :i :j :k :l :m :n :o :p :q :abba :babba :baba
+                                             :asdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgdasdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgd]}]}}})))
+
+  :-)
 
 (defn- color->web-string
   ([color]

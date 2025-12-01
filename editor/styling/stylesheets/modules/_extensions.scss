@@ -393,6 +393,27 @@ $ext-line-height: 26px;
                 -fx-border-color: -df-component-light;
                 -fx-padding: 4px 8px;
             }
+            &-list {
+                & > .virtual-flow {
+                    & > .scroll-bar > .thumb {
+                        -fx-background-color: -df-component-dark;
+                        &:hover { -fx-background-color: -df-component-light; }
+                        &:pressed { -fx-background-color: -df-component-lighter; }
+                    }
+                    & > .clipped-container > .sheet > .cell {
+                        &:hover, &:selected {
+                            & > TextFlow > Text {
+                                -fx-fill: -df-text-selected;
+                                &.matched { -fx-fill: -df-defold-blue-lighter; }
+                            }
+                        }
+                        &:selected {
+                            -fx-border-color: -df-defold-orange;
+                            -fx-border-width: 0 0 0 2px;
+                        }
+                    }
+                }
+            }
         }
     }
 }
