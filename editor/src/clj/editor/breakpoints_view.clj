@@ -185,7 +185,7 @@
 
 (defn- icon-button [icon-path scale classes on-action-event]
   {:fx/type fx.button/lifecycle
-   :style-class (concat ["icon-button"] classes)
+   :style-class (into ["icon-button"] classes)
    :graphic {:fx/type fx.stack-pane/lifecycle
              :min-width 20
              :min-height 20
@@ -424,7 +424,7 @@
                         (breakpoints-table-view project open-resource-fn localization-state state swap-state)]}}))
 
 (g/defnk produce-breakpoints-ui [parent-view open-resource-fn breakpoints workspace project prefs localization]
-  (save-breakpoints! prefs (g/node-value project :breakpoints))
+  (save-breakpoints! prefs breakpoints)
   (let [context {:workspace workspace
                  :project project
                  :prefs prefs
@@ -490,11 +490,7 @@
     (ui/run-command table-view :file.show-in-assets)))
 
 (comment
-  (g/node-value @the-view :breakpoints)
-  (handler/selection (ui/->selection-provider (.lookup (ui/main-root) "#breakpoints-table-view")))
-  (g/node-value (dev/app-view) :auto-pulls)
-  (g/node-value (dev/project) :breakpoints)
-  (def the-view (atom nil))
+  ;; Recreate the breakpoints view
   (let [bp-container (.lookup (ui/main-root) "#breakpoints-container")
         open-resource (partial #'editor.app-view/open-resource
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project))
@@ -502,36 +498,7 @@
                                        editor.boot-open-project/*view-graph*
                                        (dev/prefs) bp-container)
         auto-pulls [[bp-view :anchor-pane]]]
-    (reset! the-view bp-view)
     (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
-
-  (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints.show-in-assets)
-
-  (let [tab-pane (ui/parent-tab-pane (.lookup (ui/main-root) "#breakpoints-container"))
-        table (.lookup (ui/main-root) "#breakpoints-table-view")]
-    (ui/context! table :breakpoints-view
-                 {:project (dev/project) :table table}
-                 (ui/->selection-provider table)
-                 {}
-                 {resource/Resource (fn [idx] (-> @state :breakpoints (get idx) :resource))}))
-
-  (let [table (.lookup (ui/main-root) "#breakpoints-table-view")]
-    (ui/register-context-menu table ::breakpoint-menu true))
-
-  (g/with-auto-evaluation-context ec
-    (let [script (project/get-resource-node (dev/project)
-                                            (workspace/find-resource (dev/workspace) "/scripts/game.script" ec)
-                                            ec)]
-      (g/node-value script :regions)))
-
-  (defn save-breakpoints! [_ _] nil)
-  (prefs/get (dev/prefs) [:code :breakpoints])
-  (save-breakpoints! (dev/prefs) (g/node-value (dev/project) :breakpoints))
-  (restore-breakpoints! (dev/project) (dev/prefs))
-
-  (ui/run-command (.lookup (ui/main-root) "#breakpoints-table-view") :breakpoints.toggle-selected-enabled)
-
-  (prefs/get (dev/prefs) [:window :keymap])
 
   (defn print-scene-graph
     ([node]
@@ -556,5 +523,4 @@
            (when (instance? javafx.scene.Parent (.getNode skin))
              (print-scene-graph (.getNode skin) (inc depth))))))))
   (print-scene-graph (.lookup (ui/main-root) "#breakpoints-container"))
-  (ui/run-now (ui/reload-root-styles!))
   :-)
