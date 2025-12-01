@@ -3708,13 +3708,11 @@
             source-line-count (count lines)
             indicator-offset 3.0
             indicator-diameter (- line-height indicator-offset indicator-offset)
-            breakpoint-row->condition (into {}
-                                            (comp
-                                              (filter data/breakpoint-region?)
-                                              (map (juxt data/breakpoint-row
-                                                         #(hash-map :condition (:condition % true)
-                                                                    :enabled (:enabled %)))))
-                                            regions)
+            breakpoint-row->condition (coll/transfer regions {}
+                                                     (filter data/breakpoint-region?)
+                                                     (map (juxt data/breakpoint-row
+                                                                #(-> {:condition (:condition % true)
+                                                                      :enabled (:enabled %)}))))
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
             execution-marker-frame-rows (data/cursor-ranges->start-rows lines (:current-frame execution-markers-by-type))]

@@ -21,65 +21,77 @@
 
 (def ^:private project-path "test/resources/geometry_wars")
 
-(deftest update-script-regions-from-breakpoints-test
+(deftest set-regions-with-action-test
   (test-util/with-loaded-project project-path
-    (let [update-fn #'breakpoints-view/update-script-regions-from-breakpoints
+    (let [ec (g/make-evaluation-context)
+          f #'breakpoints-view/set-regions-with-action!
+          set-regions-with-action! (partial f project ec)
           script-resource (test-util/resource workspace "/main/main.script")
           script-node (test-util/resource-node project script-resource)
-          ec (g/make-evaluation-context)
           lines (g/node-value script-node :lines ec)
-          regions (g/node-value script-node :regions ec)
-          set-breakpoint-on-row (fn [row]
-                                  (g/set-property! script-node :regions
-                                                     (:regions (code-data/toggle-breakpoint-region lines regions #{row}))))]
-
+          call-set-regions! (fn [existing-breakpoints new-breakpoints action-fn]
+                              (let [state (atom {:breakpoints existing-breakpoints})]
+                                (set-regions-with-action!
+                                  (fn [f & args] (apply swap! state f args))
+                                  existing-breakpoints
+                                  new-breakpoints
+                                  action-fn)
+                                @state))
+          set-breakpoints-on-script! (fn [breakpoints]
+                                       (let [regions (g/node-value script-node :regions ec)]
+                                         (g/set-property! script-node :regions
+                                           (map (partial #'breakpoints-view/breakpoint->region lines) breakpoints))))]
       (testing "new breakpoints are mapped to regions"
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
                            {:row 2 :resource script-resource :enabled false}]
-              result (update-fn script-node breakpoints ec)]
+              result (:breakpoints (call-set-regions! [] breakpoints (fn [all new] (into all new))))
+              regions (g/node-value script-node :regions)]
           (is (= 2 (count result)))
-          (doseq [[bp region] (map vector breakpoints result)]
+          (doseq [[bp region] (map vector result regions)]
             (is (= (code-data/region->breakpoint script-resource region) bp)))))
 
       (testing "existing breakpoints are mapped to regions"
-        (let [regions [(set-breakpoint-on-row 1)
-                       (set-breakpoint-on-row 2)]
-              breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
+        (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
                            {:row 2 :resource script-resource :enabled false}]
-              result (update-fn script-node breakpoints ec)]
+              _ (set-breakpoints-on-script! breakpoints)
+              result (:breakpoints (call-set-regions! breakpoints breakpoints (fn [all new] new)))
+              regions (g/node-value script-node :regions ec)]
           (is (= 2 (count result)))
-          (doseq [[bp region] (map vector breakpoints result)]
+          (doseq [[bp region] (map vector result regions)]
             (is (= (code-data/region->breakpoint script-resource region) bp)))))
 
       (testing "missing breakpoints are mapped to empty"
-        (let [regions [(set-breakpoint-on-row 1)
-                       (set-breakpoint-on-row 2)]
-              breakpoints []
-              result (update-fn script-node breakpoints ec)]
+        (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
+                           {:row 2 :resource script-resource :enabled false}]
+              _ (set-breakpoints-on-script! breakpoints)
+              result (:breakpoints (call-set-regions! [] breakpoints #(vec (remove (set %2) %1))))
+              regions (g/node-value script-node :regions ec)]
           (is (not (seq result)))))
       (testing "handles modified, removed, and new breakpoints"
-        (let [existing-regions (mapv set-breakpoint-on-row (range 1 4))
-              breakpoints [{:row 1 :resource script-resource :condition "modified1" :enabled true}
-                           {:row 2 :resource script-resource :enabled false}
-                           {:row 5 :resource script-resource :condition "new1" :enabled true}
-                           {:row 6 :resource script-resource :enabled false}]
-              result (update-fn script-node breakpoints ec)]
+        (let [breakpoints [{:row 1 :resource script-resource :enabled true}
+                           {:row 2 :resource script-resource :enabled true}
+                           {:row 3 :resource script-resource :enabled true}]
+              new-breakpoints [{:row 1 :resource script-resource :condition "modified1" :enabled true}
+                               {:row 2 :resource script-resource :enabled false}
+                               {:row 5 :resource script-resource :condition "new1" :enabled true}
+                               {:row 6 :resource script-resource :enabled false}]
+              result (:breakpoints (call-set-regions! breakpoints new-breakpoints (fn [all new] new)))
+              regions (g/node-value script-node :regions ec)]
 
           (is (= 4 (count result)))
 
-          (let [modified-1 (first (filter #(= 1 (:row (code-data/region->breakpoint script-resource %))) result))
-                modified-2 (first (filter #(= 2 (:row (code-data/region->breakpoint script-resource %))) result))]
-            (is (= "modified1" (:condition (code-data/region->breakpoint script-resource modified-1))))
-            (is (true? (:enabled (code-data/region->breakpoint script-resource modified-1))))
-            (is (nil? (:condition (code-data/region->breakpoint script-resource modified-2))))
-            (is (false? (:enabled (code-data/region->breakpoint script-resource modified-2)))))
+          (let [modified-1 (first (filter #(= 1 (:row %)) result))
+                modified-2 (first (filter #(= 2 (:row %)) result))]
+            (is (= "modified1" (:condition modified-1)))
+            (is (true? (:enabled modified-1)))
+            (is (nil? (:condition modified-2)))
+            (is (false? (:enabled modified-2))))
 
-          (is (nil? (first (filter #(= 3 (:row (code-data/region->breakpoint script-resource %))) result))))
-          (is (nil? (first (filter #(= 4 (:row (code-data/region->breakpoint script-resource %))) result))))
+          (is (nil? (first (filter #(= 3 (:row %)) result))))
 
-          (let [new-1 (first (filter #(= 5 (:row (code-data/region->breakpoint script-resource %))) result))
-                new-2 (first (filter #(= 6 (:row (code-data/region->breakpoint script-resource %))) result))]
-            (is (= "new1" (:condition (code-data/region->breakpoint script-resource new-1))))
-            (is (true? (:enabled (code-data/region->breakpoint script-resource new-1))))
-            (is (nil? (:condition (code-data/region->breakpoint script-resource new-2))))
-            (is (false? (:enabled (code-data/region->breakpoint script-resource new-2))))))))))
+          (let [new-1 (first (filter #(= 5 (:row %)) result))
+                new-2 (first (filter #(= 6 (:row %)) result))]
+            (is (= "new1" (:condition new-1)))
+            (is (true? (:enabled new-1)))
+            (is (nil? (:condition new-2)))
+            (is (false? (:enabled new-2)))))))))

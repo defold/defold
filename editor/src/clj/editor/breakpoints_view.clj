@@ -102,7 +102,7 @@
         regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
     (g/set-property! script-node :regions regions)))
 
-(defn- set-regions-with-action! [swap-state project evaluation-context all-breakpoints breakpoints action-fn]
+(defn- set-regions-with-action! [project evaluation-context swap-state all-breakpoints breakpoints action-fn]
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
         updated-breakpoints (action-fn all-breakpoints breakpoints)
         updated-by-resource (group-by :resource updated-breakpoints)
@@ -157,7 +157,7 @@
   (let [breakpoints (:breakpoints state)
         action-all-fn (fn [action-fn _]
                         (g/with-auto-evaluation-context evaluation-context
-                          (set-regions-with-action! swap-state project evaluation-context breakpoints breakpoints action-fn)))]
+                          (set-regions-with-action! project evaluation-context swap-state breakpoints breakpoints action-fn)))]
     {:fx/type fx.h-box/lifecycle
      :id "breakpoints-tool-bar"
      :anchor-pane/top 0
@@ -169,19 +169,19 @@
      :children [{:fx/type fx.button/lifecycle
                  :id "breakpoints-enable-all"
                  :text (localization-state (localization/message "breakpoints.button.enable-all"))
-                 :on-action (fn/partial action-all-fn #(update-breakpoints-enabled-state %1 %2 true))}
+                 :on-action (partial action-all-fn #(update-breakpoints-enabled-state %1 %2 true))}
                 {:fx/type fx.button/lifecycle
                  :id "breakpoints-disable-all"
                  :text (localization-state (localization/message "breakpoints.button.disable-all"))
-                 :on-action (fn/partial action-all-fn #(update-breakpoints-enabled-state %1 %2 false))}
+                 :on-action (partial action-all-fn #(update-breakpoints-enabled-state %1 %2 false))}
                 {:fx/type fx.button/lifecycle
                  :id "breakpoints-toggle-all"
                  :text (localization-state (localization/message "breakpoints.button.toggle-all"))
-                 :on-action (fn/partial action-all-fn toggle-breakpoints-enabled)}
+                 :on-action (partial action-all-fn toggle-breakpoints-enabled)}
                 {:fx/type fx.button/lifecycle
                  :id "breakpoints-remove-all"
                  :text (localization-state (localization/message "breakpoints.button.remove-all"))
-                 :on-action (fn/partial action-all-fn #(vec (remove (set %2) %1)))}]}))
+                 :on-action (partial action-all-fn #(vec (remove (set %2) %1)))}]}))
 
 (defn- icon-button [icon-path scale classes on-action-event]
   {:fx/type fx.button/lifecycle
@@ -217,7 +217,7 @@
       :on-selected-changed
       (fn [_]
         (g/with-auto-evaluation-context evaluation-context
-          (set-regions-with-action! swap-state project evaluation-context breakpoints [breakpoint] toggle-breakpoints-enabled)))}}))
+          (set-regions-with-action! project evaluation-context swap-state breakpoints [breakpoint] toggle-breakpoints-enabled)))}}))
 
 (defn- column-line-cell-factory [breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
@@ -314,7 +314,7 @@
            (g/with-auto-evaluation-context evaluation-context
              ;; NOTE: Sometimes the editor's top menu disappears if we don't request focus here
              (.requestFocus (.lookup (ui/main-root) "#breakpoints-table-view"))
-             (set-regions-with-action! swap-state project evaluation-context
+             (set-regions-with-action! project evaluation-context swap-state
                                        breakpoints
                                        [breakpoint]
                                        #(vec (remove (set %2) %1))))))]}}))
@@ -464,12 +464,12 @@
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
   (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (set-regions-with-action! swap-state project evaluation-context breakpoints selection toggle-breakpoints-enabled))))
+      (set-regions-with-action! project evaluation-context swap-state breakpoints selection toggle-breakpoints-enabled))))
 
 (handler/defhandler :breakpoints.remove-selected :breakpoints-view
   (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (set-regions-with-action! swap-state project evaluation-context breakpoints selection #(vec (remove (set %2) %1))))))
+      (set-regions-with-action! project evaluation-context swap-state breakpoints selection #(vec (remove (set %2) %1))))))
 
 (handler/defhandler :breakpoints.edit-selected :breakpoints-view
   (enabled? [selection] (= (count selection) 1))
