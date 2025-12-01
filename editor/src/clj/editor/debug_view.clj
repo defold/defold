@@ -17,7 +17,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.code.data :as code-data]
+            [editor.code.data :as code.data]
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
@@ -392,7 +392,7 @@
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
         (when resource
-          (open-resource-fn resource {:cursor-range (code-data/line-number->CursorRange line)})))
+          (open-resource-fn resource {:cursor-range (code.data/line-number->CursorRange line)})))
       nil)))
 
 (defn- collect-enabled-breakpoints [project]
