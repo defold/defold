@@ -1505,7 +1505,7 @@
                 (filtered-item->matching-indices item))
      :on-mouse-pressed (fn [_]
                          (swap-state hide-combo-box)
-                         (on-value-changed item))}))
+                         (when on-value-changed (on-value-changed item)))}))
 
 (def ^:private prop-combo-box-list-items+selected-item
   (fx/make-prop
@@ -1534,8 +1534,12 @@
       (.lookupAll (.getVirtualFlowInstance skin) ".scroll-bar"))
     view))
 
-(defn- combo-box-impl [{:keys [value on-value-changed items to-string state swap-state]
-                        :or {to-string str}}]
+(defn- combo-box-impl
+  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text]
+    :or {to-string str
+         filter-prompt-text "Type to filter"
+         no-items-text "No items available"
+         not-found-text "No items found"}}]
   (let [{:keys [showing filter-text selected-item]} state]
     (cond->
       {:fx/type horizontal
@@ -1586,7 +1590,7 @@
                :children
                [{:fx/type text-field
                  :style-class "ext-combo-box-popup-field"
-                 :prompt-text "Type to filter..."
+                 :prompt-text filter-prompt-text
                  :text filter-text
                  prop-filter-key-pressed #(filter-combo-box-field-key-pressed on-value-changed swap-state filtered-items selected-item %)
                  :on-text-changed #(swap-state set-combo-box-filter-text %)}
@@ -1594,7 +1598,7 @@
                   {:fx/type label
                    :alignment :center
                    :color :hint
-                   :text (if (pos? (count items)) "No items found" "No items available")}
+                   :text (if (pos? (count items)) not-found-text no-items-text)}
                   {:fx/type ext-with-list-view-props
                    :desc {:fx/type fx/ext-instance-factory
                           :create create-combo-box-list-view}
@@ -1610,10 +1614,13 @@
   "Combo box control
 
   Props:
-    :value               current value, doesn't have to be present in items
-    :on-value-changed    callback that will receive a new value on change
-    :items               available items
-    :to-string           a function that stringifies an item, default str"
+    :value                 current value, doesn't have to be present in items
+    :on-value-changed      callback that will receive a new value on change
+    :items                 available items
+    :to-string             a function that stringifies an item, default str
+    :filter-prompt-text    defaults to \"Type to filter\"
+    :no-items-text         defaults to \"No items available\"
+    :not-found-text        defaults to \"No items found\""
   [props]
   {:fx/type fx/ext-state
    :initial-state {:showing false :filter-text ""}
@@ -1639,12 +1646,18 @@
                          :spacing 10
                          :children [{:fx/type text-field
                                      :text "huh"}
-                                    {:fx/type combo-box
-                                     :to-string name
-                                     :value :p
-                                     :on-value-changed tap>
-                                     :items [:a :b :c :d :e :f :g :h :i :j :k :l :m :n :o :p :q :abba :babba :baba
-                                             :asdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgdasdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgd]}]}}})))
+                                    {:fx/type fx/ext-state
+                                     :initial-state :something-esle
+                                     :desc {:fx/type (fn [{:keys [state swap-state]}]
+                                                       {:fx/type combo-box
+                                                        :to-string (comp str symbol)
+                                                        :value state
+                                                        :on-value-changed #(swap-state (constantly %))
+                                                        :not-found-text "Uhhh"
+                                                        #_#_:items [:abba :hubba :blobby]
+                                                        :items [:uhh/puhh
+                                                                :ehh/a :blehh/b :asdpo/c :bgb/d :werwer/e :pkethr/f :kjwerb/g :h :i :j :k :l :m :n :o :p :q :abba :babba :baba
+                                                                :asdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgdasdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgd]})}}]}}})))
 
   :-)
 

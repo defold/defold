@@ -401,6 +401,7 @@ $ext-line-height: 26px;
                         &:pressed { -fx-background-color: -df-component-lighter; }
                     }
                     & > .clipped-container > .sheet > .cell {
+                        -fx-padding: 4px 6px;
                         &:hover, &:selected {
                             & > TextFlow > Text {
                                 -fx-fill: -df-text-selected;
