@@ -370,6 +370,7 @@ $ext-line-height: 26px;
             -fx-max-width: $ext-line-height;
             -fx-min-height: $ext-line-height;
             -fx-max-height: $ext-line-height;
+            &:disabled { -fx-opacity: 0.4; }
         }
         &-arrow {
             -fx-shape: "M 0 0 h 10 l -5 6 z";
@@ -385,6 +386,12 @@ $ext-line-height: 26px;
                 -fx-border-radius: 0 0 2px 2px;
                 -fx-background-radius: 0 0 3px 3px;
                 -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0, 0, 8);
+                &:warning {
+                    -fx-border-color: -df-component-light -df-error-severity-warning -df-error-severity-warning -df-error-severity-warning;
+                }
+                &:error {
+                    -fx-border-color: -df-component-light -df-error-severity-fatal -df-error-severity-fatal -df-error-severity-fatal;
+                }
             }
             &-field, &-field:focused {
                 -fx-border-radius: 0;
@@ -414,6 +421,22 @@ $ext-line-height: 26px;
                         }
                     }
                 }
+            }
+        }
+        &:warning {
+            & > .label { -fx-border-color: -df-error-severity-warning-dim; }
+            & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-warning-dim; }
+            &:hover, &:focused {
+                & > .label { -fx-border-color: -df-error-severity-warning; }
+                & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-warning; }
+            }
+        }
+        &:error {
+            & > .label { -fx-border-color: -df-error-severity-fatal-dim; }
+            & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal-dim; }
+            &:hover, &:focused {
+                & > .label { -fx-border-color: -df-error-severity-fatal; }
+                & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal; }
             }
         }
     }

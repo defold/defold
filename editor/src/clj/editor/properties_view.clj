@@ -1417,28 +1417,22 @@
          :editable (not (properties/read-only? property))}
         (resolve-validation property localization-state))))
 
-#_(defmethod make-property-control :choicebox [{:keys [options]} _context property-fn]
-    (let [combo-box (fuzzy-combo-box/make options)]))
-;; todo: why doesn't it support keyboard normally????
-
-(defn- make-choicebox-options-converter [options]
+(defn- make-choicebox-to-string [options]
   (let [options (into {} options)]
-    (DefoldStringConverter. #(or (options %) (str %)))))
+    #(or (options %) (str %))))
 
 (defmethod cljfx-component-view :choicebox [property _context localization-state]
   (let [options (:options (:edit-type property))]
-    {:fx/type fxui/label
-     :text "TODO: combo box..."}
-    #_{:fx/type fxui/ext-memo
-       :fn make-choicebox-options-converter
-       :args [options]
-       :key :converter
-       :desc (-> {:fx/type fxui/old-combo-box
-                  :disable (properties/read-only? property)
-                  :value (properties/unify-values (properties/values property))
-                  :on-value-changed #(properties/set-values! property (repeat %))
-                  :items (mapv first options)}
-                 (resolve-validation property localization-state))}))
+    {:fx/type fxui/ext-memo
+     :fn make-choicebox-to-string
+     :args [options]
+     :key :to-string
+     :desc (-> {:fx/type fxui/combo-box
+                :disable (properties/read-only? property)
+                :value (properties/unify-values (properties/values property))
+                :on-value-changed #(properties/set-values! property (repeat %))
+                :items (mapv first options)}
+               (resolve-validation property localization-state))}))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...

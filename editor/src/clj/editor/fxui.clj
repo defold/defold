@@ -44,6 +44,7 @@
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.color-dropper :as color-dropper]
@@ -72,9 +73,9 @@
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets Orientation]
-           [javafx.scene Node Parent]
+           [javafx.scene Node Parent TraversalDirection]
            [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollBar ScrollPane TextInputControl Tooltip]
-           [javafx.scene.control.skin DefoldComboBoxListViewSkin ScrollPaneSkin VirtualFlow]
+           [javafx.scene.control.skin DefoldComboBoxListViewSkin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
@@ -1395,25 +1396,10 @@
   [props]
   (make-value-field text-area false props))
 
-#_(defn combo-box
-    "Combo box
-
-    Supports all :combo-box props, plus:
-      :tooltip      additionally supports string values and (preferably) maps with
-                    the following keys:
-                      :severity    :error, :warning, or :info
-                      :message     string"
-    [props]
-    (-> props
-        (assoc :fx/type fx.combo-box/lifecycle)
-        (prepend-style-classes "combo-box" "combo-box-base")
-        resolve-input-color
-        resolve-tooltip))
-
 ;; todo new combo-box...
 ;;   1. ✅ a label with a drop-down icon
-;;   2. resolves input color
-;;   3. resolves tooltip (tooltip needs to handle the new combo-box!)
+;;   2. ✅ resolves input color
+;;   3. 🟨 resolves tooltip (tooltip needs to handle the new combo-box!)
 ;;   4. ✅ shows on click
 ;;   5. ✅ shows and space and enter
 ;;   6. ✅ doesn't show bold orange when showing
@@ -1427,6 +1413,11 @@
 ;;  14. ✅ on enter submit
 ;;  15. ✅ hide filter text if 5 or less items
 ;;  16. ✅ make page up / page down work
+;;  17. 🟨 remove old combo-box
+;;  18. ✅ disable support
+;;  19. ✅ styling
+;;  20. ✅ tab navigation...
+;;  21. 🟨 localized texts
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
@@ -1439,7 +1430,7 @@
         (doto root
           (.setMinWidth (.getWidth bounds))
           (.setMaxWidth (.getWidth bounds)))
-        (.show popup node (- (.getMinX bounds) 12.0) (- (.getMaxY bounds) 5.0))
+        (.show popup node (- (.getMinX bounds) 12.0) (- (.getMaxY bounds) 6.0))
         #(.hide popup)))
     fx.lifecycle/dynamic))
 
@@ -1468,10 +1459,16 @@
 (defn- handle-combo-box-key-pressed [showing swap-state ^KeyEvent e]
   (when-not showing
     (let [key-code (.getCode e)]
-      (when (or (= KeyCode/ENTER key-code)
-                (= KeyCode/SPACE key-code))
-        (.consume e)
-        (swap-state show-combo-box)))))
+      (cond
+        (or (= KeyCode/ENTER key-code)
+            (= KeyCode/SPACE key-code))
+        (do
+          (.consume e)
+          (swap-state show-combo-box))
+
+        (= KeyCode/TAB key-code)
+        (do (.consume e)
+            (.requestFocusTraversal ^Node (.getSource e) (if (.isShiftDown e) TraversalDirection/PREVIOUS TraversalDirection/NEXT)))))))
 
 (def ^:private prop-filter-key-pressed
   (fx/make-binding-prop
@@ -1489,7 +1486,7 @@
           (= KeyCode/UP key-code)
           (= KeyCode/DOWN key-code))
       (let [direction (if (or (= KeyCode/UP key-code) (= KeyCode/PAGE_UP key-code)) - +)
-            magnitude (if (or (= KeyCode/PAGE_UP key-code) (= KeyCode/PAGE_DOWN key-code)) 9 1)
+            magnitude (if (or (= KeyCode/PAGE_UP key-code) (= KeyCode/PAGE_DOWN key-code)) 10 1)
             item (-> (coll/index-of items item)
                      (direction magnitude)
                      (max 0)
@@ -1544,14 +1541,16 @@
     view))
 
 (defn- combo-box-impl
-  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text]
+  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text color disable]
     :or {to-string str
          filter-prompt-text "Type to filter"
          no-items-text "No items available"
-         not-found-text "No items found"}}]
+         not-found-text "No items found"
+         disable false}}]
   (let [{:keys [showing filter-text selected-item]} state]
     (cond->
       {:fx/type horizontal
+       :disable disable
        :style-class "ext-combo-box"
        :pseudo-classes (if showing #{:showing} #{})
        :on-focused-changed (fn [_] (swap-state hide-combo-box))
@@ -1566,6 +1565,10 @@
          :style-class "ext-combo-box-arrow-button"
          :children [{:fx/type fx.region/lifecycle
                      :style-class "ext-combo-box-arrow"}]}]}
+
+      color
+      (update :pseudo-classes conj color)
+
       showing
       (assoc
         prop-combo-box-popup
@@ -1591,8 +1594,10 @@
            :on-hidden (fn [_] (swap-state hide-combo-box))
            :content
            [{:fx/type fx.stack-pane/lifecycle
+             :stylesheets [(str (io/resource "dialogs.css"))]
              :children
              [{:fx/type fx.region/lifecycle
+               :pseudo-classes (if color #{color} #{})
                :on-mouse-pressed (fn [_] (swap-state hide-combo-box))
                :style-class "ext-combo-box-popup-background"}
               {:fx/type vertical
@@ -1632,46 +1637,12 @@
     :to-string             a function that stringifies an item, default str
     :filter-prompt-text    defaults to \"Type to filter\"
     :no-items-text         defaults to \"No items available\"
-    :not-found-text        defaults to \"No items found\""
+    :not-found-text        defaults to \"No items found\"
+    :color                 either :warning or :error"
   [props]
   {:fx/type fx/ext-state
    :initial-state {:showing false :filter-text ""}
    :desc (assoc props :fx/type combo-box-impl)})
-
-(comment
-
-  @(fx/on-fx-thread
-     (fx/instance
-       (fx/create-component
-         {:fx/type :stage
-          :width 500
-          :height 500
-          :showing true
-          :scene {:fx/type :scene
-                  :stylesheets [(str (clojure.java.io/resource "dialogs.css"))]
-                  :on-key-pressed (fn [^KeyEvent e]
-                                    (if (= KeyCode/ESCAPE (.getCode e))
-                                      (.hide (.getWindow ^javafx.scene.Scene (.getSource e)))))
-                  :root {:fx/type :v-box
-                         :style {:-fx-background-color :-df-background-light}
-                         :padding 20
-                         :spacing 10
-                         :children [{:fx/type text-field
-                                     :text "huh"}
-                                    {:fx/type fx/ext-state
-                                     :initial-state :something-esle
-                                     :desc {:fx/type (fn [{:keys [state swap-state]}]
-                                                       {:fx/type combo-box
-                                                        :to-string (comp str symbol)
-                                                        :value state
-                                                        :on-value-changed #(swap-state (constantly %))
-                                                        :not-found-text "Uhhh"
-                                                        #_#_:items [:abba :hubba :blobby]
-                                                        :items [:uhh/puhh
-                                                                :ehh/a :blehh/b :asdpo/c :bgb/d :werwer/e :pkethr/f :kjwerb/g :h :i :j :k :l :m :n :o :p :q :abba :babba :baba
-                                                                :asdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgdasdgjhagsdjhgajsdgjasgdgajsdgjhasgdjgasjdgjagsdjhgajshdgjahsgd]})}}]}}})))
-
-  :-)
 
 (defn- color->web-string
   ([color]
