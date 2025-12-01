@@ -25,7 +25,7 @@
   (test-util/with-loaded-project project-path
     (let [ec (g/make-evaluation-context)
           f #'breakpoints-view/set-regions-with-action!
-          set-regions-with-action! (partial f project ec)
+          set-regions-with-action! (partial f project %1 %2 %3 %4 ec)
           script-resource (test-util/resource workspace "/main/main.script")
           script-node (test-util/resource-node project script-resource)
           lines (g/node-value script-node :lines ec)
