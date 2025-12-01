@@ -43,6 +43,7 @@
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
            [internal.graph.types Arc Endpoint]
+           [javafx.beans.value ChangeListener ObservableValue]
            [javafx.scene Parent]
            [javax.vecmath Color3f Color4f Matrix3d Matrix3f Matrix4d Matrix4f Point2d Point2f Point3d Point3f Point4d Point4f Quat4d Quat4f Tuple2d Tuple2f Tuple3d Tuple3f Tuple4d Tuple4f Vector2d Vector2f Vector3d Vector3f Vector4d Vector4f]))
 
@@ -385,6 +386,28 @@
                  :branch? #(and (instance? Parent %)
                                 (seq (.getChildrenUnmodifiable ^Parent %)))
                  :children #(vec (.getChildrenUnmodifiable ^Parent %))})))
+
+(r/defaction ::javafx:watch:latest [x]
+  (when (instance? ObservableValue x)
+    (fn []
+      (let [^ObservableValue x x
+            watches (atom {})
+            ref (reify IRef
+                  (deref [_]
+                    (.getValue x))
+                  (addWatch [this k f]
+                    (let [^ChangeListener listener (fn [_ old new]
+                                                     (f this k old new))
+                          old-watches (first (swap-vals! watches assoc k listener))]
+                      (when-let [^ChangeListener old-listener (old-watches k)]
+                        (.removeListener x old-listener))
+                      (.addListener x listener)))
+                  (removeWatch [_ k]
+                    (let [old-watches (first (swap-vals! watches dissoc k))]
+                      (when-let [^ChangeListener old-listener (old-watches k)]
+                        (.removeListener x old-listener)))))]
+        {:fx/type r/ref-watch-latest-view
+         :ref ref}))))
 
 (r/defstream ManyToManyChannel [ch]
   (r/horizontal

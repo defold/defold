@@ -67,7 +67,7 @@
            [javafx.application Platform]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
-           [javafx.beans.property ReadOnlyBooleanProperty]
+           [javafx.beans.property ReadOnlyProperty SimpleObjectProperty]
            [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
            [javafx.css PseudoClass]
@@ -487,13 +487,32 @@
       (assoc :fx/type fx.tooltip/lifecycle)
       (util/provide-defaults :wrap-text true :max-width 600)))
 
+(def ^:private javafx-property-lifecycle
+  (reify fx.lifecycle/Lifecycle
+    (create [_ desc _]
+      (SimpleObjectProperty. desc))
+    (advance [_ component desc _]
+      (doto ^SimpleObjectProperty component (.set desc)))
+    (delete [_ _ _])))
+
+(defonce ^:private custom-tooltip-node-showing-key (Object.))
+
+(def ^:private prop-custom-tooltip-node-showing
+  (fx/make-prop
+    (fx.mutator/adder-remover
+      (fn [^Node node value]
+        (.put (.getProperties node) custom-tooltip-node-showing-key value))
+      (fn [^Node node _]
+        (.remove (.getProperties node) custom-tooltip-node-showing-key)))
+    javafx-property-lifecycle))
+
 (defn- node-showing-property
-  ^ReadOnlyBooleanProperty [^Node node]
+  ^ReadOnlyProperty [^Node node]
   (condp instance? node
     ComboBoxBase (.showingProperty ^ComboBoxBase node)
     MenuButton (.showingProperty ^MenuButton node)
     ChoiceBox (.showingProperty ^ChoiceBox node)
-    nil))
+    (.get (.getProperties node) custom-tooltip-node-showing-key)))
 
 (defn- show-tooltip! [^Tooltip tooltip ^Node node]
   (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))]
@@ -506,7 +525,7 @@
             show! (fn show! []
                     (when (and (not (.isShowing tooltip))
                                (or (not showing-property)
-                                   (not (.get showing-property))))
+                                   (not (.getValue showing-property))))
                       (show-tooltip! tooltip node)))
             ^EventHandler on-enter (fn [_] (show!))
             ^EventHandler on-exit (fn [_] (.hide tooltip))
@@ -544,7 +563,7 @@
             show! (fn show! []
                     (when (and (not (.isShowing tooltip))
                                (or (not showing-property)
-                                   (not (.get showing-property))))
+                                   (not (.getValue showing-property))))
                       (.playFromStart show-timeline)))
             hide! (fn hide! []
                     (.stop show-timeline)
@@ -1399,7 +1418,7 @@
 ;; todo new combo-box...
 ;;   1. ✅ a label with a drop-down icon
 ;;   2. ✅ resolves input color
-;;   3. 🟨 resolves tooltip (tooltip needs to handle the new combo-box!)
+;;   3. ✅ resolves tooltip (tooltip needs to handle the new combo-box!)
 ;;   4. ✅ shows on click
 ;;   5. ✅ shows and space and enter
 ;;   6. ✅ doesn't show bold orange when showing
@@ -1524,7 +1543,7 @@
             (.select selection-model selected-item)
             (fx/run-later
               (-> list-view
-                  ^DefoldComboBoxListViewSkin .getSkin
+                  ^DefoldComboBoxListViewSkin (.getSkin)
                   .getVirtualFlowInstance
                   (.scrollTo (.getSelectedIndex selection-model))))))))
     fx.lifecycle/scalar))
@@ -1542,7 +1561,7 @@
     view))
 
 (defn- combo-box-impl
-  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text color disable]
+  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text color disable tooltip]
     :or {to-string str
          filter-prompt-text "Type to filter"
          no-items-text "No items available"
@@ -1565,7 +1584,11 @@
         {:fx/type fx.stack-pane/lifecycle
          :style-class "ext-combo-box-arrow-button"
          :children [{:fx/type fx.region/lifecycle
-                     :style-class "ext-combo-box-arrow"}]}]}
+                     :style-class "ext-combo-box-arrow"}]}]
+       prop-custom-tooltip-node-showing showing}
+
+      tooltip
+      (-> (assoc :tooltip tooltip) resolve-tooltip)
 
       color
       (update :pseudo-classes conj color)
