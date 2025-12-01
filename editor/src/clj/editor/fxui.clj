@@ -1417,7 +1417,7 @@
 ;;   4. ✅ shows on click
 ;;   5. ✅ shows and space and enter
 ;;   6. ✅ doesn't show bold orange when showing
-;;   7. ✅shows items in a list view
+;;   7. ✅ shows items in a list view
 ;;   8. ✅ shows "type to filter" above the list
 ;;   9. ✅ special label when no items visible
 ;;  10. ✅ scroll behavior on select
@@ -1425,6 +1425,8 @@
 ;;  12. ✅ scroll view: no horizontal bar
 ;;  13. ✅ on click submit
 ;;  14. ✅ on enter submit
+;;  15. ✅ hide filter text if 5 or less items
+;;  16. ✅ make page up / page down work
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
@@ -1479,19 +1481,26 @@
         #(.removeEventFilter node KeyEvent/KEY_PRESSED handler)))
     fx.lifecycle/callback))
 
-(defn- filter-combo-box-field-key-pressed [on-value-changed swap-state items item ^KeyEvent e]
+(defn- filter-combo-box-popup-key-pressed [on-value-changed swap-state items item ^KeyEvent e]
   (let [key-code (.getCode e)]
     (cond
-      (or (= KeyCode/UP key-code)
+      (or (= KeyCode/PAGE_UP key-code)
+          (= KeyCode/PAGE_DOWN key-code)
+          (= KeyCode/UP key-code)
           (= KeyCode/DOWN key-code))
-      (let [direction (if (= KeyCode/UP key-code) dec inc)
+      (let [direction (if (or (= KeyCode/UP key-code) (= KeyCode/PAGE_UP key-code)) - +)
+            magnitude (if (or (= KeyCode/PAGE_UP key-code) (= KeyCode/PAGE_DOWN key-code)) 9 1)
             item (-> (coll/index-of items item)
-                     direction
+                     (direction magnitude)
                      (max 0)
                      (min (dec (count items)))
                      items)]
         (.consume e)
         (swap-state set-combo-box-selected-item item))
+
+      (= KeyCode/ESCAPE key-code)
+      (do (.consume e)
+          (swap-state hide-combo-box))
 
       (= KeyCode/ENTER key-code)
       (do (.consume e)
@@ -1575,7 +1584,8 @@
               selected-item (when (some? selected-item) (coll/first-where #(= selected-item %) filtered-items))
               ;; if selected value is not in items, default to first item (items can
               ;; be empty though, so selected item may still be nil)
-              selected-item (if (nil? selected-item) (first filtered-items) selected-item)]
+              selected-item (if (nil? selected-item) (first filtered-items) selected-item)
+              show-text-field (< 5 (count items))]
           {:fx/type fx.popup/lifecycle
            :auto-hide true
            :on-hidden (fn [_] (swap-state hide-combo-box))
@@ -1587,28 +1597,30 @@
                :style-class "ext-combo-box-popup-background"}
               {:fx/type vertical
                :padding 1.0
+               prop-filter-key-pressed #(filter-combo-box-popup-key-pressed on-value-changed swap-state filtered-items selected-item %)
                :children
-               [{:fx/type text-field
-                 :style-class "ext-combo-box-popup-field"
-                 :prompt-text filter-prompt-text
-                 :text filter-text
-                 prop-filter-key-pressed #(filter-combo-box-field-key-pressed on-value-changed swap-state filtered-items selected-item %)
-                 :on-text-changed #(swap-state set-combo-box-filter-text %)}
-                (if (zero? (count filtered-items))
-                  {:fx/type label
-                   :alignment :center
-                   :color :hint
-                   :text (if (pos? (count items)) not-found-text no-items-text)}
-                  {:fx/type ext-with-list-view-props
-                   :desc {:fx/type fx/ext-instance-factory
-                          :create create-combo-box-list-view}
-                   :props {:focus-traversable false
-                           :style-class "ext-combo-box-popup-list"
-                           prop-combo-box-list-items+selected-item [filtered-items selected-item]
-                           :fixed-cell-size 27.0
-                           :max-height (* 27.0 (double (min 10 (count filtered-items))))
-                           :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                          :describe (fn/partial describe-combo-box-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})]}]}]})))))
+               (-> []
+                   (cond-> show-text-field
+                           (conj {:fx/type text-field
+                                  :style-class "ext-combo-box-popup-field"
+                                  :prompt-text filter-prompt-text
+                                  :text filter-text
+                                  :on-text-changed #(swap-state set-combo-box-filter-text %)}))
+                   (conj (if (zero? (count filtered-items))
+                           {:fx/type label
+                            :alignment :center
+                            :color :hint
+                            :text (if (pos? (count items)) not-found-text no-items-text)}
+                           {:fx/type ext-with-list-view-props
+                            :desc {:fx/type fx/ext-instance-factory
+                                   :create create-combo-box-list-view}
+                            :props {:focus-traversable (not show-text-field)
+                                    :style-class "ext-combo-box-popup-list"
+                                    prop-combo-box-list-items+selected-item [filtered-items selected-item]
+                                    :fixed-cell-size 27.0
+                                    :max-height (* 27.0 (double (min 10 (count filtered-items))))
+                                    :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                   :describe (fn/partial describe-combo-box-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})))}]}]})))))
 
 (defn combo-box
   "Combo box control
