@@ -41,22 +41,26 @@
     }
 
     .icon-button {
-        -fx-min-width: 0;
         -fx-background-color: derive(-df-component-dark, -10%);
         -fx-alignment: center;
+        -fx-min-width: 20;
+        -fx-max-width: 20;
+        -fx-min-height: 20;
+        -fx-max-height: 20;
+        -fx-padding: 10px;
 
         &:hover {
             -fx-background-color: -df-component-light;
         }
 
-        .icon-button-graphic {
-            -fx-fill: -fx-text-base-color;
+        .icon-graphic {
+            -fx-background-color: white;
         }
     }
 
-    .remove-button {
-        .icon-button-graphic {
-            -fx-fill: -df-defold-red-dark;
+    .icon-button.remove-button {
+        .icon-graphic {
+            -fx-background-color: -df-defold-red-dark;
         }
     }
 }

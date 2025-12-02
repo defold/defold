@@ -50,10 +50,6 @@
 
 (def ^:private toolbar-height 57)
 
-(def ^:private edit-bp-icon-path "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z")
-(def ^:private delete-bp-icon-path "M16.417 10.283A7.917 7.917 0 1 1 8.5 2.366a7.916 7.916 0 0 1 7.917 7.917zm-6.804.01 3.032-3.033a.792.792 0 0 0-1.12-1.12L8.494 9.173 5.46 6.14a.792.792 0 0 0-1.12 1.12l3.034 3.033-3.033 3.033a.792.792 0 0 0 1.12 1.119l3.032-3.033 3.033 3.033a.792.792 0 0 0 1.12-1.12z")
-(def ^:private remove-condition-icon-path "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z")
-
 (defn- update-breakpoints [breakpoints breakpoints-batch f]
   (let [bp-set (set breakpoints-batch)]
     (mapv (fn [bp]
@@ -180,18 +176,12 @@
                  :text (localization-state (localization/message "breakpoints.button.remove-all"))
                  :on-action (partial action-all-fn #(vec (remove (set %2) %1)))}]}))
 
-(defn- icon-button [icon-path scale classes on-action-event]
+(defn- icon-button [icon-type size classes on-action-event]
   {:fx/type fx.button/lifecycle
    :style-class (into ["icon-button"] classes)
-   :graphic {:fx/type fx.stack-pane/lifecycle
-             :min-width 20
-             :min-height 20
-             :alignment :center
-             :children [{:fx/type fx.svg-path/lifecycle
-                         :content icon-path
-                         :scale-x scale
-                         :scale-y scale
-                         :style-class ["icon-button-graphic"]}]}
+   :graphic {:fx/type fxui/icon-graphic
+             :type icon-type
+             :size size}
    :on-action on-action-event})
 
 (defn- table-row-factory [open-resource-fn breakpoints idx]
@@ -284,12 +274,12 @@
             :children
             (concat
               (when condition
-                [(icon-button remove-condition-icon-path 0.6 []
+                [(icon-button :icon/cross-thick 10 []
                               (fn [_]
                                 (g/with-auto-evaluation-context evaluation-context
                                   (set-breakpoint-condition! project breakpoints breakpoint nil evaluation-context)
                                   (swap-state assoc :edited-breakpoint nil))))])
-              [(icon-button edit-bp-icon-path 0.6 [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
+              [(icon-button :icon/pen-edit 12 [] (fn [_] (swap-state assoc :edited-breakpoint breakpoint)))])}]}
          :on-mouse-clicked (fn [event]
                              (let [^MouseEvent me event]
                                (when (= 2 (.getClickCount me))
@@ -305,8 +295,8 @@
       :alignment :center-left
       :children
       [(icon-button
-         delete-bp-icon-path
-         0.8
+         :icon/circle-x-fill
+         13
          ["remove-button"]
          (fn [_]
            (g/with-auto-evaluation-context evaluation-context
@@ -493,4 +483,6 @@
                                        (dev/prefs) bp-container)
         auto-pulls [[bp-view :breakpoints-anchor-pane]]]
     (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
+  (ui/run-now (ui/reload-root-styles!))
+  (jfx/info-tree (.lookup (ui/main-root) "#breakpoints-table-view"))
   :-)
