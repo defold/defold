@@ -84,16 +84,6 @@ def _start_server(self, local_ip, port, configname=None):
     servertype = "RangeHTTPServer"
     if 'win32' == sys.platform:
         servertype = "http.server"
-    else:
-        is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
-        if is_ci and sys.platform == 'darwin':
-            servertype = "http.server"
-        else:
-            try:
-                import RangeHTTPServer  # noqa: F401
-            except ImportError:
-                Logs.warn("RangeHTTPServer not found, falling back to http.server")
-                servertype = "http.server"
 
     proc = subprocess.Popen(["python", "-m", servertype, str(port)],
                             shell = False,
