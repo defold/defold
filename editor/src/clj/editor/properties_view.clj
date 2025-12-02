@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.slider :as fx.slider]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -45,7 +46,8 @@
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
            [java.util Collection]
-           [javafx.event Event]
+           [javafx.beans.value ChangeListener]
+           [javafx.event Event EventHandler]
            [javafx.geometry Insets Point2D VPos]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label MenuButton Slider TextArea TextField TextInputControl ToggleButton Tooltip]
@@ -1169,7 +1171,7 @@
   [input-desc property localization-state]
   (if-let [{:keys [severity] :as tooltip} (property-validation-tooltip property localization-state)]
     (-> input-desc
-        (assoc :tooltip tooltip)
+        (fxui/apply-tooltip tooltip)
         (cond-> (not= severity :info) (assoc :color severity)))
     input-desc))
 
@@ -1219,6 +1221,7 @@
                         max-value :max
                         :keys [precision]
                         :or {precision 1.0}} (:edit-type property)
+                       precision (double precision)
                        opseq (gensym)
                        initial-values (properties/values property)
                        doubles-vol (volatile! (mapv (comp double ->number) initial-values))]
@@ -1226,7 +1229,7 @@
                      (let [new-doubles (vswap!
                                          doubles-vol
                                          coll/mapv>
-                                         #(cond-> (+ ^double % delta)
+                                         #(cond-> (+ ^double % (* delta precision))
                                                   min-value (max (double min-value))
                                                   max-value (min (double max-value))))
                            new-values (mapv #(->value (initial-values %) (new-doubles %))
@@ -1485,10 +1488,72 @@
                         (set-values! property (repeat resource))))}]}
       tooltip (fxui/apply-tooltip tooltip))))
 
+(def ^:private prop-slider-on-value-changed
+  (fx/make-binding-prop
+    (fn [^Slider slider on-value-changed]
+      (let [value-changed-fn (volatile! nil)
+            ^EventHandler on-mouse-pressed (fn on-mouse-pressed [_]
+                                             (let [f (on-value-changed)]
+                                               (when-not (fn? f)
+                                                 (throw (IllegalStateException. "The on-value-changed callback must return a function")))
+                                               (vreset! value-changed-fn f)))
+            ^EventHandler on-mouse-released (fn on-mouse-released [_]
+                                              (vreset! value-changed-fn nil))
+            ^ChangeListener value-changed-listener (fn value-changed-listener [_ _ new-value]
+                                                     (when-let [f @value-changed-fn]
+                                                       (f new-value)))]
+        (.addEventFilter slider MouseEvent/MOUSE_PRESSED on-mouse-pressed)
+        (.addEventHandler slider MouseEvent/MOUSE_RELEASED on-mouse-released)
+        (.addListener (.valueProperty slider) value-changed-listener)
+        #(do
+           (.removeEventFilter slider MouseEvent/MOUSE_PRESSED on-mouse-pressed)
+           (.removeEventHandler slider MouseEvent/MOUSE_RELEASED on-mouse-released)
+           (.removeListener (.valueProperty slider) value-changed-listener)
+           (vreset! value-changed-fn nil))))
+    fx.lifecycle/callback))
+
+(defmethod cljfx-component-view :slider [property _context localization-state]
+  (let [old-num (coalesced-property->old-num property)
+        is-float (math/float32? old-num)
+        {:keys [min max precision]
+         :or {min 0.0 max 1.0}} (:edit-type property)
+        value (properties/unify-values (properties/values property))
+        read-only (properties/read-only? property)]
+    {:fx/type fxui/grid
+     :spacing :small
+     :column-constraints [{:fx/type fx.column-constraints/lifecycle :percent-width 20}
+                          {:fx/type fx.column-constraints/lifecycle :percent-width 80}]
+     :children
+     [(-> {:fx/type fxui/value-field
+           :grid-pane/column 0
+           :pref-column-count (if precision (count (str precision)) 5)
+           :to-string field-expression/format-number
+           :to-value field-expression/to-double
+           :value value
+           :on-value-changed #(set-values! property (repeat (cond-> % is-float float)))
+           :editable (not read-only)}
+          (resolve-validation property localization-state))
+      {:fx/type fx.slider/lifecycle
+       :grid-pane/column 1
+       :min min
+       :max max
+       :disable read-only
+       :value (or value max)
+       prop-slider-on-value-changed
+       (fn make-on-value-changed []
+         (let [op-seq (gensym)]
+           (fn on-value-changed [new-value]
+             (let [new-value (if precision
+                               (math/round-with-precision new-value precision)
+                               new-value)]
+               (set-values! property (repeat (if is-float (float new-value) new-value)) op-seq)))))}]}))
+
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...
   {:fx/type fxui/paragraph
    :text (str "TODO: " (pr-str (properties/edit-type-id (:edit-type property))))})
+
+;; TODO: profile once I remove cljfx.dev use.
 
 (defn- focus-mouse-event-source! [^MouseEvent e]
   (.requestFocus ^Node (.getSource e)))
