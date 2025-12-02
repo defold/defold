@@ -2784,13 +2784,8 @@
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
           regions (get-property view-node :regions)
-          breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)
-          updated-regions (coll/transfer breakpoint-rows {}
-                            (keep #(data/get-breakpoint-region regions %))
-                            (map #(assoc % :enabled (not (:enabled %))))
-                            (map #(data/ensure-breakpoint-region lines regions %)))]
-      (when (coll/not-empty updated-regions)
-        (set-properties! view-node nil updated-regions)))))
+          breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
+      (set-properties! view-node nil (data/toggle-breakpoint-enabled-region lines regions breakpoint-rows)))))
 
 (handler/defhandler :edit.rename :code-view
   (active? [editable] editable)

@@ -2562,6 +2562,15 @@
                                         (map (partial make-breakpoint-region lines) added-rows))))]
         {:regions regions'}))))
 
+(defn toggle-breakpoint-enabled-region [lines regions rows]
+  (assert (set? rows))
+  {:regions (mapv (fn [region]
+                    (if (and (breakpoint-region? region)
+                             (contains? rows (breakpoint-row region)))
+                      (assoc region :enabled (not (:enabled region)))
+                      region))
+                  regions)})
+
 (defn- edit-breakpoint-region [lines regions row]
   {:edited-breakpoint (or (some (fn [region]
                                   (when (and (breakpoint-region? region)
