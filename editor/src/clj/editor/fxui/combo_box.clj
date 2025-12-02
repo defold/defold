@@ -191,7 +191,7 @@
        fxui/prop-custom-tooltip-node-showing showing}
 
       tooltip
-      (-> (assoc :tooltip tooltip) fxui/resolve-tooltip)
+      (fxui/apply-tooltip tooltip)
 
       color
       (update :pseudo-classes conj color)

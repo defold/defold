@@ -582,6 +582,24 @@
              (.removeListener showing-property showing-property-listener)))))
     fx.lifecycle/dynamic))
 
+(defn apply-tooltip [props v]
+  (cond
+    (:fx/type v)
+    (assoc props prop-delayed-tooltip v)
+
+    (string? v)
+    (assoc props prop-delayed-tooltip {:fx/type tooltip :text v})
+
+    (and (map? v)
+         (string? (:message v))
+         (case (:severity v) (:error :warning :info) true false))
+    (assoc props
+      (case (:severity v) :info prop-delayed-tooltip prop-immediate-tooltip)
+      {:fx/type tooltip :text (:message v)})
+
+    :else
+    (throw (ex-info (str "Unexpected tooltip value: " v) {:tooltip v}))))
+
 (defn resolve-tooltip
   "Replace :tooltip prop with prop-delayed-tooltip or prop-immediate-tooltip
 
@@ -601,23 +619,7 @@
       :message     string"
   [props]
   (if-let [v (:tooltip props)]
-    (let [props (dissoc props :tooltip)]
-      (cond
-        (:fx/type v)
-        (assoc props prop-delayed-tooltip v)
-
-        (string? v)
-        (assoc props prop-delayed-tooltip {:fx/type tooltip :text v})
-
-        (and (map? v)
-             (string? (:message v))
-             (case (:severity v) (:error :warning :info) true false))
-        (assoc props
-          (case (:severity v) :info prop-delayed-tooltip prop-immediate-tooltip)
-          {:fx/type tooltip :text (:message v)})
-
-        :else
-        (throw (ex-info (str "Unexpected tooltip value: " v) {:tooltip v}))))
+    (-> props (dissoc :tooltip) (apply-tooltip v))
     props))
 
 (defn ^:deprecated legacy-button
@@ -1232,12 +1234,13 @@
     {:fx/type ext-with-button-props
      :desc {:fx/type fx/ext-instance-factory :create create-button}
      :props (-> props
+                (prepend-style-classes "ext-button")
+                (cond-> (or has-text has-icon) (prepend-style-classes
+                                                 (cond
+                                                   (and has-text has-icon) "ext-button-text-and-icon"
+                                                   has-text "ext-button-text"
+                                                   :else "ext-button-icon")))
                 (util/provide-defaults
-                  :style-class (cond
-                                 (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
-                                 has-text ["ext-button" "ext-button-text"]
-                                 has-icon ["ext-button" "ext-button-icon"]
-                                 :else ["ext-button"])
                   :alignment :center
                   :focus-traversable false)
                 resolve-alignment)}))

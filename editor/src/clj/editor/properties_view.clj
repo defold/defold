@@ -1159,17 +1159,18 @@
   (fn [property _context _localization-state]
     (edit-type->type (:edit-type property))))
 
+(defn- property-validation-tooltip [property localization-state]
+  (when-let [{:keys [severity message]} (properties/validation-message property)]
+    {:severity (case severity :fatal :error :warning :warning :info)
+     :message (localization-state message)}))
+
 (defn- resolve-validation
   "If property has validation message, set :color and :tooltip input-desc props"
   [input-desc property localization-state]
-  (if-let [{:keys [severity message]} (properties/validation-message property)]
-    (let [severity (case severity
-                     :fatal :error
-                     :warning :warning
-                     :info)]
-      (-> input-desc
-          (assoc :tooltip {:severity severity :message (localization-state message)})
-          (cond-> (not= severity :info) (assoc :color severity))))
+  (if-let [{:keys [severity] :as tooltip} (property-validation-tooltip property localization-state)]
+    (-> input-desc
+        (assoc :tooltip tooltip)
+        (cond-> (not= severity :info) (assoc :color severity)))
     input-desc))
 
 (defn- resolve-script-property-style-class [input-desc property]
@@ -1452,29 +1453,37 @@
                             ext (assoc :ext ext)
                             dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
         read-only (properties/read-only? property)
-        openable (and (resource/openable-resource? value) (resource/exists? value))]
-    {:fx/type fxui/horizontal
-     :spacing :small
-     :children
-     [(-> {:fx/type fxui/value-field
-           :h-box/hgrow :always
-           :value (some-> value resource/proj-path)
-           :on-value-changed #(set-values! property (repeat (workspace/resolve-workspace-resource workspace %)))
-           :editable (not read-only)}
-          (resolve-validation property localization-state)
-          (resolve-script-property-style-class property))
-      {:fx/type fxui/button
-       :graphic {:fx/type ui/image-icon
-                 :path "icons/32/Icons_S_14_linkarrow.png"
-                 :size 16.0}
-       :disable (not openable)
-       :on-action #(when openable (ui/run-command (.getSource ^Event %) :file.open value))}
-      {:fx/type fxui/button
-       :text "..."
-       :disable read-only
-       :on-action (fn [_]
-                    (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
-                      (set-values! property (repeat resource))))}]}))
+        openable (and (resource/openable-resource? value) (resource/exists? value))
+        tooltip (property-validation-tooltip property localization-state)]
+    (cond->
+      {:fx/type fxui/horizontal
+       :style-class "ext-resource-picker"
+       :pseudo-classes (case (:severity (properties/validation-message property))
+                         :fatal #{:error}
+                         :warning #{:warning}
+                         #{})
+       :children
+       [{:fx/type fxui/value-field
+         :h-box/hgrow :always
+         :value (some-> value resource/proj-path)
+         :on-value-changed #(set-values! property (repeat (workspace/resolve-workspace-resource workspace %)))
+         :editable (not read-only)
+         :style-class "ext-resource-picker-field"}
+        {:fx/type fxui/button
+         :graphic {:fx/type ui/image-icon
+                   :path "icons/32/Icons_S_14_linkarrow.png"
+                   :size 16.0}
+         :style-class "ext-resource-picker-open-button"
+         :disable (not openable)
+         :on-action #(when openable (ui/run-command (.getSource ^Event %) :file.open value))}
+        {:fx/type fxui/button
+         :text "..."
+         :style-class "ext-resource-picker-browse-button"
+         :disable read-only
+         :on-action (fn [_]
+                      (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
+                        (set-values! property (repeat resource))))}]}
+      tooltip (fxui/apply-tooltip tooltip))))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...
