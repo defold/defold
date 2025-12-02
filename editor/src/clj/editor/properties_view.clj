@@ -1535,6 +1535,7 @@
           (resolve-validation property localization-state))
       {:fx/type fx.slider/lifecycle
        :grid-pane/column 1
+       :focus-traversable false
        :min min
        :max max
        :disable read-only
@@ -1547,6 +1548,15 @@
                                (math/round-with-precision new-value precision)
                                new-value)]
                (set-values! property (repeat (if is-float (float new-value) new-value)) op-seq)))))}]}))
+
+(defmethod cljfx-component-view :multi-line-text [property _context localization-state]
+  (-> {:fx/type fxui/value-area
+       :min-height 68.0
+       :pref-height 68.0
+       :value (properties/unify-values (properties/values property))
+       :on-value-changed #(set-values! property (repeat %))
+       :editable (not (properties/read-only? property))}
+      (resolve-validation property localization-state)))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...

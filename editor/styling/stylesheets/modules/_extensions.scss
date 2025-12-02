@@ -135,9 +135,10 @@ $ext-line-height: 26px;
     }
     &-text-area {
         -fx-border-radius: 2px;
-        -fx-background-radius: 2px;
+        -fx-background-radius: 3px;
         -fx-border-width: 1px;
         -fx-border-color: -df-component-dark;
+        -fx-background-color: -df-background-input;
         -fx-prompt-text-fill: -df-text-dark;
         -fx-highlight-fill: -df-background-input;
         -fx-highlight-text-fill: -df-text-selected;
@@ -148,7 +149,7 @@ $ext-line-height: 26px;
             -fx-padding: 1px 1px -1px 1px;
             -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
             -fx-background-color: -df-background;
-            -fx-highlight-fill: -df-component-light;
+            -fx-highlight-fill: -fx-accent;
         }
         &:warning {
             -fx-border-color: -df-error-severity-warning-dim;
@@ -160,10 +161,16 @@ $ext-line-height: 26px;
             &:hover { -fx-border-color: -df-error-severity-fatal; }
             &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
         }
-        & > .scroll-pane > .scroll-bar > .thumb {
-            -fx-background-color: -df-component-dark;
-            &:hover { -fx-background-color: -df-component-light; }
-            &:pressed { -fx-background-color: -df-component-lighter; }
+        & > .scroll-pane {
+            -fx-background-color: transparent;
+            & > .viewport {
+                -fx-background-color: transparent;
+            }
+            & > .scroll-bar > .thumb {
+                -fx-background-color: -df-component-dark;
+                &:hover { -fx-background-color: -df-component-light; }
+                &:pressed { -fx-background-color: -df-component-lighter; }
+            }
         }
     }
     &-table-view {
