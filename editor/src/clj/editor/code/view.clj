@@ -2631,7 +2631,6 @@
                               (get-property view-node :hovered-element evaluation-context)
                               x
                               y)
-            (assoc :hovered-row row)
             (cond->
               (and lsp
                 (prefs/get prefs hover-pref-path)

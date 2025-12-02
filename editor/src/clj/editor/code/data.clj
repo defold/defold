@@ -2899,8 +2899,9 @@
 
 (defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element x y]
   (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)]
-    (when (not= hovered-element new-hovered-element)
-      {:hovered-element new-hovered-element})))
+    (cond-> {:hovered-row (y->row layout y)}
+      (not= hovered-element new-hovered-element)
+      (assoc :hovered-element new-hovered-element))))
 
 (defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element x y]
   (if (some? gesture-start)
