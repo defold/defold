@@ -77,7 +77,6 @@ $ext-line-height: 26px;
         -fx-graphic-text-gap: 0;
         -fx-min-height: $ext-line-height;
         -fx-max-height: $ext-line-height;
-        -fx-min-width: $ext-line-height;
         &:hover {
             -fx-background-color: -df-component-lighter;
             -fx-text-fill: -df-text-selected;

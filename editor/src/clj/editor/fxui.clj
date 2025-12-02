@@ -55,7 +55,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang MultiFn]
-           [com.defold.control ListCell]
+           [com.defold.control ButtonWithCappedMinWidth ListCell]
            [java.util Collection]
            [javafx.animation Animation KeyFrame KeyValue SequentialTransition Timeline TranslateTransition]
            [javafx.application Platform]
@@ -1218,22 +1218,29 @@
       (cond-> on-scrubbed (-> (dissoc :on-scrubbed)
                               (assoc prop-on-scrubbed on-scrubbed)))))
 
+(def ^:private line-height 26.0)
+
+(defn- create-button [] (ButtonWithCappedMinWidth. line-height))
+
+(def ^:private ext-with-button-props (fx/make-ext-with-props fx.button/props))
+
 (defn button
   "Button component"
   [props]
   (let [has-text (not (string/blank? (:text props "")))
         has-icon (some? (:graphic props))]
-    (-> props
-        (assoc :fx/type fx.button/lifecycle)
-        (util/provide-defaults
-          :style-class (cond
-                         (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
-                         has-text ["ext-button" "ext-button-text"]
-                         has-icon ["ext-button" "ext-button-icon"]
-                         :else ["ext-button"])
-          :alignment :center
-          :focus-traversable false)
-        resolve-alignment)))
+    {:fx/type ext-with-button-props
+     :desc {:fx/type fx/ext-instance-factory :create create-button}
+     :props (-> props
+                (util/provide-defaults
+                  :style-class (cond
+                                 (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
+                                 has-text ["ext-button" "ext-button-text"]
+                                 has-icon ["ext-button" "ext-button-icon"]
+                                 :else ["ext-button"])
+                  :alignment :center
+                  :focus-traversable false)
+                resolve-alignment)}))
 
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]
@@ -1282,7 +1289,7 @@
       (fn [^TextInputControl text-input text]
         (when-not (= text (.getText text-input))
           (.setText text-input text)
-          (.selectAll text-input))))
+          (.selectRange text-input (count text) 0))))
     fx.lifecycle/scalar))
 
 (def ^:private prop-select-all-text-on-click

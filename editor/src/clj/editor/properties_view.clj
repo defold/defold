@@ -45,6 +45,7 @@
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
            [java.util Collection]
+           [javafx.event Event]
            [javafx.geometry Insets Point2D VPos]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox ColorPicker Control Label MenuButton Slider TextArea TextField TextInputControl ToggleButton Tooltip]
@@ -1444,75 +1445,36 @@
                 :not-found-text (localization-state (localization/message "ui.combo-box.not-found"))}
                (resolve-validation property localization-state))}))
 
-#_(defmethod make-property-control resource/Resource [edit-type context property-fn]
-    (let [box (GridPane.)
-          browse-button (doto (Button. "\u2026")              ; "..." (HORIZONTAL ELLIPSIS)
-                          (.setPrefWidth 26)
-                          (.setPrefHeight 27)
-                          (.setFocusTraversable false)
-                          (ui/add-style! "button-small"))
-          open-button (doto (Button. "" (icons/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
-                        (.setPrefWidth 26)
-                        (.setPrefHeight 27)
-                        (.setFocusTraversable false)
-                        (ui/add-style! "button-small"))
-          text (TextField.)
-          dialog-opts (merge
-                        (if (:ext edit-type)
-                          {:ext (:ext edit-type)}
-                          {})
-                        (if (:dialog-accept-fn edit-type)
-                          {:accept-fn (:dialog-accept-fn edit-type)}
-                          {}))
-          update-ui-fn (fn [values message read-only?]
-                         (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
-                         (let [val (properties/unify-values values)]
-                           (ui/editable! browse-button (not read-only?))
-                           (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
-          cancel-fn (fn [_]
-                      (let [property (property-fn)
-                            current-vals (properties/values property)]
-                        (update-ui-fn current-vals
-                                      (properties/validation-message property)
-                                      (properties/read-only? property))))
-          commit-fn (fn [_]
-                      (let [workspace (:workspace context)
-                            proj-path (ui/text text)
-                            resource (workspace/resolve-workspace-resource workspace proj-path)]
-                        (properties/set-values! (property-fn) (repeat resource))))]
-      (ui/add-style! box "composite-property-control-container")
-      (ui/on-action! browse-button (fn [_]
-                                     (let [{:keys [project workspace]} context
-                                           resource (first (resource-dialog/make workspace project dialog-opts))]
-                                       (when (some? resource)
-                                         (properties/set-values! (property-fn) (repeat resource))))))
-      (ui/on-action! open-button (fn [_]
-                                   (when-let [resource (-> (property-fn)
-                                                           properties/values
-                                                           properties/unify-values)]
-                                     (ui/run-command open-button :file.open resource))))
-      (ui/customize! text commit-fn cancel-fn)
-      (ui/children! box [text browse-button open-button])
-      (GridPane/setConstraints text 0 0)
-      (GridPane/setConstraints open-button 1 0)
-      (GridPane/setConstraints browse-button 2 0)
-
-      ; Merge the facing borders of the open and browse buttons.
-      (GridPane/setMargin open-button (Insets. 0 -1 0 0))
-      (.setOnMousePressed open-button (ui/event-handler _ (.toFront open-button)))
-      (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
-
-      (doto (.. box getColumnConstraints)
-        (.add (doto (ColumnConstraints.)
-                (.setPrefWidth all-available)
-                (.setHgrow Priority/ALWAYS)))
-        (.add (doto (ColumnConstraints.)
-                (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
-                (.setHgrow Priority/NEVER)))
-        (.add (doto (ColumnConstraints.)
-                (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
-                (.setHgrow Priority/NEVER))))
-      [box update-ui-fn]))
+(defmethod cljfx-component-view resource/Resource [property {:keys [workspace project]} localization-state]
+  (let [value (properties/unify-values (properties/values property))
+        {:keys [ext dialog-accept-fn]} (:edit-type property)
+        dialog-opts (cond-> {}
+                            ext (assoc :ext ext)
+                            dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
+        read-only (properties/read-only? property)
+        openable (and (resource/openable-resource? value) (resource/exists? value))]
+    {:fx/type fxui/horizontal
+     :spacing :small
+     :children
+     [(-> {:fx/type fxui/value-field
+           :h-box/hgrow :always
+           :value (some-> value resource/proj-path)
+           :on-value-changed #(set-values! property (repeat (workspace/resolve-workspace-resource workspace %)))
+           :editable (not read-only)}
+          (resolve-validation property localization-state)
+          (resolve-script-property-style-class property))
+      {:fx/type fxui/button
+       :graphic {:fx/type ui/image-icon
+                 :path "icons/32/Icons_S_14_linkarrow.png"
+                 :size 16.0}
+       :disable (not openable)
+       :on-action #(when openable (ui/run-command (.getSource ^Event %) :file.open value))}
+      {:fx/type fxui/button
+       :text "..."
+       :disable read-only
+       :on-action (fn [_]
+                    (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
+                      (set-values! property (repeat resource))))}]}))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...
