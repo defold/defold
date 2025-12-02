@@ -64,17 +64,14 @@ def kill_proc(proc):
     proc.kill()
 
 def _get_local_ip(self):
-    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
-    if is_ci and sys.platform == 'darwin':
-        return "127.0.0.1"
-
     hostname = socket.gethostname()
     try:
-        return socket.gethostbyname(hostname)
+        local_ip = socket.gethostbyname(hostname)
     except socket.gaierror as e:
         print(e)
         print(f"Hostname was '{hostname}', now trying empty ('') string now")
-        return socket.gethostbyname("")
+        local_ip = socket.gethostbyname("")
+    return local_ip
 
 def _start_server(self, local_ip, port, configname=None):
     Logs.info('Starting test server at http://%s:%d' % (local_ip, port))
