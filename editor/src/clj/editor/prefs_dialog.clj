@@ -16,10 +16,8 @@
   (:require [camel-snake-kebab :as camel]
             [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -34,6 +32,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
@@ -118,7 +117,7 @@
   (text-input path value on-value-changed localization-state fxui/password-value-field (:prompt (:ui schema))))
 
 (defmethod form-input :locale [_ _ _ _ localization-state localization]
-  {:fx/type fxui/combo-box
+  {:fx/type fxui.combo-box/view
    :to-string localization/locale-display-name
    :value (localization/current-locale localization-state)
    :items (localization/available-locales localization-state)

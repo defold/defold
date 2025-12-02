@@ -25,6 +25,7 @@
             [editor.color-dropper :as color-dropper]
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
@@ -42,8 +43,7 @@
             [util.eduction :as e]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
-  (:import [com.defold.control DefoldStringConverter]
-           [editor.properties Curve CurveSpread]
+  (:import [editor.properties Curve CurveSpread]
            [java.util Collection]
            [javafx.geometry Insets Point2D VPos]
            [javafx.scene Node Parent]
@@ -1147,6 +1147,13 @@
 
 ;; NEW VIEW BEGIN
 
+(defn- set-values!
+  ([property values]
+   (set-values! property values (gensym)))
+  ([property values opseq]
+   (properties/set-values! property values opseq)
+   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)))
+
 (defmulti cljfx-component-view
   (fn [property _context _localization-state]
     (edit-type->type (:edit-type property))))
@@ -1174,7 +1181,7 @@
 
 (defmethod cljfx-component-view g/Str [property _context localization-state]
   (-> {:fx/type fxui/value-field
-       :on-value-changed #(properties/set-values! property (repeat %))
+       :on-value-changed #(set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
       (resolve-value property)
       (resolve-validation property localization-state)
@@ -1222,7 +1229,7 @@
                                                   max-value (min (double max-value))))
                            new-values (mapv #(->value (initial-values %) (new-doubles %))
                                             (range (count new-doubles)))]
-                       (properties/set-values! property new-values opseq)))))}}))))
+                       (set-values! property new-values opseq)))))}}))))
 
 (defn- scrubbed-int [_ ^double n]
   (int (Math/round n)))
@@ -1231,7 +1238,7 @@
   (-> {:fx/type fxui/value-field
        :to-string field-expression/format-int
        :to-value field-expression/to-int
-       :on-value-changed #(properties/set-values! property (repeat %))
+       :on-value-changed #(set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
       (resolve-value property)
       (resolve-scrubber property :right scrubbed-int)
@@ -1244,7 +1251,7 @@
     (-> {:fx/type fxui/value-field
          :to-string field-expression/format-number
          :to-value field-expression/to-double
-         :on-value-changed #(properties/set-values! property (repeat (cond-> % is-float float)))
+         :on-value-changed #(set-values! property (repeat (cond-> % is-float float)))
          :editable (not (properties/read-only? property))}
         (resolve-value property)
         (resolve-scrubber property :right #((old-num->round-num-fn old-num) %2))
@@ -1259,7 +1266,7 @@
      [(-> {:fx/type fxui/check-box
            :indeterminate (nil? value)
            :selected (boolean value)
-           :on-selected-changed #(properties/set-values! property (repeat %))
+           :on-selected-changed #(set-values! property (repeat %))
            :disable (properties/read-only? property)}
           (resolve-validation property localization-state))]}))
 
@@ -1292,7 +1299,7 @@
                   :to-value field-expression/to-double
                   :value (properties/unify-values (mapv #(% i) values))
                   :on-value-changed (fn [new-num]
-                                      (properties/set-values! property (mapv #(assoc % i (cond-> new-num is-float float)) values)))
+                                      (set-values! property (mapv #(assoc % i (cond-> new-num is-float float)) values)))
                   :editable (not (properties/read-only? property))}
                  (resolve-validation property localization-state)
                  (resolve-scrubber
@@ -1324,7 +1331,7 @@
                :size 12.0}
      :on-selected-changed
      (fn [selected]
-       (properties/set-values!
+       (set-values!
          property
          (mapv
            (fn [curve]
@@ -1349,7 +1356,7 @@
            :editable (not (properties/read-only? property))
            :disable (curved-values? values)
            :on-value-changed (fn [new-num]
-                               (properties/set-values! property (mapv #(set-fn % new-num) (properties/values property))))}
+                               (set-values! property (mapv #(set-fn % new-num) (properties/values property))))}
           (resolve-validation property localization-state)
           (resolve-scrubber property :left #(set-fn %1 (properties/round-scalar-float %2)) curve-get-fn))]}))
 
@@ -1386,7 +1393,7 @@
              :value (properties/unify-values (map :spread values))
              :editable (not (properties/read-only? property))
              :on-value-changed (fn [spread]
-                                 (properties/set-values! property (mapv #(assoc % :spread spread) (properties/values property))))}
+                                 (set-values! property (mapv #(assoc % :spread spread) (properties/values property))))}
             (resolve-validation property localization-state)
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
@@ -1408,9 +1415,9 @@
          :on-value-changed
          (fn [new-color]
            (let [new-value (color->vec new-color)]
-             (properties/set-values! property (if ignore-alpha
-                                                (mapv #(assoc new-value 3 (% 3)) values)
-                                                (repeat new-value)))))
+             (set-values! property (if ignore-alpha
+                                     (mapv #(assoc new-value 3 (% 3)) values)
+                                     (repeat new-value)))))
          :ignore-alpha ignore-alpha
          :color-dropper-view color-dropper-view
          :prefs prefs
@@ -1427,15 +1434,85 @@
      :fn make-choicebox-to-string
      :args [options]
      :key :to-string
-     :desc (-> {:fx/type fxui/combo-box
+     :desc (-> {:fx/type fxui.combo-box/view
                 :disable (properties/read-only? property)
                 :value (properties/unify-values (properties/values property))
-                :on-value-changed #(properties/set-values! property (repeat %))
+                :on-value-changed #(set-values! property (repeat %))
                 :items (mapv first options)
                 :filter-prompt-text (localization-state (localization/message "ui.combo-box.filter-prompt"))
                 :no-items-text (localization-state (localization/message "ui.combo-box.no-items"))
                 :not-found-text (localization-state (localization/message "ui.combo-box.not-found"))}
                (resolve-validation property localization-state))}))
+
+#_(defmethod make-property-control resource/Resource [edit-type context property-fn]
+    (let [box (GridPane.)
+          browse-button (doto (Button. "\u2026")              ; "..." (HORIZONTAL ELLIPSIS)
+                          (.setPrefWidth 26)
+                          (.setPrefHeight 27)
+                          (.setFocusTraversable false)
+                          (ui/add-style! "button-small"))
+          open-button (doto (Button. "" (icons/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
+                        (.setPrefWidth 26)
+                        (.setPrefHeight 27)
+                        (.setFocusTraversable false)
+                        (ui/add-style! "button-small"))
+          text (TextField.)
+          dialog-opts (merge
+                        (if (:ext edit-type)
+                          {:ext (:ext edit-type)}
+                          {})
+                        (if (:dialog-accept-fn edit-type)
+                          {:accept-fn (:dialog-accept-fn edit-type)}
+                          {}))
+          update-ui-fn (fn [values message read-only?]
+                         (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
+                         (let [val (properties/unify-values values)]
+                           (ui/editable! browse-button (not read-only?))
+                           (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
+          cancel-fn (fn [_]
+                      (let [property (property-fn)
+                            current-vals (properties/values property)]
+                        (update-ui-fn current-vals
+                                      (properties/validation-message property)
+                                      (properties/read-only? property))))
+          commit-fn (fn [_]
+                      (let [workspace (:workspace context)
+                            proj-path (ui/text text)
+                            resource (workspace/resolve-workspace-resource workspace proj-path)]
+                        (properties/set-values! (property-fn) (repeat resource))))]
+      (ui/add-style! box "composite-property-control-container")
+      (ui/on-action! browse-button (fn [_]
+                                     (let [{:keys [project workspace]} context
+                                           resource (first (resource-dialog/make workspace project dialog-opts))]
+                                       (when (some? resource)
+                                         (properties/set-values! (property-fn) (repeat resource))))))
+      (ui/on-action! open-button (fn [_]
+                                   (when-let [resource (-> (property-fn)
+                                                           properties/values
+                                                           properties/unify-values)]
+                                     (ui/run-command open-button :file.open resource))))
+      (ui/customize! text commit-fn cancel-fn)
+      (ui/children! box [text browse-button open-button])
+      (GridPane/setConstraints text 0 0)
+      (GridPane/setConstraints open-button 1 0)
+      (GridPane/setConstraints browse-button 2 0)
+
+      ; Merge the facing borders of the open and browse buttons.
+      (GridPane/setMargin open-button (Insets. 0 -1 0 0))
+      (.setOnMousePressed open-button (ui/event-handler _ (.toFront open-button)))
+      (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
+
+      (doto (.. box getColumnConstraints)
+        (.add (doto (ColumnConstraints.)
+                (.setPrefWidth all-available)
+                (.setHgrow Priority/ALWAYS)))
+        (.add (doto (ColumnConstraints.)
+                (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+                (.setHgrow Priority/NEVER)))
+        (.add (doto (ColumnConstraints.)
+                (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+                (.setHgrow Priority/NEVER))))
+      [box update-ui-fn]))
 
 (defmethod cljfx-component-view :default [property _ _]
   ;; TODO...

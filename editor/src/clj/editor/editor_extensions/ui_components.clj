@@ -17,13 +17,11 @@
             [cljfx.component :as fx.component]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.row-constraints :as fx.row-constraints]
             [cljfx.fx.stage :as fx.stage]
-            [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -40,6 +38,7 @@
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.resource :as resource]
@@ -48,19 +47,16 @@
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
-  (:import [com.defold.control DefoldStringConverter]
-           [com.defold.editor.luart DefoldLuaFn]
+  (:import [com.defold.editor.luart DefoldLuaFn]
            [java.nio.file Path]
            [java.util Collection List]
-           [javafx.animation SequentialTransition TranslateTransition]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control CheckBox ComboBox TextField]
+           [javafx.scene.control CheckBox TextField]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.util Duration]
            [org.luaj.vm2 LuaError LuaValue]))
 
 (set! *warn-on-reflection* true)
@@ -468,7 +464,7 @@
             :fn create-select-box-to-string
             :args [rt to_string localization-state]
             :key :to-string
-            :desc (-> {:fx/type fxui/combo-box
+            :desc (-> {:fx/type fxui.combo-box/view
                        :value value
                        :items options
                        :disable (not enabled)
