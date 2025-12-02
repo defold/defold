@@ -493,28 +493,4 @@
                                        (dev/prefs) bp-container)
         auto-pulls [[bp-view :breakpoints-anchor-pane]]]
     (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
-
-  (defn print-scene-graph
-    ([node]
-     (print-scene-graph node 0))
-    ([node depth]
-     (let [indent (apply str (repeat depth "  "))
-           node-type (-> node .getClass .getSimpleName)
-           node-id (.getId node)
-           node-style-class (when (instance? javafx.scene.Node node)
-                              (.getStyleClass node))]
-       (println (str indent node-type
-                     (when node-id (str " [id=" node-id "]"))
-                     (when (seq node-style-class) (str " " node-style-class))))
-
-       (cond
-         (instance? javafx.scene.Parent node)
-         (doseq [child (.getChildrenUnmodifiable node)]
-           (print-scene-graph child (inc depth)))
-
-         (instance? javafx.scene.control.Control node)
-         (when-let [skin (.getSkin node)]
-           (when (instance? javafx.scene.Parent (.getNode skin))
-             (print-scene-graph (.getNode skin) (inc depth))))))))
-  (print-scene-graph (.lookup (ui/main-root) "#breakpoints-container"))
   :-)
