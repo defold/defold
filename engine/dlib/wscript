@@ -98,13 +98,16 @@ def shutdown(sht):
 
     # write a config file for the tests to use
     config = configparser.RawConfigParser()
-    hostname = socket.gethostname()
-    try:
-        local_ip = socket.gethostbyname(hostname)
-    except socket.gaierror as e:
-        print(e)
-        print(f"Hostname was '{hostname}', now trying empty ('') string now")
-        local_ip = socket.gethostbyname("")
+    if os.environ.get('GITHUB_WORKFLOW') and sys.platform == 'darwin':
+        local_ip = "127.0.0.1"
+    else:
+        hostname = socket.gethostname()
+        try:
+            local_ip = socket.gethostbyname(hostname)
+        except socket.gaierror as e:
+            print(e)
+            print(f"Hostname was '{hostname}', now trying empty ('') string now")
+            local_ip = socket.gethostbyname("")
     print ("SERVER IP: %s" % local_ip)
 
     config.add_section("server")
