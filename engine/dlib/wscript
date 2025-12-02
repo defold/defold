@@ -71,7 +71,6 @@ def shutdown(sht):
         print('File ' + server_config_path + ' already exist. Removing.')
 
     start = time.time()
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     timeout = 15
     while True:
         if time.time() - start > timeout:
@@ -87,7 +86,7 @@ def shutdown(sht):
 
             url = 'http://localhost:%d' % server_socket
             print('Starting http server at %s' % url)
-            opener.open(url)
+            urllib.request.urlopen(url)
             break
         except IOError:
             print('Waiting for HTTP testserver to start')
