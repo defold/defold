@@ -38,6 +38,8 @@
            [javafx.scene.layout Region]
            [javafx.stage Popup]))
 
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props fx.list-view/props))
@@ -109,6 +111,7 @@
             magnitude (if (or (= KeyCode/PAGE_UP key-code) (= KeyCode/PAGE_DOWN key-code)) 10 1)
             item (-> (coll/index-of items item)
                      (direction magnitude)
+                     long
                      (max 0)
                      (min (dec (count items)))
                      items)]
