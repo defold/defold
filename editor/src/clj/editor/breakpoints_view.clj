@@ -102,7 +102,7 @@
         regions (update-script-regions-from-breakpoints script-node updated-breakpoints evaluation-context)]
     (g/set-property! script-node :regions regions)))
 
-(defn- set-regions-with-action! [project swap-state all-breakpoints breakpoints action-fn evaluation-context]
+(defn- set-regions-with-action! [project all-breakpoints breakpoints action-fn evaluation-context]
   (let [affected-scripts (collect-script-nodes-from-breakpoints project breakpoints evaluation-context)
         updated-breakpoints (action-fn all-breakpoints breakpoints)
         updated-by-resource (group-by :resource updated-breakpoints)
@@ -111,9 +111,7 @@
                             new-regions (update-script-regions-from-breakpoints script-node bps-for-script evaluation-context)]
                         (g/set-property script-node :regions new-regions)))
                     affected-scripts)]
-    (g/transact txs) ;; Ignore the results
-    ;; All actions should disable editing
-    (swap-state assoc :edited-breakpoint nil :breakpoints updated-breakpoints)))
+    (g/transact txs)))
 
 (defn- make-open-resource-fn [open-resource-fn]
   (fn [resource line]
@@ -153,11 +151,10 @@
    {:label (localization/message "breakpoints.context-menu.remove-selected")
     :command :breakpoints.remove-selected}])
 
-(defn- breakpoints-toolbar-view [project localization-state state swap-state]
-  (let [breakpoints (:breakpoints state)
-        action-all-fn (fn [action-fn _]
+(defn- breakpoints-toolbar-view [project localization-state breakpoints]
+  (let [action-all-fn (fn [action-fn _]
                         (g/with-auto-evaluation-context evaluation-context
-                          (set-regions-with-action! project swap-state breakpoints breakpoints action-fn evaluation-context)))]
+                          (set-regions-with-action! project breakpoints breakpoints action-fn evaluation-context)))]
     {:fx/type fx.h-box/lifecycle
      :id "breakpoints-tool-bar"
      :anchor-pane/top 0
@@ -217,7 +214,7 @@
       :on-selected-changed
       (fn [_]
         (g/with-auto-evaluation-context evaluation-context
-          (set-regions-with-action! project swap-state breakpoints [breakpoint] toggle-breakpoints-enabled evaluation-context)))}}))
+          (set-regions-with-action! project breakpoints [breakpoint] toggle-breakpoints-enabled evaluation-context)))}}))
 
 (defn- column-line-cell-factory [breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
@@ -315,11 +312,8 @@
            (g/with-auto-evaluation-context evaluation-context
              ;; NOTE: Sometimes the editor's top menu disappears if we don't request focus here
              (.requestFocus (.lookup (ui/main-root) "#breakpoints-table-view"))
-             (set-regions-with-action! project swap-state
-                                       breakpoints
-                                       [breakpoint]
-                                       #(vec (remove (set %2) %1))
-                                       evaluation-context))))]}}))
+             ;; TODO: Wrap this vec remove
+             (set-regions-with-action! project breakpoints [breakpoint] #(vec (remove (set %2) %1)) evaluation-context))))]}}))
 
 (defn- ->breakpoints-selection-provider [table-view breakpoints]
   (reify handler/SelectionProvider
@@ -346,84 +340,83 @@
                        {resource/Resource :resource}))))
     fx.lifecycle/scalar))
 
-(defn- breakpoints-table-view [project open-resource-fn localization-state state swap-state]
-  (let [{:keys [breakpoints]} state]
-    {:fx/type fx.ext.table-view/with-selection-props
-     :anchor-pane/top toolbar-height
-     :anchor-pane/right 0
-     :anchor-pane/bottom 0
-     :anchor-pane/left 0
-     :props {:selection-mode :multiple}
-     :desc
-     {:fx/type fx.table-view/lifecycle
-      :id "breakpoints-table-view"
-      prop-property-context [project open-resource-fn breakpoints swap-state]
-      prop-table-context-menu ::breakpoint-menu
-      :fixed-cell-size 33.0
-      :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
-      :row-factory {:fx/cell-type fx.table-row/lifecycle
-                    :describe (fn/partial table-row-factory open-resource-fn breakpoints)}
-      :items (range (count breakpoints))
-      :columns
-      [{:fx/type fx.table-column/lifecycle
-        :text (localization-state (localization/message "breakpoints.column.enabled"))
-        :pref-width 60
-        :min-width 60
-        :max-width 80
-        :cell-value-factory identity
-        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn/partial column-enabled-cell-factory project swap-state breakpoints)}}
-       {:fx/type fx.table-column/lifecycle
-        :text (localization-state (localization/message "breakpoints.column.line"))
-        :pref-width 50
-        :min-width 50
-        :max-width 100
-        :cell-value-factory identity
-        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn/partial column-line-cell-factory breakpoints)}}
-       {:fx/type fx.table-column/lifecycle
-        :text (localization-state (localization/message "breakpoints.column.name"))
-        :pref-width 200
-        :cell-value-factory identity
-        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn/partial column-name-cell-factory breakpoints)}}
-       {:fx/type fx.table-column/lifecycle
-        :text (localization-state (localization/message "breakpoints.column.condition"))
-        :pref-width 250
-        :cell-value-factory identity
-        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :style-class ["condition-cell"]
-                       :describe (fn/partial column-condition-cell-factory state swap-state project breakpoints)}}
-       {:fx/type fx.table-column/lifecycle
-        :text (localization-state (localization/message "breakpoints.column.path"))
-        :style-class ["path-cell"]
-        :pref-width 200
-        :cell-value-factory identity
-        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn/partial column-path-cell-factory breakpoints)}}
-       {:fx/type fx.table-column/lifecycle
-        :pref-width 50
-        :reorderable false
-        :resizable false
-        :sortable false
-        :cell-value-factory identity
-        :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                       :describe (fn/partial column-remove-btn-cell-factory swap-state project breakpoints)}}]}}))
+(defn- breakpoints-table-view [project open-resource-fn localization-state breakpoints state swap-state]
+  {:fx/type fx.ext.table-view/with-selection-props
+   :anchor-pane/top toolbar-height
+   :anchor-pane/right 0
+   :anchor-pane/bottom 0
+   :anchor-pane/left 0
+   :props {:selection-mode :multiple}
+   :desc
+   {:fx/type fx.table-view/lifecycle
+    :id "breakpoints-table-view"
+    prop-property-context [project open-resource-fn breakpoints swap-state]
+    prop-table-context-menu ::breakpoint-menu
+    :fixed-cell-size 33.0
+    :column-resize-policy TableView/CONSTRAINED_RESIZE_POLICY
+    :row-factory {:fx/cell-type fx.table-row/lifecycle
+                  :describe (fn/partial table-row-factory open-resource-fn breakpoints)}
+    :items (range (count breakpoints))
+    :columns
+    [{:fx/type fx.table-column/lifecycle
+      :text (localization-state (localization/message "breakpoints.column.enabled"))
+      :pref-width 60
+      :min-width 60
+      :max-width 80
+      :cell-value-factory identity
+      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                     :describe (fn/partial column-enabled-cell-factory project swap-state breakpoints)}}
+     {:fx/type fx.table-column/lifecycle
+      :text (localization-state (localization/message "breakpoints.column.line"))
+      :pref-width 50
+      :min-width 50
+      :max-width 100
+      :cell-value-factory identity
+      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                     :describe (fn/partial column-line-cell-factory breakpoints)}}
+     {:fx/type fx.table-column/lifecycle
+      :text (localization-state (localization/message "breakpoints.column.name"))
+      :pref-width 200
+      :cell-value-factory identity
+      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                     :describe (fn/partial column-name-cell-factory breakpoints)}}
+     {:fx/type fx.table-column/lifecycle
+      :text (localization-state (localization/message "breakpoints.column.condition"))
+      :pref-width 250
+      :cell-value-factory identity
+      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                     :style-class ["condition-cell"]
+                     :describe (fn/partial column-condition-cell-factory state swap-state project breakpoints)}}
+     {:fx/type fx.table-column/lifecycle
+      :text (localization-state (localization/message "breakpoints.column.path"))
+      :style-class ["path-cell"]
+      :pref-width 200
+      :cell-value-factory identity
+      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                     :describe (fn/partial column-path-cell-factory breakpoints)}}
+     {:fx/type fx.table-column/lifecycle
+      :pref-width 50
+      :reorderable false
+      :resizable false
+      :sortable false
+      :cell-value-factory identity
+      :cell-factory {:fx/cell-type fx.table-cell/lifecycle
+                     :describe (fn/partial column-remove-btn-cell-factory swap-state project breakpoints)}}]}})
 
 (fxui/defc breakpoints-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization (:context props))
               :key :localization-state}
              {:fx/type fx/ext-state
-              :initial-state {:breakpoints (:breakpoints (:context props))
-                              :edited-breakpoint nil}}]}
+              :initial-state {:edited-breakpoint nil}}]}
   [{:keys [context localization-state parent state swap-state]}]
-  (let [project (:project context)
+  (let [breakpoints (:breakpoints context)
+        project (:project context)
         open-resource-fn (:open-resource-fn context)]
     {:fx/type fxui/ext-with-anchor-pane-props
      :desc {:fx/type fxui/ext-value :value parent}
-     :props {:children [(breakpoints-toolbar-view project localization-state state swap-state)
-                        (breakpoints-table-view project open-resource-fn localization-state state swap-state)]}}))
+     :props {:children [(breakpoints-toolbar-view project localization-state breakpoints)
+                        (breakpoints-table-view project open-resource-fn localization-state breakpoints state swap-state)]}}))
 
 (g/defnk produce-breakpoints-anchor-pane [parent-view open-resource-fn breakpoints workspace project prefs localization]
   (save-breakpoints! prefs breakpoints)
@@ -465,12 +458,12 @@
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
   (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (set-regions-with-action! project swap-state breakpoints selection toggle-breakpoints-enabled evaluation-context))))
+      (set-regions-with-action! project breakpoints selection toggle-breakpoints-enabled evaluation-context))))
 
 (handler/defhandler :breakpoints.remove-selected :breakpoints-view
   (run [project swap-state breakpoints selection]
     (g/with-auto-evaluation-context evaluation-context
-      (set-regions-with-action! project swap-state breakpoints selection #(vec (remove (set %2) %1)) evaluation-context))))
+      (set-regions-with-action! project breakpoints selection #(vec (remove (set %2) %1)) evaluation-context))))
 
 (handler/defhandler :breakpoints.edit-selected :breakpoints-view
   (enabled? [selection] (= (count selection) 1))

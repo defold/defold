@@ -413,7 +413,7 @@
 (g/defnk produce-breakpoints [resource regions]
   (coll/transfer regions []
     (filter data/breakpoint-region?)
-    (map (partial data/region->breakpoint resource)) regions))
+    (map (partial data/region->breakpoint resource))))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
