@@ -15,7 +15,8 @@
 (ns editor.breakpoints-view-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.code.data :as code-data]
+            [editor.code.data :as code.data]
+            [editor.code.script :as code.script]
             [editor.breakpoints-view :as breakpoints-view]
             [integration.test-util :as test-util]))
 
@@ -45,7 +46,7 @@
               regions (g/node-value script-node :regions)]
           (is (= 2 (count regions)))
           (doseq [[bp region] (map vector breakpoints regions)]
-            (is (= (code-data/region->breakpoint script-resource region) bp)))))
+            (is (= (code.script/region->breakpoint script-resource region) bp)))))
 
       (testing "existing breakpoints are mapped to regions"
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
@@ -55,7 +56,7 @@
               regions (g/node-value script-node :regions)]
           (is (= 2 (count regions)))
           (doseq [[bp region] (map vector breakpoints regions)]
-            (is (= (code-data/region->breakpoint script-resource region) bp)))))
+            (is (= (code.script/region->breakpoint script-resource region) bp)))))
 
       (testing "missing breakpoints are mapped to empty"
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
@@ -73,7 +74,7 @@
                             {:row 5 :resource script-resource :condition "new1" :enabled true}
                             {:row 6 :resource script-resource :enabled false}]
               _ (call-set-regions! original-bps modified-bps (fn [all new] new))
-              new-bps (map (partial code-data/region->breakpoint lines)
+              new-bps (map (partial code.script/region->breakpoint lines)
                            (g/node-value script-node :regions))]
 
           (is (= 4 (count new-bps)))

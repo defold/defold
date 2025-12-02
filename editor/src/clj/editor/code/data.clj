@@ -2541,14 +2541,6 @@
   (assert (breakpoint-region? region))
   (.row (cursor-range-start region)))
 
-(defn region->breakpoint [resource region]
-  (let [condition (:condition region)]
-    (cond-> {:resource resource
-             :row (breakpoint-row region)
-             :enabled (:enabled region)}
-      condition
-      (assoc :condition condition))))
-
 (defn toggle-breakpoint-region [lines regions rows]
   (assert (set? rows))
   (let [removed-rows (into #{} (comp (filter breakpoint-region?) (map breakpoint-row) (filter rows)) regions)

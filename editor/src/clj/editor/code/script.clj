@@ -410,10 +410,18 @@
     original-resource-property-build-targets
     (partial project/get-resource-node (project/get-project _node-id))))
 
+(defn region->breakpoint [resource region]
+  (let [condition (:condition region)]
+    (cond-> {:resource resource
+             :row (data/breakpoint-row region)
+             :enabled (:enabled region)}
+      condition
+      (assoc :condition condition))))
+
 (g/defnk produce-breakpoints [resource regions]
   (coll/transfer regions []
     (filter data/breakpoint-region?)
-    (map (partial data/region->breakpoint resource))))
+    (map (partial region->breakpoint resource))))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
