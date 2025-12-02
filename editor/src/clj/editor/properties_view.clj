@@ -1553,17 +1553,20 @@
   (-> {:fx/type fxui/value-area
        :min-height 68.0
        :pref-height 68.0
-       :value (properties/unify-values (properties/values property))
        :on-value-changed #(set-values! property (repeat %))
        :editable (not (properties/read-only? property))}
+      (resolve-value property)
       (resolve-validation property localization-state)))
 
-(defmethod cljfx-component-view :default [property _ _]
-  ;; TODO...
-  {:fx/type fxui/paragraph
-   :text (str "TODO: " (pr-str (properties/edit-type-id (:edit-type property))))})
+(defmethod cljfx-component-view :default [property _context localization-state]
+  (-> {:fx/type fxui/value-field
+       :to-string str
+       :editable false}
+      (resolve-value property)
+      (resolve-validation property localization-state)))
 
 ;; TODO: profile once I remove cljfx.dev use.
+;; TODO remove old properties impl
 
 (defn- focus-mouse-event-source! [^MouseEvent e]
   (.requestFocus ^Node (.getSource e)))
