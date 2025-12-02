@@ -15,7 +15,7 @@ env:
 
 jobs:
   bld-eng-macos-64:
-    runs-on: macos-26
+    runs-on: macos-15
     steps: [
       { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
