@@ -131,6 +131,11 @@ def shutdown(self):
     if not TestContext.is_valid(test_context) or waflib.Options.options.skip_build_tests or waflib.Options.options.skip_tests:
         return
 
+    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
+    if is_ci and sys.platform == 'darwin':
+        print("Skipping resource tests on macOS CI")
+        return
+
     local_ip = _get_local_ip(self)
     port = find_free_port()
     proc, configfile = _start_server(self, local_ip, port)

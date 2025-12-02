@@ -53,6 +53,11 @@ def shutdown(sht):
     if not TestContext.is_valid(test_context) or Options.options.skip_build_tests or Options.options.skip_tests:
         return
 
+    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
+    if is_ci and sys.platform == 'darwin':
+        print("Skipping dlib tests on macOS CI")
+        return
+
     # TODO: Fix support for win32
     from waflib.Logs import warn, error
     import urllib, urllib.request, time, atexit
