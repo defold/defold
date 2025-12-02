@@ -108,6 +108,7 @@ def _start_server(self, local_ip, port, configname=None):
 def _wait_for_server(self, proc, local_ip, port):
     timeout = 8 # seconds
     start = time.time()
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     while True:
         if proc.poll() is not None:
             self.fatal('HTTP test server process exited early with code %s' % proc.returncode)
@@ -115,7 +116,7 @@ def _wait_for_server(self, proc, local_ip, port):
             Logs.error('HTTP server failed to start within %d seconds' % timeout)
             sys.exit(1)
         try:
-            urllib.request.urlopen('http://%s:%d' % (local_ip, port))
+            opener.open('http://%s:%d' % (local_ip, port))
             break
         except urllib.error.URLError:
             print('Waiting for HTTP testserver to start...')
