@@ -95,12 +95,7 @@ def _start_server(self, local_ip, port, configname=None):
                 Logs.warn("RangeHTTPServer not found, falling back to http.server")
                 servertype = "http.server"
 
-    cmd = ["python", "-m", servertype]
-    if servertype == "http.server":
-        cmd += ["--bind", local_ip]
-    cmd.append(str(port))
-
-    proc = subprocess.Popen(cmd,
+    proc = subprocess.Popen(["python", "-m", servertype, str(port)],
                             shell = False,
                             cwd = "build/src/test")
     return proc, configfile
@@ -109,8 +104,6 @@ def _wait_for_server(self, proc, local_ip, port):
     timeout = 8 # seconds
     start = time.time()
     while True:
-        if proc.poll() is not None:
-            self.fatal('HTTP test server process exited early with code %s' % proc.returncode)
         if time.time() - start > timeout:
             Logs.error('HTTP server failed to start within %d seconds' % timeout)
             sys.exit(1)
