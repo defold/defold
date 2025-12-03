@@ -2901,12 +2901,12 @@
 (defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element hovered-row x y]
   (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)
         new-hovered-row (y->row layout y)
-        row-changed? (not= hovered-row new-hovered-row)
-        element-changed? (not= hovered-element new-hovered-element)]
-    (when (or row-changed? element-changed?)
+        row-changed (not= hovered-row new-hovered-row)
+        element-changed (not= hovered-element new-hovered-element)]
+    (when (or row-changed element-changed)
       (cond-> {}
-        row-changed? (assoc :hovered-row new-hovered-row)
-        element-changed? (assoc :hovered-element new-hovered-element)))))
+        row-changed (assoc :hovered-row new-hovered-row)
+        element-changed (assoc :hovered-element new-hovered-element)))))
 
 (defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element hovered-row x y]
   (if (some? gesture-start)
