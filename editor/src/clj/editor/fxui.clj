@@ -1282,23 +1282,24 @@
         (.put properties ::invalid-value-animation animation)
         (.play animation)))))
 
-(defn- handle-value-field-key-pressed [edit text swap-state on-value-changed on-invalid-value to-value commit-on-enter ^KeyEvent e]
-  (condp = (.getCode e)
-    KeyCode/ENTER
-    (when (and (or commit-on-enter (.isShortcutDown e))
-               (not= edit text))
-      (.consume e)
-      (if-some [value (to-value edit)]
-        (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
-            (when on-value-changed (on-value-changed value)))
-        (on-invalid-value (.getSource e))))
+(defn- handle-value-field-key-pressed [text swap-state on-value-changed on-invalid-value to-value commit-on-enter ^KeyEvent e]
+  (let [edit (.getText ^TextInputControl (.getSource e))]
+    (condp = (.getCode e)
+      KeyCode/ENTER
+      (when (and (or commit-on-enter (.isShortcutDown e))
+                 (not= edit text))
+        (.consume e)
+        (if-some [value (to-value edit)]
+          (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
+              (when on-value-changed (on-value-changed value)))
+          (on-invalid-value (.getSource e))))
 
-    KeyCode/ESCAPE
-    (when-not (= edit text)
-      (.consume e)
-      (swap-state dissoc :edit))
+      KeyCode/ESCAPE
+      (when-not (= edit text)
+        (.consume e)
+        (swap-state dissoc :edit))
 
-    nil))
+      nil)))
 
 (defn- handle-value-field-focused-changed [edit text swap-state on-value-changed to-value focused]
   (when (and (not focused) (not= edit text))
@@ -1356,7 +1357,7 @@
     (-> props
         (assoc :fx/type component
                :on-text-changed #(swap-state assoc :edit %)
-               :on-key-pressed #(handle-value-field-key-pressed edit text swap-state on-value-changed on-invalid-value to-value commit-on-enter %)
+               :on-key-pressed #(handle-value-field-key-pressed text swap-state on-value-changed on-invalid-value to-value commit-on-enter %)
                :on-focused-changed #(handle-value-field-focused-changed edit text swap-state on-value-changed to-value %)
                prop-value-field-text edit
                prop-select-all-text-on-click true)

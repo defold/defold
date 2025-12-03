@@ -215,7 +215,8 @@
    (set-values! property values (gensym)))
   ([property values opseq]
    (properties/set-values! property values opseq)
-   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)))
+   ;; may be nil in tests
+   (some-> (ui/main-stage) (-> .getScene (ui/user-data! ::ui/refresh-requested? true)))))
 
 (defmulti make-control-view
   (fn [property _context _localization-state]
@@ -404,7 +405,7 @@
          (mapv
            (fn [curve]
              (let [v (-> curve properties/curve-vals first)
-                   points (iv/iv-vec (cond-> [v] selected (conj (assoc v 0 (float 1.0)))))]
+                   points (iv/iv-vec (cond-> [v] selected (conj (update v 0 #(if (math/float32? %) (float 1.0) 1.0)))))]
                (assoc curve :points points)))
            values)))}))
 
@@ -419,14 +420,14 @@
            :alignment :right
            :h-box/hgrow :always
            :to-string field-expression/format-number
-           :to-value field-expression/to-float
+           :to-value field-expression/to-double
            :value (properties/unify-values (mapv curve-get-fn values))
            :editable (not (properties/read-only? property))
            :disable (curved-values? values)
            :on-value-changed (fn [new-num]
                                (set-values! property (mapv #(set-fn % new-num) (properties/values property))))}
           (resolve-validation property localization-state)
-          (resolve-scrubber property :left #(set-fn %1 (properties/round-scalar-float %2)) curve-get-fn))]}))
+          (resolve-scrubber property :left #(set-fn %1 (properties/round-scalar %2)) curve-get-fn))]}))
 
 (defmethod make-control-view Curve [property _context localization-state]
   {:fx/type curve-component-view
@@ -465,27 +466,28 @@
             (resolve-validation property localization-state)
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
-(defn- color->vec [^Color color]
-  [(float (.getRed color))
-   (float (.getGreen color))
-   (float (.getBlue color))
-   (float (.getOpacity color))])
-
 (defn- vec->color [[r g b a]]
   (Color. (float r) (float g) (float b) (float a)))
 
 (defmethod make-control-view types/Color [property {:keys [color-dropper-view prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
-        ignore-alpha (:ignore-alpha (:edit-type property))]
+        ignore-alpha (:ignore-alpha (:edit-type property))
+        old-num (coalesced-property->old-num property)
+        coerce (if (math/float32? old-num) float double)]
     (-> {:fx/type fxui/color-picker
          :value (some-> value vec->color)
          :on-value-changed
-         (fn [new-color]
-           (let [new-value (color->vec new-color)]
-             (set-values! property (if ignore-alpha
-                                     (mapv #(assoc new-value 3 (% 3)) values)
-                                     (repeat new-value)))))
+         (fn [^Color new-color]
+           (set-values! property
+                        (mapv (fn [old-value]
+                                (-> old-value
+                                    (assoc 0 (coerce (.getRed new-color))
+                                           1 (coerce (.getGreen new-color))
+                                           2 (coerce (.getBlue new-color)))
+                                    (cond-> (not ignore-alpha)
+                                            (assoc 3 (coerce (.getOpacity new-color))))))
+                              values)))
          :ignore-alpha ignore-alpha
          :color-dropper-view color-dropper-view
          :prefs prefs
@@ -563,8 +565,11 @@
             ^EventHandler on-mouse-released (fn on-mouse-released [_]
                                               (vreset! value-changed-fn nil))
             ^ChangeListener value-changed-listener (fn value-changed-listener [_ _ new-value]
-                                                     (when-let [f @value-changed-fn]
-                                                       (f new-value)))]
+                                                     (let [f @value-changed-fn]
+                                                       (if f
+                                                         (f new-value)
+                                                         (do (.handle on-mouse-pressed nil)
+                                                             (@value-changed-fn new-value)))))]
         (.addEventFilter slider MouseEvent/MOUSE_PRESSED on-mouse-pressed)
         (.addEventHandler slider MouseEvent/MOUSE_RELEASED on-mouse-released)
         (.addListener (.valueProperty slider) value-changed-listener)

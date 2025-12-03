@@ -79,6 +79,7 @@
            [javafx.event ActionEvent]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout VBox]
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
@@ -155,9 +156,19 @@
 (defmethod set-control-value! Slider [^Slider slider num-value]
   (.setValue slider num-value))
 
-(defmethod set-control-value! TextField [^TextField text-field num-value]
-  (.setText text-field (field-expression/format-number num-value))
-  (.fireEvent text-field (ActionEvent. text-field text-field)))
+(defmethod set-control-value! TextField [^TextField text-field value]
+  (.setText text-field (cond-> value (number? value) field-expression/format-number))
+  (.fireEvent text-field (KeyEvent.
+                           #_source text-field
+                           #_target text-field
+                           #_eventType KeyEvent/KEY_PRESSED
+                           #_character ""
+                           #_text "\r"
+                           #_code KeyCode/ENTER
+                           #_shiftDown false
+                           #_controlDown false
+                           #_altDown false
+                           #_metaDown false)))
 
 (defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
   (.fire toggle-button))
