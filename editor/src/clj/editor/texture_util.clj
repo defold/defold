@@ -46,6 +46,11 @@
   (and (generator? value)
        (digest/sha1-hex? (:sha1 value))))
 
+(defn texture-lifecycle-generator?
+  [value]
+  (and (generator? value)
+       (graphics.types/request-id? (:request-id (:args value)))))
+
 (defn content-generatable?
   [value]
   (or (content-generator? value)
@@ -88,7 +93,8 @@
   ^TextureRequestData [content-generatable texture-profile flip-y]
   {:pre [(content-generatable? content-generatable)
          (or (nil? texture-profile)
-             (graphics.types/texture-profile? texture-profile))]
+             (graphics.types/texture-profile? texture-profile))
+         (boolean? flip-y)]
    :post [(or (g/error-value? %)
               (and (vector? %)
                    (every? texture/texture-request-data? %)))]}
@@ -106,7 +112,9 @@
 
                        (instance? BufferedImage content)
                        (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)
-                             data-version (hash (:sha1 content-generator))]
+                             data-version (java/combine-hashes
+                                            (hash (:sha1 content-generator))
+                                            (hash flip-y))]
                          (texture/texture-image->texture-request-data texture-image data-version))
 
                        :else
@@ -121,7 +129,9 @@
     ;; return a BufferedImage, an ErrorValue, or a sequence of values that may
     ;; be a mix of BufferedImages or ErrorValues.
     (let [content (call-generator content-generatable)
-          data-version (hash (:sha1 content-generatable))]
+          data-version (java/combine-hashes
+                         (hash (:sha1 content-generatable))
+                         (hash flip-y))]
       (cond
         (g/error-value? content)
         content
@@ -192,10 +202,8 @@
 
 (defn gpu-texture-generator?
   [value]
-  (and (generator? value)
-       (let [args (:args value)]
-         (and (graphics.types/request-id? (:request-id args))
-              (delay? (:texture-request-datas-delay args))))))
+  (and (texture-lifecycle-generator? value)
+       (delay? (:texture-request-datas-delay (:args value)))))
 
 (defn make-gpu-texture-generator
   [request-id content-generatable texture-profile]
@@ -213,7 +221,7 @@
 
 (defn generate-gpu-texture
   ^TextureLifecycle [gpu-texture-generator]
-  {:pre [(gpu-texture-generator? gpu-texture-generator)]
+  {:pre [(texture-lifecycle-generator? gpu-texture-generator)]
    :post [(or (g/error-value? %)
               (texture/texture-lifecycle? %))]}
   (call-generator gpu-texture-generator))
@@ -270,13 +278,6 @@
     {:f cubemap-gpu-texture-gen-fn
      :args {:request-id request-id
             :texture-request-datas-by-side-kw-delay texture-request-datas-by-side-kw-delay}}))
-
-(defn generate-cubemap-gpu-texture
-  ^TextureLifecycle [cubemap-gpu-texture-generator]
-  {:pre [(cubemap-gpu-texture-generator? cubemap-gpu-texture-generator)]
-   :post [(or (g/error-value? %)
-              (texture/texture-lifecycle? %))]}
-  (call-generator cubemap-gpu-texture-generator))
 
 (defn construct-cubemap-gpu-texture
   ^TextureLifecycle [request-id content-generators-by-side-kw texture-profile]

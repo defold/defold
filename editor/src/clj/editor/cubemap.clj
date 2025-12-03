@@ -279,7 +279,7 @@
 
   (output gpu-texture g/Any :cached
           (g/fnk [gpu-texture-generator]
-            (texture-util/generate-cubemap-gpu-texture gpu-texture-generator)))
+            (texture-util/generate-gpu-texture gpu-texture-generator)))
 
   (output build-targets g/Any :cached produce-build-targets)
   (output transform-properties g/Any scene/produce-no-transform-properties)

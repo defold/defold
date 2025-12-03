@@ -15,6 +15,7 @@
 (ns editor.image
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
             [editor.localization :as localization]
@@ -111,7 +112,9 @@
 
   (output gpu-texture g/Any :cached
           (g/fnk [gpu-texture-generator]
-            (texture-util/generate-gpu-texture gpu-texture-generator)))
+            (-> (texture-util/generate-gpu-texture gpu-texture-generator)
+                (texture/set-params {:min-filter gl/nearest
+                                     :mag-filter gl/nearest}))))
 
   ;; NOTE: The anim-data and gpu-texture outputs allow standalone images to be used in place of texture sets in legacy projects.
   (output anim-data g/Any (g/fnk [size]
