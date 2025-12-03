@@ -17,8 +17,7 @@
         }
 
         .icon-button {
-            -fx-background-color: transparent;
-            -fx-opacity: 0.2;
+            -fx-opacity: 0.0;
             -fx-alignment: center;
             -fx-min-width: 20;
             -fx-max-width: 20;
@@ -31,14 +30,12 @@
             }
 
             &:hover {
-                -fx-background-color: derive(-df-component-light, -10%);
-                -fx-opacity: 0.2;
+                -fx-background-color: derive(-df-component-light);
+                -fx-opacity: 1.0 !important;
             }
         }
 
         .remove-button {
-            -fx-opacity: 0.0;
-
             .icon-graphic {
                 -fx-background-color: -df-defold-red-dark;
             }
@@ -46,11 +43,7 @@
 
         &:hover {
             .icon-button {
-                -fx-opacity: 1.0;
-            }
-
-            .remove-button {
-                -fx-opacity: 1.0;
+                -fx-opacity: 0.5;
             }
         }
     }
