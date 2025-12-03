@@ -19,7 +19,6 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.stack-pane :as fx.stack-pane]
-            [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.table-cell :as fx.table-cell]
             [cljfx.fx.table-column :as fx.table-column]
             [cljfx.fx.table-row :as fx.table-row]
@@ -42,9 +41,10 @@
             [editor.workspace :as workspace]
             [util.fn :as fn])
   (:import [javafx.scene Node Parent]
-           [javafx.scene.control TableView TextField]
+           [javafx.scene.control TableView]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane]))
+           [javafx.scene.layout AnchorPane]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -353,6 +353,7 @@
       :pref-width 60
       :min-width 60
       :max-width 80
+      :reorderable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-enabled-cell-factory project swap-state breakpoints)}}
@@ -361,18 +362,21 @@
       :pref-width 50
       :min-width 50
       :max-width 100
+      :reorderable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-line-cell-factory breakpoints)}}
      {:fx/type fx.table-column/lifecycle
       :text (localization-state (localization/message "breakpoints.column.name"))
       :pref-width 200
+      :reorderable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-name-cell-factory breakpoints)}}
      {:fx/type fx.table-column/lifecycle
       :text (localization-state (localization/message "breakpoints.column.condition"))
       :pref-width 250
+      :reorderable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :style-class ["condition-cell"]
@@ -381,6 +385,7 @@
       :text (localization-state (localization/message "breakpoints.column.path"))
       :style-class ["path-cell"]
       :pref-width 200
+      :reorderable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-path-cell-factory breakpoints)}}
