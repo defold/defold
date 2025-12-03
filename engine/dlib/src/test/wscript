@@ -101,6 +101,10 @@ def configure(conf):
     conf.env.append_value('CLASSPATH', '../ext/jetty/*')
     conf.env.append_value('CLASSPATH', '../ext/jetty/logging/*')
 
+def _is_mac_ci():
+    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
+    return is_ci and sys.platform == 'darwin'
+
 def build(bld):
     bld(features='javac seq',
         outdir='http_server',
@@ -132,8 +136,7 @@ def build(bld):
         if bld.env in ('js-web', 'wasm-web'):
             skip_threads = True
 
-    mac_ci = 'GITHUB_CI' in bld.env.get('DEFINES', []) and sys.platform == 'darwin'
-    if mac_ci:
+    if _is_mac_ci():
         skip_http_run = True
 
     create_test(bld, 'test_memory')
