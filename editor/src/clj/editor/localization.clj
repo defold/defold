@@ -651,13 +651,6 @@
     (f localization-state items)
     items))
 
-(defn error-message [e]
-  (join "\n"
-        (coll/transfer [e] []
-          (coll/tree-xf :causes :causes)
-          (keep :message)
-          (distinct))))
-
 ;; TODO:
 ;;  - build errors
 ;;  - missed things...

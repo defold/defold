@@ -858,83 +858,83 @@
 
 (handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
-           (when-let [node-id (handler/selection->node-id selection)]
-             (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
+    (when-let [node-id (handler/selection->node-id selection)]
+      (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
   (run [property selection search-results-view app-view workspace]
-       (let [localization (g/with-auto-evaluation-context evaluation-context
-                            (workspace/localization workspace evaluation-context))]
-         (app-view/show-override-inspector!
-           app-view
-           search-results-view
-           (handler/selection->node-id selection)
-           [(:key property)]
-           localization))))
+    (let [localization (g/with-auto-evaluation-context evaluation-context
+                         (workspace/localization workspace evaluation-context))]
+      (app-view/show-override-inspector!
+        app-view
+        search-results-view
+        (handler/selection->node-id selection)
+        [(:key property)]
+        localization))))
 
 (handler/defhandler :edit.pull-up-overrides :property
   (label [property user-data]
-         (when (nil? user-data)
-           (localization/message "command.edit.pull-up-overrides.variant.property" {"property" (properties/label property)})))
+    (when (nil? user-data)
+      (localization/message "command.edit.pull-up-overrides.variant.property" {"property" (properties/label property)})))
   (active? [property user-data]
-           (or (some? user-data)
-               (= 1 (count (:original-values property)))))
+    (or (some? user-data)
+        (= 1 (count (:original-values property)))))
   (enabled? [user-data]
-            (if user-data
-              (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
-              true))
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      true))
   (options [property selection user-data]
-           (when (nil? user-data)
-             (when-let [node-id (handler/selection->node-id selection)]
-               (g/with-auto-evaluation-context evaluation-context
-                 (let [prop-kws [(:key property)]
-                       source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
-                   (when source-prop-infos-by-prop-kw
-                     (mapv (fn [transfer-overrides-plan]
-                             {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                              :command :edit.pull-up-overrides
-                              :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                           (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [prop-kws [(:key property)]
+                source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+            (when source-prop-infos-by-prop-kw
+              (mapv (fn [transfer-overrides-plan]
+                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                       :command :edit.pull-up-overrides
+                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                    (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
   (run [user-data]
-       (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :edit.push-down-overrides :property
   (label [property user-data]
-         (when (nil? user-data)
-           (localization/message "command.edit.push-down-overrides.variant.property" {"property" (properties/label property)})))
+    (when (nil? user-data)
+      (localization/message "command.edit.push-down-overrides.variant.property" {"property" (properties/label property)})))
   (active? [property selection user-data evaluation-context]
-           (or (some? user-data)
-               (and (= 1 (count (:original-values property)))
-                    (if-let [node-id (handler/selection->node-id selection)]
-                      (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
-                      false))))
+    (or (some? user-data)
+        (and (= 1 (count (:original-values property)))
+             (if-let [node-id (handler/selection->node-id selection)]
+               (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
+               false))))
   (enabled? [user-data]
-            (if user-data
-              (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
-              true))
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      true))
   (options [property selection user-data]
-           (when (nil? user-data)
-             (when-let [node-id (handler/selection->node-id selection)]
-               (g/with-auto-evaluation-context evaluation-context
-                 (let [prop-kws [(:key property)]
-                       source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
-                   (when source-prop-infos-by-prop-kw
-                     (mapv (fn [transfer-overrides-plan]
-                             {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                              :command :edit.push-down-overrides
-                              :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                           (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [prop-kws [(:key property)]
+                source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+            (when source-prop-infos-by-prop-kw
+              (mapv (fn [transfer-overrides-plan]
+                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                       :command :edit.push-down-overrides
+                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                    (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
   (run [user-data]
-       (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :private/clear-override :property
   (label [property]
-         (localization/message "command.private.clear-override" {"property" (properties/label property)}))
+    (localization/message "command.private.clear-override" {"property" (properties/label property)}))
   (active? [property]
-           (not (coll/empty? (:original-values property))))
+    (not (coll/empty? (:original-values property))))
   (run [property property-control]
-       (properties/clear-override! property)
-       ;; TODO: no :property-control handler context value any more — clear-override doesn't work now...
-       ;;       probably safe to just remove
-       (ui/clear-auto-commit! property-control)))
+    (properties/clear-override! property)
+    ;; TODO: no :property-control handler context value any more — clear-override doesn't work now...
+    ;;       probably safe to just remove
+    (ui/clear-auto-commit! property-control)))
 
 (handler/register-menu! ::property-menu
   [menu-items/show-overrides
@@ -1657,6 +1657,7 @@
     fx.lifecycle/scalar))
 
 (defn cljfx-view [{:keys [parent context selected-node-properties]}]
+  ;; todo keep only new view
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value :value parent}
    :props {:children [{:fx/type fxui/scroll

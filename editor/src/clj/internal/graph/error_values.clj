@@ -78,10 +78,15 @@
 (def error-warning? (partial severity? :warning))
 (def error-fatal?   (partial severity? :fatal))
 
-;; TODO delete
+(defn- error-seq [e]
+  (tree-seq :causes :causes e))
+
+(defn- error-messages [e]
+  (distinct (keep :message (error-seq e))))
+
 (defn error-message
   ^String [e]
-  (string/join "\n" (distinct (keep :message (tree-seq :causes :causes e)))))
+  (string/join "\n" (error-messages e)))
 
 (defn error-aggregate
   ([es]
