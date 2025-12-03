@@ -127,7 +127,9 @@ def shutdown(sht):
         config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
         config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
 
-        configfilepath = os.path.basename(tempfile.mktemp(".cfg", "unittest_"))
+        fd, tmp_path = tempfile.mkstemp(suffix=".cfg", prefix="unittest_")
+        os.close(fd)
+        configfilepath = os.path.basename(tmp_path)
         with open(configfilepath, 'w') as f:
             config.write(f)
             print("Wrote test config file: %s" % configfilepath)
@@ -140,7 +142,9 @@ def shutdown(sht):
         config.set("server", "socket_ssl", "0")
         config.set("server", "socket_ssl_test", "0")
 
-        configfilepath = os.path.basename(tempfile.mktemp(".cfg", "unittest_"))
+        fd, tmp_path = tempfile.mkstemp(suffix=".cfg", prefix="unittest_")
+        os.close(fd)
+        configfilepath = os.path.basename(tmp_path)
         with open(configfilepath, 'w') as f:
             config.write(f)
             print("Wrote fallback test config file: %s" % configfilepath)
