@@ -283,7 +283,7 @@ platforms:
         XCODE_VERSION:          "{{env.XCODE_26_VERSION}}"
         XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_26_VERSION}}"
-        MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
+        MACOS_VERSION_MIN:      "{{env.MACOS_26_VERSION_MIN}}"
         SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_26_VERSION}}.sdk"
     context:
@@ -358,7 +358,7 @@ platforms:
         XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
         IOS_VERSION:            "{{env.IOS_26_VERSION}}"
-        IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
+        IOS_VERSION_MIN:        "{{env.IOS_26_VERSION_MIN}}"
 
     context:
         weakFrameworks: ["Foundation"]
