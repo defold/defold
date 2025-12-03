@@ -148,6 +148,7 @@
 
 #breakpoints-tab {
     @extend .console-tab-base;
+    -fx-background-position: 10 4 !important;
     -fx-background-image: url("icons/tabs/ic_breakpoints-grey.png");
     &:selected {
         -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");
