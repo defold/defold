@@ -61,12 +61,6 @@ def shutdown(sht):
         return
 
     mac_ci = _is_mac_ci()
-
-    if mac_ci:
-        print("Skipping HTTP test server on macOS CI")
-        waf_dynamo.run_tests(test_context, valgrind = True, configfile = None)
-        return
-
     configfilepath = None
 
     # TODO: Fix support for win32
@@ -134,6 +128,10 @@ def shutdown(sht):
         with open(configfilepath, 'w') as f:
             config.write(f)
             print("Wrote test config file: %s" % configfilepath)
+    else:
+        configfilepath = None
+        print("Skipping HTTP test server on macOS CI")
+
     try:
         waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfilepath)
     finally:
