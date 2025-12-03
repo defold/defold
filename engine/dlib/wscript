@@ -61,8 +61,7 @@ def shutdown(sht):
         return
 
     mac_ci = _is_mac_ci()
-    if mac_ci:
-        print("Running dlib tests without HTTP server on macOS CI")
+    configfilepath = None
 
     # TODO: Fix support for win32
     from waflib.Logs import warn, error
@@ -72,8 +71,6 @@ def shutdown(sht):
     bash_prefix = ''
     if os.environ.get('MSYSTEM', '') in ('MINGW32','MINGW64'):
         bash_prefix = 'sh '
-
-    configfilepath = None
 
     if not mac_ci:
         os.system(bash_prefix + './scripts/start_http_server.sh')
@@ -132,23 +129,13 @@ def shutdown(sht):
             config.write(f)
             print("Wrote test config file: %s" % configfilepath)
     else:
-        # Provide a minimal config for tests that expect a config file argument.
-        config = configparser.RawConfigParser()
-        config.add_section("server")
-        config.set("server", "ip", "localhost")
-        config.set("server", "socket", "0")
-        config.set("server", "socket_ssl", "0")
-        config.set("server", "socket_ssl_test", "0")
-
-        configfilepath = os.path.basename(tempfile.mktemp(".cfg", "unittest_"))
-        with open(configfilepath, 'w') as f:
-            config.write(f)
-            print("Wrote fallback test config file: %s" % configfilepath)
+        configfilepath = None
+        print("Skipping HTTP test server on macOS CI")
 
     try:
         waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfilepath)
     finally:
-        if configfilepath and os.path.exists(configfilepath):
+        if configfilepath:
             os.remove(configfilepath)
 
     # The test should work on OSX, but the CI (Catalina) just crashed with no callstack (even in lldb)
