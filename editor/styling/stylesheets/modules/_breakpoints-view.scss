@@ -17,11 +17,12 @@
         }
 
         .icon-button {
-            visibility: hidden;
+            -fx-background-color: transparent;
+            -fx-opacity: 0.2;
         }
 
         &:hover .icon-button {
-            visibility: visible;
+            -fx-opacity: 1.0;
         }
     }
 
