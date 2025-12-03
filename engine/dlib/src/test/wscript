@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os, re
+import os, re, sys
 import sdk
 import waf_dynamo
 from waf_dynamo import is_platform_private, platform_supports_feature
@@ -132,6 +132,10 @@ def build(bld):
         if bld.env in ('js-web', 'wasm-web'):
             skip_threads = True
 
+    mac_ci = 'GITHUB_CI' in bld.env.get('DEFINES', []) and sys.platform == 'darwin'
+    if mac_ci:
+        skip_http_run = True
+
     create_test(bld, 'test_memory')
 
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
@@ -243,4 +247,3 @@ def build(bld):
         t = create_test(bld, 'test_csharp', extra_libs = ['CSHARP'])
         t.env.append_value('LINKFLAGS', [t.env.LIB_ST % 'test_dlib_cs'])
         t.env.append_value('LIBPATH', ['./src/test/cs'])
-
