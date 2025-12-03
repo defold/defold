@@ -28,5 +28,4 @@ public class DefoldComboBoxListViewSkin<T> extends ListViewSkin<T> {
         return getVirtualFlow();
     }
 
-
 }
