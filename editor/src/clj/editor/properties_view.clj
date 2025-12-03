@@ -22,6 +22,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
@@ -66,9 +67,10 @@
 
 (defn- coalesced-property->old-num [coalesced-property]
   (let [old-value (coalesced-property->any-value coalesced-property)]
-    (if (number? old-value)
-      old-value
-      (old-value 0))))
+    (cond
+      (number? old-value) old-value
+      (nil? old-value) 0.0
+      :else (old-value 0))))
 
 (defn script-property-type->style-class [script-property-type]
   (case script-property-type
@@ -219,6 +221,9 @@
   (fn [property _context _localization-state]
     (edit-type->type (:edit-type property))))
 
+(defn control-view [{:keys [property context localization-state]}]
+  (make-control-view property context localization-state))
+
 (defn- property-validation-tooltip [property localization-state]
   (when-let [{:keys [severity message]} (properties/validation-message property)]
     {:severity (case severity :fatal :error :warning :warning :info)
@@ -360,7 +365,7 @@
                   :h-box/hgrow :always
                   :to-string field-expression/format-number
                   :to-value field-expression/to-double
-                  :value (properties/unify-values (mapv #(% i) values))
+                  :value (properties/unify-values (mapv #(nth % i) values))
                   :on-value-changed (fn [new-num]
                                       (set-values! property (mapv #(assoc % i (cond-> new-num is-float float)) values)))
                   :editable (not (properties/read-only? property))}
@@ -645,6 +650,12 @@
 (def ^:private prop-button-menu
   (fx.prop/make (fx.mutator/setter ui/register-button-menu) fx.lifecycle/scalar))
 
+(defn- error-view [{:keys [^Throwable exception caught]}]
+  (when caught (error-reporting/report-exception! exception))
+  {:fx/type fxui/paragraph
+   :color :error
+   :text (or (.getMessage exception) (.getSimpleName (class exception)))})
+
 (fxui/defc grid-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization (:context props))
@@ -697,11 +708,15 @@
                                   prop-button-menu ::property-menu
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}
-                                 (assoc
-                                   (make-control-view property context localization-state)
-                                   :grid-pane/column 1
-                                   :grid-pane/row i
-                                   :grid-pane/fill-width true))))))})))))
+                                 {:fx/type fxui/ext-error-boundary
+                                  :grid-pane/column 1
+                                  :grid-pane/row i
+                                  :grid-pane/fill-width true
+                                  :desc {:fx/type control-view
+                                         :property property
+                                         :context context
+                                         :localization-state localization-state}
+                                  :catch {:fx/type error-view}})))))})))))
           (into []))}))
 
 (defn pane-view [{:keys [parent context selected-node-properties]}]

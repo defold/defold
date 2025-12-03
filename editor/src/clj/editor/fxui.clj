@@ -1644,3 +1644,43 @@
 
 (defn advance-ui-user-data-component! [javafx-node key desc]
   (advance-user-data-component! javafx-node ui/user-data ui/user-data! key desc))
+
+(def ext-error-boundary
+  "Extension lifecycle that captures all lifecycle errors
+
+  Props (all required):
+    :catch    cljfx desc that will be shown when the wrapped throws errors
+              during lifecycle, will receive 2 additional props:
+                :exception    Throwable instance
+                :caught       boolean, indicating whether the exception was
+                              caught just now
+    :desc     the wrapped desc"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ this-desc opts]
+      (let [desc (:desc this-desc)]
+        (with-meta
+          (try
+            {:child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)}
+            (catch Throwable e
+              {:child (fx.lifecycle/create fx.lifecycle/dynamic (assoc (:catch this-desc) :exception e :caught true) opts)
+               :exception e
+               :desc desc}))
+          child-instance-meta)))
+    (advance [this component this-desc opts]
+      (let [desc (:desc this-desc)]
+        (if-let [e (:exception component)]
+          (if (= desc (:desc component))
+            (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc (:catch this-desc) :exception e :caught false) opts))
+            (do (fx.lifecycle/delete this component opts)
+                (fx.lifecycle/create this this-desc opts)))
+          (try
+            (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
+            (catch Throwable e
+              (fx.lifecycle/delete this component opts)
+              (with-meta
+                {:child (fx.lifecycle/create fx.lifecycle/dynamic (assoc (:catch this-desc) :exception e :caught true) opts)
+                 :exception e
+                 :desc desc}
+                child-instance-meta))))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
