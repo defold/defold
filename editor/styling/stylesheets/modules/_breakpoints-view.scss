@@ -19,10 +19,39 @@
         .icon-button {
             -fx-background-color: transparent;
             -fx-opacity: 0.2;
+            -fx-alignment: center;
+            -fx-min-width: 20;
+            -fx-max-width: 20;
+            -fx-min-height: 20;
+            -fx-max-height: 20;
+            -fx-padding: 10px;
+
+            .icon-graphic {
+                -fx-background-color: white;
+            }
+
+            &:hover {
+                -fx-background-color: derive(-df-component-light, -10%);
+                -fx-opacity: 0.2;
+            }
         }
 
-        &:hover .icon-button {
-            -fx-opacity: 1.0;
+        .remove-button {
+            -fx-opacity: 0.0;
+
+            .icon-graphic {
+                -fx-background-color: -df-defold-red-dark;
+            }
+        }
+
+        &:hover {
+            .icon-button {
+                -fx-opacity: 1.0;
+            }
+
+            .remove-button {
+                -fx-opacity: 1.0;
+            }
         }
     }
 
@@ -41,29 +70,6 @@
         -fx-border-color: -df-background-lightish;
     }
 
-    .icon-button {
-        -fx-background-color: derive(-df-component-dark, -10%);
-        -fx-alignment: center;
-        -fx-min-width: 20;
-        -fx-max-width: 20;
-        -fx-min-height: 20;
-        -fx-max-height: 20;
-        -fx-padding: 10px;
-
-        &:hover {
-            -fx-background-color: -df-component-light;
-        }
-
-        .icon-graphic {
-            -fx-background-color: white;
-        }
-    }
-
-    .icon-button.remove-button {
-        .icon-graphic {
-            -fx-background-color: -df-defold-red-dark;
-        }
-    }
 }
 
 .path-cell {

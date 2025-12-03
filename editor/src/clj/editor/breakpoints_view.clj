@@ -354,6 +354,7 @@
       :min-width 60
       :max-width 80
       :reorderable false
+      :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-enabled-cell-factory project swap-state breakpoints)}}
@@ -363,6 +364,7 @@
       :min-width 50
       :max-width 100
       :reorderable false
+      :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-line-cell-factory breakpoints)}}
@@ -370,6 +372,7 @@
       :text (localization-state (localization/message "breakpoints.column.name"))
       :pref-width 200
       :reorderable false
+      :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-name-cell-factory breakpoints)}}
@@ -377,6 +380,7 @@
       :text (localization-state (localization/message "breakpoints.column.condition"))
       :pref-width 250
       :reorderable false
+      :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :style-class ["condition-cell"]
@@ -386,6 +390,7 @@
       :style-class ["path-cell"]
       :pref-width 200
       :reorderable false
+      :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-path-cell-factory breakpoints)}}

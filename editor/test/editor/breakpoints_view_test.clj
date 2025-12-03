@@ -38,7 +38,7 @@
           set-breakpoints-on-script! (fn [breakpoints]
                                        (let [regions (g/node-value script-node :regions)]
                                          (g/set-property! script-node :regions
-                                           (map (partial #'breakpoints-view/breakpoint->region lines) breakpoints))))]
+                                                          (map (partial #'breakpoints-view/breakpoint->region lines) breakpoints))))]
       (testing "new breakpoints are mapped to regions"
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
                            {:row 2 :resource script-resource :enabled false}]
@@ -74,7 +74,7 @@
                             {:row 5 :resource script-resource :condition "new1" :enabled true}
                             {:row 6 :resource script-resource :enabled false}]
               _ (call-set-regions! original-bps modified-bps (fn [all new] new))
-              new-bps (map (partial code.script/region->breakpoint lines)
+              new-bps (map (partial code.script/region->breakpoint script-resource)
                            (g/node-value script-node :regions))]
 
           (is (= 4 (count new-bps)))
