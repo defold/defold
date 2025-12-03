@@ -324,6 +324,27 @@
     (delete [_ component opts]
       (fx.lifecycle/delete lifecycle (:child component) opts))))
 
+(def ext-dedupe-identical-desc
+  "Extension lifecycle that skips advancing if new desc is identical to old one
+
+  Props:
+    :desc    wrapped description that is expected to frequently be identical
+             during advance"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [desc]} opts]
+      (with-meta
+        {:desc desc
+         :child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)}
+        child-instance-meta))
+    (advance [_ component {:keys [desc]} opts]
+      (if (identical? desc (:desc component))
+        component
+        (-> component
+            (assoc :desc desc)
+            (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts)))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
   receives a `::result` key"

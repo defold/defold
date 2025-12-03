@@ -745,16 +745,17 @@
 
   (output description g/Any :cached
           (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
-            {:fx/type pane-view
-             :parent parent-view
-             :context {:workspace workspace
-                       :project project
-                       :app-view app-view
-                       :prefs prefs
-                       :localization localization
-                       :search-results-view search-results-view
-                       :color-dropper-view color-dropper-view}
-             :selected-node-properties selected-node-properties})))
+            {:fx/type fxui/ext-dedupe-identical-desc
+             :desc {:fx/type pane-view
+                    :parent parent-view
+                    :context {:workspace workspace
+                              :project project
+                              :app-view app-view
+                              :prefs prefs
+                              :localization localization
+                              :search-results-view search-results-view
+                              :color-dropper-view color-dropper-view}
+                    :selected-node-properties selected-node-properties}})))
 
 (defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
   (let [properties-view (first
