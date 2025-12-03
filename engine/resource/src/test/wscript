@@ -1,4 +1,4 @@
-import os
+import os, sys
 import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension, extension
 from waf_dynamo import new_copy_task
@@ -108,7 +108,9 @@ def build(bld):
 
     bld.add_group()
 
-    defines = ['DM_TEST_HTTP_SUPPORTED']
+    defines = []
+    if not ('GITHUB_CI' in bld.env.DEFINES and sys.platform == 'darwin'):
+        defines = ['DM_TEST_HTTP_SUPPORTED']
     if bld.env.PLATFORM in ['arm64-nx64']:
         defines = []
 
