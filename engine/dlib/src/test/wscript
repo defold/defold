@@ -137,7 +137,7 @@ def build(bld):
             skip_threads = True
 
     if _is_mac_ci():
-        skip_http_run = True
+        skip_http = True
 
     create_test(bld, 'test_memory')
 
