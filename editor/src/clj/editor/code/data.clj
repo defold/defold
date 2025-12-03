@@ -2898,16 +2898,20 @@
                                        visible-regions)]
       {:type :region :region clickable-region})))
 
-(defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element x y]
-  (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)]
-    (cond-> {:hovered-row (y->row layout y)}
-      (not= hovered-element new-hovered-element)
-      (assoc :hovered-element new-hovered-element))))
+(defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element hovered-row x y]
+  (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)
+        new-hovered-row (y->row layout y)
+        row-changed? (not= hovered-row new-hovered-row)
+        element-changed? (not= hovered-element new-hovered-element)]
+    (when (or row-changed? element-changed?)
+      (cond-> {}
+        row-changed? (assoc :hovered-row new-hovered-row)
+        element-changed? (assoc :hovered-element new-hovered-element)))))
 
-(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element x y]
+(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element hovered-row x y]
   (if (some? gesture-start)
     (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
-    (mouse-hover lines visible-regions layout minimap-layout hovered-element x y)))
+    (mouse-hover lines visible-regions layout minimap-layout hovered-element hovered-row x y)))
 
 (defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))

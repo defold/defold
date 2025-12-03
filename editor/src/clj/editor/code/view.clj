@@ -2629,6 +2629,7 @@
                               (get-property view-node :minimap-layout evaluation-context)
                               (get-property view-node :gesture-start evaluation-context)
                               (get-property view-node :hovered-element evaluation-context)
+                              (get-property view-node :hovered-row evaluation-context)
                               x
                               y)
             (cond->
