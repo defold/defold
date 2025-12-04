@@ -342,6 +342,244 @@ TEST_P(dmJobThreadTest, SortedDependencyJobs)
 }
 
 
+struct CancelChildTrack
+{
+    uint32_t                        m_Index;
+    bool                            m_Delay;
+    int32_atomic_t                  m_ProcessCalled;
+    int32_atomic_t                  m_CallbackCalled;
+    dmJobThread::JobStatus          m_CallbackStatus;
+    dmJobThread::HJob               m_Job;
+};
+
+struct CancelParentTrack
+{
+    int32_atomic_t                  m_ProcessCalled;
+    int32_atomic_t                  m_CallbackCalled;
+    dmJobThread::JobStatus          m_CallbackStatus;
+};
+
+int32_atomic_t g_CancelParentGlobalLock = 0;
+
+static int32_t ProcessCancelChild(dmJobThread::HContext ctx, dmJobThread::HJob job, void* user_context, void* user_data)
+{
+    CancelChildTrack* child = (CancelChildTrack*)user_data;
+    dmAtomicIncrement32(&child->m_ProcessCalled);
+    if (child->m_Delay)
+    {
+        // Wait until the test says it's ok to continue
+        while (dmAtomicGet32(&g_CancelParentGlobalLock))
+        {
+            dmTime::Sleep(20*1000);
+        }
+    }
+    return 1;
+}
+
+static void CallbackCancelChild(dmJobThread::HContext ctx, dmJobThread::HJob job, dmJobThread::JobStatus status, void* user_context, void* user_data, int32_t user_result)
+{
+    CancelChildTrack* child = (CancelChildTrack*)user_context;
+    child->m_CallbackStatus = status;
+    child->m_Job = job;
+    dmAtomicIncrement32(&child->m_CallbackCalled);
+}
+
+static int32_t ProcessCancelParent(dmJobThread::HContext ctx, dmJobThread::HJob job, void* user_context, void* user_data)
+{
+    CancelParentTrack* parent = (CancelParentTrack*)user_data;
+    dmAtomicIncrement32(&parent->m_ProcessCalled);
+    return 1;
+}
+
+static void CallbackCancelParent(dmJobThread::HContext ctx, dmJobThread::HJob job, dmJobThread::JobStatus status, void* user_context, void* user_data, int32_t user_result)
+{
+    CancelParentTrack* parent = (CancelParentTrack*)user_context;
+    parent->m_CallbackStatus = status;
+    dmAtomicIncrement32(&parent->m_CallbackCalled);
+}
+
+TEST_P(dmJobThreadTest, CancelParentAfterChild)
+{
+    g_CancelParentGlobalLock = 0;
+
+    if (m_NumThreads>1)
+        dmAtomicAdd32(&g_CancelParentGlobalLock, 1);
+
+    static const uint32_t CHILD_COUNT = 10;
+    // For multi threaded test, we want the mid index such that we keep (num_threads - 1) occupied forever,
+    // and one thread gets to finish the task.
+    // Thist will test that cancelling the list of children is done correctly
+    uint32_t MID_INDEX = m_NumThreads>1? (m_NumThreads-1) : (CHILD_COUNT / 2);
+
+    CancelChildTrack children[CHILD_COUNT];
+    memset(children, 0, sizeof(children));
+    for (uint32_t i = 0; i < CHILD_COUNT; ++i)
+    {
+        children[i].m_Index = i;
+        children[i].m_CallbackStatus = dmJobThread::JOB_STATUS_FREE;
+
+        // Making sure some doesn't finish, to test the cancelling of the parent
+        if (m_NumThreads == 1)
+            children[i].m_Delay = i < MID_INDEX;
+        else
+            children[i].m_Delay = i != MID_INDEX;
+    }
+
+    CancelParentTrack parent = {0};
+    parent.m_CallbackStatus = dmJobThread::JOB_STATUS_FREE;
+
+    dmJobThread::Job parent_job = {0};
+    parent_job.m_Process = ProcessCancelParent;
+    parent_job.m_Callback = CallbackCancelParent;
+    parent_job.m_Context = &parent;
+    parent_job.m_Data = &parent;
+
+    dmJobThread::HJob parent_hjob = dmJobThread::CreateJob(m_JobThread, &parent_job);
+    ASSERT_NE((dmJobThread::HJob)0, parent_hjob);
+
+    dmJobThread::HJob child_hjobs[CHILD_COUNT];
+    for (uint32_t i = 0; i < CHILD_COUNT; ++i)
+    {
+        dmJobThread::Job child_job = {0};
+        child_job.m_Process = ProcessCancelChild;
+        child_job.m_Callback = CallbackCancelChild;
+        child_job.m_Context = &children[i];
+        child_job.m_Data = &children[i];
+
+        child_hjobs[i] = dmJobThread::CreateJob(m_JobThread, &child_job);
+        ASSERT_NE((dmJobThread::HJob)0, child_hjobs[i]);
+        ASSERT_EQ(dmJobThread::JOB_RESULT_OK, dmJobThread::SetParent(m_JobThread, child_hjobs[i], parent_hjob));
+        ASSERT_EQ(dmJobThread::JOB_RESULT_OK, dmJobThread::PushJob(m_JobThread, child_hjobs[i]));
+    }
+
+    ASSERT_EQ(dmJobThread::JOB_RESULT_OK, dmJobThread::PushJob(m_JobThread, parent_hjob));
+
+    bool mid_finished = false;
+    uint64_t finish_limit = dmTime::GetMonotonicTime() + 500000;
+    while (!mid_finished)
+    {
+        dmJobThread::Update(m_JobThread, 0);
+        mid_finished = dmAtomicGet32(&children[MID_INDEX].m_CallbackCalled) == 1;
+        if (!mid_finished)
+        {
+            if (dmTime::GetMonotonicTime() >= finish_limit)
+            {
+                dmLogError("CancelParentAfterChild still waiting for child M after 500 ms");
+                finish_limit = dmTime::GetMonotonicTime() + 500000;
+                break;
+            }
+            dmTime::Sleep(20*1000);
+        }
+    }
+
+    ASSERT_EQ(1, dmAtomicGet32(&children[MID_INDEX].m_ProcessCalled));
+    ASSERT_EQ(1, dmAtomicGet32(&children[MID_INDEX].m_CallbackCalled));
+    ASSERT_EQ(dmJobThread::JOB_STATUS_FINISHED, children[MID_INDEX].m_CallbackStatus);
+
+    for (uint32_t i = 0; i < CHILD_COUNT; ++i)
+    {
+        if (m_NumThreads == 1)
+        {
+            if (i <= MID_INDEX)
+            {
+                ASSERT_EQ(1, dmAtomicGet32(&children[i].m_ProcessCalled));
+                ASSERT_EQ(1, dmAtomicGet32(&children[i].m_CallbackCalled));
+            }
+            else
+            {
+                ASSERT_EQ(0, dmAtomicGet32(&children[i].m_ProcessCalled));
+                ASSERT_EQ(0, dmAtomicGet32(&children[i].m_CallbackCalled));
+            }
+        }
+        else
+        {
+            if (i == MID_INDEX)
+            {
+                ASSERT_EQ(1, dmAtomicGet32(&children[i].m_ProcessCalled));
+                ASSERT_EQ(1, dmAtomicGet32(&children[i].m_CallbackCalled));
+            }
+            else if (i < MID_INDEX)
+            {
+                ASSERT_EQ(1, dmAtomicGet32(&children[i].m_ProcessCalled));
+                ASSERT_EQ(0, dmAtomicGet32(&children[i].m_CallbackCalled));
+            }
+            else
+            {
+                // Since the MID_INDEX has finished, it's possible that the threads has already picked up
+            }
+        }
+    }
+
+    if (dmAtomicGet32(&g_CancelParentGlobalLock))
+        dmAtomicSub32(&g_CancelParentGlobalLock, 1); // set it to 0 so that the tasks may finish
+
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 500000;
+
+    dmJobThread::JobResult result;
+    do
+    {
+        result = dmJobThread::CancelJob(m_JobThread, parent_hjob);
+
+        dmJobThread::Update(m_JobThread, 1000);
+        dmTime::Sleep(1);
+    } while (dmJobThread::JOB_RESULT_PENDING == result);
+
+    bool all_callbacks_received = false;
+    stop_time = dmTime::GetMonotonicTime() + 500000;
+    while (dmTime::GetMonotonicTime() < stop_time && !all_callbacks_received)
+    {
+        dmJobThread::Update(m_JobThread, 1000);
+        dmTime::Sleep(1);
+
+        if (dmAtomicGet32(&children[MID_INDEX].m_CallbackCalled) && dmAtomicGet32(&parent.m_CallbackCalled))
+        {
+            all_callbacks_received = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(all_callbacks_received);
+    ASSERT_EQ(0, dmAtomicGet32(&parent.m_ProcessCalled));
+    ASSERT_EQ(dmJobThread::JOB_STATUS_CANCELED, parent.m_CallbackStatus);
+
+    for (uint32_t i = 0; i < CHILD_COUNT; ++i)
+    {
+        if (m_NumThreads == 1)
+        {
+            if (i <= MID_INDEX)
+            {
+                ASSERT_EQ(dmJobThread::JOB_STATUS_FINISHED, children[i].m_CallbackStatus);
+            }
+            else
+            {
+                ASSERT_EQ(dmJobThread::JOB_STATUS_CANCELED, children[i].m_CallbackStatus);
+                ASSERT_EQ(0, dmAtomicGet32(&children[i].m_ProcessCalled));
+            }
+        }
+        else
+        {
+            if (i == MID_INDEX)
+            {
+                ASSERT_EQ(dmJobThread::JOB_STATUS_FINISHED, children[i].m_CallbackStatus);
+            }
+            else if (children[i].m_Job)
+            {
+                // We know the ones prior to the MID_INDEX should have finished
+                if ((i < MID_INDEX))
+                {
+                    ASSERT_EQ(dmJobThread::JOB_STATUS_FINISHED, children[i].m_CallbackStatus);
+                    ASSERT_EQ(1, dmAtomicGet32(&children[i].m_ProcessCalled));
+                }
+                else
+                {
+                    // Can't guarantuee the state they're in
+                }
+            }
+        }
+    }
+}
+
+
 const TestParams test_setups[] = {
     TestParams(0), // single threaded test
 #if defined(DM_HAS_THREADS)
