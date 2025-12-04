@@ -149,8 +149,7 @@
                              "Project" :global
                              "Scene" :global
                              "View" :global
-                             "Help" :global
-                             })
+                             "Help" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
