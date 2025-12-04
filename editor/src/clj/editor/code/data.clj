@@ -2913,9 +2913,9 @@
     (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
     (mouse-hover lines visible-regions layout minimap-layout hovered-element hovered-row x y)))
 
-(defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button hovered-row x y]
   (when (= button (some-> gesture-start :button))
-    (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation x y)
+    (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation hovered-row x y)
       :cursor-ranges (mapv #(dissoc % :dragged) cursor-ranges)
       :gesture-start nil)))
 

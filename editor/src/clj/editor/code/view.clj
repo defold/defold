@@ -2655,6 +2655,7 @@
                                         (get-property view-node :minimap-layout)
                                         (get-property view-node :gesture-start)
                                         (mouse-button event)
+                                        (get-property view-node :hovered-row)
                                         (.getX event)
                                         (.getY event))))
 

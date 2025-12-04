@@ -255,6 +255,8 @@
                  :on-value-changed
                  (fn [new-condition]
                    (g/with-auto-evaluation-context evaluation-context
+                     ;; NOTE: Table loses focus after tect field component is destroyed after pressing ESC or ENTER
+                     (.requestFocus (.lookup (ui/main-root) "#breakpoints-table-view"))
                      (when new-condition
                        (set-breakpoint-condition! project breakpoints breakpoint new-condition evaluation-context))
                      (swap-state assoc :edited-breakpoint nil)))}}}
