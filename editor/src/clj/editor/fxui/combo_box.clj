@@ -102,30 +102,30 @@
 
 (defn- filter-popup-key-pressed [on-value-changed swap-state items item ^KeyEvent e]
   (let [key-code (.getCode e)]
-    (cond
-      (or (= KeyCode/PAGE_UP key-code)
-          (= KeyCode/PAGE_DOWN key-code)
-          (= KeyCode/UP key-code)
-          (= KeyCode/DOWN key-code))
-      (let [direction (if (or (= KeyCode/UP key-code) (= KeyCode/PAGE_UP key-code)) - +)
-            magnitude (if (or (= KeyCode/PAGE_UP key-code) (= KeyCode/PAGE_DOWN key-code)) 10 1)
-            item (-> (coll/index-of items item)
-                     (direction magnitude)
-                     long
-                     (max 0)
-                     (min (dec (count items)))
-                     items)]
-        (.consume e)
-        (swap-state set-selected-item item))
-
-      (= KeyCode/ESCAPE key-code)
+    (if (= KeyCode/ESCAPE key-code)
       (do (.consume e)
           (swap-state hide))
+      (when (pos? (count items))
+        (cond
+          (or (= KeyCode/PAGE_UP key-code)
+              (= KeyCode/PAGE_DOWN key-code)
+              (= KeyCode/UP key-code)
+              (= KeyCode/DOWN key-code))
+          (let [direction (if (or (= KeyCode/UP key-code) (= KeyCode/PAGE_UP key-code)) - +)
+                magnitude (if (or (= KeyCode/PAGE_UP key-code) (= KeyCode/PAGE_DOWN key-code)) 10 1)
+                item (-> (coll/index-of items item)
+                         (direction magnitude)
+                         long
+                         (max 0)
+                         (min (dec (count items)))
+                         items)]
+            (.consume e)
+            (swap-state set-selected-item item))
 
-      (= KeyCode/ENTER key-code)
-      (do (.consume e)
-          (swap-state hide)
-          (when on-value-changed (on-value-changed item))))))
+          (= KeyCode/ENTER key-code)
+          (do (.consume e)
+              (swap-state hide)
+              (when on-value-changed (on-value-changed item))))))))
 
 (defn- describe-list-cell [on-value-changed swap-state to-string filtered-item->matching-indices item]
   (when (some? item)

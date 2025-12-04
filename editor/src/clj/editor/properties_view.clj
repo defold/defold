@@ -349,7 +349,7 @@
                            (repeat
                              (count labels)
                              {:fx/type fx.column-constraints/lifecycle
-                              :percent-width (* 100 (double (/ (count labels) 1)))}))
+                              :percent-width (* 100 (double (/ 1 (count labels))))}))
      :children
      (coll/transfer labels []
        (map-indexed
@@ -565,11 +565,12 @@
             ^EventHandler on-mouse-released (fn on-mouse-released [_]
                                               (vreset! value-changed-fn nil))
             ^ChangeListener value-changed-listener (fn value-changed-listener [_ _ new-value]
-                                                     (let [f @value-changed-fn]
-                                                       (if f
-                                                         (f new-value)
-                                                         (do (.handle on-mouse-pressed nil)
-                                                             (@value-changed-fn new-value)))))]
+                                                     (when-not fx.lifecycle/*in-progress?*
+                                                       (let [f @value-changed-fn]
+                                                         (if f
+                                                           (f new-value)
+                                                           (do (.handle on-mouse-pressed nil)
+                                                               (@value-changed-fn new-value))))))]
         (.addEventFilter slider MouseEvent/MOUSE_PRESSED on-mouse-pressed)
         (.addEventHandler slider MouseEvent/MOUSE_RELEASED on-mouse-released)
         (.addListener (.valueProperty slider) value-changed-listener)
@@ -714,6 +715,7 @@
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}
                                  {:fx/type fxui/ext-error-boundary
+                                  :fx/key property-keyword
                                   :grid-pane/column 1
                                   :grid-pane/row i
                                   :grid-pane/fill-width true
