@@ -101,13 +101,6 @@ namespace dmGameSystem
         }
     }
 
-    static bool HasPendingJobs(FontResource* font)
-    {
-        if (font->m_Jobs)
-            return !font->m_PendingJobs.Empty();
-        return false;
-    }
-
     static void CancelPendingJobs(FontResource* font)
     {
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)

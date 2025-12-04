@@ -398,6 +398,8 @@ static void CallbackCancelParent(dmJobThread::HContext ctx, dmJobThread::HJob jo
     dmAtomicIncrement32(&parent->m_CallbackCalled);
 }
 
+// This tests that cancelling the parent after one of the children (not the last one) has finished.
+// doesn't mess up the internal list of children.
 TEST_P(dmJobThreadTest, CancelParentAfterChild)
 {
     g_CancelParentGlobalLock = 0;
@@ -408,7 +410,7 @@ TEST_P(dmJobThreadTest, CancelParentAfterChild)
     static const uint32_t CHILD_COUNT = 10;
     // For multi threaded test, we want the mid index such that we keep (num_threads - 1) occupied forever,
     // and one thread gets to finish the task.
-    // Thist will test that cancelling the list of children is done correctly
+    // This will test that cancelling the list of children is done correctly
     uint32_t MID_INDEX = m_NumThreads>1? (m_NumThreads-1) : (CHILD_COUNT / 2);
 
     CancelChildTrack children[CHILD_COUNT];
