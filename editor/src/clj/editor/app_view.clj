@@ -1873,7 +1873,9 @@
                 :command :help.open-donations}
                menu-items/separator
                {:label (localization/message "command.app.about")
-                :command :app.about}]}])
+                :command :app.about}
+               {:label :separator
+                :id ::help-end}]}])
 
 (handler/register-menu! ::tab-menu
   [menu-items/open-as
