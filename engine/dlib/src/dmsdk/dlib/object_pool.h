@@ -176,6 +176,7 @@ public:
 
         // Put in free list
         e->m_Next = m_FirstFree;
+        e->m_Physical = 0xffffffff;
         m_FirstFree = e - m_Entries.Begin();
     }
 
@@ -201,6 +202,20 @@ public:
         Entry* e = &m_Entries[index];
         T& o = m_Objects[e->m_Physical];
         return o;
+    }
+
+    /*#
+     * Get object pointer from logical index
+     * @name GetPtr
+     * @param index [type: uint32_t] index of the object
+     * @return object [type: T*] a pointer to the object. Null if the logical index wasn't valid
+     */
+    T* GetPtr(uint32_t index)
+    {
+        Entry* e = &m_Entries[index];
+        if (e->m_Physical >= m_Objects.Size())
+            return 0;
+        return &m_Objects[e->m_Physical];
     }
 
     /*#
