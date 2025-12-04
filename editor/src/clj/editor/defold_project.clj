@@ -330,15 +330,15 @@
             (progress/make progress-message progress-size (inc node-index)))
           (fn indeterminate-progress-fn [progress-message ^long _node-index]
             (progress/make-indeterminate progress-message)))]
-    (into []
-          (map-indexed
-            (fn [^long node-index [node-id resource]]
-              (let [proj-path (resource/proj-path resource)
-                    progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
-                    progress (progress-fn progress-message node-index)]
-                (render-progress! progress)
-                (read-node-load-info node-id resource resource-metrics))))
-          node-id+resource-pairs)))
+    (->> node-id+resource-pairs
+         (map-indexed vector)
+         (pmap (fn [[node-index [node-id resource]]]
+                 (let [proj-path (resource/proj-path resource)
+                       progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
+                       progress (progress-fn progress-message node-index)]
+                   (render-progress! progress)
+                   (read-node-load-info node-id resource resource-metrics))))
+         (into []))))
 
 (defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
