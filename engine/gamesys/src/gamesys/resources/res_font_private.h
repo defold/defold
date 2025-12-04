@@ -31,6 +31,12 @@ namespace dmGameSystem
     struct MaterialResource;
     struct GlyphBankResource;
 
+    struct FontJobResourceInfo
+    {
+        dmJobThread::HJob   m_Job;
+        dmArray<void*>      m_Resources; // the resources that are incref'ed for this job
+    };
+
     struct FontResource
     {
         dmRenderDDF::FontMap*   m_DDF;
@@ -51,7 +57,7 @@ namespace dmGameSystem
         dmHashTable64<TTFResource*> m_TTFResources;  // Maps path hash to a resource
         dmHashTable32<uint64_t>     m_FontHashes;    // Maps HFont path hash to a resource
 
-        dmArray<dmJobThread::HJob>  m_PendingJobs;
+        dmArray<FontJobResourceInfo*>  m_PendingJobs;
 
         FontResource();
 

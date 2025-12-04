@@ -50,6 +50,8 @@ namespace dmGameSystem
         b = tmp;
     }
 
+    static void DecRefJobResourceInfo(dmResource::HFactory factory, FontResource* resource, FontJobResourceInfo* job_info);
+
     FontResource::FontResource()
     {
         memset(this, 0, sizeof(*this));
@@ -77,32 +79,44 @@ namespace dmGameSystem
         m_IsDynamic = dynamic;
     }
 
-    static void PushPendingJob(FontResource* font, dmJobThread::HJob hjob)
+    static void PushPendingJob(FontResource* font, FontJobResourceInfo* job_info)
     {
         if (font->m_PendingJobs.Full())
             font->m_PendingJobs.OffsetCapacity(2);
-        font->m_PendingJobs.Push(hjob);
+        font->m_PendingJobs.Push(job_info);
 
-        dmJobThread::PushJob(font->m_Jobs, hjob);
+        dmJobThread::PushJob(font->m_Jobs, job_info->m_Job);
     }
 
-    static void RemovePendingJob(FontResource* font, dmJobThread::HJob job)
+    static void RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
     {
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
-            if (font->m_PendingJobs[i] == job)
+            if (font->m_PendingJobs[i] == job_info)
             {
                 font->m_PendingJobs.EraseSwap(i);
+                delete job_info;
                 return;
             }
         }
+    }
+
+    static bool HasPendingJobs(FontResource* font)
+    {
+        if (font->m_Jobs)
+            return !font->m_PendingJobs.Empty();
+        return false;
     }
 
     static void CancelPendingJobs(FontResource* font)
     {
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
-            dmJobThread::HJob hjob = font->m_PendingJobs[i];
+            FontJobResourceInfo* job_info = font->m_PendingJobs[i];
+            dmJobThread::HJob hjob = job_info->m_Job;
+
+            DecRefJobResourceInfo(font->m_Factory, font, job_info);
+            delete job_info;
 
             dmJobThread::JobResult jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
             while (dmJobThread::JOB_RESULT_PENDING == jr)
@@ -143,10 +157,16 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    static void IncRefJobResources(dmResource::HFactory factory, FontResource* resource)
+    static FontJobResourceInfo* CreateJobResourceInfo(dmResource::HFactory factory, FontResource* resource)
     {
+        FontJobResourceInfo* job_info = new FontJobResourceInfo;
+        job_info->m_Job = 0;
+
         HFontCollection fontcollection = ResFontGetFontCollection(resource);
         uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
+
+        job_info->m_Resources.SetCapacity(num_fonts);
+        job_info->m_Resources.SetSize(num_fonts);
 
         for (uint32_t i = 0; i < num_fonts; ++i)
         {
@@ -154,32 +174,17 @@ namespace dmGameSystem
             TTFResource* ttfresource = ResFontGetTTFResourceFromFont(resource, hfont);
 
             dmResource::IncRef(factory, ttfresource);
+            job_info->m_Resources[i] = ttfresource;
         }
 
-        // during the creation phase, the resource isn't actually added to the resource system yet
-        if (!resource->m_Prewarming)
-        {
-            dmResource::IncRef(factory, resource);
-        }
+        return job_info;
     }
 
-    static void DecRefJobResources(dmResource::HFactory factory, FontResource* resource)
+    static void DecRefJobResourceInfo(dmResource::HFactory factory, FontResource* resource, FontJobResourceInfo* job_info)
     {
-        HFontCollection fontcollection = ResFontGetFontCollection(resource);
-        uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
-
-        for (uint32_t i = 0; i < num_fonts; ++i)
+        for (uint32_t i = 0; i < job_info->m_Resources.Size(); ++i)
         {
-            HFont hfont = FontCollectionGetFont(fontcollection, i);
-            TTFResource* ttfresource = ResFontGetTTFResourceFromFont(resource, hfont);
-
-            dmResource::Release(factory, ttfresource);
-        }
-
-        // during the creation phase, the resource isn't actually added to the resource system yet
-        if (!resource->m_Prewarming)
-        {
-            dmResource::Release(factory, resource);
+            dmResource::Release(factory, job_info->m_Resources[i]);
         }
     }
 
@@ -208,15 +213,15 @@ namespace dmGameSystem
         FontResource*           m_Resource;
         void*                   m_Context;
         FPrewarmTextCallback    m_Callback;
-        dmJobThread::HJob       m_Job;
+        FontJobResourceInfo*    m_JobInfo;
     };
 
     static void PrewarmTextCallbackWrapper(void* cbk_ctx, int result, const char* errmsg)
     {
         FontJobContextWrapper* ctx = (FontJobContextWrapper*)cbk_ctx;
-        DecRefJobResources(ctx->m_Resource->m_Factory, ctx->m_Resource);
+        DecRefJobResourceInfo(ctx->m_Resource->m_Factory, ctx->m_Resource, ctx->m_JobInfo);
         ctx->m_Callback(ctx->m_Context, result, errmsg);
-        RemovePendingJob(ctx->m_Resource, ctx->m_Job);
+        RemovePendingJob(ctx->m_Resource, ctx->m_JobInfo);
         delete ctx;
     }
 
@@ -249,20 +254,22 @@ namespace dmGameSystem
         wrapperctx->m_Resource  = resource;
         wrapperctx->m_Callback  = cbk;
         wrapperctx->m_Context   = cbk_ctx;
-        wrapperctx->m_Job       = 0;
 
-        IncRefJobResources(resource->m_Factory, resource);
+        // Increment all resource before we send them to the thread
+        wrapperctx->m_JobInfo = CreateJobResourceInfo(resource->m_Factory, resource);
+        wrapperctx->m_JobInfo->m_Job = dmGameSystem::FontGenAddGlyphs(resource, glyphs, glyph_count, PrewarmTextCallbackWrapper, wrapperctx);
 
-        wrapperctx->m_Job = dmGameSystem::FontGenAddGlyphs(resource, glyphs, glyph_count, PrewarmTextCallbackWrapper, wrapperctx);
         TextLayoutFree(layout);
 
-        if (!wrapperctx->m_Job)
+        if (!wrapperctx->m_JobInfo->m_Job)
         {
+            DecRefJobResourceInfo(resource->m_Factory, resource, wrapperctx->m_JobInfo);
+            delete wrapperctx->m_JobInfo;
             delete wrapperctx;
             return dmResource::RESULT_INVALID_DATA;
         }
 
-        PushPendingJob(resource, wrapperctx->m_Job);
+        PushPendingJob(resource, wrapperctx->m_JobInfo);
         return dmResource::RESULT_OK;
     }
 
@@ -490,8 +497,8 @@ namespace dmGameSystem
     static void CacheMissGlyphCallback(void* _ctx, int result, const char* errmsg)
     {
         FontJobContextWrapper* ctx = (FontJobContextWrapper*)_ctx;
-        DecRefJobResources(ctx->m_Resource->m_Factory, ctx->m_Resource);
-        RemovePendingJob(ctx->m_Resource, ctx->m_Job);
+        DecRefJobResourceInfo(ctx->m_Resource->m_Factory, ctx->m_Resource, ctx->m_JobInfo);
+        RemovePendingJob(ctx->m_Resource, ctx->m_JobInfo);
     }
 
     HFontCollection ResFontGetFontCollection(FontResource* resource)
@@ -531,18 +538,19 @@ namespace dmGameSystem
         wrapperctx->m_Resource  = resource;
         wrapperctx->m_Callback  = 0;
         wrapperctx->m_Context   = 0;
-        wrapperctx->m_Job       = 0;
 
-        IncRefJobResources(resource->m_Factory, resource);
-
-        wrapperctx->m_Job = dmGameSystem::FontGenAddGlyphByIndex(resource, font, glyph_index, CacheMissGlyphCallback, (void*)wrapperctx);
-        if (!wrapperctx->m_Job)
+        // Increment all resource before we send them to the thread
+        wrapperctx->m_JobInfo = CreateJobResourceInfo(resource->m_Factory, resource);
+        wrapperctx->m_JobInfo->m_Job = dmGameSystem::FontGenAddGlyphByIndex(resource, font, glyph_index, CacheMissGlyphCallback, (void*)wrapperctx);
+        if (!wrapperctx->m_JobInfo->m_Job)
         {
+            DecRefJobResourceInfo(resource->m_Factory, resource, wrapperctx->m_JobInfo);
+            delete wrapperctx->m_JobInfo;
             delete wrapperctx;
             return FONT_RESULT_ERROR;
         }
 
-        PushPendingJob(resource, wrapperctx->m_Job);
+        PushPendingJob(resource, wrapperctx->m_JobInfo);
 
         // Instead of keeping track of the async creation process here, we create a null dummy glyph
         // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.
