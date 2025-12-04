@@ -149,6 +149,8 @@
                                         :external-refs {project :project}
                                         :external-labels {project #{:collision-group-nodes
                                                                     :collision-groups-data
+                                                                    :display-height
+                                                                    :display-width
                                                                     :default-tex-params
                                                                     :settings}}})
                       (add-attachments root-ids))]
