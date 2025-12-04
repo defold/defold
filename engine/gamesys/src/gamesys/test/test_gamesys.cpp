@@ -1721,6 +1721,7 @@ TEST_F(FontTest, DynamicGlyph)
 
     uint32_t codepoint = 'A';
 
+    // Triggers a cache miss
     {
         FontGlyph* glyph = 0;
         FontResult r = GetGlyph(font_map, hfont, codepoint, &glyph);
@@ -1733,8 +1734,6 @@ TEST_F(FontTest, DynamicGlyph)
     // Add a new glyph
     const char* data = "Test Image Data";
     {
-        uint8_t* mem = (uint8_t*)strdup(data);
-
         FontGlyph* glyph = new FontGlyph;
         memset(glyph, 0, sizeof(*glyph));
 
@@ -1750,7 +1749,7 @@ TEST_F(FontTest, DynamicGlyph)
         glyph->m_Bitmap.m_Height = 11;
         glyph->m_Bitmap.m_Channels = 12;
         glyph->m_Bitmap.m_Flags = 0;
-        glyph->m_Bitmap.m_Data = (uint8_t*)mem;
+        glyph->m_Bitmap.m_Data = (uint8_t*)strdup(data);;
 
         dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, 0, glyph);
         ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -5585,7 +5584,7 @@ TEST_F(SysTest, LoadBufferASync)
     dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
     ASSERT_TRUE(RunTestLoadBufferASync(2, m_Scriptlibcontext, m_Collection, &m_UpdateContext, false));
     dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
-    free(large_buffer);
+    delete[] large_buffer;
 
     // Test 3
     ASSERT_TRUE(RunTestLoadBufferASync(3, m_Scriptlibcontext, m_Collection, &m_UpdateContext, true));
