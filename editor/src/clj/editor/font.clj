@@ -563,7 +563,7 @@
      :build-fn build-glyph-bank
      :user-data user-data}))
 
-(g/defnk produce-build-targets [_node-id resource font-map material dep-build-targets runtime-generation-build-target]
+(g/defnk produce-build-targets [_node-id resource cache-width cache-height font-map material dep-build-targets runtime-generation-build-target]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
@@ -586,8 +586,8 @@
                      :render-mode (:render-mode font-map)
                      :all-chars (:all-chars font-map)
                      :characters (:characters font-map)
-                     :cache-width (:cache-width font-map)
-                     :cache-height (:cache-height font-map)
+                     :cache-width cache-width
+                     :cache-height cache-height
                      :sdf-spread (:sdf-spread font-map)
                      :sdf-outline (:sdf-outline font-map)
                      :sdf-shadow (:sdf-shadow font-map))
