@@ -31,6 +31,8 @@
             [service.log :as log]
             [service.smoke-log :as slog]
             [util.defonce :as defonce]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
@@ -1065,7 +1067,10 @@
 
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
   (let [selection (.getSelectedItems (.getSelectionModel tree-view))]
-    (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
+    (let [items (->> selection
+                     (e/remove nil?)
+                     (e/filter id-fn)
+                     (coll/pair-map-by path-fn))
           roots (loop [paths (keys items)
                        roots []]
                   (if-let [path (first paths)]
@@ -1075,8 +1080,9 @@
                                   roots)]
                       (recur (rest paths) roots))
                     roots))]
-      (vals (into {} (map #(let [item (items %)]
-                            [(id-fn item) item]) roots))))))
+      (coll/transfer roots []
+        (map items)
+        (util/distinct-by id-fn)))))
 
 ;; Returns the items that should be selected if the specified root items were deleted.
 (defn succeeding-selection [^TreeView tree-view root-items]

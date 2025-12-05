@@ -677,7 +677,9 @@
 (g/defnk produce-tree-view
   [^TreeView raw-tree-view ^TreeItem root active-resource prefs]
   (let [old-tree-view-paths (into #{}
-                                  (map item->path)
+                                  (comp
+                                    (remove nil?)
+                                    (map item->path))
                                   (.getSelectedItems (.getSelectionModel raw-tree-view)))
         selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
                            (when (and (track-active-tab? prefs) active-resource)
