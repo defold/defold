@@ -177,27 +177,27 @@ static void RemoveChildFromParent(JobThreadContext* ctx, HJob hchild)
     }
 }
 
-static void PrintParent(JobThreadContext* ctx, JobItem* parent)
-{
-    if (!parent)
-        return;
+// static void PrintParent(JobThreadContext* ctx, JobItem* parent)
+// {
+//     if (!parent)
+//         return;
 
-    printf("Parent state: nc: %d  done: %d\n", dmAtomicGet32(&parent->m_NumChildren), dmAtomicGet32(&parent->m_NumChildrenCompleted));
-    HJob hchild = parent->m_FirstChild;
-    while (hchild != INVALID_JOB)
-    {
-        JobItem* child = GetJobItem(ctx, hchild);
-        if (child == 0)
-        {
-            printf("  child == 0!!! \n");
-            break; // We cannot iterate further
-        }
+//     printf("Parent state: nc: %d  done: %d\n", dmAtomicGet32(&parent->m_NumChildren), dmAtomicGet32(&parent->m_NumChildrenCompleted));
+//     HJob hchild = parent->m_FirstChild;
+//     while (hchild != INVALID_JOB)
+//     {
+//         JobItem* child = GetJobItem(ctx, hchild);
+//         if (child == 0)
+//         {
+//             printf("  child == 0!!! \n");
+//             break; // We cannot iterate further
+//         }
 
-        printf("  child: %llx (%u %u)  s: %d\n", hchild, ToGeneration(hchild), ToIndex(hchild), child->m_Status);
+//         printf("  child: %llx (%u %u)  s: %d\n", hchild, ToGeneration(hchild), ToIndex(hchild), child->m_Status);
 
-        hchild = child->m_Sibling;
-    }
-}
+//         hchild = child->m_Sibling;
+//     }
+// }
 
 static void FreeJob(JobThreadContext* ctx, HJob hjob)
 {
@@ -528,7 +528,7 @@ static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
         ProcessOneJob(ctx, hjob);
 
         uint64_t tend = dmTime::GetMonotonicTime();
-        if ((tend-tstart) > max_time)
+        if (max_time == 0 || (tend-tstart) > max_time)
         {
             break;
         }

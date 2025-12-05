@@ -368,7 +368,7 @@ static int32_t ProcessCancelChild(dmJobThread::HContext ctx, dmJobThread::HJob j
     if (child->m_Delay)
     {
         // Wait until the test says it's ok to continue
-        while (dmAtomicGet32(&g_CancelParentGlobalLock))
+        while (dmAtomicGet32(&g_CancelParentGlobalLock)) // only set if threads > 1
         {
             dmTime::Sleep(20*1000);
         }
@@ -402,16 +402,18 @@ static void CallbackCancelParent(dmJobThread::HContext ctx, dmJobThread::HJob jo
 // doesn't mess up the internal list of children.
 TEST_P(dmJobThreadTest, CancelParentAfterChild)
 {
+    bool use_threads = GetParam().m_NumThreads != 0;
+
     g_CancelParentGlobalLock = 0;
 
-    if (m_NumThreads>1)
+    if (use_threads)
         dmAtomicAdd32(&g_CancelParentGlobalLock, 1);
 
     static const uint32_t CHILD_COUNT = 10;
     // For multi threaded test, we want the mid index such that we keep (num_threads - 1) occupied forever,
     // and one thread gets to finish the task.
     // This will test that cancelling the list of children is done correctly
-    uint32_t MID_INDEX = m_NumThreads>1? (m_NumThreads-1) : (CHILD_COUNT / 2);
+    uint32_t MID_INDEX = use_threads ? (m_NumThreads-1) : (CHILD_COUNT / 2);
 
     CancelChildTrack children[CHILD_COUNT];
     memset(children, 0, sizeof(children));
@@ -470,7 +472,8 @@ TEST_P(dmJobThreadTest, CancelParentAfterChild)
                 finish_limit = dmTime::GetMonotonicTime() + 500000;
                 break;
             }
-            dmTime::Sleep(20*1000);
+            if (use_threads)
+                dmTime::Sleep(20*1000);
         }
     }
 
