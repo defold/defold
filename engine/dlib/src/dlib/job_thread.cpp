@@ -365,7 +365,7 @@ static JobResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
             break; // We cannot iterate further
         }
 
-        if (childresult == JOB_RESULT_PENDING || childresult == JOB_STATUS_PROCESSING)
+        if (childresult == JOB_RESULT_PENDING)
             result = JOB_RESULT_PENDING;
 
         hchild = child->m_Sibling;

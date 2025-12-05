@@ -108,15 +108,15 @@ namespace dmGameSystem
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
             dmJobThread::HJob hjob = job_info->m_Job;
 
-            DecRefJobResourceInfo(font->m_Factory, font, job_info);
-            delete job_info;
-
             dmJobThread::JobResult jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
             while (dmJobThread::JOB_RESULT_PENDING == jr)
             {
                 dmTime::Sleep(1000);
                 jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
             }
+
+            DecRefJobResourceInfo(font->m_Factory, font, job_info);
+            delete job_info;
         }
         font->m_PendingJobs.SetSize(0);
     }
