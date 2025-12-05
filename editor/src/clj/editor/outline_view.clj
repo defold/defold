@@ -129,7 +129,7 @@
           (fn set-selected-node-id-paths [^TreeView tree-view [new-selected-node-id-paths _key]]
             (let [selection-model (.getSelectionModel tree-view)
                   old-selected-node-id-paths (coll/transfer (.getSelectedItems selection-model) #{}
-                                               (keep #(:node-id-path (.getValue ^TreeItem %))))]
+                                               (keep #(some-> % TreeItem/.getValue :node-id-path)))]
               (when-not (= old-selected-node-id-paths new-selected-node-id-paths)
                 (let [new-selected-indices (coll/transfer (range (.getExpandedItemCount tree-view)) []
                                              (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
