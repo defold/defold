@@ -282,7 +282,10 @@
           code-transpilers (code-transpilers basis project)]
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
-(defn- load-nodes-tx-data [node-load-infos project render-progress! resource-metrics]
+(defn load-nodes-tx-data
+  [project node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
+  {:pre [(ifn? render-generate-tx-data-progress!)
+         (ifn? render-apply-tx-data-progress!)]}
   (let [node-count (count node-load-infos)
 
         resource-metrics-load-timer
@@ -303,25 +306,31 @@
 
         transpiler-tx-data-fn
         (g/with-auto-evaluation-context evaluation-context
-          (get-transpiler-tx-data-fn! project evaluation-context))]
+          (get-transpiler-tx-data-fn! project evaluation-context))
 
-    (e/concat
-      (coll/transfer node-load-infos :eduction
-        (coll/mapcat-indexed
-          (fn [^long node-index node-load-info]
-            (let [resource (:resource node-load-info)
-                  proj-path (resource/proj-path resource)
-                  progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
-                  progress (progress/make progress-message node-count (inc node-index))]
-              (e/concat
-                (g/callback render-progress! progress)
-                (du/when-metrics
-                  (g/callback start-resource-metrics-load-timer!))
-                (du/measuring resource-metrics proj-path :generate-load-tx-data
-                  (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
-                (du/when-metrics
-                  (g/callback stop-resource-metrics-load-timer! proj-path)))))))
-      (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing"))))))
+        node-load-info-tx-data-fn
+        (if (identical? progress/null-render-progress! render-generate-tx-data-progress!)
+          (fn node-load-info-tx-data-fn [node-load-info _progress]
+            (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
+          (fn node-load-info-tx-data-fn [node-load-info progress]
+            (render-generate-tx-data-progress! (update progress :message localization/set-message-key "progress.processing-resource"))
+            (node-load-info-tx-data node-load-info project transpiler-tx-data-fn)))]
+
+    (coll/transfer node-load-infos :eduction
+      (coll/mapcat-indexed
+        (fn [^long node-index node-load-info]
+          (let [resource (:resource node-load-info)
+                proj-path (resource/proj-path resource)
+                progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
+                progress (progress/make progress-message node-count (inc node-index))]
+            (e/concat
+              (g/callback render-apply-tx-data-progress! progress)
+              (du/when-metrics
+                (g/callback start-resource-metrics-load-timer!))
+              (du/measuring resource-metrics proj-path :generate-load-tx-data
+                (node-load-info-tx-data-fn node-load-info progress))
+              (du/when-metrics
+                (g/callback stop-resource-metrics-load-timer! proj-path)))))))))
 
 (defn read-node-load-infos [node-id+resource-pairs ^long progress-size render-progress! resource-metrics]
   {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
@@ -816,7 +825,8 @@
             (e/concat
               prelude-tx-data
               (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-              (load-nodes-tx-data node-load-infos project render-progress! resource-metrics)))
+              (load-nodes-tx-data project node-load-infos progress/null-render-progress! render-progress! resource-metrics)
+              (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
           migrated-resource-node-ids
           (into #{}
