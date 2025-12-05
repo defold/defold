@@ -316,7 +316,7 @@
     (TextureSetResult->result result)))
 
 (defn layout-tile-source
-  [^TextureSetGenerator$LayoutResult layout-result ^BufferedImage image tile-source-attributes]
+  ^BufferedImage [^TextureSetGenerator$LayoutResult layout-result ^BufferedImage image tile-source-attributes]
   (let [layout (first (.-layouts layout-result))
         inner-padding (.-innerPadding layout-result)
         extrude-borders (.-extrudeBorders layout-result)

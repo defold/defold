@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
+            [util.coll :as coll]
             [util.digest :as digest])
   (:import [com.dynamo.bob.pipeline Texc$FlipAxis]
            [com.dynamo.bob.pipeline TextureGenerator TextureGenerator$GenerateResult]
@@ -77,17 +78,18 @@
    (make-texture-image image texture-profile compress? true))
   (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile compress? flip-y?]
    (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
-         texture-generate-result (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis)))]
-     texture-generate-result)))
+         texture-generator-result (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis)))]
+     texture-generator-result)))
 
 (defn- make-preview-profile
   "Given a texture-profile, return a simplified texture-profile that can be used
   for previewing purposes in editor. Will only produce data for one texture
   format."
-  [{:keys [name platforms] :as texture-profile}]
-  (let [platform-profile (or (first (filter #(= :os-id-generic (:os %)) (:platforms texture-profile)))
-                             (first (:platforms texture-profile)))
-        texture-format   (first (:formats platform-profile))]
+  [texture-profile]
+  (let [platforms (:platforms texture-profile)
+        platform-profile (or (coll/first-where #(= :os-id-generic (:os %)) platforms)
+                             (first platforms))
+        texture-format (first (:formats platform-profile))]
     (when (and platform-profile texture-format)
       {:name      "editor"
        :platforms [{:os                :os-id-generic
@@ -96,10 +98,14 @@
                     :max-texture-size  (:max-texture-size platform-profile)
                     :premultiply-alpha (:premultiply-alpha platform-profile)}]})))
 
+;; SDK api (DEPRECATE 2-arity version with the next release of extension-texturepacker).
 (defn make-preview-texture-image
-  ^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
-  (let [preview-profile (make-preview-profile texture-profile)]
-    (make-texture-image image preview-profile false)))
+  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
+   (let [preview-profile (make-preview-profile texture-profile)]
+     (make-texture-image image preview-profile false)))
+  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile flip-y]
+   (let [preview-profile (make-preview-profile texture-profile)]
+     (make-texture-image image preview-profile false flip-y))))
 
 (defn make-cubemap-texture-images
   ^TextureGenerator$GenerateResult [images texture-profile compress?]
@@ -120,11 +126,6 @@
   (let [texture-images (into-array ((juxt :px :nx :py :ny :pz :nz) side->texture-image))
         type Graphics$TextureImage$Type/TYPE_CUBEMAP]
     (TextureUtil/createCombinedTextureImage texture-images type)))
-
-(defn make-preview-cubemap-texture-images
-  ^TextureGenerator$GenerateResult [images texture-profile]
-  (let [preview-profile (make-preview-profile texture-profile)]
-    (make-cubemap-texture-images images preview-profile false)))
 
 (defn write-texturec-content-fn [resource user-data]
   (let [digest-output-stream

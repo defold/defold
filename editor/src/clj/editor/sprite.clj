@@ -492,10 +492,7 @@
     (reduce
       (fn [acc i]
         (let [start-texture-unit (-> (acc (dec i)) :gpu-texture :texture-units peek inc)]
-          (update-in acc [i :gpu-texture :texture-units]
-                     (fn [texture-units]
-                       (vec (range start-texture-unit
-                                   (+ start-texture-unit (count texture-units))))))))
+          (update-in acc [i :gpu-texture] texture/set-base-unit start-texture-unit)))
       infos
       (range 1 (count infos)))))
 

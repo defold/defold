@@ -24,7 +24,7 @@
             [util.num :as num])
   (:import [clojure.lang IHashEq]
            [com.dynamo.bob.pipeline GraphicsUtil]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$ShaderDesc$ShaderType Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$PlatformProfile$OS Graphics$ShaderDesc$ShaderType Graphics$TextureImage$TextureFormat Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.sun.jna Pointer]
            [editor.buffers BufferData]
            [javax.vecmath Vector4d]
@@ -606,3 +606,36 @@
 (defn renderable-tags? [value]
   (and (set? value)
        (coll/every? renderable-tag? value)))
+
+(defonce platform-profile-oss (protobuf/valid-enum-values Graphics$PlatformProfile$OS))
+
+(fn/defamong platform-profile-os? platform-profile-oss)
+
+(defonce texture-formats (protobuf/valid-enum-values Graphics$TextureImage$TextureFormat))
+
+(fn/defamong texture-format? texture-formats)
+
+(defn texture-format-alternative? [value]
+  (and (map? value) ; Graphics$TextureFormatAlternative in map format.
+       (texture-format? (:format value))
+       (string? (:compressor value ""))
+       (string? (:compressor-preset value ""))))
+
+(defn platform-profile? [value]
+  (and (map? value) ; Graphics$PlatformProfile in map format.
+       (platform-profile-os? (:os value))
+       (boolean? (:mipmaps value))
+       (nat-int? (:max-texture-size value 0))
+       (boolean? (:premultiply-alpha value true))
+       (let [formats (:formats value)]
+         (or (nil? formats)
+             (and (vector? formats)
+                  (every? texture-format-alternative? formats))))))
+
+(defn texture-profile? [value]
+  (and (map? value) ; Graphics$TextureProfile in map format.
+       (string? (:name value))
+       (let [platforms (:platforms value)]
+         (or (nil? platforms)
+             (and (vector? platforms)
+                  (every? platform-profile? platforms))))))

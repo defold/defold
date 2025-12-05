@@ -1648,7 +1648,9 @@ public class Project {
         }
 
         IProgress m = monitor.subProgress(99);
-
+        TimeProfiler.start("ensureBobInitialized");
+        Bob.ensureBobInitialized();
+        TimeProfiler.stop();
         IProgress mrep = m.subProgress(1);
         mrep.beginTask(IProgress.Task.READING_TASKS, 1);
         TimeProfiler.start("Create tasks");

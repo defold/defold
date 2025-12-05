@@ -157,7 +157,7 @@ public class Bob {
         TimeProfiler.stop();
     }
 
-    public static void initLua() {
+    public static void ensureBobInitialized() {
         init();
         PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
         PackedResources.waitForuUpackAllLibsAsync();

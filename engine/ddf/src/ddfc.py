@@ -179,8 +179,11 @@ def dot_to_cxx_namespace(str):
         str = str[1:]
     return str.replace(".", "::")
 
-def to_cxx_struct(context, pp, message_type):
+def to_cxx_struct(context, pp, message_type, namespace):
     # Calculate maximum length of "type"
+
+    namespace = "%s.%s" % (namespace, message_type.name)
+    context.set_message_type_defined(dot_to_cxx_namespace(namespace))
 
     max_len = 0
     for f in message_type.field:
@@ -208,11 +211,14 @@ def to_cxx_struct(context, pp, message_type):
     else:
         pp.begin("struct %s", message_type.name)
 
+    for nt in message_type.nested_type:
+        pp.p("struct %s;", nt.name)
+
     for et in message_type.enum_type:
         to_cxx_enum(context, pp, et)
 
     for nt in message_type.nested_type:
-        to_cxx_struct(context, pp, nt)
+        to_cxx_struct(context, pp, nt, namespace)
 
     oneof_scope = None
 
@@ -264,7 +270,13 @@ def to_cxx_struct(context, pp, message_type):
             pp.p("uint32_t " + "m_Count;")
             pp.end(" m_%s", field_name)
         elif f.type ==  FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            p(align_str + context.get_field_type_name(f), field_name)
+
+            field_ptr_str = ""
+
+            if f.type == FieldDescriptor.TYPE_MESSAGE and not context.get_is_message_type_defined(f):
+                field_ptr_str = "*"
+
+            p(align_str + context.get_field_type_name(f) + field_ptr_str, field_name)
         else:
             p(align_str + type_to_ctype[f.type], field_name)
 
@@ -323,23 +335,30 @@ def to_cxx_default_value_string(context, f):
             tmp = struct.pack('<' + form, func(f.default_value))
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(chr(x)), tmp))
 
-def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
+def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
     pp_h.p('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
+    mt_type_name = "%s.%s" % ("::".join(namespace_lst), message_type.name)
+
+    context.set_message_type_defined(dot_to_cxx_namespace(mt_type_name))
+
     for nt in message_type.nested_type:
-        to_cxx_descriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
 
     for f in message_type.field:
         default = to_cxx_default_value_string(context, f)
         if '"' in default:
             pp_cpp.p('char DM_ALIGNED(4) %s_%s_%s_DEFAULT_VALUE[] = %s;', namespace, message_type.name, f.name, default)
 
+    contains_dynamic_fields = needs_size_resolve(context, message_type, cpp_desc_map)
+
     oneof_scope_names = []
     oneof_scope = None
     lst = []
     for f in message_type.field:
         one_of_index = 0
+        fully_defined_type = True
 
         if f.HasField("oneof_index"):
             oneof_decl = message_type.oneof_decl[f.oneof_index]
@@ -357,6 +376,8 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         tpl = (f.name, f.number, f.type, f.label, one_of_index)
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:
+            fully_defined_type = context.get_is_message_type_defined(f)
+
             tmp = f.type_name.replace(".", "_")
             if tmp.startswith("_"):
                 tmp = tmp[1:]
@@ -376,12 +397,16 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         else:
             tpl += ('0x0',)
 
+        tpl += (fully_defined_type, )
+
         lst.append(tpl)
 
     if len(lst) > 0:
         pp_cpp.begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
-        for name, number, type, label, one_of_index, msg_desc, offset, default_value in lst:
-            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index))
+
+        for name, number, type, label, one_of_index, msg_desc, offset, default_value, fully_defined_type in lst:
+            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index, fully_defined_type))
+
         pp_cpp.end()
     else:
         pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
@@ -413,6 +438,9 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         pp_cpp.p('sizeof(%s_%s_ONEOF_OFFSETS)/sizeof(uint32_t),', namespace, message_type.name)
     else:
         pp_cpp.p('0,')
+
+    # Contains dynamic fields
+    pp_cpp.p('%d,', contains_dynamic_fields and 1 or 0)
 
     pp_cpp.end()
 
@@ -637,6 +665,84 @@ def to_ensure_struct_alias_size(context, file_desc, pp_cpp):
 
     pp_cpp.end()
 
+def needs_size_resolve(context, message_type, cpp_desc_map, visiting=None, cache=None):
+    """
+    Returns True if the message requires dynamic sizing.
+    Conditions:
+    - Contains a non-repeated message field whose type is not fully defined
+    - Contains a recursive reference (cycle)
+    """
+    if visiting is None:
+        visiting = set()
+    if cache is None:
+        cache = {}
+
+    mid = id(message_type)
+
+    # Cached result?
+    if mid in cache:
+        return cache[mid]
+
+    # Cycle detected → dynamic!
+    if mid in visiting:
+        cache[mid] = True
+        return True
+
+    visiting.add(mid)
+
+    for f in message_type.field:
+        if f.label != FieldDescriptorProto.LABEL_REPEATED and f.type == FieldDescriptorProto.TYPE_MESSAGE:
+
+            # Is it fully defined?
+            try:
+                fully_defined = context.get_is_message_type_defined(f)
+            except:
+                fully_defined = False
+
+            if not fully_defined:
+                cache[mid] = True
+                visiting.remove(mid)
+                return True
+
+            # Look up nested type
+            cpp_type = context.get_field_type_name(f)
+            nested_desc = cpp_desc_map.get(cpp_type)
+
+            if nested_desc:
+                if needs_size_resolve(context, nested_desc, cpp_desc_map, visiting, cache):
+                    cache[mid] = True
+                    visiting.remove(mid)
+                    return True
+
+    visiting.remove(mid)
+    cache[mid] = False
+    return False
+
+def build_cpp_desc_map_for_file(file_desc, package):
+    # Build mapping: C++ type name (e.g. "my.pkg::Msg") -> DescriptorProto
+    # We keep it simple and only map top-level / nested types declared in this file.
+    cpp_map = {}
+
+    def walk(mt, ns_lst):
+        cpp_name = ("::".join(ns_lst + [mt.name]))
+        cpp_map[cpp_name] = mt
+        # Recurse nested types
+        if hasattr(mt, "nested_type"):
+            for nested in mt.nested_type:
+                walk(nested, ns_lst + [mt.name])
+
+    base_ns = package
+
+    # If base_ns is something like "pkg.name", split on '.' into "pkg::name".
+    ns_list = []
+    if base_ns:
+        # create namespace as C++ style components: "a.b" -> ["a", "b"]
+        ns_list = base_ns.split(".")
+    for mt in file_desc.message_type:
+        walk(mt, ns_list)
+
+    return cpp_map
+
 def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     base_name = os.path.basename(file_to_generate)
 
@@ -644,6 +750,19 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
         base_name = base_name[0:base_name.rfind(".")]
 
     file_desc = proto_file
+
+    # Helper: mark all message types from other proto files as defined
+    def mark_imported_types():
+        for type_name, origin in context.message_type_file.items():
+            if origin != file_to_generate:
+                # Strip leading '.' (proto full names start with dot)
+                clean_name = type_name[1:] if type_name.startswith('.') else type_name
+                # Convert "dmMath.Point3" -> "dmMath::Point3"
+                cxx_type = dot_to_cxx_namespace(clean_name)
+                context.set_message_type_defined(cxx_type)
+
+    # First pass: mark imported types so struct generation uses correct layouts
+    mark_imported_types()
 
     file_h = context.response.file.add()
     file_h.name = base_name + ".h"
@@ -677,11 +796,16 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
         pp_h.begin("namespace %s",  namespace)
     pp_h.begin("namespace %s",  file_desc.package)
 
+    # forward declare base message types
+    for mt in file_desc.message_type:
+        pp_h.p("struct %s;", mt.name)
+    pp_h.p("")
+
     for mt in file_desc.enum_type:
         to_cxx_enum(context, pp_h, mt)
 
     for mt in file_desc.message_type:
-        to_cxx_struct(context, pp_h, mt)
+        to_cxx_struct(context, pp_h, mt, file_desc.package)
 
     pp_h.end()
 
@@ -701,11 +825,18 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     pp_h.p("#ifdef DDF_EXPOSE_DESCRIPTORS")
 
+    context.reset_defined_message_types()
+
+    mark_imported_types()
+
     for mt in file_desc.enum_type:
         to_cxx_enum_descriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
 
+    # Build mapping of C++ type to descriptor
+    cpp_desc_map = build_cpp_desc_map_for_file(file_desc, file_desc.package)
+
     for mt in file_desc.message_type:
-        to_cxx_descriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
+        to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, mt, [file_desc.package])
 
     pp_h.p("#endif")
 
@@ -727,29 +858,57 @@ class CompilerContext(object):
     def __init__(self, request):
         self.request = request
         self.message_types = {}
+        self.message_type_file = {}
+        self.defined_message_types = {}
         self.type_name_to_java_type = {}
         self.type_alias_messages = {}
         self.response = CodeGeneratorResponse()
 
     # TODO: We add enum types as message types. Kind of hack...
-    def add_message_type(self, package, java_package, java_outer_classname, message_type):
-        if message_type.name in self.message_types:
-            return
+    def add_message_type(self, package, java_package, java_outer_classname, message_type, origin_filename):
+        """
+        Register a (possibly nested) message/enum type and record the .proto filename
+        it originates from. 'package' is expected to be the same format you used
+        elsewhere (you currently pass '.' + pf.package for top-level calls).
+        """
+        # Build fully-qualified key exactly like other callers expect:
         n = str(package + '.' + message_type.name)
-        self.message_types[n] = message_type
 
+        # If we've already registered this exact key, stop (prevents duplicates).
+        if n in self.message_types:
+            return
+
+        # Store the message/enum descriptor under the fully-qualified key.
+        self.message_types[n] = message_type
+        self.message_type_file[n] = origin_filename   # store origin filename for pre-marking
+
+        # If the type is aliased, remember that too
         if self.has_type_alias(n):
             self.type_alias_messages[n] = self.type_alias_name(n)
 
-        self.type_name_to_java_type[package[1:] + '.' + message_type.name] = java_package + '.' + java_outer_classname + '.' + message_type.name
+        # Java type mapping (keeps the original logic)
+        # Note: package may start with a dot; original code used package[1:].
+        # Guard small cases where java_package might be '' or None.
+        jp = java_package if java_package is not None else ''
+        jouter = java_outer_classname if java_outer_classname is not None else ''
+        self.type_name_to_java_type[package[1:] + '.' + message_type.name] = jp + '.' + jouter + '.' + message_type.name
 
+        # Recurse nested messages and enums, passing the same origin filename
         if hasattr(message_type, 'nested_type'):
             for mt in message_type.nested_type:
-                # TODO: add something to java_package here?
-                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, mt)
+                self.add_message_type(package + '.' + message_type.name,
+                                      java_package,
+                                      java_outer_classname,
+                                      mt,
+                                      origin_filename)
 
+        if hasattr(message_type, 'enum_type'):
             for et in message_type.enum_type:
-                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, et)
+                self.add_message_type(package + '.' + message_type.name,
+                                      java_package,
+                                      java_outer_classname,
+                                      et,
+                                      origin_filename)
 
     def should_align_field(self, f):
         for x in f.options.ListFields():
@@ -776,6 +935,18 @@ class CompilerContext(object):
             if x[0].name == 'alias':
                 return x[1]
         assert False
+
+    def set_message_type_defined(self, type_name):
+        self.defined_message_types[type_name] = True
+
+    def get_is_message_type_defined(self, f):
+        type_name = dot_to_cxx_namespace(f.type_name)
+        if type_name in self.defined_message_types:
+            return True
+        return False
+
+    def reset_defined_message_types(self):
+        self.defined_message_types = {}
 
     def get_field_type_name(self, f):
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:
@@ -809,11 +980,11 @@ if __name__ == '__main__':
                 java_package = x[1]
 
         for mt in pf.message_type:
-            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
+            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt, pf.name)
 
         for et in pf.enum_type:
             # NOTE: We add enum types as message types. Kind of hack...
-            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, et)
+            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, et, pf.name)
 
     for pf in request.proto_file:
         if pf.name == request.file_to_generate[0]:

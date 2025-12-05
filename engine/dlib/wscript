@@ -20,6 +20,10 @@ def init(ctx):
     if 'build' in Options.commands:
         test_context = TestContext.create_test_context()
 
+def _is_mac_ci():
+    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
+    return is_ci and sys.platform == 'darwin'
+
 def options(opt):
     opt.load('waf_dynamo')
     opt.recurse('src')
@@ -29,6 +33,9 @@ def configure(conf):
     conf.recurse('src')
 
     conf.load('java')
+
+    if _is_mac_ci():
+        conf.env.append_unique('DEFINES', 'GITHUB_CI')
 
     build_util = None
     try:
@@ -53,6 +60,10 @@ def shutdown(sht):
     if not TestContext.is_valid(test_context) or Options.options.skip_build_tests or Options.options.skip_tests:
         return
 
+    mac_ci = _is_mac_ci()
+    if mac_ci:
+        print("Running dlib tests without HTTP server on macOS CI")
+
     # TODO: Fix support for win32
     from waflib.Logs import warn, error
     import urllib, urllib.request, time, atexit
@@ -62,66 +73,87 @@ def shutdown(sht):
     if os.environ.get('MSYSTEM', '') in ('MINGW32','MINGW64'):
         bash_prefix = 'sh '
 
-    os.system(bash_prefix + './scripts/start_http_server.sh')
-    atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
+    configfilepath = None
 
-    server_config_path = "test_http_server.cfg"
-    if os.path.exists(server_config_path):
-        os.unlink(server_config_path)
-        print('File ' + server_config_path + ' already exist. Removing.')
+    if not mac_ci:
+        os.system(bash_prefix + './scripts/start_http_server.sh')
+        atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
 
-    start = time.time()
-    timeout = 15
-    while True:
-        if time.time() - start > timeout:
-            error('HTTP server failed to start within ' + str(timeout) + ' seconds')
-            sys.exit(1)
+        server_config_path = "test_http_server.cfg"
+        if os.path.exists(server_config_path):
+            os.unlink(server_config_path)
+            print('File ' + server_config_path + ' already exist. Removing.')
+
+        start = time.time()
+        timeout = 15
+        while True:
+            if time.time() - start > timeout:
+                error('HTTP server failed to start within ' + str(timeout) + ' seconds')
+                sys.exit(1)
+            try:
+                if not os.path.exists(server_config_path):
+                    raise IOError("Waiting for server to write config file")
+
+                server_sockets = configparser.RawConfigParser()
+                server_sockets.read(server_config_path)
+                server_socket = server_sockets.getint("server", "socket")
+
+                url = 'http://localhost:%d' % server_socket
+                print('Starting http server at %s' % url)
+                urllib.request.urlopen(url)
+                break
+            except IOError:
+                print('Waiting for HTTP testserver to start')
+            except urllib.URLError:
+                print('Waiting for HTTP testserver to start on port %d...' % server_socket)
+
+            sys.stdout.flush()
+            time.sleep(0.5)
+
+        # write a config file for the tests to use
+        config = configparser.RawConfigParser()
+        hostname = socket.gethostname()
         try:
-            if not os.path.exists(server_config_path):
-                raise IOError("Waiting for server to write config file")
+            local_ip = socket.gethostbyname(hostname)
+        except socket.gaierror as e:
+            print(e)
+            print(f"Hostname was '{hostname}', now trying empty ('') string now")
+            local_ip = socket.gethostbyname("")
+        print ("SERVER IP: %s" % local_ip)
 
-            server_sockets = configparser.RawConfigParser()
-            server_sockets.read(server_config_path)
-            server_socket = server_sockets.getint("server", "socket")
+        config.add_section("server")
+        config.set("server", "ip", local_ip)
+        config.set("server", "socket", server_sockets.getint("server", "socket"))
+        config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
+        config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
 
-            url = 'http://localhost:%d' % server_socket
-            print('Starting http server at %s' % url)
-            urllib.request.urlopen(url)
-            break
-        except IOError:
-            print('Waiting for HTTP testserver to start')
-        except urllib.URLError:
-            print('Waiting for HTTP testserver to start on port %d...' % server_socket)
+        fd, tmp_path = tempfile.mkstemp(suffix=".cfg", prefix="unittest_")
+        os.close(fd)
+        configfilepath = os.path.basename(tmp_path)
+        with open(configfilepath, 'w') as f:
+            config.write(f)
+            print("Wrote test config file: %s" % configfilepath)
+    else:
+        # Provide a minimal config for tests that expect a config file argument.
+        config = configparser.RawConfigParser()
+        config.add_section("server")
+        config.set("server", "ip", "localhost")
+        config.set("server", "socket", "0")
+        config.set("server", "socket_ssl", "0")
+        config.set("server", "socket_ssl_test", "0")
 
-        sys.stdout.flush()
-        time.sleep(0.5)
-
-    # write a config file for the tests to use
-    config = configparser.RawConfigParser()
-    hostname = socket.gethostname()
-    try:
-        local_ip = socket.gethostbyname(hostname)
-    except socket.gaierror as e:
-        print(e)
-        print(f"Hostname was '{hostname}', now trying empty ('') string now")
-        local_ip = socket.gethostbyname("")
-    print ("SERVER IP: %s" % local_ip)
-
-    config.add_section("server")
-    config.set("server", "ip", local_ip)
-    config.set("server", "socket", server_sockets.getint("server", "socket"))
-    config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
-    config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
-
-    configfilepath = os.path.basename(tempfile.mktemp(".cfg", "unittest_"))
-    with open(configfilepath, 'w') as f:
-        config.write(f)
-        print("Wrote test config file: %s" % configfilepath)
+        fd, tmp_path = tempfile.mkstemp(suffix=".cfg", prefix="unittest_")
+        os.close(fd)
+        configfilepath = os.path.basename(tmp_path)
+        with open(configfilepath, 'w') as f:
+            config.write(f)
+            print("Wrote fallback test config file: %s" % configfilepath)
 
     try:
         waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfilepath)
     finally:
-        os.remove(configfilepath)
+        if configfilepath and os.path.exists(configfilepath):
+            os.remove(configfilepath)
 
     # The test should work on OSX, but the CI (Catalina) just crashed with no callstack (even in lldb)
     # Postponing a fix until I've updated to Catalina on my machine as well

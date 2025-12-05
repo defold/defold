@@ -49,7 +49,7 @@ jobs:
     ]
   
   build-editor-macos:
-    runs-on: macOS-14
+    runs-on: macos-26
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]

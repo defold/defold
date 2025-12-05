@@ -20,8 +20,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
   (:import [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.graphics.proto Graphics$TextureImage]))
+           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]))
 
 (set! *warn-on-reflection* true)
 

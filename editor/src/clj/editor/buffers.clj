@@ -19,7 +19,7 @@
             [util.defonce :as defonce]
             [util.fn :as fn]
             [util.num :as num])
-  (:import [clojure.lang Counted IHashEq IReduceInit Murmur3 Util]
+  (:import [clojure.lang Counted IHashEq IReduceInit Murmur3]
            [com.google.protobuf ByteString]
            [java.nio Buffer ByteBuffer ByteOrder CharBuffer DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
            [java.nio.charset StandardCharsets]))
@@ -317,9 +317,10 @@
 
 (defn topology-hash
   ^long [^Buffer buffer]
-  (-> (hash (class buffer))
-      (Util/hashCombine (.hashCode (byte-order buffer)))
-      (Util/hashCombine (Murmur3/hashLong (total-byte-size buffer)))))
+  (java/combine-hashes
+    (hash (class buffer))
+    (.hashCode (byte-order buffer))
+    (Murmur3/hashLong (total-byte-size buffer))))
 
 (defn topology-equals? [^Buffer a ^Buffer b]
   (and (= (class a) (class b))
@@ -388,12 +389,14 @@
   Object
   (hashCode [this]
     (.hasheq this))
+
   (equals [this that]
     (or (identical? this that)
         (let [^BufferData that that]
           (and (instance? BufferData that)
                (= data-version (.-data-version that))
                (= topology-hash (.-topology-hash that))))))
+
   (toString [_this]
     (format "data=[pos=%d lim=%d cap=%d] ver=%#x"
             (.position data)

@@ -19,7 +19,6 @@
 
 namespace dmDDF
 {
-
     Message::Message(const Descriptor* message_descriptor, char* buffer, uint32_t buffer_size, bool dry_run)
     {
         m_MessageDescriptor = message_descriptor;
@@ -167,9 +166,24 @@ namespace dmDDF
         else
         {
             msg_buf = GetBuffer(field->m_Offset);
-            assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
+
+            if (!field->m_FullyDefinedType)
+            {
+                uint32_t dynamic_offset = load_context->NextDynamicTypeOffset();
+                void* dynamic_ptr = load_context->GetDynamicTypePointer(dynamic_offset);
+
+                if (!m_DryRun)
+                {
+                    // Resolve the pointer in the dynamic area
+                    memcpy(msg_buf, &dynamic_ptr, sizeof(uintptr_t));
+                }
+
+                msg_buf = (char*) dynamic_ptr;
+            }
         }
+
         Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
+
         InputBuffer sub_buffer;
         if (!input_buffer->SubBuffer(length, &sub_buffer))
         {

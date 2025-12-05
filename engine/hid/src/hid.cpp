@@ -280,7 +280,7 @@ namespace dmHID
 
     bool GetKey(KeyboardPacket* packet, Key key)
     {
-       int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+        int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
 
         if (packet != 0x0)
             return packet->m_Keys[key_index / 32] & (1 << (key_index % 32));

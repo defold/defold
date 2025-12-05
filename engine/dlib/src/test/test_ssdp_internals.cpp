@@ -333,6 +333,7 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     DestroySSDPInstance(instance);
 }
 
+#if !(defined(GITHUB_CI) && defined(__MACH__))
 TEST_F(dmSSDPInternalTest, SendAnnounce)
 {
     // Setup
@@ -357,6 +358,7 @@ TEST_F(dmSSDPInternalTest, SendAnnounce)
     DestroySSDPInstance(instance);
     FreeDeviceDescription(&deviceDesc);
 }
+#endif
 
 TEST_F(dmSSDPInternalTest, SendUnannounce)
 {

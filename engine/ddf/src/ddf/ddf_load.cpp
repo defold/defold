@@ -106,6 +106,26 @@ namespace dmDDF
         }
     }
 
+    static bool HasDescriptorRecursive(const Descriptor* desc, const FieldDescriptor* f)
+    {
+        if (f->m_MessageDescriptor != 0x0)
+        {
+            if (f->m_MessageDescriptor == desc)
+            {
+                return true;
+            }
+            for (int i = 0; i < f->m_MessageDescriptor->m_FieldCount; ++i)
+            {
+                const FieldDescriptor* child_f = &f->m_MessageDescriptor->m_Fields[i];
+                if (HasDescriptorRecursive(desc, child_f))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static void DoLoadDefaultMessage(LoadContext* load_context, const Descriptor* desc, Message* message)
     {
         for (int i = 0; i < desc->m_FieldCount; ++i)
@@ -114,9 +134,15 @@ namespace dmDDF
             // We cannot support default values for oneof fields currently as we don't know which one to take
             if (f->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
             {
-                dmLogWarning("Default values for 'oneof' fields are not supported");
+                dmLogWarning("Default values for 'oneof' fields are not supported for field %s.%s", desc->m_Name, f->m_Name);
                 continue;
             }
+            else if (HasDescriptorRecursive(desc, f))
+            {
+                dmLogWarning("Default values for field %s.%s is not supported, cyclic dependencies found", desc->m_Name, f->m_Name);
+                continue;
+            }
+
             DoLoadDefaultField(load_context, f, message);
         }
     }
@@ -133,7 +159,7 @@ namespace dmDDF
             if (f->m_Label == LABEL_REPEATED)
             {
                 // TODO: Verify buffer_pos!!!! Correct to use Tell()?
-                uint32_t buffer_pos = input_buffer->Tell();
+                uint32_t buffer_pos  = input_buffer->Tell();
                 message->AllocateRepeatedBuffer(load_context, f, load_context->GetArrayCount(buffer_pos, f->m_Number));
             }
         }

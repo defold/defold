@@ -50,7 +50,9 @@ import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
 public class TextureUtil {
 
     static {
+        TimeProfiler.start("ImageIO.setUseCache");
         ImageIO.setUseCache(false);
+        TimeProfiler.stop();
     }
 
     public static int closestPOT(int i) {

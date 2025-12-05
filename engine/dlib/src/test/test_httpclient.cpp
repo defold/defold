@@ -50,7 +50,7 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
 }
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) || (defined(GITHUB_CI) && defined(__MACH__))
 #ifndef DM_DISABLE_HTTPCLIENT_TESTS
     #define DM_DISABLE_HTTPCLIENT_TESTS
 #endif
