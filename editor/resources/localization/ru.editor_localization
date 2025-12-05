@@ -6,6 +6,7 @@
 # 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = Открыть с Диска…
@@ -580,6 +581,9 @@ console.filter.enable-filtering = Включить фильтрацию
 console.filter.add-filter = Новый фильтр ("текст" или "\!убрать")
 console.search = Поиск
 
+# Breakpoints Tab
+
+
 # Changes view
 
 changes-view.button.diff = Сравнить
@@ -1026,8 +1030,8 @@ property.appmanifest.rig+model = Rig + модель
 property.appmanifest.rig+model.tooltip = Rig, Model или отключено
 property.appmanifest.exclude-record = Отключить запись
 property.appmanifest.exclude-record.tooltip = Удаляет возможности записи видео (настольные платформы)
-property.appmanifest.exclude-profiler = Отключить профайлер
-property.appmanifest.exclude-profiler.tooltip = Удаляет экранный и веб-профайлер
+property.appmanifest.profiler = Профайлер
+property.appmanifest.profiler.tooltip = Выберите, когда привязывать профайлер
 property.appmanifest.exclude-sound = Отключить звук
 property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука\: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука\: OGG
@@ -1045,6 +1049,8 @@ property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
+property.appmanifest.use-font-layout = Полная система текста
+property.appmanifest.use-font-layout.tooltip = Использовать систему полной разметки текста (поддерживающую, например, RTL)
 
 # Properties: atlas
 
@@ -1499,16 +1505,16 @@ form.help.project.android.push_field_title = Имя поля JSON в push-пак
 form.label.project.android.push_field_text = Поле текста push
 form.help.project.android.push_field_text = Имя поля JSON в push-пакете для текста уведомления
 form.label.project.android.version_code = Код версии
-form.help.project.android.version_code = Код версии Android (android:versionCode)
+form.help.project.android.version_code = Код версии Android (android\:versionCode)
 form.label.project.android.minimum_sdk_version = Минимальная версия SDK
-form.help.project.android.minimum_sdk_version = Минимальный API Level, необходимый для работы приложения (android:minSdkVersion)
+form.help.project.android.minimum_sdk_version = Минимальный API Level, необходимый для работы приложения (android\:minSdkVersion)
 form.label.project.android.target_sdk_version = Целевая версия SDK
-form.help.project.android.target_sdk_version = API Level, на который нацелено приложение (android:targetSdkVersion)
+form.help.project.android.target_sdk_version = API Level, на который нацелено приложение (android\:targetSdkVersion)
 form.label.project.android.package = Пакет
 form.help.project.android.package = Идентификатор пакета
-form.label.project.android.gcm_sender_id = GCM Sender ID
+form.label.project.android.gcm_sender_id = ID отправителя GCM
 form.help.project.android.gcm_sender_id = Идентификатор отправителя Firebase Cloud Messaging
-form.label.project.android.fcm_application_id = FCM Application ID
+form.label.project.android.fcm_application_id = ID приложения FCM
 form.help.project.android.fcm_application_id = Идентификатор приложения Firebase Cloud Messaging
 form.label.project.android.manifest = Манифест
 form.help.project.android.manifest = Пользовательский шаблон AndroidManifest.xml
@@ -2050,14 +2056,14 @@ form.label.liveupdate.liveupdate.amazon-bucket = Бакет
 form.help.liveupdate.liveupdate.amazon-bucket = Бакет Amazon
 form.label.liveupdate.liveupdate.amazon-prefix = Префикс
 form.help.liveupdate.liveupdate.amazon-prefix = Префикс Amazon
-form.label.liveupdate.zip = Zip
+form.label.liveupdate.zip = ZIP
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Zip в папке сборки
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Перемещает zip в папку сборки после процесса сборки
 form.label.liveupdate.liveupdate.zip-filepath = Папка для zip
 form.help.liveupdate.liveupdate.zip-filepath = Папка для zip
 form.label.liveupdate.liveupdate.zip-filename = Имя файла
-form.help.liveupdate.liveupdate.zip-filename = Имя zip-файла
 form.title.liveupdate.liveupdate.zip-filepath = Выберите папку для zip-архива
+form.help.liveupdate.liveupdate.zip-filename = Имя zip-файла
 form.label.liveupdate.liveupdate.zip-compression-level = Уровень сжатия
 form.help.liveupdate.liveupdate.zip-compression-level = Уровень сжатия, который используется при создании архива Live Update
 form.label.liveupdate.folder = Папка
