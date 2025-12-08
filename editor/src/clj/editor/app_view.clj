@@ -3062,10 +3062,12 @@
                                   (open-resource app-view prefs localization workspace project created-resource)))))))))
 
 (handler/defhandler :file.open-liveupdate-settings :global
-  (enabled? [] (disk-availability/available?))
+  (enabled? [project evaluation-context]
+    (and (disk-availability/available?)
+         (live-update-settings/has-live-update-settings-path? project evaluation-context)))
   (run [app-view changes-view prefs localization workspace project]
-       (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
-         (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project))))
+    (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
+      (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project))))
 
 (handler/defhandler :file.open-shared-editor-settings :global
   (enabled? [] (disk-availability/available?))

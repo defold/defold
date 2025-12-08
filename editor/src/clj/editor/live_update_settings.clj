@@ -119,9 +119,11 @@
     :icon live-update-icon
     :view-types [:cljfx-form-view :text]))
 
+(defn has-live-update-settings-path? [project evaluation-context]
+  (some? (get (project/settings project evaluation-context) ["liveupdate" "settings"])))
+
 (defn get-live-update-settings-path [project]
-  (let [project-settings (project/settings project)
-        file-resource (get project-settings ["liveupdate" "settings"])]
+  (when-let [file-resource (get (project/settings project) ["liveupdate" "settings"])]
     (if (resource/exists? file-resource)
       (resource/proj-path file-resource)
       "/liveupdate.settings")))
