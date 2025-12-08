@@ -123,7 +123,4 @@
   (some? (get (project/settings project evaluation-context) ["liveupdate" "settings"])))
 
 (defn get-live-update-settings-path [project]
-  (when-let [file-resource (get (project/settings project) ["liveupdate" "settings"])]
-    (if (resource/exists? file-resource)
-      (resource/proj-path file-resource)
-      "/liveupdate.settings")))
+  (some-> (get (project/settings project) ["liveupdate" "settings"]) resource/proj-path))
