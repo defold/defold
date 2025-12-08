@@ -2337,21 +2337,6 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     return 0;
 }
 
-int main(int argc, char **argv)
-{
-    dmExportedSymbols();
-
-    dmSound::SoundDataType sound_type;
-    const char* sound_file = FindSoundFile(argc, argv, &sound_type);
-    if (sound_file)
-    {
-        return PlaySound(sound_file, sound_type);
-    }
-
-    jc_test_init(&argc, argv);
-    return jc_test_run_all();
-}
-
 // New tests for start_time/start_frame offset support
 
 TEST(SoundStartOffset, FrameIndependentOfSpeed)
@@ -2644,4 +2629,19 @@ TEST(SoundSdk, GroupToggleMute)
     EXPECT_FALSE(dmSound::IsGroupMuted(missing_hash));
 
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+int main(int argc, char **argv)
+{
+    dmExportedSymbols();
+
+    dmSound::SoundDataType sound_type;
+    const char* sound_file = FindSoundFile(argc, argv, &sound_type);
+    if (sound_file)
+    {
+        return PlaySound(sound_file, sound_type);
+    }
+
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
