@@ -1444,12 +1444,17 @@
          ng (Math/round (* (float 255.0) (float (.getGreen color))))
          nb (Math/round (* (float 255.0) (float (.getBlue color))))
          na (Math/round (* (float 255.0) (float (.getOpacity color))))]
-     (if (or ignore-alpha (= 255 na))
+     (if ignore-alpha
        (format "#%02x%02x%02x" nr ng nb)
        (format "#%02x%02x%02x%02x" nr ng nb na)))))
 
-(defn- web-string->color [^String s]
-  (try (Color/valueOf s) (catch IllegalArgumentException _)))
+(defn- web-string->color [ignore-alpha ^String s]
+  (try
+    (let [c (Color/valueOf s)]
+      (if (and ignore-alpha (not= 1.0 (.getOpacity c)))
+        (Color. (.getRed c) (.getGreen c) (.getBlue c) 1.0)
+        c))
+    (catch IllegalArgumentException _)))
 
 (def ^:private on-color-dropper-mouse-pressed MouseEvent/.consume)
 
@@ -1491,7 +1496,7 @@
                       :style-class "ext-color-picker-field"
                       :h-box/hgrow :always
                       :to-string (fn/partial color->web-string ignore-alpha)
-                      :to-value web-string->color
+                      :to-value (fn/partial web-string->color ignore-alpha)
                       :on-invalid-value on-color-picker-invalid-value
                       :editable editable
                       :value value
