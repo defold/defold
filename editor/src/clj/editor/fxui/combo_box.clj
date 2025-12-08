@@ -164,100 +164,95 @@
     view))
 
 (defn- impl
-  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text color disable tooltip]
+  [{:keys [value on-value-changed items to-string state swap-state filter-prompt-text no-items-text not-found-text color]
     :or {to-string str
          filter-prompt-text "Type to filter"
          no-items-text "No items available"
-         not-found-text "No items found"
-         disable false}}]
+         not-found-text "No items found"}
+    :as props}]
   (let [{:keys [showing filter-text selected-item]} state]
-    (cond->
-      {:fx/type fxui/horizontal
-       :disable disable
-       :style-class "ext-combo-box"
-       :pseudo-classes (if showing #{:showing} #{})
-       :on-focused-changed (fn [_] (swap-state hide))
-       :on-mouse-pressed #(handle-mouse-pressed swap-state %)
-       :on-key-pressed #(handle-key-pressed showing swap-state %)
-       :focus-traversable true
-       :children
-       [{:fx/type fx.label/lifecycle
-         :h-box/hgrow :always
-         :text (if (some? value) (to-string value) "")}
-        {:fx/type fx.stack-pane/lifecycle
-         :style-class "ext-combo-box-arrow-button"
-         :children [{:fx/type fx.region/lifecycle
-                     :style-class "ext-combo-box-arrow"}]}]
-       fxui/prop-custom-tooltip-node-showing showing}
-
-      tooltip
-      (fxui/apply-tooltip tooltip)
-
-      color
-      (update :pseudo-classes conj color)
-
-      showing
-      (assoc
-        prop-popup
-        (let [option->text #(to-string (% 0))
-              filtered-item+matching-indices (->> items
-                                                  (mapv vector)
-                                                  (fuzzy-choices/filter-options option->text option->text filter-text)
-                                                  (e/map #(coll/pair (% 0) (:matching-indices (meta %))))
-                                                  vec)
-              filtered-items (mapv key filtered-item+matching-indices)
-              filtered-item->matching-indices (into {} filtered-item+matching-indices)
-
-              ;; If no item is selected, default to value
-              selected-item (if (some? selected-item) selected-item value)
-              ;; selected item has to be in items (but value doesn't have to be!)
-              selected-item (when (some? selected-item) (coll/first-where #(= selected-item %) filtered-items))
-              ;; if selected value is not in items, default to first item (items can
-              ;; be empty though, so selected item may still be nil)
-              selected-item (if (nil? selected-item) (first filtered-items) selected-item)
-              show-text-field (< 5 (count items))]
-          {:fx/type fx.popup/lifecycle
-           :auto-hide true
-           :on-hidden (fn [_] (swap-state hide))
-           :content
-           [{:fx/type fx.stack-pane/lifecycle
-             :stylesheets [(str (io/resource "dialogs.css"))]
-             :children
-             [{:fx/type fx.region/lifecycle
-               :pseudo-classes (if color #{color} #{})
-               :on-mouse-pressed (fn [_] (swap-state hide))
-               :style-class "ext-combo-box-popup-background"}
-              {:fx/type fxui/vertical
-               :padding 1.0
-               prop-filter-key-pressed #(filter-popup-key-pressed on-value-changed swap-state filtered-items selected-item %)
-               :children
-               (-> []
-                   (cond-> show-text-field
-                           (conj {:fx/type fxui/text-field
-                                  :style-class "ext-combo-box-popup-field"
-                                  :prompt-text filter-prompt-text
-                                  :text filter-text
-                                  :on-text-changed #(swap-state set-filter-text %)}))
-                   (conj (if (zero? (count filtered-items))
-                           {:fx/type fxui/label
-                            :alignment :center
-                            :color :hint
-                            :text (if (pos? (count items)) not-found-text no-items-text)}
-                           {:fx/type ext-with-list-view-props
-                            :desc {:fx/type fx/ext-instance-factory
-                                   :create create-list-view}
-                            :props {:focus-traversable (not show-text-field)
-                                    :style-class "ext-combo-box-popup-list"
-                                    prop-list-items+selected-item [filtered-items selected-item]
-                                    :fixed-cell-size 27.0
-                                    :max-height (* 27.0 (double (min 10 (count filtered-items))))
-                                    :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                   :describe (fn/partial describe-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})))}]}]})))))
+    (-> props
+        (dissoc :value :on-value-changed :items :to-string :state :swap-state
+                :filter-prompt-text :no-items-text :not-found-text)
+        (assoc
+          :fx/type fxui/horizontal
+          :style-class "ext-combo-box"
+          :pseudo-classes (if showing #{:showing} #{})
+          :on-focused-changed (fn [_] (swap-state hide))
+          :on-mouse-pressed #(handle-mouse-pressed swap-state %)
+          :on-key-pressed #(handle-key-pressed showing swap-state %)
+          :focus-traversable true
+          :children [{:fx/type fx.label/lifecycle
+                      :h-box/hgrow :always
+                      :text (if (some? value) (to-string value) "")}
+                     {:fx/type fx.stack-pane/lifecycle
+                      :style-class "ext-combo-box-arrow-button"
+                      :children [{:fx/type fx.region/lifecycle
+                                  :style-class "ext-combo-box-arrow"}]}]
+          fxui/prop-custom-tooltip-node-showing showing)
+        fxui/resolve-input-color
+        (cond->
+          showing
+          (assoc
+            prop-popup
+            (let [option->text #(to-string (% 0))
+                  filtered-item+matching-indices (->> items
+                                                      (mapv vector)
+                                                      (fuzzy-choices/filter-options option->text option->text filter-text)
+                                                      (e/map #(coll/pair (% 0) (:matching-indices (meta %))))
+                                                      vec)
+                  filtered-items (mapv key filtered-item+matching-indices)
+                  filtered-item->matching-indices (into {} filtered-item+matching-indices)
+                  ;; If no item is selected, default to value
+                  selected-item (if (some? selected-item) selected-item value)
+                  ;; selected item has to be in items (but value doesn't have to be!)
+                  selected-item (when (some? selected-item) (coll/first-where #(= selected-item %) filtered-items))
+                  ;; if selected value is not in items, default to first item (items can
+                  ;; be empty though, so selected item may still be nil)
+                  selected-item (if (nil? selected-item) (first filtered-items) selected-item)
+                  show-text-field (< 5 (count items))]
+              {:fx/type fx.popup/lifecycle
+               :auto-hide true
+               :on-hidden (fn [_] (swap-state hide))
+               :content
+               [{:fx/type fx.stack-pane/lifecycle
+                 :stylesheets [(str (io/resource "dialogs.css"))]
+                 :children
+                 [{:fx/type fx.region/lifecycle
+                   :pseudo-classes (if color #{color} #{})
+                   :on-mouse-pressed (fn [_] (swap-state hide))
+                   :style-class "ext-combo-box-popup-background"}
+                  {:fx/type fxui/vertical
+                   :padding 1.0
+                   prop-filter-key-pressed #(filter-popup-key-pressed on-value-changed swap-state filtered-items selected-item %)
+                   :children
+                   (-> []
+                       (cond-> show-text-field
+                               (conj {:fx/type fxui/text-field
+                                      :style-class "ext-combo-box-popup-field"
+                                      :prompt-text filter-prompt-text
+                                      :text filter-text
+                                      :on-text-changed #(swap-state set-filter-text %)}))
+                       (conj (if (zero? (count filtered-items))
+                               {:fx/type fxui/label
+                                :alignment :center
+                                :color :hint
+                                :text (if (pos? (count items)) not-found-text no-items-text)}
+                               {:fx/type ext-with-list-view-props
+                                :desc {:fx/type fx/ext-instance-factory
+                                       :create create-list-view}
+                                :props {:focus-traversable (not show-text-field)
+                                        :style-class "ext-combo-box-popup-list"
+                                        prop-list-items+selected-item [filtered-items selected-item]
+                                        :fixed-cell-size 27.0
+                                        :max-height (* 27.0 (double (min 10 (count filtered-items))))
+                                        :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                       :describe (fn/partial describe-list-cell on-value-changed swap-state to-string filtered-item->matching-indices)}}})))}]}]}))))))
 
 (defn view
   "Combo box control
 
-  Props:
+  Supports all :horizontal props, plus:
     :value                 current value, doesn't have to be present in items
     :on-value-changed      callback that will receive a new value on change
     :items                 available items

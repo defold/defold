@@ -395,11 +395,12 @@
   (let [message (:message issue)]
     (cond-> props
             (or message tooltip)
-            (assoc :tooltip {:severity (:severity issue :info)
-                             :message (localization-state
-                                        (if (and message tooltip)
-                                          (localization/join "\n\n" [message tooltip])
-                                          (or message tooltip)))}))))
+            (fxui/apply-tooltip
+              {:severity (:severity issue :info)
+               :message (localization-state
+                          (if (and message tooltip)
+                            (localization/join "\n\n" [message tooltip])
+                            (or message tooltip)))}))))
 
 (fxui/defc check-box-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}

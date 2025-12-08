@@ -634,8 +634,6 @@
       (resolve-value property)
       (resolve-validation property localization-state)))
 
-;; TODO: profile
-
 (defn- focus-mouse-event-source! [^MouseEvent e]
   (.requestFocus ^Node (.getSource e)))
 

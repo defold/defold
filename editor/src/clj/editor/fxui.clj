@@ -59,11 +59,10 @@
            [java.util Collection]
            [javafx.animation Animation KeyFrame KeyValue SequentialTransition Timeline TranslateTransition]
            [javafx.application Platform]
-           [javafx.beans Observable]
+           [javafx.beans InvalidationListener Observable]
            [javafx.beans.binding Bindings]
-           [javafx.beans.property ReadOnlyProperty SimpleObjectProperty]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections ObservableList]
+           [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.collections MapChangeListener MapChangeListener$Change ObservableList ObservableMap]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
@@ -502,32 +501,51 @@
       (assoc :fx/type fx.tooltip/lifecycle)
       (util/provide-defaults :wrap-text true :max-width 600)))
 
-(def ^:private javafx-property-lifecycle
-  (reify fx.lifecycle/Lifecycle
-    (create [_ desc _]
-      (SimpleObjectProperty. desc))
-    (advance [_ component desc _]
-      (doto ^SimpleObjectProperty component (.set desc)))
-    (delete [_ _ _])))
-
 (defonce ^:private custom-tooltip-node-showing-key (Object.))
 
 (def prop-custom-tooltip-node-showing
   (fx/make-prop
-    (fx.mutator/adder-remover
-      (fn [^Node node value]
-        (.put (.getProperties node) custom-tooltip-node-showing-key value))
-      (fn [^Node node _]
-        (.remove (.getProperties node) custom-tooltip-node-showing-key)))
-    javafx-property-lifecycle))
+    (fx.mutator/setter
+      (fn set-custom-tooltip-node-showing [^Node node value]
+        (.put (.getProperties node) custom-tooltip-node-showing-key value)))
+    fx.lifecycle/scalar))
+
+(defn- observable-map+key->observable-val
+  ^ObservableValue [^ObservableMap m k]
+  (let [invalidation-listeners (atom {})
+        change-listeners (atom {})]
+    (reify ObservableValue
+      (^void addListener [this ^ChangeListener change-listener]
+        (let [^MapChangeListener map-change-listener (fn [^MapChangeListener$Change change]
+                                                       (when (= k (.getKey change))
+                                                         (.changed change-listener this (.getValueRemoved change) (.getValueAdded change))))
+              old-change-listeners (first (swap-vals! change-listeners assoc change-listener map-change-listener))]
+          (when-let [^MapChangeListener old-map-change-listener (old-change-listeners change-listener)]
+            (.removeListener m old-map-change-listener))
+          (.addListener m map-change-listener)))
+      (^void removeListener [_ ^ChangeListener change-listener]
+        (let [old-change-listeners (first (swap-vals! change-listeners dissoc change-listener))]
+          (when-let [^MapChangeListener old-map-change-listener (old-change-listeners change-listener)]
+            (.removeListener m old-map-change-listener))))
+      (^void addListener [this ^InvalidationListener invalidation-listener]
+        (let [^InvalidationListener map-invalidation-listener #(.invalidated invalidation-listener this)
+              old-invalidation-listeners (first (swap-vals! invalidation-listeners assoc invalidation-listener map-invalidation-listener))]
+          (when-let [^InvalidationListener old-map-invalidation-listener (old-invalidation-listeners invalidation-listener)]
+            (.removeListener m old-map-invalidation-listener))
+          (.addListener m map-invalidation-listener)))
+      (^void removeListener [_ ^InvalidationListener invalidation-listener]
+        (let [old-invalidation-listeners (first (swap-vals! invalidation-listeners dissoc invalidation-listener))]
+          (when-let [^InvalidationListener old-map-invalidation-listener (old-invalidation-listeners invalidation-listener)]
+            (.removeListener m old-map-invalidation-listener))))
+      (getValue [_] (.get m k)))))
 
 (defn- node-showing-property
-  ^ReadOnlyProperty [^Node node]
+  ^ObservableValue [^Node node]
   (condp instance? node
     ComboBoxBase (.showingProperty ^ComboBoxBase node)
     MenuButton (.showingProperty ^MenuButton node)
     ChoiceBox (.showingProperty ^ChoiceBox node)
-    (.get (.getProperties node) custom-tooltip-node-showing-key)))
+    (observable-map+key->observable-val (.getProperties node) custom-tooltip-node-showing-key)))
 
 (defn- show-tooltip! [^Tooltip tooltip ^Node node]
   (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))]
@@ -539,26 +557,22 @@
       (let [showing-property (node-showing-property node)
             show! (fn show! []
                     (when (and (not (.isShowing tooltip))
-                               (or (not showing-property)
-                                   (not (.getValue showing-property))))
+                               (not (.getValue showing-property)))
                       (show-tooltip! tooltip node)))
             ^EventHandler on-enter (fn [_] (show!))
             ^EventHandler on-exit (fn [_] (.hide tooltip))
-            ^ChangeListener showing-property-listener (when showing-property
-                                                        (fn [_ _ showing]
-                                                          (if showing
-                                                            (.hide tooltip)
-                                                            (when (.isHover node) (show!)))))]
+            ^ChangeListener showing-property-listener (fn [_ _ showing]
+                                                        (if showing
+                                                          (.hide tooltip)
+                                                          (when (.isHover node) (show!))))]
         (when (.isHover node) (show!))
         (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
         (.addEventHandler node MouseEvent/MOUSE_EXITED on-exit)
-        (when showing-property
-          (.addListener showing-property showing-property-listener))
+        (.addListener showing-property showing-property-listener)
         #(do
            (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
            (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
-           (when showing-property
-             (.removeListener showing-property showing-property-listener)))))
+           (.removeListener showing-property showing-property-listener))))
     fx.lifecycle/dynamic))
 
 (def ^:private prop-delayed-tooltip
@@ -576,30 +590,26 @@
                                           (show-tooltip! tooltip node))))
             show! (fn show! []
                     (when (and (not (.isShowing tooltip))
-                               (or (not showing-property)
-                                   (not (.getValue showing-property))))
+                               (not (.getValue showing-property)))
                       (.playFromStart show-timeline)))
             hide! (fn hide! []
                     (.stop show-timeline)
                     (.hide tooltip))
             ^EventHandler on-enter (fn [_] (show!))
             ^EventHandler on-exit (fn [_] (hide!))
-            ^ChangeListener showing-property-listener (when showing-property
-                                                        (fn [_ _ showing]
-                                                          (if showing
-                                                            (hide!)
-                                                            (when (.isHover node) (show!)))))]
+            ^ChangeListener showing-property-listener (fn [_ _ showing]
+                                                        (if showing
+                                                          (hide!)
+                                                          (when (.isHover node) (show!))))]
         (when (.isHover node) (show!))
         (.addEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
         (.addEventHandler node MouseEvent/MOUSE_EXITED on-exit)
-        (when showing-property
-          (.addListener showing-property showing-property-listener))
+        (.addListener showing-property showing-property-listener)
         #(do
            (.stop show-timeline)
            (.removeEventHandler node MouseEvent/MOUSE_ENTERED on-enter)
            (.removeEventHandler node MouseEvent/MOUSE_EXITED on-exit)
-           (when showing-property
-             (.removeListener showing-property showing-property-listener)))))
+           (.removeListener showing-property showing-property-listener))))
     fx.lifecycle/dynamic))
 
 (defn apply-tooltip [props v]
@@ -1051,7 +1061,7 @@
       resolve-label-color
       resolve-tooltip))
 
-(defn- resolve-input-color [props]
+(defn resolve-input-color [props]
   (let [color (:color props ::not-found)]
     (case color
       ::not-found props
@@ -1459,53 +1469,60 @@
 (defn color-picker
   "Color picker component
 
-  Accepts :text-field props, plus:
+  Accepts :horizontal props, plus:
+    :value                 edited Color value
+    :on-value-changed      value change callback
     :ignore-alpha          whether the view should ignore the alpha, default
                            false
     :color-dropper-view    node id of a color dropper component, enables color
                            dropper if provided
     :prefs                 if provided, loads/persists custom colors
     :color                 either :warning or :error"
-  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable color]
+  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable]
     :or {editable true}
     :as props}]
-  (-> {:fx/type horizontal
-       :style-class "ext-color-picker"
-       :children [(-> props
-                      (dissoc :ignore-alpha :color-dropper-view :prefs :color)
-                      (assoc :fx/type value-field
-                             :style-class "ext-color-picker-field"
-                             :h-box/hgrow :always
-                             :to-string (fn/partial color->web-string ignore-alpha)
-                             :to-value web-string->color
-                             :on-invalid-value on-color-picker-invalid-value)
-                      (cond-> (and color-dropper-view editable)
-                              (assoc
-                                :hover-overlay
-                                {:fx/type hover-overlay
-                                 :alignment :right
-                                 :padding 4
-                                 :content
-                                 (cond->
-                                   {:fx/type fx.pane/lifecycle
-                                    :style-class "color-dropper-icon"
-                                    :children [{:fx/type ui/image-icon
-                                                :path "icons/32/Icons_M_03_colorpicker.png"
-                                                :size 16.0}]
-                                    :on-mouse-pressed on-color-dropper-mouse-pressed}
-                                   on-value-changed
-                                   (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))})))
-                  (cond-> {:fx/type fx.color-picker/lifecycle
-                           :focus-traversable false
-                           :disable (not editable)
-                           :style-class "ext-color-picker-icon"
-                           :on-shown handle-color-picker-shown
-                           :on-hidden handle-color-picker-hidden}
-                          value (assoc :value value)
-                          on-value-changed (assoc :on-value-changed on-value-changed)
-                          prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
-                                       :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))]}
-      (cond-> color (assoc :pseudo-classes #{color}))))
+  (-> props
+      (dissoc :value :on-value-changed :ignore-alpha :color-dropper-view :prefs :editable)
+      (assoc
+        :fx/type horizontal
+        :style-class "ext-color-picker"
+        :children [(cond->
+                     {:fx/type value-field
+                      :style-class "ext-color-picker-field"
+                      :h-box/hgrow :always
+                      :to-string (fn/partial color->web-string ignore-alpha)
+                      :to-value web-string->color
+                      :on-invalid-value on-color-picker-invalid-value
+                      :editable editable
+                      :value value
+                      :on-value-changed on-value-changed}
+                     (and color-dropper-view editable)
+                     (assoc
+                       :hover-overlay
+                       {:fx/type hover-overlay
+                        :alignment :right
+                        :padding 4
+                        :content
+                        (cond->
+                          {:fx/type fx.pane/lifecycle
+                           :style-class "color-dropper-icon"
+                           :children [{:fx/type ui/image-icon
+                                       :path "icons/32/Icons_M_03_colorpicker.png"
+                                       :size 16.0}]
+                           :on-mouse-pressed on-color-dropper-mouse-pressed}
+                          on-value-changed
+                          (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))}))
+                   (cond-> {:fx/type fx.color-picker/lifecycle
+                            :focus-traversable false
+                            :disable (not editable)
+                            :style-class "ext-color-picker-icon"
+                            :on-shown handle-color-picker-shown
+                            :on-hidden handle-color-picker-hidden}
+                           value (assoc :value value)
+                           on-value-changed (assoc :on-value-changed on-value-changed)
+                           prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                                        :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
+      resolve-input-color))
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
   (fx/make-ext-with-props
