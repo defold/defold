@@ -273,7 +273,7 @@ namespace dmHttpClient
         params->m_RequestTimeout = 0;
     }
 
-    HClient New(const NewParams* params, dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI)
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI)
     {
         dmSocket::Address address;
         if (dmSocket::GetHostByNameT(hostURI->m_Hostname, &address, params->m_RequestTimeout, cancelflag) != dmSocket::RESULT_OK)
@@ -309,12 +309,12 @@ namespace dmHttpClient
         return client;
     }
 
-    HClient New(const NewParams* params, dmURI::Parts* hostURI, int* cancelflag)
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag)
     {
         return New(params, hostURI, cancelflag, 0);
     }
 
-    HClient New(const NewParams* params, dmURI::Parts* hostURI)
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI)
     {
         return New(params, hostURI, 0, 0);
     }

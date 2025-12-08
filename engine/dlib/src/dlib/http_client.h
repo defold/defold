@@ -186,7 +186,7 @@ namespace dmHttpClient
      * @param hostURI Host URI (hostname, port, scheme etc)
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, dmURI::Parts* hostURI);
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI);
 
     /**
      * Create a new HTTP client
@@ -195,7 +195,7 @@ namespace dmHttpClient
      * @param if non null and set, aborts the call as soon as possible
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, dmURI::Parts* hostURI, int* cancelflag);
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag);
 
     /**
      * Create a new HTTP client
@@ -205,7 +205,7 @@ namespace dmHttpClient
      * @param proxyURI Proxy URI (hostname, port, scheme etc)
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI);
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI);
 
     /**
      * Set HTTP client option

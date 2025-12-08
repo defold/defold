@@ -695,7 +695,7 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
-        dmHttpClient::HClient client = dmHttpClient::New(&params, (dmURI::Parts*)&uri_parts, 0);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, &uri_parts, 0);
         if (client == 0x0)
         {
             return RESULT_FILE_NOT_FOUND;
