@@ -21,11 +21,13 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/memory.h>
 #include <dlib/message.h>
-#include <dlib/log.h>
+#include <dlib/mutex.h>
 #include <dlib/time.h>
-#include <dlib/math.h>
+#include <dlib/thread.h> // DM_HAS_THREADS
 #include "../sound.h"
 #include "../sound_private.h"
 #include "../sound_codec.h"
@@ -375,6 +377,22 @@ struct LoopbackDevice
     int              m_QueueTime; // write cursor (frames)
     int              m_NumWrites;
     uint32_t         m_DeviceFrameCount;
+    dmMutex::HMutex  m_Mutex;
+
+    LoopbackDevice()
+    {
+#if defined(DM_HAS_THREADS)
+        m_Mutex = dmMutex::New();
+#else
+        m_Mutex = 0;
+#endif
+    }
+
+    ~LoopbackDevice()
+    {
+        if (m_Mutex)
+            dmMutex::Delete(m_Mutex);
+    }
 };
 
 
@@ -425,6 +443,9 @@ static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const void* 
     const int16_t* samples = (const int16_t*)_samples;
 
     LoopbackDevice* loopback = (LoopbackDevice*) device;
+
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(loopback->m_Mutex);
+
     loopback->m_NumWrites++;
 
     loopback->m_TotalBuffersQueued++;
@@ -627,8 +648,6 @@ TEST_P(dmSoundVerifyTest, Mix)
     const double level = 1.0f;
 
     ASSERT_GE(g_LoopbackDevice->m_AllOutput.Size(), n * 2U);
-
-
 
     // We need to check that the panning works as intended.
     // Instead of checking the panning cintinuously, we check the -1 (left), 1 (right) and 0 (center)
@@ -2020,7 +2039,6 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::NewSoundInstance(sd2, &instance2);
-    r = dmSound::NewSoundInstance(sd2, &instance2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance2);
     r = dmSound::SetInstanceGroup(instance2, "g2");
@@ -2088,6 +2106,8 @@ TEST_P(dmSoundMixerTest, Mixer)
 
         const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_LoopbackDevice->m_Mutex);
+
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
@@ -2103,10 +2123,14 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_NEAR(rms_left, last_rms, rms_tol);
     ASSERT_NEAR(rms_right, last_rms, rms_tol);
 
-    ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
-    for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
-        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
-        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_LoopbackDevice->m_Mutex);
+
+        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
+        for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
+            ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
+            ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
+        }
     }
 
     r = dmSound::DeleteSoundData(sd1);
