@@ -561,7 +561,6 @@
              (.removeListener showing-property showing-property-listener)))))
     fx.lifecycle/dynamic))
 
-
 (def ^:private prop-delayed-tooltip
   (fx/make-binding-prop
     (fn bind-delayed-tooltip [^Node node ^Tooltip tooltip]
@@ -1393,8 +1392,9 @@
   Supports all :text-field props, plus:
     :value               the edited value
     :on-value-changed    value change callback
-    :on-invalid-value    called when invalid value is submitted, wiggles the
-                         view by default
+    :on-invalid-value    1-arg function that gets called when invalid value is
+                         submitted with TextInputControl argument, wiggles it by
+                         default
     :to-string           value->string converter, default str
     :to-value            string->value converter, default identity, returning
                          nil implies value could not be converted
