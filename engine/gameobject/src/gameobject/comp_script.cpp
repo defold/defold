@@ -262,7 +262,7 @@ namespace dmGameObject
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
     }
 
-    UpdateResult CompScriptFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    UpdateResult CompScriptPreFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);

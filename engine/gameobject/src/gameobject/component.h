@@ -22,6 +22,18 @@
 
 namespace dmGameObject
 {
+
+
+    /*#
+     * Component pre-update function. Run component logic before main Update and FixedUpdate (optional)
+     * @typedef
+     * @name ComponentsPreUpdate
+     * @param params [type: const dmGameObject::ComponentsUpdateParams&] Update parameters
+     * @param params [type: dmGameObject::ComponentsUpdateResult&] (out) Update result
+     * @return result [type: UpdateResult] UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsPreUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
+
     /*#
      * Collection of component registration data.
      */
@@ -41,6 +53,7 @@ namespace dmGameObject
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentGet            m_GetFunction;
+        ComponentsFixedUpdate   m_PreFixedUpdateFunction;
         ComponentsPreUpdate     m_PreUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsUpdate        m_LateUpdateFunction;
@@ -132,6 +145,31 @@ namespace dmGameObject
     /*# Calls the destroy function for all registered component types
      */
     Result DestroyRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx);
+
+    /*# set the component pre-update callback
+     * Set the component pre-update callback. Called before regular update callback.
+     * @name ComponentTypeSetPreUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsPreUpdate] callback
+     */
+    void ComponentTypeSetPreUpdateFn(HComponentType type, ComponentsPreUpdate fn);
+
+
+    /*# set the component update callback
+     * Set the component update callback. Called when it's time to update all component instances.
+     * @name ComponentTypeSetPreFixedUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsFixedUpdate] callback
+     */
+    void ComponentTypeSetPreFixedUpdateFn(HComponentType type, ComponentsFixedUpdate fn);
+
+    /*# set the component late update callback
+     * Set the component late update callback. Called after regular update of all component instances but before render.
+     * @name ComponentTypeSetLateUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsUpdate] callback
+     */
+    void ComponentTypeSetLateUpdateFn(HComponentType type, ComponentsUpdate fn);
 }
 
 #endif // #ifndef DM_COMPONENT_H
