@@ -3090,7 +3090,7 @@
                             "/game.project")}]})
 
 (handler/defhandler :file.open-liveupdate-settings :global
-  (enabled? [project evaluation-context] (disk-availability/available?))
+  (enabled? [] (disk-availability/available?))
   (run [app-view changes-view prefs localization workspace project]
     (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
       (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project open-liveupdate-settings-failure-notification))))
