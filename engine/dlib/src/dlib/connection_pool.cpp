@@ -530,10 +530,7 @@ namespace dmConnectionPool
                     if(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
                     {
                         dmSocket::Result r = dmSocket::Shutdown(c->m_Socket, how);
-                        if (r == dmSocket::RESULT_OK)
-                        {
-                            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                        }
+                        c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                     }
                     c->m_WasShutdown = 1;
                 }
