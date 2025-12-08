@@ -55,6 +55,7 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -3048,31 +3049,61 @@
   (run [app-view project workspace changes-view build-errors-view prefs localization web-server]
     (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)))
 
-(defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs localization project]
+(defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs localization project failure-notification]
   (let [workspace (project/workspace project)
         resource (workspace/resolve-workspace-resource workspace proj-path)]
-    (if (resource/exists? resource)
-      (open-resource app-view prefs localization workspace project resource)
+    (cond
+      (nil? resource)
+      (notifications/show!
+        (workspace/notifications workspace)
+        (update failure-notification
+                :message localization/vary-message-variables
+                assoc "reason" (localization/message "notification.ensure-exists.reason.missing")))
+
+      (not (resource/exists? resource))
       (let [render-reload-progress! (make-render-task-progress :resource-sync)]
         (fs/touch-file! (io/as-file resource))
         (disk/async-reload! render-reload-progress! workspace [] changes-view
                             (fn [successful?]
                               (when successful?
                                 (when-some [created-resource (workspace/find-resource workspace proj-path)]
-                                  (open-resource app-view prefs localization workspace project created-resource)))))))))
+                                  (open-resource app-view prefs localization workspace project created-resource))))))
+
+      (= :folder (resource/source-type resource))
+      (notifications/show!
+        (workspace/notifications workspace)
+        (update failure-notification
+                :message localization/vary-message-variables
+                assoc "reason" (localization/message "notification.ensure-exists.reason.folder")))
+
+      :else
+      (open-resource app-view prefs localization workspace project resource))))
+
+(def ^:private open-liveupdate-settings-failure-notification
+  {:type :error
+   :id ::open-liveupdate-settings-failure-notification
+   :message (localization/message "notification.liveupdate-settings.unavailable.error")
+   :actions [{:message (localization/message "notification.liveupdate-settings.action.open-game-project")
+              :on-action #(ui/execute-command
+                            (ui/contexts (ui/main-scene))
+                            :file.open
+                            "/game.project")}]})
 
 (handler/defhandler :file.open-liveupdate-settings :global
-  (enabled? [project evaluation-context]
-    (and (disk-availability/available?)
-         (live-update-settings/has-live-update-settings-path? project evaluation-context)))
+  (enabled? [project evaluation-context] (disk-availability/available?))
   (run [app-view changes-view prefs localization workspace project]
     (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
-      (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project))))
+      (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project open-liveupdate-settings-failure-notification))))
+
+(def ^:private open-shared-editor-settings-failure-notification
+  {:type :error
+   :id ::open-shared-editor-settings-failure-notification
+   :message (localization/message "notification.shared-editor-settings.unavailable.error")})
 
 (handler/defhandler :file.open-shared-editor-settings :global
   (enabled? [] (disk-availability/available?))
   (run [app-view changes-view prefs localization workspace project]
-       (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs localization project)))
+    (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs localization project open-shared-editor-settings-failure-notification)))
 
 (defn- get-linux-desktop-entry [launcher-path install-dir]
   (str "[Desktop Entry]\n"

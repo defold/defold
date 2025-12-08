@@ -343,6 +343,14 @@ notification.fetch-libraries.dependencies-missing.warning = The following depend
 notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
 
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Open game.project
+notification.liveupdate-settings.unavailable.error = Cannot open Live Update settings: {reason}
+notification.shared-editor-settings.unavailable.error = Cannot open Shared Editor Settings: {reason}
+notification.ensure-exists.reason.missing = no settings file is configured.
+notification.ensure-exists.reason.folder = the configured path points to a folder.
+
 # Language server notification
 
 notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
