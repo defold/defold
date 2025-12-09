@@ -44,7 +44,7 @@
            [javafx.event Event EventHandler]
            [javafx.scene Node Parent]
            [javafx.scene.control Slider]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.paint Color]))
 
 (set! *warn-on-reflection* true)
@@ -660,6 +660,10 @@
    :color :error
    :text (or (.getMessage exception) (.getSimpleName (class exception)))})
 
+(defn- handle-grid-key-pressed [^KeyEvent e]
+  (when (= KeyCode/ESCAPE (.getCode e))
+    (.requestFocus ^Node (.getSource e))))
+
 (fxui/defc grid-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization (:context props))
@@ -684,6 +688,7 @@
                              :style-class "property-category"}))
                     (conj
                       {:fx/type fxui/grid
+                       :on-key-pressed handle-grid-key-pressed
                        :column-constraints [{:fx/type fx.column-constraints/lifecycle}
                                             {:fx/type fx.column-constraints/lifecycle
                                              :hgrow :always}]
