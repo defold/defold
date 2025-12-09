@@ -529,7 +529,7 @@ namespace dmConnectionPool
                     // but the socket's haven't been assigned yet
                     if(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
                     {
-                        dmSocket::Result r = dmSocket::Shutdown(c->m_Socket, how);
+                        dmSocket::Shutdown(c->m_Socket, how);
                         c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                     }
                     c->m_WasShutdown = 1;
