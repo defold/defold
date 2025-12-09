@@ -510,42 +510,13 @@
         (.put (.getProperties node) custom-tooltip-node-showing-key value)))
     fx.lifecycle/scalar))
 
-(defn- observable-map+key->observable-val
-  ^ObservableValue [^ObservableMap m k]
-  (let [invalidation-listeners (atom {})
-        change-listeners (atom {})]
-    (reify ObservableValue
-      (^void addListener [this ^ChangeListener change-listener]
-        (let [^MapChangeListener map-change-listener (fn [^MapChangeListener$Change change]
-                                                       (when (= k (.getKey change))
-                                                         (.changed change-listener this (.getValueRemoved change) (.getValueAdded change))))
-              old-change-listeners (first (swap-vals! change-listeners assoc change-listener map-change-listener))]
-          (when-let [^MapChangeListener old-map-change-listener (old-change-listeners change-listener)]
-            (.removeListener m old-map-change-listener))
-          (.addListener m map-change-listener)))
-      (^void removeListener [_ ^ChangeListener change-listener]
-        (let [old-change-listeners (first (swap-vals! change-listeners dissoc change-listener))]
-          (when-let [^MapChangeListener old-map-change-listener (old-change-listeners change-listener)]
-            (.removeListener m old-map-change-listener))))
-      (^void addListener [this ^InvalidationListener invalidation-listener]
-        (let [^InvalidationListener map-invalidation-listener #(.invalidated invalidation-listener this)
-              old-invalidation-listeners (first (swap-vals! invalidation-listeners assoc invalidation-listener map-invalidation-listener))]
-          (when-let [^InvalidationListener old-map-invalidation-listener (old-invalidation-listeners invalidation-listener)]
-            (.removeListener m old-map-invalidation-listener))
-          (.addListener m map-invalidation-listener)))
-      (^void removeListener [_ ^InvalidationListener invalidation-listener]
-        (let [old-invalidation-listeners (first (swap-vals! invalidation-listeners dissoc invalidation-listener))]
-          (when-let [^InvalidationListener old-map-invalidation-listener (old-invalidation-listeners invalidation-listener)]
-            (.removeListener m old-map-invalidation-listener))))
-      (getValue [_] (.get m k)))))
-
 (defn- node-showing-property
   ^ObservableValue [^Node node]
   (condp instance? node
     ComboBoxBase (.showingProperty ^ComboBoxBase node)
     MenuButton (.showingProperty ^MenuButton node)
     ChoiceBox (.showingProperty ^ChoiceBox node)
-    (observable-map+key->observable-val (.getProperties node) custom-tooltip-node-showing-key)))
+    (Bindings/valueAt (.getProperties node) custom-tooltip-node-showing-key)))
 
 (defn- show-tooltip! [^Tooltip tooltip ^Node node]
   (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))]

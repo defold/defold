@@ -662,7 +662,8 @@
 
 (defn- handle-grid-key-pressed [^KeyEvent e]
   (when (= KeyCode/ESCAPE (.getCode e))
-    (.requestFocus ^Node (.getSource e))))
+    (.requestFocus ^Node (.getSource e))
+    (.consume e)))
 
 (fxui/defc grid-view
   {:compose [{:fx/type fx/ext-watcher
