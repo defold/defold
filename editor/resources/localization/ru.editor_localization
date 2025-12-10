@@ -344,6 +344,14 @@ notification.fetch-libraries.dependencies-error.error = Не удалось ус
 notification.fetch-libraries.dependencies-error.action.open-game-project = Открыть game.project
 notification.fetch-libraries.min-version.error = Библиотека {uri} требует Defold {required} или новее (текущая версия {current}). Обновите Defold или используйте более старую версию расширения, совместимую с вашей версией Defold.
 
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Открыть game.project
+notification.liveupdate-settings.unavailable.error = Невозможно открыть настройки Live Update: {reason}
+notification.shared-editor-settings.unavailable.error = Невозможно открыть общие настройки редактора: {reason}
+notification.ensure-exists.reason.missing = файл настроек не указан.
+notification.ensure-exists.reason.folder = указанный путь ссылается на папку.
+
 # Language server notification
 
 notification.lsp.language-server-missing.prompt = Невозможно выполнить это действие, потому что для языка {language} не запущен сервер LSP.
