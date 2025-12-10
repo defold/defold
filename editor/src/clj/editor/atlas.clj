@@ -62,6 +62,7 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image]
+           [java.lang.ref WeakReference]
            [java.nio ByteBuffer]
            [java.util List]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
@@ -770,9 +771,18 @@
 
   (output gpu-texture g/Any :cached
           (g/fnk [_node-id packed-page-images-generator texture-profile]
-            (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                (texture/set-params {:min-filter gl/nearest
-                                     :mag-filter gl/nearest}))))
+            ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
+            (if (and (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
+                     (g/user-data _node-id :gpu-texture-cached))
+              (when-let [texture-ref (g/user-data _node-id :gpu-texture-cached)]
+                (.get texture-ref))
+              (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
+                                    (texture/set-params {:min-filter gl/nearest
+                                                         :mag-filter gl/nearest}))
+                    texture-ref (WeakReference. texture)]
+                (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
+                (g/user-data! _node-id :gpu-texture-cached texture-ref)
+                texture))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
