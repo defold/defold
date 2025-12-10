@@ -255,42 +255,27 @@
   (when-let [game-project-entry (locate-zip-entry zip-file "game.project")]
     (:path game-project-entry)))
 
-(defn- validate-min-version
-  "If the library declares a minimum Defold version higher than the editor/Bob
-   version, marks lib-state as error with reason :defold-min-version.
-   Reads game.project from the zip and compares using LibraryUtil/isCurrentEngineOlderThan."
-  [lib-state file-key]
-  (let [^File file (get lib-state file-key)]
-    (if (and file (.isFile file))
-      (try
-        (with-open [zip (ZipFile. file)]
-          (if-let [{^ZipEntry entry :entry} (locate-zip-entry-in-zip zip "game.project")]
-            (with-open [r (io/reader (.getInputStream zip entry))]
-              (let [settings (settings-core/parse-settings r)
-                    min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
-                (if (LibraryUtil/isCurrentEngineOlderThan min-version)
-                  (assoc lib-state
-                    :status :error
-                    :reason :defold-min-version
-                    :required min-version
-                    :current (str EngineVersion/version))
-                  lib-state)))
-            lib-state))
-        (catch Exception _
-          ;; Ignore I/O/parse exceptions here; other validations handle them.
-          lib-state))
-      lib-state)))
-
 (defn- validate-updated-library [lib-state]
   (merge lib-state
-         (try
-           (when-not (library-base-path (:new-file lib-state))
-             {:status :error
-              :reason :missing-game-project})
-           (catch Exception e
-             {:status :error
-              :reason :invalid-zip
-              :exception e}))))
+         (let [^File file (:new-file lib-state)]
+           (try
+             (when (and file (.isFile file))
+               (with-open [zip (ZipFile. file)]
+                 (if-let [{^ZipEntry entry :entry} (locate-zip-entry-in-zip zip "game.project")]
+                   (with-open [r (io/reader (.getInputStream zip entry))]
+                     (let [settings (settings-core/parse-settings r)
+                           min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
+                       (when (LibraryUtil/isCurrentEngineOlderThan min-version)
+                         {:status :error
+                          :reason :defold-min-version
+                          :required min-version
+                          :current (str EngineVersion/version)})))
+                   {:status :error
+                    :reason :missing-game-project})))
+             (catch Exception e
+               {:status :error
+                :reason :invalid-zip
+                :exception e})))))
 
 (defn- purge-all-library-versions! [project-directory lib-uri]
   (let [lib-regexp (library-file-regexp lib-uri)
@@ -332,28 +317,20 @@
     render-progress!))
 
 (defn validate-updated-libraries
-  "Validate libraries after fetching updates.
+      "Validate libraries after fetching updates.
 
-  Will update:
-  - :status to :error (with :reason, :exception) for invalid zips
-  - :status to :error (with :reason :defold-min-version) when the library
-    requires a newer Defold version than the running editor"
-  [lib-states]
-  (mapv
-    (fn [lib-state]
-      (cond
-        (= (:status lib-state) :stale)
-        (let [validated (validate-updated-library lib-state)]
-          (if (= (:status validated) :error)
-            validated
-            (validate-min-version validated :new-file)))
-
-        (= (:status lib-state) :up-to-date)
-        (validate-min-version lib-state :file)
-
-        :else
-        lib-state))
-    lib-states))
+      Will update:
+      - :status to :error (with :reason, :exception) for invalid zips
+      - :status to :error (with :reason :missing-game-project) when game.project is absent
+      - :status to :error (with :reason :defold-min-version) when the library
+        requires a newer Defold version than the running editor"
+      [lib-states]
+      (mapv
+        (fn [lib-state]
+            (if (= (:status lib-state) :stale)
+              (validate-updated-library lib-state)
+              lib-state))
+        lib-states))
 
 (defn install-validated-libraries!
   "Installs the newly downloaded libraries (:status is still :stale).
