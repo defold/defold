@@ -141,11 +141,9 @@
 (defonce up-to-date-lib-states
   (run-and-measure-task!
     :fetch-libraries
-    (dev/run-with-terminal-progress "Fetching Libraries..."
-      (fn fetch-libraries-with-progress [render-progress!]
-        (let [dependencies (project/read-dependencies game-project-resource)
-              stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies render-progress!)]
-          (workspace/install-validated-libraries! workspace stale-lib-states))))))
+    (let [dependencies (project/read-dependencies game-project-resource)
+          stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)]
+      (workspace/install-validated-libraries! workspace stale-lib-states))))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!
@@ -177,13 +175,8 @@
 (defonce node-load-infos
   (run-and-measure-task!
     :read-resources
-    (dev/run-with-terminal-progress "Reading Files..."
-      (fn read-resources-with-progress [render-progress!]
-        (project/read-nodes node-id+resource-pairs
-          :render-progress! render-progress!
-          :resource-metrics resource-metrics)))))
-
-(defn ^:dynamic render-apply-tx-data-progress! [_progress])
+    (project/read-nodes node-id+resource-pairs
+      :resource-metrics resource-metrics)))
 
 (defonce migrated-resource-node-ids
   (let [tx-data
@@ -192,30 +185,21 @@
           (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
                 (project/node-load-infos->stored-disk-state node-load-infos)]
             (resource-node/merge-source-values! node-id+source-value-pairs)
-            (dev/run-with-terminal-progress "Generating Transaction Steps..."
-              (fn generate-load-tx-data-with-progress [render-progress!]
-                (let [[transfer-target render-generate-tx-data-progress!]
-                      (if separate-load-tx-data-generation
-                        [[] render-progress!]
-                        [:eduction progress/null-render-progress!])]
-                  (coll/transfer
-                    (e/concat
-                      (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                      (project/setup-game-project-tx-data project game-project-node-id)
-                      (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-                      (project/load-nodes-tx-data project node-load-infos render-generate-tx-data-progress! #'render-apply-tx-data-progress! resource-metrics))
-                    transfer-target
-                    coll/flatten-xf))))))
+            (coll/transfer
+              (e/concat
+                (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+                (project/setup-game-project-tx-data project game-project-node-id)
+                (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
+              (if separate-load-tx-data-generation [] :eduction)
+              coll/flatten-xf)))
 
         tx-result
         (as-> (g/make-transaction-context transact-opts) transaction-context
 
               (run-and-measure-task!
                 :apply-load-tx-data
-                (dev/run-with-terminal-progress "Applying Transaction Steps..."
-                  (fn apply-load-tx-data-with-progress [render-progress!]
-                    (binding [render-apply-tx-data-progress! render-progress!]
-                      (it/apply-tx transaction-context tx-data)))))
+                (it/apply-tx transaction-context tx-data))
 
               (run-and-measure-task!
                 :update-overrides
