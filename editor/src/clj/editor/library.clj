@@ -232,17 +232,23 @@
     ;; tag may not be available ...
     (merge lib-state (fetch-library! resolver uri tag))))
 
+(defn- locate-zip-entry-in-zip
+  [^ZipFile zip file-name]
+  (stream-reduce!
+    (fn [_ ^ZipEntry entry]
+      (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
+            name (last parts)]
+        (when (= file-name name)
+          (reduced {:name name
+                    :path (str/join "/" (butlast parts))
+                    :entry entry}))))
+    nil
+    (.stream zip)))
+
 (defn- locate-zip-entry
   [^File zip-file file-name]
   (with-open [zip (ZipFile. zip-file)]
-    (stream-reduce!
-      (fn [_ ^ZipEntry entry]
-        (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
-              name (last parts)]
-          (when (= file-name name)
-            (reduced {:name name :path (str/join "/" (butlast parts))}))))
-      nil
-      (.stream zip))))
+    (locate-zip-entry-in-zip zip file-name)))
 
 (defn library-base-path
   [zip-file]
@@ -258,25 +264,18 @@
     (if (and file (.isFile file))
       (try
         (with-open [zip (ZipFile. file)]
-          (let [base (library-base-path file)]
-            (if (some? base)
-              (let [entry-path (if (str/blank? base)
-                                 "game.project"
-                                 (str base "/game.project"))
-                    entry (.getEntry zip entry-path)]
-                (if (some? entry)
-                  (with-open [r (io/reader (.getInputStream zip entry))]
-                    (let [settings (settings-core/parse-settings r)
-                          min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
-                      (if (LibraryUtil/isCurrentEngineOlderThan min-version)
-                        (assoc lib-state
-                          :status :error
-                          :reason :defold-min-version
-                          :required min-version
-                          :current (str EngineVersion/version))
-                        lib-state)))
-                  lib-state))
-              lib-state)))
+          (if-let [{^ZipEntry entry :entry} (locate-zip-entry-in-zip zip "game.project")]
+            (with-open [r (io/reader (.getInputStream zip entry))]
+              (let [settings (settings-core/parse-settings r)
+                    min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
+                (if (LibraryUtil/isCurrentEngineOlderThan min-version)
+                  (assoc lib-state
+                    :status :error
+                    :reason :defold-min-version
+                    :required min-version
+                    :current (str EngineVersion/version))
+                  lib-state)))
+            lib-state))
         (catch Exception _
           ;; Ignore I/O/parse exceptions here; other validations handle them.
           lib-state))
