@@ -17,7 +17,8 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce])
   (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc Endpoint]
@@ -388,8 +389,11 @@
 (definline node-id->graph [basis node-id] `(get (:graphs ~basis) (gt/node-id->graph-id ~node-id)))
 (definline node-id->node [graph node-id] `(get (:nodes ~graph) ~node-id))
 
-(defn- overrides [graph node-id]
-  (get (:node->overrides graph) node-id))
+(defn- overrides
+  "Returns the node-ids of the override nodes in the graph that directly
+  override the specified original-node-id."
+  [graph original-node-id]
+  (get (:node->overrides graph) original-node-id))
 
 ;; This function only removes the node from the single graph in which it exists
 ;; It should only be used for testing purposes
@@ -552,8 +556,11 @@
                result)
         (persistent! result)))))
 
-(defn get-overrides [basis node-id]
-  (overrides (node-id->graph basis node-id) node-id))
+(defn get-overrides
+  "Returns the node-ids of the override nodes that directly override the
+  specified original-node-id in its graph."
+  [basis original-node-id]
+  (overrides (node-id->graph basis original-node-id) original-node-id))
 
 (defn override-original [basis node-id]
   (when-let [node (gt/node-by-id-at basis node-id)]
@@ -870,7 +877,7 @@
                       (recur next-tasks))))
                 (.keySet all-endpoints)))))))
 
-(defrecord MultigraphBasis [graphs]
+(defonce/record MultigraphBasis [graphs]
   gt/IBasis
   (node-by-id-at
     [this node-id]
