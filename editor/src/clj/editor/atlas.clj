@@ -506,6 +506,13 @@
 (defn- validate-max-page-size [node-id page-size]
   (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
 
+(defn- texture-page-count-error-message [x]
+  (when (> x 8)
+    (format "Atlas pages count (%d) cannot exceed 8 pages per atlas" x)))
+
+(defn- validate-texture-page-count [node-id texture-page-count]
+  (validation/prop-error :fatal node-id :validate-texture-page-count texture-page-count-error-message texture-page-count))
+
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
                            (validate-inner-padding node-id inner-padding)
@@ -806,10 +813,11 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns texture-page-count]
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
+                                                              (validate-texture-page-count _node-id texture-page-count)
                                                               (validate-extrude-borders _node-id extrude-borders)
                                                               (validate-max-page-size _node-id max-page-size)
                                                               (validate-rename-patterns _node-id rename-patterns))))
