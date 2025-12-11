@@ -771,7 +771,10 @@
                                      (let [page-count (if (every? pos? max-page-size)
                                                         (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
                                                         texture/non-paged-page-count)]
-                                       (or (validation/prop-error :fatal _node-id :validate-texture-page-count texture-page-count-error-message page-count)
+                                       (or (validation/prop-error :fatal _node-id
+                                                                  :validate-texture-page-count
+                                                                  texture-page-count-error-message
+                                                                  page-count)
                                            page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
