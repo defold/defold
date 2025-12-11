@@ -21,6 +21,7 @@
                  clojure.core/vector-of [[:inner 0]]
                  clojure.test/are [[:inner 0]]
                  dev/run-with-progress [[:inner 0]]
+                 dev/run-with-terminal-progress [[:inner 0]]
                  dynamo.graph/construct [[:inner 0]]
                  dynamo.graph/make-nodes [[:inner 0]]
                  dynamo.graph/fnk [[:block 1]]
