@@ -14,6 +14,7 @@
 
 (ns internal.graph
   (:require [clojure.core.reducers :as r]
+            [clojure.data.int-map :as int-map]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
@@ -375,7 +376,7 @@
 
 (defn empty-graph
   []
-  {:nodes {}
+  {:nodes (int-map/int-map)
    :sarcs {}
    :successors {}
    :tarcs {}
@@ -571,12 +572,13 @@
 
 (defn override-of [graph node-id override-id]
   (let [^Indexed os (overrides graph node-id)
-        n (count os)]
+        n (count os)
+        nodes (:nodes graph)]
     (loop [i 0]
       (if (= i n)
         nil
         (let [override-node-id (.nth os i)]
-          (if (= override-id (gt/override-id (node-id->node graph override-node-id)))
+          (if (= override-id (gt/override-id (nodes override-node-id)))
             override-node-id
             (recur (inc i))))))))
 
@@ -690,6 +692,7 @@
       [arc]
       (let [^IPersistentSet disallowed-override-ids (first conflicting-source-overrides-chain)
             target-graph (node-id->graph basis target)
+            target-graph-nodes (:nodes target-graph)
             target-override-node-ids (overrides target-graph target)]
         (into []
               (comp
@@ -698,7 +701,7 @@
                 ;; up the wrong branch
                 (remove (fn [target-override-node-id]
                           ;; measurably faster than contains?
-                          (.contains disallowed-override-ids (gt/override-id (node-id->node target-graph target-override-node-id)))))
+                          (.contains disallowed-override-ids (gt/override-id (target-graph-nodes target-override-node-id)))))
                 ;; An explicit arc shadows/blocks implicit arcs
                 (filter (fn [target-override-node-id]
                           (nil? (graph-explicit-arcs-by-target target-graph target-override-node-id target-label))))
@@ -706,7 +709,7 @@
                 ;; depending on if the current target override matches
                 ;; the (current) source.
                 (mapcat (fn [target-override-node-id]
-                          (let [target-override-id (gt/override-id (node-id->node target-graph target-override-node-id))]
+                          (let [target-override-id (gt/override-id (target-graph-nodes target-override-node-id))]
                             (if (= target-override-id (first source-override-chain))
                               (lift-source-arc basis
                                                (rest source-override-chain)
@@ -731,11 +734,13 @@
                   ;; Here we can (assert (every? #(= (:source-id %) (:source-id (first explicit-arcs))) explicit-arcs))
                   (let [source (.source-id ^Arc (first explicit-arcs))
                         source-graph (node-id->graph basis source)
+                        source-graph-nodes (:nodes source-graph)
                         ;; conflicting-overrides is to prevent following target
                         ;; overrides along the wrong "branches" (for which there may be another
                         ;; better -earlier- matching source node).
                         conflicting-overrides-chain (mapv (fn [node next-override]
-                                                            (disj (into #{} (map #(gt/override-id (node-id->node source-graph %)))
+                                                            (disj (into (int-map/int-set)
+                                                                        (map #(gt/override-id (source-graph-nodes %)))
                                                                         (overrides source-graph node))
                                                                   next-override))
                                                           (conj override-node-chain source)
@@ -754,7 +759,10 @@
   (when (seq arcs)
     (let [source (.source-id ^Arc (first arcs))
           source-graph (node-id->graph basis source)
-          source-overrides (into #{} (map (comp gt/override-id #(node-id->node source-graph %))) (overrides source-graph source))]
+          source-graph-nodes (:nodes source-graph)
+          source-overrides (into #{}
+                                 (map (comp gt/override-id source-graph-nodes))
+                                 (overrides source-graph source))]
       ;; Here we can (assert (every? #(= source (:source-id %)) arcs)), but it's too costly to run permantently.
       (loop [arcs arcs
              result arcs]
@@ -762,10 +770,11 @@
                                     (mapcat (fn [^Arc target-arc]
                                               (let [target (.target-id target-arc)
                                                     label (.target-label target-arc)
-                                                    target-graph (node-id->graph basis target)]
+                                                    target-graph (node-id->graph basis target)
+                                                    target-graph-nodes (:nodes target-graph)]
                                                 (into []
                                                       (comp
-                                                        (map (partial node-id->node target-graph))
+                                                        (map target-graph-nodes)
                                                         (keep (fn [target-override-node]
                                                                 ;; no better matching override node, and no shadowing explicit arc
                                                                 (when (and (not (contains? source-overrides (gt/override-id target-override-node)))
@@ -811,21 +820,22 @@
   ;; override-node-chains (reductions conj '() originals)
   ;; override-chains (reductions conj '() overrides)
   ;; override-chains+explicit-arcs (map vector override-chains override-node-chains node-explicit-arcs)
-  (loop [node-id start-node-id
-         override-chain '()
-         override-node-chain '()
-         result (transient [])]
-    (let [node (node-id->node graph node-id)
-          explicit-arcs (explicit-arcs-fn graph node-id)
-          result' (if (seq explicit-arcs)
-                    (conj! result [override-chain override-node-chain explicit-arcs])
-                    result)]
-      (if-some [original (gt/original node)]
-        (recur original
-               (conj override-chain (gt/override-id node))
-               (conj override-node-chain node-id)
-               result')
-        (persistent! result')))))
+  (let [graph-nodes (:nodes graph)]
+    (loop [node-id start-node-id
+           override-chain '()
+           override-node-chain '()
+           result (transient [])]
+      (let [node (graph-nodes node-id)
+            explicit-arcs (explicit-arcs-fn graph node-id)
+            result' (if (seq explicit-arcs)
+                      (conj! result [override-chain override-node-chain explicit-arcs])
+                      result)]
+        (if-some [original (gt/original node)]
+          (recur original
+                 (conj override-chain (gt/override-id node))
+                 (conj override-node-chain node-id)
+                 result')
+          (persistent! result'))))))
 
 (def ^:private ^Cache basis-dependencies-cache
   (-> (Caffeine/newBuilder)
@@ -898,11 +908,12 @@
   (arcs-by-target
     [this node-id]
     (let [graph (node-id->graph this node-id)
+          graph-nodes (:nodes graph)
           override-chains+explicit-arcs (loop [node-id node-id
                                                override-chain '()
                                                seen-inputs #{}
                                                result (transient [])]
-                                          (let [node (node-id->node graph node-id)
+                                          (let [node (graph-nodes node-id)
                                                 explicit-arcs (remove (comp seen-inputs :target-label) (graph-explicit-arcs-by-target graph node-id))
                                                 result' (if (seq explicit-arcs)
                                                           (conj! result (pair override-chain explicit-arcs))
