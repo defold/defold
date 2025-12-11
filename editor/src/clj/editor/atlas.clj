@@ -558,9 +558,10 @@
       (g/->error error-node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- generate-packed-page-images [{:keys [digest-ignored/error-node-id image-resources layout-data-generator]}]
-  (let [buffered-images (mapv #(resource-io/with-error-translation % error-node-id nil
-                                 (image-util/read-image %))
-                              image-resources)]
+  (let [buffered-images (->> image-resources
+                             (pmap #(resource-io/with-error-translation % error-node-id nil
+                                      (image-util/read-image %)))
+                             (vec))]
     (g/precluding-errors buffered-images
       (let [layout-data (texture-util/call-generator layout-data-generator)]
         (g/precluding-errors layout-data
