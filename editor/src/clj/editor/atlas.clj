@@ -31,6 +31,7 @@
             [editor.image-util :as image-util]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
@@ -784,9 +785,12 @@
                      (g/user-data _node-id :gpu-texture-cached))
               (when-let [texture-ref (g/user-data _node-id :gpu-texture-cached)]
                 (.get texture-ref))
-              (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                                    (texture/set-params {:min-filter gl/nearest
-                                                         :mag-filter gl/nearest}))
+              (let [texture-profile (assoc texture-profile :preview-resolution
+                                           (parse-long (or (g/user-data _node-id :preview-resolution)
+                                                           "2048")))
+                    texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
+                                (texture/set-params {:min-filter gl/nearest
+                                                     :mag-filter gl/nearest}))
                     texture-ref (WeakReference. texture)]
                 (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
                 (g/user-data! _node-id :gpu-texture-cached texture-ref)
@@ -1216,3 +1220,49 @@
       :view-types [:scene :text]
       :view-opts {:scene {:drop-fn handle-drop
                           :tool-controller AtlasToolController}})))
+
+;; TODO Change this for something nice
+(def ^:private layout-icon "icons/32/Icons_50-Display-profiles.png")
+
+(handler/register-menu! ::toolbar :visibility-settings
+  [menu-items/separator
+   {:icon layout-icon
+    :command :scene.set-atlas-resolution}])
+
+(defn- resource->atlas-scene [project resource]
+  (let [res-node (when resource
+                   (project/get-resource-node project resource))]
+    (when (and res-node (g/node-instance? AtlasNode res-node))
+      res-node)))
+
+(handler/defhandler :scene.set-atlas-resolution :workbench
+  :label "Atlas Preview Resolution"
+  (active? [project active-resource evaluation-context]
+           (boolean (resource->atlas-scene project active-resource)))
+  (run [project active-resource user-data]
+    (when user-data
+      (when-let [atlas-node (resource->atlas-scene project active-resource)]
+        (g/user-data! atlas-node :preview-resolution user-data))))
+  (state [project active-resource]
+    (when-let [atlas-node (resource->atlas-scene project active-resource)]
+      (let [current-res (g/user-data atlas-node :preview-resolution)]
+        {:label (if (empty? current-res) "Default" current-res)
+         :command :scene.set-atlas-resolution
+         :user-data current-res})))
+  (options [project active-resource user-data]
+    (when-not user-data
+      (when-let [atlas-node (resource->atlas-scene project active-resource)]
+        (for [[label res] [["512x512" "512"]
+                           ["1024x1024" "1024"]
+                           ["2048x2048" "2048"]
+                           ["4096x4096" "4096"]
+                           ["8192x8192" "8192"]
+                           ["16384x16384" "16384"]]]
+          {:label label
+           :command :scene.set-atlas-resolution
+           :user-data res})))))
+
+(comment
+  (g/node-value (first (dev/selection)) :texture-page-count)
+  (g/user-data! (first (dev/selection)) :preview-resolution "2048")
+  :-)

@@ -89,6 +89,15 @@
 ;; TextureRequestData
 ;; -----------------------------------------------------------------------------
 
+(defn- downsample-image [^BufferedImage img scale-factor-width scale-factor-height]
+  (let [new-width (/ (.getWidth img) scale-factor-width)
+        new-height (/ (.getHeight img) scale-factor-height)
+        scaled (BufferedImage. new-width new-height (.getType img))
+        g (.createGraphics scaled)]
+    (.drawImage g img 0 0 new-width new-height nil)
+    (.dispose g)
+    scaled))
+
 (defn make-texture-request-datas
   ^TextureRequestData [content-generatable texture-profile flip-y]
   {:pre [(content-generatable? content-generatable)
@@ -146,7 +155,15 @@
             (map-indexed
               (fn [^long image-index ^BufferedImage buffered-image]
                 {:pre [(instance? BufferedImage buffered-image)]}
-                (let [texture-image (tex-gen/make-preview-texture-image buffered-image texture-profile flip-y)
+                ;; TODO: Profile with the following code
+                #_(let [downsampled (downsample-image buffered-image 5)
+                      flipped (texture/flip-y downsampled)]
+                  (texture/image->texture-request-data flipped false))
+                (let [preview-res (:preview-resolution texture-profile)
+                      ;; TODO: Check if it's the same size so we can ignore downsampling
+                      downsampled (downsample-image buffered-image (/ (.getWidth buffered-image) preview-res)
+                                                                   (/ (.getHeight buffered-image) preview-res))
+                      texture-image (tex-gen/make-preview-texture-image downsampled texture-profile flip-y)
                       data-version (java/combine-hashes data-version image-index)]
                   (texture/texture-image->texture-request-data texture-image data-version))))))
 
