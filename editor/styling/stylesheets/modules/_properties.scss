@@ -1,7 +1,4 @@
 #properties {
-    HBox {
-        -fx-spacing: 0;
-    }
 
     .text-field {
         -fx-min-width: 32px;
@@ -65,6 +62,15 @@
 
         &:hover .action-button {
             visibility: visible;
+        }
+    }
+
+    .color-dropper-icon {
+        &:hover {
+            -fx-cursor: hand;
+            & > .image-view {
+                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+            }
         }
     }
 }

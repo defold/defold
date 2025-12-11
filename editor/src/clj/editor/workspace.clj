@@ -310,7 +310,8 @@ ordinary paths."
                         resource type that is utilized by the automated tests.
                         Must include a :type field that classifies the method of
                         registration for the tests.
-    :label              label for a resource type when shown in the editor
+    :label              label for a resource type when shown in the editor,
+                        either a string or a MessagePattern instance
     :stateless?         whether or not the node stores any state that needs to
                         be reloaded if the resource is modified externally. When
                         true, we can simply invalidate its outputs without
@@ -608,12 +609,14 @@ ordinary paths."
   (= "clj" (resource/ext resource)))
 
 (defn- load-clojure-plugin! [workspace resource]
-  (log/info :message (str "Loading plugin " (resource/path resource)))
+  (when-not (Boolean/getBoolean "defold.tests")
+    (log/info :message (str "Loading plugin " (resource/path resource))))
   (try
     (if-let [plugin-fn (load-string (slurp resource))]
       (do
         (plugin-fn workspace)
-        (log/info :message (str "Loaded plugin " (resource/path resource))))
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/info :message (str "Loaded plugin " (resource/path resource)))))
       (log/error :message (str "Unable to load plugin " (resource/path resource))))
     (catch Exception e
       (log/error :message (str "Exception while loading plugin: " (.getMessage e))

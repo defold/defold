@@ -20,6 +20,7 @@
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.resource :as resource]
             [editor.yaml :as yaml]))
@@ -141,7 +142,7 @@
   [workspace]
   (r/register-code-resource-type workspace
     :ext "script_api"
-    :label "Script API"
+    :label (localization/message "resource.type.script-api")
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-types [:code :default]
     :view-opts nil

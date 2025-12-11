@@ -58,7 +58,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 public class TextureGenerator {
 
     // specify what is maximum of threads TextureGenerator may use
-    public static int maxThreads = Project.getDefaultMaxCpuThreads();
+    public static int maxThreads = 4; // set to getHalfThreads() in Project.java
 
     public static class GenerateResult {
         public TextureImage textureImage;
@@ -203,11 +203,6 @@ public class TextureGenerator {
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_ETC2;
             }
-            case TEXTURE_FORMAT_RGBA_ASTC_4X4 -> {
-                if (componentCount < 4)
-                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
-                return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4;
-            }
             case TEXTURE_FORMAT_RGBA_BC3 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
@@ -264,14 +259,28 @@ public class TextureGenerator {
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
         List<Long> images = new ArrayList<>();
-        int mipWidth = width;
-        int mipHeight = height;
-        int mipLevel = 0;
-        long prevImage = image;
+        int baseWidth = TexcLibraryJni.GetWidth(image);
+        int baseHeight = TexcLibraryJni.GetHeight(image);
+        boolean baseMatches = baseWidth == width && baseHeight == height;
 
-        while (mipWidth != 0 || mipHeight != 0) {
-            mipWidth = Math.max(mipWidth, 1);
-            mipHeight = Math.max(mipHeight, 1);
+        // Use the provided image as mip0 if it matches the requested size; otherwise resize once to seed the chain.
+        if (baseMatches) {
+            images.add(image);
+        } else {
+            long resizedBase = TexcLibraryJni.Resize(image, width, height);
+            if (resizedBase == 0) {
+                throw new TextureGeneratorException("Failed to create mipmap 0");
+            }
+            images.add(resizedBase);
+        }
+        if (!generateMipChain) {
+            return images;
+        }
+
+        long prevImage = images.get(images.size() - 1);
+        for (int mipLevel = 1, nextWidth = width / 2, nextHeight = height / 2; nextWidth > 0 || nextHeight > 0; mipLevel++, nextWidth /= 2, nextHeight /= 2) {
+            int mipWidth = Math.max(nextWidth, 1);
+            int mipHeight = Math.max(nextHeight, 1);
             long resizedImage;
 
             TimeProfiler.start("ResizeMipLevel" + mipLevel);
@@ -283,16 +292,7 @@ public class TextureGenerator {
 
             images.add(resizedImage);
 
-            // If we don't need all the mipmap images, just return the first.
-            if (!generateMipChain) {
-                return images;
-            }
-
             prevImage = resizedImage;
-
-            mipLevel++;
-            mipWidth /= 2;
-            mipHeight /= 2;
         }
 
         return images;
@@ -477,7 +477,10 @@ public class TextureGenerator {
 
             // Cleanup the texture images
             for (Long mipImage : mipImages) {
-                TexcLibraryJni.DestroyImage(mipImage);
+                // Avoid double-destroying the original image handle (cleaned up in the finally block).
+                if (mipImage != textureImage) {
+                    TexcLibraryJni.DestroyImage(mipImage);
+                }
             }
 
             return compressedMipImageDatas;

@@ -1,19 +1,31 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
+
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = Открыть с Диска…
 welcome.button.open-selected = Открыть Проект
+welcome.button.create-new-project = Создать Проект
+welcome.button.cancel-download = Отменить Загрузку
 welcome.recent-projects = Недавние Проекты
 welcome.tab.new-project = НОВЫЙ ПРОЕКТ
-welcome.tab.home = ГЛАВНАЯ
-welcome.greeting = Добро пожаловать! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
-welcome.button.create-new-project = Создать Проект
+welcome.tab.home = МОИ ПРОЕКТЫ
+welcome.greeting = Добро пожаловать\! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
 welcome.downloading-project = Загружается {template}…
-welcome.button.cancel-download = Отменить Загрузку
-welcome.category.from-template = Из Шаблона
-welcome.category.from-tutorial = Из Туториала
-welcome.category.from-sample = Из Примера
+welcome.header.open = Открыть
+welcome.header.new-project-from = Создать
+welcome.tab.templates = ИЗ ШАБЛОНОВ
+welcome.tab.tutorials = ИЗ ТУТОРИАЛОВ
+welcome.tab.samples = ИЗ ПРИМЕРОВ
 welcome.new-project.default-name = Мой Проект
-welcome.new-project.title = Название
-welcome.new-project.location = Расположение
+welcome.new-project.title = Имя
+welcome.new-project.location = Путь
 welcome.open-from-disk.dialog.title = Открыть Проект
 welcome.open-from-disk.dialog.filter.defold = Файлы Проектов Defold
 welcome.new-project.location.dialog.title = Выберите Расположение Нового Проекта
@@ -31,8 +43,8 @@ welcome.new-project.error.host-not-responding.title = Хост Не Отвеча
 welcome.new-project.error.host-not-responding.header = Время ожидания соединения истекло
 welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
 welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
-welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен: 
-welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
+welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины\:\n  • Антивирус, настроенный на проверку зашифрованных соединений\n  • Просроченный или некорректно настроенный сертификат сервера\n  • Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен\: 
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Сбой при построении пути PKIX
 
 # Welcome -> New Project -> From Template
 welcome.new-project.empty-project.title = Пустой Проект
@@ -56,7 +68,7 @@ welcome.new-project.rive-project.description = Этот шаблон испол�
 welcome.new-project.side-scroller-tutorial.title = Туториал По Сайд‑Скроллеру
 welcome.new-project.side-scroller-tutorial.description = В этом туториале для начинающих вы познакомитесь с тем, как создать игру в Defold, изменяя простой сайд‑скроллер.
 welcome.new-project.walking-astronaut-tutorial.title = Туториал «Идущий Астронавт»
-welcome.new-project.walking-astronaut-tutorial.description = В этом туториале для начинающих вы научитесь обрабатывать ввод игрока и заставлять персонажа двигаться и анимироваться. Также вы узнаете об основных строительных блоках Defold: игровых объектах, компонентах и коллекциях.
+welcome.new-project.walking-astronaut-tutorial.description = В этом туториале для начинающих вы научитесь обрабатывать ввод игрока и заставлять персонажа двигаться и анимироваться. Также вы узнаете об основных строительных блоках Defold\: игровых объектах, компонентах и коллекциях.
 welcome.new-project.movement-tutorial.title = Туториал по движению
 welcome.new-project.movement-tutorial.description = В этом туториале для начинающих вы научитесь создавать реалистичное движение, используя векторы и простую векторную алгебру.
 welcome.new-project.war-battles-tutorial.title = Туториал «War Battles»
@@ -65,9 +77,9 @@ welcome.new-project.colorslide-tutorial.title = Туториал «Colorslide»
 welcome.new-project.colorslide-tutorial.description = В этом туториале средней сложности вы создадите внутриигровой интерфейс, экран выбора уровня и стартовый экран для простой многоуровневой мобильной игры.
 
 # Welcome -> New Project -> From Sample
-welcome.new-project.linker-sample-game.title = Пример: Linker
+welcome.new-project.linker-sample-game.title = Пример\: Linker
 welcome.new-project.linker-sample-game.description = Это полноценная пример‑игра, где вы соединяете рыбок одного цвета, чтобы удалить их с поля. Длинные цепочки рыбок дают усилители.
-welcome.new-project.roids-sample-game.title = Пример: Roids
+welcome.new-project.roids-sample-game.title = Пример\: Roids
 welcome.new-project.roids-sample-game.description = Это полноценная пример‑игра, где вы управляете космическим кораблём и пробиваетесь через поток метеоритов.
 welcome.new-project.pixel-line-platformer.title = Платформер Pixel Line
 welcome.new-project.pixel-line-platformer.description = Это полноценный платформер в современном пиксель‑арт стиле от Kenney.
@@ -75,7 +87,7 @@ welcome.new-project.main-menu-animation.title = Анимация главног�
 welcome.new-project.main-menu-animation.description = В этом примере мы демонстрируем эффекты для представления главного меню.
 welcome.new-project.parallax.title = Параллакс
 welcome.new-project.parallax.description = В этом примере мы показываем, как использовать эффект параллакса для имитации глубины игрового мира.
-welcome.new-project.hud.title = HUD
+welcome.new-project.hud.title = Интерфейс
 welcome.new-project.hud.description = В этом примере мы демонстрируем эффекты подсчёта очков.
 welcome.new-project.level-complete.title = Уровень завершён
 welcome.new-project.level-complete.description = В этом примере мы демонстрируем эффекты показа подсчёта очков, которые могут отображаться после завершения уровня.
@@ -98,9 +110,9 @@ updater.download-or-restart-dialog.header = Обновление готово, �
 updater.download-or-restart-dialog.detail = Вы можете установить загруженное обновление или загрузить более новое
 updater.platform-not-supported-dialog.title = Платформа Не Поддерживается
 updater.platform-not-supported-dialog.header = Для этой платформы обновления больше не предоставляются
-updater.platform-not-supported-dialog.detail = Поддерживаемые платформы: 64‑битные Linux, macOS и Windows
+updater.platform-not-supported-dialog.detail = Поддерживаемые платформы\: 64‑битные Linux, macOS и Windows
 updater.download-dialog.title = Загрузить Обновление?
-updater.download-dialog.header = Доступна новая версия Defold!
+updater.download-dialog.header = Доступна новая версия Defold\!
 updater.update-failed.title = Ошибка обновления
 updater.update-failed.header = Во время установки обновления произошла ошибка
 updater.update-failed.detail = Возможно, потребуется выполнить чистую установку
@@ -135,6 +147,7 @@ dialog.button.cancel = Отмена
 dialog.button.delete = Удалить
 
 # Error Dialog
+
 dialog.error.title = Ошибка
 dialog.error.header = Произошла ошибка
 dialog.error.footer = Вы можете помочь нам исправить эту проблему, отправив отчёт и указав, что вы делали в момент её возникновения.
@@ -144,10 +157,10 @@ dialog.error.footer = Вы можете помочь нам исправить �
 dialog.build-error.title = Ошибка сборки
 dialog.build-error.cycle.header = Обнаружена циклическая зависимость ресурсов
 dialog.build-error.cycle.message = {header}. {detail}
-dialog.build-error.cycle.detail.collection = Это вызвано двумя или более коллекциями, которые ссылаются друг на друга через прокси или фабрики коллекций. Один из ресурсов: {resource}.
-dialog.build-error.cycle.detail.game-object = Это вызвано двумя или более игровыми объектами, которые ссылаются друг на друга через фабрики игровых объектов. Один из ресурсов: {resource}.
-dialog.build-error.cycle.detail.script = Это вызвано двумя или более модулями Lua, которые требуют друг друга в цикле. Один из ресурсов: {resource}.
-dialog.build-error.cycle.detail.generic = Это вызвано двумя или более ресурсами, которые ссылаются друг на друга. Один из ресурсов: {resource}.
+dialog.build-error.cycle.detail.collection = Это вызвано двумя или более коллекциями, которые ссылаются друг на друга через прокси или фабрики коллекций. Один из ресурсов\: {resource}.
+dialog.build-error.cycle.detail.game-object = Это вызвано двумя или более игровыми объектами, которые ссылаются друг на друга через фабрики игровых объектов. Один из ресурсов\: {resource}.
+dialog.build-error.cycle.detail.script = Это вызвано двумя или более модулями Lua, которые требуют друг друга в цикле. Один из ресурсов\: {resource}.
+dialog.build-error.cycle.detail.generic = Это вызвано двумя или более ресурсами, которые ссылаются друг на друга. Один из ресурсов\: {resource}.
 
 # Clean Build Dialog
 
@@ -167,12 +180,12 @@ dialog.defunload-issues.title = Пересмотрите шаблоны .defunlo
 dialog.defunload-issues.header = Найдены небезопасные ссылки на выгруженные ресурсы.
 dialog.defunload-issues.summary = Один или несколько ресурсов содержат небезопасные ссылки на ресурсы, выгруженные по шаблонам `.defunload`.
 dialog.defunload-issues.advice = Исправьте шаблоны в файле `.defunload`, чтобы избежать загрузки нежелательных ресурсов.
-dialog.defunload-issues.report-path = Полный отчёт сохранён в файле:
+dialog.defunload-issues.report-path = Полный отчёт сохранён в файле\:
 dialog.defunload-issues.button.ignore = Игнорировать
 dialog.defunload-issues.button.open-report = Открыть отчёт
-dialog.defunload-issues.report-line = {resource} - ссылается на выгруженные ресурсы:
-dialog.defunload-issues.report.section-loading-resources = ### Загрузка ресурсов ###
-dialog.defunload-issues.report.loaded-undesired = Следующие ресурсы, соответствующие шаблонам `.defunload`, были загружены по необходимости:
+dialog.defunload-issues.report-line = {resource} - ссылается на выгруженные ресурсы\:
+dialog.defunload-issues.report.section-loading-resources = \#\#\# Загрузка ресурсов \#\#\#
+dialog.defunload-issues.report.loaded-undesired = Следующие ресурсы, соответствующие шаблонам `.defunload`, были загружены по необходимости\:
 
 notification.defunload-issues.action.show-details = Показать подробности…
 
@@ -189,8 +202,9 @@ dialog.hot-reload-failed.title = Ошибка горячей перезагру�
 dialog.hot-reload-failed.header = Не удалось перезагрузить ресурсы в движке «{engine}»
 
 # GL support error dialog
+
 dialog.gl-support.title = Недостаточная поддержка OpenGL
-dialog.gl-support.header = Это очень распространённая проблема. Посмотрите, помогут ли следующие инструкции:
+dialog.gl-support.header = Это очень распространённая проблема. Посмотрите, помогут ли следующие инструкции\:
 dialog.gl-support.linux = OpenGL в Linux
 dialog.gl-support.gl-gen-buffers = glGenBuffers
 dialog.gl-support.detail = Вы можете продолжить работу с отключённым редактором сцен.
@@ -280,35 +294,36 @@ dialog.plugin-load-error.header = Плагин редактора «{plugin}» �
 # Desktop entry dialogs
 
 dialog.desktop-entry.created.title = Ярлык рабочего стола создан
-dialog.desktop-entry.created.header = Ярлык рабочего стола создан!
+dialog.desktop-entry.created.header = Ярлык рабочего стола создан\!
 dialog.desktop-entry.created.content = Теперь вы можете запускать редактор Defold из системного меню.
 dialog.desktop-entry.creation-failed.title = Не удалось создать ярлык рабочего стола
-dialog.desktop-entry.creation-failed.header = Не удалось создать ярлык рабочего стола!
-dialog.desktop-entry.creation-failed.content = Произошла ошибка при создании ярлыка рабочего стола:\n{error}
+dialog.desktop-entry.creation-failed.header = Не удалось создать ярлык рабочего стола\!
+dialog.desktop-entry.creation-failed.content = Произошла ошибка при создании ярлыка рабочего стола\:\n{error}
 
 # Texture compressor error dialog
 
 dialog.texture-compressor-error.title = Не удалось загрузить плагин
 dialog.texture-compressor-error.header = Не удалось инициализировать компрессоры текстур
-dialog.texture-compressor-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+dialog.texture-compressor-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора\:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
 
 # Lua preprocessors error dialog
 
 dialog.lua-preprocessors-error.title = Не удалось загрузить плагин
-dialog.lua-preprocessors-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+dialog.lua-preprocessors-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора\:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
 dialog.lua-preprocessors-error.construct.header = Не удалось создать препроцессоры Lua
 dialog.lua-preprocessors-error.initialize.header = Не удалось инициализировать препроцессоры Lua
 
 # Lua transpilers error dialog
 
 dialog.lua-transpilers-error.title = Не удалось загрузить плагин
-dialog.lua-transpilers-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
+dialog.lua-transpilers-error.content = Следующие классы из плагинов редактора не совместимы с этой версией редактора\:\n\n{classes}\n\nБез них проект может не собраться.\nОтредактируйте зависимости проекта, чтобы указать подходящую версию.
 dialog.lua-transpilers-error.construct.header = Не удалось создать транспиляторы Lua
 dialog.lua-transpilers-error.initialize.header = Не удалось инициализировать транспиляторы Lua
 dialog.lua-transpilers-error.generic.header = Не удалось загрузить транспиляторы Lua
 
 # Diff view dialogs
 
+dialog.diff-view.title = Сравнение
 dialog.diff-view.unchanged.title = Файл не изменён
 dialog.diff-view.unchanged.header = Файл не изменён
 dialog.diff-view.binary.title = Невозможно сравнить двоичные файлы
@@ -317,16 +332,24 @@ dialog.diff-view.binary.header = Невозможно сравнить двои�
 # Fetch libraries dialog
 
 dialog.fetch-libraries.host-unreachable.title = Ошибка обновления библиотек
-dialog.fetch-libraries.host-unreachable.header = Загрузка остановлена: хост недоступен
-dialog.fetch-libraries.host-unreachable.content = Недоступный хост: {host}\n\nПроверьте подключение к интернету и попробуйте ещё раз.
+dialog.fetch-libraries.host-unreachable.header = Загрузка остановлена\: хост недоступен
+dialog.fetch-libraries.host-unreachable.content = Недоступный хост\: {host}\n\nПроверьте подключение к интернету и попробуйте ещё раз.
 
 # Fetch libraries notification
 
 notification.fetch-libraries.dependencies-changed.prompt = Зависимости проекта изменились. Обновить библиотеки сейчас?
 notification.fetch-libraries.dependencies-changed.action.fetch = Обновить библиотеки
-notification.fetch-libraries.dependencies-missing.warning = Отсутствуют следующие зависимости:\n{dependencies}\nПроект может не работать без них.\nЧтобы их загрузить, подключитесь к интернету и обновите библиотеки.
-notification.fetch-libraries.dependencies-error.error = Не удалось установить следующие зависимости:\n{dependencies}
+notification.fetch-libraries.dependencies-missing.warning = Отсутствуют следующие зависимости\:\n{dependencies}\nПроект может не работать без них.\nЧтобы их загрузить, подключитесь к интернету и обновите библиотеки.
+notification.fetch-libraries.dependencies-error.error = Не удалось установить следующие зависимости\:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Открыть game.project
+
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Открыть game.project
+notification.liveupdate-settings.unavailable.error = Невозможно открыть настройки Live Update: {reason}
+notification.shared-editor-settings.unavailable.error = Невозможно открыть общие настройки редактора: {reason}
+notification.ensure-exists.reason.missing = файл настроек не указан.
+notification.ensure-exists.reason.folder = указанный путь ссылается на папку.
 
 # Language server notification
 
@@ -341,7 +364,7 @@ notification.asset-browser.circular-paste.error = Невозможно вста�
 
 notification.resource-collision.directory.warning = Папка «{resource}» скрывает папку с таким же именем
 notification.resource-collision.builtins.warning = Папка «{resource}» скрывает папку с таким же именем во встроенных ресурсах
-notification.resource-collision.library.warning = Папка «{resource}» скрывает папку с таким же именем в зависимости проекта: {library}
+notification.resource-collision.library.warning = Папка «{resource}» скрывает папку с таким же именем в зависимости проекта\: {library}
 
 # Web server notifications
 
@@ -371,7 +394,7 @@ dialog.form-view.file-not-in-project.header = Файл должен находи
 dialog.shared-editor-settings.load-error.title = Не удалось загрузить общие настройки редактора
 dialog.shared-editor-settings.load-error.header = Не удалось загрузить файл общих настроек редактора.
 dialog.shared-editor-settings.load-error.detail = Используются настройки по умолчанию. Работа редактора может ухудшиться.
-dialog.shared-editor-settings.load-error.content = Файл: {file}\n\n{error}
+dialog.shared-editor-settings.load-error.content = Файл\: {file}\n\n{error}
 
 # Updated gitignore dialog
 
@@ -383,7 +406,7 @@ dialog.gitignore-updated.content = Файл .gitignore был автоматич
 
 dialog.asset-paste-reserved.title = Невозможно вставить
 dialog.asset-paste-reserved.header = Некоторые папки назначения зарезервированы
-dialog.asset-paste-reserved.content = Следующие папки назначения зарезервированы:\n{directories}
+dialog.asset-paste-reserved.content = Следующие папки назначения зарезервированы\:\n{directories}
 
 # Asset deletion dialogs
 
@@ -391,8 +414,8 @@ dialog.asset-delete-single.title = Удалить файл?
 dialog.asset-delete-single.header = Вы уверены, что хотите удалить {name}?
 dialog.asset-delete-multiple.title = Удалить файлы?
 dialog.asset-delete-multiple.header = Вы уверены, что хотите удалить эти файлы?
-dialog.asset-delete-multiple.content = Вы собираетесь удалить:{items}
-dialog.asset-delete-multiple.content.item = \n\u00A0\u00A0\u2022\u00A0{name}
+dialog.asset-delete-multiple.content = Вы собираетесь удалить\:{items}
+dialog.asset-delete-multiple.content.item = \n  • {name}
 
 # Rename dialog
 
@@ -402,13 +425,13 @@ dialog.rename.button.rename = Переименовать
 dialog.rename.label.folder = Новое имя папки
 dialog.rename.label.file = Новое имя файла
 dialog.rename.header.folder = Переименовать папку
-dialog.rename.header.files = Переименовать {n, plural, one {файл} few {# файла} other {# файлов}}
+dialog.rename.header.files = Переименовать {n, plural, one {файл} few {\# файла} other {\# файлов}}
 dialog.rename.error.reserved-name = Имя {name} зарезервировано
 
 # Name conflict dialog (appears on conflict during rename)
 
 dialog.name-conflict.title = Конфликт имён
-dialog.name-conflict.header = В папке назначения {count, plural, one {уже есть объект с таким именем} few {# объекта с конфликтующими именами} other {# объектов с конфликтующими именами}}.
+dialog.name-conflict.header = В папке назначения {count, plural, one {уже есть объект с таким именем} few {\# объекта с конфликтующими именами} other {\# объектов с конфликтующими именами}}.
 dialog.name-conflict.button.name-differently = Переименовать
 dialog.name-conflict.button.overwrite-files = Перезаписать файлы
 
@@ -425,6 +448,7 @@ dialog.new-file.button.create.file = Создать
 dialog.new-file.button.create.resource = Создать
 
 # List dialogs
+
 dialog.select-item.title = Выбрать вариант
 dialog.select-item.prompt = Отфильтровать…
 dialog.select-item.button.ok = ОК
@@ -451,11 +475,100 @@ dialog.open-resource.unrecognized.title = Не удалось открыть р�
 dialog.open-resource.unrecognized.header = Не удалось открыть «{resource}», так как он содержит нераспознаваемые данные. Возможно, проекту не хватает требуемого расширения?
 dialog.open-resource.open-file-failed.title = Не удалось открыть файл
 dialog.open-resource.open-file-failed.header = Не удалось открыть «{resource}»
-dialog.open-resource.open-file-failed.detail = Это может произойти, если тип файла не связан с приложением в вашей ОС.\n\nСообщение об ошибке от ОС:\n{error}
+dialog.open-resource.open-file-failed.detail = Это может произойти, если тип файла не связан с приложением в вашей ОС.\n\nСообщение об ошибке от ОС\:\n{error}
 
 # Loading project dialog
 
 dialog.loading-project.header = Загрузка проекта
+
+# Bundle dialog
+
+dialog.bundle.title = Собрать приложение
+dialog.bundle.button.create = Собрать…
+dialog.bundle.hint.select-output-folder = Выберите папку сборки.
+dialog.bundle.header.linux = Собрать Linux-приложение
+dialog.bundle.header.macos = Собрать macOS-приложение
+dialog.bundle.header.html5 = Собрать HTML5-приложение
+dialog.bundle.header.windows = Собрать Windows-приложение
+dialog.bundle.header.ios = Собрать iOS-приложение
+dialog.bundle.header.android = Собрать Android-приложение
+dialog.bundle.label.variant = Вариант
+dialog.bundle.option.variant.debug = Отладка
+dialog.bundle.option.variant.release = Релиз
+dialog.bundle.option.variant.headless = Без интерфейса
+dialog.bundle.label.platform = Платформа
+dialog.bundle.option.platform.x86_64-linux = X64
+dialog.bundle.option.platform.arm64-linux = Arm64
+dialog.bundle.option.platform.x86_64-win32 = 64-бит
+dialog.bundle.option.platform.x86-win32 = 32-бит
+dialog.bundle.option.identity.none = Нет
+dialog.bundle.label.architectures = Архитектуры
+dialog.bundle.option.architecture.arm64-ios = 64-бит (arm64)
+dialog.bundle.option.architecture.x86_64-ios = Симулятор (x86_64)
+dialog.bundle.option.architecture.x86_64-macos = x86_64
+dialog.bundle.option.architecture.arm64-macos = arm64
+dialog.bundle.option.architecture.js-web = asm.js
+dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
+dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + поддержка потоков
+dialog.bundle.option.architecture.armv7-android = 32-бит (armv7)
+dialog.bundle.option.architecture.arm64-android = 64-бит (arm64)
+dialog.bundle.label.sign-application = Подписать приложение
+dialog.bundle.label.code-signing-identity = Удостоверение подписи
+dialog.bundle.label.provisioning-profile = Provisioning-профиль
+dialog.bundle.title.choose-provisioning-profile = Выберите provisioning-профиль
+dialog.bundle.filter.provisioning-profile = Provisioning-профили (*.mobileprovision)
+dialog.bundle.label.on-bundled = После сборки
+dialog.bundle.option.on-bundled.install = Установить на подключённое устройство
+dialog.bundle.option.on-bundled.launch = Запустить установленное приложение
+dialog.bundle.label.android.keystore = Keystore
+dialog.bundle.label.android.keystore-pass = Пароль keystore
+dialog.bundle.label.android.key-pass = Пароль ключа
+dialog.bundle.label.android.bundle-format = Формат сборки
+dialog.bundle.option.bundle-format.apk = APK
+dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-keystore = Выберите файл keystore
+dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
+dialog.bundle.title.choose-keystore-pass = Выберите файл пароля keystore
+dialog.bundle.filter.keystore-pass = Пароль keystore (*.txt)
+dialog.bundle.title.choose-key-pass = Выберите файл пароля ключа
+dialog.bundle.filter.key-pass = Пароль ключа (*.txt)
+dialog.bundle.hint.android.keystore = Укажите keystore или оставьте поле пустым, чтобы подписать сборку автоматически созданным отладочным сертификатом.
+dialog.bundle.label.texture-compression = Сжатие текстур
+dialog.bundle.option.texture-compression.enabled = Включено
+dialog.bundle.option.texture-compression.disabled = Выключено
+dialog.bundle.option.texture-compression.editor = Использовать настройки редактора
+dialog.bundle.label.with-symbols = Создать отладочные символы
+dialog.bundle.label.build-report = Создать отчёт сборки
+dialog.bundle.label.liveupdate = Опубликовать контент Live Update
+dialog.bundle.label.contentless = Сборка без контента
+dialog.bundle.failed.title = Ошибка сборки
+dialog.bundle.failed.header = Не удалось собрать проект
+dialog.bundle.failed.hint = Исправьте ошибки сборки и попробуйте снова
+dialog.bundle.output-directory.title = Выходная папка
+dialog.bundle.output-directory.error-file.title = Не удаётся перезаписать файл
+dialog.bundle.output-directory.error-file.header = Не удалось создать папку
+dialog.bundle.output-directory.error-file.message = Не удалось создать папку по пути «{path}», файл с таким именем уже существует
+dialog.bundle.output-directory.overwrite.title = Перезаписать существующую папку?
+dialog.bundle.output-directory.overwrite.header = Папка уже существует
+dialog.bundle.output-directory.overwrite.message = Перезаписать «{path}»?
+dialog.bundle.output-directory.button.overwrite = Перезаписать
+dialog.bundle.error.architectures-required = Нужно выбрать хотя бы одну архитектуру.
+dialog.bundle.error.identity.not-found = На этом компьютере не найдено удостоверений подписи.
+dialog.bundle.error.identity.required = Чтобы подписать приложение, выберите удостоверение подписи.
+dialog.bundle.error.provisioning.required = Чтобы подписать приложение, укажите provisioning-профиль.
+dialog.bundle.error.provisioning.invalid = Недействительный provisioning-профиль.
+dialog.bundle.error.provisioning.not-found = Файл provisioning-профиля не найден.
+dialog.bundle.error.provisioning.not-file = Provisioning-профиль должен быть файлом.
+dialog.bundle.error.keystore.not-found = Файл keystore не найден.
+dialog.bundle.error.keystore.invalid = Недействительный keystore.
+dialog.bundle.error.keystore.required-with-pass = Если задан пароль keystore, укажите и файл keystore.
+dialog.bundle.error.keystore-pass.not-found = Файл пароля keystore не найден.
+dialog.bundle.error.keystore-pass.invalid = Недействительный файл пароля keystore.
+dialog.bundle.error.keystore-pass.required-with-keystore = Если указан keystore, нужно указать и файл пароля keystore.
+dialog.bundle.error.key-pass.not-found = Файл пароля ключа не найден.
+dialog.bundle.error.key-pass.invalid = Недействительный файл пароля ключа.
+dialog.bundle.error.key-pass.required-with-keystore = Если указан пароль ключа, нужно указать и keystore.
+dialog.bundle.error.bundle-format.required = Не выбран формат сборки.
 
 # Editor panes
 
@@ -473,8 +586,11 @@ pane.search-results = Результаты Поиска
 console.button.clear = Очистить
 console.button.filter = Фильтры
 console.filter.enable-filtering = Включить фильтрацию
-console.filter.add-filter = Новый фильтр ("текст" или "!убрать")
+console.filter.add-filter = Новый фильтр ("текст" или "\!убрать")
 console.search = Поиск
+
+# Breakpoints Tab
+
 
 # Changes view
 
@@ -507,7 +623,7 @@ prefs.label.build.lint-code = Проверять код при сборке
 prefs.label.window.locale = Язык редактора
 prefs.label.run.engine-arguments = Аргументы движка
 prefs.prompt.run.engine-arguments = По одному аргументу на строку
-prefs.help.run.engine-arguments = Аргументы, которые будут переданы исполняемым файлам dmengine при сборке и запуске редактора.\nИспользуйте по одному аргументу на строку. Например:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+prefs.help.run.engine-arguments = Аргументы, которые будут переданы исполняемым файлам dmengine при сборке и запуске редактора.\nИспользуйте по одному аргументу на строку. Например\:\n--config\=bootstrap.main_collection\=/my dir/1.collectionc\n--verbose\n--graphics-adapter\=vulkan
 
 # Code tab
 prefs.label.code.custom-editor = Внешний редактор
@@ -542,13 +658,14 @@ prefs.keymap.context-menu.new-shortcut = Новая комбинация кла�
 prefs.keymap.context-menu.reset-to-default = Восстановить по умолчанию
 prefs.keymap.context-menu.remove = Удалить {shortcut}
 prefs.keymap.context-menu.add = Добавить {shortcut}
-prefs.keymap.new-shortcut = Новая комбинация: «{shortcut}»
+prefs.keymap.new-shortcut = Новая комбинация\: «{shortcut}»
+prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужную комбинацию клавиш
 prefs.keymap.new-shortcut.commit = Нажмите {enter}, чтобы подтвердить
 prefs.keymap.new-shortcut.commit-or-cancel = Нажмите {enter}, чтобы подтвердить, {escape} — отменить
-prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужную комбинацию клавиш
+prefs.keymap.warnings = Предупреждения\:{warnings}
+prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
-prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}
-prefs.keymap.warnings = Предупреждения:{warnings}
+prefs.keymap.warning.conflicts = Конфликтует с комбинациями\: {shortcuts}
 
 # Progress
 
@@ -664,8 +781,9 @@ command.run.select-target.option.all-launched-instances = Все запущен�
 command.run.select-target.option.new-local-engine = Новый локальный движок
 command.run.stop = Остановить движок
 command.run.set-instance-count = Количество запущенных экземпляров
-command.run.set-instance-count.option.count = {count, plural, one {# экземпляр} few {# экземпляра} other {# экземпляра}}
+command.run.set-instance-count.option.count = {count, plural, one {\# экземпляр} few {\# экземпляра} other {\# экземпляра}}
 command.run.set-target-ip = Ввести IP целевого устройства
+command.run.show-target-log = Журнал обнаружения целевых устройств
 command.run.open-profiler = Открыть веб-профилировщик
 command.run.open-resource-profiler = Открыть профилировщик ресурсов
 command.run.reset-resolution = Сбросить симулированное разрешение
@@ -679,7 +797,6 @@ command.run.set-resolution.option.iphone = iPhone
 command.run.set-resolution.option.native-resolutions = Нативные разрешения
 command.run.set-resolution.option.viewport-resolutions = Разрешения области просмотра
 command.run.toggle-device-rotated = Повернутое устройство
-command.run.show-target-log = Журнал обнаружения целевых устройств
 command.file.open-liveupdate-settings = Настройки Live Update
 command.file.open-project = Открыть проект…
 command.file.open-shared-editor-settings = Общие настройки редактора
@@ -690,6 +807,12 @@ command.project.clean-build = Очистить и собрать
 command.project.build-html5 = Собрать HTML5
 command.project.clean-build-html5 = Очистить и собрать HTML5
 command.project.bundle = Собрать бандл
+command.project.bundle-ios = iOS-приложение…
+command.project.bundle-android = Android-приложение…
+command.project.bundle-macos = macOS-приложение…
+command.project.bundle-windows = Windows-приложение…
+command.project.bundle-linux = Linux-приложение…
+command.project.bundle-html5 = HTML5-приложение…
 command.project.rebundle = Пересобрать бандл
 command.project.fetch-libraries = Загрузить библиотеки
 command.project.reload-editor-scripts = Перезагрузить скрипты редактора
@@ -828,15 +951,43 @@ command.app.about = О программе
 command.vcs.diff = Сравнить
 command.vcs.revert = Откатить
 
+# Code editor – find bar
+
+code.find.word = Слово
+code.find.case = Регистр
+code.find.wrap = По кругу
+code.find.prev = Назад
+code.find.next = Вперёд
+code.replace.next = Заменить
+code.replace.all = Заменить все
+
+# About dialog
+
+dialog.about.label.version = Версия\:
+dialog.about.label.channel = Канал\:
+dialog.about.label.build-time = Время сборки\:
+dialog.about.label.editor-sha1 = SHA1 редактора\:
+dialog.about.label.engine-sha1 = SHA1 движка\:
+dialog.about.value.unavailable = Нет данных
+dialog.about.footer.copyright = Copyright ©️ 2009-2025
+dialog.about.footer.foundation = Фонд Defold
+dialog.about.sponsor = Фонд разработки Defold
+
 # Overrides
 
 override.aspect.layout = компоновке «{layout}»
-override.aspect.layout.kind = {count, plural, one {# компоновке} other {# компоновках}}
-override.aspect.generic.kind = {count, plural, one {# аспекте} other {# аспектах}}
+override.aspect.layout.kind = {count, plural, one {\# компоновке} other {\# компоновках}}
+override.aspect.generic.kind = {count, plural, one {\# аспекте} other {\# аспектах}}
 
 # GUI
 
 gui.layout.default = Базовая
+
+# UI
+
+ui.combo-box.filter-prompt = Отфильтровать…
+ui.combo-box.no-items = Нет доступных элементов
+ui.combo-box.not-found = Ничего не найдено
 
 # Editing operations
 
@@ -889,16 +1040,16 @@ property.appmanifest.physics-2d = Физика 2D
 property.appmanifest.physics-2d.tooltip = Box2D версия 3 или устаревшая версия для Defold
 property.appmanifest.physics-3d = Физика 3D
 property.appmanifest.physics-3d.tooltip = Bullet или отключено
-property.appmanifest.rig+model = Rig + Model
+property.appmanifest.rig+model = Rig + модель
 property.appmanifest.rig+model.tooltip = Rig, Model или отключено
 property.appmanifest.exclude-record = Отключить запись
 property.appmanifest.exclude-record.tooltip = Удаляет возможности записи видео (настольные платформы)
-property.appmanifest.exclude-profiler = Отключить профайлер
-property.appmanifest.exclude-profiler.tooltip = Удаляет экранный и веб-профайлер
+property.appmanifest.profiler = Профайлер
+property.appmanifest.profiler.tooltip = Выберите, когда привязывать профайлер
 property.appmanifest.exclude-sound = Отключить звук
-property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука: WAV
-property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука: OGG
-property.appmanifest.include-sound-decoder-opus = Включить декодер звука: Opus
+property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука\: WAV
+property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука\: OGG
+property.appmanifest.include-sound-decoder-opus = Включить декодер звука\: Opus
 property.appmanifest.exclude-input = Отключить ввод
 property.appmanifest.exclude-liveupdate = Отключить Live Update
 property.appmanifest.exclude-image = Отключить Image
@@ -912,6 +1063,8 @@ property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
+property.appmanifest.use-font-layout = Полная система текста
+property.appmanifest.use-font-layout.tooltip = Использовать систему полной разметки текста (поддерживающую, например, RTL)
 
 # Properties: atlas
 
@@ -930,13 +1083,12 @@ property.atlas.extrude-borders.tooltip = Копирует крайние пик�
 property.atlas.max-page-size = Макс. размер страницы
 property.atlas.max-page-size.tooltip = Наибольшая ширина и высота каждой страницы в многостраничном атласе
 property.atlas.rename-patterns = Шаблоны переименований
-property.atlas.rename-patterns.tooltip = Шаблоны search=replace, разделенные запятыми; каждый применяется к базовому имени изображения. Например, «hat=cat,_normal=» переименует «hat_normal» в «cat», что помогает сопоставлять анимации между атласами
-
+property.atlas.rename-patterns.tooltip = Шаблоны search\=replace, разделенные запятыми; каждый применяется к базовому имени изображения. Например, «hat\=cat,_normal\=» переименует «hat_normal» в «cat», что помогает сопоставлять анимации между атласами
 
 # Properties: camera
 
 property.camera.aspect-ratio = Соотношение сторон
-property.camera.aspect-ratio.tooltip = Только для перспективной камеры. Отношение ширины и высоты пирамиды видимости. 1.0 — квадратное окно; 1.33 подходит для 4:3 (1024x768); 1.78 — для 16:9. Игнорируется, если включено авто-соотношение.
+property.camera.aspect-ratio.tooltip = Только для перспективной камеры. Отношение ширины и высоты пирамиды видимости. 1.0 — квадратное окно; 1.33 подходит для 4\:3 (1024x768); 1.78 — для 16\:9. Игнорируется, если включено авто-соотношение.
 property.camera.fov = Угол обзора
 property.camera.fov.tooltip = Только для перспективной камеры. Вертикальный угол обзора в радианах. Чем больше значение, тем больше видимая область.
 property.camera.near-z = Ближняя Z
@@ -1157,7 +1309,6 @@ property.tile-map.tile-source = Набор тайлов
 property.tile-source.collision = Коллизия
 property.tile-source.end-tile = Конечный тайл
 property.tile-source.extrude-borders = Расширение границ
-property.tile-source.extrude-borders.tooltip = Копирует крайние пиксели наружу, чтобы избежать смешивания между изображениями
 property.tile-source.flip-horizontal = Горизонтальное отражение
 property.tile-source.flip-vertical = Вертикальное отражение
 property.tile-source.fps = FPS
@@ -1170,6 +1321,30 @@ property.tile-source.tile-margin = Отступ тайла
 property.tile-source.tile-spacing = Отступ между тайлами
 property.tile-source.tile-width = Ширина тайла
 
+# Outline
+
+outline.atlas.no-image = <Нет изображения>
+outline.atlas = Атлас
+outline.camera = Камера
+outline.collection = Коллекция
+outline.collection-proxy = Прокси коллекции
+outline.collision-object = Объект коллизий
+outline.game-object = Игровой объект
+outline.gui.fonts = Шрифты
+outline.gui.layouts = Компоновки
+outline.gui.layers = Слои
+outline.gui.nodes = Элементы
+outline.gui.materials = Материалы
+outline.gui.textures = Текстуры
+outline.non-editable-collection = Нередактируемая коллекция
+outline.non-editable-game-object = Нередактируемый игровой объект
+outline.particlefx = ParticleFX
+outline.sound = Звук
+outline.tile-map = Тайловая карта
+outline.tile-source = Набор тайлов
+outline.unknown = Неизвестно
+outline.unnamed-collision-shape = <Безымянная форма\: {shape}>
+
 # Resources
 
 resource.view.scene = Сцена
@@ -1180,3 +1355,798 @@ resource.view.text = Текст
 
 resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
 resource.readonly.button.read-more = Подробнее…
+
+resource.type.animationset = Набор анимаций
+resource.type.appmanifest = Манифест приложения
+resource.type.atlas = Атлас
+resource.type.buffer = Буфер
+resource.type.c = C
+resource.type.camera = Камера
+resource.type.collection = Коллекция
+resource.type.collection.non-editable = Нередактируемая коллекция
+resource.type.collectionfactory = Фабрика коллекций
+resource.type.collectionproxy = Прокси коллекции
+resource.type.collisionobject = Объект коллизий
+resource.type.compute = Вычисление
+resource.type.convexshape = Выпуклая форма
+resource.type.cp = Вычислительный шейдер
+resource.type.cpp = C++
+resource.type.custom = Пользовательский ресурс
+resource.type.cubemap = Кубическая карта
+resource.type.defignore = Defignore
+resource.type.defunload = Defunload
+resource.type.display-profiles = Профили отображения
+resource.type.editor-localization = Локализация редактора
+resource.type.editor-script = Скрипт редактора
+resource.type.factory = Фабрика
+resource.type.font = Шрифт
+resource.type.fp = Фрагментный шейдер
+resource.type.gamepads = Геймпады
+resource.type.glsl = Включаемый шейдер
+resource.type.go = Игровой объект
+resource.type.go.non-editable = Нередактируемый игровой объект
+resource.type.gui = GUI
+resource.type.gui-script = GUI-скрипт
+resource.type.h = Заголовок C/C++
+resource.type.html = HTML
+resource.type.image = Изображение
+resource.type.input-binding = Привязка ввода
+resource.type.json = JSON
+resource.type.label = Надпись
+resource.type.light = Источник света
+resource.type.lua = Lua-модуль
+resource.type.manifest = Манифест
+resource.type.markdown = Markdown
+resource.type.material = Материал
+resource.type.mesh = Меш
+resource.type.model = Модель
+resource.type.model-scene = Сцена модели
+resource.type.objective-c = Objective-C
+resource.type.particlefx = ParticleFX
+resource.type.project = Проект
+resource.type.properties = Свойства
+resource.type.render = Рендер
+resource.type.render-script = Рендер-скрипт
+resource.type.render-target = Рендер-таргет
+resource.type.script = Скрипт
+resource.type.script-api = API скриптов
+resource.type.settings = Настройки Live Update
+resource.type.shared-editor-settings = Общие настройки редактора
+resource.type.sound = Звук
+resource.type.sprite = Спрайт
+resource.type.texture-profiles = Профили текстур
+resource.type.tilemap = Тайловая карта
+resource.type.tilesource = Источник тайлов
+resource.type.unknown = Неизвестно
+resource.type.vp = Вершинный шейдер
+resource.type.zig = Zig
+resource.type.zon = Нотация объектов Zig
+
+# Forms
+
+form.filter = Фильтр
+
+form.context-menu.add = Добавить
+form.context-menu.remove = Удалить
+
+form.group.main = Основные
+form.group.platforms = Платформы
+form.group.components = Компоненты
+form.group.runtime = Среда выполнения
+form.group.distribution = Дистрибуция
+form.group.other = Прочее
+
+form.label.project.bootstrap = Инициализация
+form.help.project.bootstrap = Начальные настройки движка
+form.label.project.bootstrap.main_collection = Главная коллекция
+form.help.project.bootstrap.main_collection = Ссылка на коллекцию, которая используется для запуска приложения, по умолчанию /logic/main.collectionc
+form.label.project.bootstrap.render = Рендер
+form.help.project.bootstrap.render = Файл рендера, определяющий конвейер рендеринга, по умолчанию /builtins/render/default.renderc
+form.label.project.bootstrap.debug_init_script = Скрипт инициализации отладки
+form.help.project.bootstrap.debug_init_script = Lua-скрипт, который выполняется перед главной коллекцией при запуске в режиме отладки
+
+form.label.project.project = Проект
+form.help.project.project = Общие настройки проекта
+form.label.project.project.title = Название
+form.help.project.project.title = Название приложения
+form.label.project.project.version = Версия
+form.help.project.project.version = Версия приложения
+form.label.project.project.publisher = Издатель
+form.help.project.project.publisher = Название издателя
+form.label.project.project.developer = Разработчик
+form.help.project.project.developer = Название разработчика
+form.label.project.project.write_log = Запись лога
+form.help.project.project.write_log = Записывать файл журнала на диск
+form.label.project.project.write_log_file = Лог в файл
+form.help.project.project.write_log_file = Записывать логи в файл на диске
+form.label.project.project.minimum_log_level = Мин. уровень логов
+form.help.project.project.minimum_log_level = Будут показаны только сообщения этого уровня и выше
+form.label.project.project.compress_archive = Сжимать архив
+form.help.project.project.compress_archive = Сжимать архив (не для Android)
+form.label.project.project.dependencies = Зависимости
+form.help.project.project.dependencies = Список URL проектов, необходимых для этого проекта
+form.label.project.project.custom_resources = Дополнительные ресурсы
+form.help.project.project.custom_resources = Список ресурсов через запятую, которые будут включены в проект. Если указаны папки, все файлы и вложенные папки будут добавлены
+form.label.project.project.bundle_resources = Ресурсы сборки
+form.help.project.project.bundle_resources = Папка с файлами и папками, которые будут скопированы как есть в итоговый пакет при сборке
+form.label.project.project.bundle_exclude_resources = Исключения сборки
+form.help.project.project.bundle_exclude_resources = Список ресурсов через запятую, которые не должны быть включены в сборку
+
+form.label.project.android = Android
+form.help.project.android = Настройки Android
+form.label.project.android.app_icon_36x36 = Иконка 36x36
+form.help.project.android.app_icon_36x36 = Файл иконки Android ldpi (.png)
+form.label.project.android.app_icon_48x48 = Иконка 48x48
+form.help.project.android.app_icon_48x48 = Файл иконки Android mdpi (.png)
+form.label.project.android.app_icon_72x72 = Иконка 72x72
+form.help.project.android.app_icon_72x72 = Файл иконки Android hdpi (.png)
+form.label.project.android.app_icon_96x96 = Иконка 96x96
+form.help.project.android.app_icon_96x96 = Файл иконки Android xhdpi (.png)
+form.label.project.android.app_icon_144x144 = Иконка 144x144
+form.help.project.android.app_icon_144x144 = Файл иконки Android xxhdpi (.png)
+form.label.project.android.app_icon_192x192 = Иконка 192x192
+form.help.project.android.app_icon_192x192 = Файл иконки Android xxxhdpi (.png)
+form.label.project.android.push_icon_small = Малая push-иконка
+form.help.project.android.push_icon_small = Файл малой push-иконки (.png)
+form.label.project.android.push_icon_large = Большая push-иконка
+form.help.project.android.push_icon_large = Файл большой push-иконки (.png)
+form.label.project.android.push_icon_small_ldpi = Малая push LDPI
+form.help.project.android.push_icon_small_ldpi = Файл малой push-иконки ldpi (.png)
+form.label.project.android.push_icon_small_mdpi = Малая push MDPI
+form.help.project.android.push_icon_small_mdpi = Файл малой push-иконки mdpi (.png)
+form.label.project.android.push_icon_small_hdpi = Малая push HDPI
+form.help.project.android.push_icon_small_hdpi = Файл малой push-иконки hdpi (.png)
+form.label.project.android.push_icon_small_xhdpi = Малая push XHDPI
+form.help.project.android.push_icon_small_xhdpi = Файл малой push-иконки xhdpi (.png)
+form.label.project.android.push_icon_small_xxhdpi = Малая push PNG XXHDPI
+form.help.project.android.push_icon_small_xxhdpi = Файл малой push-иконки xxhdpi (.png)
+form.label.project.android.push_icon_small_xxxhdpi = Малая push XXXHDPI
+form.help.project.android.push_icon_small_xxxhdpi = Файл малой push-иконки xxxhdpi (.png)
+form.label.project.android.push_icon_large_ldpi = Большая push LDPI
+form.help.project.android.push_icon_large_ldpi = Файл большой push-иконки ldpi (.png)
+form.label.project.android.push_icon_large_mdpi = Большая push MDPI
+form.help.project.android.push_icon_large_mdpi = Файл большой push-иконки mdpi (.png)
+form.label.project.android.push_icon_large_hdpi = Большая push HDPI
+form.help.project.android.push_icon_large_hdpi = Файл большой push-иконки hdpi (.png)
+form.label.project.android.push_icon_large_xhdpi = Большая push XHDPI
+form.help.project.android.push_icon_large_xhdpi = Файл большой push-иконки xhdpi (.png)
+form.label.project.android.push_icon_large_xxhdpi = Большая push XXHDPI
+form.help.project.android.push_icon_large_xxhdpi = Файл большой push-иконки xxhdpi (.png)
+form.label.project.android.push_icon_large_xxxhdpi = Большая push XXXHDPI
+form.help.project.android.push_icon_large_xxxhdpi = Файл большой push-иконки xxxhdpi (.png)
+form.label.project.android.push_field_title = Поле заголовка push
+form.help.project.android.push_field_title = Имя поля JSON в push-пакете для заголовка уведомления
+form.label.project.android.push_field_text = Поле текста push
+form.help.project.android.push_field_text = Имя поля JSON в push-пакете для текста уведомления
+form.label.project.android.version_code = Код версии
+form.help.project.android.version_code = Код версии Android (android\:versionCode)
+form.label.project.android.minimum_sdk_version = Минимальная версия SDK
+form.help.project.android.minimum_sdk_version = Минимальный API Level, необходимый для работы приложения (android\:minSdkVersion)
+form.label.project.android.target_sdk_version = Целевая версия SDK
+form.help.project.android.target_sdk_version = API Level, на который нацелено приложение (android\:targetSdkVersion)
+form.label.project.android.package = Пакет
+form.help.project.android.package = Идентификатор пакета
+form.label.project.android.gcm_sender_id = ID отправителя GCM
+form.help.project.android.gcm_sender_id = Идентификатор отправителя Firebase Cloud Messaging
+form.label.project.android.fcm_application_id = ID приложения FCM
+form.help.project.android.fcm_application_id = Идентификатор приложения Firebase Cloud Messaging
+form.label.project.android.manifest = Манифест
+form.help.project.android.manifest = Пользовательский шаблон AndroidManifest.xml
+form.label.project.android.iap_provider = Поставщик IAP
+form.help.project.android.iap_provider = Поставщик встроенных покупок, поддерживаются 'GooglePlay' и 'Amazon'
+form.label.project.android.input_method = Метод ввода
+form.help.project.android.input_method = Какой метод ввода использовать, поддерживаются 'KeyEvent' и 'HiddenInputField'
+form.label.project.android.immersive_mode = Иммерсивный режим
+form.help.project.android.immersive_mode = Скрывает панель навигации и статус-бар, позволяя приложению обрабатывать все касания экрана
+form.label.project.android.display_cutout = Область выреза
+form.help.project.android.display_cutout = Расширять приложение в область выреза экрана
+form.label.project.android.debuggable = Возможность отладки
+form.help.project.android.debuggable = Помогает отлаживать приложение и получать файлы из приложения
+form.label.project.android.proguard = Конфигурация ProGuard
+form.help.project.android.proguard = Пользовательский файл ProGuard для удаления лишних Java-классов из итогового .apk
+form.label.project.android.extract_native_libs = Извлекать библиотеки
+form.help.project.android.extract_native_libs = Определяет, извлекает ли установщик пакета нативные библиотеки из APK в файловую систему
+
+form.label.project.html5 = HTML5
+form.help.project.html5 = Настройки HTML5
+form.label.project.html5.set_custom_heap_size = Задавать размер heap вручную
+form.help.project.html5.set_custom_heap_size = Этот параметр устарел. Включите его, если хотите самостоятельно подобрать размер heap приложения
+form.label.project.html5.custom_heap_size = Размер heap (байты)
+form.help.project.html5.custom_heap_size = Этот параметр устарел. Размер heap приложения в байтах
+form.label.project.html5.heap_size = Размер heap (МБ)
+form.help.project.html5.heap_size = Размер heap приложения в мегабайтах
+form.label.project.html5.htmlfile = HTML-оболочка
+form.help.project.html5.htmlfile = HTML-оболочка для canvas
+form.label.project.html5.cssfile = Пользовательский .css
+form.help.project.html5.cssfile = CSS будет встроен в шаблон index.html
+form.label.project.html5.splash_image = Изображение заставки
+form.help.project.html5.splash_image = Пользовательское изображение HTML-заставки
+form.label.project.html5.archive_location_prefix = Префикс пути архива
+form.help.project.html5.archive_location_prefix = Строка, добавляемая в начало пути к архиву (может быть полным URL)
+form.label.project.html5.archive_location_suffix = Суффикс пути архива
+form.help.project.html5.archive_location_suffix = Строка, добавляемая в конец пути к архиву
+form.label.project.html5.engine_arguments = Аргументы движка
+form.help.project.html5.engine_arguments = Список аргументов движка через запятую
+form.label.project.html5.wasm_streaming = Потоковый WASM
+form.help.project.html5.wasm_streaming = Включите, чтобы потоково загружать файл wasm (быстрее и требует меньше памяти, но нужен MIME-тип application/wasm)
+form.label.project.html5.show_fullscreen_button = Кнопка полного экрана
+form.help.project.html5.show_fullscreen_button = Показывать кнопку перехода в полноэкранный режим
+form.label.project.html5.show_made_with_defold = «Made with Defold» URL
+form.help.project.html5.show_made_with_defold = Показывать ссылку «Made with Defold»
+form.label.project.html5.show_console_banner = Баннер в консоли
+form.help.project.html5.show_console_banner = Показывать сообщение «Made with Defold» в консоли браузера
+form.label.project.html5.scale_mode = Режим масштабирования
+form.help.project.html5.scale_mode = Режим масштабирования canvas (по умолчанию Downscale Fit)
+form.label.project.html5.retry_count = Число попыток
+form.help.project.html5.retry_count = Сколько попыток предпринять при загрузке файла
+form.label.project.html5.retry_time = Пауза между попытками
+form.help.project.html5.retry_time = Пауза в секундах перед повторной загрузкой после ошибки
+form.label.project.html5.transparent_graphics_context = Прозрачный контекст
+form.help.project.html5.transparent_graphics_context = Делает фон графического контекста прозрачным
+
+form.label.project.ios = iOS
+form.help.project.ios = Настройки iOS
+form.label.project.ios.app_icon_76x76 = Иконка 76x76
+form.help.project.ios.app_icon_76x76 = Иконка домашнего экрана для iPad (.png)
+form.label.project.ios.app_icon_120x120 = Иконка 120x120
+form.help.project.ios.app_icon_120x120 = Иконка домашнего экрана для iPhone/iPod Touch с Retina (.png)
+form.label.project.ios.app_icon_152x152 = Иконка 152x152
+form.help.project.ios.app_icon_152x152 = Иконка домашнего экрана для iPad с Retina (.png)
+form.label.project.ios.app_icon_167x167 = Иконка 167x167
+form.help.project.ios.app_icon_167x167 = Иконка домашнего экрана для iPad Pro (.png)
+form.label.project.ios.app_icon_180x180 = Иконка 180x180
+form.help.project.ios.app_icon_180x180 = Иконка домашнего экрана для iPhone с Retina HD (.png)
+form.label.project.ios.icons_asset = Файл иконок
+form.help.project.ios.icons_asset = Файл набора иконок (.car)
+form.label.project.ios.launch_screen = Заставка
+form.help.project.ios.launch_screen = Storyboard экрана запуска
+form.label.project.ios.pre_renderered_icons = Готовые иконки
+form.help.project.ios.pre_renderered_icons = Включите, если иконки уже прорисованы
+form.label.project.ios.bundle_identifier = Идентификатор пакета
+form.help.project.ios.bundle_identifier = Идентификатор пакета (CFBundleIdentifier)
+form.label.project.ios.bundle_name = Имя пакета
+form.help.project.ios.bundle_name = Короткое имя пакета (CFBundleName), максимум 15 символов
+form.label.project.ios.bundle_version = Версия пакета
+form.help.project.ios.bundle_version = Номер сборки (CFBundleVersion), число или x.y.z
+form.label.project.ios.infoplist = Info.plist
+form.help.project.ios.infoplist = Пользовательский шаблон Info.plist
+form.label.project.ios.privacymanifest = PrivacyInfo.xcprivacy
+form.help.project.ios.privacymanifest = Файл Privacy Manifest
+form.label.project.ios.entitlements = Свои entitlements
+form.help.project.ios.entitlements = Пользовательский файл entitlements для подписи iOS-бандла. Может заменить любые подстановочные entitlements в используемом профиле подписи
+form.label.project.ios.default_language = Язык по умолчанию
+form.help.project.ios.default_language = Язык и регион по умолчанию (CFBundleDevelopmentRegion)
+form.label.project.ios.localizations = Локализации
+form.help.project.ios.localizations = Строки с языками, которые приложение обрабатывает вручную (CFBundleLocalizations), через запятую
+
+form.label.project.osx = OSX
+form.help.project.osx = Настройки Mac OSX
+form.label.project.osx.app_icon = Иконка приложения
+form.help.project.osx.app_icon = Файл иконки бандла (.icns)
+form.label.project.osx.bundle_identifier = Идентификатор пакета
+form.help.project.osx.bundle_identifier = Идентификатор пакета (CFBundleIdentifier)
+form.label.project.osx.bundle_name = Имя пакета
+form.help.project.osx.bundle_name = Короткое имя пакета (CFBundleName), максимум 15 символов
+form.label.project.osx.bundle_version = Версия пакета
+form.help.project.osx.bundle_version = Номер сборки (CFBundleVersion), число или x.y.z
+form.label.project.osx.infoplist = Info.plist
+form.help.project.osx.infoplist = Пользовательский шаблон Info.plist
+form.label.project.osx.privacymanifest = PrivacyInfo.xcprivacy
+form.help.project.osx.privacymanifest = Файл Privacy Manifest
+form.label.project.osx.default_language = Язык по умолчанию
+form.help.project.osx.default_language = Язык и регион по умолчанию (CFBundleDevelopmentRegion)
+form.label.project.osx.localizations = Локализации
+form.help.project.osx.localizations = Строки с языками, которые приложение обрабатывает вручную (CFBundleLocalizations), через запятую
+
+form.label.project.windows = Windows
+form.help.project.windows = Настройки Windows
+form.label.project.windows.app_icon = Иконка приложения
+form.help.project.windows.app_icon = Файл иконки исполняемого файла (.ico)
+
+form.label.project.collection = Коллекция
+form.help.project.collection = Настройки коллекций
+form.label.project.collection.max_instances = Макс. число экземпляров
+form.help.project.collection.max_instances = Максимальное число экземпляров в коллекции, по умолчанию 1024
+form.label.project.collection.max_input_stack_entries = Макс. стек ввода
+form.help.project.collection.max_input_stack_entries = Максимальное число игровых объектов в стеке ввода, по умолчанию 16
+
+form.label.project.collectionfactory = Фабрика коллекций
+form.help.project.collectionfactory = Настройки фабрик коллекций
+form.label.project.collectionfactory.max_count = Макс. число фабрик
+form.help.project.collectionfactory.max_count = Максимальное число фабрик коллекций, по умолчанию 128
+
+form.label.project.collection_proxy = Прокси коллекций
+form.help.project.collection_proxy = Настройки прокси коллекций
+form.label.project.collection_proxy.max_count = Макс. число прокси
+form.help.project.collection_proxy.max_count = Максимальное число прокси коллекций, по умолчанию 8
+
+form.label.project.factory = Фабрика
+form.help.project.factory = Настройки фабрик объектов
+form.label.project.factory.max_count = Макс. число фабрик
+form.help.project.factory.max_count = Максимальное число фабрик объектов, по умолчанию 128
+
+form.label.project.gui = GUI
+form.help.project.gui = Настройки GUI
+form.label.project.gui.max_count = Макс. число GUI
+form.help.project.gui.max_count = Максимальное число GUI-компонентов в коллекции, по умолчанию 64
+form.label.project.gui.max_animation_count = Макс. число анимаций
+form.help.project.gui.max_animation_count = Максимальное число активных GUI-анимаций, по умолчанию 1024
+form.label.project.gui.max_particle_count = Макс. число частиц
+form.help.project.gui.max_particle_count = Максимальное число частиц GUI в коллекции, по умолчанию 1024
+form.label.project.gui.max_particlefx_count = Макс. число ParticleFX
+form.help.project.gui.max_particlefx_count = Максимальное число элементов ParticleFX в коллекции
+
+form.label.project.label = Надпись
+form.help.project.label = Настройки надписей
+form.label.project.label.max_count = Макс. число надписей
+form.help.project.label.max_count = Максимальное число надписей, по умолчанию 64
+form.label.project.label.subpixels = Субпиксели
+form.help.project.label.subpixels = Разрешить надписям располагаться не по сетке пикселей
+
+form.label.project.mesh = Меш
+form.help.project.mesh = Настройки мешей
+form.label.project.mesh.max_count = Макс. число мешей
+form.help.project.mesh.max_count = Максимальное число компонентов меша, по умолчанию 128
+
+form.label.project.model = Модель
+form.help.project.model = Настройки моделей
+form.label.project.model.max_count = Макс. число моделей
+form.help.project.model.max_count = Максимальное число моделей, по умолчанию 128
+form.label.project.model.split_meshes = Делить меши
+form.help.project.model.split_meshes = Делить меши с числом вершин более 65536 на новые меши
+form.label.project.model.max_bone_matrix_texture_width = Ширина текстуры матриц
+form.help.project.model.max_bone_matrix_texture_width = Максимальная ширина текстуры матриц костей, по умолчанию 1024
+form.label.project.model.max_bone_matrix_texture_height = Высота текстуры матриц
+form.help.project.model.max_bone_matrix_texture_height = Максимальная высота текстуры матриц костей, по умолчанию 1024
+
+form.label.project.particle_fx = ParticleFX
+form.help.project.particle_fx = Настройки ParticleFX
+form.label.project.particle_fx.max_particle_count = Макс. число частиц
+form.help.project.particle_fx.max_particle_count = Максимальное число активных частиц, ограничивает размер вершинного буфера GPU, по умолчанию 1024
+form.label.project.particle_fx.max_particle_buffer_count = Макс. буфер частиц
+form.help.project.particle_fx.max_particle_buffer_count = Максимальное число частиц за одну выгрузку на GPU, ограничивает использование памяти CPU, по умолчанию 1024
+form.label.project.particle_fx.max_count = Макс. число компонентов
+form.help.project.particle_fx.max_count = Максимальное число компонентов Particle FX, по умолчанию 64
+form.label.project.particle_fx.max_emitter_count = Макс. число эмиттеров
+form.help.project.particle_fx.max_emitter_count = Максимальное число эмиттеров Particle FX, по умолчанию 64
+
+form.label.project.script = Скрипты
+form.help.project.script = Настройки системы скриптов
+form.label.project.script.shared_state = Общее состояние Lua
+form.help.project.script.shared_state = Использовать единое состояние Lua, общее для всех типов скриптов
+
+form.label.project.sound = Звук
+form.help.project.sound = Настройки звука
+form.label.project.sound.gain = Усиление
+form.help.project.sound.gain = Глобальная громкость (gain), по умолчанию 1
+form.label.project.sound.use_linear_gain = Линейное усиление
+form.help.project.sound.use_linear_gain = Если включено, усиление линейное. Если выключено, используется экспоненциальная кривая (например, 0.5 — «половина громкости»). По умолчанию включено.
+form.label.project.sound.max_sound_data = Макс. число звуков
+form.help.project.sound.max_sound_data = Максимальное число разных звуков, по умолчанию 128
+form.label.project.sound.max_sound_buffers = Макс. число буферов
+form.help.project.sound.max_sound_buffers = Максимальное число одновременно используемых звуковых буферов, по умолчанию 32
+form.label.project.sound.max_sound_sources = Макс. число источников
+form.help.project.sound.max_sound_sources = Максимальное число одновременно воспроизводимых звуков, по умолчанию 16
+form.label.project.sound.max_sound_instances = Макс. число экземпляров
+form.help.project.sound.max_sound_instances = Максимальное число одновременных экземпляров звука (голосов), по умолчанию 256
+form.label.project.sound.max_component_count = Макс. число компонентов
+form.help.project.sound.max_component_count = Максимальное число звуковых компонентов в коллекции, по умолчанию 32
+form.label.project.sound.sample_frame_count = Число сэмплов кадра
+form.help.project.sound.sample_frame_count = Число сэмплов для каждого обновления аудио. По умолчанию 0 (1024 для устройства 48 кГц, 768 для устройства 44.1 кГц)
+form.label.project.sound.use_thread = Использовать тред
+form.help.project.sound.use_thread = Включает обработку звука в отдельном треде
+form.label.project.sound.stream_enabled = Потоковая передача
+form.help.project.sound.stream_enabled = Включает потоковую загрузку звука
+form.label.project.sound.stream_chunk_size = Размер чанка потока
+form.help.project.sound.stream_chunk_size = Размер в байтах каждого чанка, загружаемого из звукового файла, по умолчанию 16384
+form.label.project.sound.stream_preload_size = Размер предзагрузки
+form.help.project.sound.stream_preload_size = Размер в байтах первоначального чанка, загружаемого для каждого звукового файла, по умолчанию 16384
+form.label.project.sound.stream_cache_size = Размер кеша потока
+form.help.project.sound.stream_cache_size = Размер в байтах кеша потоковой передачи, содержащего все чанки, по умолчанию 2097152
+
+form.label.project.sprite = Спрайт
+form.help.project.sprite = Настройки спрайтов
+form.label.project.sprite.max_count = Макс. число спрайтов
+form.help.project.sprite.max_count = Максимальное число спрайтов, по умолчанию 128
+form.label.project.sprite.subpixels = Субпиксели
+form.help.project.sprite.subpixels = Разрешить спрайтам располагаться не по сетке пикселей
+
+form.label.project.tilemap = Тайловая карта
+form.help.project.tilemap = Настройки тайловых карт
+form.label.project.tilemap.max_count = Макс. число карт
+form.help.project.tilemap.max_count = Максимальное число тайловых карт в коллекции одновременно
+form.label.project.tilemap.max_tile_count = Макс. число тайлов
+form.help.project.tilemap.max_tile_count = Максимальное число одновременно видимых тайлов в коллекции
+
+form.label.project.box2d = Box2D
+form.help.project.box2d = Настройки физики Box2D. Доступность опций зависит от версии Box2D.
+form.label.project.box2d.velocity_iterations = Итерации скорости
+form.help.project.box2d.velocity_iterations = Число итераций по скорости для разрешителя физики Box2D 2.2, по умолчанию 10
+form.label.project.box2d.position_iterations = Итерации позиции
+form.help.project.box2d.position_iterations = Число итераций по позиции для разрешителя физики Box2D 2.2, по умолчанию 10
+form.label.project.box2d.sub_step_count = Число подшагов
+form.help.project.box2d.sub_step_count = Число подшагов для разрешителя физики Box2D 3.x, по умолчанию 4
+
+form.label.project.display = Дисплей
+form.help.project.display = Настройки разрешения и отображения
+form.label.project.display.width = Ширина
+form.help.project.display.width = Ширина окна приложения в пикселях, по умолчанию 960
+form.label.project.display.height = Высота
+form.help.project.display.height = Высота окна приложения в пикселях, по умолчанию 640
+form.label.project.display.high_dpi = Высокий DPI
+form.help.project.display.high_dpi = Включить высокодетализированный backbuffer, если доступно
+form.label.project.display.samples = Сэмплы
+form.help.project.display.samples = Количество сэмплов для суперсэмплинга антиалиасинга, по умолчанию 0 (выключено)
+form.label.project.display.fullscreen = Полный экран
+form.help.project.display.fullscreen = Запускать приложение в полноэкранном режиме
+form.label.project.display.display_profiles = Профили дисплея
+form.help.project.display.display_profiles = Ссылка на файл профилей отображения, используемый приложением
+form.label.project.display.dynamic_orientation = Автоориентация
+form.help.project.display.dynamic_orientation = Поддержка динамического изменения ориентации экрана
+form.label.project.display.update_frequency = Частота обновления
+form.help.project.display.update_frequency = Количество обновлений игрового цикла в секунду. 0 — переменная частота (например, 30 для ограничения).
+form.label.project.display.swap_interval = Интервал смены кадров
+form.help.project.display.swap_interval = Интервал VSync. 0 означает отключено
+form.label.project.display.vsync = VSync
+form.help.project.display.vsync = Вертикальная синхронизация, использует аппаратный VSync (может переопределяться драйвером)
+form.label.project.display.variable_dt = Переменное Δt
+form.help.project.display.variable_dt = Устаревшее. При включении отключает VSync и ставит лимит кадров 0.
+form.label.project.display.display_device_info = Инфо об устройстве
+form.help.project.display.display_device_info = Выводить информацию о GPU в консоль при запуске
+
+form.label.project.engine = Движок
+form.help.project.engine = Настройки выполнения движка
+form.label.project.engine.run_while_iconified = Работа свернутым
+form.help.project.engine.run_while_iconified = Разрешить движку продолжать работу, когда окно свернуто (только настольные платформы)
+form.label.project.engine.fixed_update_frequency = Частота обновлений
+form.help.project.engine.fixed_update_frequency = Включает использование фиксированной частоты кадров некоторыми компонентами. 0 отключает настройку (Гц)
+form.label.project.engine.max_time_step = Максимальный шаг
+form.help.project.engine.max_time_step = Если шаг времени слишком велик, он будет ограничен этим максимальным значением (секунды)
+
+form.label.project.font = Шрифт
+form.help.project.font = Параметры шрифта
+form.label.project.font.runtime_generation = Генерация на лету
+form.help.project.font.runtime_generation = Включить генерацию шрифта на лету
+
+form.label.project.graphics = Графика
+form.help.project.graphics = Настройки графики
+form.label.project.graphics.default_texture_min_filter = Мин. фильтр текстур
+form.help.project.graphics.default_texture_min_filter = Какой фильтр использовать при минимизации, по умолчанию linear
+form.label.project.graphics.default_texture_mag_filter = Макс. фильтр текстур
+form.help.project.graphics.default_texture_mag_filter = Какой фильтр использовать при увеличении, linear (по умолчанию) или nearest
+form.label.project.graphics.max_draw_calls = Макс. draw calls
+form.help.project.graphics.max_draw_calls = Максимальное число draw calls
+form.label.project.graphics.max_characters = Макс. символов
+form.help.project.graphics.max_characters = Максимум символов (текста) за кадр
+form.label.project.graphics.max_font_batches = Макс. батчей текста
+form.help.project.graphics.max_font_batches = Максимум текстовых батчей за кадр
+form.label.project.graphics.max_debug_vertices = Отлад. вершины
+form.help.project.graphics.max_debug_vertices = Максимум вершин для отладочного рендера, по умолчанию 10000
+form.label.project.graphics.texture_profiles = Профили текстур
+form.help.project.graphics.texture_profiles = Какие профили текстур (формат, мипы и макс. размер) использовать для путей ресурсов
+form.label.project.graphics.verify_graphics_calls = Проверка графики
+form.help.project.graphics.verify_graphics_calls = Проверять код возврата после каждого графического вызова
+form.label.project.graphics.opengl_version_hint = Версия OpenGL
+form.help.project.graphics.opengl_version_hint = Подсказка версии контекста OpenGL. Выбранная версия станет минимально допустимой (не для OpenGL ES). По умолчанию 3.3
+form.label.project.graphics.opengl_core_profile_hint = Core-профиль OpenGL
+form.help.project.graphics.opengl_core_profile_hint = Устанавливает подсказку core-профиля при создании контекста. Core убирает устаревшие возможности вроде immediate mode. Не для OpenGL ES.
+form.label.project.graphics.memory_size = Размер памяти
+form.help.project.graphics.memory_size = Сколько памяти может использовать драйвер (МБ)
+
+form.label.project.input = Ввод
+form.help.project.input = Настройки ввода
+form.label.project.input.repeat_delay = Задержка повтора
+form.help.project.input.repeat_delay = Сколько секунд ждать перед запуском автоповтора удерживаемой клавиши
+form.label.project.input.repeat_interval = Интервал повтора
+form.help.project.input.repeat_interval = Сколько секунд проходит между повторами удерживаемой клавиши
+form.label.project.input.gamepads = Геймпады
+form.help.project.input.gamepads = Ссылка на конфиг геймпадов, сопоставляющий сигналы устройствам ОС, по умолчанию /builtins/input/default.gamepadsc
+form.label.project.input.game_binding = Привязки ввода
+form.help.project.input.game_binding = Ссылка на файл привязок ввода, сопоставляющий аппаратные вводы действиям, по умолчанию /input/game.input_bindingc
+form.label.project.input.use_accelerometer = Акселерометр
+form.help.project.input.use_accelerometer = Включите, чтобы приложение получало события акселерометра
+
+form.label.project.network = Сеть
+form.help.project.network = Настройки сети
+form.label.project.network.http_timeout = Таймаут HTTP
+form.help.project.network.http_timeout = Таймаут HTTP в секундах. 0 отключает ограничение
+form.label.project.network.ssl_certificates = Сертификаты SSL
+form.help.project.network.ssl_certificates = Файл SSL-сертификатов в формате PEM
+form.label.project.network.http_thread_count = Потоки HTTP
+form.help.project.network.http_thread_count = Количество рабочих потоков сервиса HTTP
+form.label.project.network.http_cache_enabled = HTTP кеш
+form.help.project.network.http_cache_enabled = Сохранять загруженные данные для быстрого повторного доступа
+
+form.label.project.physics = Физика
+form.help.project.physics = Настройки физики
+form.label.project.physics.max_collision_object_count = Макс. объектов коллизий
+form.help.project.physics.max_collision_object_count = Максимальное число объектов коллизий, по умолчанию 128
+form.label.project.physics.type = Тип
+form.help.project.physics.type = Какой тип физики использовать, 2D (по умолчанию) или 3D
+form.label.project.physics.use_fixed_timestep = Фиксированный шаг
+form.help.project.physics.use_fixed_timestep = Использовать ли фиксированные шаги физики. См. engine.fixed_update_frequency
+form.label.project.physics.debug = Отладка
+form.help.project.physics.debug = Визуализировать физику для отладки
+form.label.project.physics.debug_alpha = Альфа отладки
+form.help.project.physics.debug_alpha = Альфа-канал визуализации физики, 0 - 1 (по умолчанию 0.9)
+form.label.project.physics.debug_scale = Масштаб отладки
+form.help.project.physics.debug_scale = Размер отрисовки единичных объектов физики (триады, нормали), по умолчанию 30
+form.label.project.physics.world_count = Количество миров
+form.help.project.physics.world_count = Максимум параллельных физических миров, по умолчанию 4 (бережно относитесь к памяти)
+form.label.project.physics.gravity_x = Гравитация X
+form.help.project.physics.gravity_x = Гравитация по оси X, по умолчанию 0
+form.label.project.physics.gravity_y = Гравитация Y
+form.help.project.physics.gravity_y = Гравитация по оси Y, по умолчанию -10 (естественная гравитация)
+form.label.project.physics.gravity_z = Гравитация Z
+form.help.project.physics.gravity_z = Гравитация по оси Z, по умолчанию 0
+form.label.project.physics.scale = Масштаб
+form.help.project.physics.scale = Масштабирование физики относительно игрового мира для численной точности, 0.01 - 1 (по умолчанию)
+form.label.project.physics.allow_dynamic_transforms = Дин. трансформации
+form.help.project.physics.allow_dynamic_transforms = Позволяет менять масштаб, позицию и поворот динамических тел (по умолчанию включено)
+form.label.project.physics.max_collisions = Макс. коллизий
+form.help.project.physics.max_collisions = Сколько коллизий сообщается скриптам, по умолчанию 64
+form.label.project.physics.max_contacts = Макс. контактов
+form.help.project.physics.max_contacts = Сколько контактных точек сообщается скриптам, по умолчанию 128
+form.label.project.physics.contact_impulse_limit = Порог импульса
+form.help.project.physics.contact_impulse_limit = Контакты с импульсом ниже порога не отправляются в скрипты, по умолчанию 0 (выкл.)
+form.label.project.physics.ray_cast_limit_2d = Лимит лучей 2D
+form.help.project.physics.ray_cast_limit_2d = Максимум лучей за кадр при 2D-физике
+form.label.project.physics.ray_cast_limit_3d = Лимит лучей 3D
+form.help.project.physics.ray_cast_limit_3d = Максимум лучей за кадр при 3D-физике
+form.label.project.physics.trigger_overlap_capacity = Лимит триггеров
+form.help.project.physics.trigger_overlap_capacity = Максимум пересечений триггеров, по умолчанию 16
+form.label.project.physics.velocity_threshold = Порог скорости
+form.help.project.physics.velocity_threshold = Минимальная скорость для упругих столкновений
+form.label.project.physics.max_fixed_timesteps = Макс. фикс. шагов
+form.help.project.physics.max_fixed_timesteps = Максимум шагов симуляции при фиксированном шаге (только 3D)
+
+form.label.project.profiler = Профайлер
+form.help.project.profiler = Настройки встроенного профайлера
+form.label.project.profiler.track_cpu = CPU в релизе
+form.help.project.profiler.track_cpu = Включить сбор CPU-профиля в релизной сборке
+form.label.project.profiler.enabled = Включено
+form.help.project.profiler.enabled = Включить профайлер в игре; для активации из кода вызовите profiler.enable()
+form.label.project.profiler.sleep_between_server_updates = Пауза сервера
+form.help.project.profiler.sleep_between_server_updates = Пауза в миллисекундах между обновлениями сервера профайлера
+form.label.project.profiler.performance_timeline_enabled = Веб-таймлайн
+form.help.project.profiler.performance_timeline_enabled = Включить вывод данных в браузерный Performance Timeline
+
+form.label.project.render = Рендер
+form.help.project.render = Настройки рендера
+form.label.project.render.clear_color_red = Красный канал
+form.help.project.render.clear_color_red = Цвет очистки кадра - красный канал
+form.label.project.render.clear_color_green = Зеленый канал
+form.help.project.render.clear_color_green = Цвет очистки кадра - зеленый канал
+form.label.project.render.clear_color_blue = Синий канал
+form.help.project.render.clear_color_blue = Цвет очистки кадра - синий канал
+form.label.project.render.clear_color_alpha = Альфа канал
+form.help.project.render.clear_color_alpha = Цвет очистки кадра - альфа канал
+
+form.label.project.resource = Ресурс
+form.help.project.resource = Настройки загрузки и управления ресурсами
+form.label.project.resource.http_cache = HTTP-кеш
+form.help.project.resource.http_cache = Использовать HTTP-кеш для ускорения загрузки по сети
+form.label.project.resource.uri = URI
+form.help.project.resource.uri = Путь к game.project в формате URI
+form.label.project.resource.max_resources = Макс. ресурсы
+form.help.project.resource.max_resources = Максимальное число ресурсов, которые можно загрузить одновременно (по умолчанию 1024)
+
+form.label.project.shader = Шейдер
+form.help.project.shader = Настройки шейдеров
+form.label.project.shader.output_spirv = Вывод SPIR-V
+form.help.project.shader.output_spirv = Настройка устарела. Компилирует и выводит шейдеры SPIR-V для Metal или Vulkan
+form.label.project.shader.exclude_gles_sm100 = Исключить GLES 2.0
+form.help.project.shader.exclude_gles_sm100 = Не компилировать шейдеры для устройств с OpenGLES 2.0 / WebGL 1.0
+
+form.label.project.library = Библиотека
+form.help.project.library = Настройки при использовании проекта как библиотеки
+form.label.project.library.include_dirs = Включённые папки
+form.help.project.library.include_dirs = Папки, добавляемые когда проект используется как библиотека
+
+form.label.project.liveupdate = Live Update
+form.help.project.liveupdate = Настройки Live Update
+form.label.project.liveupdate.enabled = Включено
+form.help.project.liveupdate.enabled = Включает использование Live Update
+form.label.project.liveupdate.settings = Настройки
+form.help.project.liveupdate.settings = Файл настроек Live Update
+form.label.project.liveupdate.mount_on_start = Монтировать при старте
+form.help.project.liveupdate.mount_on_start = Авто-монтирование ранее смонтированных ресурсов при запуске приложения
+
+form.label.project.native_extension = Нативное расширение
+form.help.project.native_extension = Настройки нативных расширений
+form.label.project.native_extension.app_manifest = Манифест приложения
+form.help.project.native_extension.app_manifest = Необязательный конфигурационный файл с детальным контролем параметров сборки
+
+form.label.animationset = Набор анимаций
+form.label.animationset.animations = Анимации
+
+form.label.camera = Камера
+form.label.camera.aspect-ratio = Пропорция сторон
+form.label.camera.fov = Угол обзора
+form.label.camera.near-z = Ближняя Z
+form.label.camera.far-z = Дальняя Z
+form.label.camera.auto-aspect-ratio = Авто-пропорция сторон
+form.label.camera.orthographic-projection = Ортопроекция
+form.label.camera.orthographic-mode = Режим ортозума
+form.label.camera.orthographic-zoom = Ортографический зум
+
+form.label.collectionproxy = Прокси коллекции
+form.label.collectionproxy.collection = Коллекция
+
+form.label.render = Рендер
+form.label.render.script = Скрипт
+form.label.render.render-resources = Ресурсы
+form.label.render.render-resources.name = Имя
+form.label.render.render-resources.resource = Ресурс
+
+form.label.render-target = Рендер-таргет
+form.label.render-target.color-attachments = Цветовые буферы
+form.label.render-target.color-attachments.width = Ширина
+form.label.render-target.color-attachments.height = Высота
+form.label.render-target.color-attachments.format = Формат
+form.label.render-target.depth-stencil-attachment-width = Ширина depth / stencil
+form.label.render-target.depth-stencil-attachment-height = Высота depth / stencil
+form.label.render-target.depth-stencil-attachment-texture-storage = Хранение depth
+
+form.label.display-profiles = Профили отображения
+form.label.display-profiles.auto-layout-selection = Авто-выбор компоновки
+form.label.display-profiles.profile = Профиль
+form.label.display-profiles.profile.qualifiers = Критерии
+form.label.display-profiles.profile.qualifiers.width = Ширина
+form.label.display-profiles.profile.qualifiers.height = Высота
+form.label.display-profiles.profile.qualifiers.device-models = Модели устройств
+
+form.label.input-binding = Привязки ввода
+form.label.input-binding.key-trigger = Триггеры клавиатуры
+form.label.input-binding.key-trigger.input = Ввод
+form.label.input-binding.key-trigger.action = Действие
+form.label.input-binding.mouse-trigger = Триггеры мыши
+form.label.input-binding.mouse-trigger.input = Ввод
+form.label.input-binding.mouse-trigger.action = Действие
+form.label.input-binding.gamepad-trigger = Триггеры геймпада
+form.label.input-binding.gamepad-trigger.input = Ввод
+form.label.input-binding.gamepad-trigger.action = Действие
+form.label.input-binding.touch-trigger = Триггеры касаний
+form.label.input-binding.touch-trigger.input = Ввод
+form.label.input-binding.touch-trigger.action = Действие
+form.label.input-binding.text-trigger = Текстовые триггеры
+form.label.input-binding.text-trigger.input = Ввод
+form.label.input-binding.text-trigger.action = Действие
+
+form.label.gamepads = Геймпады
+form.label.gamepads.driver = Геймпад
+form.label.gamepads.driver.device = Устройство
+form.label.gamepads.driver.platform = Платформа
+form.label.gamepads.driver.dead-zone = Мёртвая зона
+form.label.gamepads.driver.map = Сопоставление
+form.label.gamepads.driver.map.input = Ввод
+form.label.gamepads.driver.map.type = Тип
+form.label.gamepads.driver.map.index = Индекс
+form.label.gamepads.driver.map.negate = Инверсия
+form.label.gamepads.driver.map.scale = Масштаб
+form.label.gamepads.driver.map.clamp = Ограничение
+form.label.gamepads.driver.map.hat-mask = Маска крестовины
+
+form.label.texture-profiles = Профили текстур
+form.label.texture-profiles.path-settings = Настройки путей
+form.label.texture-profiles.path-settings.path = Путь
+form.label.texture-profiles.path-settings.profile = Профиль
+form.label.texture-profiles.profiles = Профили
+form.label.texture-profiles.profiles.platforms = Платформы
+form.label.texture-profiles.profiles.platforms.formats = Форматы
+form.label.texture-profiles.profiles.platforms.formats.format = Формат
+form.label.texture-profiles.profiles.platforms.formats.compressor = Компрессор
+form.label.texture-profiles.profiles.platforms.formats.compressor-preset = Пресет компрессора
+form.label.texture-profiles.profiles.platforms.mipmaps = Мипмапы
+form.label.texture-profiles.profiles.platforms.max-texture-size = Макс. текстура
+form.label.texture-profiles.profiles.platforms.premultiply-alpha = Предумн. альфа
+
+form.label.factory = Фабрика
+form.label.factory.prototype = Прототип
+form.label.factory.load-dynamically = Динамическая загрузка
+form.label.factory.dynamic-prototype = Динамический прототип
+
+form.label.collectionfactory = Фабрика коллекций
+form.label.collectionfactory.prototype = Прототип
+form.label.collectionfactory.load-dynamically = Динамическая загрузка
+form.label.collectionfactory.dynamic-prototype = Динамический прототип
+
+form.label.sound = Звук
+form.label.sound.sound = Звук
+form.label.sound.looping = Зациклить
+form.label.sound.loopcount = Повторы
+form.label.sound.group = Группа
+form.label.sound.gain = Усиление
+form.label.sound.pan = Панорама
+form.label.sound.speed = Скорость
+
+form.label.liveupdate.liveupdate = Live Update
+form.label.liveupdate.liveupdate.mode = Режим
+form.help.liveupdate.liveupdate.mode = Назначение
+form.label.liveupdate.amazon = Amazon
+form.label.liveupdate.liveupdate.amazon-credential-profile = Профиль
+form.help.liveupdate.liveupdate.amazon-credential-profile = Профиль учетных данных Amazon
+form.label.liveupdate.liveupdate.amazon-bucket = Бакет
+form.help.liveupdate.liveupdate.amazon-bucket = Бакет Amazon
+form.label.liveupdate.liveupdate.amazon-prefix = Префикс
+form.help.liveupdate.liveupdate.amazon-prefix = Префикс Amazon
+form.label.liveupdate.zip = ZIP
+form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Zip в папке сборки
+form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Перемещает zip в папку сборки после процесса сборки
+form.label.liveupdate.liveupdate.zip-filepath = Папка для zip
+form.help.liveupdate.liveupdate.zip-filepath = Папка для zip
+form.label.liveupdate.liveupdate.zip-filename = Имя файла
+form.title.liveupdate.liveupdate.zip-filepath = Выберите папку для zip-архива
+form.help.liveupdate.liveupdate.zip-filename = Имя zip-файла
+form.label.liveupdate.liveupdate.zip-compression-level = Уровень сжатия
+form.help.liveupdate.liveupdate.zip-compression-level = Уровень сжатия, который используется при создании архива Live Update
+form.label.liveupdate.folder = Папка
+form.label.liveupdate.liveupdate.save-folder-in-bundle-folder = Папка в папке сборки
+form.help.liveupdate.liveupdate.save-folder-in-bundle-folder = Перемещает выходную папку в папку сборки после процесса сборки
+form.label.liveupdate.liveupdate.output-directory = Папка для папки
+form.help.liveupdate.liveupdate.output-directory = Папка, где будет создана папка
+form.title.liveupdate.liveupdate.output-directory = Выберите папку вывода
+form.label.liveupdate.liveupdate.output-folder-name = Имя папки
+form.help.liveupdate.liveupdate.output-folder-name = Имя выходной папки
+form.label.liveupdate.manifest = Манифест
+form.label.liveupdate.liveupdate.publickey = Открытый ключ
+form.help.liveupdate.liveupdate.publickey = Открытый ключ для подписи манифеста
+form.title.liveupdate.liveupdate.publickey = Выберите открытый ключ манифеста
+form.label.liveupdate.liveupdate.privatekey = Закрытый ключ
+form.help.liveupdate.liveupdate.privatekey = Закрытый ключ для подписи манифеста
+form.title.liveupdate.liveupdate.privatekey = Выберите закрытый ключ манифеста
+form.label.liveupdate.liveupdate.supported-versions = Поддерживаемые версии
+form.help.liveupdate.liveupdate.supported-versions = Список поддерживаемых версий движка
+
+form.label.material = Материал
+form.label.material.name = Имя
+form.label.material.vertex-program = Вершинная программа
+form.label.material.fragment-program = Фрагментная программа
+form.label.material.attributes = Атрибуты вершин
+form.label.material.attributes.semantic-type = Семантический тип
+form.label.material.attributes.step-function = Функция шага
+form.label.material.attributes.coordinate-space = Система координат
+form.label.material.attributes.data-type = Тип данных
+form.label.material.attributes.vector-type = Тип вектора
+form.label.material.attributes.value = Значение
+form.label.material.attributes.normalize = Нормализовать
+form.label.material.vertex-constants = Вершинные константы
+form.label.material.vertex-constants.name = Имя
+form.label.material.vertex-constants.type = Тип
+form.label.material.vertex-constants.value = Значение
+form.label.material.fragment-constants = Фрагментные константы
+form.label.material.fragment-constants.name = Имя
+form.label.material.fragment-constants.type = Тип
+form.label.material.fragment-constants.value = Значение
+form.label.material.samplers = Семплеры
+form.label.material.samplers.name = Имя
+form.label.material.samplers.wrap-u = Обёртка U
+form.label.material.samplers.wrap-v = Обёртка V
+form.label.material.samplers.filter-min = Мин. фильтр
+form.label.material.samplers.filter-mag = Макс. фильтр
+form.label.material.samplers.max-anisotropy = Макс. анизотропия
+form.label.material.tags = Теги
+form.label.material.vertex-space = Пространство вершин
+form.label.material.max-page-count = Макс. страницы атласа
+
+form.label.compute = Вычисление
+form.label.compute.compute-program = Программа
+form.label.compute.constants = Константы
+form.label.compute.constants.name = Имя
+form.label.compute.constants.type = Тип
+form.label.compute.constants.value = Значение
+form.label.compute.samplers = Семплеры
+form.label.compute.samplers.name = Имя
+form.label.compute.samplers.wrap-u = Обёртка U
+form.label.compute.samplers.wrap-v = Обёртка V
+form.label.compute.samplers.filter-min = Мин. фильтр
+form.label.compute.samplers.filter-mag = Макс. фильтр
+form.label.compute.samplers.max-anisotropy = Макс. анизотропия
+
+# Quick Help
+
+quick-help.open-asset = Открыть ресурс
+quick-help.reopen-closed-file = Открыть закрытый файл
+quick-help.search-in-files = Поиск в файлах
+quick-help.build-and-run-project = Собрать и запустить проект
+quick-help.start-or-attach-debugger = Запустить отладчик

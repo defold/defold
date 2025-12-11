@@ -29,7 +29,7 @@
 #include "render_private.h"
 #include "render_script.h"
 #include "debug_renderer.h"
-#include "font_renderer.h"
+#include "font/font_renderer.h"
 
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
 
@@ -589,7 +589,6 @@ namespace dmRender
 
         const uint32_t ORDER_SCALE_MASK = 0xfffff0;
         const uint32_t ORDER_BASE_FRONT = 0x000008;
-        const uint32_t ORDER_BASE_BACK = 0xfffff8;
         const uint32_t ftb  = (sort_order == SORT_FRONT_TO_BACK);
         const float    base = (float)(ORDER_BASE_FRONT + ((uint32_t)!ftb) * ORDER_SCALE_MASK);
         const float    sign = ftb * 2.0f - 1.0f;

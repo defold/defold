@@ -824,6 +824,7 @@ namespace dmInput
                                         GetGamepadConfig(binding, gamepad, device_name_out);
 
                                         action->m_Count = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
+                                        action->m_HasText = action->m_Count > 0;
                                         uint32_t user_id32 = 0;
                                         dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &user_id32);
                                         action->m_UserID = (uint16_t)user_id32;

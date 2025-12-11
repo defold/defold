@@ -207,6 +207,7 @@ namespace dmGameSystem
 
             uint64_t timeout = g_Timeout;
             const char* path = 0;
+            const char* proxy = 0;
             bool ignore_cache = false;
             bool chunked_transfer = true;
             bool report_progress = false;
@@ -236,6 +237,10 @@ namespace dmGameSystem
                     {
                         report_progress = lua_toboolean(L, -1);
                     }
+                    else if (strcmp(attr, "proxy") == 0)
+                    {
+                        proxy = luaL_checkstring(L, -1);
+                    }
 
                     lua_pop(L, 1);
                 }
@@ -260,6 +265,7 @@ namespace dmGameSystem
             request->m_IgnoreCache = ignore_cache;
             request->m_ChunkedTransfer = chunked_transfer;
             request->m_ReportProgress = report_progress;
+            request->m_Proxy = proxy;
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
             dmMessage::URL receiver;

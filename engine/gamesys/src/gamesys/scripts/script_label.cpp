@@ -16,8 +16,8 @@
 #include <dlib/log.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include <render/font/fontmap.h>
 #include <render/render.h>
-#include <render/font_renderer.h>
 #include <script/script.h>
 #include <dmsdk/gamesys/script.h>
 
@@ -290,7 +290,7 @@ static int SetText(lua_State* L)
     uint32_t data_size = sizeof(dmGameSystemDDF::SetText) + text_len + 1;
     if (data_size > dmMessage::DM_MESSAGE_MAX_DATA_SIZE)
     {
-        return DM_LUA_ERROR("The label string is too long!");
+        return DM_LUA_ERROR("The label string is too long: %u (max is message size %u)", data_size, dmMessage::DM_MESSAGE_MAX_DATA_SIZE);
     }
     uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
 

@@ -38,6 +38,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
+    dmGameObject::UpdateResult CompLabelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params);
 
     dmGameObject::UpdateResult CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
@@ -51,7 +53,7 @@ namespace dmGameSystem
     // For scripting
     struct LabelComponent;
 
-    void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics);
+    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics);
 
     const char* CompLabelGetText(const LabelComponent* component);
 

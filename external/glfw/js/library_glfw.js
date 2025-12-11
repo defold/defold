@@ -93,6 +93,7 @@ var LibraryGLFW = {
         case 0x24: return 300 ; // DOM_VK_HOME -> GLFW_KEY_HOME
         case 0x23: return 301 ; // DOM_VK_END -> GLFW_KEY_END
         case 0x2d: return 296 ; // DOM_VK_INSERT -> GLFW_KEY_INSERT
+        case 0x2E: return 297 ; // DOM_VK_DEL -> GLFW_KEY_DEL
         case 16  : return 287 ; // DOM_VK_SHIFT -> GLFW_KEY_LSHIFT
         case 0x05: return 287 ; // DOM_VK_LEFT_SHIFT -> GLFW_KEY_LSHIFT
         case 0x06: return 288 ; // DOM_VK_RIGHT_SHIFT -> GLFW_KEY_RSHIFT

@@ -161,7 +161,6 @@ public abstract class LuaBuilder extends Builder {
 
         // check if the platform is using Lua 5.1 or LuaJIT
         // get path of LuaJIT executable if the platform uses LuaJIT
-        Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 

@@ -18,22 +18,10 @@ def run_bob(task):
             env[key] = v
 
     if Options.options.with_asan:
-        platform = env['PLATFORM']
-        if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
-            sdkinfo = sdk.get_sdk_info(sdk.SDK_ROOT, platform)
-            if 'DYLD_INSERT_LIBRARIES' in env:
-                env['DYLD_INSERT_LIBRARIES'] += os.pathsep
-            else:
-                env['DYLD_INSERT_LIBRARIES'] = ""
-            env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
-
-            # Making sure java can find its libmlib_image.dylib
-            # I didn't need this locally, but on Github CI /MAWE
-            java_lib_path = os.path.join(os.environ['JAVA_HOME'], 'lib')
-            if 'DYLD_LIBRARY_PATH' in env:
-                env['DYLD_LIBRARY_PATH'] += os.pathsep + java_lib_path
-            else:
-                env['DYLD_LIBRARY_PATH'] = java_lib_path
+        # Running host tools like Bob under ASan is unsupported on macOS; strip any
+        # sanitizer preload variables before spawning java.
+        env.pop('DYLD_INSERT_LIBRARIES', None)
+        env.pop('LD_PRELOAD', None)
 
     # The tests needs the compiled builtins folder locally for this test to work
     builtins_src = "build/content/builtins"
@@ -101,7 +89,10 @@ def build(bld):
         always = True)
 
     # Build custom collections first to prevent overrides in default game.projectc
-    settings = ['cross_script_messaging.ini', 'render_script.ini', 'camera_acquire_input_focus.ini']
+    settings = [
+        'cross_script_messaging.ini',
+        'render_script.ini',
+        'camera_acquire_input_focus.ini']
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,

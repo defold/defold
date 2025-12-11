@@ -35,7 +35,7 @@ class dmConnectionPoolTest: public jc_test_base_class
 public:
 
     dmConnectionPool::HPool pool;
-    virtual void SetUp()
+    void SetUp() override
     {
         dmConnectionPool::Params params;
         params.m_MaxConnections = MAX_CONNECTIONS;
@@ -52,7 +52,7 @@ public:
         ASSERT_EQ(in_use, stats.m_InUse);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmConnectionPool::Delete(pool);
     }
@@ -71,8 +71,44 @@ TEST_F(dmConnectionPoolTest, Connect)
     dmSocket::Result sr;
     dmConnectionPool::Result r = dmConnectionPool::Dial(pool, g_HttpAddress, g_HttpPort, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
+    dmSocket::Socket sock = dmConnectionPool::GetSocket(pool, c);
+    ASSERT_NE(0, sock);
+    dmSSLSocket::Socket sslsock = dmConnectionPool::GetSSLSocket(pool, c);
+    ASSERT_EQ((void*)0, sslsock);
     dmConnectionPool::Close(pool, c);
 }
+
+TEST_F(dmConnectionPoolTest, ConnectSSL)
+{
+    dmConnectionPool::HConnection c;
+    dmSocket::Result sr;
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "www.defold.com", 443, true, 0, &c, &sr);
+    ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
+    dmSocket::Socket sock = dmConnectionPool::GetSocket(pool, c);
+    ASSERT_NE(0, sock);
+    dmSSLSocket::Socket sslsock = dmConnectionPool::GetSSLSocket(pool, c);
+    ASSERT_NE((void*)0, sslsock);
+    dmConnectionPool::Close(pool, c);
+}
+
+TEST_F(dmConnectionPoolTest, CreateSSLSocket)
+{
+    dmConnectionPool::HConnection c;
+    dmSocket::Result sr;
+    dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "www.defold.com", 443, false, 0, &c, &sr);
+    ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
+    dmSocket::Socket sock = dmConnectionPool::GetSocket(pool, c);
+    ASSERT_NE(0, sock);
+    dmSSLSocket::Socket sslsock = dmConnectionPool::GetSSLSocket(pool, c);
+    ASSERT_EQ((void*)0, sslsock);
+
+    r = dmConnectionPool::CreateSSLSocket(pool, c, "www.defold.com", 5*1000000, &sr);
+    ASSERT_EQ(dmConnectionPool::RESULT_OK, r);
+    sslsock = dmConnectionPool::GetSSLSocket(pool, c);
+    ASSERT_NE((void*)0, sslsock);
+    dmConnectionPool::Close(pool, c);
+}
+
 
 TEST_F(dmConnectionPoolTest, MaxConnections)
 {

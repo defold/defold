@@ -2093,11 +2093,6 @@ namespace dmPhysics
 
         const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
         const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-        if (lengthSqr(to2d - from2d) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
 
         float scale = world->m_Context->m_Scale;
 
@@ -2105,6 +2100,12 @@ namespace dmPhysics
         ToB2(from2d, from, scale);
         b2Vec2 to;
         ToB2(to2d, to, scale);
+        
+        if (b2LengthSquared((to - from)) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
+            return;
+        }
 
         // Box2d V3 requires a translation vector, not a point
         b2Vec2 translate = b2Sub(to, from);

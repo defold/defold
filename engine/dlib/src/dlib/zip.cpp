@@ -24,6 +24,12 @@ Result Open(const char* path, HZip* zip)
     return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
 }
 
+Result OpenStream(const char *stream, uint32_t size, HZip* zip)
+{
+    *zip = zip_stream_open(stream, size, 9, 'r');
+    return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
+}
+
 void Close(HZip zip)
 {
     if (zip)

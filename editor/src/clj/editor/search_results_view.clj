@@ -550,14 +550,14 @@
   {:fx/type fx.v-box/lifecycle
    :style-class "override-inspector-tool-bar"
    :children
-   [{:fx/type fxui/button
+   [{:fx/type fxui/legacy-button
      :variant :icon
      :on-action {:event-type :on-refresh-view}
      :graphic {:fx/type fxui/icon-graphic
                :type :icon/refresh
                :size 20.0}}
     {:fx/type fx.separator/lifecycle}
-    {:fx/type fxui/menu-button
+    {:fx/type fxui/legacy-menu-button
      :variant :icon
      :graphic {:fx/type fxui/icon-graphic
                :type :icon/pull-up-override
@@ -565,7 +565,7 @@
      :popup-side :right
      :disable (coll/empty? pull-up-overrides-menu-items)
      :items pull-up-overrides-menu-items}
-    {:fx/type fxui/menu-button
+    {:fx/type fxui/legacy-menu-button
      :variant :icon
      :graphic {:fx/type fxui/icon-graphic
                :type :icon/push-down-override

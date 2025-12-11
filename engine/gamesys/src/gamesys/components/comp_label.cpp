@@ -32,7 +32,8 @@
 #include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
-#include <render/font_renderer.h>
+#include <font/text_layout.h>
+#include <render/font/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
 
 #include "../resources/res_label.h"
@@ -356,6 +357,17 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompLabelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        DM_PROFILE("LateUpdate");
+        LabelContext* label_context = (LabelContext*)params.m_Context;
+        LabelWorld* world = (LabelWorld*)params.m_World;
+
+        UpdateTransforms(world, label_context->m_Subpixels);
+
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     static void CreateDrawTextParams(LabelComponent* component, dmRender::DrawTextParams& params)
     {
         dmGameSystemDDF::LabelDesc* ddf = component->m_Resource->m_DDF;
@@ -560,22 +572,19 @@ namespace dmGameSystem
         return (dmGameObject::HComponent)&world->m_Components.Get(index);
     }
 
-    void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics)
-    {
-        LabelResource* resource = component->m_Resource;
-        dmRender::HFontMap font_map = GetFontMap(component, resource);
 
-        dmRender::TextMetricsSettings settings;
+    // DEPRECATED
+    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics)
+    {
+        dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+
+        TextLayoutSettings settings = {0};
         settings.m_Width = component->m_Size.getX();
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
         settings.m_Tracking = component->m_Tracking;
-        dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
 
-        metrics.m_Width      = metrics.m_Width;
-        metrics.m_Height     = metrics.m_Height;
-        metrics.m_MaxAscent  = metrics.m_MaxAscent;
-        metrics.m_MaxDescent = metrics.m_MaxDescent;
+        dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
     }
 
     const char* CompLabelGetText(const LabelComponent* component)

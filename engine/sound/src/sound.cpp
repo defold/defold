@@ -181,6 +181,7 @@ namespace dmSound
         dmhash_t m_NameHash;
         Value    m_Gain;
         float    m_GainParameter;
+        bool     m_IsMuted;
         float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
@@ -315,6 +316,7 @@ namespace dmSound
         group->m_NameHash = group_hash;
         group->m_GainParameter = 1.0f;
         group->m_Gain.Reset(GainToScale(group->m_GainParameter));
+        group->m_IsMuted = false;
 
         for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
         {
@@ -463,6 +465,7 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[master_index];
         master->m_GainParameter = master_gain;
         master->m_Gain.Reset(GainToScale(master->m_GainParameter));
+        master->m_IsMuted = false;
 
         dmAtomicStore32(&sound->m_IsRunning, 1);
         dmAtomicStore32(&sound->m_IsPaused, 0);
@@ -891,6 +894,7 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[*index];
         group->m_Gain.Set(GainToScale(gain), reset);
         group->m_GainParameter = gain;
+
         return RESULT_OK;
     }
 
@@ -906,6 +910,45 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[*index];
         *gain = group->m_GainParameter;
         return RESULT_OK;
+    }
+
+    Result SetGroupMute(dmhash_t group_hash, bool mute)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+
+        SoundSystem* sound = g_SoundSystem;
+
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+            int* index = sound->m_GroupMap.Get(group_hash);
+            if (!index)
+                return RESULT_NO_SUCH_GROUP;
+
+            SoundGroup* group = &sound->m_Groups[*index];
+            group->m_IsMuted = mute;
+        }
+
+        return RESULT_OK;
+    }
+
+    Result ToggleGroupMute(dmhash_t group_hash)
+    {
+        return SetGroupMute(group_hash, !IsGroupMuted(group_hash));
+    }
+
+    bool IsGroupMuted(dmhash_t group_hash)
+    {
+        if (!g_SoundSystem)
+            return false;
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index)
+            return false;
+
+        return sound->m_Groups[*index].m_IsMuted;
     }
 
     Result GetGroupHashes(uint32_t* count, dmhash_t* buffer)
@@ -1315,7 +1358,7 @@ namespace dmSound
         int* group_index = sound->m_GroupMap.Get(instance->m_Group);
         if (group_index != NULL) {
             SoundGroup* group = &sound->m_Groups[*group_index];
-            if (group->m_Gain.IsZero()) {
+            if (group->m_IsMuted || group->m_Gain.IsZero()) {
                 return true;
             }
         }
@@ -1323,7 +1366,7 @@ namespace dmSound
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         if (master_index != NULL) {
             SoundGroup* master = &sound->m_Groups[*master_index];
-            if (master->m_Gain.IsZero()) {
+            if (master->m_IsMuted || master->m_Gain.IsZero()) {
                 return true;
             }
         }
@@ -1758,44 +1801,66 @@ namespace dmSound
             sound->m_IsDeviceStarted = true;
         }
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-        if (free_slots > 0) {
+        if (free_slots > 0)
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
             StepGroupValues();
             StepInstanceValues();
         }
 
         uint32_t current_buffer = 0;
         uint32_t total_buffers = free_slots;
-        while (free_slots > 0) {
-
-            // Get the number of frames available
+        while (free_slots > 0)
+        {
+            // Get the number of frames available (can block, so avoid holding the sound mutex here)
             uint32_t frame_count = sound->m_DeviceFrameCount;
             if (sound->m_DeviceType->m_GetAvailableFrames)
             {
                 frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+                if (frame_count == 0)
+                {
+                    break;
+                }
             }
 
-            sound->m_FrameCount = frame_count;
+            uint32_t buffer_index = 0;
 
-            if (frame_count < SOUND_MAX_HISTORY)
-                continue;
+            {
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
-            MixContext mix_context(current_buffer, total_buffers, frame_count);
-            MixInstances(&mix_context);
+                sound->m_FrameCount = frame_count;
 
-            Master(&mix_context);
+                if (frame_count < SOUND_MAX_HISTORY)
+                {
+                    continue;
+                }
+
+                MixContext mix_context(current_buffer, total_buffers, frame_count);
+                MixInstances(&mix_context);
+
+                Master(&mix_context);
+
+                buffer_index = sound->m_NextOutBuffer;
+                sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
+            }
+
+            dmSound::Result queue_result;
 
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
                 DM_PROFILE("QueueBuffer");
-                sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+                queue_result = sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[buffer_index], frame_count);
             }
 
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
+            if (queue_result == dmSound::RESULT_INIT_ERROR)
+            {
+                sound->m_IsDeviceStarted = false;
+                return queue_result;
+            }
+
             current_buffer++;
             free_slots--;
         }

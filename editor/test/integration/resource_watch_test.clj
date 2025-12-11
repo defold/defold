@@ -165,10 +165,10 @@
       (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
       (workspace/resource-sync! workspace)
       (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
-        (is (not (g/error? (g/node-value lib1-paddle :content))))
+        (is (not (g/error? (g/node-value lib1-paddle :size))))
         (workspace/set-project-dependencies! workspace [{:uri imagelib2-uri}])
         (workspace/resource-sync! workspace)
-        (is (g/error? (g/node-value lib1-paddle :content))))))) ; removed, should emit errors
+        (is (g/error? (g/node-value lib1-paddle :size))))))) ; removed, should emit errors
 
 (deftest project-with-reserved-directories-can-still-be-loaded
   (binding [*project-path* "test/resources/reserved_files_project"]

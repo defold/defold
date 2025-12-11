@@ -45,5 +45,7 @@
   &:indeterminate > .box > .mark {
     -fx-shape: "M0,0H10V2H0Z";
     -fx-scale-shape: false;
+    -fx-padding: 8.5px 8.5px;
+    -fx-background-color: -df-text;
   }
 }

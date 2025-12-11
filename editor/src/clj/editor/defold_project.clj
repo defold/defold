@@ -69,6 +69,7 @@
 (def ^:private TBreakpoint
   {:resource s/Any
    :row Long
+   :enabled Boolean
    (s/optional-key :condition) String})
 
 (g/deftype Breakpoints [TBreakpoint])
@@ -281,7 +282,10 @@
           code-transpilers (code-transpilers basis project)]
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
-(defn- load-nodes-tx-data [node-load-infos project render-progress! resource-metrics]
+(defn load-nodes-tx-data
+  [project node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
+  {:pre [(ifn? render-generate-tx-data-progress!)
+         (ifn? render-apply-tx-data-progress!)]}
   (let [node-count (count node-load-infos)
 
         resource-metrics-load-timer
@@ -302,25 +306,31 @@
 
         transpiler-tx-data-fn
         (g/with-auto-evaluation-context evaluation-context
-          (get-transpiler-tx-data-fn! project evaluation-context))]
+          (get-transpiler-tx-data-fn! project evaluation-context))
 
-    (e/concat
-      (coll/transfer node-load-infos :eduction
-        (coll/mapcat-indexed
-          (fn [^long node-index node-load-info]
-            (let [resource (:resource node-load-info)
-                  proj-path (resource/proj-path resource)
-                  progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
-                  progress (progress/make progress-message node-count (inc node-index))]
-              (e/concat
-                (g/callback render-progress! progress)
-                (du/when-metrics
-                  (g/callback start-resource-metrics-load-timer!))
-                (du/measuring resource-metrics proj-path :generate-load-tx-data
-                  (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
-                (du/when-metrics
-                  (g/callback stop-resource-metrics-load-timer! proj-path)))))))
-      (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing"))))))
+        node-load-info-tx-data-fn
+        (if (identical? progress/null-render-progress! render-generate-tx-data-progress!)
+          (fn node-load-info-tx-data-fn [node-load-info _progress]
+            (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
+          (fn node-load-info-tx-data-fn [node-load-info progress]
+            (render-generate-tx-data-progress! (update progress :message localization/set-message-key "progress.processing-resource"))
+            (node-load-info-tx-data node-load-info project transpiler-tx-data-fn)))]
+
+    (coll/transfer node-load-infos :eduction
+      (coll/mapcat-indexed
+        (fn [^long node-index node-load-info]
+          (let [resource (:resource node-load-info)
+                proj-path (resource/proj-path resource)
+                progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
+                progress (progress/make progress-message node-count (inc node-index))]
+            (e/concat
+              (g/callback render-apply-tx-data-progress! progress)
+              (du/when-metrics
+                (g/callback start-resource-metrics-load-timer!))
+              (du/measuring resource-metrics proj-path :generate-load-tx-data
+                (node-load-info-tx-data-fn node-load-info progress))
+              (du/when-metrics
+                (g/callback stop-resource-metrics-load-timer! proj-path)))))))))
 
 (defn read-node-load-infos [node-id+resource-pairs ^long progress-size render-progress! resource-metrics]
   {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
@@ -330,15 +340,15 @@
             (progress/make progress-message progress-size (inc node-index)))
           (fn indeterminate-progress-fn [progress-message ^long _node-index]
             (progress/make-indeterminate progress-message)))]
-    (into []
-          (map-indexed
-            (fn [^long node-index [node-id resource]]
-              (let [proj-path (resource/proj-path resource)
-                    progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
-                    progress (progress-fn progress-message node-index)]
-                (render-progress! progress)
-                (read-node-load-info node-id resource resource-metrics))))
-          node-id+resource-pairs)))
+    (->> node-id+resource-pairs
+         (map-indexed vector)
+         (pmap (fn [[node-index [node-id resource]]]
+                 (let [proj-path (resource/proj-path resource)
+                       progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
+                       progress (progress-fn progress-message node-index)]
+                   (render-progress! progress)
+                   (read-node-load-info node-id resource resource-metrics))))
+         (into []))))
 
 (defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
@@ -815,7 +825,8 @@
             (e/concat
               prelude-tx-data
               (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-              (load-nodes-tx-data node-load-infos project render-progress! resource-metrics)))
+              (load-nodes-tx-data project node-load-infos progress/null-render-progress! render-progress! resource-metrics)
+              (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
           migrated-resource-node-ids
           (into #{}
@@ -1606,6 +1617,10 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
+  (output display-width g/Num (g/fnk [settings]
+                                 (double (or (get settings ["display" "width"]) 0))))
+  (output display-height g/Num (g/fnk [settings]
+                                  (double (or (get settings ["display" "height"]) 0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))

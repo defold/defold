@@ -182,7 +182,7 @@ namespace dmHttpCacheVerify
         params.m_HttpWrite = HttpWrite;
         params.m_HttpContent = HttpContent;
         params.m_Userdata = &context;
-        dmHttpClient::HClient client = dmHttpClient::New(&params, uri->m_Hostname, uri->m_Port);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, uri);
         if (client == 0)
         {
             return RESULT_OUT_OF_RESOURCES;

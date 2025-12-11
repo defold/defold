@@ -44,7 +44,7 @@
 
 (deftest redirect-test
   (when-not (os/is-win32?)
-    (is (nil? (process/exec! "bash" "-c" "ls >&2")))
+    (is (nil? (process/exec! {:err :discard} "bash" "-c" "ls >&2")))
     (is (not-empty (process/exec! {:err :stdout} "bash" "-c" "ls >&2")))))
 
 (deftest pipe-test

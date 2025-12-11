@@ -1,0 +1,19 @@
+#version 140
+
+in highp vec3 position;
+in mediump vec2 texcoord0;
+in lowp vec4 id_color;
+in highp mat4 mtx_world;
+
+uniform vertex_uniforms {
+    highp mat4 mtx_view_proj;
+};
+
+out mediump vec2 var_texcoord0;
+out lowp vec4 var_id_color;
+
+void main() {
+    var_texcoord0 = texcoord0;
+    var_id_color = id_color;
+    gl_Position = mtx_view_proj * mtx_world * vec4(position, 1.0);
+}

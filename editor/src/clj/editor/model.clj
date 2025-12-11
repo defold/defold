@@ -33,17 +33,16 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
+            [editor.texture-util :as texture-util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
-
-(def ^:private model-resource-type-label "Model")
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
@@ -148,16 +147,19 @@
   (let [sampler-name->gpu-texture-generator (into {}
                                                   (keep (fn [{:keys [sampler gpu-texture-generator]}]
                                                           (when gpu-texture-generator
-                                                            [sampler gpu-texture-generator])))
+                                                            (pair sampler gpu-texture-generator))))
                                                   texture-binding-infos)
         explicit-textures (into {}
                                 (keep-indexed
                                   (fn [unit-index {:keys [name] :as sampler}]
-                                    (when-let [{tex-fn :f tex-args :args} (sampler-name->gpu-texture-generator name)]
-                                      (let [request-id [_node-id unit-index]
-                                            params (material/sampler->tex-params sampler)
-                                            texture (tex-fn tex-args request-id params unit-index)]
-                                        [name texture]))))
+                                    (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
+                                      (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
+                                        (pair name
+                                              (-> (if (g/error-value? gpu-texture)
+                                                    @texture/placeholder
+                                                    gpu-texture)
+                                                  (texture/set-params (material/sampler->tex-params sampler))
+                                                  (texture/set-base-unit unit-index)))))))
                                 samplers)
         fallback-texture (if (pos? (count explicit-textures))
                            (val (first explicit-textures))
@@ -170,7 +172,7 @@
 
 (g/defnk produce-scene [_node-id scene material-name->material-scene-info]
   (if scene
-    (model-scene/augment-scene scene _node-id model-resource-type-label material-name->material-scene-info)
+    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info)
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 
@@ -583,7 +585,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "model"
-    :label model-resource-type-label
+    :label (localization/message "resource.type.model")
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
     :load-fn load-model

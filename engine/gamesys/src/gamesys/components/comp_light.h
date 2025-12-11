@@ -29,7 +29,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLightAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
-    dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+    dmGameObject::UpdateResult CompLightLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompLightOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 

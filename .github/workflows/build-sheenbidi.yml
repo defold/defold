@@ -1,0 +1,15 @@
+name: Build SheenBidi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'sheenbidi'
+      result_folder_name: 'SheenBidi'
+      result_lib_name: 'libsheenbidi'
+      package_version: '2.9.0'
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

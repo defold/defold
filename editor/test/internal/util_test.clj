@@ -19,8 +19,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [dynamo.graph :as g]
-            [internal.util :as util]
-            [util.fn :as fn]))
+            [internal.util :as util]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -92,39 +91,6 @@
   (is (false? (util/seq-starts-with? [] [1])))
   (is (false? (util/seq-starts-with? [1 2] [1 2 3])))
   (is (false? (util/seq-starts-with? [nil 1] [nil 1 2]))))
-
-(deftest first-where-test
-  (is (= 2 (util/first-where even? (range 1 4))))
-  (is (nil? (util/first-where nil? [:a :b nil :d])))
-  (is (= [:d 4] (util/first-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
-  (is (= :e (util/first-where #(= :e %) (list :a nil :c nil :e))))
-  (is (= "f" (util/first-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
-  (is (nil? (util/first-where nil? nil)))
-  (is (nil? (util/first-where even? nil)))
-  (is (nil? (util/first-where even? [])))
-  (is (nil? (util/first-where even? [1 3 5])))
-
-  (testing "stops calling pred after first true"
-    (let [pred (fn/make-call-logger fn/constantly-true)]
-      (is (= 0 (util/first-where pred (range 10))))
-      (is (= 1 (count (fn/call-logger-calls pred)))))))
-
-(deftest first-index-where-test
-  (is (= 1 (util/first-index-where even? (range 1 4))))
-  (is (= 2 (util/first-index-where nil? [:a :b nil :d])))
-  (is (= 3 (util/first-index-where #(Character/isDigit %) "abc123def")))
-  (is (= 3 (util/first-index-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
-  (is (= 4 (util/first-index-where #(= :e %) (list :a nil :c nil :e))))
-  (is (= 5 (util/first-index-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
-  (is (nil? (util/first-index-where nil? nil)))
-  (is (nil? (util/first-index-where even? nil)))
-  (is (nil? (util/first-index-where even? [])))
-  (is (nil? (util/first-index-where even? [1 3 5])))
-
-  (testing "stops calling pred after first true"
-    (let [pred (fn/make-call-logger fn/constantly-true)]
-      (is (= 0 (util/first-index-where pred (range 10))))
-      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest only-test
   (is (= :a (util/only [:a])))

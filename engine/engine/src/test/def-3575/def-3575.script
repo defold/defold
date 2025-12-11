@@ -47,6 +47,7 @@ function update(self, dt)
                        test_metrics.height      == metrics.height
 
         if not result then
+            pprint("Metrics for: '", label.get_text(comp), "'")
             pprint("Wanted:", test_metrics)
             pprint("Got:", metrics)
         end

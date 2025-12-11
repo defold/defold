@@ -156,6 +156,7 @@ namespace dmGameSystem
         camera.m_RenderCamera   = dmRender::NewRenderCamera(render_context);
 
         dmRender::RenderCameraData camera_data = {};
+        camera_data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
         camera_data.m_AspectRatio              = cam_resource->m_DDF->m_AspectRatio;
         camera_data.m_Fov                      = cam_resource->m_DDF->m_Fov;
         camera_data.m_NearZ                    = cam_resource->m_DDF->m_NearZ;
@@ -163,7 +164,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
-        camera_data.m_OrthographicMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicMode;
+        camera_data.m_OrthographicMode         = (uint8_t)cam_resource->m_DDF->m_OrthographicMode;
 
         dmMessage::URL camera_url = CameraToURL(&camera);
         SetRenderCameraURL(render_context, camera.m_RenderCamera, &camera_url);
@@ -240,7 +241,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompCameraLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         CameraWorld* camera_world = (CameraWorld*) params.m_World;
         DM_PROPERTY_ADD_U32(rmtp_Camera, camera_world->m_Cameras.Size());

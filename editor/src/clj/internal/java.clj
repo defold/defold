@@ -14,15 +14,25 @@
 
 (ns internal.java
   (:import [clojure.lang DynamicClassLoader Util]
-           [java.lang.reflect Constructor Method Modifier]))
+           [java.lang.reflect Constructor Field Method Modifier]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defonce no-args-array (make-array Object 0))
 
 (defonce no-classes-array (make-array Class 0))
 
 (defonce byte-array-class (.getClass (byte-array 0)))
+
+(defn field-static? [^Field field]
+  (Modifier/isStatic (.getModifiers field)))
+
+(defn instance-fields-raw [^Class class]
+  (filterv #(not (field-static? %))
+           (.getFields class)))
+
+(def instance-fields (memoize instance-fields-raw))
 
 (defn- get-declared-methods-raw [^Class class]
   (.getDeclaredMethods class))

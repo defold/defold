@@ -88,13 +88,11 @@
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
-    (let [rt (resource/resource-type resource)
-          label (or (:label rt) (:ext rt) "unknown")
-          icon (or (:icon rt) unknown-icon)]
+    (let [rt (resource/resource-type resource)]
       {:node-id (:node-id err)
-       :node-outline-key label
-       :label label
-       :icon icon})
+       :node-outline-key (or (:ext rt) "unknown")
+       :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+       :icon (or (:icon rt) unknown-icon)})
     {:node-id -1
      :node-outline-key ""
      :icon ""
@@ -441,9 +439,9 @@
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :node-outline-key "Game Object"
-   :label "Game Object"
+   :label (localization/message "outline.game-object")
    :icon game-object-common/game-object-icon
-   :children (outline/natural-sort child-outlines)
+   :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn outline-attach-ref-component}
                 {:node-type EmbeddedComponent
@@ -584,12 +582,12 @@
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
     (->> (embeddable-component-resource-types workspace)
-         (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                              :icon (:icon res-type)
-                              :command :edit.add-embedded-component
-                              :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
-         (sort-by :label)
-         vec)))
+         (mapv (fn [res-type]
+                 {:label (or (:label res-type) (:ext res-type))
+                  :icon (:icon res-type)
+                  :command :edit.add-embedded-component
+                  :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
+         (localization/annotate-as-sorted localization/natural-sort-by-label))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
@@ -735,7 +733,7 @@
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"
-      :label "Game Object"
+      :label (localization/message "resource.type.go")
       :node-type GameObjectNode
       :ddf-type GameObject$PrototypeDesc
       :load-fn load-game-object

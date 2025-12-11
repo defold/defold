@@ -42,7 +42,8 @@
                                (throw (ex-info "Method not found" {:jsonrpc/code -32601 :method (:method message)})))]
                (handler (:params message)))}
     (catch Throwable e
-      (error-reporting/report-exception! e)
+      (when-not (Boolean/getBoolean "defold.tests")
+        (error-reporting/report-exception! e))
       {:jsonrpc "2.0"
        :id (:id message)
        :error {:code (:jsonrpc/code (ex-data e) -32603)

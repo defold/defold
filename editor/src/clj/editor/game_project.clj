@@ -17,18 +17,19 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.code.lang.ini :as ini]
             [editor.form :as form]
             [editor.fs :as fs]
             [editor.game-project-core :as gpcore]
             [editor.graph-util :as gu]
-            [editor.code.lang.ini :as ini]
+            [editor.localization :as localization]
+            [editor.pipeline :as pipeline]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [util.murmur :as murmur])
-  (:import [org.apache.commons.io IOUtils]))
+            [util.defonce :as defonce]))
 
 (set! *warn-on-reflection* true)
 
@@ -69,14 +70,7 @@
         user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
-(defn- resource-content [resource]
-  (with-open [s (io/input-stream resource)]
-    (IOUtils/toByteArray s)))
-
-(defn- build-custom-resource [resource dep-resources user-data]
-  {:resource resource :content (resource-content (:resource resource))})
-
-(defrecord CustomResource [resource]
+(defonce/record CustomResource [resource]
   ;; Only purpose is to provide resource-type with :build-ext = :ext
   resource/Resource
   (children [this] (resource/children resource))
@@ -84,7 +78,7 @@
   (resource-type [this]
     (let [ext (resource/ext this)]
       {:ext ext
-       :label "Custom Resource"
+       :label (localization/message "resource.type.custom")
        :build-ext ext}))
   (source-type [this] (resource/source-type resource))
   (exists? [this] (resource/exists? resource))
@@ -104,14 +98,6 @@
   (make-reader        [this opts] (io/reader resource))
   (make-output-stream [this opts] (io/output-stream resource))
   (make-writer        [this opts] (io/writer resource)))
-
-(defn- make-custom-build-target [node-id resource]
-  (bt/with-content-hash
-    {:node-id node-id
-     :resource (workspace/make-build-resource (CustomResource. resource))
-     :build-fn build-custom-resource
-     ;; NOTE! Break build cache when resource content changes.
-     :user-data {:hash (murmur/hash64-bytes (resource-content resource))}}))
 
 (defn- strip-trailing-slash [path]
   (string/replace path #"/*$" ""))
@@ -201,7 +187,7 @@
                                       (conj custom-resources (resource/proj-path ssl-certificates))
                                       custom-resources)]
                    (try
-                     (map (partial make-custom-build-target _node-id)
+                     (map #(pipeline/make-source-bytes-build-target _node-id (->CustomResource %))
                           (find-custom-resources resource-map custom-paths))
                      (catch Throwable error
                        (g/map->error
@@ -209,9 +195,6 @@
                          :_label :custom-build-targets
                          :message (ex-message error)
                          :severity :fatal}))))))
-
-  (output outline g/Any :cached
-          (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
@@ -253,7 +236,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
     :ext "project"
-    :label "Project"
+    :label (localization/message "resource.type.project")
     :node-type GameProjectNode
     :load-fn load-game-project
     :meta-settings (:settings gpcore/basic-meta-info)

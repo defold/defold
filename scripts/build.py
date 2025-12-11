@@ -44,6 +44,20 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web', 'wasm_pthread-web']
 
+_CMAKE_FEATURE_FLAG_MAP = {
+    '--with-asan': 'WITH_ASAN',
+    '--with-ubsan': 'WITH_UBSAN',
+    '--with-tsan': 'WITH_TSAN',
+    '--with-valgrind': 'WITH_VALGRIND',
+    '--with-openal': 'WITH_OPENAL',
+    '--with-opengl': 'WITH_OPENGL',
+    '--with-vulkan': 'WITH_VULKAN',
+    '--with-vulkan-validation': 'WITH_VULKAN_VALIDATION',
+    '--with-dx12': 'WITH_DX12',
+    '--with-opus': 'WITH_OPUS',
+    '--with-webgpu': 'WITH_WEBGPU'
+}
+
 sys.dont_write_bytecode = True
 try:
     import build_vendor
@@ -109,7 +123,7 @@ PACKAGES_ALL=[
     "maven-3.0.1",
     "vecmath",
     "vpx-1.7.0",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "bullet-2.77",
@@ -118,41 +132,53 @@ PACKAGES_ALL=[
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "moltenvk-1474891",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
@@ -160,65 +186,81 @@ PACKAGES_MACOS_X86_64=[
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "bullet-2.77",
     "vulkan-v1.4.307",
     "glfw-3.4",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "bullet-2.77",
     "glslang-42d9adf5",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "directx-headers-1.611.0",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-ba5c010c",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
     "vpx-1.7.0",
     "vulkan-v1.4.307",
@@ -227,17 +269,21 @@ PACKAGES_LINUX_X86_64=[
     "glfw-3.4",
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-2fed4fc0",
-    "spirv-cross-9040e0d2",
+    "spirv-cross-97709575",
     "spirv-tools-4fab7435",
     "vpx-1.7.0",
     "vulkan-v1.4.307",
@@ -245,35 +291,47 @@ PACKAGES_LINUX_ARM64=[
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_ANDROID=[
 "protobuf-3.20.1",
     "android-support-multidex",
     "androidx-multidex",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
 "protobuf-3.20.1",
     "android-support-multidex",
     "androidx-multidex",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
@@ -283,7 +341,11 @@ PACKAGES_EMSCRIPTEN=[
     "wagyu-39",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -325,6 +387,8 @@ if os.environ.get('TERM','') in ('cygwin',):
 
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
+
+CMAKE_SUPPORT = ['platform', 'hid', 'input']
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
@@ -520,6 +584,86 @@ class Configuration(object):
                 self.version = f.readlines()[0].strip()
 
         self._create_common_dirs()
+
+    def make_solution(self, target_platform=None, build_dir=None):
+        """
+        Generate an IDE solution from the top-level CMakeLists.txt for the given target platform.
+
+        - macOS/iOS: Xcode
+        - Windows: Visual Studio 2022
+        - Android: Prints guidance to open CMakeLists.txt in Android Studio
+        - Other platforms: falls back to Ninja/Unix Makefiles by default
+        """
+        tp = target_platform or self.target_platform
+        if not tp:
+            raise RuntimeError('make_solution: target_platform must be specified')
+
+        # Android guidance
+        if 'android' in tp:
+            self._log('Android: Open the top-level CMakeLists.txt directly in Android Studio to create a project.')
+            return
+
+        # Choose generator
+        generator = None
+        arch_args = []
+
+        if tp.endswith('-macos') or tp.endswith('-ios'):
+            generator = 'Xcode'
+        elif 'win32' in tp:
+            generator = 'Visual Studio 17 2022'
+            # Map architecture
+            if tp == 'x86_64-win32':
+                arch_args = ['-A', 'x64']
+            elif tp == 'win32':
+                arch_args = ['-A', 'Win32']
+
+        # Build directory per target platform inside solutions/<platform>
+        if not build_dir:
+            build_dir = os.path.join(self.defold_root, 'solutions', tp)
+        self._mkdirs(build_dir)
+
+        cmake_cmd = ['cmake', '-S', self.defold_root, '-B', build_dir, f'-DTARGET_PLATFORM={tp}']
+        if generator:
+            cmake_cmd += ['-G', generator]
+        if arch_args:
+            cmake_cmd += arch_args
+
+        # Generate solution
+        self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
+        run.env_command(self._form_env(), cmake_cmd)
+
+        # Report absolute path to the generated solution files
+        old_project_name = 'defold_libraries'
+        solution_build_dir = os.path.abspath(build_dir)
+
+        target_name = f"Defold-{tp}"
+        final_path = solution_build_dir
+
+        old_path = None
+        new_path = None
+
+        if generator == 'Xcode':
+            # Default name from CMake project()
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.xcodeproj")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.xcodeproj")
+        elif generator and generator.startswith('Visual Studio'):
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.sln")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.sln")
+
+        if new_path != old_path and old_path is not None:
+            if os.path.exists(old_path):
+                try:
+                    if os.path.exists(new_path):
+                        shutil.rmtree(new_path)
+                    shutil.move(old_path, new_path)
+                    final_path = new_path
+                except Exception as e:
+                    self._log(f"Warning: Failed to rename project: {e}. Keeping default name: {old_path}")
+                    final_path = old_path
+            else:
+                final_path = new_path
+
+        self._log(f'Solution generated: {final_path}')
 
     def __del__(self):
         if len(getattr(self, "futures", [])) > 0:
@@ -754,6 +898,14 @@ class Configuration(object):
     def has_sdk(self, sdkfolder, target_platform):
         return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
 
+    def _find_program(self, platform, name, paths):
+        name = format_exes(name, platform)[0]
+        for path in paths:
+            fullpath = os.path.join(path, name)
+            if os.path.isfile(fullpath):
+                return fullpath
+        return None
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -780,6 +932,23 @@ class Configuration(object):
         result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
         if not result:
             self.fatal("Failed sdk check")
+
+        cmake = shutil.which('cmake')
+        if not cmake:
+            self.fatal("CMake not found in PATH")
+        self._log(f"Found CMake: {cmake}")
+
+        ninja = shutil.which('ninja')
+        if not ninja:
+            self.fatal("Ninja not found in PATH")
+        self._log(f"Found Ninja: {ninja}")
+
+        args = ["cmake", f"-DTARGET_PLATFORM={target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        if self.verbose:
+            args.insert(1, '-DDEFOLD_VERBOSE=ON')
+
+        output = run.command(args)
+        self._log(output)
 
     def verify_sdk(self):
         was_verbose = self.verbose
@@ -816,6 +985,8 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
+            if self.package_path is None:
+                self.fatal("The package path isn't specified. Either define DM_PACKAGES_URL or use --package-path.")
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
@@ -1054,6 +1225,12 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # new cmake support. it outputs to x86-win32 folder
+            if platform == 'win32':
+                libdir = os.path.join(self.dynamo_home, 'lib/x86-win32')
+                paths = _findlibs(libdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
                 wagyu_port_files = []
@@ -1267,7 +1444,8 @@ class Configuration(object):
         if self.is_desktop_target():
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
-            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+            gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1388,22 +1566,116 @@ class Configuration(object):
 # <- Gen source files
 # ------------------------------------------------------------
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
+    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
         commands = "build install"
         if not self.incremental:
             commands = "distclean configure " + commands
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
-    def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
-        self.build_tracker.start_component(lib, platform)
+    def _build_engine_lib_waf(self, args, lib, platform, skip_tests, directory):
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
             skip_build_tests.append('--skip-build-tests')
-        cwd = join(self.defold_root, '%s/%s' % (dir, lib))
+        cwd = join(self.defold_root, '%s/%s' % (directory, lib))
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+
+    def _find_cmake_build_type(self, options):
+        opt_level = 2
+        for x in options:
+            if '--opt-level=' in x:
+                opt_level = x.replace('--opt-level=', '')
+                opt_level = int(opt_level)
+                break
+        if opt_level < 2:
+            return 'Debug'
+        return 'RelWithDebInfo'
+
+    def _cmake_feature_defines(self):
+        defines = []
+        handled = set()
+        for option in self.waf_options:
+            if not option.startswith('--with-'):
+                continue
+            if option in handled:
+                continue
+            handled.add(option)
+            feature = _CMAKE_FEATURE_FLAG_MAP.get(option)
+            if feature:
+                defines.append(f"-D{feature}=ON")
+            else:
+                self._log(f"Warning: CMake build currently ignores '{option}'")
+        return defines
+
+    def _build_engine_lib_cmake(self, lib, platform, directory):
+        libdir = join(directory, lib)
+        builddir = join(libdir, 'build')
+
+        build_type = self._find_cmake_build_type(self.waf_options)
+        build_tests = '--skip-build-tests' not in self.waf_options
+        supports_tests = build_tests and self._can_run_tests()
+
+        if not self.incremental:
+            self._remove_tree(builddir) # distclean
+
+        if not os.path.exists(builddir):
+            os.makedirs(builddir)
+
+        env = self._form_env()
+
+        is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        verbose = '-v' if is_verbose else ''
+        test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
+        build_test = 'build_tests' if build_tests else ''
+        cmake_build_tests = 'ON' if build_tests else 'OFF'
+        install = 'install'
+
+        trace = '' #'--trace-expand'
+
+        # ***************************************************************************************
+        # generate the build script
+        log_cmd_config = f'CMake configure {lib}'
+        self.build_tracker.start_command(log_cmd_config)
+
+        cmake_configure_args = f"cmake -S . -B build -GNinja {trace} -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS={cmake_build_tests}".split()
+        cmake_configure_args += self._cmake_feature_defines()
+        run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
+
+        self.build_tracker.end_command(log_cmd_config)
+
+        # ***************************************************************************************
+        # execute the build
+        log_cmd_build = f'Ninja build {lib} {build_test}'
+        self.build_tracker.start_command(log_cmd_build)
+
+        ninja_build_args = f"ninja all {build_test} {install} {verbose}".split()
+        run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+        self.build_tracker.end_command(log_cmd_build)
+
+        # ***************************************************************************************
+        # run the build
+        if test:
+            log_cmd_tests = f'Ninja run_tests {lib}'
+            self.build_tracker.start_command(log_cmd_tests)
+
+            ninja_build_args = f"ninja run_tests {verbose}".split()
+            run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+            self.build_tracker.end_command(log_cmd_tests)
+
+
+    def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
+        self.build_tracker.start_component(lib, platform)
+        if lib in CMAKE_SUPPORT:
+            if platform == 'win32':
+                platform = 'x86-win32'
+            self._build_engine_lib_cmake(lib, platform, directory)
+        else:
+            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+
         self.build_tracker.end_component(lib, platform)
 
 # For now gradle right in
@@ -1452,9 +1724,10 @@ class Configuration(object):
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
         self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
 
-        cmd = self._build_engine_cmd(**self._get_build_flags())
+        cmd = self._build_engine_cmd_waf(**self._get_build_flags())
         args = cmd.split()
         host = self.host
+
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
             self._build_engine_lib(args, lib, host)
@@ -1475,7 +1748,7 @@ class Configuration(object):
                 continue
             self._build_engine_lib(args, lib, target_platform)
 
-        self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
+        self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
             self.build_docs()
         if not self.skip_builtins:
@@ -1499,10 +1772,10 @@ class Configuration(object):
     def build_external(self):
         flags = self._get_build_flags()
         flags['prefix'] = join(self.defold_root, 'packages')
-        cmd = self._build_engine_cmd(**flags)
+        cmd = self._build_engine_cmd_waf(**flags)
         args = cmd.split() + ['package']
         for lib in EXTERNAL_LIBS:
-            self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
+            self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
 
     def archive_bob(self):
         sha1 = self._git_sha1()
@@ -1761,36 +2034,20 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
+        if not self.channel:
+            raise Exception('No channel provided when bundling the editor')
+
         cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
+               '--platform=%s' % self.target_platform,
+               '--version=%s' % self.version,
+               '--channel=%s' % self.channel,
                'build']
 
         if self.skip_tests:
             cmd.append("--skip-tests")
 
-        self.run_editor_script(cmd)
-
-    def bundle_editor2(self):
-        if not self.channel:
-            raise Exception('No channel provided when bundling the editor')
-
-        cmd = self.get_python() + ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts,
-               '--archive-domain=%s' % self.archive_domain,
-               'bundle']
-        self.run_editor_script(cmd)
-
-    def sign_editor2(self):
-        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = self.get_python() + ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--bundle-dir=%s' % editor_bundle_dir,
-               '--archive-domain=%s' % self.archive_domain,
-               'sign']
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:
@@ -1806,36 +2063,19 @@ class Configuration(object):
                 cmd.append("--gcloud-projectid=%s" % self.gcloud_projectid)
             if self.gcloud_keyringname:
                 cmd.append("--gcloud-keyringname=%s" % self.gcloud_keyringname)
+
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
+
+            if self.notarization_username:
+                cmd.append('--notarization-username=%s' % self.notarization_username)
+            if self.notarization_password:
+                cmd.append('--notarization-password=%s' % self.notarization_password)
+            if self.notarization_itc_provider:
+                cmd.append('--notarization-itc-provider=%s' % self.notarization_itc_provider)
+
         self.run_editor_script(cmd)
 
-    def notarize_editor2(self):
-        if self.target_platform not in ('x86_64-macos', 'arm64-macos'):
-            return
-
-        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        # create dmg installer
-        cmd = ['./scripts/bundle.py',
-               '--platform=%s' % self.target_platform,
-               '--bundle-dir=%s' % editor_bundle_dir,
-               '--archive-domain=%s' % self.archive_domain,
-               'installer']
-        if self.skip_codesign:
-            cmd.append('--skip-codesign')
-        else:
-            if self.codesigning_identity:
-                cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
-        self.run_editor_script(cmd)
-
-        # notarize dmg
-        editor_dmg = join(editor_bundle_dir, 'Defold-%s.dmg' % self.target_platform)
-        cmd = ['./scripts/notarize.py',
-               editor_dmg,
-               self.notarization_username,
-               self.notarization_password,
-               self.notarization_itc_provider]
-        self.run_editor_script(cmd)
 #
 # END: EDITOR 2
 # ------------------------------------------------------------
@@ -1906,7 +2146,12 @@ class Configuration(object):
             env['DM_ENV_PATH'] = env['PATH']
             # Use $SHELL inside the shell for portability instead of injecting
             # a potentially platform-specific path from Python.
-            reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
+            shell_name = os.path.basename(SHELL)
+            if shell_name == 'fish':
+                # Fish shell isn't POSIX compatible
+                reexport_cmd = 'set -gx PATH $DM_ENV_PATH; set -e DM_ENV_PATH; exec "$SHELL" -i'
+            else:
+                reexport_cmd = 'export PATH="$DM_ENV_PATH"; unset DM_ENV_PATH; exec "$SHELL" -i'
             args = [SHELL, '-l', '-c', reexport_cmd]
         else:
             # Keep legacy behavior on Windows/msys to preserve PATH rewriting
@@ -2332,7 +2577,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-21.0.5+11'
+        jdk = 'jdk-25+36'
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
@@ -2629,11 +2874,8 @@ sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
-sign_editor2     - Sign editor
-bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
-notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path

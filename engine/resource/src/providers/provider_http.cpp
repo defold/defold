@@ -173,7 +173,7 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     http_params.m_HttpWriteHeaders = &HttpWriteHeaders;
     http_params.m_Userdata = archive;
     http_params.m_HttpCache = archive->m_HttpCache;
-    archive->m_HttpClient = dmHttpClient::New(&http_params, uri->m_Hostname, uri->m_Port, strcmp(uri->m_Scheme, "https") == 0, 0);
+    archive->m_HttpClient = dmHttpClient::New(&http_params, uri, 0);
     if (!archive->m_HttpClient)
     {
         char buffer[dmResource::RESOURCE_PATH_MAX*2];

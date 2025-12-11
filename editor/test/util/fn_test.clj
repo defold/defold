@@ -390,6 +390,32 @@
   (is (= 1 ((fn/make-case-fn [[:a 1]]) :a)) "Accepts sequence of pairs")
   (is (= 1 ((fn/make-case-fn {:a 1}) :a)) "Accepts map"))
 
+(def ^:private color-keywords
+  (into (sorted-set)
+        (map keyword)
+        ["red" "green" "blue"]))
+
+(fn/defamong ^:private color-keyword? color-keywords)
+
+(def ^:private known-greetings
+  (mapv #(str "Hello " %)
+        ["Jane" "John"]))
+
+(fn/defamong ^:private known-greeting? known-greetings)
+
+(deftest defamong-test
+  (is (true? (color-keyword? :red)))
+  (is (true? (color-keyword? :green)))
+  (is (true? (color-keyword? :blue)))
+  (is (false? (color-keyword? :unknown)))
+  (is (false? (color-keyword? nil)))
+  (is (false? (color-keyword? 1)))
+  (is (false? (color-keyword? (Object.))))
+  (is (true? (known-greeting? "Hello Jane")))
+  (is (true? (known-greeting? "Hello John")))
+  (is (false? (known-greeting? "Hello Sam")))
+  (is (false? (known-greeting? 0.0))))
+
 (deftest and-test
   (testing "No arguments."
     (is (true? (fn/and))))

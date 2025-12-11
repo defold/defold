@@ -130,21 +130,22 @@
                   (prefs/global prefs-path)
                   (doto (prefs/global) prefs/migrate-global-prefs!))
                 keymap/migrate-from-file!)
-        localization (localization/make-editor prefs)]
+        localization (localization/make-editor prefs)
+        analytics-url (:analytics-url connection-properties)
+        analytics-send-interval 300
+        cid (analytics/start! analytics-url analytics-send-interval)]
+    (Shutdown/addShutdownAction analytics/shutdown!)
     (error-reporting/setup-error-reporting! {:notifier {:notify-fn (partial notify-user localization)}
-                                             :sentry (get connection-properties :sentry)})
+                                             :sentry (-> connection-properties
+                                                         :sentry
+                                                         (assoc :user {:id cid}))})
     (disable-imageio-cache!)
-
     (when-let [support-error (gl/gl-support-error)]
       (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
         (System/exit -1)))
-    (let [updater (updater/start!)
-          analytics-url (get connection-properties :analytics-url)
-          analytics-send-interval 300]
+    (let [updater (updater/start!)]
       (when (some? updater)
         (updater/delete-backup-files! updater))
-      (analytics/start! analytics-url analytics-send-interval)
-      (Shutdown/addShutdownAction analytics/shutdown!)
       (try
         (let [game-project-path (get-in opts [:arguments 0])
               game-project-file (io/file game-project-path)]

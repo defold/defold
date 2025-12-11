@@ -90,7 +90,7 @@
 (def ^:private material-icon "icons/32/Icons_25-AT-Image.png")
 
 (def pb-def {:ext "gui"
-             :label "Gui"
+             :label (localization/message "resource.type.gui")
              :icon gui-icon
              :icon-class :design
              :pb-class Gui$SceneDesc
@@ -1085,7 +1085,7 @@
   (property color types/Color (default (protobuf/default Gui$NodeDesc :color))
             (dynamic visible (g/fnk [type] (not= type :type-template)))
             (dynamic edit-type (layout-property-edit-type color {:type types/Color
-                                                                 :ignore-alpha? true}))
+                                                                 :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :color))
             (dynamic tooltip (properties/tooltip-dynamic :gui :color))
             (value (layout-property-getter color))
@@ -2027,7 +2027,7 @@
             (set (layout-property-setter text-tracking)))
   (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
             (dynamic edit-type (layout-property-edit-type outline {:type types/Color
-                                                                   :ignore-alpha? true}))
+                                                                   :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :outline))
             (dynamic tooltip (properties/tooltip-dynamic :gui :outline))
             (value (layout-property-getter outline))
@@ -2043,7 +2043,7 @@
             (set (layout-property-setter outline-alpha)))
   (property shadow types/Color (default (protobuf/default Gui$NodeDesc :shadow))
             (dynamic edit-type (layout-property-edit-type shadow {:type types/Color
-                                                                  :ignore-alpha? true}))
+                                                                  :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :shadow))
             (dynamic tooltip (properties/tooltip-dynamic :gui :shadow))
             (value (layout-property-getter shadow))
@@ -2665,6 +2665,8 @@
                      [:resource :particlefx-resource]
                      [:build-targets :dep-build-targets]
                      [:scene :particlefx-scene])))
+            (dynamic label (properties/label-dynamic :gui :particlefx))
+            (dynamic tooltip (properties/tooltip-dynamic :gui :particlefx))
             (dynamic error (g/fnk [_node-id particlefx]
                                   (prop-resource-error _node-id :particlefx particlefx "Particle FX")))
             (dynamic edit-type (g/constantly
@@ -2742,9 +2744,11 @@
   (input child-indices NodeIndex :array)
   (output child-scenes g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [type-info] {:node-type (:node-cls type-info)
-                                                                     :tx-attach-fn gui-node-attach-fn})
-                                                    (get-registered-node-type-infos))))
+          (gen-outline-fnk (localization/message "outline.gui.nodes") nil 0 true
+                           (mapv (fn [type-info]
+                                   {:node-type (:node-cls type-info)
+                                    :tx-attach-fn gui-node-attach-fn})
+                                 (get-registered-node-type-infos))))
 
   (output scene g/Any (g/fnk [_node-id child-scenes]
                         {:node-id _node-id
@@ -2837,8 +2841,9 @@
   (output texture-page-counts g/Any :cached (g/fnk [texture-page-counts]
                                               (into {} cat texture-page-counts)))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Textures" "Textures" 1 false [{:node-type TextureNode
-                                                           :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
+          (gen-outline-fnk (localization/message "outline.gui.textures") "Textures" 1 false
+                           [{:node-type TextureNode
+                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Textures..." texture-icon add-textures-handler {}])))
@@ -2874,8 +2879,9 @@
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Materials" "Materials" 1 false [{:node-type MaterialNode
-                                                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-material)}]))
+          (gen-outline-fnk (localization/message "outline.gui.materials") "Materials" 1 false
+                           [{:node-type MaterialNode
+                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-material)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
             [_node-id "Materials..." material-icon add-materials-handler {}])))
@@ -2916,8 +2922,9 @@
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Fonts" "Fonts" 2 false [{:node-type FontNode
-                                                     :tx-attach-fn (gen-outline-node-tx-attach-fn attach-font)}]))
+          (gen-outline-fnk (localization/message "outline.gui.fonts") "Fonts" 2 false
+                           [{:node-type FontNode
+                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-font)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Fonts..." font-icon add-fonts-handler {}])))
@@ -2972,8 +2979,9 @@
               (map-indexed coll/flipped-pair))))
   (input child-indices NodeIndex :array)
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Layers" "Layers" 3 true [{:node-type LayerNode
-                                                      :tx-attach-fn (gen-outline-node-tx-attach-fn attach-layer :ordered-layer-names)}]))
+          (gen-outline-fnk (localization/message "outline.gui.layers") "Layers" 3 true
+                           [{:node-type LayerNode
+                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-layer :ordered-layer-names)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Layer" layer-icon add-layer-handler {}])))
@@ -3011,7 +3019,7 @@
           ;; Layouts don't have any child-reqs for the outline copy/pasting,
           ;; since there is essentially only one node that _can_ be supported
           ;; per "layout type".
-          (gen-outline-fnk "Layouts" "Layouts" 4 false []))
+          (gen-outline-fnk (localization/message "outline.gui.layouts") "Layouts" 4 false []))
   (output add-handler-info g/Any
           (g/fnk [_node-id unused-display-profiles]
             (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
@@ -3048,8 +3056,9 @@
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Particle FX" "Particle FX" 5 false [{:node-type ParticleFXResource
-                                                                 :tx-attach-fn (gen-outline-node-tx-attach-fn attach-particlefx-resource)}]))
+          (gen-outline-fnk (localization/message "outline.particlefx") "Particle FX" 5 false
+                           [{:node-type ParticleFXResource
+                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-particlefx-resource)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Particle FX..." particlefx/particle-fx-icon add-particlefx-resources-handler {}])))
@@ -3505,6 +3514,7 @@
             (dynamic label (properties/label-dynamic :gui :current-nodes))
             (dynamic tooltip (properties/tooltip-dynamic :gui :current-nodes)))
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
+            (dynamic edit-type (g/constantly {:type g/Int :min 1 :max 8192}))
             (dynamic error (g/fnk [_node-id max-nodes ^:try node-ids]
                              (when-not (g/error-value? node-ids)
                                (validate-max-nodes _node-id max-nodes node-ids))))
@@ -3623,11 +3633,10 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id default-node-outline child-outlines own-build-errors]
                  (let [node-outline default-node-outline
-                       label (:label pb-def)
                        icon (:icon pb-def)]
                    {:node-id _node-id
-                    :node-outline-key label
-                    :label label
+                    :node-outline-key (:ext pb-def)
+                    :label (:label pb-def)
                     :icon icon
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
                     :outline-error? (g/error-fatal? own-build-errors)})))

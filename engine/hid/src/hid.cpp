@@ -280,7 +280,7 @@ namespace dmHID
 
     bool GetKey(KeyboardPacket* packet, Key key)
     {
-       int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+        int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
 
         if (packet != 0x0)
             return packet->m_Keys[key_index / 32] & (1 << (key_index % 32));
@@ -573,5 +573,18 @@ namespace dmHID
     bool GetCursorVisible(HContext context)
     {
         return !dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR_LOCK);
+    }
+
+    dmhash_t CalcStateHash(HContext context)
+    {
+        HashState64 state;
+        dmHashInit64(&state, false);
+        dmHashUpdateBuffer64(&state, &context->m_Keyboards[0], MAX_KEYBOARD_COUNT * sizeof(Keyboard));
+        dmHashUpdateBuffer64(&state, &context->m_Mice[0], MAX_MOUSE_COUNT * sizeof(Mouse));
+        dmHashUpdateBuffer64(&state, &context->m_Gamepads[0], MAX_GAMEPAD_COUNT * sizeof(Gamepad));
+        dmHashUpdateBuffer64(&state, &context->m_TouchDevices[0], MAX_TOUCH_DEVICE_COUNT * sizeof(TouchDevice));
+        dmHashUpdateBuffer64(&state, &context->m_TextPacket, sizeof(TextPacket));
+        dmHashUpdateBuffer64(&state, &context->m_AccelerationPacket, sizeof(context->m_AccelerationPacket));
+        return dmHashFinal64(&state);
     }
 }

@@ -2,6 +2,7 @@
 import os, re
 from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature, platform_graphics_libs_and_symbols
 import waflib.Options
+import waf_dynamo
 
 def options(opt):
     pass
@@ -24,11 +25,20 @@ def build(bld):
               install_path = platform_lib_install_path,
               target = 'engine_service_null')
 
-    platform_main_cpp = ''
-    if 'arm64-nx64' in bld.env.PLATFORM:
-        platform_main_cpp = 'nx64/main_nx64.cpp nx64/engine_nx64.cpp'
-    if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
-        platform_main_cpp = 'engine_ps4.cpp'
+    source = [
+        'engine.cpp',
+        'engine_main.cpp',
+        'engine_loop.cpp',
+        'extension.cpp',
+        './script/script_engine.cpp',
+        '../proto/engine/engine_ddf.proto']
+
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        source.append('engine_web.cpp')
+    elif 'arm64-nx64' in bld.env.PLATFORM:
+        source.append('nx64/main_nx64.cpp nx64/engine_nx64.cpp')
+    elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
+        source.append('engine_ps4.cpp')
 
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
@@ -36,7 +46,7 @@ def build(bld):
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                    source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
+                    source = source + ['physics_debug_render.cpp'],
                     install_path = platform_lib_install_path,
                     use = 'engine_service')
 
@@ -48,7 +58,7 @@ def build(bld):
                     defines = 'DM_RELEASE=1',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                    source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
+                    source = source,
                     install_path = platform_lib_install_path,
                     use = 'engine_service_null')
 
@@ -88,7 +98,7 @@ def build(bld):
         additional_libs.append('UNWIND')
         additional_libs.append('CPP_RUNTIME')
 
-    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64']:
+    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
         sound_lib  = 'SOUND'
     else:
         sound_lib = 'SOUND OPENAL'
@@ -134,13 +144,17 @@ def build(bld):
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')
 
-    platform_lib = ['PLATFORM']
-    if not (platform_supports_feature(bld.env.PLATFORM, "opengl", None) or platform_supports_feature(bld.env.PLATFORM, "vulkan", None)):
-        platform_lib = ['PLATFORM_NULL']
+    platform_lib = [waf_dynamo.platform_get_platform_lib(bld.env.PLATFORM)]
+
+    font_lib = ['FONT']
+    if 'font_layout' in waflib.Options.options.enable_features:
+        font_lib = ['FONT_LAYOUT']
+
+    additional_libs.extend(font_lib)
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF FONT LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
+        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -168,7 +182,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'GAMEOBJECT DDF FONT LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs + profile_null_libs,
+        use = 'GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs + profile_null_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + profile_null_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -192,6 +206,8 @@ def build(bld):
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
         additional_libs.append('APP')
 
+    additional_libs.extend(font_lib)
+
     exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull',
                         'ScriptFont','ResourceTypeFont','ResourceTypeTTF']
 
@@ -203,7 +219,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE FONT GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
+        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
         exported_symbols = ['LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + profile_symbols + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',

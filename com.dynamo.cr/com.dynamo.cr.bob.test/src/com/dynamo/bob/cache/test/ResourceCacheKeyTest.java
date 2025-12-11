@@ -292,6 +292,7 @@ public class ResourceCacheKeyTest {
                 "debug-output-hlsl",
                 "debug-output-spirv",
                 "debug-output-wgsl",
+                "debug-output-msl",
                 "defoldsdk",
                 "email",
                 "exclude-archive",

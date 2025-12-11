@@ -197,7 +197,7 @@ TEST(MountsFile, ReadFileWithSpaces)
 class ArchiveProvidersMounts : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmArray<dmResourceMounts::MountFileEntry> entries;
         entries.SetCapacity(8);
@@ -248,7 +248,7 @@ protected:
         result = dmResourceMounts::LoadMounts(m_Mounts, path);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceMounts::Destroy(m_Mounts);
 

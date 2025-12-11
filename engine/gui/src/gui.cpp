@@ -509,11 +509,9 @@ namespace dmGui
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_name_hash);
         if (t)
         {
-            if (t->m_ImageType != -1)
-            {
-                uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
-            }
+            uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
+            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -buffer_size_mb);
+
             scene->m_DeleteTextureResourceCallback(scene, texture_name_hash, t->m_TextureSource);
         }
         return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
@@ -622,12 +620,35 @@ namespace dmGui
         return data;
     }
 
-    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
-        if (buffer_size != expected_buffer_size)
+        if (compression_type == dmImage::COMPRESSION_TYPE_NONE)
         {
-            dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
+            uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
+            if (buffer_size != expected_buffer_size)
+            {
+                dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
+                return RESULT_INVAL_ERROR;
+            }
+        }
+        else if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            if (flip) // Cannot flip a compressed textures
+            {
+                dmLogWarning("Flipping a compressed texture is not supported! '%s'", dmHashReverseSafe64(path));
+            }
+            flip = false;
+
+            uint32_t depth;
+            if (!dmImage::GetAstcDimensions(buffer, buffer_size, &width, &height, &depth))
+            {
+                dmLogError("Invalid image data. Expected astc format");
+                return RESULT_INVAL_ERROR;
+            }
+        }
+        else
+        {
+            dmLogError("Invalid image compression type. %d", compression_type);
             return RESULT_INVAL_ERROR;
         }
 
@@ -636,21 +657,23 @@ namespace dmGui
             return RESULT_TEXTURE_ALREADY_EXISTS;
         }
 
-        void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
+        // Only make a copy if we need to flip the image
+        void* flipped_data = flip ? MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size) : 0;
+        const void* data = flip ? flipped_data : buffer;
         if (!data)
         {
             return RESULT_DATA_ERROR;
         }
 
-        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, data);
-        free(data);
+        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, compression_type, data, buffer_size);
+        free(flipped_data);
 
         if (!res)
         {
             return RESULT_OUT_OF_RESOURCES;
         }
 
-        uint32_t buffer_size_mb = expected_buffer_size / 1024.0 / 1024.0;
+        float buffer_size_mb = buffer_size / float(1024 * 1024);
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size_mb);
 
         return AddTexture(scene, scene->m_DynamicTextures, path, res, NODE_TEXTURE_TYPE_TEXTURE, width, height, type);
@@ -682,7 +705,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_hash);
         if (!t)
@@ -690,14 +713,28 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
-        void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            flip = false; // Cannot flip a preencoded astc image
+
+            uint32_t depth;
+            if (!dmImage::GetAstcDimensions(buffer, buffer_size, &width, &height, &depth))
+            {
+                dmLogError("Invalid image data. Expected astc format");
+                return RESULT_INVAL_ERROR;
+            }
+        }
+
+        // Only make a copy if we need to flip the image
+        void* flipped_data = flip ? MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size) : 0;
+        const void* data = flip ? flipped_data : buffer;
         if (!data)
         {
             return RESULT_DATA_ERROR;
         }
 
-        scene->m_SetTextureResourceCallback(scene, texture_hash, width, height, type, data);
-        free(data);
+        scene->m_SetTextureResourceCallback(scene, texture_hash, width, height, type, compression_type, data, buffer_size);
+        free(flipped_data);
 
         t->m_OriginalWidth  = width;
         t->m_OriginalHeight = height;
@@ -1110,21 +1147,6 @@ namespace dmGui
             scene->m_DeleteTextureResourceCallback(scene, key, texture.m_TextureSource);
         }
         scene->m_DynamicTextures.Clear();
-    }
-
-    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
-    {
-        dmHashTable64<TextureInfo>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
-        while(dynamic_textures_iter.Next())
-        {
-            const TextureInfo texture = dynamic_textures_iter.GetValue();
-            uint32_t size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel(texture.m_ImageType);
-            bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
-            if (!result)
-            {
-                break;
-            }
-        }
     }
 
     static uint16_t GetLayerIndex(HScene scene, InternalNode* node)

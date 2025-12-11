@@ -673,7 +673,7 @@ namespace dmGraphics
         // Create main render pass with two attachments
         RenderPassAttachment  attachments[3];
         RenderPassAttachment* attachment_resolve = 0;
-        
+
         // Main color attachment
         attachments[0].m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
         attachments[0].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1012,6 +1012,7 @@ namespace dmGraphics
         if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
         {
             context->m_ASTCSupport = 1;
+            context->m_ASTCArrayTextureSupport = 1;
         }
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
@@ -2266,7 +2267,7 @@ bail:
                 case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
-                    
+
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
@@ -2553,7 +2554,7 @@ bail:
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_FrameBegun);
-        
+
         const uint8_t ix = context->m_CurrentFrameInFlight;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
@@ -3814,6 +3815,7 @@ bail:
         tex->m_PageCount      = params.m_LayerCount;
         tex->m_DataState      = 0;
         tex->m_PendingUpload  = INVALID_OPAQUE_HANDLE;
+        tex->m_DataSize       = 0;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -4026,7 +4028,7 @@ bail:
         uint8_t tex_layer_count     = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
         uint16_t tex_depth          = dmMath::Max(texture->m_Depth, params.m_Depth);
         uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
-        size_t tex_data_size        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
+        size_t tex_data_size_bpp    = params.m_DataSize * tex_layer_count * 8; // Convert into bits
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
 
@@ -4039,30 +4041,26 @@ bail:
         // For future reference, we could validate ASTC buffer sizes by using these calculations:
         // https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/
 
-        // In cases where we just want to clear the texture we don't have a valid data or datasize, so we need to infer it.
-        // This will NOT work for clearing compressed texture formats, but I don't think that is a case we can support anyway.
-        if (tex_data_size == 0)
-        {
-            tex_data_size = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
-        }
-
         LogicalDevice& logical_device       = context->m_LogicalDevice;
         VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
 
         // Note: There's no RGB support in Vulkan. We have to expand this to four channels
         // TODO: Can we use R11G11B10 somehow?
+        uint8_t* temp_data = 0;
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint32_t data_pixel_count = params.m_Width * params.m_Height * tex_layer_count;
-            uint8_t* data_new         = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
+            temp_data                 = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
 
-            RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
+            RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
-            tex_data_ptr  = data_new;
+            tex_data_ptr  = temp_data;
             tex_bpp       = 32;
         }
 
-        tex_data_size             = tex_bpp * params.m_Width * params.m_Height * tex_depth * tex_layer_count;
+        // In cases where we just want to clear the texture we don't have a valid data or datasize, so we need to infer it.
+        // This will NOT work for clearing compressed texture formats, but I don't think that is a case we can support anyway.
+        tex_data_size_bpp         = tex_bpp * params.m_Width * params.m_Height * tex_depth * tex_layer_count;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
         texture->m_LayerCount     = tex_layer_count;
@@ -4073,7 +4071,7 @@ bail:
         {
             // TODO: Not sure this will work for compressed formats..
             // data size might be different if we have generated a new image
-            tex_data_size = params.m_Width * params.m_Height * tex_bpp * tex_layer_count;
+            tex_data_size_bpp = params.m_Width * params.m_Height * tex_bpp * tex_layer_count;
         }
         else if (params.m_MipMap == 0)
         {
@@ -4165,14 +4163,19 @@ bail:
 
         if (!memoryless)
         {
-            tex_data_size = (int) ceil((float) tex_data_size / 8.0f);
+            uint32_t tex_data_size;
+            if (IsTextureFormatASTC(params.m_Format))
+                tex_data_size = params.m_DataSize;
+            else
+                tex_data_size = (int) ceil((float) tex_data_size_bpp / 8.0f);
+
             CopyToTexture(context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
+
+            // update the resource size
+            texture->m_DataSize = tex_data_size;
         }
 
-        if (format_orig == TEXTURE_FORMAT_RGB)
-        {
-            delete[] (uint8_t*)tex_data_ptr;
-        }
+        delete[] temp_data;
     }
 
     void VulkanDestroyResources(HContext _context)
@@ -4248,7 +4251,7 @@ bail:
         VulkanSetTextureInternal(context, tex, params);
     }
 
-    static int AsyncProcessCallback(void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4273,17 +4276,41 @@ bail:
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
-            uint16_t tex_depth = dmMath::Max((uint16_t) 1, dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth));
-            uint8_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
-            uint32_t tex_data_size    = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+            uint16_t tex_depth        = dmMath::Max((uint16_t) 1, dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth));
             TextureFormat format_orig = ap.m_Params.m_Format;
             void*  tex_data_ptr       = (void*) ap.m_Params.m_Data;
+            uint8_t* temp_data        = 0;
             bool is_memoryless        = IsTextureMemoryless(tex);
+
+            uint32_t tex_data_size;
+            if (IsTextureFormatASTC(ap.m_Params.m_Format))
+            {
+                tex_data_size = ap.m_Params.m_DataSize;
+            }
+            else
+            {
+                uint32_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
+                uint32_t tex_data_size_bpp = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                tex_data_size = (uint32_t) ceil((float) tex_data_size_bpp / 8.0f);
+            }
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
             if (!is_memoryless)
             {
+                // Note: There's no RGB support in Vulkan. We have to expand this to four channels
+                // TODO: Can we use R11G11B10 somehow?
+                if (format_orig == TEXTURE_FORMAT_RGB)
+                {
+                    uint32_t data_pixel_count = ap.m_Params.m_Width * ap.m_Params.m_Height * tex_layer_count;
+                    temp_data                 = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
+
+                    RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
+                    tex_data_ptr  = temp_data;
+                    uint32_t tex_bpp       = 32;
+                    tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                }
+
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
                 VkResult res = CreateDeviceBuffer(
@@ -4292,22 +4319,10 @@ bail:
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
                 CHECK_VK_ERROR(res);
 
-                // Note: There's no RGB support in Vulkan. We have to expand this to four channels
-                // TODO: Can we use R11G11B10 somehow?
-                if (format_orig == TEXTURE_FORMAT_RGB)
-                {
-                    uint32_t data_pixel_count = ap.m_Params.m_Width * ap.m_Params.m_Height * tex_layer_count;
-                    uint8_t* data_new         = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
-
-                    RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-                    tex_data_ptr  = data_new;
-                    tex_bpp       = 32;
-                    tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
-                }
-
-                tex_data_size = (uint32_t) ceil((float) tex_data_size / 8.0f);
-
                 CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
+
+                // update the resource size
+                tex->m_DataSize = tex_data_size;
             }
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
@@ -4324,12 +4339,9 @@ bail:
                 vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
                 DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
                 vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
-
-                if (format_orig == TEXTURE_FORMAT_RGB)
-                {
-                    delete[] (uint8_t*)tex_data_ptr;
-                }
             }
+
+            delete[] temp_data;
         }
 
         int32_t data_state = dmAtomicGet32(&tex->m_DataState);
@@ -4342,7 +4354,7 @@ bail:
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4454,11 +4466,14 @@ bail:
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::PushJob(context->m_JobThread,
-                AsyncProcessCallback,
-                AsyncCompleteCallback,
-                (void*) context,
-                (void*) (uintptr_t) param_array_index);
+            dmJobThread::Job job = {0};
+            job.m_Process = AsyncProcessCallback;
+            job.m_Callback = AsyncCompleteCallback;
+            job.m_Context = (void*) context;
+            job.m_Data = (void*) (uintptr_t) param_array_index;
+
+            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
+            dmJobThread::PushJob(context->m_JobThread, hjob);
         } 
         else
         {
@@ -4516,6 +4531,10 @@ bail:
         {
             return 0;
         }
+
+        if (tex->m_DataSize)
+            return tex->m_DataSize + sizeof(VulkanTexture);
+
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_GraphicsFormat)/8);
         for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)

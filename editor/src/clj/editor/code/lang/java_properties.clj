@@ -13,7 +13,6 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.lang.java-properties
-  (:require [clojure.string])
   (:import [java.io Reader]
            [java.util Properties]))
 

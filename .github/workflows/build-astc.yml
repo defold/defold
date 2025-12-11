@@ -1,0 +1,161 @@
+name: Build ASTC
+
+on:
+  workflow_dispatch:
+
+env:
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        platform: [x86_64-linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: '${{ env.BUILD_BRANCH }}'
+      - name: Install Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        run: ci/ci.sh install --platform=${{ matrix.platform }}
+      - name: Build ASTC
+        run: |
+          PLATFORM=${{ matrix.platform }}
+          printf '%s\n' \
+            "set -euo pipefail" \
+            "cd share/ext" \
+            "./build.sh astcenc ${PLATFORM}" \
+            | ./scripts/build.py shell
+      - name: Check artifact
+        run: |
+          ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: astcenc-${{ matrix.platform }}
+          path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-linux-arm:
+    strategy:
+      matrix:
+        platform: [arm64-linux]
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: '${{ env.BUILD_BRANCH }}'
+      - name: Install Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        run: ci/ci.sh install --platform=${{ matrix.platform }}
+      - name: Build ASTC
+        run: |
+          PLATFORM=${{ matrix.platform }}
+          printf '%s\n' \
+            "set -euo pipefail" \
+            "cd share/ext" \
+            "./build.sh astcenc ${PLATFORM}" \
+            | ./scripts/build.py shell
+      - name: Check artifact
+        run: |
+          ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: astcenc-${{ matrix.platform }}
+          path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-macos:
+    strategy:
+      matrix:
+        platform: [arm64-macos, x86_64-macos]
+    runs-on: macOS-14
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: '${{ env.BUILD_BRANCH }}'
+      - name: Install Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        run: ci/ci.sh install --platform=${{ matrix.platform }}
+      - name: Build ASTC
+        run: |
+          PLATFORM=${{ matrix.platform }}
+          printf '%s\n' \
+            "set -euo pipefail" \
+            "cd share/ext" \
+            "./build.sh astcenc ${PLATFORM}" \
+            | ./scripts/build.py shell
+      - name: Check artifact
+        run: |
+          ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: astcenc-${{ matrix.platform }}
+          path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-windows:
+    strategy:
+      matrix:
+        platform: [x86_64-win32]
+    runs-on: windows-2025
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: '${{ env.BUILD_BRANCH }}'
+      - name: Install Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        run: ci/ci.sh install --platform=${{ matrix.platform }}
+        shell: bash
+      - name: Install platform SDK
+        shell: bash
+        env:
+          DEFOLD_HOME: ${{ github.workspace }}
+          DYNAMO_HOME: ${{ github.workspace }}/tmp/dynamo_home
+          PYTHONPATH: ${{ github.workspace }}/tmp/dynamo_home/lib/python:${{ github.workspace }}/build_tools:${{ github.workspace }}/tmp/dynamo_home/ext/lib/python
+          JAVA_HOME: ${{ github.workspace }}/tmp/fake_java
+        run: |
+          set -euo pipefail
+          python ./scripts/build.py --platform=${{ matrix.platform }} install_sdk
+      - name: Build ASTC
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLDPATH=$PATH
+          source ci/env.sh
+          export PATH=$PATH:$OLDPATH
+          cd share/ext
+          ./build.sh astcenc ${{ matrix.platform }}
+      - name: Check artifact
+        run: |
+          ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
+        shell: bash
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: astcenc-${{ matrix.platform }}
+          path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
+          if-no-files-found: error
+          retention-days: 1

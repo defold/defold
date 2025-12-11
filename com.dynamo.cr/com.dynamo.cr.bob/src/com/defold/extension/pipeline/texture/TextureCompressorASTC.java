@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
@@ -138,7 +139,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.height = params.getHeight();
         settings.pixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormat());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
-        settings.numThreads = 4;
+        settings.numThreads = TextureGenerator.maxThreads;
         settings.data = input;
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 

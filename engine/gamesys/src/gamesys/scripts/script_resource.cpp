@@ -18,13 +18,15 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <font/text_layout.h>
+#include <gameobject/gameobject.h>
 #include <gamesys/mesh_ddf.h>
 #include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
-#include <render/font_renderer.h>
+#include <graphics/graphics.h>
+#include <render/font/font_renderer.h>
 #include <resource/resource.h>
 #include <resource/resource_util.h>
-#include <gameobject/gameobject.h>
 
 #include "script_resource.h"
 #include "script_buffer.h"
@@ -651,7 +653,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
 
-    if (!dmGraphics::IsTextureFormatSupported(g_ResourceModule.m_GraphicsContext, format))
+    if (!dmGraphics::IsTextureFormatSupportedForType(g_ResourceModule.m_GraphicsContext, type, format))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
@@ -682,6 +684,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
     params->m_UsageFlags      = usage_flags;
     params->m_Data            = 0;
+    params->m_DataSize        = 0;
     return 0;
 }
 
@@ -1208,7 +1211,7 @@ static int CreateTextureAsync(lua_State* L)
         assert(create_params.m_Buffer != 0);
 
         uint32_t num_mips = 1;
-        texture_params.m_Format = dmGraphics::GetSupportedCompressionFormat(g_ResourceModule.m_GraphicsContext, texture_params.m_Format, texture_params.m_Width, texture_params.m_Height);
+        texture_params.m_Format = dmGraphics::GetSupportedCompressionFormatForType(g_ResourceModule.m_GraphicsContext, texture_params.m_Format, texture_params.m_Width, texture_params.m_Height, create_params.m_Type);
 
         uint8_t* decompressed_data;
         uint32_t decompressed_data_size;
@@ -1507,7 +1510,7 @@ static int SetTexture(lua_State* L)
     int32_t y                        = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
     int32_t z                        = (int32_t)  CheckTableInteger(L, 2, "z", DEFAULT_INT_NOT_SET);
 
-    if (!dmGraphics::IsTextureFormatSupported(g_ResourceModule.m_GraphicsContext, format))
+    if (!dmGraphics::IsTextureFormatSupportedForType(g_ResourceModule.m_GraphicsContext, type, format))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
@@ -3529,14 +3532,19 @@ static int GetTextMetrics(lua_State* L)
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
 
-    dmRender::TextMetricsSettings settings;
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+
+    TextLayoutSettings settings = {0};
     settings.m_Width = width;
     settings.m_LineBreak = line_break;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
+    // legacy options for glyph bank fonts
+    settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+    settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
     dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(dmGameSystem::ResFontGetHandle(font), text, &settings, &metrics);
+    dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;
 }
