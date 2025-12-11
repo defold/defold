@@ -514,7 +514,8 @@
 
    'dmRiveDDF.RiveModelDesc
    {:default
-    {"blit_material" :non-editable}}}) ; Not currently editable, but perhaps will be in the future.
+    {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.
+     "blit_material" :non-editable}}}) ; Not currently editable, but perhaps will be in the future.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))

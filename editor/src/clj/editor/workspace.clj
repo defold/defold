@@ -913,9 +913,9 @@ ordinary paths."
 (g/defnode Workspace
   (property root g/Str)
   (property dependencies Dependencies)
-  (property opened-files g/Any (default (atom #{})))
+  (property opened-files g/Any)
   (property resource-snapshot g/Any (default resource-watch/empty-snapshot))
-  (property resource-listeners g/Any (default (atom [])))
+  (property resource-listeners g/Any)
   (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))
   (property resource-types g/Any)
@@ -1057,6 +1057,8 @@ ordinary paths."
           (g/make-nodes graph
             [workspace [Workspace
                         :root (.getPath project-directory)
+                        :opened-files (atom #{})
+                        :resource-listeners (atom [])
                         :build-settings build-settings
                         :editable-proj-path? editable-proj-path?
                         :unloaded-proj-path? unloaded-proj-path?
