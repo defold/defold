@@ -30,10 +30,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce/protocol TransactionStep
-  (step-type [this] "Returns a keyword uniquely identifying the type of transaction step.")
-  (metrics-key [this] "Returns a key which identifies the subject of the transaction step in metrics reports.")
-  (perform [this ctx] "Returns a new ctx with changes applied."))
+(defonce/interface TransactionStep
+  (step_type [] "Returns a keyword uniquely identifying the type of transaction step.")
+  (metrics_key [] "Returns a key which identifies the subject of the transaction step in metrics reports.")
+  (perform [ctx] "Returns a new ctx with changes applied."))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -1017,7 +1017,7 @@
 (defn apply-tx
   [ctx actions]
   (reduce
-    (fn [ctx action]
+    (fn [ctx ^TransactionStep action]
       (cond
         (nil? action)
         ctx
@@ -1027,8 +1027,8 @@
 
         :else
         (-> (try
-              (du/measuring (:metrics ctx) (step-type action) (metrics-key action)
-                (perform action ctx))
+              (du/measuring (:metrics ctx) (.step-type action) (.metrics-key action)
+                (.perform action ctx))
               (catch Exception e
                 (when *tx-debug*
                   (println (txerrstr ctx "Transaction failed on " action)))

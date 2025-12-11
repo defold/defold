@@ -32,7 +32,9 @@
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+           [internal.transaction TransactionStep]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,9 +48,7 @@
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
-(namespaces/import-vars [internal.transaction step-type])
-
-(let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
+(let [graph-id ^AtomicInteger (AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
 
 ;; ---------------------------------------------------------------------------
@@ -239,12 +239,16 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
+
+(definline step-type [transaction-step]
+  `(.step-type ~(with-meta transaction-step {:tag `TransactionStep})))
+
 (defn tx-data-added-nodes
   "Given a sequence of transaction steps, returns a sequence of Nodes that will
   be added by the transaction."
   [txs]
   (keep (fn [tx-step]
-          (when (= :tx-step/add-node (it/step-type tx-step))
+          (when (= :tx-step/add-node (step-type tx-step))
             (:added-node tx-step)))
         (flatten txs)))
 
@@ -487,6 +491,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Transactions
 ;; ---------------------------------------------------------------------------
+
 (defmacro make-nodes
   "Create a number of nodes in a graph, binding them to local names
    to wire up connections. The resulting code will return a collection
