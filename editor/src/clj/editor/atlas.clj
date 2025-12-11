@@ -511,9 +511,6 @@
   (when (> x 8)
     (format "Atlas pages count (%d) cannot exceed 8 pages per atlas" x)))
 
-(defn- validate-texture-page-count [node-id texture-page-count]
-  (validation/prop-error :fatal node-id :validate-texture-page-count texture-page-count-error-message texture-page-count))
-
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
                            (validate-inner-padding node-id inner-padding)
@@ -550,7 +547,7 @@
     (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-transform layout-width layout-height gpu-texture page-index)))
 
 (g/defnk produce-scene
-  [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
+  [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile texture-page-count]
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
         page-scenes (mapv (fn [^long page-index]
@@ -770,10 +767,12 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
-                                                 (if (every? pos? max-page-size)
-                                                   (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
-                                                   texture/non-paged-page-count)))
+  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size]
+                                     (let [page-count (if (every? pos? max-page-size)
+                                                        (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
+                                                        texture/non-paged-page-count)]
+                                       (or (validation/prop-error :fatal _node-id :validate-texture-page-count texture-page-count-error-message page-count)
+                                           page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
@@ -821,7 +820,6 @@
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
-                                                              (validate-texture-page-count _node-id texture-page-count)
                                                               (validate-extrude-borders _node-id extrude-borders)
                                                               (validate-max-page-size _node-id max-page-size)
                                                               (validate-rename-patterns _node-id rename-patterns))))
