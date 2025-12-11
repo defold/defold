@@ -732,7 +732,9 @@
                         ;; overrides along the wrong "branches" (for which there may be another
                         ;; better -earlier- matching source node).
                         conflicting-overrides-chain (mapv (fn [node next-override]
-                                                            (disj (into (int-map/int-set) (map #(gt/override-id (source-graph-nodes %))) (overrides source-graph node))
+                                                            (disj (into (int-map/int-set)
+                                                                        (map #(gt/override-id (source-graph-nodes %)))
+                                                                        (overrides source-graph node))
                                                                   next-override))
                                                           (conj override-node-chain source)
                                                           override-chain)]
@@ -751,7 +753,9 @@
     (let [source (.source-id ^Arc (first arcs))
           source-graph (node-id->graph basis source)
           source-graph-nodes (:nodes source-graph)
-          source-overrides (into #{} (map (comp gt/override-id source-graph-nodes)) (overrides source-graph source))]
+          source-overrides (into #{}
+                                 (map (comp gt/override-id source-graph-nodes))
+                                 (overrides source-graph source))]
       ;; Here we can (assert (every? #(= source (:source-id %)) arcs)), but it's too costly to run permantently.
       (loop [arcs arcs
              result arcs]
