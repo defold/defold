@@ -928,7 +928,7 @@
   [{:keys [node-id output-label]}]
   (pair node-id output-label))
 
-(defn- apply-tx
+(defn apply-tx
   [ctx actions]
   (reduce
     (fn [ctx action]
@@ -951,7 +951,7 @@
     ctx
     actions))
 
-(defn- mark-nodes-modified
+(defn mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (into #{} (map gt/endpoint-node-id) nodes-affected)))
 
@@ -959,7 +959,7 @@
   [m f]
   (util/map-vals f m))
 
-(defn- apply-tx-label
+(defn apply-tx-label
   [{:keys [basis label sequence-label] :as ctx}]
   (cond-> (update-in ctx [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))
 
@@ -970,8 +970,7 @@
   (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]
           (du/metrics-enabled?) (conj :metrics)))
 
-(defn- finalize-update
-  "Makes the transacted graph the new value of the world-state graph."
+(defn finalize-update
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
       (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
@@ -999,19 +998,19 @@
    :metrics metrics-collector
    :track-changes track-changes})
 
-(defn- update-overrides
+(defn update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx}]
   (du/measuring (:metrics ctx) :update-overrides
     (reduce populate-overrides
             ctx
             override-nodes-affected-ordered)))
 
-(defn- update-successors
+(defn update-successors
   [{:keys [successors-changed] :as ctx}]
   (du/measuring (:metrics ctx) :update-successors
     (update ctx :basis ig/update-successors successors-changed)))
 
-(defn- trace-dependencies
+(defn trace-dependencies
   [ctx]
   ;; At this point, :nodes-affected is a set of all output Endpoints that have
   ;; been directly affected by the transaction changes.

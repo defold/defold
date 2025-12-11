@@ -696,6 +696,7 @@ progress.initializing-editor = Initializing editor {lib}
 progress.loading-editor = Loading editor
 progress.loading = Loading
 progress.loading-resource = Loading {resource}
+progress.processing-resource = Processing {resource}
 progress.resolving-resource = Resolving {resource}
 progress.reading-resource = Reading {resource}
 progress.finalizing = Finalizing…
