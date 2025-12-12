@@ -546,7 +546,7 @@
     (render-util/make-outlined-textured-quad-scene #{:atlas} page-offset-transform layout-width layout-height gpu-texture page-index)))
 
 (g/defnk produce-scene
-  [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile texture-page-count]
+  [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
         page-scenes (mapv (fn [^long page-index]
