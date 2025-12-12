@@ -552,27 +552,23 @@ ordinary paths."
         notifications (notifications workspace)
         min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
         failing-uris (into #{} (map :uri) min-version-states)]
-    ;; Per-library min-version notifications
-    (let [all-uris (into #{} (map :uri) lib-states)
-          notification-id (fn [uri] [::dependencies-min-version uri])]
-      (doseq [{:keys [uri required current]} min-version-states]
-        (notifications/show!
-          notifications
-          {:id (notification-id uri)
-           :type :error
-           :message (localization/message
-                      "notification.fetch-libraries.min-version.error"
-                      {"uri" (str uri)
-                       "required" (str required)
-                       "current" (str current)})
-           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                      :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene))
-                                    :file.open
-                                    "/game.project")}]}))
-      ;; Close for those no longer failing
-      (doseq [uri (set/difference all-uris failing-uris)]
-        (notifications/close! notifications (notification-id uri))))
+    ;; Single min-version notification (only first error).
+    (if-let [{:keys [uri required current]} (first min-version-states)]
+      (notifications/show!
+        notifications
+        {:id ::dependencies-min-version
+         :type :error
+         :message (localization/message
+                    "notification.fetch-libraries.min-version.error"
+                    {"uri" (str uri)
+                     "required" (str required)
+                     "current" (str current)})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :file.open
+                                  "/game.project")}]})
+      (notifications/close! notifications ::dependencies-min-version))
     (if (pos? (count missing))
       (notifications/show!
         notifications
