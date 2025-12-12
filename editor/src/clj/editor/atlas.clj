@@ -573,6 +573,11 @@
           (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
             (texture-set-gen/layout-atlas-pages (:layout layout-data) id->image)))))))
 
+(defn- calculate-texture-page-count [layout-data max-page-size]
+  (if (every? pos? max-page-size)
+    (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
+    texture/non-paged-page-count))
+
 (g/defnk produce-layout-data-generator
   [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
@@ -596,17 +601,23 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size]
   (let [flat-image-resources (filterv some? (flatten image-resources))
+        ;; TODO: pmap this maybe
         image-sha1s (mapv (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
                               (resource/resource->path-inclusive-sha1-hex resource)))
                           flat-image-resources)]
     (g/precluding-errors image-sha1s
-      (let [packed-image-sha1 (digestable/sha1-hash
+      (let [layout-data (texture-util/call-generator layout-data-generator)
+            ;; NOTE: The default is 0, not 1, so it'll change the hash if we change the max-page-size
+            ;; despite no new pages being created, generating a new unneeded preview atlas image
+            texture-page-count (max 1 (calculate-texture-page-count layout-data max-page-size))
+            packed-image-sha1 (digestable/sha1-hash
                                 {:extrude-borders extrude-borders
                                  :image-sha1s image-sha1s
                                  :inner-padding inner-padding
+                                 :texture-page-count texture-page-count
                                  :margin margin
                                  :type :packed-atlas-image})]
         {:f generate-packed-page-images
@@ -768,9 +779,7 @@
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
   (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size]
-                                     (let [page-count (if (every? pos? max-page-size)
-                                                        (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
-                                                        texture/non-paged-page-count)]
+                                     (let [page-count (calculate-texture-page-count layout-data max-page-size)]
                                        (or (validation/prop-error :fatal _node-id
                                                                   :validate-texture-page-count
                                                                   texture-page-count-error-message
