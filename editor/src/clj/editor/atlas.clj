@@ -717,29 +717,6 @@
   [(protobuf/default AtlasProto$Atlas :max-page-width)
    (protobuf/default AtlasProto$Atlas :max-page-height)])
 
-(defn- async-upgrade-texture!
-  "Fire-and-forget texture upgrade from low-res to high-res preview"
-  [node-id packed-page-images-generator texture-profile old-texture]
-  (future
-    (try
-      (let [high-res-profile (assoc texture-profile :preview-resolution 4096) ; or your desired resolution
-            high-res-texture (-> (texture-util/construct-gpu-texture node-id packed-page-images-generator high-res-profile)
-                                 (texture/set-params {:min-filter gl/nearest
-                                                      :mag-filter gl/nearest}))]
-        ;; Replace the texture content but keep the same texture object reference
-        ;; This assumes the texture system supports content updates
-        (texture/replace-content! old-texture high-res-texture)
-        
-        ;; Update cache
-        ;; (g/user-data! node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
-        (g/user-data! node-id :gpu-texture-cached (WeakReference. old-texture))
-        
-        high-res-texture)
-      (catch Exception e
-        ;; Log but don't fail - we still have the low-res version
-        (.println System/err (str "Failed to upgrade atlas texture: " (.getMessage e)))
-        nil))))
-
 (g/defnode AtlasNode
   (inherits resource-node/ResourceNode)
 
@@ -817,8 +794,7 @@
                      (g/user-data _node-id :gpu-texture-cached))
               (when-let [texture-ref (g/user-data _node-id :gpu-texture-cached)]
                 (.get texture-ref))
-              (let [texture-profile (assoc texture-profile :preview-resolution 512)
-                                    #_(assoc texture-profile :preview-resolution
+              (let [texture-profile (assoc texture-profile :preview-resolution
                                            (parse-long (or (g/user-data _node-id :preview-resolution)
                                                            "2048")))
                     texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
@@ -827,9 +803,6 @@
                     texture-ref (WeakReference. texture)]
                 (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
                 (g/user-data! _node-id :gpu-texture-cached texture-ref)
-
-                (async-upgrade-texture! _node-id packed-page-images-generator texture-profile low-res-texture)
-
                 texture))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
