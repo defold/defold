@@ -792,12 +792,7 @@
             ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
             (if (and (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
                      (g/user-data _node-id :gpu-texture-cached))
-              (when-let [texture-ref (g/user-data _node-id :gpu-texture-cached)]
-                (.get texture-ref))
-              (let [texture-profile (assoc texture-profile :preview-resolution
-                                           (parse-long (or (g/user-data _node-id :preview-resolution)
-                                                           "2048")))
-                    texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
+              (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
                                 (texture/set-params {:min-filter gl/nearest
                                                      :mag-filter gl/nearest}))
                     texture-ref (WeakReference. texture)]
