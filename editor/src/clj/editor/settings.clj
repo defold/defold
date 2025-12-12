@@ -183,7 +183,7 @@
           (map (fn [{:keys [uri required current]}]
                  (g/map->error
                    {:severity :fatal
-                    :message (format "Library '%s' requires Defold %s or newer (bob.jar is %s). Update Defold or check older extension versions for compatibility."
+                    :message (format "Library '%s' requires Defold %s or newer (current Defold version is %s). Update Defold or check older extension versions for compatibility."
                                      (str uri) (str required) (str current))}))))
         dependencies))
 

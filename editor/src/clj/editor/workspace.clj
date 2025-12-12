@@ -549,11 +549,11 @@ ordinary paths."
                                                  (= status :error) (pair :error uri)
                                                  (nil? file) (pair :missing uri)))))
                                      (iutil/group-into {} [] key val))
-        notifications (notifications workspace)]
+        notifications (notifications workspace)
+        min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
+        failing-uris (into #{} (map :uri) min-version-states)]
     ;; Per-library min-version notifications
-    (let [min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
-          failing-uris (into #{} (map :uri) min-version-states)
-          all-uris (into #{} (map :uri) lib-states)
+    (let [all-uris (into #{} (map :uri) lib-states)
           notification-id (fn [uri] [::dependencies-min-version uri])]
       (doseq [{:keys [uri required current]} min-version-states]
         (notifications/show!
@@ -587,9 +587,7 @@ ordinary paths."
                                   :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
-    (let [min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
-          failing-uris (into #{} (map :uri) min-version-states)
-          other-errors (into [] (remove failing-uris) (or error []))]
+    (let [other-errors (into [] (remove failing-uris) (or error []))]
       (if (pos? (count other-errors))
         (notifications/show!
           notifications
