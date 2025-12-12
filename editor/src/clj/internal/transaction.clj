@@ -561,8 +561,7 @@
             is-dynamic (not (contains? (in/all-properties (gt/node-type node)) property-label))
 
             ;; As an optimization, we bypass the property (value ...) clause if
-            ;; the node does not yet have a value for the property. This speeds
-            ;; up project loading significantly.
+            ;; the node does not yet have a value for the property.
             old-value (when (or is-override-node
                                 (contains? node property-label))
                         ;; Use a custom evaluation-context since we're inside a
@@ -868,6 +867,9 @@
 (defn update-graph-value
   "*transaction step* - Update a graph value."
   [graph-id fn args]
+  {:pre [(gt/graph-id? graph-id)
+         (ifn? fn)
+         (coll/eager-seqable? args)]}
   [(->UpdateGraphValueTXS graph-id fn args)])
 
 (defonce/record CallbackTXS [callback-fn args opts]

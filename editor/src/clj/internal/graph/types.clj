@@ -106,6 +106,7 @@
   ^Endpoint [^Arc arc]
   (endpoint (target-id arc) (target-label arc)))
 
+(defn graph-id? [v] (integer? v))
 (defn node-id? [v] (integer? v))
 
 (defonce/protocol Evaluation
