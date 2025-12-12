@@ -821,7 +821,7 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns texture-page-count]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
