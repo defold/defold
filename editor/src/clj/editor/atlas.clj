@@ -508,7 +508,7 @@
 
 (defn- texture-page-count-error-message [x]
   (when (> x 8)
-    (format "Atlas pages count (%d) cannot exceed 8 pages per atlas" x)))
+    (format "Atlas page count (%d) cannot exceed 8 pages per atlas" x)))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
@@ -790,17 +790,15 @@
   (output gpu-texture g/Any :cached
           (g/fnk [_node-id packed-page-images-generator texture-profile]
             ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
-            (if (and (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
-                     (g/user-data _node-id :gpu-texture-cached))
-              (when-let [texture-ref (g/user-data _node-id :gpu-texture-cached)]
-                (.get texture-ref))
-              (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                                (texture/set-params {:min-filter gl/nearest
-                                                     :mag-filter gl/nearest}))
-                    texture-ref (WeakReference. texture)]
-                (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
-                (g/user-data! _node-id :gpu-texture-cached texture-ref)
-                texture))))
+            (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
+                  (some-> (g/user-data _node-id :gpu-texture-cached) .get))
+                (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
+                                  (texture/set-params {:min-filter gl/nearest
+                                                       :mag-filter gl/nearest}))
+                      texture-ref (WeakReference. texture)]
+                  (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
+                  (g/user-data! _node-id :gpu-texture-cached texture-ref)
+                  texture))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
