@@ -38,7 +38,7 @@ namespace dmResourceProviderZip
 const char* LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME = "liveupdate.game.dmanifest";
 
 const char* ANDROID_ASSET_PATH  = "/android_asset/";
-const uint32_t ANDROID_ASSET_PATH_LENGTH = sizeof(ANDROID_ASSET_PATH);
+const uint32_t ANDROID_ASSET_PATH_LENGTH = strlen(ANDROID_ASSET_PATH);
 
 struct EntryInfo
 {
