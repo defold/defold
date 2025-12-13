@@ -258,6 +258,7 @@ public class TextureGenerator {
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
+        TimeProfiler.start("GenerateImages");
         List<Long> images = new ArrayList<>();
         int baseWidth = TexcLibraryJni.GetWidth(image);
         int baseHeight = TexcLibraryJni.GetHeight(image);
@@ -274,6 +275,7 @@ public class TextureGenerator {
             images.add(resizedBase);
         }
         if (!generateMipChain) {
+            TimeProfiler.stop();
             return images;
         }
 
@@ -294,7 +296,7 @@ public class TextureGenerator {
 
             prevImage = resizedImage;
         }
-
+        TimeProfiler.stop();
         return images;
     }
 
@@ -446,7 +448,8 @@ public class TextureGenerator {
 
             List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, generateMipMaps);
             List<byte[]> compressedMipImageDatas = new ArrayList<>();
-
+            TimeProfiler.start("textureCompressor.compress");
+            TimeProfiler.addData("mips count", mipImages.size());
             for (Long mipImage : mipImages) {
 
                 byte[] uncompressed = TexcLibraryJni.GetData(mipImage);
@@ -471,7 +474,7 @@ public class TextureGenerator {
                 offset += compressedData.length;
                 mipMapLevel++;
             }
-
+            TimeProfiler.stop();
             builder.setDataSize(offset);
             builder.setFormat(textureFormat);
 

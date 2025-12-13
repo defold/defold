@@ -54,6 +54,13 @@ public class TextureCompressorUncompressed implements ITextureCompressor {
     @Override
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
 
+        // Fast-path: native DefaultEncode just memcpy's when output format is RGBA8888.
+        // Avoids an extra alloc+copy for large textures.
+        if (params.getPixelFormat() == params.getPixelFormatOut() &&
+            params.getPixelFormat() == Texc.PixelFormat.PF_R8G8B8A8.getValue()) {
+            return input;
+        }
+
         Texc.DefaultEncodeSettings settings = new Texc.DefaultEncodeSettings();
         settings.path = params.getPath();
         settings.width = params.getWidth();
