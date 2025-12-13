@@ -735,6 +735,51 @@
   ([ns expression]
    `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
 
+(defn println-err
+  [& more]
+  (binding [*out* *err*]
+    (apply println more)))
+
+(defn- input-source-endpoints
+  [basis node-id input-label]
+  (e/map gt/source-endpoint
+         (gt/arcs-by-target basis node-id input-label)))
+
+(defn immediate-predecessor-endpoints
+  [basis node-id label]
+  (let [node-type (g/node-type* basis node-id)
+        output-info (get (in/declared-outputs node-type) label)]
+    (cond
+      (some? output-info)
+      (e/mapcat
+        (fn [dep-label]
+          (if (= label dep-label)
+            (when (g/has-input? node-type dep-label)
+              (input-source-endpoints basis node-id dep-label))
+            [(gt/endpoint node-id dep-label)]))
+        (:dependencies output-info))
+
+      (g/has-input? node-type label)
+      (input-source-endpoints basis node-id label))))
+
+(defn recursive-predecessor-endpoints
+  [basis node-id label]
+  (let [*endpoint->predecessors-ref (volatile! {})]
+    (letfn [(endpoint->predecessors-ref [endpoint]
+              (if-some [predecessors-ref (get (deref *endpoint->predecessors-ref) endpoint)]
+                predecessors-ref
+                (let [predecessors-ref (volatile! nil)]
+                  (vswap! *endpoint->predecessors-ref assoc endpoint predecessors-ref)
+                  (vreset! predecessors-ref
+                           (let [node-id (gt/endpoint-node-id endpoint)
+                                 label (gt/endpoint-label endpoint)
+                                 immediate-predecessors (set (immediate-predecessor-endpoints basis node-id label))]
+                             (coll/transfer immediate-predecessors immediate-predecessors
+                               (mapcat (comp deref endpoint->predecessors-ref)))))
+                  predecessors-ref)))]
+      (let [endpoint (gt/endpoint node-id label)]
+        (deref (endpoint->predecessors-ref endpoint))))))
+
 ;; Utilities for investigating successors performance
 
 (defn- successor-pairs
@@ -1487,6 +1532,37 @@
          (if (instance? Throwable result)
            (throw result)
            result))))))
+
+(defn run-with-terminal-progress [^String header-text worker-fn]
+  (let [localization test-util/localization
+        done-progress (progress/make (localization/message nil nil "Done") 1 1)
+        prev-progress-volatile (volatile! nil)]
+    (letfn [(render-progress! [progress]
+              (let [prev-progress @prev-progress-volatile
+                    preamble (if prev-progress "\033[F\033[K" "")
+                    message (localization (progress/message progress))
+                    ^long pos (:pos progress)
+                    ^long size (:size progress)]
+                (vreset! prev-progress-volatile progress)
+                (when (nil? prev-progress)
+                  (println-err header-text))
+                (println-err
+                  (if (pos? size)
+                    (let [size-str (str size)
+                          size-len (.length size-str)
+                          fmt (format "%s  [%%%dd/%s] %%s"
+                                      preamble
+                                      size-len
+                                      size-str)]
+                      (format fmt pos message))
+                    (format "%s  [0/1] %s"
+                            preamble
+                            message)))))]
+      (let [result (worker-fn render-progress!)]
+        (render-progress! (if-some [{:keys [size]} @prev-progress-volatile]
+                            (assoc done-progress :pos size :size size)
+                            done-progress))
+        result))))
 
 (defn node-load-infos-by-proj-path [node-load-infos]
   (coll/pair-map-by

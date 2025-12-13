@@ -194,6 +194,23 @@
         (aset-long tps-counts 0 0)))
     tps-counts))
 
+(defn make-transaction-context [opts]
+  (let [system (deref *the-system*)
+        basis (is/basis system)
+        id-generators (is/id-generators system)
+        override-id-generator (is/override-id-generator system)
+        tx-data-context-map (or (:tx-data-context-map opts) {})
+        metrics-collector (:metrics opts)
+        track-changes (:track-changes opts true)]
+    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)))
+
+(defn commit-tx-result!
+  [tx-result transact-opts]
+  (when (and (not (:dry-run transact-opts))
+             (= :ok (:status tx-result)))
+    (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))
+    nil))
+
 (defn transact
   "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
 
@@ -212,18 +229,9 @@
   ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
-   (let [system (deref *the-system*)
-         basis (is/basis system)
-         id-generators (is/id-generators system)
-         override-id-generator (is/override-id-generator system)
-         tx-data-context-map (or (:tx-data-context-map opts) {})
-         metrics-collector (:metrics opts)
-         track-changes (:track-changes opts true)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)
+   (let [transaction-context (make-transaction-context opts)
          tx-result (it/transact* transaction-context txs)]
-     (when (and (not (:dry-run opts))
-                (= :ok (:status tx-result)))
-       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+     (commit-tx-result! tx-result opts)
      tx-result)))
 
 ;; ---------------------------------------------------------------------------

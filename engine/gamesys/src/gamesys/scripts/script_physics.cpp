@@ -1686,7 +1686,8 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent to on_message.
+    /*# Sets a physics world event listener. If a function is set, physics messages will no longer be sent to on_message.
+     * Only one physics world event listener can be set at a time.
      *
      * @name physics.set_event_listener
      *

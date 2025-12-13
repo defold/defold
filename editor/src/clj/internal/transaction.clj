@@ -489,6 +489,17 @@
           node-ids))
 
 (defn- populate-overrides [ctx node-id]
+  ;; When a transaction concludes, this gets called for each node-id where a
+  ;; :cascade-delete input gained a new connection. We must now create new
+  ;; override nodes for the relevant nodes in the connected subgraph. Each
+  ;; override layer will get a chance to spawn its own set of override nodes,
+  ;; based on its traverse-fn.
+  ;;
+  ;; It is possible for an override layer to be created for a root-node and
+  ;; connections to have been introduced later in the same transaction. In that
+  ;; case, the :override transaction step will have already traversed and
+  ;; created override nodes from the :cascade-delete subgraph that was connected
+  ;; to the root-node at the time.
   (let [basis (:basis ctx)
         override-node-ids (ig/get-overrides basis node-id)
         override-node-count (count override-node-ids)
@@ -503,7 +514,16 @@
                       {:keys [init-props-fn traverse-fn]} (ig/override-by-id basis override-id)
                       node-ids (if (identical? prev-traverse-fn traverse-fn)
                                  prev-traverse-result
-                                 (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1))]
+                                 (when-let [source-node-ids
+                                            (some-> (traverse-fn basis node-id) ; Immediate relevant source nodes connected to a :cascade-delete input.
+                                                    (coll/transfer []
+                                                      (remove
+                                                        (fn already-traversed? [immediate-node-id]
+                                                          (coll/some
+                                                            #(= override-id (node-id->override-id basis %))
+                                                            (ig/get-overrides basis immediate-node-id)))))
+                                                    (coll/not-empty))]
+                                   (ig/pre-traverse basis source-node-ids traverse-fn)))]
                   (recur (inc override-node-index)
                          (ctx-make-override-nodes ctx override-id node-ids init-props-fn)
                          traverse-fn
@@ -771,19 +791,14 @@
     (disconnect-inputs ctx target-id target-label)
     ctx))
 
-(defn- flag-override-nodes-affected [ctx target target-label]
-  (let [target-id (gt/node-id target)
-        override-nodes-affected-seen (:override-nodes-affected-seen ctx)]
+(defn- flag-override-nodes-affected [ctx target-id]
+  (let [override-nodes-affected-seen (:override-nodes-affected-seen ctx)]
     (if (contains? override-nodes-affected-seen target-id)
       ctx
-      (let [target-node-type (gt/node-type target)
-            target-cascade-deletes (in/cascade-deletes target-node-type)]
-        (if-not (contains? target-cascade-deletes target-label)
-          ctx
-          (let [override-nodes-affected-ordered (:override-nodes-affected-ordered ctx)]
-            (assoc ctx
-              :override-nodes-affected-seen (conj override-nodes-affected-seen target-id)
-              :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id))))))))
+      (let [override-nodes-affected-ordered (:override-nodes-affected-ordered ctx)]
+        (assoc ctx
+          :override-nodes-affected-seen (conj override-nodes-affected-seen target-id)
+          :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id))))))
 
 (defmacro ^:private assert-schema-type-compatible
   [source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype]
@@ -818,7 +833,8 @@
 (defn- ctx-connect [{:keys [basis] :as ctx} source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
-      (do
+      (let [target-node-type (gt/node-type target)
+            target-cascade-deletes (in/cascade-deletes target-node-type)]
         (assert-type-compatible source-id source source-label target-id target target-label)
         (-> ctx
             ;; If the input has :one cardinality, disconnect existing connections first
@@ -833,7 +849,13 @@
                                        (pair source-id source-label)
                                        (e/map #(pair % source-label)
                                               (ig/get-overrides basis source-id))))
-            (flag-override-nodes-affected target target-label)))
+            ;; If we're connecting to a :cascade-delete input, we will need to
+            ;; re-traverse the :cascade-delete inputs of the connected sub-graph
+            ;; and create override nodes for each node. This happens in the
+            ;; update-overrides function once the transaction concludes.
+            (cond->
+              (contains? target-cascade-deletes target-label)
+              (flag-override-nodes-affected target-id))))
       ctx)
     ctx))
 
@@ -928,7 +950,7 @@
   [{:keys [node-id output-label]}]
   (pair node-id output-label))
 
-(defn- apply-tx
+(defn apply-tx
   [ctx actions]
   (reduce
     (fn [ctx action]
@@ -951,7 +973,7 @@
     ctx
     actions))
 
-(defn- mark-nodes-modified
+(defn mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (into #{} (map gt/endpoint-node-id) nodes-affected)))
 
@@ -959,7 +981,7 @@
   [m f]
   (util/map-vals f m))
 
-(defn- apply-tx-label
+(defn apply-tx-label
   [{:keys [basis label sequence-label] :as ctx}]
   (cond-> (update-in ctx [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))
 
@@ -970,8 +992,7 @@
   (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]
           (du/metrics-enabled?) (conj :metrics)))
 
-(defn- finalize-update
-  "Makes the transacted graph the new value of the world-state graph."
+(defn finalize-update
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
       (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
@@ -999,19 +1020,19 @@
    :metrics metrics-collector
    :track-changes track-changes})
 
-(defn- update-overrides
+(defn update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx}]
   (du/measuring (:metrics ctx) :update-overrides
     (reduce populate-overrides
             ctx
             override-nodes-affected-ordered)))
 
-(defn- update-successors
+(defn update-successors
   [{:keys [successors-changed] :as ctx}]
   (du/measuring (:metrics ctx) :update-successors
     (update ctx :basis ig/update-successors successors-changed)))
 
-(defn- trace-dependencies
+(defn trace-dependencies
   [ctx]
   ;; At this point, :nodes-affected is a set of all output Endpoints that have
   ;; been directly affected by the transaction changes.
