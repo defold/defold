@@ -102,7 +102,7 @@ static void RunCallback(CallbackInfo* cbinfo)
 }
 
 /*# sets a window event listener
- * Sets a window event listener.
+ * Sets a window event listener. Only one window event listener can be set at a time.
  *
  * @name window.set_listener
  *
