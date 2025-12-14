@@ -351,7 +351,7 @@ jobs:
   # ---- BUILD EDITOR ------------------
 
   build-editor-linux:
-    needs: [build-bob]
+    needs: [build-bob, build-sdk]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps: [
@@ -387,7 +387,7 @@ jobs:
     ]
 
   build-editor-macos:
-    needs: [build-bob]
+    needs: [build-bob, build-sdk]
     runs-on: macos-26
     timeout-minutes: 60
     strategy:
@@ -430,7 +430,7 @@ jobs:
     ]
 
   build-editor-windows:
-    needs: [build-bob]
+    needs: [build-bob, build-sdk]
     runs-on: windows-2025
     timeout-minutes: 60
     strategy:
