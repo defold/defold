@@ -87,6 +87,19 @@ namespace dmSound
         FSoundDataGetData   m_GetData;
     };
 
+#if DM_SOUND_WASM_SUPPORT_THREADS
+    enum CommandType
+    {
+        COMMAND_STOP
+    };
+
+    struct Command
+    {
+        CommandType     m_Type;
+        HSoundInstance  m_Instance;
+    };
+#endif
+
     struct SoundData
     {
         dmhash_t            m_NameHash;
@@ -142,6 +155,7 @@ namespace dmSound
 #if DM_SOUND_WASM_SUPPORT_THREADS
         dmConditionVariable::HConditionVariable m_CondVar;
         dmThread::Thread        m_Thread;
+        dmArray<Command>        m_CommandQueue;
 #endif
         int32_atomic_t          m_IsRunning;
         int32_atomic_t          m_Status;
@@ -502,6 +516,7 @@ namespace dmSound
 #if DM_SOUND_WASM_SUPPORT_THREADS
         sound->m_Thread = 0;
         sound->m_CondVar = 0;
+        sound->m_CommandQueue.SetCapacity(64);
 
         if (params->m_UseThread) {
             dmLogInfo("sound updates on worker thread");
@@ -1167,12 +1182,10 @@ namespace dmSound
         sound->m_InstancesActive.Pop();
     }
 
-    Result Stop(HSoundInstance sound_instance)
+    static void StopInternal(SoundSystem* sound, HSoundInstance sound_instance)
     {
-        SoundSystem* sound = g_SoundSystem;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         sound_instance->m_Playing = 0;
-        dmSoundCodec::Reset(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder);
+        dmSoundCodec::Reset(sound->m_CodecContext, sound_instance->m_Decoder);
         if (sound_instance->m_SourceIndex != 0xffff) {
             ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
             alSourceStop(source);
@@ -1189,6 +1202,27 @@ namespace dmSound
                 }
             }
         }
+    }
+
+    Result Stop(HSoundInstance sound_instance)
+    {
+        SoundSystem* sound = g_SoundSystem;
+
+#if DM_SOUND_WASM_SUPPORT_THREADS
+        if (sound->m_Thread != 0) {
+            // Queue the stop command for execution on the audio thread
+            // to avoid cross-thread OpenAL calls which can crash
+            DM_MUTEX_SCOPED_LOCK(sound->m_Mutex);
+            Command cmd;
+            cmd.m_Type = COMMAND_STOP;
+            cmd.m_Instance = sound_instance;
+            sound->m_CommandQueue.Push(cmd);
+            return RESULT_OK;
+        }
+#endif
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+        StopInternal(sound, sound_instance);
         return RESULT_OK;
     }
 
@@ -1272,6 +1306,19 @@ namespace dmSound
         }
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+
+#if DM_SOUND_WASM_SUPPORT_THREADS
+        // Process queued commands from other threads
+        for (uint32_t cmd_idx = 0; cmd_idx < sound->m_CommandQueue.Size(); ++cmd_idx)
+        {
+            Command& cmd = sound->m_CommandQueue[cmd_idx];
+            if (cmd.m_Type == COMMAND_STOP)
+            {
+                StopInternal(sound, cmd.m_Instance);
+            }
+        }
+        sound->m_CommandQueue.SetSize(0);
+#endif
 
         // feed buffers for active streams
         uint16_t i = 0;
