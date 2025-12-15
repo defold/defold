@@ -607,15 +607,11 @@
                               (resource/resource->path-inclusive-sha1-hex resource)))
                           flat-image-resources)]
     (g/precluding-errors image-sha1s
-      (let [layout-data (texture-util/call-generator layout-data-generator)
-            ;; NOTE: The default is 0, not 1, so it'll change the hash if we change the max-page-size
-            ;; despite no new pages being created, generating a new unneeded preview atlas image
-            texture-page-count (max 1 (calculate-texture-page-count layout-data max-page-size))
-            packed-image-sha1 (digestable/sha1-hash
+      (let [packed-image-sha1 (digestable/sha1-hash
                                 {:extrude-borders extrude-borders
                                  :image-sha1s image-sha1s
                                  :inner-padding inner-padding
-                                 :texture-page-count texture-page-count
+                                 :max-page-size max-page-size
                                  :margin margin
                                  :type :packed-atlas-image})]
         {:f generate-packed-page-images
