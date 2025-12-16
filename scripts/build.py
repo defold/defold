@@ -1973,20 +1973,37 @@ class Configuration(object):
 
         platform_zips = []  # (platform, zip_path)
         try:
-            for platform in platforms:
-                prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-                entry = bucket.Object(prefix)
+            DOWNLOAD_WORKERS = 4
+            download_pool = ThreadPool(DOWNLOAD_WORKERS)
 
-                platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-                print ("Downloading", entry.key)
-                entry.download_file(platform_sdk_zip.name)
-                print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
-                platform_zips.append((platform, platform_sdk_zip.name))
-                print ("")
+            def _download_platform_sdk_zip(netloc, key, out_path):
+                # Create a fresh bucket per thread to avoid shared boto3 state across threads.
+                thread_bucket = s3.get_bucket(netloc)
+                entry = thread_bucket.Object(key)
+                print("Downloading", entry.key)
+                entry.download_file(out_path)
+                print("Downloaded", entry.key, "to", out_path)
+                print("")
+                return out_path
+
+            download_futures = []
+            platform_zip_paths = {}
+            for platform in platforms:
+                key = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
+                tmp = tempfile.NamedTemporaryFile(delete=False)
+                tmp.close()
+                platform_zip_paths[platform] = tmp.name
+                download_futures.append((platform, Future(download_pool, _download_platform_sdk_zip, u.netloc, key, tmp.name)))
+
+            # Preserve platform ordering for deterministic conflict resolution semantics.
+            for platform, fut in download_futures:
+                fut()
+                platform_zips.append((platform, platform_zip_paths[platform]))
 
             platform_rank = {p: i for i, (p, _) in enumerate(platform_zips)}
             canonical_platform = 'x86_64-linux' if any(p == 'x86_64-linux' for p, _ in platform_zips) else platform_zips[-1][0]
-            strict_merge = os.environ.get('DEFOLD_SDK_MERGE_STRICT', '1') not in ('0', 'false', 'False', 'no', 'NO')
+            # Default to non-strict to preserve historical "last extracted wins" behaviour unless explicitly enabled.
+            strict_merge = os.environ.get('DEFOLD_SDK_MERGE_STRICT', '0') not in ('0', 'false', 'False', 'no', 'NO')
 
             # Build candidate list per output path.
             candidates_by_path = {}  # filename -> [_SdkZipEntry...]
