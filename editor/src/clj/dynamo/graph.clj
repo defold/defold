@@ -241,7 +241,9 @@
 ;; ---------------------------------------------------------------------------
 
 (definline step-type [transaction-step]
-  `(.step-type ~(with-meta transaction-step {:tag `TransactionStep})))
+  `(let [^TransactionStep transaction-step# ~transaction-step]
+     (or (:type transaction-step#)
+         (.step-type transaction-step#))))
 
 (defn tx-data-added-nodes
   "Given a sequence of transaction steps, returns a sequence of Nodes that will

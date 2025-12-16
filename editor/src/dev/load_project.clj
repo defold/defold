@@ -211,11 +211,13 @@
                 :update-successors
                 (it/update-successors transaction-context))
 
-              (it/trace-dependencies transaction-context)
-              (it/apply-tx-label transaction-context)
-              (it/finalize-update transaction-context))
+              (when transaction-context
+                (it/trace-dependencies transaction-context)
+                (it/apply-tx-label transaction-context)
+                (it/finalize-update transaction-context)))
 
-        _ (g/commit-tx-result! tx-result transact-opts)
+        _ (when tx-result
+            (g/commit-tx-result! tx-result transact-opts))
 
         migrated-resource-node-ids
         (let [basis (:basis tx-result)]
