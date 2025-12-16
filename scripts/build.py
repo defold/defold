@@ -1943,20 +1943,152 @@ class Configuration(object):
             platforms.remove('x86_64-linux')
             platforms.append('x86_64-linux')
 
-        for platform in platforms:
-            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-            entry = bucket.Object(prefix)
+        # We merge platform SDK zips by building a per-zip index and selecting a single source
+        # for each output path, instead of repeatedly extracting and overwriting shared files.
+        #
+        # Rules:
+        # - Unique paths (present in only one zip) are included.
+        # - Paths under platform-specific prefixes always come from that platform's zip.
+        # - If the same path exists in multiple zips and differs (size/CRC), we either error
+        #   or fall back to old "last extracted wins" depending on DEFOLD_SDK_MERGE_STRICT.
+        from dataclasses import dataclass
 
-            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-            print ("Downloading", entry.key)
-            entry.download_file(platform_sdk_zip.name)
-            print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
+        @dataclass(frozen=True)
+        class _SdkZipEntry(object):
+            platform: str
+            zip_path: str
+            filename: str
+            file_size: int
+            crc: int
+            external_attr: int
+            is_dir: bool
 
-            self._extract_zip(platform_sdk_zip.name, tempdir)
-            print ("Extracted", platform_sdk_zip.name, "to", tempdir)
+        def _platform_prefixes(p):
+            # Note: These prefixes exist inside the per-platform zips as produced by _package_platform_sdk().
+            return (
+                f"defoldsdk/lib/{p}/",
+                f"defoldsdk/ext/lib/{p}/",
+                f"defoldsdk/ext/bin/{p}/",
+            )
 
-            os.unlink(platform_sdk_zip.name)
-            print ("")
+        platform_zips = []  # (platform, zip_path)
+        try:
+            for platform in platforms:
+                prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
+                entry = bucket.Object(prefix)
+
+                platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
+                print ("Downloading", entry.key)
+                entry.download_file(platform_sdk_zip.name)
+                print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
+                platform_zips.append((platform, platform_sdk_zip.name))
+                print ("")
+
+            platform_rank = {p: i for i, (p, _) in enumerate(platform_zips)}
+            canonical_platform = 'x86_64-linux' if any(p == 'x86_64-linux' for p, _ in platform_zips) else platform_zips[-1][0]
+            strict_merge = os.environ.get('DEFOLD_SDK_MERGE_STRICT', '1') not in ('0', 'false', 'False', 'no', 'NO')
+
+            # Build candidate list per output path.
+            candidates_by_path = {}  # filename -> [_SdkZipEntry...]
+            for platform, zip_path in platform_zips:
+                with zipfile.ZipFile(zip_path, 'r') as zf:
+                    for info in zf.infolist():
+                        # Basic hardening: reject absolute paths and path traversal attempts.
+                        name = info.filename.replace('\\', '/')
+                        if not name or name.startswith('/') or '..' in name.split('/'):
+                            raise Exception(f"Invalid zip entry path in {platform}: {info.filename}")
+
+                        candidates_by_path.setdefault(name, []).append(_SdkZipEntry(
+                            platform=platform,
+                            zip_path=zip_path,
+                            filename=name,
+                            file_size=getattr(info, 'file_size', 0),
+                            crc=getattr(info, 'CRC', 0),
+                            external_attr=getattr(info, 'external_attr', 0),
+                            is_dir=bool(getattr(info, 'is_dir', lambda: name.endswith('/'))()),
+                        ))
+
+            selected_by_path = {}  # filename -> _SdkZipEntry
+            conflicts = []         # (filename, [entries], chosen_entry)
+
+            for filename, entries in candidates_by_path.items():
+                file_entries = [e for e in entries if not e.is_dir]
+                if not file_entries:
+                    continue
+
+                # If this filename belongs to a platform-specific prefix, select from that platform.
+                expected_platform = None
+                for p, _ in platform_zips:
+                    if any(filename.startswith(pref) for pref in _platform_prefixes(p)):
+                        expected_platform = p
+                        break
+
+                chosen = None
+                if expected_platform is not None:
+                    for e in file_entries:
+                        if e.platform == expected_platform:
+                            chosen = e
+                            break
+                    if chosen is None:
+                        # Unexpected: platform prefix but no matching platform source.
+                        chosen = max(file_entries, key=lambda e: platform_rank.get(e.platform, -1))
+                else:
+                    unique_payloads = {(e.file_size, e.crc) for e in file_entries}
+                    if len(unique_payloads) == 1:
+                        # Identical across platforms: prefer canonical platform for determinism.
+                        chosen = next((e for e in file_entries if e.platform == canonical_platform), None)
+                        if chosen is None:
+                            chosen = max(file_entries, key=lambda e: platform_rank.get(e.platform, -1))
+                    else:
+                        # Non-identical collision: old behaviour is "last extracted wins".
+                        chosen = max(file_entries, key=lambda e: platform_rank.get(e.platform, -1))
+                        conflicts.append((filename, file_entries, chosen))
+
+                selected_by_path[filename] = chosen
+
+            if conflicts:
+                msg_lines = [
+                    "Found conflicting SDK paths across platforms (same path, different payload):",
+                ]
+                # Print a bounded set to keep logs readable.
+                for filename, entries, chosen in conflicts[:50]:
+                    details = ", ".join([f"{e.platform}(size={e.file_size},crc={e.crc:08x})" for e in entries])
+                    msg_lines.append(f"  - {filename}: {details} -> using {chosen.platform}")
+                if len(conflicts) > 50:
+                    msg_lines.append(f"  ... and {len(conflicts) - 50} more")
+
+                full_msg = "\n".join(msg_lines)
+                if strict_merge:
+                    raise Exception(full_msg + "\nSet DEFOLD_SDK_MERGE_STRICT=0 to preserve previous overwrite behaviour.")
+                else:
+                    print("WARNING:", full_msg)
+
+            # Extract only selected entries, grouped by source zip for performance.
+            extract_map = {}  # zip_path -> [filename...]
+            for filename, entry in selected_by_path.items():
+                extract_map.setdefault(entry.zip_path, []).append(filename)
+
+            for zip_path, filenames in extract_map.items():
+                with zipfile.ZipFile(zip_path, 'r') as zf:
+                    for filename in sorted(filenames):
+                        info = zf.getinfo(filename)
+                        if getattr(info, 'is_dir', lambda: filename.endswith('/'))():
+                            continue
+                        out_path = os.path.join(tempdir, filename)
+                        self._mkdirs(os.path.dirname(out_path))
+                        with zf.open(filename, 'r') as src, open(out_path, 'wb') as dst:
+                            shutil.copyfileobj(src, dst)
+                        perm = (getattr(info, 'external_attr', 0) >> 16) & 0o7777
+                        if perm:
+                            os.chmod(out_path, perm)
+
+            print("Merged platform SDKs into", tempdir)
+        finally:
+            for _, zip_path in platform_zips:
+                try:
+                    os.unlink(zip_path)
+                except Exception:
+                    pass
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly
