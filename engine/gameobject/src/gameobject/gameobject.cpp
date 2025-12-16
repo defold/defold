@@ -2725,32 +2725,32 @@ namespace dmGameObject
             }
         }
 
-        /* The overall function order is following:
-        * 1. Script fixed update - calls Lua fixed_update callback
-        * 2. Script and animation update - calls Lua update callback and runs/update/finish animations (started via go.animate)
-        * 3. Component's fixed update - usually physics simulation
-        * 4. Component's regular update - every component (except script, animation and physics) run their's inner update logic (except of final transform calculation)
-        * 5. Component's late update - script calls Lua late_update callback. The rest of the components calls UpdateTransforms to finalize vertex position data
-        * 
-        * Message flusing happened:
-        * 1. During physcs simulation to notify about ocurred collision events
-        * 2. After component's update
-        * 3. After component's late update
-        * We want to make sure that all messages would be delivered before next frame because in other case at the next frame message queue can have message with outdated data.
-        * 
-        * Update order was formed in such way because:
-        * 1. We want run all user calculations before any other component's update
-        * 2. We want to run all components that don't have dependencies on game object's transform (like animation component) before any other component's update
-        * 3. We want to simulate physcis before any other component's update (except script and animation because of p.2) because physics can affect parent game object's transform
-        * 
-        * The only problem with current update order is model component which can have rig. And rig may change game object's transforms attached to bones. In case if attached objects
-        * will have physics body - there will be no collision events from that physcs body until next frame because we don't have any additional place to simulate physics
-        * 
-        * NOTE: Such order is also resistent to feature flag which turn on/off usage of fixed update time. In case if fixed update time is turned off physcs will be simulated during regular
-        * component's update. E.g. script -> animation -> physics -> <rest_of_the_components>
+        /* The overall function order is as follows:
+        * 1. Script fixed update - calls the Lua fixed_update callback
+        * 2. Script and animation update - calls the Lua update callback and runs/updates/finishes animations (started via go.animate)
+        * 3. Component fixed update - usually physics simulation
+        * 4. Component regular update - every component (except script, animation, and physics) runs its internal update logic (excluding the final transform calculation)
+        * 5. Component late update - scripts call the Lua late_update callback. The rest of the components call UpdateTransforms to finalize vertex position data
+        *
+        * Message flushing happens after every step:
+        *
+        * The update order was formed this way because:
+        * 1. We want to run all user calculations before any other component update
+        * 2. We want to run all components that do not depend on the game object's transform (such as the animation component) before other component updates
+        * 3. We want to simulate physics before any other component update (except script and animation because of point 2), since physics can affect
+        *    the parent game object's transform
+        *
+        * The only problem with the current update order is the model component, which can have a rig.
+        * The rig may change the transforms of game objects attached to bones. If attached objects have a physics body, there will be no collision events from that 
+        * physics body until the next frame, because there is no additional place to simulate physics.
+        *
+        * NOTE: This order is also resistant to the feature flag that turns fixed update time on or off.
+        * If fixed update time is turned off, physics will be simulated during the regular
+        * component update (e.g. script -> animation -> physics -> <rest_of_the_components>).
         */
 
-        /* The names of the component callbacks is a subject to change in the future. As it's internal naming it's ok to change to better reflect the place in the whole update order. 
+        /* The names of the component callbacks are subject to change in the future.
+        * Since this is internal naming, it is acceptable to change them to better reflect their place in the overall update order.
         */
         ComponentsUpdateParams update_params;
         update_params.m_Collection = collection->m_HCollection;
