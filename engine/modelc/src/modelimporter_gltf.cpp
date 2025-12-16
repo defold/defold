@@ -1766,6 +1766,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     if (!NeedsResolve(scene))
     {
+        scene->m_LoadFinalizeFn = 0;
         LoadFinalizeGltf(scene);
         ValidateGltf(scene);
     }

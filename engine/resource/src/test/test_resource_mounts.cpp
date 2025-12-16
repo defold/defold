@@ -345,6 +345,8 @@ int main(int argc, char **argv)
     dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

@@ -360,7 +360,7 @@ TEST(dmResourceArchive, GetInsertionIndex)
 
 TEST(dmResourceArchive, ManifestHeader)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     dmLiveUpdateDDF::ManifestData* manifest_data;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
@@ -378,7 +378,7 @@ TEST(dmResourceArchive, ManifestHeader)
 
 TEST(dmResourceArchive, HasLiveupdateContent_True)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
@@ -390,7 +390,7 @@ TEST(dmResourceArchive, HasLiveupdateContent_True)
 
 TEST(dmResourceArchive, HasLiveupdateContent_False)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_NO_LU_DMANIFEST, RESOURCES_NO_LU_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
@@ -577,7 +577,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
@@ -596,7 +596,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 
 TEST(dmResourceArchive, ResourceEntries)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     dmLiveUpdateDDF::ManifestData* manifest_data;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
@@ -622,7 +622,7 @@ TEST(dmResourceArchive, ResourceEntries)
 
 TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     dmLiveUpdateDDF::ManifestData* manifest_data;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, &manifest));
 

@@ -11,8 +11,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/static_assert.h>
 
 #include <stdlib.h> // free
+#include <stdio.h> // printf
 
 // Making sure we can guarantuee the functions
 #define STBTT_malloc(x,u)  ((void)(u),malloc(x))
@@ -65,7 +67,7 @@ static void FontDestroyTTF(HFont hfont)
         free((void*)font->m_Data);
     }
     memset(font, 0, sizeof(*font));
-    free((void*)font);
+    delete font;
 }
 
 uint32_t GetResourceSizeTTF(HFont hfont)
@@ -216,6 +218,9 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     TTFFont* font = new TTFFont;
     memset(font, 0, sizeof(*font));
 
+    // Make sure the base font is always first in the struct
+    assert( (&((Font*)font)->m_Path) == (&font->m_Base.m_Path));
+
     font->m_Base.m_LoadFontFromMemory = FontLoadFromMemoryTTF;
     font->m_Base.m_DestroyFont = FontDestroyTTF;
     font->m_Base.m_GetResourceSize = GetResourceSizeTTF;
@@ -261,7 +266,6 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     }
 
     stbtt_GetFontVMetrics(&font->m_Font, &font->m_Ascent, &font->m_Descent, &font->m_LineGap);
-    font->m_Path = strdup(path);
     return (HFont)font;
 }
 

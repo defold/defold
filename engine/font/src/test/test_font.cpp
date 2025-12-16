@@ -39,7 +39,7 @@ protected:
     HFont           m_Font;
     HFontCollection m_FontCollection;
 
-    virtual void SetUp()
+    virtual void SetUp() override
     {
         char buffer[512];
         const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/vera_mo_bd.ttf");
@@ -58,7 +58,7 @@ protected:
         ASSERT_EQ(FONT_RESULT_OK, r);
     }
 
-    virtual void TearDown()
+    virtual void TearDown() override
     {
         FontCollectionDestroy(m_FontCollection);
         FontDestroy(m_Font);
@@ -249,6 +249,8 @@ TEST_F(FontTest, LayoutMultiLine)
     outtext.Push(0);
     ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + line1.m_Index, line1.m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
+
+    TextLayoutFree(layout);
 }
 
 TEST_F(FontTest, LayoutExplicitLineBreaks)

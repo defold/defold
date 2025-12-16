@@ -127,6 +127,7 @@ public:
             dmJobThread::Destroy(m_JobThread);
         dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -1968,7 +1969,9 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
 
         dmGraphics::HTexture texture_2 = dmGraphics::NewTexture(m_Context, creation_params);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture_2));
         ASSERT_NE(texture, texture_2);
+        dmGraphics::DeleteTexture(m_Context, texture_2);
     }
 
     // Test render targets

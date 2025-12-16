@@ -397,6 +397,8 @@ protected:
         ASSERT_TRUE(image != 0);
 
         m_Image = dmTexc::CreateImage(info.m_Path, m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, m_Width*m_Height*4, image);
+
+        stbi_image_free(image);
     }
 
     void TearDown() override
@@ -455,6 +457,8 @@ TEST_P(TexcCompileTest, EncodeBasisU)
     uint8_t* out = 0;
     uint32_t out_size = 0;
     ASSERT_TRUE(dmTexc::BasisUEncode(&settings, &out, &out_size));
+
+    free(out);
 }
 
 INSTANTIATE_TEST_CASE_P(TexcCompileTest, TexcCompileTest, jc_test_values_in(compile_info));
@@ -507,9 +511,12 @@ TEST(TexcCompileTestASTC, Encode)
     {
         settings.m_OutPixelFormat = pixel_formats_astc[i];
         ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
+        free(out);
+        out = 0;
     }
 
     dmTexc::DestroyImage(image);
+    free(image_data);
 }
 
 int main(int argc, char **argv)

@@ -1094,10 +1094,10 @@ namespace dmPhysics
             b2Transform transform(t, r);
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
             b2Vec2* vertices = polygon_shape->m_vertices;
-            float min_x = INT32_MAX,
-              min_y = INT32_MAX,
-              max_x = -INT32_MAX,
-              max_y = -INT32_MAX;
+            float min_x = (float)INT32_MAX,
+                  min_y = (float)INT32_MAX,
+                  max_x = (float)-INT32_MAX,
+                  max_y = (float)-INT32_MAX;
             float inv_scale = world->m_Context->m_InvScale;
             for (int i = 0; i < polygon_shape->GetVertexCount(); i += 1)
             {
