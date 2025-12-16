@@ -4262,8 +4262,11 @@ bail:
             return 0;
         }
 
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, ap.m_Texture);
+        VulkanTexture* tex;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, ap.m_Texture);
+        }
 
         // Texture might have been deleted before the job thread has started processing this job.
         if (tex == NULL)
