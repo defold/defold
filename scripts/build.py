@@ -1943,14 +1943,11 @@ class Configuration(object):
             platforms.remove('x86_64-linux')
             platforms.append('x86_64-linux')
 
-        # Default to non-strict to preserve historical "last extracted wins" behaviour unless explicitly enabled.
-        strict_merge = os.environ.get('DEFOLD_SDK_MERGE_STRICT', '0') not in ('0', 'false', 'False', 'no', 'NO')
         sdk_merge.build_combined_sdk_tree(
             netloc=u.netloc,
             base_prefix=base_prefix,
             platforms=platforms,
             extract_dir=tempdir,
-            strict_merge=strict_merge,
             canonical_platform='x86_64-linux')
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders

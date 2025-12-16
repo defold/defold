@@ -2,32 +2,12 @@ import os
 import shutil
 import tempfile
 import zipfile
-from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 
 import s3
 
 
 DOWNLOAD_WORKERS = 4
-
-
-@dataclass(frozen=True)
-class _SdkZipEntry(object):
-    platform: str
-    zip_path: str
-    filename: str
-    file_size: int
-    crc: int
-    external_attr: int
-    is_dir: bool
-
-
-def _platform_prefixes(platform):
-    return (
-        f"defoldsdk/lib/{platform}/",
-        f"defoldsdk/ext/lib/{platform}/",
-        f"defoldsdk/ext/bin/{platform}/",
-    )
 
 
 def _download_platform_sdk_zip(netloc, key, out_path):
@@ -63,90 +43,35 @@ def download_platform_sdk_zips(netloc, base_prefix, platforms):
     return [(platform, tmp_paths[platform]) for platform in platforms]
 
 
-def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, strict_merge=False, canonical_platform='x86_64-linux'):
+def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform='x86_64-linux'):
     """
     Merge multiple per-platform SDK zips into `extract_dir` by selecting a single source zip per output path.
-    - Includes unique paths from any zip.
-    - For platform-specific prefixes, always selects that platform's zip.
-    - For identical duplicates (same size+CRC), prefers `canonical_platform` for determinism.
-    - For non-identical duplicates, either errors (strict_merge=True) or warns and uses the
-      last platform in `platform_zips` order (historical overwrite semantics).
+    - Seeds the selection with `canonical_platform` first for determinism.
+    - Adds files from other platforms only if the path hasn't been selected yet.
     """
-    platform_rank = {p: i for i, (p, _) in enumerate(platform_zips)}
-    if not any(p == canonical_platform for p, _ in platform_zips):
-        canonical_platform = platform_zips[-1][0]
+    platform_to_zip = {p: z for p, z in platform_zips}
+    if canonical_platform not in platform_to_zip:
+        canonical_platform = platform_zips[0][0]
 
-    candidates_by_path = {}  # filename -> [_SdkZipEntry...]
-    for platform, zip_path in platform_zips:
+    ordered_platform_zips = [(canonical_platform, platform_to_zip[canonical_platform])]
+    ordered_platform_zips.extend([(p, z) for p, z in platform_zips if p != canonical_platform])
+
+    selected_by_path = {}  # filename -> (zip_path, platform)
+    for platform, zip_path in ordered_platform_zips:
         with zipfile.ZipFile(zip_path, 'r') as zf:
             for info in zf.infolist():
                 name = info.filename.replace('\\', '/')
                 if not name or name.startswith('/') or '..' in name.split('/'):
                     raise Exception(f"Invalid zip entry path in {platform}: {info.filename}")
+                if bool(getattr(info, 'is_dir', lambda: name.endswith('/'))()):
+                    continue
 
-                candidates_by_path.setdefault(name, []).append(_SdkZipEntry(
-                    platform=platform,
-                    zip_path=zip_path,
-                    filename=name,
-                    file_size=getattr(info, 'file_size', 0),
-                    crc=getattr(info, 'CRC', 0),
-                    external_attr=getattr(info, 'external_attr', 0),
-                    is_dir=bool(getattr(info, 'is_dir', lambda: name.endswith('/'))()),
-                ))
-
-    selected_by_path = {}  # filename -> _SdkZipEntry
-    conflicts = []         # (filename, [entries], chosen_entry)
-
-    for filename, entries in candidates_by_path.items():
-        file_entries = [e for e in entries if not e.is_dir]
-        if not file_entries:
-            continue
-
-        expected_platform = None
-        for p, _ in platform_zips:
-            if any(filename.startswith(pref) for pref in _platform_prefixes(p)):
-                expected_platform = p
-                break
-
-        chosen = None
-        if expected_platform is not None:
-            for e in file_entries:
-                if e.platform == expected_platform:
-                    chosen = e
-                    break
-            if chosen is None:
-                chosen = max(file_entries, key=lambda e: platform_rank.get(e.platform, -1))
-        else:
-            unique_payloads = {(e.file_size, e.crc) for e in file_entries}
-            if len(unique_payloads) == 1:
-                chosen = next((e for e in file_entries if e.platform == canonical_platform), None)
-                if chosen is None:
-                    chosen = max(file_entries, key=lambda e: platform_rank.get(e.platform, -1))
-            else:
-                chosen = max(file_entries, key=lambda e: platform_rank.get(e.platform, -1))
-                conflicts.append((filename, file_entries, chosen))
-
-        selected_by_path[filename] = chosen
-
-    if conflicts:
-        msg_lines = [
-            "Found conflicting SDK paths across platforms (same path, different payload):",
-        ]
-        for filename, entries, chosen in conflicts[:50]:
-            details = ", ".join([f"{e.platform}(size={e.file_size},crc={e.crc:08x})" for e in entries])
-            msg_lines.append(f"  - {filename}: {details} -> using {chosen.platform}")
-        if len(conflicts) > 50:
-            msg_lines.append(f"  ... and {len(conflicts) - 50} more")
-
-        full_msg = "\n".join(msg_lines)
-        if strict_merge:
-            raise Exception(full_msg + "\nSet DEFOLD_SDK_MERGE_STRICT=0 to preserve previous overwrite behaviour.")
-        else:
-            print("WARNING:", full_msg)
+                if name not in selected_by_path:
+                    selected_by_path[name] = (zip_path, platform)
 
     extract_map = {}  # zip_path -> [filename...]
-    for filename, entry in selected_by_path.items():
-        extract_map.setdefault(entry.zip_path, []).append(filename)
+    for filename, (zip_path, _) in selected_by_path.items():
+        extract_map.setdefault(zip_path, []).append(filename)
 
     for zip_path, filenames in extract_map.items():
         with zipfile.ZipFile(zip_path, 'r') as zf:
@@ -165,18 +90,17 @@ def merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, strict_merge=F
     print("Merged platform SDKs into", extract_dir)
 
 
-def build_combined_sdk_tree(netloc, base_prefix, platforms, extract_dir, strict_merge=False, canonical_platform='x86_64-linux'):
+def build_combined_sdk_tree(netloc, base_prefix, platforms, extract_dir, canonical_platform='x86_64-linux'):
     """
     High-level helper used by scripts/build.py: downloads per-platform zips, merges them into a single tree,
     and cleans up the downloaded zip files.
     """
     platform_zips = download_platform_sdk_zips(netloc, base_prefix, platforms)
     try:
-        merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, strict_merge=strict_merge, canonical_platform=canonical_platform)
+        merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform=canonical_platform)
     finally:
         for _, zip_path in platform_zips:
             try:
                 os.unlink(zip_path)
             except Exception:
                 pass
-
