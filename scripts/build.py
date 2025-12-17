@@ -1933,16 +1933,6 @@ class Configuration(object):
         else:
             platforms = get_target_platforms()
 
-        # For the linux build tools (protoc, dlib_shared etc)
-        if 'x86_64-linux' not in platforms:
-            platforms.append('x86_64-linux')
-
-        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-        # it last, in order to preserve unix line endings in the files
-        if 'x86_64-linux' in platforms:
-            platforms.remove('x86_64-linux')
-            platforms.append('x86_64-linux')
-
         sdk_merge.build_combined_sdk_tree(
             netloc=u.netloc,
             base_prefix=base_prefix,
