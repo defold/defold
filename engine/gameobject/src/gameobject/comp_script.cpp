@@ -271,8 +271,6 @@ namespace dmGameObject
 
     UpdateResult CompScriptLateUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
-        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
-        dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_LATE_UPDATE, update_result);
     }
 
