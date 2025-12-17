@@ -1329,9 +1329,10 @@ class Configuration(object):
 
                 self._add_files_to_zip(zip, protobuf_files, self.dynamo_home, topfolder)
 
-                # bob pipeline classes
-                bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
-                self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+                # bob pipeline classes include only in one sdk
+                if platform in ('x86_64-linux'):
+                    bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
+                    self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
 
 
             # For logging, print all paths in zip:
