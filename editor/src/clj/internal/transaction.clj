@@ -36,24 +36,24 @@
   (perform [ctx] "Returns a new ctx with changes applied."))
 
 (defmulti metrics-key
-  (fn [transaction-step]
-    (if (instance? TransactionStep transaction-step)
+  (fn [tx-step]
+    (if (instance? TransactionStep tx-step)
       :TransactionStep
-      (:type transaction-step))))
+      (:type tx-step))))
 
 (defmethod metrics-key :TransactionStep
-  [^TransactionStep transaction-step]
-  (.metrics-key transaction-step))
+  [^TransactionStep tx-step]
+  (.metrics-key tx-step))
 
 (defmulti perform
-  (fn [_ctx transaction-step]
-    (if (instance? TransactionStep transaction-step)
+  (fn [_ctx tx-step]
+    (if (instance? TransactionStep tx-step)
       :TransactionStep
-      (:type transaction-step))))
+      (:type tx-step))))
 
 (defmethod perform :TransactionStep
-  [ctx ^TransactionStep transaction-step]
-  (.perform transaction-step ctx))
+  [ctx ^TransactionStep tx-step]
+  (.perform tx-step ctx))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -245,7 +245,7 @@
         ;; the original nodes.
         (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))
 
-(defonce/record NewOverrideTXS [override-id root-id traverse-fn init-props-fn]
+(defonce/type NewOverrideTXS [override-id root-id traverse-fn init-props-fn]
   TransactionStep
   (step-type [_this]
     :tx-step/new-override)
@@ -273,7 +273,7 @@
       :traverse-fn traverse-fn
       :init-props-fn init-props-fn}])
 
-(defonce/record OverrideNodeTXS [original-node-id override-node-id]
+(defonce/type OverrideNodeTXS [original-node-id override-node-id]
   TransactionStep
   (step-type [_this]
     :tx-step/override-node)
@@ -770,7 +770,7 @@
 ;; Transaction steps
 ;; ---------------------------------------------------------------------------
 
-(defonce/record AddNodeTXS [added-node]
+(defonce/type AddNodeTXS [added-node]
   TransactionStep
   (step-type [_this]
     :tx-step/add-node)
@@ -797,7 +797,7 @@
   #_[{:type :tx-step/add-node
       :added-node node}])
 
-(defonce/record DeleteNodeTXS [node-id]
+(defonce/type DeleteNodeTXS [node-id]
   TransactionStep
   (step-type [_this]
     :tx-step/delete-node)
@@ -823,7 +823,7 @@
   #_[{:type :tx-step/delete-node
       :node-id node-id}])
 
-(defonce/record OverrideTXS [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
+(defonce/type OverrideTXS [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   TransactionStep
   (step-type [_this]
     :tx-step/override)
@@ -853,7 +853,7 @@
       :init-props-fn init-props-fn
       :properties-by-node-id properties-by-node-id}])
 
-(defonce/record TransferOverridesTXS [from-id->to-id]
+(defonce/type TransferOverridesTXS [from-id->to-id]
   TransactionStep
   (step-type [_this]
     :tx-step/transfer-overrides)
@@ -882,7 +882,7 @@
   #_[{:type :tx-step/transfer-overrides
       :from-id->to-id from-id->to-id}])
 
-(defonce/record SetPropertyTXS [node-id property-label new-value]
+(defonce/type SetPropertyTXS [node-id property-label new-value]
   TransactionStep
   (step-type [_this]
     :tx-step/set-property)
@@ -913,7 +913,7 @@
       :property-label property-label
       :new-value new-value}])
 
-(defonce/record UpdatePropertyTXS [node-id property-label fn args opts]
+(defonce/type UpdatePropertyTXS [node-id property-label fn args opts]
   TransactionStep
   (step-type [_this]
     :tx-step/update-property)
@@ -952,7 +952,7 @@
 (def inject-evaluation-context-opts
   {:inject-evaluation-context true})
 
-(defonce/record ClearPropertyTXS [node-id property-label]
+(defonce/type ClearPropertyTXS [node-id property-label]
   TransactionStep
   (step-type [_this]
     :tx-step/clear-property)
@@ -979,7 +979,7 @@
       :node-id node-id
       :property-label property-label}])
 
-(defonce/record UpdateGraphValueTXS [graph-id fn args]
+(defonce/type UpdateGraphValueTXS [graph-id fn args]
   TransactionStep
   (step-type [_this]
     :tx-step/update-graph-value)
@@ -1010,7 +1010,7 @@
       :fn fn
       :args args}])
 
-(defonce/record CallbackTXS [callback-fn args opts]
+(defonce/type CallbackTXS [callback-fn args opts]
   TransactionStep
   (step-type [_this]
     :tx-step/callback)
@@ -1041,7 +1041,7 @@
       :args args
       :opts opts}])
 
-(defonce/record ConnectTXS [source-id source-label target-id target-label]
+(defonce/type ConnectTXS [source-id source-label target-id target-label]
   TransactionStep
   (step-type [_this]
     :tx-step/connect)
@@ -1071,7 +1071,7 @@
       :target-id target-id
       :target-label target-label}])
 
-(defonce/record ExpandTXS [tx-steps-fn args opts]
+(defonce/type ExpandTXS [tx-steps-fn args opts]
   TransactionStep
   (step-type [_this]
     :tx-step/expand)
@@ -1103,7 +1103,7 @@
       :args args
       :opts opts}])
 
-(defonce/record DisconnectTXS [source-id source-label target-id target-label]
+(defonce/type DisconnectTXS [source-id source-label target-id target-label]
   TransactionStep
   (step-type [_this]
     :tx-step/disconnect)
@@ -1138,7 +1138,7 @@
   (for [[source-id source-label] (gt/sources basis target-id target-label)]
     (disconnect source-id source-label target-id target-label)))
 
-(defonce/record LabelTXS [label]
+(defonce/type LabelTXS [label]
   TransactionStep
   (step-type [_this]
     :tx-step/label)
@@ -1163,7 +1163,7 @@
   #_[{:type :tx-step/label
       :label label}])
 
-(defonce/record SequenceLabelTXS [sequence-label]
+(defonce/type SequenceLabelTXS [sequence-label]
   TransactionStep
   (step-type [_this]
     :tx-step/sequence-label)
@@ -1188,7 +1188,7 @@
   #_[{:type :tx-step/sequence-label
       :label sequence-label}])
 
-(defonce/record InvalidateTXS [node-id]
+(defonce/type InvalidateTXS [node-id]
   TransactionStep
   (step-type [_this]
     :tx-step/invalidate)
@@ -1217,7 +1217,7 @@
   #_[{:type :tx-step/invalidate
       :node-id node-id}])
 
-(defonce/record InvalidateOutputTXS [node-id output-label]
+(defonce/type InvalidateOutputTXS [node-id output-label]
   TransactionStep
   (step-type [_this]
     :tx-step/invalidate-output)
@@ -1242,6 +1242,36 @@
   #_[{:type :tx-step/invalidate-output
       :node-id node-id
       :output-label output-label}])
+
+;; ---------------------------------------------------------------------------
+;; Transaction step inspection
+;; ---------------------------------------------------------------------------
+
+(definline tx-step-type
+  [tx-step]
+  `(let [^TransactionStep tx-step# ~tx-step]
+     (or (:type tx-step#)
+         (.step-type tx-step#))))
+
+(defn tx-step-added-node
+  [tx-step]
+  (when (= :tx-step/add-node (tx-step-type tx-step))
+    (or (:added-node tx-step)
+        (.-added-node ^AddNodeTXS tx-step))))
+
+(defn tx-step-added-arc
+  ^Arc [tx-step]
+  (when (= :tx-step/connect (tx-step-type tx-step))
+    (if (instance? ConnectTXS tx-step)
+      (let [^ConnectTXS tx-step tx-step]
+        (gt/->Arc (.-source-id tx-step)
+                  (.-source-label tx-step)
+                  (.-target-id tx-step)
+                  (.-target-label tx-step)))
+      (gt/->Arc (:source-id tx-step)
+                (:source-label tx-step)
+                (:target-id tx-step)
+                (:target-label tx-step)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Applying transactions

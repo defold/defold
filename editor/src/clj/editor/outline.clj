@@ -21,6 +21,7 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [internal.cache :as c]
+            [internal.graph.types :as gt]
             [schema.core :as s]
             [service.log :as log]
             [util.coll :as coll])
@@ -110,13 +111,12 @@
                                          (when-some [tx-attach-fn (:tx-attach-fn req)]
                                            (let [target-id (g/override-root (:node-id item))
                                                  tx-data (tx-attach-fn target-id child-id)]
-                                             (keep (fn [tx-step]
-                                                     (when (= :tx-step/connect (g/step-type tx-step))
-                                                       (let [src-serial-id (node-id->serial-id (:source-id tx-step))
-                                                             tgt-serial-id (node-id->serial-id (:target-id tx-step))]
-                                                         (when (and src-serial-id tgt-serial-id)
-                                                           [src-serial-id (:source-label tx-step) tgt-serial-id (:target-label tx-step)]))))
-                                                   (flatten tx-data)))))))
+                                             (map (fn [arc]
+                                                    (let [src-serial-id (node-id->serial-id (gt/source-id arc))
+                                                          tgt-serial-id (node-id->serial-id (gt/target-id arc))]
+                                                      (when (and src-serial-id tgt-serial-id)
+                                                        [src-serial-id (gt/source-label arc) tgt-serial-id (gt/target-label arc)])))
+                                                  (g/tx-data-added-arcs tx-data)))))))
                              original-attachments)
 
         attachments (into []

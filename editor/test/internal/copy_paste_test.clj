@@ -79,7 +79,7 @@
           consumer        (pasted-node ConsumerNode paste-data)]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data))))
-      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect] (map g/step-type paste-tx-data)))
+      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (= 2 (count new-nodes-added)))
       (is (every? #(contains? (into #{} (:nodes paste-data)) %) (:root-node-ids paste-data)))
       (is (g/connected? (g/now) producer :produces-value consumer :consumes-value)))))
@@ -137,7 +137,7 @@
       (is (= 4 (count (:nodes paste-data))))
       (is (= [:tx-step/add-node :tx-step/add-node :tx-step/add-node :tx-step/add-node
               :tx-step/connect :tx-step/connect :tx-step/connect :tx-step/connect]
-             (map g/step-type paste-tx-data)))
+             (g/tx-data-step-types paste-tx-data)))
       (is (= 4 (count new-nodes-added)))
       (is (= (g/node-value (g/node-id new-root) :produces-value) "A string A string")))))
 
@@ -250,7 +250,7 @@
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count new-nodes-added)))
       (is (= 3 (count (:nodes paste-data))))
-      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect :tx-step/connect] (map g/step-type paste-tx-data)))
+      (is (= [:tx-step/add-node :tx-step/add-node :tx-step/connect :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value (g/node-id new-root) :produces-value))))))
 

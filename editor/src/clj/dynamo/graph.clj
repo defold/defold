@@ -240,18 +240,25 @@
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
 
-(definline step-type [transaction-step]
-  `(let [^TransactionStep transaction-step# ~transaction-step]
-     (or (:type transaction-step#)
-         (.step-type transaction-step#))))
+(defn tx-data-step-types
+  "Given a sequence of transaction steps, returns a sequence of keywords
+  identifying the type of each pending transaction step. Used in tests."
+  [txs]
+  (map it/tx-step-type
+       (flatten txs)))
+
+(defn tx-data-added-arcs
+  "Given a sequence of transaction steps, returns a sequence of Arcs that will
+  be added by the transaction."
+  [txs]
+  (keep it/tx-step-added-arc
+        (flatten txs)))
 
 (defn tx-data-added-nodes
   "Given a sequence of transaction steps, returns a sequence of Nodes that will
   be added by the transaction."
   [txs]
-  (keep (fn [tx-step]
-          (when (= :tx-step/add-node (step-type tx-step))
-            (:added-node tx-step)))
+  (keep it/tx-step-added-node
         (flatten txs)))
 
 (defn tx-data-added-node-ids
