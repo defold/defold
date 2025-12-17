@@ -32,7 +32,6 @@
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
-           [internal.transaction TransactionStep]
            [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.util.concurrent.atomic AtomicInteger]))
 

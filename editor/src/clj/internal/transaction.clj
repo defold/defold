@@ -604,15 +604,11 @@
       (let [is-override-node (some? (gt/original node))
             is-dynamic (not (contains? (in/all-properties (gt/node-type node)) property-label))
 
-            ;; As an optimization, we bypass the property (value ...) clause if
-            ;; the node does not yet have a value for the property.
-            old-value (when (or is-override-node
-                                (contains? node property-label))
-                        ;; Use a custom evaluation-context since we're inside a
-                        ;; transaction and cannot use the cache.
-                        (let [tx-data-context (:tx-data-context ctx)
-                              evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
-                          (in/node-property-value node property-label evaluation-context)))]
+            ;; Use a custom evaluation-context since we're inside a transaction
+            ;; and cannot use the cache.
+            old-value (let [tx-data-context (:tx-data-context ctx)
+                            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+                        (in/node-property-value node property-label evaluation-context))]
         (invoke-setter ctx node-id node property-label old-value new-value is-override-node is-dynamic)))))
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
