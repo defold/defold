@@ -254,6 +254,7 @@
 (defonce ^:private -log-statistics-
   (log/info :message "total"
             :elapsed (du/nanos->string total-duration-nanos)
+            :elapsed-sans-gc (du/nanos->string (- total-duration-nanos (du/gc-overhead-ns)))
             :allocated (du/bytes->string total-allocated-bytes)
             :heap (du/bytes->string end-allocated-bytes)))
 
