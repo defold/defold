@@ -36,7 +36,7 @@ static void GBFontDestroy(HFont hfont)
 {
     GlyphBankFont* font = (GlyphBankFont*)hfont;
     // The actual data comes from the resource system, so no need to free that
-    free((void*)font);
+    delete font;
 }
 
 static uint32_t GBGetResourceSize(HFont hfont)
