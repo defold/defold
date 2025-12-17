@@ -3318,6 +3318,25 @@ bail:
         }
     }
 
+    static void ReleaseRenderScript(HRenderContext render_context, HRenderScript render_script)
+    {
+        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
+        {
+            if (render_script->m_FunctionReferences[i])
+                dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
+        }
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        free((void*)render_script->m_SourceFileName);
+    }
+
+    void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
+    {
+        ReleaseRenderScript(render_context, render_script);
+        render_script->~RenderScript();
+        ResetRenderScript(render_script);
+    }
+
     HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
@@ -3347,21 +3366,8 @@ bail:
 
     bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
+        ReleaseRenderScript(render_context, render_script);
         return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
-    }
-
-    void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
-    {
-        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
-        for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
-        {
-            if (render_script->m_FunctionReferences[i])
-                dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
-        }
-        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
-        free((void*)render_script->m_SourceFileName);
-        render_script->~RenderScript();
-        ResetRenderScript(render_script);
     }
 
     static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance) {
