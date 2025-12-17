@@ -246,14 +246,16 @@
   (let [end-time-nanos (System/nanoTime)]
     (- end-time-nanos (long start-time-nanos))))
 
+(defonce end-allocated-bytes (du/allocated-bytes runtime))
+
 (defonce total-allocated-bytes
-  (let [end-allocated-bytes (du/allocated-bytes runtime)]
-    (- end-allocated-bytes (long start-allocated-bytes))))
+  (- end-allocated-bytes (long start-allocated-bytes)))
 
 (defonce ^:private -log-statistics-
   (log/info :message "total"
             :elapsed (du/nanos->string total-duration-nanos)
-            :allocated (du/bytes->string total-allocated-bytes)))
+            :allocated (du/bytes->string total-allocated-bytes)
+            :heap (du/bytes->string end-allocated-bytes)))
 
 (defonce load-metrics
   (du/when-metrics

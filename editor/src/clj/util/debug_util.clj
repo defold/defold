@@ -222,9 +222,11 @@
         (if (pos? allocated-bytes#)
           (log/info :message ~label
                     :elapsed (nanos->string elapsed-ns#)
-                    :allocated (bytes->string allocated-bytes#))
+                    :allocated (bytes->string allocated-bytes#)
+                    :heap (bytes->string end-bytes#))
           (log/info :message ~label
-                    :elapsed (nanos->string elapsed-ns#)))
+                    :elapsed (nanos->string elapsed-ns#)
+                    :heap (bytes->string end-bytes#)))
         ret#))))
 
 (defmacro log-statistics!
