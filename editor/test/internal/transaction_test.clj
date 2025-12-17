@@ -161,7 +161,7 @@
 (deftest precise-invalidation
   (ts/with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
-      (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-property update)))
+      (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-properties update)))
         [calculator :touched true]                {calculator        #{:_declared-properties :_properties :touched}}
         [person :date-of-birth (java.util.Date.)] {person            #{:_declared-properties :_properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}

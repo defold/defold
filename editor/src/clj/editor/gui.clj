@@ -4619,7 +4619,7 @@
                 :custom-type custom-type
                 :type node-type)]
     (concat
-      (apply g/set-property child-node-id (coll/mapcat identity props))
+      (apply g/set-properties child-node-id (coll/mapcat identity props))
       (-> attachment
           (eutil/provide-defaults
             "id" (rt/->lua

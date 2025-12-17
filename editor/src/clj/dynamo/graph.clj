@@ -718,7 +718,7 @@
   (coll/transfer kvs []
     (partition-all 2)
     (mapcat (fn [[property-label new-value]]
-              (it/set-property node-id property-label new-value nil)))))
+              (it/set-property node-id property-label new-value)))))
 
 (defn set-properties!
   "Creates transaction steps to assign multiple values to a node's properties,
@@ -734,14 +734,8 @@
 
   Example:
   `(transact (set-property node-id :opacity 0.5 {:force true}))`"
-  ([node-id property-label value]
-   (it/set-property node-id property-label value nil))
-  ([node-id property-label value opts]
-   (it/set-property node-id property-label value opts))
-  ([node-id property-label value another-property-label another-value & more]
-   ;; Deprecated. To set multiple properties at once, use set-properties.
-   ;; Kept for compatibility with editor plugins until we can update them.
-   (apply set-properties node-id property-label value another-property-label another-value more)))
+  [node-id property-label value]
+  (it/set-property node-id property-label value))
 
 (defn set-property!
   "Creates transaction steps to assign a value to a node property, then executes
@@ -750,10 +744,8 @@
 
   Example:
   `(set-property node-id :opacity 0.5 {:force true})`"
-  ([node-id property-label value]
-   (transact (set-property node-id property-label value)))
-  ([node-id property-label value opts]
-   (transact (set-property node-id property-label value opts))))
+  [node-id property-label value]
+  (transact (set-property node-id property-label value)))
 
 (defn update-property
   "Create the transaction step to apply a function to a node's property in a transaction. The

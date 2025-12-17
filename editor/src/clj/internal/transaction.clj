@@ -802,10 +802,9 @@
 
 (defn set-property
   "*transaction step* - Sets a property value on a node."
-  [node-id property-label new-value opts]
+  [node-id property-label new-value]
   {:pre [(gt/node-id? node-id)
-         (keyword? property-label)
-         (or (nil? opts) (map? opts))]}
+         (keyword? property-label)]}
   [(->SetPropertyTXS node-id property-label new-value)])
 
 (defonce/type UpdatePropertyTXS [node-id property-label fn args opts]
