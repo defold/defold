@@ -28,19 +28,12 @@
   (:import [editor.types AABB]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
-(defn- apply-scene-transforms-to-aabbs
-  ([scene] (apply-scene-transforms-to-aabbs geom/Identity4d scene))
-  ([parent-world-transform scene]
-   (let [local-transform (or (:transform scene) geom/Identity4d)
-         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))]
-     (cond-> (update scene :aabb geom/aabb-transform world-transform)
-             (seq (:children scene)) (update :children #(mapv (partial apply-scene-transforms-to-aabbs world-transform) %))))))
-
-(defn- scene-union-aabb [scene]
-  (reduce geom/aabb-union geom/null-aabb (map :aabb (tree-seq :children :children scene))))
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- node-union-aabb [node-id]
-  (scene-union-aabb (apply-scene-transforms-to-aabbs (g/node-value node-id :scene))))
+  (let [scene (g/node-value node-id :scene)]
+    (scene/calculate-scene-aabb geom/null-aabb geom/Identity4d scene)))
 
 (deftest gen-scene
   (testing "Scene generation"
@@ -116,13 +109,16 @@
                (test-util/mouse-drag! view 0 0 128 128)
                (is (every? #(test-util/selected? app-view %) go-nodes))))))
 
-(defn- pos [node]
+(defn- pos
+  ^Vector3d [node]
   (doto (Vector3d.) (math/clj->vecmath (g/node-value node :position))))
 
-(defn- rot [node]
+(defn- rot
+  ^Quat4d [node]
   (doto (Quat4d.) (math/clj->vecmath (g/node-value node :rotation))))
 
-(defn- scale [node]
+(defn- scale
+  ^Vector3d [node]
   (doto (Vector3d.) (math/clj->vecmath (g/node-value node :scale))))
 
 (deftest transform-tools

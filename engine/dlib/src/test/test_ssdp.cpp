@@ -159,7 +159,7 @@ public:
         UpdateClient();
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_DeviceUDN = (char*) calloc(43, sizeof(char));
         m_DeviceUSN = (char*) calloc(60, sizeof(char));
@@ -187,7 +187,7 @@ public:
         m_Server = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmSSDP::Result r;
 

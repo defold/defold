@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types
+  (:require [util.defonce :as defonce])
   (:import [clojure.lang IHashEq Keyword Murmur3 Util]
            [com.defold.util WeakInterner]
            [java.io Writer]))
@@ -20,7 +21,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defrecord Arc [source-id source-label target-id target-label])
+(defonce/record Arc [source-id source-label target-id target-label])
 
 (defn arc-print-data [^Arc arc]
   (into [(.-source-id arc) (.-source-label arc)
@@ -47,7 +48,7 @@
 (definline node-id-hash [node-id]
   `(Murmur3/hashLong ~node-id))
 
-(deftype Endpoint [^long node-id ^Keyword label]
+(defonce/type Endpoint [^long node-id ^Keyword label]
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
@@ -97,12 +98,20 @@
 (defn endpoint? [x]
   (instance? Endpoint x))
 
+(defn source-endpoint
+  ^Endpoint [^Arc arc]
+  (endpoint (source-id arc) (source-label arc)))
+
+(defn target-endpoint
+  ^Endpoint [^Arc arc]
+  (endpoint (target-id arc) (target-label arc)))
+
 (defn node-id? [v] (integer? v))
 
-(defprotocol Evaluation
+(defonce/protocol Evaluation
   (produce-value       [this label evaluation-context] "Pull a value using an evaluation context"))
 
-(defprotocol Node
+(defonce/protocol Node
   (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
   (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
@@ -111,13 +120,13 @@
   (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 
-(defprotocol OverrideNode
+(defonce/protocol OverrideNode
   (clear-property      [this basis property]           "Clear the named property (this is only valid for override nodes)")
   (override-id         [this]                          "Return the ID of the override this node belongs to, if any")
   (original            [this]                          "Return the ID of the original of this node, if any")
   (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
 
-(defprotocol IBasis
+(defonce/protocol IBasis
   (node-by-id-at    [this node-id])
   (node-by-property [this label value])
   (arcs-by-source   [this node-id] [this node-id label])

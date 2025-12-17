@@ -38,9 +38,16 @@ namespace dmDDF
             FieldDescriptor* field_desc = &desc->m_Fields[i];
             Type type = (Type) field_desc->m_Type;
 
-            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX && field_desc->m_OneOfSet == 0)
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
             {
-                continue;
+                // Resolve the oneof member for this field
+                assert(field_desc->m_OneOfIndex > 0);
+                uint32_t oneof_offset = desc->m_OneOfDataOffsets[field_desc->m_OneOfIndex-1];
+                uint8_t oneof_member  = message[oneof_offset];
+                if (oneof_member != field_desc->m_Number)
+                {
+                    continue;
+                }
             }
 
     #define DDF_SAVEMESSAGE_CASE(t, wt, func) \
@@ -118,8 +125,23 @@ namespace dmDDF
 
                     case TYPE_MESSAGE:
                     {
+                        const uint8_t* data_tmp = data;
+
+                        // The data stored in the buffer for "not fully defined" fields is a pointer to a
+                        // separate dynamic memory area, which means that we need to resolve the pointer
+                        // to where the actual data resides.
+                        if (!field_desc->m_FullyDefinedType)
+                        {
+                            uintptr_t dynamic_ptr = *((uintptr_t*) data);
+                            if (dynamic_ptr == 0)
+                            {
+                                break;
+                            }
+                            data = (const uint8_t*) dynamic_ptr;
+                        }
+
                         uint32_t len = 0;
-                        Result e = SaveMessage(data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction);
+                        Result e = DoSaveMessage(data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction);
                         if (e != RESULT_OK)
                             return e;
 
@@ -127,9 +149,12 @@ namespace dmDDF
                         if (!write_result)
                             return RESULT_IO_ERROR;
 
-                        e = SaveMessage(data, field_desc->m_MessageDescriptor, context, save_function);
+                        e = DoSaveMessage(data, field_desc->m_MessageDescriptor, context, save_function);
+
                         if (e != RESULT_OK)
                             return e;
+
+                        data = data_tmp;
                     }
                     break;
 

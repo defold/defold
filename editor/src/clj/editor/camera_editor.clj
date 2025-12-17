@@ -22,7 +22,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
@@ -33,6 +32,9 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
+            [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc Camera$OrthoZoomMode]
            [com.jogamp.opengl GL GL2]
@@ -57,37 +59,53 @@
                                    camera-edge-list)]
     camera-mesh-lines-v4))
 
+;; Precomputed extents of the authored camera mesh (in view-space units).
+;; Used to calibrate pixel-stable scaling so the icon keeps a reasonable size.
+(def ^:private camera-mesh-height-units
+  (if-let [s (seq camera-mesh-lines)]
+    (let [[^double miny ^double maxy]
+          (reduce (fn [[mn mx] ^Vector4d v]
+                    (let [y (.y v)]
+                      [(Math/min (double mn) y)
+                       (Math/max (double mx) y)]))
+                  [Double/POSITIVE_INFINITY Double/NEGATIVE_INFINITY]
+                  s)]
+      (- maxy miny))
+    0.0))
+
+(def ^:private ^:const camera-mesh-target-pixels 32.0)
+
 (g/defnk produce-form-data
   [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom orthographic-mode]
   {:form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
    :navigation false
-   :sections [{:title "Camera"
+   :sections [{:localization-key "camera"
                :fields [{:path [:aspect-ratio]
-                         :label "Aspect Ratio"
+                         :localization-key "camera.aspect-ratio"
                          :type :number}
                         {:path [:fov]
-                         :label "FOV"
+                         :localization-key "camera.fov"
                          :type :number}
                         {:path [:near-z]
-                         :label "Near-Z"
+                         :localization-key "camera.near-z"
                          :type :number}
                         {:path [:far-z]
-                         :label "Far-Z"
+                         :localization-key "camera.far-z"
                          :type :number}
                         {:path [:auto-aspect-ratio]
-                         :label "Auto Aspect Ratio"
+                         :localization-key "camera.auto-aspect-ratio"
                          :type :boolean}
                         {:path [:orthographic-projection]
-                         :label "Orthographic Projection"
+                         :localization-key "camera.orthographic-projection"
                          :type :boolean}
                         {:path [:orthographic-mode]
-                         :label "Orthographic Zoom Mode"
+                         :localization-key "camera.orthographic-mode"
                          :type :choicebox
                          :options (sort-by first (protobuf-forms/make-enum-options Camera$OrthoZoomMode))}
                         {:path [:orthographic-zoom]
-                         :label "Orthographic Zoom"
+                         :localization-key "camera.orthographic-zoom"
                          :type :number}]}]
    :values {[:aspect-ratio] aspect-ratio
             [:fov] fov
@@ -111,7 +129,7 @@
     :orthographic-mode orthographic-mode))
 
 (defn build-camera
-  [resource dep-resources user-data]
+  [resource _dep-resources user-data]
   {:resource resource
    :content (protobuf/map->bytes Camera$CameraDesc (:pb-msg user-data))})
 
@@ -123,32 +141,32 @@
       :build-fn build-camera
       :user-data {:pb-msg save-value}})])
 
-(shader/defshader outline-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader outline-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
+(def ^:private outline-shader shaders/basic-color-world-space)
 
 (defmacro ^:private gen-outline-vertex [x y z w cr cg cb]
   `[(/ ~x ~w) (/ ~y ~w) (/ ~z ~w) ~cr ~cg ~cb 1.0])
 
-(defn- conj-camera-mesh-vertices! [vbuf ^Matrix4d inv-view cr cg cb]
+(defn- conj-camera-mesh-vertices!
+  "Append the small camera mesh to the vertex buffer.
+  The mesh is authored in camera view space. We scale it uniformly in view space
+  by `mesh-scale` before transforming to world space with `inv-view` to achieve
+  a pixel-stable on-screen size."
+  [vbuf ^Matrix4d inv-view mesh-scale cr cg cb]
   (mapv (fn [^Vector4d p]
-          (let [tp (math/transform-vector-v4 inv-view p)
+          (let [sx (* (.x p) (double mesh-scale))
+                sy (* (.y p) (double mesh-scale))
+                sz (* (.z p) (double mesh-scale))
+                sp (Vector4d. sx sy sz 1.0)
+                tp (math/transform-vector-v4 inv-view sp)
                 camera-mesh-vx (gen-outline-vertex (.x tp) (.y tp) (.z tp) (.w tp) cr cg cb)]
             (conj! vbuf camera-mesh-vx)))
         camera-mesh-lines))
 
-(defn- conj-camera-outline! [vbuf ^Vector3d camera-pos ^Matrix4d inv-view ^Matrix4d inv-proj-view cr cg cb]
+(defn- conj-camera-outline!
+  "Append the camera preview (small mesh + frustum) for one camera component.
+  `mesh-scale` only affects the small camera mesh. Frustum geometry remains
+  world-sized to reflect the camera's true near/far and FOV."
+  [vbuf ^Vector3d camera-pos ^Matrix4d inv-view ^Matrix4d inv-proj-view mesh-scale cr cg cb]
   (let [far-p0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 1.0 1.0))
         far-p1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 1.0 1.0))
         far-p2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 1.0 1.0))
@@ -181,8 +199,8 @@
 
         ;; camera vertex for center
         camera-v (gen-outline-vertex (.x camera-pos) (.y camera-pos) (.z camera-pos) 1 cr-less cg-less cb-less)]
-    ;; Add camera mesh vertices
-    (conj-camera-mesh-vertices! vbuf inv-view cr cg cb)
+    ;; Add camera mesh vertices (pixel-stable size)
+    (conj-camera-mesh-vertices! vbuf inv-view mesh-scale cr cg cb)
     (-> vbuf
         ;; Add square for near plane
         (conj! near-v0) (conj! near-v1) (conj! near-v1) (conj! near-v2) (conj! near-v2) (conj! near-v3) (conj! near-v3) (conj! near-v0)
@@ -218,16 +236,24 @@
     (.setColumn m 3 (.x p) (.y p) (.z p) 1.0)
     m))
 
-(defn- camera-projection-matrix [is-orthographic near far fov-deg aspect-ratio]
-  ;; TODO: Derive aspect-ratio from display setting in game.project when auto-aspect-ratio is enabled.
+(defn- camera-projection-matrix
+  [is-orthographic near far fov-deg aspect-ratio display-width display-height orthographic-zoom orthographic-mode]
   (let [fov-y (double fov-deg)
-        fov-x (* fov-y (double aspect-ratio))]
+        fov-x (* fov-y (double aspect-ratio))
+        dw (double display-width)
+        dh (double display-height)]
     (if (true? is-orthographic)
-      (camera/simple-orthographic-projection-matrix near far fov-x fov-y)
+      (let [zoom (double (or orthographic-zoom 1.0))
+            zoom (if (= orthographic-mode :ortho-mode-fixed)
+                   zoom
+                   1.0)
+            ow (/ dw zoom)
+            oh (/ dh zoom)]
+        (camera/simple-orthographic-projection-matrix near far ow oh))
       (camera/simple-perspective-projection-matrix near far fov-x fov-y))))
 
 (defn- gen-outline-vertex-buffer
-  [renderables ^long renderable-count]
+  [render-args renderables ^long renderable-count]
   (loop [renderables renderables
          vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
     (if-let [renderable (first renderables)]
@@ -235,25 +261,38 @@
             cr (get color 0)
             cg (get color 1)
             cb (get color 2)
-            {:keys [is-orthographic near-z far-z fov aspect-ratio]} (:user-data renderable)
+            {:keys [is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode]} (:user-data renderable)
             world-translation (:world-translation renderable)
-            world-rotation (:world-rotation renderable)
-            ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio)
-            ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
-            ^Matrix4d inv-view-matrix (math/inverse view-matrix)
-            ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
-            ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
-        (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))
+            world-rotation (:world-rotation renderable)]
+        ;; Hide frustum preview when orthographic zoom is invalid (<= 0) in fixed mode
+        (if (and is-orthographic (= orthographic-mode :ortho-mode-fixed)
+                 (not (> (double (or orthographic-zoom 0.0)) 0.0)))
+          (recur (rest renderables) vbuf)
+          (let [;; Pixel-stable scale for the small camera mesh at the camera position.
+                ;; Similar to manipulators: 1 world unit at the reference depth -> Δpx.
+                ;; We target a fixed on-screen height (camera-mesh-target-pixels).
+                sf (scene-tools/scale-factor (:camera render-args) (:viewport render-args) world-translation)
+                mh (double camera-mesh-height-units)
+                tp (double camera-mesh-target-pixels)
+                ratio (if (> mh 0.0) (/ tp mh) 1.0)
+                mesh-scale (* (double sf) ratio)
+                ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio display-width display-height orthographic-zoom orthographic-mode)
+                ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
+                ^Matrix4d inv-view-matrix (math/inverse view-matrix)
+                ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
+                ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
+            (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix mesh-scale cr cg cb)))))
       (persistent! vbuf))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables renderable-count) outline-shader)]
+  (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
+        outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov aspect-ratio near-z far-z orthographic-projection]
+  [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
@@ -273,30 +312,39 @@
                                           :aspect-ratio aspect-ratio
                                           :near-z near-z
                                           :far-z far-z
-                                          :is-orthographic orthographic-projection}
+                                          :is-orthographic orthographic-projection
+                                          :orthographic-zoom orthographic-zoom
+                                          :orthographic-mode orthographic-mode
+                                          :display-width project-display-width
+                                          :display-height project-display-height}
                               :passes [pass/outline]}}]}))
 
-(defn load-camera [_project self _resource camera-desc]
+(defn load-camera [project self _resource camera-desc]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
-  (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
-    aspect-ratio :aspect-ratio
-    fov :fov
-    near-z :near-z
-    far-z :far-z
-    auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
-    orthographic-projection (protobuf/int->boolean :orthographic-projection)
-    orthographic-zoom :orthographic-zoom
-    orthographic-mode :orthographic-mode))
+  (concat
+    (g/connect project :display-width self :project-display-width)
+    (g/connect project :display-height self :project-display-height)
+    (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
+      aspect-ratio :aspect-ratio
+      fov :fov
+      near-z :near-z
+      far-z :far-z
+      auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
+      orthographic-projection (protobuf/int->boolean :orthographic-projection)
+      orthographic-zoom :orthographic-zoom
+      orthographic-mode :orthographic-mode)))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
 
   (property aspect-ratio g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :aspect-ratio))
-            (dynamic tooltip (properties/tooltip-dynamic :camera :aspect-ratio)))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :aspect-ratio))
+            (dynamic read-only? (g/fnk [orthographic-projection] orthographic-projection)))
   (property fov g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :fov))
-            (dynamic tooltip (properties/tooltip-dynamic :camera :fov)))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :fov))
+            (dynamic read-only? (g/fnk [orthographic-projection] orthographic-projection)))
   (property near-z g/Num ; Required protobuf field.
             (dynamic label (properties/label-dynamic :camera :near-z))
             (dynamic tooltip (properties/tooltip-dynamic :camera :near-z)))
@@ -305,7 +353,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :camera :far-z)))
   (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio)))
             (dynamic label (properties/label-dynamic :camera :auto-aspect-ratio))
-            (dynamic tooltip (properties/tooltip-dynamic :camera :auto-aspect-ratio)))
+            (dynamic tooltip (properties/tooltip-dynamic :camera :auto-aspect-ratio))
+            (dynamic read-only? (g/fnk [orthographic-projection] orthographic-projection)))
   (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection)))
             (dynamic label (properties/label-dynamic :camera :orthographic-projection))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-projection)))
@@ -317,14 +366,18 @@
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
             (dynamic label (properties/label-dynamic :camera :orthographic-zoom))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-zoom))
-            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed))))))
+            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed)))))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? orthographic-zoom)))
+
+  (input project-display-width g/Num)
+  (input project-display-height g/Num)
 
   (output form-data g/Any produce-form-data)
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
                                                      {:node-id _node-id
                                                       :node-outline-key "Camera"
-                                                      :label "Camera"
+                                                      :label (localization/message "outline.camera")
                                                       :icon camera-icon}))
 
   (output save-value g/Any :cached produce-save-value)
@@ -344,4 +397,4 @@
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}
-    :label "Camera"))
+    :label (localization/message "resource.type.camera")))

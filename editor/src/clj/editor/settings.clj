@@ -22,7 +22,8 @@
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace]
+            [util.coll :as coll]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -94,9 +95,10 @@
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
 
-(defn- make-form-field [setting]
+(defn- make-form-field [setting localization-prefix]
   (cond-> (assoc setting
             :label (or (:label setting) (settings-core/label (second (:path setting))))
+            :localization-key (cond->> (coll/join-to-string "." (:path setting)) localization-prefix (str localization-prefix "."))
             :optional true
             :hidden (:hidden setting false))
 
@@ -110,17 +112,18 @@
   (or (:title category-info)
       (settings-core/label category-name)))
 
-(defn- make-form-section [category-name category-info settings]
+(defn- make-form-section [localization-prefix category-name category-info settings]
   {:title (section-title category-name category-info)
+   :localization-key (cond->> category-name localization-prefix (str localization-prefix "."))
    :group (:group category-info "Other")
    :help (:help category-info)
-   :fields (mapv make-form-field settings)})
+   :fields (mapv #(make-form-field % localization-prefix) settings)})
 
 (defn- make-form-data [form-ops meta-info settings]
-  (let [meta-settings (:settings meta-info)
+  (let [{meta-settings :settings meta-categories :categories :keys [localization-prefix]} meta-info
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
-        sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
+        sections (mapv #(make-form-section localization-prefix % (get meta-categories %) (category->settings %)) categories)
         values (make-form-values-map settings)
         group-order (into {}
                           (map-indexed (fn [i v]
@@ -169,6 +172,21 @@
                       error))))
           setting-values)))
 
+(defn get-dependencies-setting-errors-from
+  "Return build errors derived from a dependency vector (e.g., incompatible
+  library.defold_min_version)."
+  [dependencies]
+  (into []
+        (comp
+          (filter #(and (= :error (:status %))
+                        (= :defold-min-version (:reason %))))
+          (map (fn [{:keys [uri required current]}]
+                 (g/map->error
+                   {:severity :fatal
+                    :message (format "Library '%s' requires Defold %s or newer (current Defold version is %s). Update Defold or check older extension versions for compatibility."
+                                     (str uri) (str required) (str current))}))))
+        dependencies))
+
 (g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   (let [meta-settings (:settings meta-info)
         sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
@@ -202,6 +220,7 @@
   (input project g/NodeID)
   (input owner-resource resource/Resource)
   (input meta-infos g/Any)
+  (input project-dependencies g/Any)
 
   (output resource-setting-nodes g/Any :cached
           (g/fnk [resource-setting-references]
@@ -231,8 +250,9 @@
   (output form-data g/Any :cached produce-form-data)
 
   (output save-value g/Any (gu/passthrough merged-raw-settings))
-  (output setting-errors g/Any :cached (g/fnk [form-data]
-                                              (get-settings-errors form-data)))
+  (output setting-errors g/Any :cached (g/fnk [form-data project-dependencies]
+                                         (let [base-errors (get-settings-errors form-data)]
+                                           (into base-errors (get-dependencies-setting-errors-from project-dependencies)))))
   (output meta-info g/Any :cached
           (g/fnk [raw-meta-info meta-infos owner-resource]
             (let [{:keys [ext-meta-info game-project-proj-path->additional-meta-info]} meta-infos
@@ -270,6 +290,7 @@
       (g/set-properties self :raw-settings raw-settings :raw-meta-info meta-info :resource-setting-connections resource-setting-connections)
       (g/connect project :meta-infos self :meta-infos)
       (g/connect project :_node-id self :project)
+      (g/connect project :dependencies self :project-dependencies)
       (g/connect owner-resource-node :resource self :owner-resource)
       (for [path resource-setting-paths]
         (let [resource (settings-core/get-setting-or-default meta-settings settings path)]

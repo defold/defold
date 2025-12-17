@@ -126,7 +126,7 @@
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (str "<Unnamed " (shape-type-label shape-type) ">")
+                                                               (localization/message "outline.unnamed-collision-shape" {"shape" (shape-type-message shape-type)})
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 
@@ -715,9 +715,9 @@
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                      {:node-id _node-id
                                                       :node-outline-key "Collision Object"
-                                                      :label "Collision Object"
+                                                      :label (localization/message "outline.collision-object")
                                                       :icon collision-object-icon
-                                                      :children (outline/natural-sort child-outlines)
+                                                      :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
                                                       :child-reqs [{:node-type Shape
                                                                     :tx-attach-fn attach-shape-node}]}))
 
@@ -744,6 +744,7 @@
       :get attachment/nodes-getter)
     (resource-node/register-ddf-resource-type workspace
       :ext "collisionobject"
+      :label (localization/message "resource.type.collisionobject")
       :node-type CollisionObjectNode
       :ddf-type Physics$CollisionObjectDesc
       :load-fn load-collision-object
@@ -753,8 +754,7 @@
       :view-types [:scene :text]
       :view-opts {:scene {:grid true}}
       :tags #{:component}
-      :tag-opts {:component {:transform-properties #{}}}
-      :label "Collision Object")))
+      :tag-opts {:component {:transform-properties #{}}})))
 
 ;; outline context menu
 
@@ -797,17 +797,18 @@
   (run [selection user-data app-view]
     (add-shape-handler (selection->collision-object selection) (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
-           (let [self (selection->collision-object selection)]
-             (when-not user-data
-               (->> shape-type-ui
-                    (reduce-kv (fn [res shape-type {:keys [label icon]}]
-                                 (conj res {:label label
-                                            :icon icon
-                                            :command :edit.add-embedded-component
-                                            :user-data {:_node-id self :shape-type shape-type}}))
-                               [])
-                    (sort-by :label)
-                    (into []))))))
+    (let [self (selection->collision-object selection)]
+      (when-not user-data
+        (->> shape-type-ui
+             (reduce-kv
+               (fn [acc shape-type {:keys [icon message]}]
+                 (conj! acc {:label message
+                             :icon icon
+                             :command :edit.add-embedded-component
+                             :user-data {:_node-id self :shape-type shape-type}}))
+               (transient []))
+             persistent!
+             (localization/annotate-as-sorted localization/natural-sort-by-label))))))
 
 (ext-graph/register-property-getter!
   ::CollisionObjectNode

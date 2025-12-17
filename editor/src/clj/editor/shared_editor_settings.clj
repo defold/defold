@@ -85,7 +85,7 @@
 (defn register-resource-types [workspace]
   (settings/register-simple-settings-resource-type workspace
     :ext "shared_editor_settings"
-    :label "Shared Editor Settings"
+    :label (localization/message "resource.type.shared-editor-settings")
     :icon shared-editor-settings-icon
     :meta-info meta-info))
 
@@ -137,9 +137,11 @@
          (ifn? parse-config-fn)]}
   (let [shared-editor-settings-file (shared-editor-settings-file project-directory)]
     (when (.isFile shared-editor-settings-file)
-      (log/info :message (str "Loading " (name config-type) " from Shared Editor Settings file."))
+      (when-not (Boolean/getBoolean "defold.tests")
+        (log/info :message (str "Loading " (name config-type) " from Shared Editor Settings file.")))
       (when-some [config (not-empty (load-config shared-editor-settings-file parse-config-fn localization))]
-        (log/info :message (str "Using " (name config-type) " from Shared Editor Settings file.") config-type config)
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/info :message (str "Using " (name config-type) " from Shared Editor Settings file.") config-type config))
         config))))
 
 (defn- parse-system-config [settings]

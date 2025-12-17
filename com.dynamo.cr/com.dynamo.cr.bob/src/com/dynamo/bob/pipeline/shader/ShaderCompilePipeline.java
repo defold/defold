@@ -95,6 +95,7 @@ public class ShaderCompilePipeline {
             case LANGUAGE_GLSL_SM430 -> 430;
             case LANGUAGE_HLSL_50    -> 50;
             case LANGUAGE_HLSL_51    -> 51;
+            case LANGUAGE_MSL_22     -> 22;
             default -> 0;
         };
     }
@@ -119,7 +120,8 @@ public class ShaderCompilePipeline {
         return ShaderLanguageIsGLSL(shaderLanguage) ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22;
     }
 
     private static byte[] RemapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
@@ -227,6 +229,8 @@ public class ShaderCompilePipeline {
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
             shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50) {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_HLSL.getValue());
+        } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22) {
+            compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_MSL.getValue());
         } else {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
         }

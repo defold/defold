@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.material
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.data :as code.data]
             [editor.code.shader-compilation :as shader-compilation]
@@ -22,6 +21,8 @@
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
+            [editor.localization :as localization]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
@@ -169,9 +170,6 @@
     :constant-type-worldview :world-view
     :constant-type-worldviewproj :world-view-proj))
 
-(defn- resource-binding-namespaces->regex-str [resource-binding-namespaces]
-  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
-
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source ^long max-page-count]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
@@ -195,7 +193,7 @@
                                     error-cursor-range (assoc :cursor-range error-cursor-range))]
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
-(g/defnk produce-shader-request-data [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
+(g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
       (let [augmented-shader-infos
@@ -204,33 +202,17 @@
                   [vertex-shader-source-info
                    fragment-shader-source-info])]
         (g/precluding-errors augmented-shader-infos
-          (let [shader-type+source-pairs
-                (mapv (fn [{:keys [shader-type transpiled-shader-source]}]
-                        (pair shader-type transpiled-shader-source))
-                      augmented-shader-infos)
+          (shader-gen/combined-shader-info augmented-shader-infos)))))
 
-                array-sampler-name->slice-sampler-names
-                (coll/transfer augmented-shader-infos {}
-                  (mapcat :array-sampler-names)
-                  (distinct)
-                  (map (fn [array-sampler-name]
-                         (pair array-sampler-name
-                               (mapv (fn [page-index]
-                                       (str array-sampler-name "_" page-index))
-                                     (range max-page-count))))))
+(g/defnk produce-shader-request-data [combined-shader-info]
+  (shader/make-shader-request-data
+    (:shader-type+source-pairs combined-shader-info)
+    (:location+attribute-name-pairs combined-shader-info)
+    (:array-sampler-name->slice-sampler-names combined-shader-info)
+    (:strip-resource-binding-namespace-regex-str combined-shader-info)))
 
-                strip-resource-binding-namespace-regex-str
-                (resource-binding-namespaces->regex-str
-                  (coll/transfer augmented-shader-infos (sorted-set)
-                    (mapcat :resource-binding-namespaces)))]
-
-            (shader/make-shader-request-data
-              shader-type+source-pairs
-              array-sampler-name->slice-sampler-names
-              strip-resource-binding-namespace-regex-str))))))
-
-(g/defnk produce-shader [_node-id shader-request-data vertex-constants fragment-constants samplers]
-  (let [array-sampler-name->slice-sampler-names (:array-sampler-name->uniform-names shader-request-data)
+(g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
+  (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
 
         uniform-values-by-name
         (-> {}
@@ -245,7 +227,7 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
-    (shader/make-shader-lifecycle _node-id shader-request-data uniform-values-by-name)))
+    (shader/make-shader-lifecycle _node-id shader-request-data attribute-reflection-infos uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
   ;; Replace any default filter modes with the setting from game.project.
@@ -283,60 +265,60 @@
 
 (def ^:private vertex-attribute-fields
   [{:path [:semantic-type]
-    :label "Semantic Type"
+    :localization-key "material.attributes.semantic-type"
     :type :choicebox
     :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
-    :label "Step Function"
+    :localization-key "material.attributes.step-function"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$VertexStepFunction)
     :default graphics/default-attribute-step-function}
    {:path [:coordinate-space]
-    :label "Coordinate Space"
+    :localization-key "material.attributes.coordinate-space"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$CoordinateSpace)
     :default :coordinate-space-local}
    {:path [:data-type]
-    :label "Data Type"
+    :localization-key "material.attributes.data-type"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$DataType)
     :default graphics/default-attribute-data-type}
    {:path [:vector-type]
-    :label "Vector Type"
+    :localization-key "material.attributes.vector-type"
     :type :choicebox
     :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$VectorType)
     :default graphics/default-attribute-vector-type}
    {:path [:values]
-    :label "Value"
+    :localization-key "material.attributes.value"
     :type (vector-type->form-field-type graphics/default-attribute-vector-type)
-    :default (graphics/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
+    :default (graphics.types/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
-    :label "Normalize"
+    :localization-key "material.attributes.normalize"
     :type :boolean
     :default false}])
 
 (def ^:private ^long value-vertex-attribute-field-index
-  (util/first-index-where #(= [:values] (:path %))
+  (coll/first-index-where #(= [:values] (:path %))
                           vertex-attribute-fields))
 
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:title "Material"
+   [{:localization-key "material"
      :fields
      [{:path [:name]
-       :label "Name"
+       :localization-key "material.name"
        :type :string
        :default "New Material"}
       {:path [:vertex-program]
-       :label "Vertex Program"
+       :localization-key "material.vertex-program"
        :type :resource :filter "vp"}
       {:path [:fragment-program]
-       :label "Fragment Program"
+       :localization-key "material.fragment-program"
        :type :resource :filter "fp"}
       {:path [:attributes]
-       :label "Vertex Attributes"
+       :localization-key "material.attributes"
        :type :2panel
        :panel-key {:path [:name]
                    :type :string
@@ -358,25 +340,25 @@
                 (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
                       vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
                       type (vector-type->form-field-type vector-type)
-                      default (graphics/default-attribute-doubles semantic-type vector-type)]
+                      default (graphics.types/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
-                   :label "Value"
+                   :localization-key "material.attributes.value"
                    :type type
                    :default default})))}]})}
-      (render-program-utils/gen-form-data-constants "Vertex Constants" :vertex-constants)
-      (render-program-utils/gen-form-data-constants "Fragment Constants" :fragment-constants)
-      (render-program-utils/gen-form-data-samplers "Samplers" :samplers)
+      (render-program-utils/gen-form-data-constants "material.vertex-constants" :vertex-constants)
+      (render-program-utils/gen-form-data-constants "material.fragment-constants" :fragment-constants)
+      (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
       {:path [:tags]
-       :label "Tags"
+       :localization-key "material.tags"
        :type :list
        :element {:type :string :default "New Tag"}}
       {:path [:vertex-space]
-       :label "Vertex Space"
+       :localization-key "material.vertex-space"
        :type :choicebox
        :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
-       :label "Max Atlas Pages"
+       :localization-key "material.max-page-count"
        :type :integer
        :default 0}]}]})
 
@@ -387,8 +369,8 @@
         old-normalize (:normalize old-attribute)
         new-vector-type (:vector-type new-attribute)
         new-normalize (:normalize new-attribute)]
-    (assert (graphics/vector-type? old-vector-type))
-    (assert (graphics/vector-type? new-vector-type))
+    (assert (graphics.types/vector-type? old-vector-type))
+    (assert (graphics.types/vector-type? new-vector-type))
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
       ;; or vice versa, attempt to remap the value range. Note that we cannot do
@@ -416,7 +398,7 @@
                 :type-unsigned-short num/normalized->ushort-double
                 :type-int num/normalized->int-double
                 :type-unsigned-int num/normalized->uint-double))]
-        (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
+        (update new-attribute :values coll/transform (map coerce-fn)))
 
       ;; If the vector type changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the
@@ -433,15 +415,12 @@
   (case property
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
-    ;; updated data and vector type. The attributes cannot be reordered
-    ;; using the form view, so we can assume any existing attribute will be at
-    ;; the same index as the updated attribute.
-    (let [old-attributes (:attributes user-data)]
-      (into []
-            (map-indexed (fn [index new-attribute]
-                           (if-some [old-attribute (get old-attributes index)]
-                             (coerce-attribute new-attribute old-attribute)
-                             new-attribute)))
+    ;; updated data and vector type.
+    (let [old-attributes-by-name (coll/pair-map-by :name (:attributes user-data))]
+      (mapv (fn [new-attribute]
+              (if-some [old-attribute (get old-attributes-by-name (:name new-attribute))]
+                (coerce-attribute new-attribute old-attribute)
+                new-attribute))
             value))
 
     ;; Default case.
@@ -509,7 +488,7 @@
 (g/defnk produce-attribute-infos [_node-id attributes]
   (mapv (fn [attribute]
           (let [name (:name attribute)
-                name-key (graphics/attribute-name->key name)
+                name-key (graphics.types/attribute-name-key name)
                 [bytes error-message] (graphics/attribute->bytes+error-message attribute)]
             (cond-> (assoc attribute
                       :bytes bytes
@@ -594,6 +573,7 @@
 
   (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
+  (output combined-shader-info g/Any :cached produce-combined-shader-info)
   (output shader-request-data g/Any :cached produce-shader-request-data)
   (output shader ShaderLifecycle :cached produce-shader)
   (output samplers [g/KeywordMap] :cached produce-samplers)
@@ -644,7 +624,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "material"
-    :label "Material"
+    :label (localization/message "resource.type.material")
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
     :load-fn load-material

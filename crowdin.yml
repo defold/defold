@@ -1,0 +1,8 @@
+files:
+  - source: /**/en.editor_localization
+    translation: /**/%locale_with_underscore%.editor_localization
+    type: properties
+    escape_special_characters: 0
+    languages_mapping:
+      locale_with_underscore:
+        ru_RU: ru

@@ -32,8 +32,8 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
@@ -240,9 +240,8 @@
     (exclude-keys-deep-helper excluded-map-entry? value)
 
     (coll? value)
-    (into (empty value)
-          (map (partial exclude-keys-deep-value-helper excluded-map-entry?))
-          value)
+    (coll/transform value
+      (map (partial exclude-keys-deep-value-helper excluded-map-entry?)))
 
     :else
     value))
@@ -736,6 +735,51 @@
   ([ns expression]
    `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
 
+(defn println-err
+  [& more]
+  (binding [*out* *err*]
+    (apply println more)))
+
+(defn- input-source-endpoints
+  [basis node-id input-label]
+  (e/map gt/source-endpoint
+         (gt/arcs-by-target basis node-id input-label)))
+
+(defn immediate-predecessor-endpoints
+  [basis node-id label]
+  (let [node-type (g/node-type* basis node-id)
+        output-info (get (in/declared-outputs node-type) label)]
+    (cond
+      (some? output-info)
+      (e/mapcat
+        (fn [dep-label]
+          (if (= label dep-label)
+            (when (g/has-input? node-type dep-label)
+              (input-source-endpoints basis node-id dep-label))
+            [(gt/endpoint node-id dep-label)]))
+        (:dependencies output-info))
+
+      (g/has-input? node-type label)
+      (input-source-endpoints basis node-id label))))
+
+(defn recursive-predecessor-endpoints
+  [basis node-id label]
+  (let [*endpoint->predecessors-ref (volatile! {})]
+    (letfn [(endpoint->predecessors-ref [endpoint]
+              (if-some [predecessors-ref (get (deref *endpoint->predecessors-ref) endpoint)]
+                predecessors-ref
+                (let [predecessors-ref (volatile! nil)]
+                  (vswap! *endpoint->predecessors-ref assoc endpoint predecessors-ref)
+                  (vreset! predecessors-ref
+                           (let [node-id (gt/endpoint-node-id endpoint)
+                                 label (gt/endpoint-label endpoint)
+                                 immediate-predecessors (set (immediate-predecessor-endpoints basis node-id label))]
+                             (coll/transfer immediate-predecessors immediate-predecessors
+                               (mapcat (comp deref endpoint->predecessors-ref)))))
+                  predecessors-ref)))]
+      (let [endpoint (gt/endpoint node-id label)]
+        (deref (endpoint->predecessors-ref endpoint))))))
+
 ;; Utilities for investigating successors performance
 
 (defn- successor-pairs
@@ -963,7 +1007,7 @@
         occupancy-factor (/ (double entry-count) (double capacity))
 
         next-capacity
-        (util/first-where
+        (coll/first-where
           (fn [^long num]
             (< capacity num))
           (:growth-sequence info))
@@ -1063,12 +1107,12 @@
 
 (set! *warn-on-reflection* false)
 
-(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size component-data-type]
-  (let [primitive-type-kw (buffers/primitive-type-kw component-data-type)
+(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size buffer-data-type]
+  (let [primitive-type-kw (buffers/primitive-type-kw buffer-data-type)
         read-buf (-> buf
                      (.slice buf-vertex-attribute-offset attribute-byte-size)
                      (.order (.order buf))
-                     (buffers/as-typed-buffer component-data-type))]
+                     (buffers/as-typed-buffer buffer-data-type))]
     (loop [clj-vector (vector-of primitive-type-kw)]
       (if (.hasRemaining read-buf)
         (let [attribute-component (.get read-buf) ; Return type differs by Buffer subclass.
@@ -1086,9 +1130,9 @@
               (val
                 (reduce (fn [[^long buf-vertex-attribute-offset clj-vertex] vertex-attribute]
                           (let [attribute-key (:name-key vertex-attribute)
-                                attribute-byte-size (vtx/attribute-size vertex-attribute)
-                                component-data-type (:type vertex-attribute)
-                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size component-data-type)
+                                attribute-byte-size (graphics.types/attribute-info-byte-size vertex-attribute)
+                                buffer-data-type (graphics.types/data-type-buffer-data-type (:data-type vertex-attribute))
+                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size buffer-data-type)
                                 clj-vertex-attribute (pair attribute-key clj-vertex-attribute-data)
                                 clj-vertex (conj! clj-vertex clj-vertex-attribute)
                                 buf-vertex-attribute-offset (+ buf-vertex-attribute-offset attribute-byte-size)]
@@ -1458,7 +1502,7 @@
                          :progress (or (progress/fraction progress)
                                        -1.0)}]} ; Indeterminate.
    :footer {:fx/type dialogs/dialog-buttons
-            :children [{:fx/type fxui/button
+            :children [{:fx/type fxui/legacy-button
                         :text "Cancel"
                         :cancel-button true
                         :on-action {:event-type :cancel}}]}})
@@ -1488,6 +1532,37 @@
          (if (instance? Throwable result)
            (throw result)
            result))))))
+
+(defn run-with-terminal-progress [^String header-text worker-fn]
+  (let [localization test-util/localization
+        done-progress (progress/make (localization/message nil nil "Done") 1 1)
+        prev-progress-volatile (volatile! nil)]
+    (letfn [(render-progress! [progress]
+              (let [prev-progress @prev-progress-volatile
+                    preamble (if prev-progress "\033[F\033[K" "")
+                    message (localization (progress/message progress))
+                    ^long pos (:pos progress)
+                    ^long size (:size progress)]
+                (vreset! prev-progress-volatile progress)
+                (when (nil? prev-progress)
+                  (println-err header-text))
+                (println-err
+                  (if (pos? size)
+                    (let [size-str (str size)
+                          size-len (.length size-str)
+                          fmt (format "%s  [%%%dd/%s] %%s"
+                                      preamble
+                                      size-len
+                                      size-str)]
+                      (format fmt pos message))
+                    (format "%s  [0/1] %s"
+                            preamble
+                            message)))))]
+      (let [result (worker-fn render-progress!)]
+        (render-progress! (if-some [{:keys [size]} @prev-progress-volatile]
+                            (assoc done-progress :pos size :size size)
+                            done-progress))
+        result))))
 
 (defn node-load-infos-by-proj-path [node-load-infos]
   (coll/pair-map-by
@@ -1630,3 +1705,10 @@
                       (inc batch-index)
                       (conj! batches batch)))))
          (persistent! batches))))))
+
+(defn clear-enable-all! []
+  (clear-caches!)
+  (handler/enable-disabled-handlers!)
+  (ui/enable-stopped-timers!)
+  (println "Re-enabled all disabled handlers and timers")
+  nil)

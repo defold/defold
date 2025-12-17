@@ -308,16 +308,6 @@ namespace dmGameObject
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     /*#
-     * Component fixed update function. Updates all component of this type for all game objects
-     * @typedef
-     * @name ComponentsFixedUpdate
-     * @param params [type: const dmGameObject::ComponentsUpdateParams&] Update parameters
-     * @param params [type: dmGameObject::ComponentsUpdateResult&] (out) Update result
-     * @return result [type: UpdateResult] UPDATE_RESULT_OK on success
-     */
-    typedef UpdateResult (*ComponentsFixedUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
-
-    /*#
      * Parameters to ComponentsRender callback.
      * @struct
      * @name ComponentsRenderParams
@@ -636,9 +626,18 @@ namespace dmGameObject
      * Set the component update callback. Called when it's time to update all component instances.
      * @name ComponentTypeSetFixedUpdateFn
      * @param type [type: HComponentType] the type
-     * @param fn [type: ComponentsFixedUpdate] callback
+     * @param fn [type: ComponentsUpdate] callback
      */
-    void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsFixedUpdate fn);
+    void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsUpdate fn);
+
+
+    /*# set the component late update callback
+     * Set the component late update callback. Called after regular update of all component instances but before render and before post update.
+     * @name ComponentTypeSetLateUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsUpdate] callback
+     */
+    void ComponentTypeSetLateUpdateFn(HComponentType type, ComponentsUpdate fn);
 
     /*# set the component post update callback
      * Set the component post update callback. Called for each collection after the update, before the render.

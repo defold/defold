@@ -93,7 +93,7 @@
         str-right (text-util/crlf->lf raw-str-right)
         {:keys [left-lines right-lines edits]} (diff/find-edits str-left str-right)]
 
-    (ui/title! stage "Diff")
+    (ui/title! stage (localization (localization/message "dialog.diff-view.title")))
     (.setOnKeyPressed scene (ui/event-handler event (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE) (.close stage))))
 
     (.setScene stage scene)

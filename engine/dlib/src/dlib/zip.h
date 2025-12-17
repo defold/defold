@@ -38,6 +38,15 @@ namespace dmZip
      */
     Result Open(const char* path, HZip* zip);
 
+    /*# Opens a read only zip archive stream from memory
+     *
+     * @param stream [type: const char*] zip archive stream
+     * @param size [type: uint32_t] stream size
+     * @param path [type: HZip*] pointer to zip handle
+     * @return [type:Result] path to the zip archive
+     */
+    Result OpenStream(const char *stream, uint32_t size, HZip* zip);
+
     /*# Closes the zip archive
      *
      * @param zip zip archive

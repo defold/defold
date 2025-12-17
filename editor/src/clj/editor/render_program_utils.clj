@@ -19,49 +19,55 @@
 
 (set! *warn-on-reflection* true)
 
-(defn gen-form-data-constants [label path-key]
+(defn gen-form-data-constants [localization-key path-key]
   {:path [path-key]
-   :label label
+   :localization-key localization-key
    :type :table
    :columns (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-              [{:path [:name] :label "Name" :type :string}
+              [{:path [:name]
+                :localization-key (str localization-key ".name")
+                :type :string}
                {:path [:type]
-                :label "Type"
+                :localization-key (str localization-key ".type")
                 :type :choicebox
                 :options (protobuf-forms/make-options constant-values)
                 :default (ffirst constant-values)}
-               {:path [:value] :label "Value" :type :vec4}])})
+               {:path [:value]
+                :localization-key (str localization-key ".value")
+                :type :vec4}])})
 
-(defn gen-form-data-samplers [label path-key]
+(defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
-   :label label
+   :localization-key localization-key
    :type :table
    :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
                   min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
                   mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
-              [{:path [:name] :label "Name" :type :string}
+              [{:path [:name]
+                :localization-key (str localization-key ".name")
+                :type :string}
                {:path [:wrap-u]
-                :label "Wrap U"
+                :localization-key (str localization-key ".wrap-u")
                 :type :choicebox
                 :options (protobuf-forms/make-options wrap-options)
                 :default (ffirst wrap-options)}
                {:path [:wrap-v]
-                :label "Wrap V"
+                :localization-key (str localization-key ".wrap-v")
                 :type :choicebox
                 :options (protobuf-forms/make-options wrap-options)
                 :default (ffirst wrap-options)}
                {:path [:filter-min]
-                :label "Filter Min"
+                :localization-key (str localization-key ".filter-min")
                 :type :choicebox
                 :options (protobuf-forms/make-options min-options)
                 :default (ffirst min-options)}
                {:path [:filter-mag]
-                :label "Filter Mag"
+                :localization-key (str localization-key ".filter-mag")
                 :type :choicebox
                 :options (protobuf-forms/make-options mag-options)
                 :default (ffirst mag-options)}
                {:path [:max-anisotropy]
-                :label "Max Anisotropy"
+                :localization-key (str localization-key ".max-anisotropy")
                 :type :number}])})
 
 (defn- hack-downgrade-constant-value

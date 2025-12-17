@@ -38,9 +38,9 @@
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
    :navigation false
-   :sections [{:title "Collection Proxy"
+   :sections [{:localization-key "collectionproxy"
                :fields [{:path [:collection]
-                         :label "Collection"
+                         :localization-key "collectionproxy.collection"
                          :type :resource
                          :filter "collection"}]}]
    :values {[:collection] collection-resource}})
@@ -110,7 +110,7 @@
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
                                                      (cond-> {:node-id _node-id
                                                               :node-outline-key "Collection Proxy"
-                                                              :label "Collection Proxy"
+                                                              :label (localization/message "outline.collection-proxy")
                                                               :icon collection-proxy-icon}
 
                                                              (resource/resource? collection)
@@ -132,4 +132,4 @@
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}
-    :label "Collection Proxy"))
+    :label (localization/message "resource.type.collectionproxy")))

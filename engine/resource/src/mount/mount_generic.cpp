@@ -33,6 +33,18 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    Result MapAsset(const char* name, void*& out_asset, uint32_t& out_size, void*& out_map)
+    {
+        // Not used
+        return RESULT_OK;
+    }
+
+    Result UnmapAsset(void*& asset, uint32_t size)
+    {
+        // Not used
+        return RESULT_OK;
+    }
+
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size)
     {
         // Not used

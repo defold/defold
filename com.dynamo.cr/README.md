@@ -27,11 +27,11 @@ First of all, follow the engine setup instructions and build the engine at least
 
 2. Start the IDE and on the initial welcome screen choose _Open_ project. Navigate to Bob's source directory `com.dynamo.cr`.
 
-3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference. Open `com.dynamo.cr.bob/build.gradle` and run `installBob` task. Open `com.dynamo.cr.common/build.gradle` and run `generateProtos` task.
+3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference. Open `com.dynamo.cr.bob/build.gradle` and run `install` task. Open `com.dynamo.cr.common/build.gradle` and run `generateProtos` task.
 
-4. Open `File -> Project Structure` and in `Project Settings -> Project` add JDK 17
+4. Open `File -> Project Structure` and in `Project Settings -> Project` add JDK 25
 
-5. Make sure Compiler output specified ![Compiler output](https://github.com/defold/defold/assets/2209596/eca932b4-dbaf-4643-b95f-e9e5bbdcac91)
+5. Make sure Compiler output specified ![Compiler output](https://github.com/user-attachments/assets/83cd08c7-6206-4461-b1f9-9121d4c1a4e4)
 
 6. In `Project Settings -> Modules -> Sources` select `com.dynamo.cr.bob/generated`, `com.dynamo.cr.bob/src`, `com.dynamo.cr.common/generated` and `com.dynamo.cr.common/src` folders and click `Mark as: Sources`  ![Mark as: Sources](https://github.com/defold/defold/assets/2209596/fbc660ce-25a8-4612-a5a0-47d3615d4d98)
 
@@ -41,9 +41,13 @@ First of all, follow the engine setup instructions and build the engine at least
 
 9. Select `com.dynamo.cr.bob.test/build` folder and click `Mark as: Excluded` ![Excluded](https://github.com/defold/defold/assets/2209596/a3c9bf3a-0989-46c1-a47d-448205d0b4fc)
 
-10. Change language level to `17 - Sealed types, always-strict floating-point semantics` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
+10. Change language level to `21 - Record patterns, pattern matching for switch` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
 
 11. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.common/ext` and repeat for `com.dynamo.cr/com.dynamo.cr.bob/lib`, `com.dynamo.cr/com.dynamo.cr.common/ext/aws`  and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
+
+If you got `Unknown command-line option '-b'` error, then:
+<img width="2480" height="1482" alt="image" src="https://github.com/user-attachments/assets/48dfe9a6-0b20-4594-a87c-63ac9d4d63ca" />
+
 
 Testing
 ---------

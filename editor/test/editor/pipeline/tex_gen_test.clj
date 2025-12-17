@@ -53,18 +53,21 @@
     (is (= (* 1 32 64) (.. tex-img (getAlternatives 2) (getDataSize))))))
 
 (deftest make-preview-texture-image-test
-  (let [img     (ImageIO/read (io/resource "test_project/graphics/ball.png"))
+  (let [img (ImageIO/read (io/resource "test_project/graphics/ball.png"))
         ^TextureGenerator$GenerateResult
-        generator-result (tex-gen/make-preview-texture-image img {:name      "test-profile"
-                                                                  :platforms [{:os                :os-id-generic
-                                                                               :formats           [{:format            :texture-format-rgb
-                                                                                                    :compression-level :best}
-                                                                                                   {:format            :texture-format-rgba
-                                                                                                    :compression-level :best}
-                                                                                                   {:format            :texture-format-luminance
-                                                                                                    :compression-level :best}]
-                                                                               :mipmaps           false
-                                                                               :premultiply-alpha true}]})
+        generator-result (tex-gen/make-preview-texture-image
+                           img
+                           {:name "test-profile"
+                            :platforms [{:os :os-id-generic
+                                         :formats [{:format :texture-format-rgb
+                                                    :compression-level :best}
+                                                   {:format :texture-format-rgba
+                                                    :compression-level :best}
+                                                   {:format :texture-format-luminance
+                                                    :compression-level :best}]
+                                         :mipmaps false
+                                         :premultiply-alpha true}]}
+                           true)
         ^Graphics$TextureImage tex-img (.-textureImage generator-result)
         total-data-size (reduce + (map #(count %) (.-imageDatas generator-result)))]
     (is (= 1 (.getAlternativesCount tex-img)))

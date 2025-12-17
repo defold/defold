@@ -14,9 +14,13 @@
 
 (ns util.debug-util
   (:require [clojure.repl :as repl]
-            [service.log :as log])
+            [internal.java :as java]
+            [service.log :as log]
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [java.io File]
-           [java.util Locale]
+           [java.lang.reflect Field]
+           [java.util List Locale Map Set]
            [org.apache.commons.lang3.time DurationFormatUtils]))
 
 (set! *warn-on-reflection* true)
@@ -287,3 +291,78 @@
             end# (System/nanoTime)]
         (update-metrics ~metrics-collector ~task-key ~subtask-key (- end# start#))
         ret#))))
+
+(defn- inspect-impl
+  [object seen return-raw?]
+  (when (some? object)
+    (let [class (class object)
+          key-namespace (.getSimpleName class)
+          object-id (System/identityHashCode object)]
+      (if (contains? seen object-id)
+        (array-map (keyword key-namespace "id") object-id)
+        (let [seen (conj seen object-id)]
+          (cond
+            (or (coll? object)
+                (case (.getPackageName class)
+                  ("java.lang" "java.io" "java.math" "java.net" "java.nio" "java.util.regex") true
+                  (return-raw? object)))
+            object
+
+            (or (.isArray class)
+                (instance? List object))
+            (coll/transfer object []
+              (map #(inspect-impl % seen return-raw?)))
+
+            (instance? Map object)
+            (coll/transfer
+              object
+              (if (every? coll/comparable-value? (map key object))
+                coll/empty-sorted-map
+                coll/empty-map)
+              (map (fn [[key value]]
+                     (pair key (inspect-impl value seen return-raw?)))))
+
+            (instance? Set object)
+            (array-map (keyword key-namespace "items")
+                       (coll/transfer object []
+                         (map (fn [value]
+                                (inspect-impl value seen return-raw?)))))
+
+            :else
+            (let [primary-map
+                  (try
+                    (coll/transfer (bean object) coll/empty-sorted-map
+                      (keep (fn [[field-kw java-value]]
+                              (when (not= :class field-kw)
+                                (let [field-name (name field-kw)
+                                      namespaced-key (keyword key-namespace field-name)
+                                      clj-value (inspect-impl java-value seen return-raw?)]
+                                  (pair namespaced-key clj-value))))))
+                    (catch Throwable _
+                      nil))]
+
+              (coll/transfer
+                (.getFields class)
+                (or primary-map coll/empty-sorted-map)
+                (keep (fn [^Field field]
+                        (when-not (java/field-static? field)
+                          (let [field-name (.getName field)
+                                namespaced-key (keyword key-namespace field-name)]
+                            (when-not (contains? primary-map namespaced-key)
+                              (let [java-value (.get field object)
+                                    clj-value (inspect-impl java-value seen return-raw?)]
+                                (pair namespaced-key clj-value)))))))))))))))
+
+
+(defn inspect
+  "Given a Java object, return a Clojure map representation of its structure.
+
+  Optional kw-args:
+    :return-raw?
+      Predicate called for each value encountered inside the object. Return true
+      to emit the value unaltered."
+  ([object]
+   (inspect object nil))
+  ([object & {:keys [return-raw?]
+              :or {return-raw? fn/constantly-false}}]
+   (inspect-impl object #{} return-raw?)))

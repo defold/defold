@@ -162,9 +162,13 @@
   (tu/with-loaded-project
     ;; [0 0] instance script, bad collection level override, fallback to instance override = 2.0
     ;; [1 0] embedded instance script, bad collection level override, fallback to script setting = 1.0
-    ;; [2 0] type faulty instance script, bad collection level override, fallback to script setting = 1.0
-    ;; [3 0] type faulty instance script, proper collection-level override = 3.0
-    (doseq [[resource path-vals] [["/collection/type_faulty_props.collection" [[[0 0] false 2.0] [[1 0] false 1.0] [[2 0] false 1.0]] [[3 0] true 3.0]]]
+    ;; [2 0] type faulty instance script, proper collection-level override = 3.0
+    ;; [3 0] type faulty instance script, bad collection level override, fallback to script setting = 1.0
+    (doseq [[resource path-vals] [["/collection/type_faulty_props.collection"
+                                   [[[0 0] false 2.0]
+                                    [[1 0] false 1.0]
+                                    [[2 0] true 3.0]
+                                    [[3 0] false 1.0]]]]
             [path overriden val] path-vals]
       (let [coll-id (tu/resource-node project resource)]
         (let [outline (tu/outline coll-id path)

@@ -128,6 +128,9 @@ namespace dmResource
     // Files mapped with this function should be unmapped with UnmapFile(...)
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);
+    // Assets mapped with this function should be unmapped with UnmapAsset(...)
+    Result MapAsset(const char* name, void*& out_asset, uint32_t& out_size, void*& out_map);
+    Result UnmapAsset(void*& asset, uint32_t size);
 
     /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.

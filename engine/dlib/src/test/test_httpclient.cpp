@@ -50,7 +50,7 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
 }
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) || (defined(GITHUB_CI) && defined(__MACH__))
 #ifndef DM_DISABLE_HTTPCLIENT_TESTS
     #define DM_DISABLE_HTTPCLIENT_TESTS
 #endif
@@ -215,7 +215,7 @@ public:
         CreateFile("tmp/http_files/d.txt", "You will find this data in a.txt and d.txt");
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Client = 0;
 
@@ -271,15 +271,14 @@ public:
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
-        bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
-        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure, 0);
+        m_Client = dmHttpClient::New(&params, &m_URI, 0);
         ASSERT_NE((void*) 0, m_Client);
 
         m_XScale = 1;
         m_StatusCode = -1;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Client)
             dmHttpClient::Delete(m_Client);
@@ -338,13 +337,13 @@ public:
         return r;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Major = m_Minor = m_Status = m_ContentOffset = -1;
         m_StatusString = "NOT SET!";
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
     }
 };
@@ -537,7 +536,7 @@ struct HttpStressHelper
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
-        m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure, 0);
+        m_Client = dmHttpClient::New(&params, (dmURI::Parts*)&uri);
     }
 
     ~HttpStressHelper()
@@ -725,7 +724,7 @@ static void ShutdownThread(void *args)
             continue;
         }
 
-        // There is a small gap between it it in use and it is connected
+        // There is a small gap between it is in use and it is connected
         dmTime::Sleep(100);
 
         if (dmHttpClient::ShutdownConnectionPool() > 0) {
@@ -738,6 +737,9 @@ static void ShutdownThread(void *args)
 
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
     char buf[128];
     ShutdownThreadContext ctx;
     ctx.m_GotIt = 0;
@@ -749,7 +751,7 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 
     for (int i=0;i<5;i++) {
         // Create a request that proceeds for a long time and cancel it in-flight with the
-        // shutdown thread. If it managed to get the conneciton it will set gotit to true.
+        // shutdown thread. If it managed to get the connection it will set m_GotIt to true.
         dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts");
         dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms);
         dmHttpClient::Result r = HttpGet(buf);
@@ -892,7 +894,7 @@ TEST_P(dmHttpClientTest, Cache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
     ASSERT_NE((void*) 0, m_Client);
 
     for (int i = 0; i < NUM_ITERATIONS; ++i)
@@ -936,7 +938,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
     ASSERT_NE((void*) 0, m_Client);
 
     dmHttpClient::Result r = HttpGet("/max-age-cached");
@@ -1192,7 +1194,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
     uint32_t count = 50;
@@ -1244,7 +1246,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
@@ -1280,7 +1282,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
     // Warmup cache
@@ -1292,7 +1294,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, &m_URI);
     ASSERT_NE((void*) 0, m_Client);
 
 
@@ -1366,15 +1368,21 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_va
 
 TEST(dmHttpClient, HostNotFound)
 {
+    dmURI::Parts uri;
+    dmURI::Parse("http://host_not_found", &uri);
+
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", g_HttpPort);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
     ASSERT_EQ((void*) 0, client);
 }
 
 TEST(dmHttpClient, ConnectionRefused)
 {
+    dmURI::Parts uri;
+    dmURI::Parse("http://0.0.0.0:9999", &uri);
+
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "0.0.0.0", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);

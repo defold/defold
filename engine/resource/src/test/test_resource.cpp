@@ -80,49 +80,64 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 class ResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobThread = dmJobThread::Create(job_thread_create_param);
+
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_JobThreadContext = m_JobThread;
 
         factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
             dmResource::DeleteFactory(factory);
         }
+        dmJobThread::Destroy(m_JobThread);
     }
 
     dmResource::HFactory factory;
+    dmJobThread::HContext m_JobThread;
 };
 
 class DynamicResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
+        dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobThread = dmJobThread::Create(job_thread_create_param);
+
         const char* test_dir = "build/src/test";
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_JobThreadContext = m_JobThread;
+
         factory = dmResource::NewFactory(&params, test_dir);
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
             dmResource::DeleteFactory(factory);
         }
+        dmJobThread::Destroy(m_JobThread);
     }
 
     dmResource::HFactory factory;
+    dmJobThread::HContext m_JobThread;
 };
 
 
@@ -219,7 +234,7 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams* p
 class GetResourceTest : public jc_test_params_class<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_ResourceContainerCreateCallCount = 0;
         m_ResourceContainerDestroyCallCount = 0;
@@ -253,7 +268,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Factory != NULL)
         {
@@ -563,6 +578,33 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
 
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
+}
+
+TEST_P(GetResourceTest, GetWithExt)
+{
+    void* resource = 0;
+    dmResource::Result e = dmResource::GetWithExt(m_Factory, m_ResourceName, "cont", &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, resource);
+
+    void* sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, m_ResourceName, "foo", &sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0, sentinel);
+
+    void* hashed_resource = 0;
+    dmhash_t name_hash = dmHashString64(m_ResourceName);
+    e = dmResource::GetWithExt(m_Factory, name_hash, CONT_EXT_HASH, &hashed_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, hashed_resource);
+
+    void* hashed_sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, name_hash, FOO_EXT_HASH, &hashed_sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0xdeadbeef, hashed_sentinel);
+
+    dmResource::Release(m_Factory, hashed_resource);
+    dmResource::Release(m_Factory, resource);
 }
 
 const char* params_resource_paths[] = {
@@ -1644,13 +1686,8 @@ static dmResource::Result StreamResourceDestroy(const dmResource::ResourceDestro
 }
 
 
-TEST(StreamingTest, PartialReadTest)
+TEST_F(ResourceTest, PartialReadTest)
 {
-    dmResource::NewFactoryParams params;
-    params.m_MaxResources = 16;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
-    ASSERT_NE((void*) 0, factory);
-
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", 0, 0, &StreamResourceCreate, 0, &StreamResourceDestroy, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -1716,9 +1753,7 @@ TEST(StreamingTest, PartialReadTest)
                 ASSERT_TRUE(false);
             }
 
-            dmTime::Sleep(1000);
-
-            dmResource::UpdateFactory(factory); // pump the results from the job thread to the main thread
+            dmJobThread::Update(m_JobThread, 2000); // pump the results from the job thread to the main thread
 
             ASSERT_ARRAY_EQ_LEN(expected_data, resource->m_Data, resource->m_Offset);
 
@@ -1729,7 +1764,6 @@ TEST(StreamingTest, PartialReadTest)
     }
 
     dmSys::Unlink(path);
-    dmResource::DeleteFactory(factory);
 }
 
 

@@ -30,6 +30,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.localization :as localization]
@@ -408,7 +409,7 @@
       (let [mod-type (mod-types type)]
         {:node-id _node-id
          :node-outline-key node-outline-key
-         :label (:label mod-type)
+         :label (:message mod-type)
          :icon modifier-icon})))
   (output scene g/Any :cached produce-modifier-scene))
 
@@ -450,15 +451,14 @@
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
-        (let [shader-attribute-infos-by-name (shader/attribute-infos shader gl)
-              manufactured-attribute-keys [:position :texcoord0 :page-index :color]
-              shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys :coordinate-space-world)
-              vertex-description (graphics/make-vertex-description shader-bound-attributes)
+        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+              combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
+              vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
               pfx-sim-request-id (some-> renderable :updatable :node-id)]
           (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
                                     (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
             (let [pfx-sim @pfx-sim-atom
-                  raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
+                  raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes)
                   context (:context pfx-sim)
                   vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
                   all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
@@ -997,7 +997,7 @@
                                                       :node-outline-key id
                                                       :label id
                                                       :icon emitter-icon
-                                                      :children (outline/natural-sort child-outlines)
+                                                      :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
                                                                     :tx-attach-fn attach-modifier}]}))
   (output aabb AABB produce-emitter-aabb)
@@ -1152,9 +1152,13 @@
                   emitter-outlines (get outlines false)]
               {:node-id _node-id
                :node-outline-key "ParticleFX"
-               :label "ParticleFX"
+               :label (localization/message "outline.particlefx")
                :icon particle-fx-icon
-               :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
+               :children (localization/annotate-as-sorted
+                           (fn [localization-state _]
+                             (into (localization/natural-sort-by-label localization-state emitter-outlines)
+                                   (localization/natural-sort-by-label localization-state mod-outlines)))
+                           (into emitter-outlines mod-outlines))
                :child-reqs [{:node-type EmitterNode
                              :tx-attach-fn (fn [self-id child-id]
                                              (attach-emitter self-id child-id true))}
@@ -1215,10 +1219,11 @@
       (add-modifier-handler parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (when (not user-data)
-      (mapv (fn [[type data]] {:label (:message data)
-                               :icon modifier-icon
-                               :command :edit.add-secondary-embedded-component
-                               :user-data {:modifier-type type}})
+      (mapv (fn [[type data]]
+              {:label (:message data)
+               :icon modifier-icon
+               :command :edit.add-secondary-embedded-component
+               :user-data {:modifier-type type}})
             mod-types))))
 
 (defn- make-emitter
@@ -1387,7 +1392,7 @@
       :get (attachment/nodes-by-type-getter ModifierNode))
     (resource-node/register-ddf-resource-type workspace
       :ext particlefx-ext
-      :label "Particle FX"
+      :label (localization/message "resource.type.particlefx")
       :node-type ParticleFXNode
       :ddf-type Particle$ParticleFX
       :load-fn load-particle-fx

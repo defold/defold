@@ -195,4 +195,14 @@ namespace dmURI
         *dst = '\0';
     }
 
+    bool Compare(Parts* a, Parts* b)
+    {
+        if (a->m_Port != b->m_Port) return false;
+        if (strcmp(a->m_Scheme, b->m_Scheme) != 0) return false;
+        if (strcmp(a->m_Location, b->m_Location) != 0) return false;
+        if (strcmp(a->m_Hostname, b->m_Hostname) != 0) return false;
+        if (strcmp(a->m_Path, b->m_Path) != 0) return false;
+        return true;
+    }
+
 }   // namespace dmURI

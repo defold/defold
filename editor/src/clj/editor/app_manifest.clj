@@ -57,9 +57,21 @@
     :js-web :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
-  {:x86-win32 {"vpx" "vpx"
+  {:x86-win32 {"hid" "hid"
+               "hid_null" "hid_null"
+               "input" "input"
+               "platform" "platform"
+               "platform_null" "platform_null"
+               "platform_vulkan" "platform_vulkan"
+               "vpx" "vpx"
                "vulkan" "vulkan-1"}
-   :x86_64-win32 {"vpx" "vpx"
+   :x86_64-win32 {"hid" "hid"
+                  "hid_null" "hid_null"
+                  "input" "input"
+                  "platform" "platform"
+                  "platform_null" "platform_null"
+                  "platform_vulkan" "platform_vulkan"
+                  "vpx" "vpx"
                   "vulkan" "vulkan-1"}})
 
 (defn platformify-excluded-lib [platform lib]
@@ -322,24 +334,36 @@
       (libs-toggles all-platforms ["record_null"]))))
 
 (def profiler-setting
+  (let [none-toggles (concat
+                       (libs-toggles all-platforms ["profile_null", "profilerext_null"])
+                       (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery", "ProfilerJS"])
+                       (exclude-libs-toggles all-platforms ["profile", "profilerext", "profiler_remotery", "profiler_js"]))
+        always-toggles (concat
+                         (exclude-libs-toggles all-platforms ["profile_null", "profilerext_null"])
+                         (generic-contains-toggles all-platforms :symbols ["ProfilerExt" "ProfilerBasic"])
+                         (generic-contains-toggles windows :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles macos :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles linux :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles android :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles ios :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles web :symbols ["ProfilerJS"])
+                         (libs-toggles all-platforms ["profile", "profilerext"])
+                         (libs-toggles windows ["profiler_remotery"])
+                         (libs-toggles macos ["profiler_remotery"])
+                         (libs-toggles linux ["profiler_remotery"])
+                         (libs-toggles android ["profiler_remotery"])
+                         (libs-toggles ios ["profiler_remotery"])
+                         (libs-toggles web ["profiler_js"]))]
+    (make-choice-setting
+      :none none-toggles
+      :always always-toggles
+      :debug-only)))
+
+(def font-setting
   (make-check-box-setting
     (concat
-      (libs-toggles all-platforms ["profile_null", "profilerext_null"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic"])
-      (exclude-libs-toggles all-platforms ["profile", "profilerext"])
-      (exclude-libs-toggles windows ["profiler_remotery"])
-      (exclude-libs-toggles macos ["profiler_remotery"])
-      (exclude-libs-toggles linux ["profiler_remotery"])
-      (exclude-libs-toggles android ["profiler_remotery"])
-      (exclude-libs-toggles ios ["profiler_remotery"])
-      (exclude-libs-toggles web ["profiler_js"])
-      (generic-contains-toggles windows :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles macos :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles linux :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"]))))
+      (exclude-libs-toggles all-platforms ["font"])
+      (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "unibreak", "skribidi"]))))
 
 (def sound-setting
   (make-check-box-setting
@@ -590,10 +614,13 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter record-setting))
             (set (setting-property-setter record-setting)))
-  (property exclude-profiler g/Any
-            (dynamic label (properties/label-dynamic :appmanifest :exclude-profiler))
-            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-profiler))
-            (dynamic edit-type (g/constantly {:type g/Bool}))
+  (property profiler g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :profiler))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :profiler))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:debug-only "Debug Only"]
+                                                        [:none "None"]
+                                                        [:always "Always"]]}))
             (value (setting-property-getter profiler-setting))
             (set (setting-property-setter profiler-setting)))
   (property exclude-sound g/Any
@@ -682,14 +709,20 @@
                                                         [:web-gpu "WebGPU"]
                                                         [:both "WebGL & WebGPU"]]}))
             (value (setting-property-getter graphics-web-setting))
-            (set (setting-property-setter graphics-web-setting))))
+            (set (setting-property-setter graphics-web-setting)))
+  (property use-font-layout g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :use-font-layout))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-font-layout))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter font-setting))
+            (set (setting-property-setter font-setting))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type
     workspace
     :ext "appmanifest"
     :language "yaml"
-    :label "App Manifest"
+    :label (localization/message "resource.type.appmanifest")
     :icon "icons/32/Icons_05-Project-info.png"
     :node-type AppManifestNode
     :view-types [:code :default]

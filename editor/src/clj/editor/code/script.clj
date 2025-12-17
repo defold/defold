@@ -21,12 +21,14 @@
             [editor.code.script-intelligence :as script-intelligence]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.types :as types]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -199,23 +201,23 @@
           :script-property-type-resource))
 
 (def script-defs [{:ext "script"
-                   :label "Script"
+                   :label (localization/message "resource.type.script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
-                   :label "Render Script"
+                   :label (localization/message "resource.type.render-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :tags #{:debuggable}}
                   {:ext "gui_script"
-                   :label "Gui Script"
+                   :label (localization/message "resource.type.gui-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
                    :tags #{:debuggable}}
                   {:ext "lua"
-                   :label "Lua Module"
+                   :label (localization/message "resource.type.lua")
                    :icon "icons/32/Icons_11-Script-general.png"
                    :icon-class :script
                    :annotations true
@@ -408,16 +410,18 @@
     original-resource-property-build-targets
     (partial project/get-resource-node (project/get-project _node-id))))
 
+(defn region->breakpoint [resource region]
+  (let [condition (:condition region)]
+    (cond-> {:resource resource
+             :row (data/breakpoint-row region)
+             :enabled (:enabled region)}
+      condition
+      (assoc :condition condition))))
+
 (g/defnk produce-breakpoints [resource regions]
-  (into []
-        (comp (filter data/breakpoint-region?)
-              (map (fn [region]
-                     (let [condition (:condition region)]
-                       (cond-> {:resource resource
-                                :row (data/breakpoint-row region)}
-                               condition
-                               (assoc :condition condition))))))
-        regions))
+  (coll/transfer regions []
+    (filter data/breakpoint-region?)
+    (map (partial region->breakpoint resource))))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)

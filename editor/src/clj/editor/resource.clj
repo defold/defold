@@ -581,6 +581,11 @@
   (with-open [rs (io/input-stream resource)]
     (digest/stream->sha256-hex rs)))
 
+(defn resource->bytes
+  ^bytes [resource]
+  (with-open [rs (io/input-stream resource)]
+    (IOUtils/toByteArray rs)))
+
 (defn resource->path-inclusive-sha1-hex
   "For certain files, we want to include the proj-path in the sha1 identifier
   along with the file contents. For example, it used to be that two atlases

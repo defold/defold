@@ -1,0 +1,2 @@
+#! /bin/sh
+rm -rf Makefile Makefile.in aclocal.m4 autom4te.cache/ compile config.cache config.guess config.h config.h.in config.log config.status config.sub configure depcomp doc/ install-sh libtool libunibreak.pc ltmain.sh m4/ missing stamp-h1 src/Makefile src/Makefile.in

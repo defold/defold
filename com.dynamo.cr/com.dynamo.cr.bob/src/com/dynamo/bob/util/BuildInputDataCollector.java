@@ -79,6 +79,7 @@ public class BuildInputDataCollector {
         } catch (IOException e) {
             throw new RuntimeException("Failed to write data to JSON file", e);
         }
+        TimeProfiler.stop();
     }
 
     private static Map<String, String> getGitInfoIfAvailable(String rootDirectory) {

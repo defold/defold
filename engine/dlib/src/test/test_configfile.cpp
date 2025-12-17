@@ -22,9 +22,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-// We're currently disabling some tests on win32 host
-#if defined(_WIN32) || defined(DM_PLATFORM_VENDOR) || defined(__EMSCRIPTEN__)
-#define SUPPORT_HTTP
+#if (defined(GITHUB_CI) && defined(__MACH__)) || defined(_WIN32) || defined(DM_PLATFORM_VENDOR) || defined(__EMSCRIPTEN__)
+#define DM_DISABLE_HTTPCLIENT_TESTS
 #endif
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
@@ -73,7 +72,7 @@ public:
     dmConfigFile::Result r;
     char* m_Buffer;
 
-    virtual void SetUp()
+    void SetUp() override
     {
         const uint32_t buffer_size = 1024 * 1024; // Big enough..
         m_Buffer = new char[buffer_size];
@@ -106,7 +105,7 @@ public:
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         delete [] m_Buffer;
         m_Buffer = 0;
@@ -129,7 +128,7 @@ TEST_P(Empty, Empty)
 const TestParam params_empty[] = {
     TestParam("src/test/data/empty.config"),
     TestParam("src/test/data/empty.config",false),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -145,7 +144,7 @@ TEST_P(MissingFile, MissingFile)
 
 const TestParam params_missing_file[] = {
     TestParam("does_not_exist"),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/does_not_exist")
 #endif
 };
@@ -164,7 +163,7 @@ TEST_P(NoSection, NoSection)
 const TestParam params_no_section[] = {
     TestParam("src/test/data/nosection.config"),
     TestParam("src/test/data/nosection.config", true),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/src/test/data/nosection.config")
 #endif
 };
@@ -180,7 +179,7 @@ TEST_P(SectionError, SectionError)
 const TestParam params_section_error[] = {
     TestParam("src/test/data/section_error.config"),
     TestParam("src/test/data/section_error.config", true),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/src/test/data/section_error.config")
 #endif
 };
@@ -250,7 +249,7 @@ TEST_P(Test01, TestApiC)
 const TestParam params_test01[] = {
     TestParam("src/test/data/test.config"),
     TestParam("src/test/data/test.config", true),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -269,7 +268,7 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
 const TestParam params_missing_trailing_nl[] = {
     TestParam("src/test/data/missing_trailing_nl.config"),
     TestParam("src/test/data/missing_trailing_nl.config", true),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")
 #endif
 };
@@ -307,7 +306,7 @@ int COMMAND_LINE_ARGC = sizeof(COMMAND_LINE_ARGV) / sizeof(COMMAND_LINE_ARGV[0])
 const TestParam params_command_line[] = {
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV),
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV, true),
-#ifndef SUPPORT_HTTP
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
     TestParam("http://localhost:%d/src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV)
 #endif
 };
@@ -390,14 +389,14 @@ static bool TestGetFloat(dmConfigFile::HConfig config, const char* key, float de
 DM_DECLARE_CONFIGFILE_EXTENSION(TestConfigfileExtension, "TestConfigfileExtension", TestCreate, TestDestroy, TestGetString, TestGetInt, TestGetFloat);
 
 class ConfigfileExtension : public ConfigTest {
-    virtual void SetUp()
+    void SetUp() override
     {
         g_ExtensionTestEnabled = 1;
         ConfigTest::SetUp();
 
         ASSERT_EQ(g_ExtensionTestCreated, 1);
     }
-    virtual void TearDown()
+    void TearDown() override
     {
         ConfigTest::TearDown();
         g_ExtensionTestEnabled = 0;

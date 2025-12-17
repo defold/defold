@@ -15,12 +15,13 @@
 (ns editor.render-target
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.texture-util :as texture-util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.fn :as fn])
@@ -35,31 +36,31 @@
 (def form-data
   {:navigation false
    :sections
-   [{:title "Render Target"
+   [{:localization-key "render-target"
      :fields [{:path [:color-attachments]
-               :label "Color Attachments"
+               :localization-key "render-target.color-attachments"
                :type :table
                :columns [{:path [:width]
-                          :label "width"
+                          :localization-key "render-target.color-attachments.width"
                           :type :integer
                           :default 128}
                          {:path [:height]
-                          :label "height"
+                          :localization-key "render-target.color-attachments.height"
                           :type :integer
                           :default 128}
                          {:path [:format]
-                          :label "format"
+                          :localization-key "render-target.color-attachments.format"
                           :type :choicebox
                           :options (protobuf-forms/make-enum-options Graphics$TextureImage$TextureFormat)
                           :default :texture-format-rgba}]}
               {:path [:depth-stencil-attachment-width]
-               :label "Depth/Stencil Width"
+               :localization-key "render-target.depth-stencil-attachment-width"
                :type :integer}
               {:path [:depth-stencil-attachment-height]
-               :label "Depth/Stencil Height"
+               :localization-key "render-target.depth-stencil-attachment-height"
                :type :integer}
               {:path [:depth-stencil-attachment-texture-storage]
-               :label "Depth Texture Storage"
+               :localization-key "render-target.depth-stencil-attachment-texture-storage"
                :type :boolean}]}]})
 
 (g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
@@ -102,9 +103,6 @@
         :build-fn build-render-target
         :user-data {:pb-msg save-value}})]))
 
-(defn- generate-gpu-texture [_args request-id _params _unit]
-  (texture/image-texture request-id nil))
-
 (defn- validate-color-attachment-count [v name]
   (when (> (count v) max-color-attachment-count)
     (format "'%s' render targets cannot have more than %d color attachments"
@@ -137,7 +135,7 @@
 
   (output save-value g/Any :cached produce-save-value)
   (output form-data g/Any produce-form-data)
-  (output gpu-texture-generator g/Any {:f generate-gpu-texture})
+  (output gpu-texture-generator g/Any (g/constantly texture-util/placeholder-gpu-texture-generator))
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
@@ -188,4 +186,4 @@
     :icon-class :design
     :view-types [:cljfx-form-view :text]
     :view-opts {}
-    :label "Render Target"))
+    :label (localization/message "resource.type.render-target")))

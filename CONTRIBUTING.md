@@ -2,6 +2,7 @@
 Thank you for visiting the Defold open source contribution guidelines. We invite you to help make Defold an even better product! You don't even have to be a coder to contribute! You can contribute in the following ways:
 
 * Improve the documentation
+* Localize the editor
 * Suggest new features
 * Fix bugs
 * Implement new features
@@ -19,6 +20,14 @@ We ask of all contributors, project members and users to follow our [Code of Con
 The Defold manuals and examples are hosted in a [separate repository](https://github.com/defold/doc). Please pay it a visit if you wish to help improve our documentation! We need help to fix typos, update images and to write or improve tutorials and manuals.
 
 Note that the API reference is generated from the source code of the Defold engine. If you wish to submit improvements to the API reference it should be done as Pull Requests (see below).
+
+## Editor localization
+
+We have a [localization project](https://crowdin.com/project/defold) on Crowdin. Join the project, pick the language you wish to help with and start translating the editor strings directly in Crowdin. All UI text lives in the `en.editor_localization` source file and Crowdin takes care of exporting the translated `.editor_localization` files back into the repository.
+
+If your language is missing, use the *Request language* action in Crowdin and we will add it for you. When translating, preserve placeholders such as `{template}` exactly as in the source string — we use [ICU message format](https://unicode-org.github.io/icu/userguide/format_parse/messages/) for variable interpolation.
+
+Once translations are approved in Crowdin they will be automatically incorporated in the editor.
 
 ## Feature requests
 We value your ideas on how to improve Defold! You can submit feature requests to our public issue tracker using the [Feature Request template](https://github.com/defold/defold/issues/new?assignees=&labels=feature+request&template=feature_request.md&title=). Some guidelines:

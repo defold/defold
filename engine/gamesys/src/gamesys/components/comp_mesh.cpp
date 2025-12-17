@@ -511,6 +511,17 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    dmGameObject::UpdateResult CompMeshLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    {
+        DM_PROFILE("LateUpdate");
+        MeshContext* context = (MeshContext*)params.m_Context;
+        dmRender::HRenderContext render_context = context->m_RenderContext;
+        MeshWorld* world = (MeshWorld*)params.m_World;
+
+        UpdateTransforms(world);
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     static void FillRenderObject(dmRender::RenderObject& ro,
         const dmGraphics::PrimitiveType& primitive_type,
         const dmRender::HMaterial& material,
@@ -875,8 +886,6 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         MeshWorld* world = (MeshWorld*)params.m_World;
 
-        UpdateTransforms(world);
-
         const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
@@ -1163,6 +1172,7 @@ namespace dmGameSystem
         ComponentTypeSetDestroyFn(type, CompMeshDestroy);
         ComponentTypeSetAddToUpdateFn(type, CompMeshAddToUpdate);
         ComponentTypeSetUpdateFn(type, CompMeshUpdate);
+        ComponentTypeSetLateUpdateFn(type, CompMeshLateUpdate);
         ComponentTypeSetRenderFn(type, CompMeshRender);
         ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
         ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);

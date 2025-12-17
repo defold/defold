@@ -497,7 +497,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompTileGridLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         TileGridWorld* world = (TileGridWorld*)params.m_World;
         dmArray<TileGridComponent*>& components = world->m_Components;
@@ -505,12 +505,14 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             TileGridComponent* component = components[i];
-            if (!component->m_Enabled || !component->m_AddedToUpdate) {
+            if (!component->m_Enabled || !component->m_AddedToUpdate)
+            {
                 continue;
             }
 
             component->m_Occupied = UpdateRegions(component);
-            if (!component->m_Occupied) {
+            if (!component->m_Occupied)
+            {
                 continue;
             }
 

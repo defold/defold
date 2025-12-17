@@ -226,6 +226,7 @@ typedef jc_test_type1<Test2D> TestTypes;
 #endif
 
 TYPED_TEST_CASE(PhysicsTest, TestTypes);
+TYPED_TEST_CASE(PhysicsPrecisionRoundingTest, TestTypes);
 
 TYPED_TEST(PhysicsTest, BoxShape)
 {
@@ -1032,6 +1033,34 @@ TYPED_TEST(PhysicsTest, EmptyRayCasting)
 
     // Check that the result was not handled
     ASSERT_EQ(0u, result.m_UserData);
+}
+
+TYPED_TEST(PhysicsPrecisionRoundingTest, ZeroLengthRayCasting)
+{
+    dmArray<dmPhysics::RayCastResponse> hits;
+    hits.SetCapacity(8);
+
+    dmPhysics::RayCastRequest request;
+    request.m_UserId = 0;
+    request.m_Mask = 1;
+
+    // A zero length raycast from inputs
+    hits.SetSize(0);
+    request.m_From = Point3(0.0f, -13200000.0f, 0.0f);
+    request.m_To = Point3(0.0f, -13200000.0f, 0.0f);
+    request.m_ReturnAllResults = 0;
+    (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
+
+    ASSERT_EQ(0u, hits.Size());
+
+    // A zero length raycast after applying scale
+    hits.SetSize(0);
+    request.m_From = Point3(0.0f, -13200000.0f, 0.0f);
+    request.m_To = Point3(0.0f, -13200001.0f, 0.0f);
+    request.m_ReturnAllResults = 0;
+    (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
+
+    ASSERT_EQ(0u, hits.Size());
 }
 
 TYPED_TEST(PhysicsTest, RayCasting)

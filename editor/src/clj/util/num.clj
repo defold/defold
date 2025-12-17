@@ -71,13 +71,22 @@
            ln#)))))
 
 (definline ubyte->long [num]
-  `(bit-and ~num 0xff))
+  `(bit-and (long ~num) 0xff))
 
 (definline ushort->long [num]
-  `(bit-and ~num 0xffff))
+  `(bit-and (long ~num) 0xffff))
 
 (definline uint->long [num]
-  `(bit-and ~num 0xffffffff))
+  `(bit-and (long ~num) 0xffffffff))
+
+(definline ubyte->float [num]
+  `(float (ubyte->long ~num)))
+
+(definline ushort->float [num]
+  `(float (ushort->long ~num)))
+
+(definline uint->float [num]
+  `(float (uint->long ~num)))
 
 (definline ubyte->double [num]
   `(double (ubyte->long ~num)))
@@ -115,6 +124,12 @@
 (definline uint-range->normalized [num]
   `(/ (double ~num) uint-max-double))
 
+(definline long-range->normalized [num]
+  `(let [n# (double ~num)]
+     (if (pos? n#)
+       (/ n# 9223372036854775807.0)
+       (/ n# 9223372036854775808.0))))
+
 (definline normalized->byte-double [num]
   `(let [n# (double ~num)]
      (Math/rint (if (pos? n#)
@@ -139,6 +154,12 @@
                   (* n# 2147483647.0)
                   (* n# 2147483648.0)))))
 
+(definline normalized->long-double [num]
+  `(let [n# (double ~num)]
+     (Math/rint (if (pos? n#)
+                  (* n# 9223372036854775807.0)
+                  (* n# 9223372036854775808.0)))))
+
 (definline normalized->uint-double [num]
   `(Math/rint (* (double ~num) uint-max-double)))
 
@@ -160,6 +181,9 @@
 (definline normalized->unchecked-uint [num]
   `(unchecked-uint (normalized->uint-double ~num)))
 
+(definline normalized->unchecked-long [num]
+  `(unchecked-long (normalized->long-double ~num)))
+
 (definline normalized->byte [num]
   `(byte (normalized->byte-double ~num)))
 
@@ -177,3 +201,8 @@
 
 (definline normalized->uint [num]
   `(uint (normalized->uint-double ~num)))
+
+(definline normalized->long [num]
+  (if *unchecked-math*
+    `(unchecked-long (normalized->long-double ~num))
+    `(long (normalized->long-double ~num))))

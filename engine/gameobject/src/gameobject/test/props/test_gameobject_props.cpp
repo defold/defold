@@ -66,7 +66,7 @@ dmGameObject::PropertyResult CompNoUserDataSetProperties(const dmGameObject::Com
 class PropsTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
@@ -115,7 +115,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);

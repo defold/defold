@@ -117,10 +117,10 @@ $ext-line-height: 26px;
         -fx-pref-width: 160px;
         -fx-max-width: Infinity;
         -fx-border-radius: 2px;
-        -fx-background-radius: 2px;
+        -fx-background-radius: 3px;
         &:focused {
             -fx-border-radius: 2px;
-            -fx-background-radius: 2px;
+            -fx-background-radius: 3px;
         }
         &:warning {
             -fx-border-color: -df-error-severity-warning-dim;
@@ -135,9 +135,10 @@ $ext-line-height: 26px;
     }
     &-text-area {
         -fx-border-radius: 2px;
-        -fx-background-radius: 2px;
+        -fx-background-radius: 3px;
         -fx-border-width: 1px;
         -fx-border-color: -df-component-dark;
+        -fx-background-color: -df-background-input;
         -fx-prompt-text-fill: -df-text-dark;
         -fx-highlight-fill: -df-background-input;
         -fx-highlight-text-fill: -df-text-selected;
@@ -148,7 +149,7 @@ $ext-line-height: 26px;
             -fx-padding: 1px 1px -1px 1px;
             -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
             -fx-background-color: -df-background;
-            -fx-highlight-fill: -df-component-light;
+            -fx-highlight-fill: -fx-accent;
         }
         &:warning {
             -fx-border-color: -df-error-severity-warning-dim;
@@ -160,10 +161,16 @@ $ext-line-height: 26px;
             &:hover { -fx-border-color: -df-error-severity-fatal; }
             &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
         }
-        & > .scroll-pane > .scroll-bar > .thumb {
-            -fx-background-color: -df-component-dark;
-            &:hover { -fx-background-color: -df-component-light; }
-            &:pressed { -fx-background-color: -df-component-lighter; }
+        & > .scroll-pane {
+            -fx-background-color: transparent;
+            & > .viewport {
+                -fx-background-color: transparent;
+            }
+            & > .scroll-bar > .thumb {
+                -fx-background-color: -df-component-dark;
+                &:hover { -fx-background-color: -df-component-light; }
+                &:pressed { -fx-background-color: -df-component-lighter; }
+            }
         }
     }
     &-table-view {
@@ -214,6 +221,309 @@ $ext-line-height: 26px;
                 -fx-background-color: -df-component-dark;
                 &:hover { -fx-background-color: -df-component-light; }
                 &:pressed { -fx-background-color: -df-component-lighter; }
+            }
+        }
+    }
+    &-hover-overlay {
+        & > * {
+            visibility: hidden;
+        }
+        &:hover > *, &:pressed > * {
+            visibility: visible;
+            -fx-background-color: -df-background-input;
+            -fx-background-radius: 1px;
+        }
+    }
+    &-scrubber {
+        -fx-cursor: v-resize;
+        -fx-pref-height: $ext-line-height;
+        &:hover > .image-view {
+            -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+        }
+        &:pressed > .image-view {
+            -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
+        }
+    }
+    &-toggle-button {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px;
+        -fx-border-width: 0;
+        -fx-min-width: $ext-line-height;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
+    &-color-picker {
+        &-icon {
+            -fx-min-width: $ext-line-height;
+            -fx-max-width: $ext-line-height;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-border-width: 1px 1px 1px 0;
+            -fx-padding: 0 0 0 1px; // compensate for arrow button not having a left border
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0 3px 3px 0;
+            & > .arrow-button { visibility: hidden; }
+            & > .color-picker-label { -fx-content-display: graphic-only; }
+        }
+        &-field {
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+            &:focused {
+                -fx-border-width: 1px 0 2px 1px;
+                -fx-border-radius: 2px 0 0 2px;
+            }
+        }
+        &:hover {
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:focus-within {
+            & > .ext-color-picker-field {
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            }
+            & > .ext-color-picker-icon {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:warning {
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-error-severity-warning-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                    -fx-border-color: -df-error-severity-warning;
+                }
+            }
+        }
+        &:error {
+            & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                -fx-border-color: -df-error-severity-fatal-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-color-picker-field, & > .ext-color-picker-icon {
+                    -fx-border-color: -df-error-severity-fatal;
+                }
+            }
+        }
+    }
+    &-resource-picker {
+        & > .ext-resource-picker-field {
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+        }
+        & > .ext-resource-picker-open-button,
+        & > .ext-resource-picker-browse-button {
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0;
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 0;
+            -fx-border-width: 1px 0 1px 0;
+        }
+        & > .ext-resource-picker-browse-button {
+            -fx-background-radius: 0 3px 3px 0;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-border-width: 1px 1px 1px 0;
+        }
+        &:hover {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        & > .ext-resource-picker-open-button:hover,
+        & > .ext-resource-picker-browse-button:hover {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
+        & > .ext-resource-picker-open-button:disabled,
+        & > .ext-resource-picker-browse-button:disabled {
+            -fx-opacity: 1.0;
+            -fx-background-color: derive(-df-component-dark, -20%);
+            -fx-text-fill: -df-text-dark;
+        }
+        & > .ext-resource-picker-open-button:armed,
+        & > .ext-resource-picker-browse-button:armed {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:focus-within {
+            & > .ext-resource-picker-field {
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+                -fx-border-width: 1px 0 2px 1px;
+            }
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-component-light;
+            }
+        }
+        &:warning {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-error-severity-warning-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-resource-picker-field,
+                & > .ext-resource-picker-open-button,
+                & > .ext-resource-picker-browse-button {
+                    -fx-border-color: -df-error-severity-warning;
+                }
+            }
+        }
+        &:error {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-error-severity-fatal-dim;
+            }
+            &:hover, &:focus-within {
+                & > .ext-resource-picker-field,
+                & > .ext-resource-picker-open-button,
+                & > .ext-resource-picker-browse-button {
+                    -fx-border-color: -df-error-severity-fatal;
+                }
+            }
+        }
+    }
+    &-combo-box {
+        & > .label {
+            -fx-border-color: -df-component-dark;
+            -fx-border-radius: 2px 0 0 2px;
+            -fx-border-width: 1px 0 1px 1px;
+            -fx-background-color: -df-background-input;
+            -fx-background-radius: 3px 0 0 3px;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            -fx-max-width: Infinity;
+            -fx-text-fill: -df-text-selected;
+            -fx-padding: 1px 8px 1px 8px;
+        }
+        &:hover {
+            & > .label { -fx-border-color: -df-component-light; }
+            & > .ext-combo-box-arrow-button {
+                -fx-border-color: -df-component-light;
+                & > .ext-combo-box-arrow {
+                    -fx-background-color: -df-text-selected;
+                }
+            }
+        }
+        &:focused {
+            & > .label {
+                -fx-background-color: -df-background;
+                -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+                -fx-border-width: 1px 0 2px 1px;
+                -fx-padding: 1px 8px 0px 8px;
+            }
+            & > .ext-combo-box-arrow-button {
+                -fx-border-color: -df-component-light;
+                & > .ext-combo-box-arrow {
+                    -fx-background-color: -df-text-selected;
+                }
+            }
+            &:showing {
+                & > .label {
+                    -fx-border-color: -df-component-light;
+                    -fx-border-width: 1px 0 1px 1px;
+                    -fx-padding: 1px 8px 1px 8px;
+                }
+            }
+        }
+        &:showing {
+            & > .ext-combo-box-arrow-button {
+                & > .ext-combo-box-arrow {
+                    -fx-scale-y: -1.0;
+                }
+                -fx-border-radius: 0 2px 0 0;
+                -fx-background-radius: 0 3px 0 0;
+            }
+            & > .label {
+                -fx-border-radius: 2px 0 0 0;
+                -fx-background-radius: 3px 0 0 0;
+            }
+        }
+        &-arrow-button {
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 0 3px 3px 0;
+            -fx-border-color: -df-component-dark;
+            -fx-border-width: 1px 1px 1px 0;
+            -fx-border-radius: 0 2px 2px 0;
+            -fx-min-width: $ext-line-height;
+            -fx-max-width: $ext-line-height;
+            -fx-min-height: $ext-line-height;
+            -fx-max-height: $ext-line-height;
+            &:disabled { -fx-opacity: 0.4; }
+        }
+        &-arrow {
+            -fx-shape: "M 0 0 h 10 l -5 6 z";
+            -fx-scale-shape: false;
+            -fx-background-color: -df-text;
+            -fx-background-insets: 0 -0.5px 0 0.5px; // compensate for arrow button not having a left border
+        }
+        &-popup {
+            &-background {
+                -fx-background-color: -df-background;
+                -fx-border-color: -df-component-light;
+                -fx-border-width: 1px;
+                -fx-border-radius: 0 0 2px 2px;
+                -fx-background-radius: 0 0 3px 3px;
+                -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0, 0, 8);
+                &:warning {
+                    -fx-border-color: -df-component-light -df-error-severity-warning -df-error-severity-warning -df-error-severity-warning;
+                }
+                &:error {
+                    -fx-border-color: -df-component-light -df-error-severity-fatal -df-error-severity-fatal -df-error-severity-fatal;
+                }
+            }
+            &-field, &-field:focused {
+                -fx-border-radius: 0;
+                -fx-background-radius: 0;
+                -fx-border-width: 0 0 1px 0;
+                -fx-border-color: -df-component-light;
+                -fx-padding: 4px 8px;
+            }
+            &-list {
+                & > .virtual-flow {
+                    & > .scroll-bar > .thumb {
+                        -fx-background-color: -df-component-dark;
+                        &:hover { -fx-background-color: -df-component-light; }
+                        &:pressed { -fx-background-color: -df-component-lighter; }
+                    }
+                    & > .clipped-container > .sheet > .cell {
+                        -fx-padding: 4px 6px;
+                        &:hover, &:selected {
+                            & > TextFlow > Text {
+                                -fx-fill: -df-text-selected;
+                                &.matched { -fx-fill: -df-defold-blue-lighter; }
+                            }
+                        }
+                        &:selected {
+                            -fx-border-color: -df-defold-orange;
+                            -fx-border-width: 0 0 0 2px;
+                        }
+                    }
+                }
+            }
+        }
+        &:warning {
+            & > .label { -fx-border-color: -df-error-severity-warning-dim; }
+            & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-warning-dim; }
+            &:hover, &:focused {
+                & > .label { -fx-border-color: -df-error-severity-warning; }
+                & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-warning; }
+            }
+        }
+        &:error {
+            & > .label { -fx-border-color: -df-error-severity-fatal-dim; }
+            & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal-dim; }
+            &:hover, &:focused {
+                & > .label { -fx-border-color: -df-error-severity-fatal; }
+                & > .ext-combo-box-arrow-button { -fx-border-color: -df-error-severity-fatal; }
             }
         }
     }

@@ -7,7 +7,6 @@
 <?import javafx.scene.control.TextField?>
 
 <VBox id="new-project-pane" styleClass="welcome-dialog-content" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
-    <HBox id="template-categories" styleClass="tab-header-pane" />
     <ListView id="template-list" styleClass="template-list-view" VBox.vgrow="ALWAYS" />
     <HBox styleClass="form-pane">
         <HBox minWidth="180" maxWidth="180" HBox.hgrow="NEVER">
@@ -19,7 +18,7 @@
             <HBox id="new-project-location-field" HBox.hgrow="ALWAYS" />
         </HBox>
         <HBox HBox.hgrow="NEVER">
-            <Button id="create-new-project-button" styleClass="df-button, submit-button" text="Create New Project" HBox.hgrow="NEVER" />
+            <Button id="create-new-project-button" styleClass="df-button, submit-button" text="Create New Project" HBox.hgrow="NEVER" defaultButton="true" />
         </HBox>
     </HBox>
 </VBox>

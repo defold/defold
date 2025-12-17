@@ -76,6 +76,7 @@
    "scripts-script_collection_factory.cpp"
    "scripts-script_collectionproxy.cpp"
    "scripts-script_factory.cpp"
+   "scripts-script_font.cpp"
    "scripts-script_http.cpp"
    "scripts-script_image.cpp"
    "scripts-script_label.cpp"

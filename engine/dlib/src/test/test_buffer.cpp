@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "../dlib/array.h"
+#include "../dlib/dalloca.h"
 #include "../dlib/log.h"
 #include "../dlib/hash.h"
 #include "../dlib/buffer.h"
@@ -25,11 +26,11 @@
 
 class BufferTest : public jc_test_base_class
 {
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::DeleteContext();
     }
 };
@@ -39,7 +40,7 @@ class MetaDataTest : public jc_test_base_class
 public:
     dmBuffer::HBuffer buffer;
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
 
         dmBuffer::StreamDeclaration streams_decl[] = {
@@ -49,7 +50,7 @@ protected:
         dmBuffer::Create(4, streams_decl, 2, &buffer);
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::Destroy(buffer);
         dmBuffer::DeleteContext();
     }
@@ -67,7 +68,7 @@ public:
     uint32_t          out_stride;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
 
         dmBuffer::StreamDeclaration streams_decl[] = {
@@ -80,7 +81,7 @@ protected:
         dmBuffer::Create(count, streams_decl, 2, &buffer);
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::Destroy(buffer);
         dmBuffer::DeleteContext();
     }
@@ -105,12 +106,12 @@ public:
     uint32_t          out_stride;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         dmBuffer::NewContext();
         buffer = 0x0;
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         dmBuffer::Destroy(buffer);
         dmBuffer::DeleteContext();
     }
@@ -278,6 +279,10 @@ TEST_F(BufferTest, ValidateBuffer)
 
     // Get address outside stream boundry
     uint8_t* ptr = (uint8_t*)((uintptr_t)out_stream + count);
+
+    uint8_t old_bytes[4];
+    memcpy(old_bytes, ptr, 4);
+
     ptr[0] = 0xBA;
     ptr[1] = 0xDC;
     ptr[2] = 0x0D;
@@ -286,6 +291,8 @@ TEST_F(BufferTest, ValidateBuffer)
     // We should have trashed the guard bytes
     r = dmBuffer::ValidateBuffer(buffer);
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
+
+    memcpy(ptr, old_bytes, 4);
 
     dmBuffer::Destroy(buffer);
 }
@@ -451,6 +458,9 @@ TEST_F(BufferTest, GetStreamNullableArgs)
 
     // Get address outside stream boundry
     uint8_t* ptr = (uint8_t*)((uintptr_t)out_stream + count);
+
+    uint8_t old_bytes[4];
+    memcpy(old_bytes, ptr, 4);
     ptr[0] = 0xBA;
     ptr[1] = 0xDC;
     ptr[2] = 0x0D;
@@ -460,6 +470,7 @@ TEST_F(BufferTest, GetStreamNullableArgs)
     r = dmBuffer::ValidateBuffer(buffer);
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
 
+    memcpy(ptr, old_bytes, 4);
     dmBuffer::Destroy(buffer);
 }
 
@@ -572,9 +583,20 @@ TEST_F(GetDataTest, WriteOutsideStream)
     ASSERT_EQ(2, out_components);
     ASSERT_EQ(stride/sizeof(uint16_t), out_stride);
 
+    const uint32_t outside_count = 1;
+
     // Write past the number of elements
     uint16_t* ptr = (uint16_t*)out_stream;
-    for (uint32_t i = 0; i < out_count+1; ++i)
+
+    uint8_t* buffer_bytes = 0x0;
+    uint32_t buffer_size = 0;
+    dmBuffer::GetBytes(buffer, (void**)&buffer_bytes, &buffer_size);
+
+    buffer_size += outside_count * stride;
+    uint8_t* tmp_bytes = (uint8_t*)dmAlloca(buffer_size);
+    memcpy(tmp_bytes, buffer_bytes, buffer_size);
+
+    for (uint32_t i = 0; i < out_count+outside_count; ++i)
     {
         ptr[0] = (uint16_t)i;
         ptr[1] = (uint16_t)i;
@@ -586,6 +608,8 @@ TEST_F(GetDataTest, WriteOutsideStream)
     r = dmBuffer::GetStream(buffer, dmHashString64("texcoord"), &out_stream, &out_count, &out_components, &out_stride);
     ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
     ASSERT_EQ((void*)0x0, out_stream);
+
+    memcpy(buffer_bytes, tmp_bytes, buffer_size);
 }
 
 TEST_F(GetDataTest, CheckUniquePointers)

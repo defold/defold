@@ -660,7 +660,7 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
-    static int WorkerAcquireContextRunner(void* _context, void* _acquire_flag)
+    static int WorkerAcquireContextRunner(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* _acquire_flag)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
@@ -693,7 +693,14 @@ static void LogFrameBufferError(GLenum status)
 
         dmAtomicStore32(&context->m_AuxContextJobPending, 1);
 
-        dmJobThread::PushJob(context->m_JobThread, WorkerAcquireContextRunner, 0, (void*) context, (void*) (uintptr_t) acquire_flag);
+        dmJobThread::Job job = {0};
+        job.m_Process = WorkerAcquireContextRunner;
+        job.m_Callback = 0;
+        job.m_Context = (void*) context;
+        job.m_Data = (void*) (uintptr_t) acquire_flag;
+
+        dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
+        dmJobThread::PushJob(context->m_JobThread, hjob);
 
         // Block until the job is done
         while(dmAtomicGet32(&context->m_AuxContextJobPending))
@@ -808,6 +815,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
+            case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1273,6 +1281,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
         {
             context->m_ASTCSupport = 1;
+            context->m_ASTCArrayTextureSupport = 1;
         }
 
         // Check if we're using a recent enough OpenGL version
@@ -1346,7 +1355,8 @@ static void LogFrameBufferError(GLenum status)
                 GLint err = glGetError();
                 if (err != 0)
                 {
-                    context->m_ASTCSupport = 0;
+                    // Only disable ASTC for array textures; keep 2D ASTC enabled
+                    context->m_ASTCArrayTextureSupport = 0;
                     isPagedASTCSupported = false;
                 }
                 glDeleteTextures(1, &texture);
@@ -1355,9 +1365,11 @@ static void LogFrameBufferError(GLenum status)
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
                 // If 4x4 is supported, all ASTC formats should be supported.
-                if (isPagedASTCSupported && pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
+                if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
                     context->m_ASTCSupport = 1;
+                    if (isPagedASTCSupported)
+                        context->m_ASTCArrayTextureSupport = 1;
                 }
                 else 
                 {
@@ -3790,7 +3802,7 @@ static void LogFrameBufferError(GLenum status)
         delete tex;
     }
 
-    static int AsyncDeleteTextureProcess(void* _context, void* data)
+    static int AsyncDeleteTextureProcess(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DoDeleteTexture(context, (HTexture) data);
@@ -3802,7 +3814,15 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_AsyncProcessingSupport)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-            dmJobThread::PushJob(context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) context, (void*) texture);
+
+            dmJobThread::Job job = {0};
+            job.m_Process = AsyncDeleteTextureProcess;
+            job.m_Callback = 0;
+            job.m_Context = (void*) context;
+            job.m_Data = (void*) (uintptr_t) texture;
+
+            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
+            dmJobThread::PushJob(context->m_JobThread, hjob);
         }
         else
         {
@@ -3982,7 +4002,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4010,7 +4030,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4034,11 +4054,14 @@ static void LogFrameBufferError(GLenum status)
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::PushJob(context->m_JobThread,
-                AsyncProcessCallback,
-                AsyncCompleteCallback,
-                (void*) context,
-                (void*) (uintptr_t) param_array_index);
+            dmJobThread::Job job = {0};
+            job.m_Process = AsyncProcessCallback;
+            job.m_Callback = AsyncCompleteCallback;
+            job.m_Context = (void*) context;
+            job.m_Data = (void*) (uintptr_t) param_array_index;
+
+            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
+            dmJobThread::PushJob(g_Context->m_JobThread, hjob);
         }
         else
         {

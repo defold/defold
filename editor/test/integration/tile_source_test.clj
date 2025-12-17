@@ -19,6 +19,7 @@
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.texture-util :as texture-util]
             [editor.tile-source :as tile-source]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -100,14 +101,13 @@
           image-file (io/as-file (g/node-value tile-source :image))
           image-bytes (fs/read-bytes image-file)
           texture-set-data-generator (g/node-value tile-source :texture-set-data-generator)
-          packed-image-generator (g/node-value tile-source :packed-image-generator)
-          call-generator #'tile-source/call-generator]
+          packed-image-generator (g/node-value tile-source :packed-image-generator)]
 
       (testing "Initial project state"
         (is (not= :sprite-trim-mode-off (g/node-value tile-source :sprite-trim-mode)))
         (testing "Generators"
-          (is (not (g/error? (call-generator texture-set-data-generator))))
-          (is (not (g/error? (call-generator packed-image-generator)))))
+          (is (not (g/error? (texture-util/call-generator texture-set-data-generator))))
+          (is (not (g/error? (texture-util/call-generator packed-image-generator)))))
         (testing "Graph"
           (is (not (g/error? (g/node-value tile-source :scene))))
           (is (not (g/error? (g/node-value tile-source :build-targets))))
@@ -117,8 +117,8 @@
         (test-support/spit-until-new-mtime image-file "This is no longer an image file.")
         (g/clear-system-cache!)
         (testing "Stale generators"
-          (is (g/error? (call-generator texture-set-data-generator)))
-          (is (g/error? (call-generator packed-image-generator))))
+          (is (g/error? (texture-util/call-generator texture-set-data-generator)))
+          (is (g/error? (texture-util/call-generator packed-image-generator))))
         (testing "Graph before resource-sync"
           (is (g/error? (g/node-value tile-source :scene)))
           (is (g/error? (g/node-value tile-source :build-targets)))
@@ -133,8 +133,8 @@
         (test-support/write-until-new-mtime image-file image-bytes)
         (g/clear-system-cache!)
         (testing "Stale generators"
-          (is (not (g/error? (call-generator texture-set-data-generator))))
-          (is (not (g/error? (call-generator packed-image-generator)))))
+          (is (not (g/error? (texture-util/call-generator texture-set-data-generator))))
+          (is (not (g/error? (texture-util/call-generator packed-image-generator)))))
         (testing "Graph before resource-sync"
           (is (not (g/error? (g/node-value tile-source :scene))))
           (is (not (g/error? (g/node-value tile-source :build-targets))))
@@ -149,8 +149,8 @@
         (fs/delete! image-file)
         (g/clear-system-cache!)
         (testing "Stale generators"
-          (is (g/error? (call-generator texture-set-data-generator)))
-          (is (g/error? (call-generator packed-image-generator))))
+          (is (g/error? (texture-util/call-generator texture-set-data-generator)))
+          (is (g/error? (texture-util/call-generator packed-image-generator))))
         (testing "Graph before resource-sync"
           (is (g/error? (g/node-value tile-source :scene)))
           (is (g/error? (g/node-value tile-source :build-targets)))

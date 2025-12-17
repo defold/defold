@@ -4,7 +4,7 @@ import waflib
 
 from waflib.TaskGen import extension, feature, after, before
 
-waflib.Task.task_factory('glslang', 'glslang -w --auto-map-bindings --auto-map-locations -g -V -o ${TGT} ${SRC}',
+waflib.Task.task_factory('glslang', '${GLSLANG} -w --auto-map-bindings --auto-map-locations -g -V -o ${TGT} ${SRC}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',

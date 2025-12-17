@@ -30,18 +30,23 @@
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
+            [util.defonce :as defonce]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
            [com.defold.control DefoldStringConverter TreeCell]
            [com.sun.javafx.event DirectEvent]
+           [com.sun.javafx.scene NodeHelper]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
            [java.net URI]
            [java.util Collection]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
-           [javafx.beans InvalidationListener]
+           [javafx.beans InvalidationListener Observable]
+           [javafx.beans.binding Bindings]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections FXCollections ListChangeListener ObservableList]
@@ -73,6 +78,7 @@
 (defonce ^:private ^:const application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 (defonce ^:private application-unfocused-tasks (atom {}))
+(defonce ^:private stopped-timers (atom #{}))
 
 (declare ->future)
 
@@ -162,30 +168,30 @@
   (remove-watch focus-state key)
   nil)
 
-(defprotocol Text
+(defonce/protocol Text
   (text ^String [this])
   (text! [this ^String val]))
 
-(defprotocol HasAction
+(defonce/protocol HasAction
   (on-action! [this fn]))
 
-(defprotocol Cancellable
+(defonce/protocol Cancellable
   (on-cancel! [this cancel-fn]))
 
-(defprotocol HasValue
+(defonce/protocol HasValue
   (value [this])
   (value! [this val]))
 
-(defprotocol HasUserData
+(defonce/protocol HasUserData
   (user-data [this key])
   (user-data! [this key val]))
 
-(defprotocol Editable
+(defonce/protocol Editable
   (editable [this])
   (editable! [this val])
   (on-edit! [this fn]))
 
-(defprotocol HasSelectionModel
+(defonce/protocol HasSelectionModel
   (^SelectionModel selection-model [this]))
 
 (def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
@@ -747,11 +753,11 @@
     (when (not= (.getText this) val)
       (.setText this val))))
 
-(defprotocol HasChildren
+(defonce/protocol HasChildren
   (children! [this c])
   (add-child! [this c]))
 
-(defprotocol CollectionView
+(defonce/protocol CollectionView
   (selection [this])
   (select! [this item])
   (select-index! [this index])
@@ -1060,9 +1066,37 @@
   (cell-factory! [this render-fn]
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
+(extend-type TableView
+  CollectionView
+  (selection [this]
+    (when-let [items (.getSelectedItems (.getSelectionModel this))]
+      items))
+  (select! [this item]
+    (doto (.getSelectionModel this)
+      (.select item)))
+  (select-index! [this index]
+    (doto (.getSelectionModel this)
+      (.select (int index))))
+  (selection-mode! [this mode]
+    (let [^SelectionMode mode (selection-mode mode)]
+      (.setSelectionMode (.getSelectionModel this) mode)))
+  (items [this]
+    (.getItems this))
+  (items! [this ^Collection items]
+    (let [l (.getItems this)]
+      (.clear l)
+      (.addAll l items)))
+  (cell-factory! [this render-fn]
+    ;; NOTE: TableView uses column-specific cell factories so leave this empty for now At the time
+    ;; of implementing this, it's only being used for the selection stuff in breakpoints-view
+    nil))
+
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
   (let [selection (.getSelectedItems (.getSelectionModel tree-view))]
-    (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
+    (let [items (->> selection
+                     (e/remove nil?)
+                     (e/filter id-fn)
+                     (coll/pair-map-by path-fn))
           roots (loop [paths (keys items)
                        roots []]
                   (if-let [path (first paths)]
@@ -1072,8 +1106,9 @@
                                   roots)]
                       (recur (rest paths) roots))
                     roots))]
-      (vals (into {} (map #(let [item (items %)]
-                            [(id-fn item) item]) roots))))))
+      (coll/transfer roots []
+        (map items)
+        (util/distinct-by id-fn)))))
 
 ;; Returns the items that should be selected if the specified root items were deleted.
 (defn succeeding-selection [^TreeView tree-view root-items]
@@ -1276,7 +1311,7 @@
       (nil? handler-ctx)
       ::not-active
 
-      (not (handler/enabled? handler-ctx))
+      (not (handler/enabled? handler-ctx)) ; Safe to not supply evaluation-context - we're executing a command.
       ::not-enabled
 
       :else
@@ -1377,7 +1412,7 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(deftype MenuEventHandler [^Scene scene command user-data ^:unsynchronized-mutable suppress?]
+(defonce/type MenuEventHandler [^Scene scene command user-data ^:unsynchronized-mutable suppress?]
   EventHandler
   (handle [_this event]
     (condp = (.getEventType event)
@@ -1450,10 +1485,10 @@
               user-data (:user-data item)
               check (:check item)]
           (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-            (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
+            (let [label (or (handler/label handler-ctx evaluation-context) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx evaluation-context)
                   key-combo (first (keymap/shortcuts keymap command))]
-              (if-let [options (handler/options handler-ctx)]
+              (if-let [options (handler/options handler-ctx evaluation-context)]
                 (if (and key-combo (not (:expand item)))
                   (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)
                   (make-submenu id
@@ -1461,7 +1496,7 @@
                                 localization
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts keymap localization evaluation-context)
+                                (make-menu-items scene (localization/sort-if-annotated @localization options) command-contexts keymap localization evaluation-context)
                                 on-open))
                 (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)))))))))
 
@@ -1604,7 +1639,7 @@
         command-contexts (node-contexts node true)
         handler-ctx (handler/active command command-contexts user-data)
         enabled (and handler-ctx
-                     (handler/enabled? handler-ctx))]
+                     (handler/enabled? handler-ctx))] ; TODO: This really should supply the same evaluation-context we use to refresh the menus and so on.
     (disable! node (not enabled))))
 
 (defn bind-double-click!
@@ -1677,7 +1712,7 @@
   []
   (reset! invalid-menubar-items #{}))
 
-(defprotocol HasMenuItemList
+(defonce/protocol HasMenuItemList
   (menu-items ^ObservableList [this] "returns a ObservableList of MenuItems or nil"))
 
 (extend-protocol HasMenuItemList
@@ -1819,7 +1854,7 @@
           handler-ctx (handler/active command command-contexts user-data evaluation-context)]
       (doto check-menu-item
         (.setDisable (not (handler/enabled? handler-ctx evaluation-context)))
-        (.setSelected (boolean (handler/state handler-ctx)))))
+        (.setSelected (boolean (handler/state handler-ctx evaluation-context)))))
 
     MenuItem
     (let [handler-ctx (handler/active (user-data menu-item ::command)
@@ -1866,9 +1901,9 @@
 (declare refresh)
 
 (defn- toolbar-control
-  [scene menu-item handler-ctx localization]
+  [scene menu-item handler-ctx localization evaluation-context]
   (let [separator? (= :separator (:label menu-item))
-        opts (handler/options handler-ctx)]
+        opts (handler/options handler-ctx evaluation-context)]
     (cond
       separator?
       (doto (Separator. Orientation/VERTICAL)
@@ -1890,7 +1925,7 @@
 
       :else
       (let [{:keys [graphic-fn label icon tooltip more]} menu-item
-            label (or (handler/label handler-ctx) label)
+            label (or (handler/label handler-ctx evaluation-context) label)
             button (doto (ToggleButton.)
                      (localization/localize! localization label)
                      (tooltip! tooltip localization))]
@@ -1947,7 +1982,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization)]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization evaluation-context)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
@@ -1966,12 +2001,12 @@
                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]]
       (disable! n (not (handler/enabled? handler-ctx evaluation-context)))
       (when (instance? ToggleButton n)
-        (if (handler/state handler-ctx)
+        (if (handler/state handler-ctx evaluation-context)
           (.setSelected ^Toggle n true)
           (.setSelected ^Toggle n false)))
       (when (instance? HBox n)
         (let [^HBox box n
-              state (handler/state handler-ctx)
+              state (handler/state handler-ctx evaluation-context)
               second-child (.get (.getChildren box) 1)]
           (cond
             (instance? ChoiceBox second-child)
@@ -1979,7 +2014,7 @@
               (when (not (.isShowing cb))
                 (let [items (.getItems cb)
                       opts (vec items)
-                      new-opts (vec (handler/options handler-ctx))]
+                      new-opts (vec (handler/options handler-ctx evaluation-context))]
                   (when (not= opts new-opts)
                     (.setAll items ^Collection new-opts)))
                 (let [selection-model (.getSelectionModel cb)
@@ -1990,7 +2025,7 @@
 
             :else
             (let [toggle-button (.get (.getChildren box) 0)]
-              (if (handler/state handler-ctx)
+              (if (handler/state handler-ctx evaluation-context)
                 (.setSelected ^Toggle toggle-button true)
                 (.setSelected ^Toggle toggle-button false)))))))))
 
@@ -2057,14 +2092,16 @@
     (keymap/install! keymap scene execute-accelerator-commands)))
 
 (defn refresh
-  [^Scene scene]
-  (g/with-auto-or-fake-evaluation-context evaluation-context
-    (let [keymap (or (user-data scene :keymap) keymap/empty)
-          localization (user-data scene :localization)]
-      (assert (some? localization))
-      (refresh-accelerators! scene keymap)
-      (refresh-menus! scene keymap localization evaluation-context)
-      (refresh-toolbars! scene localization evaluation-context))))
+  ([^Scene scene]
+   (g/with-auto-or-fake-evaluation-context evaluation-context
+     (refresh scene evaluation-context)))
+  ([^Scene scene evaluation-context]
+   (let [keymap (or (user-data scene :keymap) keymap/empty)
+         localization (user-data scene :localization)]
+     (assert (some? localization))
+     (refresh-accelerators! scene keymap)
+     (refresh-menus! scene keymap localization evaluation-context)
+     (refresh-toolbars! scene localization evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (.setProgress
@@ -2138,7 +2175,7 @@
   (reify EventHandler
     (handle [this event] (f event))))
 
-(defprotocol Future
+(defonce/protocol Future
   (cancel [this])
   (restart [this]))
 
@@ -2178,6 +2215,7 @@
                                           (- now (- delta interval))))
                            (catch Throwable t
                              (.stop ^AnimationTimer this)
+                             (swap! stopped-timers conj this)
                              (error-reporting/report-exception! t)))))))))})))
 
 (defn timer-start! [timer]
@@ -2185,6 +2223,14 @@
 
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
+
+(defn enable-stopped-timers!
+  "Re-enables any AnimationTimers that were stopped due to exceptions."
+  []
+  (doseq [timer @stopped-timers]
+    (.start ^AnimationTimer timer))
+  (reset! stopped-timers #{})
+  nil)
 
 (defn anim! [^double duration anim-fn end-fn]
   (let [duration (long (* 1e9 duration))
@@ -2199,6 +2245,7 @@
                       (anim-fn t)
                       (catch Throwable t
                         (.stop ^AnimationTimer this)
+                        (swap! stopped-timers conj this)
                         (error-reporting/report-exception! t))))
                   (try
                     (end-fn)
@@ -2217,7 +2264,7 @@
                  (when existing-handler
                    (.handle existing-handler e))))
 
-(defprotocol CloseRequestable
+(defonce/protocol CloseRequestable
   (on-closing [this])
   (on-closing! [this f]))
 
@@ -2231,7 +2278,7 @@
                                   (.consume e)))
                               (on-closing this)))))
 
-(defprotocol Closeable
+(defonce/protocol Closeable
   (on-closed [this])
   (on-closed! [this f]))
 
@@ -2441,3 +2488,53 @@
   (when (not= cursor-type (.getCursor node))
     (.setCursor node Cursor/DISAPPEAR)
     (.setCursor node cursor-type)))
+
+(defn force-layout! [^Node node]
+  ;; Force layout pass to ensure the proper dimensions can be queried from the
+  ;; node. This process is recursive.
+  (NodeHelper/layoutNodeForPrinting node))
+
+(defn force-scene-layout! [^Scene scene]
+  (force-layout! (.getRoot scene)))
+
+(defn node-timer!
+  "Installs a timer on a node
+
+  The supplied function will only be invoked if the node is a part of the
+  rendered tree (i.e. it and its parents are visible, the node is on a showing
+  window)
+
+  Args:
+    node    target Node
+    fps     timer fps
+    name    timer name, a string
+    f       0-arg function"
+  [^Node node fps name f]
+  (let [timer (->timer fps name (fn [_ _ _] (f)))
+        tree-visible-property (NodeHelper/treeVisibleProperty node)
+        tree-showing-property (-> node
+                                  (.sceneProperty)
+                                  (.flatMap Scene/.windowProperty)
+                                  (.flatMap Window/.showingProperty)
+                                  (.orElse false))
+        running-property (Bindings/createBooleanBinding
+                           #(and (.getValue tree-showing-property)
+                                 (.get tree-visible-property))
+                           (into-array Observable [tree-showing-property tree-visible-property]))
+        ^ChangeListener on-running-changed (fn [_ _ tree-visible]
+                                             (if tree-visible
+                                               (do (f) (timer-start! timer))
+                                               (timer-stop! timer)))
+        key (Object.)
+        node-properties (.getProperties node)]
+    (when (.get running-property)
+      (.changed on-running-changed running-property false true))
+    (.addListener running-property on-running-changed)
+    ;; Bindings are weakly-referenced, so we need to preserve a ref to it on a
+    ;; node so that the listener doesn't disappear suddenly in cases where we
+    ;; don't keep the dispose-fn referenced
+    (.put node-properties key running-property)
+    (fn dispose-node-timer! []
+      (.remove node-properties key)
+      (.removeListener running-property on-running-changed)
+      (timer-stop! timer))))

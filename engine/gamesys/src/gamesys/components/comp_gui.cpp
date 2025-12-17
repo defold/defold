@@ -25,10 +25,11 @@
 #include <dlib/dstrings.h>
 #include <dlib/trig_lookup.h>
 #include <dmsdk/dlib/vmath.h>
+#include <font/text_layout.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
-#include <render/font_renderer.h>
+#include <render/font/font_renderer.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
@@ -80,9 +81,9 @@ namespace dmGameSystem
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
     static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
-    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res);
 
@@ -175,7 +176,7 @@ namespace dmGameSystem
         return node_material_res ? GetNodeMaterial(node_material_res) : gui_context->m_Material;
     }
 
-    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFont font_map)
+    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFontMap font_map)
     {
         void* node_material_res = dmGui::GetNodeMaterial(scene, node);
         if (node_material_res)
@@ -1269,7 +1270,7 @@ namespace dmGameSystem
             assert(node_type == dmGui::NODE_TYPE_TEXT);
 
             dmGameSystem::FontResource* font_resource = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
-            dmRender::HFont font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
+            dmRender::HFontMap font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             if (!font_map)
                 continue;
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
@@ -2253,7 +2254,7 @@ namespace dmGameSystem
         uint64_t prev_combined_type                     = GetCombinedNodeType(prev_node_type, prev_custom_type);
         dmGraphics::HTexture prev_texture               = GetNodeTexture(scene, first_node);
         dmGameSystem::FontResource* prev_font_resource  = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, first_node);
-        dmRender::HFont             prev_font           = prev_font_resource ? dmGameSystem::ResFontGetHandle(prev_font_resource) : 0;
+        dmRender::HFontMap          prev_font           = prev_font_resource ? dmGameSystem::ResFontGetHandle(prev_font_resource) : 0;
         HComponentRenderConstants prev_render_constants = (HComponentRenderConstants) dmGui::GetNodeRenderConstants(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope   = stencil_scopes[0];
         uint32_t prev_emitter_batch_key                 = 0;
@@ -2287,7 +2288,7 @@ namespace dmGameSystem
             uint64_t combined_type                     = GetCombinedNodeType(node_type, custom_type);
             dmGraphics::HTexture texture               = GetNodeTexture(scene, node);
             dmGameSystem::FontResource* font_resource  = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
-            dmRender::HFont             font           = font_resource ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
+            dmRender::HFontMap          font           = font_resource ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             const dmGui::StencilScope* stencil_scope   = stencil_scopes[i];
             uint32_t emitter_batch_key                 = 0;
             dmRender::HMaterial material               = 0;
@@ -2418,24 +2419,42 @@ namespace dmGameSystem
         return dmHashString64(buffer);
     }
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* data)
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height,
+                                                            dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
 
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
+        dmGraphics::TextureFormat texture_format = ToGraphicsFormat(type);
+        dmGraphics::TextureImage::CompressionType texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+            if (!GetAstcTextureFormat(data, data_size, &texture_format))
+            {
+                dmLogError("Failed to create texture resource %s", resource_path);
+                return 0;
+            }
+
+            // The astc header is 16 bytes and the graphcis api expects the raw block data, not the header
+            data = ((uint8_t*)data) + 16;
+            data_size -= 16;
+        }
+
         CreateTextureResourceParams params = {};
         params.m_Path               = resource_path;
         params.m_PathHash           = resolved_path_hash;
         params.m_Collection         = dmGameObject::GetCollection(component->m_Instance);
         params.m_Type               = dmGraphics::TEXTURE_TYPE_2D;
-        params.m_Format             = ToGraphicsFormat(type);
+        params.m_Format             = texture_format;
         params.m_TextureType        = GraphicsTextureTypeToImageType(params.m_Type);
         params.m_TextureFormat      = GraphicsTextureFormatToImageFormat(params.m_Format);
-        params.m_CompressionType    = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_CompressionType    = texture_compression;
         params.m_Buffer             = 0;
         params.m_Data               = data;
+        params.m_DataSize           = data_size;
         params.m_Width              = width;
         params.m_Height             = height;
         params.m_Depth              = 1;
@@ -2443,8 +2462,9 @@ namespace dmGameSystem
         params.m_TextureBpp         = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
         params.m_UsageFlags         = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
 
-        void* resource_out = 0;
-        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, &resource_out);
+        // Creates a texture and invokes the res_texture.cpp code path
+        dmGameSystem::TextureResource* resource_out = 0;
+        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, (void**)&resource_out);
         if (res != dmResource::RESULT_OK)
         {
             dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
@@ -2467,19 +2487,35 @@ namespace dmGameSystem
         }
     }
 
-    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
+        dmGraphics::TextureFormat texture_format = ToGraphicsFormat(type);
+        dmGraphics::TextureImage::CompressionType texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+            if (!GetAstcTextureFormat(buffer, buffer_size, &texture_format))
+            {
+                dmLogError("Failed to create texture resource %s", resource_path);
+                return;
+            }
+
+            // The astc header is 16 bytes and the graphcis api expects the raw block data, not the header
+            buffer = ((uint8_t*)buffer) + 16;
+            buffer_size -= 16;
+        }
+
         SetTextureResourceParams params = {};
         params.m_PathHash               = resolved_path_hash;
         params.m_TextureType            = dmGraphics::TEXTURE_TYPE_2D;
-        params.m_TextureFormat          = ToGraphicsFormat(type);
-        params.m_CompressionType        = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_TextureFormat          = texture_format;
+        params.m_CompressionType        = texture_compression;
         params.m_Data                   = buffer;
-        params.m_DataSize               = dmImage::BytesPerPixel(type) * width * height;
+        params.m_DataSize               = buffer_size;
         params.m_Width                  = width;
         params.m_Height                 = height;
         params.m_X                      = 0;
@@ -2515,9 +2551,8 @@ namespace dmGameSystem
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
 
-            /////////! FIXME: need obtain GraphicsContext somehow
-            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(0, texture_set_res->m_Texture->m_Texture);
-            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(0, texture_set_res->m_Texture->m_Texture);
+            out_data->m_State.m_OriginalTextureWidth = texture_set_res->m_Texture->m_OriginalWidth;
+            out_data->m_State.m_OriginalTextureHeight = texture_set_res->m_Texture->m_OriginalHeight;
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
@@ -2865,9 +2900,9 @@ namespace dmGameSystem
     // Public function used by engine (as callback from gui system)
     void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
-        dmRender::HFont font = dmGameSystem::ResFontGetHandle(font_resource);
+        dmRender::HFontMap font = dmGameSystem::ResFontGetHandle(font_resource);
 
-        dmRender::TextMetricsSettings settings;
+        TextLayoutSettings settings = {0};
         settings.m_Width = width;
         settings.m_LineBreak = line_break;
         settings.m_Leading = leading;
@@ -2969,7 +3004,6 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
                 dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
                                                             texture_source->m_Texture->m_OriginalWidth,
                                                             texture_source->m_Texture->m_OriginalHeight);
@@ -3257,12 +3291,6 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
-    }
-
-    void IterateDynamicTextures(dmhash_t gui_res_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx)
-    {
-        GuiComponent* component = (GuiComponent*)node->m_Component;
-        IterateDynamicTextures(gui_res_id, component->m_Scene, callback, user_ctx);
     }
 
     template <typename T2>

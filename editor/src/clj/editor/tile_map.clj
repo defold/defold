@@ -367,7 +367,7 @@
             {:keys [node-id vbuf shader gpu-texture blend-mode]} user-data]
         (when vbuf
           (let [render-args (merge render-args
-                                   (math/derive-render-transforms
+                                   (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                                      world-transform
                                      (:view render-args)
                                      (:projection render-args)
@@ -599,7 +599,7 @@
   [_node-id child-outlines]
   {:node-id          _node-id
    :node-outline-key "Tile Map"
-   :label            "Tile Map"
+   :label            (localization/message "outline.tile-map")
    :icon             tile-map-icon
    :children         (vec (sort-by :z child-outlines))})
 
@@ -1590,4 +1590,4 @@
                           :tool-controller TileMapController}}
       :tags #{:component :non-embeddable}
       :tag-opts {:component {:transform-properties #{:position :rotation}}}
-      :label "Tile Map")))
+      :label (localization/message "resource.type.tilemap"))))

@@ -31,7 +31,7 @@ def configure(conf):
     conf.env['STLIB_DLIB']        = 'dlib'
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
     conf.env['STLIB_DDF']         = 'ddf'
-    conf.env['STLIB_SPIRV_CROSS'] = ['spirv-cross-c', 'spirv-cross-core', 'spirv-cross-glsl', 'spirv-cross-hlsl', 'spirv-cross-reflect']
+    conf.env['STLIB_SPIRV_CROSS'] = ['spirv-cross-c', 'spirv-cross-core', 'spirv-cross-glsl', 'spirv-cross-hlsl', 'spirv-cross-msl', 'spirv-cross-reflect']
 
     if 'JAVA_HOME' in os.environ:
         host = 'windows'
