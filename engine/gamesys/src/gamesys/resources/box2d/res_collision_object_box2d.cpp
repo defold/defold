@@ -199,9 +199,9 @@ range_error:
                 dmResource::Release(factory, resource->m_TileGridResource);
         }
 
-        uint32_t shape_count = resource_base->m_ShapeCount;
-        if (shape_count > 0)
+        if (resource->m_Shapes2D)
         {
+            uint32_t shape_count = resource_base->m_ShapeCount;
             for (uint32_t i = resource->m_TileGridShapeCount; i < shape_count; ++i)
             {
                 dmPhysics::DeleteCollisionShape2D(resource->m_Shapes2D[i]);
