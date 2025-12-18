@@ -70,6 +70,7 @@ TEST_F(ComponentTest, HTTPRequest)
 
     ASSERT_TRUE(tests_done);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
 }
 
 extern "C" void dmExportedSymbols();
@@ -112,5 +113,7 @@ int main(int argc, char **argv)
     }
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    dmLog::LogFinalize();
+    return result;
 }

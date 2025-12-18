@@ -1382,6 +1382,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
@@ -2683,6 +2684,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 // Test case for collision-object properties
@@ -2720,6 +2722,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(Trigger2DTest, EventTriggerFalseTest)
@@ -2760,6 +2763,7 @@ TEST_F(Trigger2DTest, EventTriggerFalseTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
@@ -2942,6 +2946,7 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ComponentTest, DispatchBuffersTest)

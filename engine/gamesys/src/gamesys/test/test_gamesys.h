@@ -149,7 +149,7 @@ protected:
 class ScriptBaseTest : public GamesysTest<const char*>
 {
 public:
-    void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
 
@@ -384,7 +384,7 @@ struct ResourcePropParams {
 class ResourcePropTest : public GamesysTest<ResourcePropParams>
 {
 protected:
-    void SetUp()
+    void SetUp() override
     {
         GamesysTest::SetUp();
     }
