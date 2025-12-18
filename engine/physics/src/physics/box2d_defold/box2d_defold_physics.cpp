@@ -266,11 +266,26 @@ namespace dmPhysics
         return world;
     }
 
+    static void ClearPendingRayCasts2D(HWorld2D world)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_UserData)
+            {
+                free(request.m_UserData);
+            }
+        }
+        world->m_RayCastRequests.SetSize(0);
+    }
+
     void DeleteWorld2D(HContext2D context, HWorld2D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
+        ClearPendingRayCasts2D(world);
         delete world;
     }
 
@@ -1352,7 +1367,7 @@ namespace dmPhysics
         return false;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
         {
@@ -1363,16 +1378,19 @@ namespace dmPhysics
             if (lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+                return false;
             }
             else
             {
                 world->m_RayCastRequests.Push(request);
+                return true;
             }
         }
         else
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request. See 'physics.ray_cast_limit_2d' in game.project", world->m_RayCastRequests.Capacity());
         }
+        return false;
     }
 
     static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
