@@ -209,6 +209,7 @@ range_error:
             free(resource->m_Shapes2D);
             free(resource_base->m_ShapeTranslation);
             free(resource_base->m_ShapeRotation);
+            free(resource_base->m_ShapeTypes);
         }
         if (resource_base->m_DDF)
         {
