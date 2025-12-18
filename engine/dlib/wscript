@@ -85,7 +85,7 @@ def shutdown(sht):
         atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
 
         start = time.time()
-		timeout = 30 if sys.platform == 'win32' else 15
+        timeout = 30 if sys.platform == 'win32' else 15
         while True:
             if time.time() - start > timeout:
                 error('HTTP server failed to start within ' + str(timeout) + ' seconds')
