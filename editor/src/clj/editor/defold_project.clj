@@ -1586,6 +1586,7 @@
   (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
+  (input dependencies g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
   (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
@@ -1624,6 +1625,7 @@
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
+  (output dependencies g/Any (gu/passthrough dependencies))
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
@@ -1780,7 +1782,7 @@
               (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
                 (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
         project-id
-        (second
+    (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
@@ -1794,6 +1796,7 @@
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
                 (g/connect workspace-id :build-settings project :build-settings)
+                (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
                 (g/set-graph-value graph :project-id project)

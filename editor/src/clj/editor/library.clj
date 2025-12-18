@@ -24,7 +24,9 @@
             [editor.url :as url]
             [util.coll :refer [pair]]
             [util.fn :as fn])
-  (:import [java.io File InputStream]
+  (:import [com.dynamo.bob.util LibraryUtil]
+           [com.dynamo.bob.archive EngineVersion]
+           [java.io File InputStream]
            [java.net HttpURLConnection URI]
            [java.nio.file.attribute FileTime]
            [java.util Base64]
@@ -230,17 +232,23 @@
     ;; tag may not be available ...
     (merge lib-state (fetch-library! resolver uri tag))))
 
+(defn- locate-zip-entry-in-zip
+  [^ZipFile zip file-name]
+  (stream-reduce!
+    (fn [_ ^ZipEntry entry]
+      (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
+            name (last parts)]
+        (when (= file-name name)
+          (reduced {:name name
+                    :path (str/join "/" (butlast parts))
+                    :entry entry}))))
+    nil
+    (.stream zip)))
+
 (defn- locate-zip-entry
   [^File zip-file file-name]
   (with-open [zip (ZipFile. zip-file)]
-    (stream-reduce!
-      (fn [_ ^ZipEntry entry]
-        (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
-              name (last parts)]
-          (when (= file-name name)
-            (reduced {:name name :path (str/join "/" (butlast parts))}))))
-      nil
-      (.stream zip))))
+    (locate-zip-entry-in-zip zip file-name)))
 
 (defn library-base-path
   [zip-file]
@@ -249,14 +257,25 @@
 
 (defn- validate-updated-library [lib-state]
   (merge lib-state
-         (try
-           (when-not (library-base-path (:new-file lib-state))
-             {:status :error
-              :reason :missing-game-project})
-           (catch Exception e
-             {:status :error
-              :reason :invalid-zip
-              :exception e}))))
+         (let [^File file (:new-file lib-state)]
+           (try
+             (when (and file (.isFile file))
+               (with-open [zip (ZipFile. file)]
+                 (if-let [{^ZipEntry entry :entry} (locate-zip-entry-in-zip zip "game.project")]
+                   (with-open [r (io/reader (.getInputStream zip entry))]
+                     (let [settings (settings-core/parse-settings r)
+                           min-version (settings-core/get-setting settings ["library" "defold_min_version"])]
+                       (when (LibraryUtil/isCurrentEngineOlderThan min-version)
+                         {:status :error
+                          :reason :defold-min-version
+                          :required min-version
+                          :current (str EngineVersion/version)})))
+                   {:status :error
+                    :reason :missing-game-project})))
+             (catch Exception e
+               {:status :error
+                :reason :invalid-zip
+                :exception e})))))
 
 (defn- purge-all-library-versions! [project-directory lib-uri]
   (let [lib-regexp (library-file-regexp lib-uri)
@@ -298,17 +317,20 @@
     render-progress!))
 
 (defn validate-updated-libraries
-  "Validate newly downloaded libraries (:status is :stale).
+      "Validate libraries after fetching updates.
 
-  Will update:
-  :status to :error (with :reason, :exception) if the library is invalid"
-  [lib-states]
-  (mapv
-    (fn [lib-state]
-      (if (= (:status lib-state) :stale)
-        (validate-updated-library lib-state)
-        lib-state))
-    lib-states))
+      Will update:
+      - :status to :error (with :reason, :exception) for invalid zips
+      - :status to :error (with :reason :missing-game-project) when game.project is absent
+      - :status to :error (with :reason :defold-min-version) when the library
+        requires a newer Defold version than the running editor"
+      [lib-states]
+      (mapv
+        (fn [lib-state]
+            (if (= (:status lib-state) :stale)
+              (validate-updated-library lib-state)
+              lib-state))
+        lib-states))
 
 (defn install-validated-libraries!
   "Installs the newly downloaded libraries (:status is still :stale).

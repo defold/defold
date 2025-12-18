@@ -1173,63 +1173,64 @@
         changes+old-node-successors (mapv (fn [[node-id labels]]
                                             [node-id labels (old-successors node-id)])
                                           changes)
-        [new-successors removed-successor-entries] (r/fold
-                                                     (fn combinef
-                                                       ([]
-                                                        (pair {} []))
-                                                       ([[new-successors-1 removed-successor-entries-1] [new-successors-2 removed-successor-entries-2]]
-                                                        (pair (into new-successors-1 new-successors-2) (into removed-successor-entries-1 removed-successor-entries-2))))
-                                                     (fn reducef
-                                                       ([]
-                                                        (pair {} []))
-                                                       ([[new-acc remove-acc] [node-id labels old-node-successors]]
-                                                        (let [new-node-successors (when-some [node (gt/node-by-id-at basis node-id)]
-                                                                                    (let [deps (ArrayList.)
-                                                                                          node-type (gt/node-type node)
-                                                                                          deps-by-label (in/input-dependencies node-type)
-                                                                                          overrides (node-id->overrides node-id)
-                                                                                          labels (or labels (in/output-labels node-type))
-                                                                                          arcs-by-source (if (> (count labels) 1)
-                                                                                                           (let [arcs (gt/arcs-by-source basis node-id)
-                                                                                                                 arcs-by-source-label (util/group-into #(.source-label ^Arc %) arcs)]
-                                                                                                             (fn [_ _ label]
-                                                                                                               (arcs-by-source-label label)))
-                                                                                                           (fn [basis node-id label]
-                                                                                                             (gt/arcs-by-source basis node-id label)))]
-                                                                                      (reduce (fn [new-node-successors label]
-                                                                                                (let [dep-labels (get deps-by-label label)
-                                                                                                      outgoing-arcs (arcs-by-source basis node-id label)]
-                                                                                                  (.clear deps)
-                                                                                                  (.ensureCapacity deps (+ (count dep-labels)
-                                                                                                                           (count overrides)
-                                                                                                                           (* (long 10) (count outgoing-arcs))))
+        [new-successors removed-successor-entries]
+        (r/fold
+          (fn combinef
+            ([]
+             (pair {} []))
+            ([[new-successors-1 removed-successor-entries-1] [new-successors-2 removed-successor-entries-2]]
+             (pair (into new-successors-1 new-successors-2) (into removed-successor-entries-1 removed-successor-entries-2))))
+          (fn reducef
+            ([]
+             (pair {} []))
+            ([[new-acc remove-acc] [node-id labels old-node-successors]]
+             (let [new-node-successors
+                   (when-some [node (gt/node-by-id-at basis node-id)]
+                     (let [deps (ArrayList.)
+                           node-type (gt/node-type node)
+                           deps-by-label (in/input-dependencies node-type)
+                           overrides (node-id->overrides node-id)
+                           labels (or labels (in/output-labels node-type))
+                           arcs-by-source (if (> (count labels) 1)
+                                            (let [arcs (gt/arcs-by-source basis node-id)
+                                                  arcs-by-source-label (util/group-into #(.source-label ^Arc %) arcs)]
+                                              (fn get-arcs-by-source-label [_ _ label]
+                                                (arcs-by-source-label label)))
+                                            gt/arcs-by-source)]
+                       (reduce (fn reduce-labels [new-node-successors label]
+                                 (let [dep-labels (get deps-by-label label)
+                                       outgoing-arcs (arcs-by-source basis node-id label)]
+                                   (.clear deps)
+                                   (.ensureCapacity deps (+ (count dep-labels)
+                                                            (count overrides)
+                                                            (* (long 10) (count outgoing-arcs))))
 
-                                                                                                  ;; The internal dependent outputs.
-                                                                                                  (doseq [dep-label dep-labels]
-                                                                                                    (.add deps (gt/endpoint node-id dep-label)))
+                                   ;; The internal dependent outputs.
+                                   (doseq [dep-label dep-labels]
+                                     (.add deps (gt/endpoint node-id dep-label)))
 
-                                                                                                  ;; The closest overrides.
-                                                                                                  (doseq [override-node-id overrides]
-                                                                                                    (.add deps (gt/endpoint override-node-id label)))
+                                   ;; The closest overrides.
+                                   (doseq [override-node-id overrides]
+                                     (.add deps (gt/endpoint override-node-id label)))
 
-                                                                                                  ;; The connected nodes and their outputs.
-                                                                                                  (doseq [^Arc outgoing-arc outgoing-arcs
-                                                                                                          :let [target-id (.target-id outgoing-arc)
-                                                                                                                target-label (.target-label outgoing-arc)]
-                                                                                                          dep-label (get (input-deps basis target-id) target-label)]
-                                                                                                    (.add deps (gt/endpoint target-id dep-label)))
+                                   ;; The connected nodes and their outputs.
+                                   (doseq [^Arc outgoing-arc outgoing-arcs
+                                           :let [target-id (.target-id outgoing-arc)
+                                                 target-label (.target-label outgoing-arc)]
+                                           dep-label (get (input-deps basis target-id) target-label)]
+                                     (.add deps (gt/endpoint target-id dep-label)))
 
-                                                                                                  (if (.isEmpty deps)
-                                                                                                    (dissoc new-node-successors label)
-                                                                                                    (let [^"[Linternal.graph.types.Endpoint;" storage (make-array Endpoint (.size deps))
-                                                                                                          endpoint-array (.toArray deps storage)] ; Use a typed array to aid memory profilers.
-                                                                                                      (assoc new-node-successors label endpoint-array)))))
-                                                                                              old-node-successors
-                                                                                              labels)))]
-                                                          (if (pos? (count new-node-successors))
-                                                            (pair (assoc new-acc node-id new-node-successors) remove-acc)
-                                                            (pair new-acc (conj remove-acc node-id))))))
-                                                     changes+old-node-successors)]
+                                   (if (.isEmpty deps)
+                                     (dissoc new-node-successors label)
+                                     (let [^"[Linternal.graph.types.Endpoint;" storage (make-array Endpoint (.size deps))
+                                           endpoint-array (.toArray deps storage)] ; Use a typed array to aid memory profilers.
+                                       (assoc new-node-successors label endpoint-array)))))
+                               old-node-successors
+                               labels)))]
+               (if (pos? (count new-node-successors))
+                 (pair (assoc new-acc node-id new-node-successors) remove-acc)
+                 (pair new-acc (conj remove-acc node-id))))))
+          changes+old-node-successors)]
     (persistent!
       (reduce dissoc!
               (transient (into old-successors new-successors))

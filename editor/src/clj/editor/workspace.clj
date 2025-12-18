@@ -549,7 +549,26 @@ ordinary paths."
                                                  (= status :error) (pair :error uri)
                                                  (nil? file) (pair :missing uri)))))
                                      (iutil/group-into {} [] key val))
-        notifications (notifications workspace)]
+        notifications (notifications workspace)
+        min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
+        failing-uris (into #{} (map :uri) min-version-states)]
+    ;; Single min-version notification (only first error).
+    (if-let [{:keys [uri required current]} (first min-version-states)]
+      (notifications/show!
+        notifications
+        {:id ::dependencies-min-version
+         :type :error
+         :message (localization/message
+                    "notification.fetch-libraries.min-version.error"
+                    {"uri" (str uri)
+                     "required" (str required)
+                     "current" (str current)})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :file.open
+                                  "/game.project")}]})
+      (notifications/close! notifications ::dependencies-min-version))
     (if (pos? (count missing))
       (notifications/show!
         notifications
@@ -564,20 +583,21 @@ ordinary paths."
                                   :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
-    (if (pos? (count error))
-      (notifications/show!
-        notifications
-        {:id ::dependencies-error
-         :type :error
-         :message (localization/message
-                    "notification.fetch-libraries.dependencies-error.error"
-                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet error))})
-         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                    :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene))
-                                  :file.open
-                                  "/game.project")}]})
-      (notifications/close! notifications ::dependencies-error))))
+    (let [other-errors (into [] (remove failing-uris) (or error []))]
+      (if (pos? (count other-errors))
+        (notifications/show!
+          notifications
+          {:id ::dependencies-error
+           :type :error
+           :message (localization/message
+                      "notification.fetch-libraries.dependencies-error.error"
+                      {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet other-errors))})
+           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene))
+                                    :file.open
+                                    "/game.project")}]})
+        (notifications/close! notifications ::dependencies-error)))))
 
 (defn set-project-dependencies! [workspace lib-states]
   (g/set-property! workspace :dependencies lib-states)
@@ -932,6 +952,7 @@ ordinary paths."
   (input notifications g/NodeID :cascade-delete)
 
   (output dependency-uris g/Any (g/fnk [dependencies] (mapv :uri dependencies)))
+  (output dependencies g/Any (g/fnk [dependencies] dependencies))
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))

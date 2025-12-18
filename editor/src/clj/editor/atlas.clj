@@ -62,6 +62,7 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image]
+           [java.lang.ref WeakReference]
            [java.nio ByteBuffer]
            [java.util List]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
@@ -505,6 +506,10 @@
 (defn- validate-max-page-size [node-id page-size]
   (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
 
+(defn- texture-page-count-error-message [x]
+  (when (> x 8)
+    (format "Atlas page count (%d) cannot exceed 8 pages per atlas" x)))
+
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
                            (validate-inner-padding node-id inner-padding)
@@ -557,14 +562,20 @@
       (g/->error error-node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- generate-packed-page-images [{:keys [digest-ignored/error-node-id image-resources layout-data-generator]}]
-  (let [buffered-images (mapv #(resource-io/with-error-translation % error-node-id nil
-                                 (image-util/read-image %))
-                              image-resources)]
+  (let [buffered-images (->> image-resources
+                             (pmap #(resource-io/with-error-translation % error-node-id nil
+                                      (image-util/read-image %)))
+                             (vec))]
     (g/precluding-errors buffered-images
       (let [layout-data (texture-util/call-generator layout-data-generator)]
         (g/precluding-errors layout-data
           (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
             (texture-set-gen/layout-atlas-pages (:layout layout-data) id->image)))))))
+
+(defn- calculate-texture-page-count [layout-data max-page-size]
+  (if (every? pos? max-page-size)
+    (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
+    texture/non-paged-page-count))
 
 (g/defnk produce-layout-data-generator
   [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
@@ -589,7 +600,7 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (mapv (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
@@ -600,6 +611,7 @@
                                 {:extrude-borders extrude-borders
                                  :image-sha1s image-sha1s
                                  :inner-padding inner-padding
+                                 :max-page-size max-page-size
                                  :margin margin
                                  :type :packed-atlas-image})]
         {:f generate-packed-page-images
@@ -760,19 +772,29 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
-                                                 (if (every? pos? max-page-size)
-                                                   (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
-                                                   texture/non-paged-page-count)))
+  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size]
+                                     (let [page-count (calculate-texture-page-count layout-data max-page-size)]
+                                       (or (validation/prop-error :fatal _node-id
+                                                                  :validate-texture-page-count
+                                                                  texture-page-count-error-message
+                                                                  page-count)
+                                           page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output gpu-texture g/Any :cached
           (g/fnk [_node-id packed-page-images-generator texture-profile]
-            (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                (texture/set-params {:min-filter gl/nearest
-                                     :mag-filter gl/nearest}))))
+            ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
+            (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
+                  (some-> (g/user-data _node-id :gpu-texture-cached) .get))
+                (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
+                                  (texture/set-params {:min-filter gl/nearest
+                                                       :mag-filter gl/nearest}))
+                      texture-ref (WeakReference. texture)]
+                  (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
+                  (g/user-data! _node-id :gpu-texture-cached texture-ref)
+                  texture))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
