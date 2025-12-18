@@ -161,8 +161,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         return width;
     }
 
-    // the extent of the last character is left bearing + width
-    float extent_last = last.m_LeftBearing + last.m_Width;
+    float extent_last = last.m_Advance + last.m_LeftBearing;
     float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
 
     return width;
