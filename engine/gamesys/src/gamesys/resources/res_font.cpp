@@ -145,9 +145,6 @@ namespace dmGameSystem
         resource->m_TTFResources.Iterate(ReleaseResourceIter, (void*)factory);
         resource->m_TTFResources.Clear();
         resource->m_FontHashes.Clear();
-
-        if (resource->m_DDF)
-            dmDDF::FreeMessage(resource->m_DDF);
     }
 
     static FontJobResourceInfo* CreateJobResourceInfo(dmResource::HFactory factory, FontResource* resource)
@@ -281,6 +278,12 @@ namespace dmGameSystem
         if (font_map->m_FontMap)
             dmRender::DeleteFontMap(font_map->m_FontMap);
 
+        if (font_map->m_DDF)
+        {
+            dmDDF::FreeMessage(font_map->m_DDF);
+            font_map->m_DDF = 0;
+        }
+
         delete font_map;
     }
 
@@ -296,10 +299,11 @@ namespace dmGameSystem
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
                                                     FontResource* font_map, const char* filename)
     {
+        font_map->m_DDF = ddf;
+
         dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &font_map->m_MaterialResource);
         if (result != dmResource::RESULT_OK)
         {
-            ReleaseResources(factory, font_map);
             return result;
         }
 
@@ -309,7 +313,6 @@ namespace dmGameSystem
             if (result != dmResource::RESULT_OK)
             {
                 dmLogError("Failed to find font '%s': %d\n", ddf->m_Font, result);
-                ReleaseResources(factory, font_map);
                 return result;
             }
         }
@@ -318,7 +321,6 @@ namespace dmGameSystem
             result = dmResource::Get(factory, ddf->m_GlyphBank, (void**) &font_map->m_GlyphBankResource);
             if (result != dmResource::RESULT_OK)
             {
-                ReleaseResources(factory, font_map);
                 return result;
             }
 
@@ -596,7 +598,6 @@ namespace dmGameSystem
             return dmResource::RESULT_INVALID_DATA;
         }
 
-        resource->m_DDF               = ddf;
         resource->m_CacheCellPadding  = params.m_CacheCellPadding;
         resource->m_Padding           = ddf->m_Padding;
 
