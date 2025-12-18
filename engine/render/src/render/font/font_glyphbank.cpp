@@ -140,7 +140,7 @@ static FontResult GBGetGlyph(HFont hfont, uint32_t glyph_index, const FontGlyphO
 
             out->m_Bitmap.m_DataSize = g->m_GlyphDataSize;
             out->m_Bitmap.m_Data = glyph_data + 1;
-            out->m_Bitmap.m_Flags = glyph_data[0];
+            out->m_Bitmap.m_Flags = glyph_data[0] | FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED;
             out->m_Bitmap.m_Width = out->m_Width;
             out->m_Bitmap.m_Height = out->m_Height;
             out->m_Bitmap.m_Channels = bank->m_GlyphChannels;

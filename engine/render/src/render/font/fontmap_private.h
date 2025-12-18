@@ -40,6 +40,15 @@ namespace dmRender
 
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+
+            dmHashTable<uint64_t, FontGlyph*>::Iterator iter = m_Glyphs.GetIterator();
+            while(iter.Next())
+            {
+                FontGlyph* glyph = iter.GetValue();
+                if ( (glyph->m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED) == 0)
+                    free((void*)glyph->m_Bitmap.m_Data);
+                delete glyph;
+            }
         }
 
         dmMutex::HMutex         m_Mutex;
