@@ -724,7 +724,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
 
     if (request->m_RawData)
     {
-        delete request->m_RawData;
+        delete[] request->m_RawData;
     }
     if (request->m_Buffer)
     {
@@ -1918,6 +1918,14 @@ static void MakeNumberArrayFromLuaTable(lua_State* L, const char* field, void** 
 
 static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
 {
+    for (uint32_t i = 0; i < texture_set.m_Geometries.m_Count; ++i)
+    {
+        dmGameSystemDDF::SpriteGeometry& geometry = texture_set.m_Geometries[i];
+        delete[] geometry.m_Vertices.m_Data;
+        delete[] geometry.m_Uvs.m_Data;
+        delete[] geometry.m_Indices.m_Data;
+    }
+
     delete[] texture_set.m_Animations.m_Data;
     delete[] texture_set.m_Geometries.m_Data;
     delete[] texture_set.m_FrameIndices.m_Data;
@@ -2555,6 +2563,8 @@ static int CreateAtlas(lua_State* L)
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
     assert(ddf_result == dmDDF::RESULT_OK);
+
+    DestroyTextureSet(texture_set_ddf);
 
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
@@ -3210,6 +3220,8 @@ static int CreateBuffer(lua_State* L)
     // before overwriting the resource buffer we just created, we need to garbage collect it
     dmBuffer::Destroy(resource->m_Buffer);
 
+    if (resource->m_BufferDDF != 0x0)
+        dmDDF::FreeMessage(resource->m_BufferDDF);
     resource->m_BufferDDF = 0;
     resource->m_Buffer    = buffer;
     resource->m_Stride    = dmBuffer::GetStructSize(buffer);
