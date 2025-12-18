@@ -705,6 +705,8 @@ void GamesysTest<T>::TearDown()
     SetupComponentCreateContext(component_create_ctx);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
+    dmResource::DeregisterTypes(m_Factory, &m_Contexts);
+
     dmExtension::Finalize(&m_Params);
     dmExtension::AppFinalize(&m_AppParams);
 
@@ -714,6 +716,7 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmJobThread::Destroy(m_JobThread);
+    dmGraphics::CloseWindow(m_GraphicsContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
     dmPlatform::CloseWindow(m_Window);
     dmPlatform::DeleteWindow(m_Window);
