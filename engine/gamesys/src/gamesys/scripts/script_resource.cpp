@@ -1159,7 +1159,8 @@ static int CreateTextureAsync(lua_State* L)
 
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
-    DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
+
+    DestroyTextureImage(texture_image, create_texture_resource_params.m_Buffer == 0 && create_texture_resource_params.m_Data == 0);
 
     if (res != dmResource::RESULT_OK)
     {

@@ -324,6 +324,7 @@ namespace dmGraphics
 
             if (!TranscodeInitializeState(path, image_transcoders[i], ptr, size, transcoder_format))
             {
+                delete[] image_transcoders;
                 return false;
             }
 
