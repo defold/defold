@@ -473,7 +473,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
-     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ResourceTest, TestCreateSoundDataFromScript)
@@ -2821,9 +2821,11 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
+TEST_P(GroupAndMask3DTest, GroupAndMaskTest)
 {
     const GroupAndMaskParams& params = GetParam();
 
@@ -2882,6 +2884,8 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 GroupAndMaskParams groupandmask_params[] = {
