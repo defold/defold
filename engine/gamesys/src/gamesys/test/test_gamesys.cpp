@@ -1826,6 +1826,7 @@ TEST_F(WindowTest, MouseLock)
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 
+    dmHID::Final(hid_context);
     dmHID::DeleteContext(hid_context);
     dmPlatform::DeleteWindow(window);
 }
@@ -4121,6 +4122,7 @@ bool RunFile(lua_State* L, const char* filename)
 
     int ret = luaL_dostring(L, buffer);
     free(buffer);
+    dmDDF::FreeMessage(ddf);
 
     if (ret != 0)
     {
