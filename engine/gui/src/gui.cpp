@@ -426,6 +426,12 @@ namespace dmGui
             scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
         }
 
+        if (n->m_Node.m_RenderConstants && scene->m_DestroyRenderConstantsCallback)
+        {
+            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
+            n->m_Node.m_RenderConstants = 0;
+        }
+
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
 
