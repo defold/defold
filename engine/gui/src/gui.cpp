@@ -440,6 +440,9 @@ namespace dmGui
                 scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
             }
 
+            free((void*)n->m_Node.m_ResetPointProperties);
+            n->m_Node.m_ResetPointProperties = 0;
+
             if (n->m_Node.m_Text)
                 free((void*) n->m_Node.m_Text);
         }
@@ -622,6 +625,9 @@ namespace dmGui
 
     Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
+        if (scene->m_DynamicTextures.Full())
+            return RESULT_OUT_OF_RESOURCES;
+
         if (compression_type == dmImage::COMPRESSION_TYPE_NONE)
         {
             uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
@@ -4503,6 +4509,8 @@ namespace dmGui
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
+
+        free((void*)script->m_SourceFileName);
         script->m_SourceFileName = strdup(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));
