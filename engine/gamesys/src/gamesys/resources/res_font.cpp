@@ -62,7 +62,7 @@ namespace dmGameSystem
     {
         SwapVar(m_DDF, src->m_DDF);
         SwapVar(m_FontMap, src->m_FontMap);
-        SwapVar(m_Resource, src->m_Resource);
+        SwapVar(m_PathHash, src->m_PathHash);
         SwapVar(m_MaterialResource, src->m_MaterialResource);
         SwapVar(m_GlyphBankResource, src->m_GlyphBankResource);
         SwapVar(m_TTFResource, src->m_TTFResource);
@@ -658,7 +658,6 @@ namespace dmGameSystem
     {
         FontResource* font = new FontResource;
         font->m_Factory = params->m_Factory;
-        font->m_Resource = params->m_Resource;
 
         const char* path = params->m_Filename;
         dmRenderDDF::FontMap* ddf = (dmRenderDDF::FontMap*) params->m_PreloadData;
@@ -705,6 +704,7 @@ namespace dmGameSystem
             return r;
         }
 
+        font->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         dmResource::SetResource(params->m_Resource, font);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return r;
@@ -745,7 +745,6 @@ namespace dmGameSystem
 
         const char* path = params->m_Filename;
         FontResource* tmp_font_map = new FontResource;
-        tmp_font_map->m_Resource = params->m_Resource;
 
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, tmp_font_map, path);
         if(r != dmResource::RESULT_OK)
@@ -810,7 +809,8 @@ namespace dmGameSystem
             hfont = dmGameSystem::GetFont(font->m_TTFResource);
         }
         dmRender::AddGlyphByIndex(font->m_FontMap, hfont, glyph->m_GlyphIndex, glyph);
-        dmResource::SetResourceSize(font->m_Resource, GetResourceSize(font));
+        ResourceDescriptor* rd = dmResource::FindByHash(font->m_Factory, font->m_PathHash);
+        dmResource::SetResourceSize(rd, GetResourceSize(font));
         return dmResource::RESULT_OK;
     }
 
