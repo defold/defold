@@ -419,6 +419,20 @@ namespace dmGui
         return scene;
     }
 
+    static void FreeNodeMemory(HScene scene, InternalNode* n)
+    {
+        if (n->m_Node.m_CustomType != 0 && scene->m_DestroyCustomNodeCallback)
+        {
+            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
+        }
+
+        free((void*)n->m_Node.m_Text);
+        n->m_Node.m_Text = 0;
+
+        free(n->m_Node.m_ResetPointProperties);
+        n->m_Node.m_ResetPointProperties = 0;
+    }
+
     void DeleteScene(HScene scene)
     {
         lua_State*L = scene->m_Context->m_LuaState;
@@ -433,18 +447,7 @@ namespace dmGui
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            InternalNode* n = &nodes[i];
-
-            if (n->m_Node.m_CustomType != 0)
-            {
-                scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
-            }
-
-            free((void*)n->m_Node.m_ResetPointProperties);
-            n->m_Node.m_ResetPointProperties = 0;
-
-            if (n->m_Node.m_Text)
-                free((void*) n->m_Node.m_Text);
+            FreeNodeMemory(scene, &nodes[i]);
         }
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
@@ -2599,15 +2602,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
 
-        if (n->m_Node.m_CustomType != 0)
-        {
-            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
-        }
-
-        if (n->m_Node.m_RenderConstants)
-        {
-            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
-        }
+        FreeNodeMemory(scene, n);
 
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
@@ -2686,6 +2681,13 @@ namespace dmGui
 
     void ClearNodes(HScene scene)
     {
+        uint32_t n = scene->m_Nodes.Size();
+        InternalNode* nodes = scene->m_Nodes.Begin();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            FreeNodeMemory(scene, &nodes[i]);
+        }
+
         scene->m_Nodes.SetSize(0);
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
