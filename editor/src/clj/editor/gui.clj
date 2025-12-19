@@ -1205,7 +1205,7 @@
 
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
-                                         (into {id _overridden-properties}
+                                         (into {id (dissoc _overridden-properties :layout->prop->override)}
                                                node-overrides)))
   (output layout->prop->value g/Any :cached
           (g/fnk [^:unsafe _evaluation-context _this layout->prop->override trivial-gui-scene-info]
@@ -2281,8 +2281,8 @@
                                                       (cond-> (empty? (:parent %)) (assoc :parent id))))
                                             scene-node-msgs))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
-                                              (-> {id _overridden-properties}
-                                                (merge template-overrides))))
+                                         (coll/merge {id (dissoc _overridden-properties :layout->prop->override)}
+                                                     template-overrides)))
   (output aabb g/Any (g/fnk [template-scene]
                        (if (some? template-scene)
                          (:aabb template-scene)
@@ -3897,14 +3897,20 @@
                 {}
                 (:layouts scene))
 
+        with-layout-prop-overrides
+        (fn with-layout-prop-overrides [node-desc id]
+          (let [layout->prop->override (get node->layout->prop->override id)]
+            (cond-> node-desc
+                    (coll/not-empty layout->prop->override)
+                    (assoc :layout->prop->override layout->prop->override))))
+
         node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
         tmpl-node-descs    (into {}
                                  (comp (filter :template-node-child)
                                        (map (fn [{:keys [id parent] :as node-desc}]
                                               (pair id
                                                     {:template parent
-                                                     :data (assoc (extract-overrides node-desc)
-                                                             :layout->prop->override (get node->layout->prop->override id {}))}))))
+                                                     :data (with-layout-prop-overrides (extract-overrides node-desc) id)}))))
                                  node-descs)
         tmpl-node-descs    (into {}
                                  (map (fn [[id data]]
@@ -3918,21 +3924,26 @@
         node-descs         (eduction
                              (remove :template-node-child)
                              (map (fn [{:keys [id] :as node-desc}]
-                                    (assoc node-desc :layout->prop->override (get node->layout->prop->override id {}))))
+                                    (with-layout-prop-overrides node-desc id)))
                              node-descs)
         tmpl-children      (group-by (comp :template second) tmpl-node-descs)
-        tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
-        template-data      (into {}
-                                 (map (fn [r]
-                                        (pair r
-                                              (into {}
-                                                    (map (fn [[id tmpl]]
-                                                           (pair (subs id (inc (count r)))
-                                                                 (:data tmpl))))
-                                                    (rest (tree-seq fn/constantly-true
-                                                                    (comp tmpl-children first)
-                                                                    (pair r nil)))))))
-                                 tmpl-roots)
+
+        template-data
+        (coll/transfer tmpl-children {}
+          (map first)
+          (remove tmpl-node-descs)
+          (keep (fn [importing-id]
+                  (let [imported-id->prop->override
+                        (into {}
+                              (keep (fn [[id tmpl]]
+                                      (when-some [prop->override (coll/not-empty (:data tmpl))]
+                                        (let [imported-id (subs id (inc (count importing-id)))]
+                                          (pair imported-id prop->override)))))
+                              (rest (tree-seq fn/constantly-true
+                                              (comp tmpl-children first)
+                                              (pair importing-id nil))))]
+                    (when (pos? (count imported-id->prop->override))
+                      (pair importing-id imported-id->prop->override))))))
 
         custom-loader-fns  (get-registered-gui-scene-loaders)
         custom-data        (for [loader-fn custom-loader-fns
