@@ -76,16 +76,16 @@ def shutdown(sht):
     configfilepath = None
 
     if not mac_ci:
-        os.system(bash_prefix + './scripts/start_http_server.sh')
-        atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
-
         server_config_path = "test_http_server.cfg"
         if os.path.exists(server_config_path):
             os.unlink(server_config_path)
             print('File ' + server_config_path + ' already exist. Removing.')
 
+        os.system(bash_prefix + './scripts/start_http_server.sh')
+        atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
+
         start = time.time()
-        timeout = 15
+        timeout = 30 if sys.platform == 'win32' else 15
         while True:
             if time.time() - start > timeout:
                 error('HTTP server failed to start within ' + str(timeout) + ' seconds')

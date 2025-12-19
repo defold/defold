@@ -36,7 +36,7 @@ jobs:
         }
       },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
@@ -47,7 +47,7 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=x86_64-linux'
       }
     ]
-  
+
   build-editor-macos:
     runs-on: macos-26
     strategy:
@@ -63,7 +63,7 @@ jobs:
         }
       },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       {
         name: 'Install dependencies',
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
@@ -95,7 +95,7 @@ jobs:
         }
       },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '25', distribution: 'temurin'} },
+      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } },
       {
         name: 'Install dependencies',

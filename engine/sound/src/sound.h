@@ -152,6 +152,12 @@ namespace dmSound
     void GetDecoderOutputSettings(DecoderOutputSettings* settings);
 
     void OnWindowFocus(bool focus);
+
+    /**
+     * Notify the sound system that the active device has been invalidated and must be reopened.
+     * Currently used by the WASAPI backend when Windows reports AUDCLNT_E_DEVICE_INVALIDATED.
+     */
+    void NotifyDeviceInvalidated();
 }
 
 namespace dmSound
