@@ -111,12 +111,12 @@
                                          (when-some [tx-attach-fn (:tx-attach-fn req)]
                                            (let [target-id (g/override-root (:node-id item))
                                                  tx-data (tx-attach-fn target-id child-id)]
-                                             (map (fn [arc]
-                                                    (let [src-serial-id (node-id->serial-id (gt/source-id arc))
-                                                          tgt-serial-id (node-id->serial-id (gt/target-id arc))]
-                                                      (when (and src-serial-id tgt-serial-id)
-                                                        [src-serial-id (gt/source-label arc) tgt-serial-id (gt/target-label arc)])))
-                                                  (g/tx-data-added-arcs tx-data)))))))
+                                             (keep (fn [arc]
+                                                     (let [src-serial-id (node-id->serial-id (gt/source-id arc))
+                                                           tgt-serial-id (node-id->serial-id (gt/target-id arc))]
+                                                       (when (and src-serial-id tgt-serial-id)
+                                                         [src-serial-id (gt/source-label arc) tgt-serial-id (gt/target-label arc)])))
+                                                   (g/tx-data-added-arcs tx-data)))))))
                              original-attachments)
 
         attachments (into []

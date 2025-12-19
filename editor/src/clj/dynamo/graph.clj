@@ -240,29 +240,36 @@
 ;; ---------------------------------------------------------------------------
 
 (defn tx-data-step-types
-  "Given a sequence of transaction steps, returns a sequence of keywords
-  identifying the type of each pending transaction step. Used in tests."
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  keywords identifying the type of each encountered transaction step. Used in
+  tests."
   [txs]
-  (map it/tx-step-type
-       (flatten txs)))
+  (sequence
+    (comp coll/flatten-xf
+          (map it/tx-step-type))
+    txs))
 
 (defn tx-data-added-arcs
-  "Given a sequence of transaction steps, returns a sequence of Arcs that will
-  be added by the transaction."
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  Arcs that will be added by any encountered :tx-step/connect steps."
   [txs]
-  (keep it/tx-step-added-arc
-        (flatten txs)))
+  (sequence
+    (comp coll/flatten-xf
+          (keep it/tx-step-added-arc))
+    txs))
 
 (defn tx-data-added-nodes
-  "Given a sequence of transaction steps, returns a sequence of Nodes that will
-  be added by the transaction."
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  Nodes that will be added by any encountered :tx-step/add-node steps."
   [txs]
-  (keep it/tx-step-added-node
-        (flatten txs)))
+  (sequence
+    (comp coll/flatten-xf
+          (keep it/tx-step-added-node))
+    txs))
 
 (defn tx-data-added-node-ids
-  "Given a sequence of transaction steps, returns a sequence of node-ids that
-  will be added by the transaction."
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  node-ids that will be added by any encountered :tx-step/add-node steps."
   [txs]
   (map gt/node-id
        (tx-data-added-nodes txs)))
@@ -728,22 +735,21 @@
   (transact (apply set-properties node-id kvs)))
 
 (defn set-property
-  "Creates transaction steps to assign a value to a node property. Additional
-  options may be supplied in a map. You must call the transact function on the
-  return value to see the effects.
+  "Creates a transaction step to assign a value to a node property. You must
+  call the transact function on the return value to see the effects.
 
   Example:
-  `(transact (set-property node-id :opacity 0.5 {:force true}))`"
+  `(transact (set-property node-id :opacity 0.5))`"
   [node-id property-label value]
   (it/set-property node-id property-label value))
 
 (defn set-property!
-  "Creates transaction steps to assign a value to a node property, then executes
-  them in a transaction. Returns the result of the transaction, (tx-result).
-  Additional options may be supplied in a map.
+  "Creates a transaction step to assign a value to a node property, then
+  executes it in a transaction. Returns the result of the transaction,
+  (tx-result).
 
   Example:
-  `(set-property node-id :opacity 0.5 {:force true})`"
+  `(set-property! node-id :opacity 0.5)`"
   [node-id property-label value]
   (transact (set-property node-id property-label value)))
 

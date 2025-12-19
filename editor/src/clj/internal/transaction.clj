@@ -31,9 +31,9 @@
 (set! *warn-on-reflection* true)
 
 (defonce/interface TransactionStep
-  (step_type [] "Returns a keyword uniquely identifying the type of transaction step.")
-  (metrics_key [] "Returns a key which identifies the subject of the transaction step in metrics reports.")
-  (perform [ctx] "Returns a new ctx with changes applied."))
+  (step_type []) ; Returns a keyword uniquely identifying the type of transaction step.
+  (metrics_key []) ; Returns a key which identifies the subject of the transaction step in metrics reports.
+  (perform [ctx])) ; Returns a new ctx with changes applied.
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
