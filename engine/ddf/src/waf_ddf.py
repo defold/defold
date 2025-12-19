@@ -313,8 +313,11 @@ def proto_file(self, node):
                 pkg_task.set_inputs(node)
                 pkg_task.set_outputs(pkg_out)
                 gen_py_proto_packages.add(py_out.parent.abspath())
-                if do_install:
+                install_py_proto_packages = getattr(self.bld, 'install_py_proto_packages', set())
+                if do_install and rel_path and rel_path not in install_py_proto_packages:
                     self.bld.install_files('${PREFIX}/lib/python/%s' % rel_path, pkg_out)
+                    install_py_proto_packages.add(rel_path)
+                    self.bld.install_py_proto_packages = install_py_proto_packages
 
                 # Only create __init__.py once
                 gen_py_proto_packages.add(py_out.parent.abspath())
@@ -358,4 +361,3 @@ def proto_file(self, node):
             self.ddf_javaclass_inputs.append(java_out.change_ext('.class'))
 
             compile_java_file(self, java_out, java_out_dir)
-
