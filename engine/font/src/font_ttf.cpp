@@ -11,10 +11,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/dlib/static_assert.h>
 
 #include <stdlib.h> // free
-#include <stdio.h> // printf
 
 // Making sure we can guarantuee the functions
 #define STBTT_malloc(x,u)  ((void)(u),malloc(x))
@@ -217,9 +215,6 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
 {
     TTFFont* font = new TTFFont;
     memset(font, 0, sizeof(*font));
-
-    // Make sure the base font is always first in the struct
-    assert( (&((Font*)font)->m_Path) == (&font->m_Base.m_Path));
 
     font->m_Base.m_LoadFontFromMemory = FontLoadFromMemoryTTF;
     font->m_Base.m_DestroyFont = FontDestroyTTF;
