@@ -64,6 +64,7 @@ jobs:
               echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
               echo "dotnet version: $(dotnet --version)"'
       },
+      { name: 'Save dotnet cache', uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: "tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget", key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}' } },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -114,6 +115,7 @@ jobs:
               echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
               echo "dotnet version: $(dotnet --version)"'
       },
+      { name: 'Save dotnet cache', uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: "tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget", key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}' } },
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
@@ -220,6 +222,7 @@ jobs:
               echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
               echo "dotnet version: $(dotnet --version)"'
       },
+      { name: 'Save dotnet cache', uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: "tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget", key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
