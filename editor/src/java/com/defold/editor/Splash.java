@@ -142,6 +142,11 @@ public class Splash {
         channelLabel.setText(versionString + " (" + sha1 + ")" + channelName);
         channelLabel.setVisible(true);
 
+        String windowTitle = "Defold";
+        if (!versionString.equals("No version")) {
+            windowTitle += " " + versionString;
+        }
+        stage.setTitle(windowTitle);
         stage.setOnShown(event -> shown.set(true));
         stage.show();
     }

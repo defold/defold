@@ -1958,18 +1958,12 @@
            (g/operation-label (localization/message "operation.select"))
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
-(defn- make-title
-  ([] (if-some [version (system/defold-version)]
-        (str "Defold " version)
-        "Defold"))
-  ([project-title] (str project-title " - " (make-title))))
-
 (defn- refresh-app-title! [^Stage stage project evaluation-context]
   (let [project-title (some-> (g/maybe-node-value project :settings evaluation-context)
                               (get ["project" "title"]))
         new-title (if project-title
-                    (make-title project-title)
-                    (make-title))]
+                    (ui/make-title project-title)
+                    (ui/make-title))]
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
@@ -2074,7 +2068,7 @@
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
-    (.setTitle stage (make-title))
+    (.setTitle stage (ui/make-title))
     (let [editor-tab-pane (TabPane.)
           keymap (keymap/from-prefs prefs)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView

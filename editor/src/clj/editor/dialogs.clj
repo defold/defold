@@ -426,6 +426,7 @@
 (defn- load-project-dialog [{:keys [progress localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
+   :title (ui/make-title)
    :on-close-request (fn [_] (Platform/exit))
    :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-default"

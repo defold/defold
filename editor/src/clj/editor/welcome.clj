@@ -644,7 +644,9 @@
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
          min-width 792.0
          min-height 338.0
-         stage (doto (ui/make-dialog-stage) (.setResizable true))
+         stage (doto (ui/make-dialog-stage)
+                 (.setTitle (ui/make-title))
+                 (.setResizable true))
          ;; Adapted from https://stackoverflow.com/questions/57425534/how-to-limit-how-much-the-user-can-resize-a-javafx-window
          ;; because setting minWidth/minHeight on a resizable stage does not prevent resizing the stage to a smaller size
          _ (.addListener (.widthProperty stage)
