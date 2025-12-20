@@ -43,7 +43,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
-      { name: 'Cache dotnet', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: 'tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget', key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}', restore-keys: '${{ runner.os }}-dotnet-' } },
+      { name: 'Cache dotnet', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: "tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget", key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}', restore-keys: '${{ runner.os }}-dotnet-' } },
       {
         name: 'Setup dotnet',
         shell: bash,
@@ -93,7 +93,7 @@ jobs:
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@7f352e61cbe8130c957c3bc898c4fb025784ea1e, with: { xcode-version: '26.2.0' } },
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
-      { name: 'Cache dotnet', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: 'tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget', key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}', restore-keys: '${{ runner.os }}-dotnet-' } },
+      { name: 'Cache dotnet', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: "tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget", key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}', restore-keys: '${{ runner.os }}-dotnet-' } },
       {
         name: 'Setup dotnet',
         shell: bash,
@@ -199,7 +199,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
-      { name: 'Cache dotnet', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: 'tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget', key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}', restore-keys: '${{ runner.os }}-dotnet-' } },
+      { name: 'Cache dotnet', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: "tmp/dynamo_home/ext/bin/dotnet\ntmp/dynamo_home/ext/share/nuget", key: '${{ runner.os }}-dotnet-${{ env.DOTNET_CHANNEL }}', restore-keys: '${{ runner.os }}-dotnet-' } },
       {
         name: 'Setup dotnet',
         shell: bash,
