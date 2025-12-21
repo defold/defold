@@ -367,8 +367,7 @@ static JobResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
         hchild = child->m_Sibling;
     }
 
-    if (item->m_Status != JOB_STATUS_CANCELED)
-        item->m_Status = JOB_STATUS_CANCELED;
+    item->m_Status = JOB_STATUS_CANCELED;
     return result;
 }
 
