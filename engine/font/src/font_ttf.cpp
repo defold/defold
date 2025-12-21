@@ -19,6 +19,7 @@
 #define STBTT_free(x,u)    ((void)(u),free(x))
 
 #define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_STATIC
 #include "external/stb_truetype.h"
 
 #include "font_private.h"
