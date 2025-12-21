@@ -579,11 +579,11 @@ namespace dmRender
         uint32_t glyph_image_height     = g->m_Bitmap.m_Height;
         uint32_t glyph_image_channels   = g->m_Bitmap.m_Channels;
         uint8_t* glyph_data             = g->m_Bitmap.m_Data;
-        uint32_t glyph_data_compression = g->m_Bitmap.m_Flags; // E.g. FONT_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_flags       = g->m_Bitmap.m_Flags; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size        = g->m_Bitmap.m_DataSize;
 
         void* data = 0;
-        if (FONT_GLYPH_COMPRESSION_DEFLATE == glyph_data_compression)
+        if ((FONT_GLYPH_COMPRESSION_DEFLATE & glyph_data_flags))
         {
             // When if came to choosing between the different algorithms, here are some speed/compression tests
             // Decoding 100 glyphs
@@ -611,7 +611,7 @@ namespace dmRender
 
             data = font_map->m_CellTempData;
         }
-        else if (FONT_GLYPH_COMPRESSION_NONE == glyph_data_compression)
+        else
         {
             uint32_t num_out_channels;
             switch(font_map->m_CacheFormat)
@@ -641,11 +641,6 @@ namespace dmRender
                     }
                 }
             }
-        }
-        else
-        {
-            dmLogOnceError("Unknown glyph compression: %u for glyph (%c / %u) in font %s", glyph_data_compression, g->m_Codepoint, g->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
-            return;
         }
 
         dmGraphics::TextureParams tex_params;

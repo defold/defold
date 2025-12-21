@@ -35,7 +35,7 @@ namespace dmGameObject
         ComponentTypeSetFinalFn(type, CompScriptFinal);
         ComponentTypeSetAddToUpdateFn(type, CompScriptAddToUpdate);
         ComponentTypeSetPreUpdateFn(type, CompScriptPreUpdate);
-        ComponentTypeSetFixedUpdateFn(type, CompScriptFixedUpdate);
+        ComponentTypeSetPreFixedUpdateFn(type, CompScriptPreFixedUpdate);
         ComponentTypeSetLateUpdateFn(type, CompScriptLateUpdate);
         ComponentTypeSetOnMessageFn(type, CompScriptOnMessage);
         ComponentTypeSetOnInputFn(type, CompScriptOnInput);

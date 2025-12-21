@@ -211,11 +211,13 @@
                 :update-successors
                 (it/update-successors transaction-context))
 
-              (it/trace-dependencies transaction-context)
-              (it/apply-tx-label transaction-context)
-              (it/finalize-update transaction-context))
+              (when transaction-context
+                (it/trace-dependencies transaction-context)
+                (it/apply-tx-label transaction-context)
+                (it/finalize-update transaction-context)))
 
-        _ (g/commit-tx-result! tx-result transact-opts)
+        _ (when tx-result
+            (g/commit-tx-result! tx-result transact-opts))
 
         migrated-resource-node-ids
         (let [basis (:basis tx-result)]
@@ -244,14 +246,17 @@
   (let [end-time-nanos (System/nanoTime)]
     (- end-time-nanos (long start-time-nanos))))
 
+(defonce end-allocated-bytes (du/allocated-bytes runtime))
+
 (defonce total-allocated-bytes
-  (let [end-allocated-bytes (du/allocated-bytes runtime)]
-    (- end-allocated-bytes (long start-allocated-bytes))))
+  (- end-allocated-bytes (long start-allocated-bytes)))
 
 (defonce ^:private -log-statistics-
   (log/info :message "total"
             :elapsed (du/nanos->string total-duration-nanos)
-            :allocated (du/bytes->string total-allocated-bytes)))
+            :elapsed-sans-gc (du/nanos->string (- total-duration-nanos (du/gc-overhead-ns)))
+            :allocated (du/bytes->string total-allocated-bytes)
+            :heap (du/bytes->string end-allocated-bytes)))
 
 (defonce load-metrics
   (du/when-metrics

@@ -32,7 +32,8 @@
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,7 +47,7 @@
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
-(let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
+(let [graph-id ^AtomicInteger (AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
 
 ;; ---------------------------------------------------------------------------
@@ -237,14 +238,41 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
-(defn tx-data-nodes-added
-  "Returns a list of the node-ids added given a list of transaction steps, (tx-data)."
+
+(defn tx-data-step-types
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  keywords identifying the type of each encountered transaction step. Used in
+  tests."
   [txs]
-  (keep (fn [tx-data]
-          (case (:type tx-data)
-            :create-node (-> tx-data :node :_node-id)
-            nil))
-        (flatten txs)))
+  (sequence
+    (comp coll/flatten-xf
+          (map it/tx-step-type))
+    txs))
+
+(defn tx-data-added-arcs
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  Arcs that will be added by any encountered :tx-step/connect steps."
+  [txs]
+  (sequence
+    (comp coll/flatten-xf
+          (keep it/tx-step-added-arc))
+    txs))
+
+(defn tx-data-added-nodes
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  Nodes that will be added by any encountered :tx-step/add-node steps."
+  [txs]
+  (sequence
+    (comp coll/flatten-xf
+          (keep it/tx-step-added-node))
+    txs))
+
+(defn tx-data-added-node-ids
+  "Given a sequence of possibly nested transaction steps, returns a sequence of
+  node-ids that will be added by any encountered :tx-step/add-node steps."
+  [txs]
+  (map gt/node-id
+       (tx-data-added-nodes txs)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
@@ -478,6 +506,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Transactions
 ;; ---------------------------------------------------------------------------
+
 (defmacro make-nodes
   "Create a number of nodes in a graph, binding them to local names
    to wire up connections. The resulting code will return a collection
@@ -614,7 +643,7 @@
   "Call the specified function when reaching the transaction step and apply the
   returned transaction steps in the same transaction"
   [f & args]
-  (it/expand f args))
+  (it/expand f args nil))
 
 ;; SDK api
 (defn expand-ec
@@ -627,7 +656,7 @@
   filters out duplicate connections, but it can't see connection txs if they are
   created only when transaction is executed, as is the case with g/expand-ec"
   [f & args]
-  (it/expand-ec f args))
+  (it/expand f args it/inject-evaluation-context-opts))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
@@ -696,7 +725,7 @@
   (coll/transfer kvs []
     (partition-all 2)
     (mapcat (fn [[property-label new-value]]
-              (it/set-property node-id property-label new-value nil)))))
+              (it/set-property node-id property-label new-value)))))
 
 (defn set-properties!
   "Creates transaction steps to assign multiple values to a node's properties,
@@ -706,32 +735,23 @@
   (transact (apply set-properties node-id kvs)))
 
 (defn set-property
-  "Creates transaction steps to assign a value to a node property. Additional
-  options may be supplied in a map. You must call the transact function on the
-  return value to see the effects.
+  "Creates a transaction step to assign a value to a node property. You must
+  call the transact function on the return value to see the effects.
 
   Example:
-  `(transact (set-property node-id :opacity 0.5 {:force true}))`"
-  ([node-id property-label value]
-   (it/set-property node-id property-label value nil))
-  ([node-id property-label value opts]
-   (it/set-property node-id property-label value opts))
-  ([node-id property-label value another-property-label another-value & more]
-   ;; Deprecated. To set multiple properties at once, use set-properties.
-   ;; Kept for compatibility with editor plugins until we can update them.
-   (apply set-properties node-id property-label value another-property-label another-value more)))
+  `(transact (set-property node-id :opacity 0.5))`"
+  [node-id property-label value]
+  (it/set-property node-id property-label value))
 
 (defn set-property!
-  "Creates transaction steps to assign a value to a node property, then executes
-  them in a transaction. Returns the result of the transaction, (tx-result).
-  Additional options may be supplied in a map.
+  "Creates a transaction step to assign a value to a node property, then
+  executes it in a transaction. Returns the result of the transaction,
+  (tx-result).
 
   Example:
-  `(set-property node-id :opacity 0.5 {:force true})`"
-  ([node-id property-label value]
-   (transact (set-property node-id property-label value)))
-  ([node-id property-label value opts]
-   (transact (set-property node-id property-label value opts))))
+  `(set-property! node-id :opacity 0.5)`"
+  [node-id property-label value]
+  (transact (set-property node-id property-label value)))
 
 (defn update-property
   "Create the transaction step to apply a function to a node's property in a transaction. The

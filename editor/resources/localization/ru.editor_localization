@@ -342,6 +342,7 @@ notification.fetch-libraries.dependencies-changed.action.fetch = Обновит�
 notification.fetch-libraries.dependencies-missing.warning = Отсутствуют следующие зависимости\:\n{dependencies}\nПроект может не работать без них.\nЧтобы их загрузить, подключитесь к интернету и обновите библиотеки.
 notification.fetch-libraries.dependencies-error.error = Не удалось установить следующие зависимости\:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Открыть game.project
+notification.fetch-libraries.min-version.error = Библиотека {uri} требует Defold {required} или новее (текущая версия Defold {current}). Обновите Defold или используйте более старую версию расширения, совместимую с вашей версией Defold.
 
 # Settings notifications
 

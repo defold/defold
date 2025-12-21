@@ -38,12 +38,12 @@
     `(Arc. ~source-id ~source-label ~target-id ~target-label nil ~kvs)
     `(Arc. ~source-id ~source-label ~target-id ~target-label)))
 
-(defn source-id [^Arc arc] (.source-id arc))
-(defn source-label [^Arc arc] (.source-label arc))
-(defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
-(defn target-id [^Arc arc] (.target-id arc))
-(defn target-label [^Arc arc] (.target-label arc))
-(defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
+(definline source-id [^Arc arc] `(.-source-id ~(with-meta arc {:tag `Arc})))
+(definline source-label [^Arc arc] `(.-source-label ~(with-meta arc {:tag `Arc})))
+(defn source [^Arc arc] [(.-source-id arc) (.-source-label arc)])
+(definline target-id [^Arc arc] `(.-target-id ~(with-meta arc {:tag `Arc})))
+(definline target-label [^Arc arc] `(.-target-label ~(with-meta arc {:tag `Arc})))
+(defn target [^Arc arc] [(.-target-id arc) (.-target-label arc)])
 
 (definline node-id-hash [node-id]
   `(Murmur3/hashLong ~node-id))
@@ -106,6 +106,7 @@
   ^Endpoint [^Arc arc]
   (endpoint (target-id arc) (target-label arc)))
 
+(defn graph-id? [v] (integer? v))
 (defn node-id? [v] (integer? v))
 
 (defonce/protocol Evaluation

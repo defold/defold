@@ -29,6 +29,7 @@ import release_to_steam
 import release_to_egs
 import BuildUtility
 import http_cache
+import sdk_merge
 from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
@@ -338,7 +339,7 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-39",
+    "wagyu-69",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -1328,9 +1329,10 @@ class Configuration(object):
 
                 self._add_files_to_zip(zip, protobuf_files, self.dynamo_home, topfolder)
 
-                # bob pipeline classes
-                bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
-                self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+                # bob pipeline classes include only in one sdk
+                if platform in ('x86_64-linux'):
+                    bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
+                    self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
 
 
             # For logging, print all paths in zip:
@@ -1921,7 +1923,6 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         u = urlparse(self.get_archive_path())
-        bucket = s3.get_bucket(u.netloc)
 
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
@@ -1933,30 +1934,12 @@ class Configuration(object):
         else:
             platforms = get_target_platforms()
 
-        # For the linux build tools (protoc, dlib_shared etc)
-        if 'x86_64-linux' not in platforms:
-            platforms.append('x86_64-linux')
-
-        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-        # it last, in order to preserve unix line endings in the files
-        if 'x86_64-linux' in platforms:
-            platforms.remove('x86_64-linux')
-            platforms.append('x86_64-linux')
-
-        for platform in platforms:
-            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-            entry = bucket.Object(prefix)
-
-            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-            print ("Downloading", entry.key)
-            entry.download_file(platform_sdk_zip.name)
-            print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
-
-            self._extract_zip(platform_sdk_zip.name, tempdir)
-            print ("Extracted", platform_sdk_zip.name, "to", tempdir)
-
-            os.unlink(platform_sdk_zip.name)
-            print ("")
+        sdk_merge.build_combined_sdk_tree(
+            netloc=u.netloc,
+            base_prefix=base_prefix,
+            platforms=platforms,
+            extract_dir=tempdir,
+            canonical_platform='x86_64-linux')
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly

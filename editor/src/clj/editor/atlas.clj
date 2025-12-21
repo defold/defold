@@ -787,7 +787,7 @@
           (g/fnk [_node-id packed-page-images-generator texture-profile]
             ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
             (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
-                  (some-> (g/user-data _node-id :gpu-texture-cached) .get))
+                  (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
                 (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
                                   (texture/set-params {:min-filter gl/nearest
                                                        :mag-filter gl/nearest}))

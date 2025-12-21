@@ -634,7 +634,7 @@ platforms:
 
     exePrefix:      ''
     exeExt:         ''
-    shlibRe:        'lib(.+)\.so'
+    shlibRe:        'lib(.+)\.so(\.[0-9]+)?'
     stlibRe:        'lib(.+)\.a'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: 'lib%s.a'

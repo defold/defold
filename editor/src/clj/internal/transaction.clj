@@ -23,17 +23,17 @@
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
+            [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [internal.graph.types Arc]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
-;; ---------------------------------------------------------------------------
-;; Configuration parameters
-;; ---------------------------------------------------------------------------
-(def maximum-retrigger-count 100)
-(def maximum-graph-coloring-recursion 1000)
+(defonce/interface TransactionStep
+  (step_type []) ; Returns a keyword uniquely identifying the type of transaction step.
+  (metrics_key []) ; Returns a key which identifies the subject of the transaction step in metrics reports.
+  (perform [ctx])) ; Returns a new ctx with changes applied.
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -45,162 +45,6 @@
 
 (defmacro txerrstr [ctx & rest]
   `(str (:txid ~ctx) ": " ~@(interpose " " rest)))
-
-;; ---------------------------------------------------------------------------
-;; Building transactions
-;; ---------------------------------------------------------------------------
-(defn new-node
-  "*transaction step* - add a node to a graph"
-  [node]
-  [{:type :create-node
-    :node node}])
-
-(defn delete-node
-  [node-id]
-  [{:type :delete-node
-    :node-id node-id}])
-
-(defn- new-override
-  [override-id root-id traverse-fn init-props-fn]
-  [{:type :new-override
-    :override-id override-id
-    :root-id root-id
-    :traverse-fn traverse-fn
-    :init-props-fn init-props-fn}])
-
-(defn- override-node
-  [original-node-id override-node-id]
-  [{:type :override-node
-    :original-node-id original-node-id
-    :override-node-id override-node-id}])
-
-(defn override
-  [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
-  [{:type :override
-    :root-id root-id
-    :traverse-fn traverse-fn
-    :init-fn init-fn
-    :init-props-fn init-props-fn
-    :properties-by-node-id properties-by-node-id}])
-
-(defn transfer-overrides [from-id->to-id]
-  [{:type :transfer-overrides
-    :from-id->to-id from-id->to-id}])
-
-(defn update-property
-  "*transaction step* - Expects a node-id, a property-label, and an update-fn
-  (with optional args) to be performed on the current value of the property."
-  [node-id property-label update-fn args opts]
-  {:pre [(gt/node-id? node-id)
-         (keyword? property-label)
-         (ifn? update-fn)
-         (coll/eager-seqable? args)
-         (or (nil? opts) (map? opts))]}
-  [{:type :update-property
-    :node-id node-id
-    :property property-label
-    :fn update-fn
-    :args args
-    :opts opts}])
-
-(def inject-evaluation-context-opts
-  {:inject-evaluation-context true})
-
-(defn update-property-ec
-  "Same as update-property, but injects the in-transaction evaluation-context
-  as the first argument to the update-fn."
-  [node-id property-label update-fn args]
-  (update-property node-id property-label update-fn args inject-evaluation-context-opts))
-
-(defn set-property-update-fn [_old-value new-value] new-value)
-
-(defn set-property
-  "*transaction step* - Sets a property value on a node."
-  [node-id property-label new-value opts]
-  (update-property node-id property-label set-property-update-fn [new-value] opts))
-
-(defn clear-property
-  [node-id pr]
-  [{:type :clear-property
-    :node-id node-id
-    :property pr}])
-
-(defn update-graph-value
-  [graph-id f args]
-  [{:type :update-graph-value
-    :graph-id graph-id
-    :fn f
-    :args args}])
-
-(defn callback
-  [callback-fn args opts]
-  {:pre [(ifn? callback-fn)
-         (coll/eager-seqable? args)
-         (or (nil? opts) (map? opts))]}
-  [{:type :callback
-    :fn callback-fn
-    :args args
-    :opts opts}])
-
-(defn connect
-  "*transaction step* - Creates a transaction step connecting a source node and label  and a target node and label. It returns a value suitable for consumption by [[perform]]."
-  [source-id source-label target-id target-label]
-  [{:type :connect
-    :source-id source-id
-    :source-label source-label
-    :target-id target-id
-    :target-label target-label}])
-
-(defn expand
-  [fn args]
-  [{:type :expand
-    :fn fn
-    :args args}])
-
-(defn expand-ec
-  [fn args]
-  [{:type :expand
-    :fn fn
-    :args args
-    :inject-evaluation-context true}])
-
-(defn disconnect
-  "*transaction step* - The reverse of [[connect]]. Creates a
-  transaction step disconnecting a source node and label
-  from a target node and label. It returns a value suitable for consumption
-  by [[perform]]."
-  [source-id source-label target-id target-label]
-  [{:type :disconnect
-    :source-id source-id
-    :source-label source-label
-    :target-id target-id
-    :target-label target-label}])
-
-(defn disconnect-sources
-  [basis target-id target-label]
-  (for [[source-id source-label] (gt/sources basis target-id target-label)]
-    (disconnect source-id source-label target-id target-label)))
-
-(defn label
-  [label]
-  [{:type :label
-    :label label}])
-
-(defn sequence-label
-  [seq-label]
-  [{:type :sequence-label
-    :label seq-label}])
-
-(defn invalidate
-  [node-id]
-  [{:type :invalidate
-    :node-id node-id}])
-
-(defn invalidate-output
-  [node-id output-label]
-  [{:type :invalidate-output
-    :node-id node-id
-    :output-label output-label}])
 
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
@@ -266,24 +110,7 @@
 (defn- next-override-id [ctx graph-id]
   (is/next-override-id* (:override-id-generator ctx) graph-id))
 
-(defmulti perform
-  "A multimethod used for defining methods that perform the individual
-  actions within a transaction. This is for internal use, not intended
-  to be extended by applications.
-
-  Perform takes a transaction context (ctx) and a map (m) containing a
-  value for keyword `:type`, and other keys and values appropriate to
-  the transformation it represents. Callers should regard the map and
-  context as opaque.
-
-  Calls to perform are only executed by [[transact]]. The data
-  required for `perform` calls are constructed in action functions,
-  such as [[connect]] and [[update-property]]."
-  (fn [ctx m] (:type m)))
-
-(defmulti metrics-key :type)
-
-(def ^:private ctx-disconnect)
+(declare ^:private ctx-disconnect)
 
 (defn- ctx-disconnect-arc [ctx ^Arc arc]
   (ctx-disconnect ctx (.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)))
@@ -337,22 +164,10 @@
       (println (txerrstr ctx "cascading delete of " (pr-str to-delete))))
     (reduce delete-single ctx to-delete)))
 
-(defmethod perform :delete-node
-  [ctx {:keys [node-id]}]
-  (ctx-delete-node ctx node-id))
-
-(defmethod metrics-key :delete-node
-  [{:keys [node-id]}]
-  node-id)
-
-(defmethod perform :new-override
-  [ctx {:keys [override-id root-id traverse-fn init-props-fn]}]
-  (-> ctx
-      (update :basis gt/add-override override-id (ig/make-override root-id traverse-fn init-props-fn))))
-
-(defmethod metrics-key :new-override
-  [{:keys [root-id]}]
-  root-id)
+(defn- ctx-new-override
+  [ctx override-id root-id traverse-fn init-props-fn]
+  (let [override (ig/make-override root-id traverse-fn init-props-fn)]
+    (update ctx :basis gt/add-override override-id override)))
 
 (defn- flag-all-successors-changed [ctx node-ids]
   (let [successors-changed (:successors-changed ctx)
@@ -410,18 +225,40 @@
         ;; the original nodes.
         (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))
 
-(defmethod perform :override-node
-  [ctx {:keys [original-node-id override-node-id]}]
-  (ctx-override-node ctx original-node-id override-node-id))
+(defonce/type NewOverrideTXS [override-id root-id traverse-fn init-props-fn]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/new-override)
 
-(defmethod metrics-key :override-node
-  [{:keys [original-node-id]}]
-  original-node-id)
+  (metrics-key [_this]
+    root-id)
 
-(declare apply-tx)
+  (perform [_this ctx]
+    (ctx-new-override ctx override-id root-id traverse-fn init-props-fn)))
 
-(defmethod perform :override
-  [ctx {:keys [root-id traverse-fn init-props-fn init-fn properties-by-node-id]}]
+(defn- new-override
+  [override-id root-id traverse-fn init-props-fn]
+  [(->NewOverrideTXS override-id root-id traverse-fn init-props-fn)])
+
+(defonce/type OverrideNodeTXS [original-node-id override-node-id]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/override-node)
+
+  (metrics-key [_this]
+    original-node-id)
+
+  (perform [_this ctx]
+    (ctx-override-node ctx original-node-id override-node-id)))
+
+(defn- override-node
+  [original-node-id override-node-id]
+  [(->OverrideNodeTXS original-node-id override-node-id)])
+
+(declare apply-tx new-node)
+
+(defn- ctx-override
+  [ctx root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   (let [basis (:basis ctx)
         graph-id (gt/node-id->graph-id root-id)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
@@ -448,14 +285,10 @@
                                  node-ids
                                  override-node-ids))]
     (as-> ctx ctx'
-      (apply-tx ctx' (concat new-override-nodes-tx-data
-                             new-override-tx-data))
-      (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx') :tx-data-context (:tx-data-context ctx')})
-                              original-node-id->override-node-id)))))
-
-(defmethod metrics-key :override
-  [{:keys [root-id]}]
-  root-id)
+          (apply-tx ctx' (concat new-override-nodes-tx-data
+                                 new-override-tx-data))
+          (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx') :tx-data-context (:tx-data-context ctx')})
+                                  original-node-id->override-node-id)))))
 
 (defn- node-id->override-id [basis node-id]
   (->> node-id
@@ -532,8 +365,8 @@
             ctx
             override-node-ids)))
 
-(defmethod perform :transfer-overrides
-  [ctx {:keys [from-id->to-id]}]
+(defn- ctx-transfer-overrides
+  [ctx from-id->to-id]
   ;; This method updates the existing override layer to use the to-id as the
   ;; root of the override layer. It also updates the "first level" (i.e. direct)
   ;; override nodes that have from-id as their original to instead have to-id as
@@ -611,14 +444,6 @@
               (reduce populate-overrides
                       ctx
                       (vals from-id->to-id))))))
-
-(defmethod metrics-key :transfer-overrides
-  [{:keys [from-id->to-id]}]
-  ;; When metrics are enabled, this is called for one override node at a time.
-  ;; This is potentially less efficient, but we get valuable context about which
-  ;; specific nodes are costly to transfer overrides for.
-  (when (= 1 (count from-id->to-id))
-    (second (first from-id->to-id))))
 
 (defn- property-default-setter
   [basis node-id node property new-value]
@@ -710,17 +535,9 @@
         (assoc-in [:successors-changed node-id] nil)
         (mark-all-outputs-activated node-id))))
 
-(defmethod perform :create-node [ctx {:keys [node]}]
-  (when (and *tx-debug* (nil? (gt/node-id node))) (println "NIL NODE ID: " node))
-  (ctx-add-node ctx node))
-
-(defmethod metrics-key :create-node
-  [{:keys [node]}]
-  (gt/node-id node))
-
-(defmethod perform :update-property [ctx {:keys [node-id property fn args opts] :as tx-step}]
+(defn- ctx-update-property
+  [ctx node-id property fn args opts]
   (let [basis (:basis ctx)]
-    (when (and *tx-debug* (nil? node-id)) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
@@ -734,9 +551,21 @@
         (invoke-setter ctx node-id node property old-value new-value override-node? dynamic?))
       ctx)))
 
-(defmethod metrics-key :update-property
-  [{:keys [node-id property]}]
-  [node-id property])
+(defn- ctx-set-property
+  [ctx node-id property-label new-value]
+  (let [basis (:basis ctx)
+        node (gt/node-by-id-at basis node-id)]
+    (if (nil? node) ; nil if node was deleted in this transaction
+      ctx
+      (let [is-override-node (some? (gt/original node))
+            is-dynamic (not (contains? (in/all-properties (gt/node-type node)) property-label))
+
+            ;; Use a custom evaluation-context since we're inside a transaction
+            ;; and cannot use the cache.
+            old-value (let [tx-data-context (:tx-data-context ctx)
+                            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+                        (in/node-property-value node property-label evaluation-context))]
+        (invoke-setter ctx node-id node property-label old-value new-value is-override-node is-dynamic)))))
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
@@ -746,7 +575,8 @@
       (apply-tx ctx (call-setter-fn ctx property setter-fn basis node-id old-value nil))
       ctx)))
 
-(defmethod perform :clear-property [ctx {:keys [node-id property]}]
+(defn- ctx-clear-property
+  [ctx node-id property]
   (let [basis (:basis ctx)]
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [dynamic? (not (contains? (some-> (gt/node-type node) in/all-properties) property))]
@@ -757,11 +587,8 @@
             (ctx-set-property-to-nil node-id node property)))
       ctx)))
 
-(defmethod metrics-key :clear-property
-  [{:keys [node-id property]}]
-  [node-id property])
-
-(defmethod perform :callback [ctx {:keys [fn args opts]}]
+(defn- ctx-callback
+  [ctx fn args opts]
   (if (:inject-evaluation-context opts)
     (let [basis (:basis ctx)
           tx-data-context (:tx-data-context ctx)
@@ -770,21 +597,16 @@
     (apply fn args))
   ctx)
 
-(defmethod metrics-key :callback
-  [_]
-  nil)
-
-(defmethod perform :expand [ctx {:keys [fn args inject-evaluation-context]}]
+(defn- ctx-expand
+  [ctx fn args opts]
   (apply-tx
     ctx
-    (if inject-evaluation-context
+    (if (:inject-evaluation-context opts)
       (let [basis (:basis ctx)
             tx-data-context (:tx-data-context ctx)
             evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
         (apply fn evaluation-context args))
       (apply fn args))))
-
-(defmethod metrics-key :expand [_] nil)
 
 (defn- ctx-disconnect-single [ctx target target-id target-label]
   (if (= :one (in/input-cardinality (gt/node-type target) target-label))
@@ -859,14 +681,6 @@
       ctx)
     ctx))
 
-(defmethod perform :connect
-  [ctx {:keys [source-id source-label target-id target-label] :as tx-data}]
-  (ctx-connect ctx source-id source-label target-id target-label))
-
-(defmethod metrics-key :connect
-  [{:keys [source-id source-label target-id target-label]}]
-  [source-id source-label target-id target-label])
-
 (defn- ctx-remove-overrides [ctx source-id source-label target-id target-label]
   (let [basis (:basis ctx)
         target (gt/node-by-id-at basis target-id)]
@@ -899,61 +713,327 @@
                                         (ig/get-overrides (:basis ctx) source-id))))
       (ctx-remove-overrides source-id source-label target-id target-label)))
 
-(defmethod perform :disconnect
-  [ctx {:keys [source-id source-label target-id target-label]}]
-  (ctx-disconnect ctx source-id source-label target-id target-label))
-
-(defmethod metrics-key :disconnect
-  [{:keys [source-id source-label target-id target-label]}]
-  [source-id source-label target-id target-label])
-
-(defmethod perform :update-graph-value
-  [ctx {:keys [graph-id fn args]}]
+(defn- ctx-update-graph-value
+  [ctx graph-id fn args]
   (cond-> (update-in ctx [:basis :graphs graph-id :graph-values] #(apply fn % args))
           (:track-changes ctx) (update :graphs-modified conj graph-id)))
 
-(defmethod metrics-key :update-graph-value
-  [{:keys [graph-id]}]
-  graph-id)
+;; ---------------------------------------------------------------------------
+;; Transaction steps
+;; ---------------------------------------------------------------------------
 
-(defmethod perform :label
-  [ctx {:keys [label]}]
-  (assoc ctx :label label))
+(defonce/type AddNodeTXS [added-node]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/add-node)
 
-(defmethod metrics-key :label
-  [_]
-  nil)
+  (metrics-key [_this]
+    (gt/node-id added-node))
 
-(defmethod perform :sequence-label
-  [ctx {:keys [label]}]
-  (assoc ctx :sequence-label label))
+  (perform [_this ctx]
+    (ctx-add-node ctx added-node)))
 
-(defmethod metrics-key :sequence-label
-  [_]
-  nil)
+(defn new-node
+  "*transaction step* - Add a node to its corresponding graph."
+  [node]
+  {:pre [(some? (gt/node-id node))]}
+  [(->AddNodeTXS node)])
 
-(defmethod perform :invalidate
-  [ctx {:keys [node-id] :as tx-data}]
-  (if (gt/node-by-id-at (:basis ctx) node-id)
-    (mark-all-outputs-activated ctx node-id)
-    ctx))
+(defonce/type DeleteNodeTXS [node-id]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/delete-node)
 
-(defmethod metrics-key :invalidate
-  [{:keys [node-id]}]
-  node-id)
+  (metrics-key [_this]
+    node-id)
 
-(defmethod perform :invalidate-output
-  [ctx {:keys [node-id output-label] :as _tx-data}]
-  (mark-output-activated ctx node-id output-label))
+  (perform [_this ctx]
+    (ctx-delete-node ctx node-id)))
 
-(defmethod metrics-key :invalidate-output
-  [{:keys [node-id output-label]}]
-  (pair node-id output-label))
+(defn delete-node
+  "*transaction step* - Delete a node from its graph."
+  [node-id]
+  [(->DeleteNodeTXS node-id)])
+
+(defonce/type OverrideTXS [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/override)
+
+  (metrics-key [_this]
+    root-id)
+
+  (perform [_this ctx]
+    (ctx-override ctx root-id traverse-fn init-props-fn init-fn properties-by-node-id)))
+
+(defn override
+  "*transaction step* - Create a series of override nodes in a graph."
+  [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
+  [(->OverrideTXS root-id traverse-fn init-props-fn init-fn properties-by-node-id)])
+
+(defonce/type TransferOverridesTXS [from-id->to-id]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/transfer-overrides)
+
+  (metrics-key [_this]
+    ;; When metrics are enabled, this is called for one override node at a time.
+    ;; This is potentially less efficient, but we get valuable context about
+    ;; which specific nodes are costly to transfer overrides for.
+    (when (= 1 (count from-id->to-id))
+      (second (first from-id->to-id))))
+
+  (perform [_this ctx]
+    (ctx-transfer-overrides ctx from-id->to-id)))
+
+(defn transfer-overrides [from-id->to-id]
+  [(->TransferOverridesTXS from-id->to-id)])
+
+(defonce/type SetPropertyTXS [node-id property-label new-value]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/set-property)
+
+  (metrics-key [_this]
+    (pair node-id property-label))
+
+  (perform [_this ctx]
+    (ctx-set-property ctx node-id property-label new-value)))
+
+(defn set-property
+  "*transaction step* - Sets a property value on a node."
+  [node-id property-label new-value]
+  {:pre [(gt/node-id? node-id)
+         (keyword? property-label)]}
+  [(->SetPropertyTXS node-id property-label new-value)])
+
+(defonce/type UpdatePropertyTXS [node-id property-label fn args opts]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/update-property)
+
+  (metrics-key [_this]
+    (pair node-id property-label))
+
+  (perform [_this ctx]
+    (ctx-update-property ctx node-id property-label fn args opts)))
+
+(defn update-property
+  "*transaction step* - Expects a node-id, a property-label, and an update-fn
+  (with optional args) to be performed on the current value of the property."
+  [node-id property-label update-fn args opts]
+  {:pre [(gt/node-id? node-id)
+         (keyword? property-label)
+         (ifn? update-fn)
+         (coll/eager-seqable? args)
+         (or (nil? opts) (map? opts))]}
+  [(->UpdatePropertyTXS node-id property-label update-fn args opts)])
+
+(def inject-evaluation-context-opts
+  {:inject-evaluation-context true})
+
+(defonce/type ClearPropertyTXS [node-id property-label]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/clear-property)
+
+  (metrics-key [_this]
+    (pair node-id property-label))
+
+  (perform [_this ctx]
+    (ctx-clear-property ctx node-id property-label)))
+
+(defn clear-property
+  "*transaction step* - Clears a property on a node."
+  [node-id property-label]
+  [(->ClearPropertyTXS node-id property-label)])
+
+(defonce/type UpdateGraphValueTXS [graph-id fn args]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/update-graph-value)
+
+  (metrics-key [_this]
+    graph-id)
+
+  (perform [_this ctx]
+    (ctx-update-graph-value ctx graph-id fn args)))
+
+(defn update-graph-value
+  "*transaction step* - Update a graph value."
+  [graph-id fn args]
+  {:pre [(gt/graph-id? graph-id)
+         (ifn? fn)
+         (coll/eager-seqable? args)]}
+  [(->UpdateGraphValueTXS graph-id fn args)])
+
+(defonce/type CallbackTXS [callback-fn args opts]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/callback)
+
+  (metrics-key [_this]
+    nil)
+
+  (perform [_this ctx]
+    (ctx-callback ctx callback-fn args opts)))
+
+(defn callback
+  "*transaction step* - Call a function from within the transaction."
+  [callback-fn args opts]
+  {:pre [(ifn? callback-fn)
+         (coll/eager-seqable? args)
+         (or (nil? opts) (map? opts))]}
+  [(->CallbackTXS callback-fn args opts)])
+
+(defonce/type ConnectTXS [source-id source-label target-id target-label]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/connect)
+
+  (metrics-key [_this]
+    [source-id source-label target-id target-label])
+
+  (perform [_this ctx]
+    (ctx-connect ctx source-id source-label target-id target-label)))
+
+(defn connect
+  "*transaction step* - Creates a transaction step connecting a source node and
+  label and a target node and label."
+  [source-id source-label target-id target-label]
+  [(->ConnectTXS source-id source-label target-id target-label)])
+
+(defonce/type ExpandTXS [tx-steps-fn args opts]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/expand)
+
+  (metrics-key [_this]
+    nil)
+
+  (perform [_this ctx]
+    (ctx-expand ctx tx-steps-fn args opts)))
+
+(defn expand
+  "*transaction step* - Call a function and execute the returned transaction
+  steps within the transaction."
+  [tx-steps-fn args opts]
+  {:pre [(ifn? tx-steps-fn)
+         (coll/eager-seqable? args)
+         (or (nil? opts) (map? opts))]}
+  [(->ExpandTXS tx-steps-fn args opts)])
+
+(defonce/type DisconnectTXS [source-id source-label target-id target-label]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/disconnect)
+
+  (metrics-key [_this]
+    [source-id source-label target-id target-label])
+
+  (perform [_this ctx]
+    (ctx-disconnect ctx source-id source-label target-id target-label)))
+
+(defn disconnect
+  "*transaction step* - The reverse of [[connect]]. Creates a transaction step
+  disconnecting a source node and label from a target node and label."
+  [source-id source-label target-id target-label]
+  [(->DisconnectTXS source-id source-label target-id target-label)])
+
+(defn disconnect-sources
+  [basis target-id target-label]
+  (for [[source-id source-label] (gt/sources basis target-id target-label)]
+    (disconnect source-id source-label target-id target-label)))
+
+(defonce/type LabelTXS [label]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/label)
+
+  (metrics-key [_this]
+    nil)
+
+  (perform [_this ctx]
+    (assoc ctx :label label)))
+
+(defn label
+  [label]
+  [(->LabelTXS label)])
+
+(defonce/type SequenceLabelTXS [sequence-label]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/sequence-label)
+
+  (metrics-key [_this]
+    nil)
+
+  (perform [_this ctx]
+    (assoc ctx :sequence-label sequence-label)))
+
+(defn sequence-label
+  [sequence-label]
+  [(->SequenceLabelTXS sequence-label)])
+
+(defonce/type InvalidateTXS [node-id]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/invalidate)
+
+  (metrics-key [_this]
+    node-id)
+
+  (perform [_this ctx]
+    (if (gt/node-by-id-at (:basis ctx) node-id)
+      (mark-all-outputs-activated ctx node-id)
+      ctx)))
+
+(defn invalidate
+  [node-id]
+  [(->InvalidateTXS node-id)])
+
+(defonce/type InvalidateOutputTXS [node-id output-label]
+  TransactionStep
+  (step-type [_this]
+    :tx-step/invalidate-output)
+
+  (metrics-key [_this]
+    (pair node-id output-label))
+
+  (perform [_this ctx]
+    (mark-output-activated ctx node-id output-label)))
+
+(defn invalidate-output
+  [node-id output-label]
+  [(->InvalidateOutputTXS node-id output-label)])
+
+;; ---------------------------------------------------------------------------
+;; Transaction step inspection
+;; ---------------------------------------------------------------------------
+
+(def tx-step-type TransactionStep/.step_type)
+
+(defn tx-step-added-node
+  [^AddNodeTXS tx-step]
+  (when (instance? AddNodeTXS tx-step)
+    (.-added-node tx-step)))
+
+(defn tx-step-added-arc
+  ^Arc [^ConnectTXS tx-step]
+  (when (instance? ConnectTXS tx-step)
+    (gt/->Arc (.-source-id tx-step)
+              (.-source-label tx-step)
+              (.-target-id tx-step)
+              (.-target-label tx-step))))
+
+;; ---------------------------------------------------------------------------
+;; Applying transactions
+;; ---------------------------------------------------------------------------
 
 (defn apply-tx
   [ctx actions]
   (reduce
-    (fn [ctx action]
+    (fn [ctx ^TransactionStep action]
       (cond
         (nil? action)
         ctx
@@ -963,8 +1043,8 @@
 
         :else
         (-> (try
-              (du/measuring (:metrics ctx) (:type action) (metrics-key action)
-                (perform ctx action))
+              (du/measuring (:metrics ctx) (.step-type action) (.metrics-key action)
+                (.perform action ctx))
               (catch Exception e
                 (when *tx-debug*
                   (println (txerrstr ctx "Transaction failed on " action)))

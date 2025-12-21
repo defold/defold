@@ -3720,12 +3720,6 @@
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
             (coll/merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
 
-(defn- tx-create-node? [tx-entry]
-  (= :create-node (:type tx-entry)))
-
-(defn- tx-node-id [tx-entry]
-  (get-in tx-entry [:node :_node-id]))
-
 (defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
   (-> (g/with-auto-evaluation-context evaluation-context
         (let [node-tree (g/node-value scene :node-tree evaluation-context)
@@ -4069,7 +4063,7 @@
                                                             node-tree
                                                             (id->node parent))]
                                           (attach-gui-node node-tree parent-node gui-node)))
-                              node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
+                              node-id (first (g/tx-data-added-node-ids tx-data))]
                           (recur more
                                  (assoc id->node (:id node-desc) node-id)
                                  (into all-tx-data tx-data)
@@ -4625,7 +4619,7 @@
                 :custom-type custom-type
                 :type node-type)]
     (concat
-      (apply g/set-property child-node-id (coll/mapcat identity props))
+      (apply g/set-properties child-node-id (coll/mapcat identity props))
       (-> attachment
           (eutil/provide-defaults
             "id" (rt/->lua

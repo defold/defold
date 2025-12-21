@@ -194,6 +194,7 @@ namespace dmSound
         dmSoundCodec::HCodecContext   m_CodecContext;
         DeviceType*                   m_DeviceType;
         HDevice                       m_Device;
+        OpenDeviceParams              m_DeviceParams;
         dmThread::Thread              m_Thread;
         dmMutex::HMutex               m_Mutex;
 
@@ -230,6 +231,7 @@ namespace dmSound
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
         bool                    m_UseLinearGain;
+        bool                    m_DeviceResetPending;
 
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
@@ -272,6 +274,54 @@ namespace dmSound
         }
 
         return RESULT_DEVICE_NOT_FOUND;
+    }
+
+    static Result ResetDevice(SoundSystem* sound)
+    {
+        if (!sound->m_DeviceType)
+        {
+            return RESULT_DEVICE_NOT_FOUND;
+        }
+
+        if (sound->m_Device)
+        {
+            if (sound->m_IsDeviceStarted)
+            {
+                sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                sound->m_IsDeviceStarted = false;
+            }
+            sound->m_DeviceType->m_Close(sound->m_Device);
+            sound->m_Device = 0;
+        }
+
+        HDevice new_device = 0;
+        Result result = sound->m_DeviceType->m_Open(&sound->m_DeviceParams, &new_device);
+        if (result != RESULT_OK)
+        {
+            dmLogError("Failed to reopen audio device");
+            return result;
+        }
+
+        sound->m_Device = new_device;
+
+        DeviceInfo device_info = {0};
+        sound->m_DeviceType->m_DeviceInfo(sound->m_Device, &device_info);
+
+        if (device_info.m_FrameCount && device_info.m_FrameCount != sound->m_DeviceFrameCount)
+        {
+            dmLogWarning("Audio device reported frame count %u after reset (previous %u).", device_info.m_FrameCount, sound->m_DeviceFrameCount);
+        }
+
+        if (device_info.m_MixRate && device_info.m_MixRate != sound->m_MixRate)
+        {
+            dmLogWarning("Audio device reported mix rate %u after reset (previous %u).", device_info.m_MixRate, sound->m_MixRate);
+            sound->m_MixRate = device_info.m_MixRate;
+        }
+
+        sound->m_FrameCount = sound->m_DeviceFrameCount;
+        sound->m_NextOutBuffer = 0;
+
+        return RESULT_OK;
     }
 
     static float GainToScale(float gain)
@@ -384,6 +434,8 @@ namespace dmSound
         sound->m_HasWindowFocus = true; // Assume we startup with the window focused
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
+        sound->m_DeviceParams = device_params; // Stash frame and buffer count for potential device reset
+        sound->m_DeviceResetPending = false;
         dmSoundCodec::NewCodecContextParams codec_params;
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
@@ -1733,6 +1785,17 @@ namespace dmSound
     static Result UpdateInternal(SoundSystem* sound)
     {
         DM_PROFILE(__FUNCTION__);
+
+        if (sound->m_DeviceResetPending)
+        {
+            Result reset_result = ResetDevice(sound);
+            if (reset_result != RESULT_OK)
+            {
+                return reset_result;
+            }
+            sound->m_DeviceResetPending = false;
+        }
+
         if (!sound->m_Device)
         {
             return RESULT_OK;
@@ -1822,6 +1885,8 @@ namespace dmSound
                 {
                     break;
                 }
+                // New device after reset/recovery can have a larger frame count than we allocated buffers for
+                frame_count = dmMath::Min(frame_count, sound->m_DeviceFrameCount);
             }
 
             uint32_t buffer_index = 0;
@@ -1855,9 +1920,9 @@ namespace dmSound
                 queue_result = sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[buffer_index], frame_count);
             }
 
-            if (queue_result == dmSound::RESULT_INIT_ERROR)
+            if (queue_result == dmSound::RESULT_INIT_ERROR || queue_result == dmSound::RESULT_DEVICE_LOST)
             {
-                sound->m_IsDeviceStarted = false;
+                NotifyDeviceInvalidated();
                 return queue_result;
             }
 
@@ -1902,6 +1967,20 @@ namespace dmSound
             dmAtomicStore32(&sound->m_IsPaused, (int)pause);
         }
         return RESULT_OK;
+    }
+
+    void NotifyDeviceInvalidated()
+    {
+        SoundSystem* sound = g_SoundSystem;
+        if (!sound)
+            return;
+
+        if (!sound->m_DeviceResetPending)
+        {
+            dmLogInfo("Audio device invalidated, scheduling reset");
+        }
+        sound->m_DeviceResetPending = true;
+        sound->m_IsDeviceStarted = false;
     }
 
     void GetDecoderOutputSettings(DecoderOutputSettings* settings)

@@ -342,6 +342,7 @@ notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
 notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
 notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
+notification.fetch-libraries.min-version.error = Library {uri} requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
 
 # Settings notifications
 

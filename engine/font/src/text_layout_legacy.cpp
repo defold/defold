@@ -153,18 +153,8 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     TextGlyph& last = glyphs[n-1];
 
     float row_start_x = glyphs[0].m_X;
-
-    if (monospace)
-    {
-        float extent_last = last.m_Advance + padding;
-        float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
-        return width;
-    }
-
-    // the extent of the last character is left bearing + width
-    float extent_last = last.m_LeftBearing + last.m_Width;
+    float extent_last = monospace ? (last.m_Advance + padding) : (last.m_Advance);
     float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
-
     return width;
 }
 
