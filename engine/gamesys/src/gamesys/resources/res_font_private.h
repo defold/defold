@@ -26,15 +26,23 @@
 #include <dmsdk/render/render.h>
 #include <dmsdk/gamesys/resources/res_ttf.h>
 
+#include <gamesys/fontgen/fontgen.h>
+
 namespace dmGameSystem
 {
     struct MaterialResource;
     struct GlyphBankResource;
+    struct FontResource;
 
     struct FontJobResourceInfo
     {
-        dmJobThread::HJob   m_Job;
-        dmArray<void*>      m_Resources; // the resources that are incref'ed for this job
+        dmArray<void*>          m_Resources; // the resources that are incref'ed for this job
+        FontGenJobData*         m_FontGenJobData; // the job scratch data, owned by the sentinel job
+        FontResource*           m_Resource;
+        dmJobThread::HJob       m_Job;
+
+        FPrewarmTextCallback    m_Callback;
+        void*                   m_CallbackContext;
     };
 
     struct FontResource

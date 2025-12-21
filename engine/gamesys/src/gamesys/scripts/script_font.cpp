@@ -355,12 +355,7 @@ static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
     return dmGameSystem::FontGenFinalize(params);
 }
 
-static dmExtension::Result ScriptFontUpdate(dmExtension::Params* params)
-{
-    return dmGameSystem::FontGenUpdate(params);
-}
-
-DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, ScriptFontUpdate, 0, ScriptFontFinalize)
+DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)
 
 } // namespace
 
