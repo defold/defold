@@ -401,8 +401,8 @@
                 (when-let [active-view (g/node-value app-view :active-view evaluation-context)]
                   (some? (g/maybe-node-value active-view :grid evaluation-context)))))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :grid))
-  (state [scene-visibility]
-         (not (:grid (g/node-value scene-visibility :filtered-renderable-tags)))))
+  (state [scene-visibility evaluation-context]
+         (not (:grid (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))))
 
 (defn hidden-outline-key-path?
   [hidden-node-outline-key-paths node-outline-key-path]

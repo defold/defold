@@ -3771,15 +3771,15 @@
   {:label label :icon icon :command :edit.add-embedded-component
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
 
-(defn- add-handler-options [node]
-  ;; TODO: We should probably use an evaluation-context here.
-  (let [type-infos (get-registered-node-type-infos)
-        node (g/override-root node)
-        scene (node->gui-scene node)
+(defn- add-handler-options [node evaluation-context]
+  (let [basis (:basis evaluation-context)
+        type-infos (get-registered-node-type-infos)
+        node (g/override-root basis node)
+        scene (node->gui-scene basis node)
         node-options (cond
-                       (g/node-instance? TemplateNode node)
-                       (if-some [template-scene (g/override-root (g/node-feeding-into node :template-resource))]
-                         (let [parent (g/node-value template-scene :node-tree)]
+                       (g/node-instance? basis TemplateNode node)
+                       (if-some [template-scene (g/override-root basis (g/node-feeding-into basis node :template-resource))]
+                         (let [parent (g/node-value template-scene :node-tree evaluation-context)]
                            (mapv (fn [info]
                                    (if-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
@@ -3787,9 +3787,9 @@
                                  type-infos))
                          [])
 
-                       (g/node-instance-match node [GuiSceneNode GuiNode NodeTree])
+                       (g/node-instance-match basis node [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
-                                      (g/node-value scene :node-tree)
+                                      (g/node-value scene :node-tree evaluation-context)
                                       node)]
                          (mapv (fn [info]
                                  (if-not (:deprecated info)
@@ -3803,32 +3803,31 @@
                        :else
                        [])
         handler-options (when (empty? node-options)
-                          (when (g/has-output? (g/node-type* node) :add-handler-info)
-                            (->> (g/node-value node :add-handler-info)
+                          (when (g/has-output? (g/node-type* basis node) :add-handler-info)
+                            (->> (g/node-value node :add-handler-info evaluation-context)
                                  one-or-many-handler-infos-to-vec
                                  (map (fn [[parent menu-label menu-icon add-fn opts]]
                                         (let [parent (if (= node scene) parent node)]
                                           (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
     (filter some? (into node-options handler-options))))
 
-(defn- add-layout-options [node user-data]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [scene (node->gui-scene node)
-          parent (if (= node scene)
-                   (g/node-value scene :layouts-node evaluation-context)
-                   node)]
-      (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
-            (g/node-value scene :unused-display-profiles evaluation-context)))))
+(defn- add-layout-options [node evaluation-context]
+  (let [scene (node->gui-scene node)
+        parent (if (= node scene)
+                 (g/node-value scene :layouts-node evaluation-context)
+                 node)]
+    (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
+          (g/node-value scene :unused-display-profiles evaluation-context))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
+  (active? [selection evaluation-context] (not-empty (some-> (handler/selection->node-id selection) (add-handler-options evaluation-context))))
   (run [project user-data app-view] (when user-data ((:handler-fn user-data) project user-data (fn [node-ids] (app-view/select app-view node-ids)))))
-  (options [selection user-data]
+  (options [selection user-data evaluation-context]
     (let [node-id (handler/selection->node-id selection)]
       (if (not user-data)
-        (add-handler-options node-id)
+        (add-handler-options node-id evaluation-context)
         (when (:layout user-data)
-          (add-layout-options node-id user-data))))))
+          (add-layout-options node-id evaluation-context))))))
 
 (defn- node-desc->node-properties [node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
@@ -4435,16 +4434,16 @@
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]
                                                (g/transact (g/set-property scene :visible-layout user-data)))))
-  (state [project active-resource]
-         (when-let [scene (resource->gui-scene project active-resource)]
-           (let [visible (g/node-value scene :visible-layout)]
+  (state [project active-resource evaluation-context]
+         (when-let [scene (resource->gui-scene project active-resource evaluation-context)]
+           (let [visible (g/node-value scene :visible-layout evaluation-context)]
              {:label (if (empty? visible) (localization/message "gui.layout.default") visible)
               :command :scene.set-gui-layout
               :user-data visible})))
-  (options [project active-resource user-data]
+  (options [project active-resource user-data evaluation-context]
            (when-not user-data
-             (when-let [scene (resource->gui-scene project active-resource)]
-               (let [layout-names (g/node-value scene :layout-names)
+             (when-let [scene (resource->gui-scene project active-resource evaluation-context)]
+               (let [layout-names (g/node-value scene :layout-names evaluation-context)
                      layouts (cons "" layout-names)]
                  (for [l layouts]
                    {:label (if (empty? l) (localization/message "gui.layout.default") l)

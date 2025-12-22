@@ -2418,26 +2418,25 @@
   (enabled? [prefs workspace evaluation-context]
     (recent-files/exist? prefs workspace evaluation-context))
   (active? [] true)
-  (options [prefs workspace app-view]
-    (g/with-auto-evaluation-context evaluation-context
-      (-> [{:label (localization/message "command.file.reopen-recent")
-            :command :file.reopen-recent}]
-          (cond-> (recent-files/exist? prefs workspace evaluation-context)
-                  (->
-                    (conj menu-items/separator)
-                    (into
-                      (map (fn [[resource view-type :as resource+view-type]]
-                             {:label (-> "command.private.recent-files.option.entry"
-                                         (localization/message
-                                           {"path" (resource/proj-path resource)
-                                            "view" (:label view-type)})
-                                         (localization/transform string/replace "_" "__"))
-                              :command :private/open-selected-recent-file
-                              :user-data resource+view-type}))
-                      (recent-files/some-recent prefs workspace evaluation-context))
-                    (conj menu-items/separator)))
-          (conj {:label (localization/message "command.private.recent-files.option.more")
-                 :command :file.open-recent})))))
+  (options [prefs workspace app-view evaluation-context]
+    (-> [{:label (localization/message "command.file.reopen-recent")
+          :command :file.reopen-recent}]
+        (cond-> (recent-files/exist? prefs workspace evaluation-context)
+                (->
+                  (conj menu-items/separator)
+                  (into
+                    (map (fn [[resource view-type :as resource+view-type]]
+                           {:label (-> "command.private.recent-files.option.entry"
+                                       (localization/message
+                                         {"path" (resource/proj-path resource)
+                                          "view" (:label view-type)})
+                                       (localization/transform string/replace "_" "__"))
+                            :command :private/open-selected-recent-file
+                            :user-data resource+view-type}))
+                    (recent-files/some-recent prefs workspace evaluation-context))
+                  (conj menu-items/separator)))
+        (conj {:label (localization/message "command.private.recent-files.option.more")
+               :command :file.open-recent}))))
 
 (handler/defhandler :private/open-selected-recent-file :global
   (run [prefs localization app-view workspace project user-data]
@@ -2698,16 +2697,15 @@
         (if-let [node-id (handler/selection->node-id selection)]
           (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
           false)))
-  (options [selection user-data]
+  (options [selection user-data evaluation-context]
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
-        (g/with-auto-evaluation-context evaluation-context
-          (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
-            (mapv (fn [transfer-overrides-plan]
-                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                     :command :edit.pull-up-overrides
-                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                  (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context)))))))
+        (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
+          (mapv (fn [transfer-overrides-plan]
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                   :command :edit.pull-up-overrides
+                   :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
@@ -2720,16 +2718,15 @@
           (and (not (coll/empty? (g/overrides basis node-id)))
                (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
         false)))
-  (options [selection user-data]
+  (options [selection user-data evaluation-context]
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
-        (g/with-auto-evaluation-context evaluation-context
-          (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
-            (mapv (fn [transfer-overrides-plan]
-                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                     :command :edit.push-down-overrides
-                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                  (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context)))))))
+        (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
+          (mapv (fn [transfer-overrides-plan]
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                   :command :edit.push-down-overrides
+                   :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 

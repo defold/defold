@@ -579,9 +579,9 @@
              resource-type))
          (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))
 
-(defn add-embedded-component-options [self workspace user-data]
+(defn- add-embedded-component-options [self workspace user-data evaluation-context]
   (when (not user-data)
-    (->> (embeddable-component-resource-types workspace)
+    (->> (embeddable-component-resource-types workspace evaluation-context)
          (mapv (fn [res-type]
                  {:label (or (:label res-type) (:ext res-type))
                   :icon (:icon res-type)
@@ -597,10 +597,10 @@
         (or (:label rt) (:ext rt)))))
   (active? [selection] (selection->game-object selection))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
-  (options [selection user-data]
-           (let [self (selection->game-object selection)
-                 workspace (:workspace (g/node-value self :resource))]
-             (add-embedded-component-options self workspace user-data))))
+  (options [selection user-data evaluation-context]
+    (let [self (selection->game-object selection)
+          workspace (:workspace (g/node-value self :resource evaluation-context))]
+      (add-embedded-component-options self workspace user-data evaluation-context))))
 
 (defn load-game-object [project self resource prototype-desc]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
