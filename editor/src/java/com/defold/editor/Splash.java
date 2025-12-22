@@ -130,7 +130,11 @@ public class Splash {
         String channelName = System.getProperty("defold.channel");
         String sha1 = System.getProperty("defold.editor.sha1");
 
-        versionString = (versionString == null || versionString.isEmpty()) ? "No version" : versionString;
+        boolean hasVersion = true;
+        if (versionString == null || versionString.isEmpty()) {
+            versionString = "No version";
+            hasVersion = false;
+        }
         channelName = (channelName == null || channelName.isEmpty()) ? "No channel" : channelName;
         channelName = channelName.equals("editor-alpha") ? "" : "   •   " + channelName;
         sha1 = (sha1 == null || sha1.isEmpty()) ? "no sha1" : sha1;
@@ -143,7 +147,7 @@ public class Splash {
         channelLabel.setVisible(true);
 
         String windowTitle = "Defold";
-        if (!versionString.equals("No version")) {
+        if (hasVersion) {
             windowTitle += " " + versionString;
         }
         stage.setTitle(windowTitle);
