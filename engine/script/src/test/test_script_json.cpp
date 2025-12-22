@@ -63,6 +63,7 @@ TEST_F(ScriptJsonTest, TestJsonToLua)
         int ret = dmScript::JsonToLua(L, json, json_length);
         ASSERT_EQ(1, ret);
         lua_pop(L, 1);
+        free((void*)json);
     }
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -83,6 +84,7 @@ TEST_F(ScriptJsonTest, TestJsonToLua_Issue10304)
         ASSERT_EQ(0, ret);
         int newtop = lua_gettop(L);
         ASSERT_EQ(0, newtop - top);
+        free((void*)json);
     }
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -122,6 +124,7 @@ TEST_F(ScriptJsonTest, TestLuaToJson)
         ASSERT_TRUE(strstr(json, "\"c\":{\"d\":7}") != 0);
 
         lua_pop(L, 1);
+        free((void*)json);
     }
 
     ASSERT_EQ(top, lua_gettop(L));

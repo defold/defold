@@ -19,6 +19,7 @@
 #define STBTT_free(x,u)    ((void)(u),free(x))
 
 #define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_STATIC
 #include "external/stb_truetype.h"
 
 #include "font_private.h"
@@ -65,7 +66,7 @@ static void FontDestroyTTF(HFont hfont)
         free((void*)font->m_Data);
     }
     memset(font, 0, sizeof(*font));
-    free((void*)font);
+    delete font;
 }
 
 uint32_t GetResourceSizeTTF(HFont hfont)
@@ -261,7 +262,6 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     }
 
     stbtt_GetFontVMetrics(&font->m_Font, &font->m_Ascent, &font->m_Descent, &font->m_LineGap);
-    font->m_Path = strdup(path);
     return (HFont)font;
 }
 

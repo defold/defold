@@ -304,6 +304,18 @@ namespace dmGameSystem
         if (resource->m_BufferResource != 0x0)
             dmResource::Release(factory, resource->m_BufferResource);
 
+        if (resource->m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(resource->m_VertexDeclaration);
+            resource->m_VertexDeclaration = 0;
+        }
+
+        if (resource->m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
+            resource->m_VertexBuffer = 0;
+        }
+
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             if (resource->m_Textures[i])

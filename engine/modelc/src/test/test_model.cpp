@@ -112,6 +112,7 @@ TEST(ModelGLTF, Load)
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
     bool result = dmModelImporter::LoadFinalize(scene);
     ASSERT_TRUE(result);
     result = dmModelImporter::Validate(scene);

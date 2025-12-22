@@ -2227,30 +2227,34 @@ bail:
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
     {
+        engine->m_RunResult.Free();
+        memset(engine->m_RunResult.m_Argv, 0, sizeof(engine->m_RunResult.m_Argv));
+
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
         // This value should match the count in dmSystemDDF::Reboot
         const int ARG_COUNT = 6;
-        char* args[ARG_COUNT] =
+        const char* args[ARG_COUNT] =
         {
-            reboot->m_Arg1 ? strdup(reboot->m_Arg1) : 0,
-            reboot->m_Arg2 ? strdup(reboot->m_Arg2) : 0,
-            reboot->m_Arg3 ? strdup(reboot->m_Arg3) : 0,
-            reboot->m_Arg4 ? strdup(reboot->m_Arg4) : 0,
-            reboot->m_Arg5 ? strdup(reboot->m_Arg5) : 0,
-            reboot->m_Arg6 ? strdup(reboot->m_Arg6) : 0,
+            reboot->m_Arg1,
+            reboot->m_Arg2,
+            reboot->m_Arg3,
+            reboot->m_Arg4,
+            reboot->m_Arg5,
+            reboot->m_Arg6,
         };
 
         for (int i = 0; i < ARG_COUNT; ++i)
         {
-            // NOTE: +1 here, see above
-            engine->m_RunResult.m_Argv[i + 1] = args[i];
-            if (args[i] == 0 || args[i][0] == '\0')
+            const char* arg = args[i];
+            if (arg == 0 || arg[0] == '\0')
             {
                 break;
             }
 
+            // NOTE: +1 here, see above
+            engine->m_RunResult.m_Argv[i + 1] = strdup(arg);
             argc++;
         }
 

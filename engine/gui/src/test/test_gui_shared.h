@@ -49,7 +49,7 @@ public:
             {
                 free(m_Textures[i]->m_Buffer);
             }
-            delete m_Textures[i];
+            free((void*)m_Textures[i]);
         }
     };
 

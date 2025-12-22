@@ -38,6 +38,7 @@ namespace dmShaderc
 
     void DeleteShaderCompilerSPIRV(ShaderCompilerSPIRV* compiler)
     {
+        compiler->m_RemapResources.SetCapacity(0);
         free(compiler->m_SPIRVCode);
         free(compiler);
     }

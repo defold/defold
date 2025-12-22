@@ -825,6 +825,7 @@ TEST(OneOfTests, Repeated)
 
     std::string save_str;
     e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, save_str);
+    dmDDF::FreeMessage(message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     // Note: We can't compare the serialized input with the saved string..
@@ -840,7 +841,7 @@ TEST(OneOfTests, Repeated)
     ASSERT_EQ(256,          saved_message->m_NestedOneOf[0].m_Values.m_ValB);
     ASSERT_EQ(large_number, saved_message->m_NestedOneOf[1].m_Values.m_ValA);
 
-    dmDDF::FreeMessage(message);
+    dmDDF::FreeMessage(saved_message);
 }
 
 TEST(OneOfTests, Save)
@@ -864,9 +865,11 @@ TEST(OneOfTests, Save)
 
     std::string save_str;
     e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, save_str);
+
     ASSERT_EQ(dmDDF::RESULT_OK, e);
     ASSERT_EQ(msg_str, save_str);
     ASSERT_STREQ(oneof_string_val.c_str(), message->m_OneOfFieldString.m_StringVal);
+
 
     DUMMY::TestDDF::OneOfMessageSave* saved_message;
     e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&saved_message);
@@ -876,6 +879,7 @@ TEST(OneOfTests, Save)
     ASSERT_EQ((int)message->m_OneOfField.m_BoolVal, (int)saved_message->m_OneOfField.m_BoolVal);
     ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
 
+    dmDDF::FreeMessage(saved_message);
     dmDDF::FreeMessage(message);
 }
 
@@ -929,6 +933,7 @@ TEST(OneOfTests, Recursive)
     DUMMY::TestDDF::TestMessageRecursive* message;
     dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_TestMessageRecursive_DESCRIPTOR, (void**)&message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(Recursive, TreeSimple)
@@ -1152,6 +1157,7 @@ TEST(JSON, Simple)
 
     std::string save_str;
     e = DDFSaveToString(message, &DUMMY::TestDDF_JSONObject_DESCRIPTOR, save_str);
+    dmDDF::FreeMessage(message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::JSONObject* saved_message;
@@ -1170,7 +1176,7 @@ TEST(JSON, Simple)
     ASSERT_EQ(13, saved_message->m_Pairs[1].m_Value.m_Value.m_ObjectValue->m_Pairs[0].m_Value.m_Value.m_ArrayValue->m_Items[1].m_Value.m_NumberValue);
     ASSERT_EQ(27, saved_message->m_Pairs[1].m_Value.m_Value.m_ObjectValue->m_Pairs[0].m_Value.m_Value.m_ArrayValue->m_Items[2].m_Value.m_NumberValue);
 
-    dmDDF::FreeMessage(message);
+    dmDDF::FreeMessage(saved_message);
 }
 
 void ValidateComplexJSONMessage(DUMMY::TestDDF::JSONObject* message)
@@ -1376,13 +1382,15 @@ TEST(JSON, Complex)
     e = DDFSaveToString(message, &DUMMY::TestDDF_JSONObject_DESCRIPTOR, save_str);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
+    dmDDF::FreeMessage(message);
+
     DUMMY::TestDDF::JSONObject* saved_message;
     e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_JSONObject_DESCRIPTOR, (void**)&saved_message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     ValidateComplexJSONMessage(saved_message);
 
-    dmDDF::FreeMessage(message);
+    dmDDF::FreeMessage(saved_message);
 }
 
 

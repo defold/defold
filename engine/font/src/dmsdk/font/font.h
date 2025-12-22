@@ -67,8 +67,9 @@ enum FontType
  */
 enum FontGlyphBitmapFlags
 {
-    FONT_GLYPH_BM_FLAG_COMPRESSION_NONE = 0,
-    FONT_GLYPH_BM_FLAG_COMPRESSION_DEFLATE = 1,
+    FONT_GLYPH_BM_FLAG_COMPRESSION_NONE     = 0,
+    FONT_GLYPH_BM_FLAG_COMPRESSION_DEFLATE  = 1<<0,
+    FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED     = 1<<1,
 };
 
 /*#
@@ -142,7 +143,7 @@ HFont FontLoadFromPath(const char* path);
  * @param name [type: const char*] The name of the resource. For easier debugging
  * @param data [type: void*] The raw data
  * @param data_size [type: uint32_t] The length of the data (in bytes)
- * @param allocate [type: bool] If true, the font may allocate a copy of the data (if needed)
+ * @param allocate [type: bool] If true, the font may allocate a copy of the data (if needed). If false, the caller will own the memory.
  * @return font [type: HFont] The loaded font, or null if it failed to load.
  */
 HFont FontLoadFromMemory(const char* name, void* data, uint32_t data_size, bool allocate);

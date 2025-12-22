@@ -72,10 +72,12 @@ public:
     void TearDown() override
     {
         dmRender::DeleteRenderContext(m_RenderContext, 0);
+        dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmPlatform::CloseWindow(m_Window);
         dmPlatform::DeleteWindow(m_Window);
         dmScript::DeleteContext(m_Params.m_ScriptContext);
+
     }
 };
 
@@ -144,8 +146,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     dmRender::DeleteNamedConstantBuffer(constants);
     dmGraphics::DisableProgram(m_GraphicsContext);
 
-    dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_RenderContext, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)

@@ -77,6 +77,7 @@ TEST(dmZip, Read)
 
     ASSERT_STREQ("Hello World", (const char*)manifest_data);
 
+    free(manifest_data);
     dmZip::Close(zip);
 }
 

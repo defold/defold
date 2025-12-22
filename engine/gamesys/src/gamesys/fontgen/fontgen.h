@@ -30,14 +30,17 @@ namespace dmGameSystem
 
     dmExtension::Result FontGenInitialize(dmExtension::Params* params);
     dmExtension::Result FontGenFinalize(dmExtension::Params* params);
-    dmExtension::Result FontGenUpdate(dmExtension::Params* params);
 
     float FontGenGetBasePadding(); // E.g. 3
     float FontGenGetEdgeValue(); // [0 .. 255]
 
     // Resource api
-    dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
-    dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
+    struct FontGenJobData;
+    FontGenJobData* FontGenCreateJobData(FontResource* resource, uint32_t num_glyphs);
+    void            FontGenDestroyJobData(FontGenJobData* jobdata);
+
+    dmJobThread::HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
+    dmJobThread::HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx);
 
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);

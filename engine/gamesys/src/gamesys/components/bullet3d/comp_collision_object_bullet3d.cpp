@@ -299,7 +299,10 @@ namespace dmGameSystem
             request.m_UserId = (ddf->m_RequestId & 0xff);
             request.m_UserData = (void*)receiver;
             request.m_IgnoredUserData = 0;
-            dmPhysics::RequestRayCast3D(world->m_World3D, request);
+            if (!dmPhysics::RequestRayCast3D(world->m_World3D, request))
+            {
+                free(receiver);
+            }
         }
     }
 

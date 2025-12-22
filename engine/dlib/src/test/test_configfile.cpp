@@ -435,6 +435,7 @@ static void Usage()
 
 int main(int argc, char **argv)
 {
+#if !defined(DM_DISABLE_HTTPCLIENT_TESTS)
     if(argc > 1)
     {
         char path[512];
@@ -455,6 +456,7 @@ int main(int argc, char **argv)
         Usage();
         return 1;
     }
+#endif
 
     jc_test_init(&argc, argv);
     return jc_test_run_all();

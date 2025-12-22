@@ -65,6 +65,7 @@ TEST(Shaderc, TestSimpleShader)
 
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, data, data_size);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, TestShaderReflection)
@@ -88,6 +89,7 @@ TEST(Shaderc, TestShaderReflection)
     ASSERT_EQ(dmHashString64("inst_variable"),  reflection->m_UniformBuffers[2].m_InstanceNameHash);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 static const dmShaderc::ShaderResource* GetShaderResourceByNameHash(const dmArray<dmShaderc::ShaderResource>& resource_list, dmhash_t name_hash)
@@ -155,8 +157,10 @@ TEST(Shaderc, ModifyBindings)
     ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 3, std140) uniform matrices"));
     ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 4, std140) uniform extra"));
 
+    dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, TestCompilerSPIRV)
@@ -175,8 +179,10 @@ TEST(Shaderc, TestCompilerSPIRV)
     ASSERT_EQ(data_size, dst->m_Data.Size());
     ASSERT_EQ(0, memcmp(data, dst->m_Data.Begin(), data_size));
 
+    dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, ModifyBindingsSPIRV)
@@ -215,8 +221,10 @@ TEST(Shaderc, ModifyBindingsSPIRV)
         dmShaderc::DeleteShaderContext(spirv_shader_ctx);
     }
 
+    dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 static const dmShaderc::ResourceTypeInfo* GetType(const dmShaderc::ShaderReflection* reflection, dmhash_t name_hash)
@@ -306,6 +314,7 @@ TEST(Shaderc, Types)
     AssertTexture(reflection, "type_sampler", dmShaderc::BASE_TYPE_SAMPLER, (dmShaderc::DimensionType) 0, false);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, SSBO)
@@ -348,6 +357,7 @@ TEST(Shaderc, SSBO)
     ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, member->m_Type.m_BaseType);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, LegacyPipeline)
@@ -400,6 +410,7 @@ TEST(Shaderc, LegacyPipeline)
     ASSERT_EQ(4, type_light->m_Members[2].m_Type.m_VectorSize);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, Structs)
@@ -450,6 +461,7 @@ TEST(Shaderc, Structs)
     ASSERT_EQ(dmHashString64("nested_member"), nested_struct->m_Members[0].m_NameHash);
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, TestHLSLSimple)
@@ -473,6 +485,7 @@ TEST(Shaderc, TestHLSLSimple)
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, TestMetal)
@@ -496,6 +509,7 @@ TEST(Shaderc, TestMetal)
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 static int TestStandalone(const char* filename, const char* languageStr, const char* stageStr)
@@ -556,6 +570,7 @@ static int TestStandalone(const char* filename, const char* languageStr, const c
     }
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 
     return 0;
 }

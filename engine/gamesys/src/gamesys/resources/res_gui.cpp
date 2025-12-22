@@ -165,7 +165,7 @@ namespace dmGameSystem
         dmResource::Release(factory, *value);
     }
 
-    void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
+    static void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
     {
         for (uint32_t j = 0; j < resource->m_ParticlePrototypes.Size(); ++j)
         {

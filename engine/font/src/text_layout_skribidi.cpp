@@ -46,6 +46,10 @@ static void AllocLayout(LayoutContext* ctx, HFontCollection collection)
 
 static void FreeLayout(LayoutContext* ctx)
 {
+    // HACK: Due to a bug in SkriBidi (https://github.com/memononen/Skribidi/issues/84)
+    // the "lines" member isn't freed. So, for now we do it here:
+    free((void*)skb_layout_get_lines(ctx->m_Layout));
+
     skb_layout_destroy(ctx->m_Layout);
     skb_temp_alloc_destroy(ctx->m_Alloc);
 }
@@ -219,6 +223,8 @@ static bool LayoutText(LayoutContext* ctx,
 
 void TextLayoutSkribidiFree(TextLayout* layout)
 {
+    layout->m_Glyphs.SetCapacity(0);
+    layout->m_Lines.SetCapacity(0);
     delete layout;
 }
 

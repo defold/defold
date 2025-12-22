@@ -261,6 +261,30 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
     return( mbedtls_net_recv( ctx, buf, len ) );
 }
 
+Result Delete(SSLSocket* socket)
+{
+    if (socket)
+    {
+        mbedtls_ssl_close_notify( socket->m_SSLContext );
+        // The underlying socket was created elsewhere and the socket file
+        // descriptor is not owned by mbedtls (see New() above). We set it to -1
+        // here to ensure that mbedtls_net_free doesn't close it when we called
+        socket->m_SSLNetContext->m_Context.fd = -1;
+        mbedtls_net_free( (mbedtls_net_context*)socket->m_SSLNetContext );
+        mbedtls_ssl_free( socket->m_SSLContext );
+        mbedtls_ssl_config_free( socket->m_MbedConf );
+        mbedtls_ctr_drbg_free( socket->m_MbedCtrDrbg );
+        mbedtls_entropy_free( socket->m_MbedEntropy );
+
+        free(socket->m_MbedConf);
+        free(socket->m_MbedCtrDrbg);
+        free(socket->m_MbedEntropy);
+        free(socket->m_SSLNetContext);
+        free(socket->m_SSLContext);
+        free(socket);
+    }
+    return RESULT_OK;
+}
 Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocket** sslsocket)
 {
     uint64_t handshakestart = dmTime::GetMonotonicTime();
@@ -365,58 +389,48 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
         ret = MBEDTLS_ERR_SSL_TIMEOUT;
     }
 
+    Result result = RESULT_OK;
+    int flags = 0;
+    char vrfy_buf[512];
+
     if (ret != 0)
     {
         char buffer[512] = "";
         mbedtls_strerror(ret, buffer, sizeof(buffer));
-        dmLogError("SSLSocket mbedtls_ssl_handshake: %d - %s",ret, buffer);
+        dmLogError("SSLSocket mbedtls_ssl_handshake: %d - %s  %p",ret, buffer, c);
         if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
         {
             dmLogError("Unable to verify the server's certificate.");
-            return RESULT_CONNREFUSED;
+            result = RESULT_CONNREFUSED;
+            goto socket_new_fail;
         }
         else if (ret == MBEDTLS_ERR_SSL_TIMEOUT)
         {
             dmLogError("SSL handshake timeout");
-            return RESULT_WOULDBLOCK;
+            result = RESULT_WOULDBLOCK;
+            goto socket_new_fail;
         }
-        return RESULT_HANDSHAKE_FAILED;
+        result = RESULT_HANDSHAKE_FAILED;
+        goto socket_new_fail;
     }
 
-    int flags = 0;
     if( ( flags = mbedtls_ssl_get_verify_result( c->m_SSLContext ) ) != 0 )
     {
-        char vrfy_buf[512];
         mbedtls_x509_crt_verify_info( vrfy_buf, sizeof( vrfy_buf ), "  ! ", flags );
         dmLogError("mbedtls_ssl_get_verify_result failed:\n    %s\n", vrfy_buf );
-        return RESULT_HANDSHAKE_FAILED;
+        result = RESULT_HANDSHAKE_FAILED;
+        goto socket_new_fail;
     }
 
     *sslsocket = c;
     return RESULT_OK;
+
+socket_new_fail:
+    Delete(c);
+    *sslsocket = 0;
+    return result;
 }
 
-Result Delete(SSLSocket* socket)
-{
-    if (socket)
-    {
-        mbedtls_ssl_close_notify( socket->m_SSLContext );
-        // The underlying socket was created elsewhere and the socket file
-        // descriptor is not owned by mbedtls (see New() above). We set it to -1
-        // here to ensure that mbedtls_net_free doesn't close it when we called
-        socket->m_SSLNetContext->m_Context.fd = -1;
-        mbedtls_net_free( (mbedtls_net_context*)socket->m_SSLNetContext );
-        mbedtls_ssl_free( socket->m_SSLContext );
-        mbedtls_ssl_config_free( socket->m_MbedConf );
-        mbedtls_ctr_drbg_free( socket->m_MbedCtrDrbg );
-        mbedtls_entropy_free( socket->m_MbedEntropy );
-
-        free(socket->m_SSLNetContext);
-        free(socket->m_SSLContext);
-        free(socket);
-    }
-    return RESULT_OK;
-}
 
 
 dmSocket::Result Send(SSLSocket* socket, const void* buffer, int length, int* sent_bytes)

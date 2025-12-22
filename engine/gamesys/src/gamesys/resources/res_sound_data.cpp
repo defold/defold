@@ -396,6 +396,10 @@ namespace dmGameSystem
         {
             if (g_SoundDataContext->m_Mutex)
                 dmMutex::Delete(g_SoundDataContext->m_Mutex);
+
+            if (g_SoundDataContext->m_Cache)
+                ResourceChunkCacheDestroy(g_SoundDataContext->m_Cache);
+
             delete g_SoundDataContext;
         }
         g_SoundDataContext = 0;

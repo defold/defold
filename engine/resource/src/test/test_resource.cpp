@@ -1817,5 +1817,6 @@ int main(int argc, char **argv)
 #if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
 #endif
+    dmLog::LogFinalize();
     return ret;
 }
