@@ -237,6 +237,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     waf_opts = []
 
     opts.append('--platform=%s' % platform)
+    # ccache isn't needed on CI
+    opts.append('--disable-ccache')
 
     args.append('build_engine')
 
