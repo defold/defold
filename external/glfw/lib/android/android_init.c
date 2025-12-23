@@ -1040,21 +1040,23 @@ int _glfwPlatformTerminate( void )
      // Wait for gl context destruction
     while (_glfwWinAndroid.display != EGL_NO_DISPLAY)
     {
-        int ident;
-        int events;
-        struct android_poll_source* source;
+        void* data = NULL;
+        int ident = ALooper_pollOnce(300, NULL, NULL, &data);
 
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        if (ident >= 0 && data != NULL)
         {
-            // Process this event.
-            if (source != NULL) {
-                source->process(g_AndroidApp, source);
-            }
-            if (g_AndroidApp->destroyRequested) {
-                // App requested exit. It doesn't wait when thread work finished because app is in background already.
-                // App will never end up here from within the app itself, only using OS functions.
-                return GL_TRUE;
-            }
+            struct android_poll_source* source = (struct android_poll_source*)data;
+            source->process(g_AndroidApp, source);
+        }
+        if (g_AndroidApp->destroyRequested) {
+            // App requested exit. It doesn't wait when thread work finished because app is in background already.
+            // App will never end up here from within the app itself, only using OS functions.
+            return GL_TRUE;
+        }
+        if (ident == ALOOPER_POLL_ERROR)
+        {
+            LOGF("ALooper_pollOnce returned an error");
+            return GL_TRUE;
         }
     }
 
