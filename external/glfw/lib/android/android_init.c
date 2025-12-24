@@ -249,17 +249,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
             // application will attempt to open the GL window before it has regained focus.
             g_appLaunchInterrupted = 1;
         }
-
-        if (_glfwWin.clientAPI != GLFW_NO_API)
-        {
-            spinlock_lock(&_glfwWinAndroid.m_RenderLock);
-
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.surface = EGL_NO_SURFACE;
-
-            spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
-        }
-        computeIconifiedState();
+        // Defer surface teardown to the engine thread to avoid blocking the looper.
         break;
     case APP_CMD_GAINED_FOCUS:
         break;

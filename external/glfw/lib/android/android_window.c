@@ -381,6 +381,19 @@ void glfwAndroidFlushEvents()
 
         switch(cmd)
         {
+        case APP_CMD_TERM_WINDOW:
+            if (_glfwWin.clientAPI != GLFW_NO_API)
+            {
+                spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+
+                destroy_gl_surface(&_glfwWinAndroid);
+                _glfwWinAndroid.surface = EGL_NO_SURFACE;
+
+                spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
+            }
+            computeIconifiedState();
+            break;
+
         case APP_CMD_INIT_WINDOW:
             // We don't get here the first time around, but from the second and onwards
             // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
