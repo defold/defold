@@ -14,24 +14,23 @@
 
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
-#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/utf8.h>
 #include <dmsdk/script/script.h>
-#include <dlib/math.h>
-
-#include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_font.h>
 #include <dmsdk/gamesys/resources/res_ttf.h>
 #include <dmsdk/font/text_layout.h>
 #include <dmsdk/extension/extension.h>
 
 #include <dlib/job_thread.h>
+#include <dlib/set.h>
+#include <resource/resource.h>
 
 #include "fontgen.h"
 
-//#define FONTGEN_DEBUG
+#define FONTGEN_DEBUG
 
 namespace dmGameSystem
 {
@@ -41,7 +40,6 @@ struct JobStatus
     uint64_t    m_TimeStart;        // Time started
     uint64_t    m_TimeGlyphProcess; // Total processing time for all glyphs
     uint64_t    m_TimeGlyphCallback; // Total processing time for all glyphs
-    uint32_t    m_Count;    // Number of job items pushed
     uint32_t    m_Failures; // Number of failed job items
     char        m_Error[128]; // First error sets this string
 
@@ -85,7 +83,6 @@ struct FontGenJobData
     JobStatus               m_Status;
     dmGameSystem::FontInfo  m_FontInfo; // Metrics for the FontResource
 
-    JobItem*                m_Sentinel;     // The parent job
     FontResource*           m_FontResource; // Handle to the .fontc resource
 
     dmJobThread::HContext               m_Jobs;
@@ -112,9 +109,8 @@ FontGenJobData* FontGenCreateJobData(FontResource* font, uint32_t num_glyphs)
     FontGenJobData* jobdata = new FontGenJobData;
     memset(jobdata, 0, sizeof(*jobdata));
 
-    jobdata->m_Items.SetCapacity(num_glyphs + 1); // an extra for the sentinel job
+    jobdata->m_Items.SetCapacity(num_glyphs);
     jobdata->m_Items.SetSize(jobdata->m_Items.Capacity());
-    jobdata->m_Sentinel = &jobdata->m_Items[num_glyphs];
 
     jobdata->m_FontResource = font;
 
@@ -139,15 +135,12 @@ void FontGenDestroyJobData(FontGenJobData* jobdata)
 
 static void FontGenJobDataSetup(FontGenJobData* jobdata, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
 {
-    jobdata->m_Items.SetSize(num_glyphs+1); // 1 + sentinel
-
     jobdata->m_Callback = cbk;
     jobdata->m_CallbackCtx = cbk_ctx;
     jobdata->m_Jobs = g_FontExtContext->m_Jobs;
 
 #if defined(FONTGEN_DEBUG)
     jobdata->m_Status.m_TimeStart = dmTime::GetMonotonicTime();
-    jobdata->m_Status.m_Count = num_glyphs;
 #endif
 }
 
@@ -284,18 +277,17 @@ static int JobProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobThread
 static void JobPostProcessSentinelGlyph(dmJobThread::HContext job_thread, dmJobThread::HJob hjob, dmJobThread::JobStatus job_status, void* context, void* data, int result)
 {
     FontGenJobData* jobdata = (FontGenJobData*)context;
-    JobItem* item = (JobItem*)data;
+    (void)data;
 
 #if defined(FONTGEN_DEBUG)
+    uint32_t count = jobdata->m_Items.Size();
     JobStatus* status = &jobdata->m_Status;
     uint64_t tend = dmTime::GetMonotonicTime();
     float wall_time = (tend - status->m_TimeStart) / 1000.0f;
-    float avg_process = (status->m_TimeGlyphProcess / (float)status->m_Count) / 1000.0f;
-    float avg_callback = (status->m_TimeGlyphCallback / (float)status->m_Count) / 1000.0f;
-    dmLogWarning("Generating %u glyphs took: Job: %.3f ms. Avg (ms/glyph): process: %.3f  callback: %.3f", status->m_Count, wall_time, avg_process, avg_callback);
+    float avg_process = (status->m_TimeGlyphProcess / (float)count) / 1000.0f;
+    float avg_callback = (status->m_TimeGlyphCallback / (float)count) / 1000.0f;
+    dmLogWarning("Generating %u glyphs took: Job: %.3f ms. Avg (ms/glyph): process: %.3f  callback: %.3f", count, wall_time, avg_process, avg_callback);
 #endif
-
-    ReleaseJobItem(item); // Release any lingering data
 
     // This notifies the caller, and after this point we shouldn't rely on the job data memory being alive
     InvokeCallback(jobdata);
@@ -353,15 +345,13 @@ static void JobPostProcessGlyph(dmJobThread::HContext job_thread, dmJobThread::H
 
 // ****************************************************************************************************
 
-static dmJobThread::HJob CreateSentinelJob(FontGenJobData* jobdata, JobItem* item)
+static dmJobThread::HJob CreateSentinelJob(FontGenJobData* jobdata)
 {
-    memset(item, 0, sizeof(*item));
-
     dmJobThread::Job job = {0};
     job.m_Process = JobProcessSentinelGlyph;
     job.m_Callback = JobPostProcessSentinelGlyph;
     job.m_Context = jobdata;
-    job.m_Data = (void*)item;
+    job.m_Data = 0;
 
     dmJobThread::HJob hjob = dmJobThread::CreateJob(jobdata->m_Jobs, &job);
     return hjob;
@@ -442,18 +432,17 @@ static dmJobThread::HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyp
         return 0;
     }
 
-    HFont prev_font = 0;
-    float prev_scale = 1;
-
-    dmJobThread::HJob job_sentinel = CreateSentinelJob(jobdata, jobdata->m_Sentinel);
+    dmJobThread::HJob job_sentinel = CreateSentinelJob(jobdata);
 
     FontResource* fontresource = jobdata->m_FontResource;
 
     // Given the prewarm text, it may be that there are a lot of duplicated glyph indices
     // So we only want to push requests for the unique ones
-// TODO: Replace with dmSet
-    dmHashTable32<bool> unique;
+    dmSet<dmhash_t> unique;
     unique.OffsetCapacity(num_glyphs);
+
+    HFont prev_font = 0;
+    float prev_scale = 1;
 
     uint32_t count = 0;
     for (uint32_t i = 0; i < num_glyphs; ++i)
@@ -462,10 +451,9 @@ static dmJobThread::HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyp
 
         uint32_t glyph_index = glyph->m_GlyphIndex;
 
-        bool* is_unique = unique.Get(glyph_index);
-        if (is_unique)
-            continue; // It means we've already pushed this codepoint in this loop
-        unique.Put(glyph_index, true);
+        // test and/or add at the same time
+        if (!unique.Add(glyph_index))
+            continue;
 
         HFont font = glyph->m_Font;
         float scale = prev_scale;
@@ -482,6 +470,8 @@ static dmJobThread::HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyp
 
         GenerateGlyphByIndex(jobdata, font, count++, glyph_index, scale, job_sentinel);
     }
+
+    jobdata->m_Items.SetSize(count); // The number of valid glyphs
 
     return job_sentinel;
 }
@@ -530,7 +520,7 @@ dmJobThread::HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, ui
     FontGenJobDataSetup(jobdata, 1, cbk, cbk_ctx);
 
 // TODO: Don't create a sentinel job for a single job!
-    dmJobThread::HJob job_sentinel = CreateSentinelJob(jobdata, jobdata->m_Sentinel);
+    dmJobThread::HJob job_sentinel = CreateSentinelJob(jobdata);
 
     float scale = FontGetScaleFromSize(font, jobdata->m_FontInfo.m_Size);
     GenerateGlyphByIndex(jobdata, font, 0, glyph_index, scale, job_sentinel);
