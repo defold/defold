@@ -382,6 +382,9 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
     float width_no_tracking = layout->m_Width;
+#if !defined(FONT_USE_SKRIBIDI)
+    float first_advance = layout->m_Glyphs[0].m_Advance;
+#endif
     TextLayoutFree(layout);
 
     float tracking_value = 0.25f;
@@ -392,7 +395,8 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     float width_tracking = layout->m_Width;
     TextLayoutFree(layout);
 
-    // Legacy tracking scales by line height, Skribidi scales by font size.
+    // Legacy tracking scales by line height and is quantized to integer pixel steps.
+    // Skribidi scales by font size in pixels.
     float expected_tracking = 0.0f;
 #if defined(FONT_USE_SKRIBIDI)
     // Skribidi interprets tracking in pixels based on font size.
@@ -400,7 +404,10 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
 #else
     // Legacy uses line height (font metrics scaled by size) for tracking.
     float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
-    expected_tracking = tracking_value * line_height * scale;
+    float raw_tracking = tracking_value * line_height * scale;
+    uint32_t advance_px = (uint32_t)first_advance;
+    uint32_t advance_plus_tracking_px = (uint32_t)(first_advance + raw_tracking);
+    expected_tracking = (float)(advance_plus_tracking_px - advance_px);
 #endif
 
     const float epsilon = 0.05f;

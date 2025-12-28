@@ -208,8 +208,9 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
 
     uint32_t num_whitespaces = 0;
     // Lay them all out in a single line, using points
-    float x = 0;
-    float y = 0; // the legacy "shaping" doesn't support Y offsets
+// TODO: Make this optional, so that user can choose to use pixel alignment
+    uint32_t x = 0;
+    uint32_t y = 0; // the legacy "shaping" doesn't support Y offsets
     FontGlyph font_glyph;
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
