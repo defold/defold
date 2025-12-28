@@ -19,6 +19,7 @@
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
+            [clojure.walk :as walk]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.buffers :as buffers]
@@ -230,7 +231,7 @@
   (prefs/project (workspace/project-directory (workspace))))
 
 (defn localization []
-  (some #(-> % :env :localization) (ui/contexts (ui/main-scene))))
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene) true)))
 
 (declare ^:private exclude-keys-deep-helper)
 
@@ -326,7 +327,8 @@
    (when-some [focused-control (focused-control)]
      (command-contexts focused-control)))
   ([^Node control]
-   (ui/node-contexts control true)))
+   (g/with-auto-evaluation-context evaluation-context
+     (ui/node-contexts control true evaluation-context))))
 
 (defn command-env
   ([command]
@@ -734,6 +736,13 @@
    `(#'pprint-code-impl (simplify-expression ~expression)))
   ([ns expression]
    `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
+
+(defmacro pprint-expr
+  "Recursively macroexpand and pretty-print the supplied code expression while
+  attempting to retain readable formatting. Useful when developing macros."
+  [expression]
+  (pprint-code
+    (walk/macroexpand-all expression)))
 
 (defn println-err
   [& more]

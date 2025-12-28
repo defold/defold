@@ -37,6 +37,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
@@ -185,11 +186,11 @@
    {:icon "icons/32/Icons_S_02_Reset.png"
     :command :private/clear-override}])
 
-(defrecord SelectionProvider [original-node-ids]
+(defonce/record SelectionProvider [original-node-ids]
   handler/SelectionProvider
-  (selection [_] original-node-ids)
-  (succeeding-selection [_])
-  (alt-selection [_]))
+  (selection [_this _evaluation-context] original-node-ids)
+  (succeeding-selection [_this _evaluation-context])
+  (alt-selection [_this _evaluation-context]))
 
 (defn- category-property-edit-types [{:keys [display-order properties]}]
   (into [(pair nil

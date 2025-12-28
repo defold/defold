@@ -565,7 +565,7 @@ ordinary paths."
                      "current" (str current)})
          :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                     :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene))
+                                  (ui/contexts (ui/main-scene) true)
                                   :file.open
                                   "/game.project")}]})
       (notifications/close! notifications ::dependencies-min-version))
@@ -579,7 +579,7 @@ ordinary paths."
                     {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
          :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                     :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene))
+                                  (ui/contexts (ui/main-scene) true)
                                   :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
@@ -594,7 +594,7 @@ ordinary paths."
                       {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet other-errors))})
            :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                       :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene))
+                                    (ui/contexts (ui/main-scene) true)
                                     :file.open
                                     "/game.project")}]})
         (notifications/close! notifications ::dependencies-error)))))
@@ -669,19 +669,20 @@ ordinary paths."
   [resource]
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
-(defn- find-parent [resource]
+(defn- find-parent [resource evaluation-context]
   (let [parent-path (resource/parent-proj-path (resource/proj-path resource))]
-    (find-resource (resource/workspace resource) (str parent-path))))
+    (find-resource (resource/workspace resource) (str parent-path) evaluation-context)))
 
-(defn- is-extension-file? [resource]
+(defn- is-extension-file? [resource evaluation-context]
   (or (extension-root? resource)
-      (some-> (find-parent resource) recur)))
+      (some-> (find-parent resource evaluation-context)
+              (recur evaluation-context))))
 
-(defn- is-plugin-file? [resource]
+(defn- is-plugin-file? [resource evaluation-context]
   (and
     (= :file (resource/source-type resource))
     (string/includes? (resource/proj-path resource) "/plugins/")
-    (is-extension-file? resource)))
+    (is-extension-file? resource evaluation-context)))
 
 (defn- shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
@@ -776,18 +777,21 @@ ordinary paths."
 (defn unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
-  (let [{plugin-zips true resources false} (->> changed
-                                                (filter is-plugin-file?)
-                                                (group-by plugin-zip?))]
-    (->> plugin-zips
-         (into []
-               (comp
-                 (map find-parent)
-                 (distinct)
-                 (mapcat resource/children)
-                 (filter plugin-zip?)))
-         (sort-by plugin-zip-priority)
-         (run! #(unpack-plugin-zip! workspace %)))
+  (g/let-ec [[plugin-zips resources]
+             (->> changed
+                  (filter #(is-plugin-file? % evaluation-context))
+                  (coll/separate-by plugin-zip?))
+
+             plugin-zips
+             (->> plugin-zips
+                  (into []
+                        (comp
+                          (map #(find-parent % evaluation-context))
+                          (distinct)
+                          (mapcat resource/children)
+                          (filter plugin-zip?)))
+                  (sort-by plugin-zip-priority))]
+    (run! #(unpack-plugin-zip! workspace %) plugin-zips)
     (run! #(unpack-resource! workspace %) resources)))
 
 (defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]

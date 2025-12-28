@@ -32,6 +32,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [com.defold.control TreeCell]
            [editor.resource FileResource]
@@ -221,7 +222,8 @@
 (handler/defhandler :edit.cut :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
-    (let [next (-> (handler/succeeding-selection selection-provider)
+    (let [next (-> (g/with-auto-evaluation-context evaluation-context
+                     (handler/succeeding-selection selection-provider evaluation-context))
                    (handler/adapt-single resource/Resource))
           cut-files-directory (fs/create-temp-directory! "asset-cut")]
       (copy (mapv #(temp-resource-file! cut-files-directory %) (roots selection)))
@@ -462,7 +464,8 @@
 (handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider localization]
-    (let [next (-> (handler/succeeding-selection selection-provider)
+    (let [next (-> (g/with-auto-evaluation-context evaluation-context
+                     (handler/succeeding-selection selection-provider evaluation-context))
                    (handler/adapt-single resource/Resource))]
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
@@ -810,23 +813,23 @@
   (.setDropCompleted e true)
   (.consume e))
 
-(defrecord SelectionProvider [asset-browser]
+(defonce/record SelectionProvider [asset-browser]
   handler/SelectionProvider
-  (selection [this]
-    (ui/selection (g/node-value asset-browser :tree-view)))
-  (succeeding-selection [this]
-    (let [tree-view (g/node-value asset-browser :tree-view)
+  (selection [_this evaluation-context]
+    (ui/selection (g/node-value asset-browser :tree-view evaluation-context)))
+  (succeeding-selection [_this evaluation-context]
+    (let [tree-view (g/node-value asset-browser :tree-view evaluation-context)
           path-fn (comp #(string/split % #"/") item->path)]
       (->> (ui/selection-root-items tree-view path-fn item->path)
-        (ui/succeeding-selection tree-view))))
-  (alt-selection [this] []))
+           (ui/succeeding-selection tree-view))))
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view localization]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
         over-handler (ui/event-handler e (drag-over e))
         dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e localization)))
-        detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
+        detected-handler (ui/event-handler e (drag-detected e (g/with-auto-evaluation-context evaluation-context (handler/selection selection-provider evaluation-context))))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))
         original-dispatcher (.getEventDispatcher tree-view)]

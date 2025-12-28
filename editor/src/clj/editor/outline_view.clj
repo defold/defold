@@ -36,6 +36,7 @@
             [editor.ui :as ui]
             [internal.util :as util]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [com.defold.control OutlineTreeViewSkin TreeCell]
            [java.awt Toolkit]
@@ -398,8 +399,9 @@
                  (-> (root-iterators outline-view evaluation-context)
                    outline/delete?)))
   (run [app-view selection selection-provider outline-view]
-       (let [next (-> (handler/succeeding-selection selection-provider)
-                    handler/selection->node-ids)]
+       (let [next (-> (g/with-auto-evaluation-context evaluation-context
+                        (handler/succeeding-selection selection-provider evaluation-context))
+                      (handler/selection->node-ids))]
          (g/transact
            (concat
              (g/operation-label (localization/message "operation.delete"))
@@ -455,8 +457,9 @@
        (let [item-iterators (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
              data-format (data-format-fn)
-             next (-> (handler/succeeding-selection selection-provider)
-                    handler/selection->node-ids)]
+             next (-> (g/with-auto-evaluation-context evaluation-context
+                        (handler/succeeding-selection selection-provider evaluation-context))
+                      (handler/selection->node-ids))]
          (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
 
 (defn- drag-detected [project outline-view ^MouseEvent e]
@@ -741,14 +744,14 @@
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
 
-(defrecord SelectionProvider [outline-view]
+(defonce/record SelectionProvider [outline-view]
   handler/SelectionProvider
-  (selection [this]
-    (g/node-value outline-view :tree-selection))
-  (succeeding-selection [this]
-    (g/node-value outline-view :succeeding-tree-selection))
-  (alt-selection [this]
-    (g/node-value outline-view :alt-tree-selection)))
+  (selection [_this evaluation-context]
+    (g/node-value outline-view :tree-selection evaluation-context))
+  (succeeding-selection [_this evaluation-context]
+    (g/node-value outline-view :succeeding-tree-selection evaluation-context))
+  (alt-selection [_this evaluation-context]
+    (g/node-value outline-view :alt-tree-selection evaluation-context)))
 
 (defn key-pressed-handler!
   [app-view ^TreeView tree-view ^KeyEvent event]

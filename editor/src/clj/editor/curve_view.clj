@@ -582,9 +582,9 @@
 
 (defonce/record SubSelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] (g/node-value app-view :sub-selection))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_this evaluation-context] (g/node-value app-view :sub-selection evaluation-context))
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- on-list-selection [app-view values]
   (when-not *programmatic-selection*

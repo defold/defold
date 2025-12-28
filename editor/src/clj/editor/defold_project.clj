@@ -1172,34 +1172,34 @@
        (filter (comp (set open-resource-nodes) first))
        (into {})))
 
-(defn- perform-selection [project all-selections]
+(defn- perform-selection [basis project all-selections old-all-selections]
   (let [all-node-ids (->> all-selections
                           vals
                           (reduce into [])
                           distinct
-                          vec)
-        old-all-selections (g/node-value project :all-selections)]
-    (when-not (= old-all-selections all-selections)
+                          vec)]
+    (when (not= old-all-selections all-selections)
       (concat
         (g/set-property project :all-selections all-selections)
-        (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+        (for [[node-id label] (g/sources-of basis project :all-selected-node-ids)]
           (g/disconnect node-id label project :all-selected-node-ids))
-        (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+        (for [[node-id label] (g/sources-of basis project :all-selected-node-properties)]
           (g/disconnect node-id label project :all-selected-node-properties))
         (for [node-id all-node-ids]
           (concat
-            (g/connect node-id :_node-id    project :all-selected-node-ids)
+            (g/connect node-id :_node-id project :all-selected-node-ids)
             (g/connect node-id :_properties project :all-selected-node-properties)))))))
 
 (defn select
-  ([project resource-node node-ids open-resource-nodes]
-   (assert (every? some? node-ids) "Attempting to select nil values")
-   (let [node-ids (if (seq node-ids)
-                    (-> node-ids distinct vec)
-                    [resource-node])
-         all-selections (-> (g/node-value project :all-selections)
-                            (update-selection open-resource-nodes resource-node node-ids))]
-     (perform-selection project all-selections))))
+  [project resource-node node-ids open-resource-nodes evaluation-context]
+  (assert (every? some? node-ids) "Attempting to select nil values")
+  (let [basis (:basis evaluation-context)
+        node-ids (if (seq node-ids)
+                   (-> node-ids distinct vec)
+                   [resource-node])
+        old-all-selections (g/node-value project :all-selections evaluation-context)
+        all-selections (update-selection old-all-selections open-resource-nodes resource-node node-ids)]
+    (perform-selection basis project all-selections old-all-selections)))
 
 (defn- perform-sub-selection
   ([project all-sub-selections]
@@ -1406,21 +1406,26 @@
               restore-properties-tx-data)))))
 
     (du/measuring process-metrics :update-selection
-      (let [old->new (into {}
-                           (map (fn [[p n]]
-                                  [(old-node-ids-by-proj-path p) n]))
-                           new-node-ids-by-proj-path)
-            dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
-        (g/transact transact-opts
-          (concat
-            (let [all-selections (-> (g/node-value project :all-selections)
-                                     (dissoc-deleted)
-                                     (remap-selection old->new (comp vector first)))]
-              (perform-selection project all-selections))
-            (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
-                                         (dissoc-deleted)
-                                         (remap-selection old->new (constantly [])))]
-              (perform-sub-selection project all-sub-selections))))))
+      (g/let-ec [basis (:basis evaluation-context)
+                 old->new (into {}
+                                (map (fn [[p n]]
+                                       [(old-node-ids-by-proj-path p) n]))
+                                new-node-ids-by-proj-path)
+                 dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))
+                 old-all-selections (g/node-value project :all-selections evaluation-context)
+                 old-all-sub-selections (g/node-value project :all-sub-selections evaluation-context)
+                 tx-data (vec
+                           (flatten
+                             (concat
+                               (let [all-selections (-> old-all-selections
+                                                        (dissoc-deleted)
+                                                        (remap-selection old->new (comp vector first)))]
+                                 (perform-selection basis project all-selections old-all-selections))
+                               (let [all-sub-selections (-> old-all-sub-selections
+                                                            (dissoc-deleted)
+                                                            (remap-selection old->new (constantly [])))]
+                                 (perform-sub-selection project all-sub-selections)))))]
+        (g/transact transact-opts tx-data)))
 
     ;; Invalidating outputs is the only change that does not reset the undo
     ;; history. This is a quick way to find out if we have any significant
@@ -1438,16 +1443,16 @@
                :transaction-metrics @transaction-metrics}))))
 
 (defn reload-plugins! [project touched-resources]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [workspace (workspace project evaluation-context)
-          localization (workspace/localization workspace evaluation-context)
-          code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-          code-transpilers (code-transpilers project)]
-      (workspace/unpack-editor-plugins! workspace touched-resources)
-      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
-      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
-      (texture.engine/reload-texture-compressors! java/class-loader localization)
-      (workspace/load-clojure-editor-plugins! workspace touched-resources))))
+  (g/let-ec [basis (:basis evaluation-context)
+             workspace (workspace project evaluation-context)
+             localization (workspace/localization workspace evaluation-context)
+             code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
+             code-transpilers (code-transpilers basis project)]
+    (workspace/unpack-editor-plugins! workspace touched-resources)
+    (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
+    (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
+    (texture.engine/reload-texture-compressors! java/class-loader localization)
+    (workspace/load-clojure-editor-plugins! workspace touched-resources)))
 
 (defn settings
   ([project]
@@ -1483,7 +1488,7 @@
            :message (localization/message "notification.fetch-libraries.dependencies-changed.prompt")
            :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                       :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene))
+                                    (ui/contexts (ui/main-scene) true)
                                     :project.fetch-libraries
                                     nil)}]})
         (notifications/close notifications notification-id)))))

@@ -400,8 +400,7 @@
           (if newly-created?
             (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
               (open-resource readme-resource))
-            (g/with-auto-evaluation-context evaluation-context
-              (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
+            (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
 
           (breakpoints-view/restore-breakpoints! project prefs)
 

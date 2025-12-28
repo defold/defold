@@ -4400,33 +4400,43 @@
             (g/set-property node-id :child-index neighbour-node-index)
             (g/set-property neighbour-node-id :child-index node-index)))))))
 
-(defn- selection->gui-node [selection]
-  (g/override-root (handler/adapt-single selection GuiNode)))
+(defn- selection->gui-node [basis selection]
+  (g/override-root basis (handler/adapt-single selection GuiNode)))
 
-(defn- selection->layer-node [selection]
-  (g/override-root (handler/adapt-single selection LayerNode)))
+(defn- selection->layer-node [basis selection]
+  (g/override-root basis (handler/adapt-single selection LayerNode)))
 
 (handler/defhandler :edit.reorder-up :workbench
-  (active? [selection] (or (selection->gui-node selection)
-                           (selection->layer-node selection)))
-  (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              parent (core/scope selected-node-id)
-                              node-child-index (g/node-value selected-node-id :child-index)
-                              first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices))]
-                          (< first-index node-child-index)))
-  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
-                     (move-child-node! selected -1))))
+  (active? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)]
+      (or (selection->gui-node basis selection )
+          (selection->layer-node basis selection))))
+  (enabled? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)
+          selected-node-id (g/override-root basis (handler/selection->node-id selection))
+          parent (core/scope basis selected-node-id)
+          node-child-index (g/node-value selected-node-id :child-index evaluation-context)
+          first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices evaluation-context))]
+      (< first-index node-child-index)))
+  (run [selection]
+    (let [selected (g/override-root (handler/selection->node-id selection))]
+      (move-child-node! selected -1))))
 
 (handler/defhandler :edit.reorder-down :workbench
-  (active? [selection] (or (selection->gui-node selection)
-                           (selection->layer-node selection)))
-  (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              parent (core/scope selected-node-id)
-                              node-child-index (g/node-value selected-node-id :child-index)
-                              last-index (transduce (map second) max 0 (g/node-value parent :child-indices))]
-                          (< node-child-index last-index)))
-  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
-                     (move-child-node! selected 1))))
+  (active? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)]
+      (or (selection->gui-node basis selection)
+          (selection->layer-node basis selection))))
+  (enabled? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)
+          selected-node-id (g/override-root basis (handler/selection->node-id selection))
+          parent (core/scope basis selected-node-id)
+          node-child-index (g/node-value selected-node-id :child-index evaluation-context)
+          last-index (transduce (map second) max 0 (g/node-value parent :child-indices evaluation-context))]
+      (< node-child-index last-index)))
+  (run [selection]
+    (let [selected (g/override-root (handler/selection->node-id selection))]
+      (move-child-node! selected 1))))
 
 (defn- resource->gui-scene
   ([project resource]

@@ -15,11 +15,12 @@
 (ns editor.handler-test
   (:require [clojure.test :refer :all :exclude [run-test]]
             [dynamo.graph :as g]
-            [editor.handler :as handler]
             [editor.core :as core]
+            [editor.handler :as handler]
             [editor.localization :as localization]
-            [support.test-support :refer [with-clean-system tx-nodes]]
+            [integration.test-util :as test-util]
             [service.log :as log]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [util.fn :as fn])
   (:import [clojure.lang Keyword]))
 
@@ -29,25 +30,15 @@
 
 (use-fixtures :each fixture)
 
-(defn- enabled? [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (some-> (handler/active command command-contexts user-data)
-      handler/enabled?)))
-
-(defn- run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (some-> (handler/active command command-contexts user-data)
-      handler/run)))
-
 (deftest run-test
   (with-clean-system
     (handler/defhandler :file.open :global
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
-    (are [inst exp] (= exp (enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
+    (are [inst exp] (= exp (test-util/handler-enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
          :foo true
          :bar false)
-    (is (= 123 (run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
+    (is (= 123 (test-util/handler-run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
   (with-clean-system
@@ -67,22 +58,22 @@
 
     (let [global-context (handler/->context :global {:global-context true})
           local-context (handler/->context :local {:local-context true})]
-      (is (enabled? :c1 [local-context global-context] {}))
-      (is (not (enabled? :c1 [local-context] {})))
-      (is (enabled? :c2 [local-context global-context] {}))
-      (is (not (enabled? :c2 [global-context] {}))))))
+      (is (test-util/handler-enabled? :c1 [local-context global-context] {}))
+      (is (not (test-util/handler-enabled? :c1 [local-context] {})))
+      (is (test-util/handler-enabled? :c2 [local-context global-context] {}))
+      (is (not (test-util/handler-enabled? :c2 [global-context] {}))))))
 
 (defrecord StaticSelection [selection]
   handler/SelectionProvider
-  (selection [this] selection)
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_this _evaluation-context] selection)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defrecord DynamicSelection [selection-ref]
   handler/SelectionProvider
-  (selection [this] @selection-ref)
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_this _evaluation-context] @selection-ref)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (extend-type java.lang.String
   core/Adaptable
@@ -105,7 +96,7 @@
                                        (when local-selection
                                          (->StaticSelection local-selection))
                                        [])]
-          (is (= expected-selection (run :c1 [local global] {}))))))))
+          (is (= expected-selection (test-util/handler-run :c1 [local global] {}))))))))
 
 (deftest selection-context
   (with-clean-system
@@ -114,9 +105,9 @@
         (active? [selection selection-context] (and (= :global selection-context) selection))
         (run [selection]
              nil))
-      (is (enabled? :c1 [global] {}))
-      (is (not (enabled? :c1 [local] {})))
-      (is (enabled? :c1 [local global] {})))))
+      (is (test-util/handler-enabled? :c1 [global] {}))
+      (is (not (test-util/handler-enabled? :c1 [local] {})))
+      (is (test-util/handler-enabled? :c1 [local global] {})))))
 
 (deftest erroneous-handler
   (with-clean-system
@@ -126,8 +117,8 @@
         (enabled? [does-not-exist] true)
         (run [does-not-exist] (throw (Exception. "should never happen"))))
       (log/without-logging
-        (is (not (enabled? :erroneous [global] {})))
-        (is (nil? (run :erroneous [global] {})))))))
+        (is (not (test-util/handler-enabled? :erroneous [global] {})))
+        (is (nil? (test-util/handler-run :erroneous [global] {})))))))
 
 (deftest throwing-handler
   (with-clean-system
@@ -141,19 +132,19 @@
         (run [selection] (throwing-run selection)))
       (log/without-logging
         (testing "The enabled? function will not be called anymore if it threw an exception."
-          (is (not (enabled? :throwing [global] {})))
-          (is (not (enabled? :throwing [global] {})))
+          (is (not (test-util/handler-enabled? :throwing [global] {})))
+          (is (not (test-util/handler-enabled? :throwing [global] {})))
           (is (= 1 (count (fn/call-logger-calls throwing-enabled?)))))
         (testing "The command can be repeated even though an exception was thrown during run."
-          (is (nil? (run :throwing [global] {})))
-          (is (nil? (run :throwing [global] {})))
+          (is (nil? (test-util/handler-run :throwing [global] {})))
+          (is (nil? (test-util/handler-run :throwing [global] {})))
           (is (= 2 (count (fn/call-logger-calls throwing-run)))))
         (testing "Disabled handlers can be re-enabled during development."
           (is (= 1 (count (fn/call-logger-calls throwing-enabled?))))
-          (enabled? :throwing [global] {})
+          (test-util/handler-enabled? :throwing [global] {})
           (is (= 1 (count (fn/call-logger-calls throwing-enabled?))))
           (handler/enable-disabled-handlers!)
-          (enabled? :throwing [global] {})
+          (test-util/handler-enabled? :throwing [global] {})
           (is (= 2 (count (fn/call-logger-calls throwing-enabled?)))))))))
 
 (defprotocol AProtocol)
@@ -195,35 +186,35 @@
           selection (atom [])
           select! (fn [s] (reset! selection s))]
       (let [global (handler/->context :global {} (->DynamicSelection selection) {}
-                              {String (fn [node-id]
-                                         (when (g/node-instance? StringNode node-id)
-                                              (g/node-value node-id :string)))
-                               Integer (fn [node-id]
-                                          (when (g/node-instance? IntNode node-id)
-                                               (g/node-value node-id :int)))})]
+                                      {String (fn [node-id]
+                                                (when (g/node-instance? StringNode node-id)
+                                                  (g/node-value node-id :string)))
+                                       Integer (fn [node-id]
+                                                 (when (g/node-instance? IntNode node-id)
+                                                   (g/node-value node-id :int)))})]
         (select! [])
-        (are [enbl? cmd] (= enbl? (enabled? cmd [global] {}))
+        (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
              false :string-command
              false :single-string-command
              false :int-command
              false :string-node-command
              false :other-command)
         (select! [s])
-        (are [enbl? cmd] (= enbl? (enabled? cmd [global] {}))
+        (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
              true :string-command
              true :single-string-command
              false :int-command
              true :string-node-command
              false :other-command)
         (select! [s s])
-        (are [enbl? cmd] (= enbl? (enabled? cmd [global] {}))
+        (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
              true :string-command
              false :single-string-command
              false :int-command
              true :string-node-command
              false :other-command)
         (select! [i])
-        (are [enbl? cmd] (= enbl? (enabled? cmd [global] {}))
+        (are [enbl? cmd] (= enbl? (test-util/handler-enabled? cmd [global] {}))
              false :string-command
              false :single-string-command
              true :int-command
@@ -242,15 +233,15 @@
       (let [global (handler/->context :global {} (->DynamicSelection selection) {}
                               {Long :node-id})]
         (select! [])
-        (is (not (enabled? :string-node-command [global] {})))
+        (is (not (test-util/handler-enabled? :string-node-command [global] {})))
         (select! [{:node-id s}])
-        (is (enabled? :string-node-command [global] {}))
+        (is (test-util/handler-enabled? :string-node-command [global] {}))
         (select! [s])
-        (is (enabled? :string-node-command [global] {}))
+        (is (test-util/handler-enabled? :string-node-command [global] {}))
         (select! ["other-type"])
-        (is (not (enabled? :string-node-command [global] {})))
+        (is (not (test-util/handler-enabled? :string-node-command [global] {})))
         (select! [nil])
-        (is (not (enabled? :string-node-command [global] {})))))))
+        (is (not (test-util/handler-enabled? :string-node-command [global] {})))))))
 
 (deftest dynamics
   (handler/defhandler :string-command :global
@@ -261,13 +252,19 @@
     (let [[s] (tx-nodes (g/make-nodes world
                                       [s [StringNode :string "test"]]))]
       (let [global (handler/->context :global {:string-node s} nil {:string [:string-node :string]} {})]
-        (is (enabled? :string-command [global] {}))))))
+        (is (test-util/handler-enabled? :string-command [global] {}))))))
 
 (defn- eval-selection [ctxs all-selections?]
-  (get-in (first (handler/eval-contexts ctxs all-selections?)) [:env :selection]))
+  (-> (g/with-auto-evaluation-context evaluation-context
+        (handler/eval-contexts ctxs all-selections? evaluation-context))
+      (first)
+      (get-in [:env :selection])))
 
 (defn- eval-selections [ctxs all-selections?]
-  (mapv (fn [ctx] (get-in ctx [:env :selection])) (handler/eval-contexts ctxs all-selections?)))
+  (mapv (fn [ctx]
+          (get-in ctx [:env :selection]))
+        (g/with-auto-evaluation-context evaluation-context
+          (handler/eval-contexts ctxs all-selections? evaluation-context))))
 
 (deftest contexts
   (with-clean-system
@@ -287,14 +284,15 @@
 
 (defrecord AltSelection [selection-ref]
   handler/SelectionProvider
-  (selection [this] @selection-ref)
-  (succeeding-selection [this] [])
-  (alt-selection [this] (let [s (handler/selection this)]
-                          (if-let [s' (handler/adapt-every s ImposterStringNode)]
-                            (->> s'
-                              (keep (fn [nid] (:alt (g/node-value nid :selection-data))))
-                              vec)
-                            []))))
+  (selection [_this _evaluation-context] @selection-ref)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [this evaluation-context]
+    (let [s (handler/selection this evaluation-context)]
+      (if-let [s' (handler/adapt-every s ImposterStringNode)]
+        (into []
+              (keep #(:alt (g/node-value % :selection-data evaluation-context)))
+              s')
+        []))))
 
 (deftest alternative-selections
   (handler/defhandler :string-command :global
@@ -311,13 +309,13 @@
           select! (fn [s] (reset! selection s))
           selection-provider (->AltSelection selection)
           global (handler/->context :global {} selection-provider {} {})]
-      (is (not (enabled? :string-command [global] {})))
+      (is (not (test-util/handler-enabled? :string-command [global] {})))
       (select! [s])
-      (is (enabled? :string-command [global] {}))
+      (is (test-util/handler-enabled? :string-command [global] {}))
       (select! [i])
-      (is (enabled? :string-command [global] {}))
+      (is (test-util/handler-enabled? :string-command [global] {}))
       (select! [lonely-i])
-      (is (not (enabled? :string-command [global] {}))))))
+      (is (not (test-util/handler-enabled? :string-command [global] {}))))))
 
 (def main-menu-data [{:label (localization/message "command.file")
                       :id ::file

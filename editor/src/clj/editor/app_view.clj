@@ -1919,20 +1919,23 @@
 
 (defonce/record SelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [_] (g/node-value app-view :selected-node-ids))
-  (succeeding-selection [_] [])
-  (alt-selection [_] []))
+  (selection [_this evaluation-context] (g/node-value app-view :selected-node-ids evaluation-context))
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defn ->selection-provider [app-view] (SelectionProvider. app-view))
 
 (defn select
   ([app-view node-ids]
-   (select app-view (g/node-value app-view :active-resource-node) node-ids))
+   (select app-view ::use-active-resource-node node-ids))
   ([app-view resource-node node-ids]
    (g/with-auto-evaluation-context evaluation-context
      (let [project-id (g/node-value app-view :project-id evaluation-context)
-           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
-       (project/select project-id resource-node node-ids open-resource-nodes)))))
+           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)
+           resource-node (if (not= ::use-active-resource-node resource-node)
+                           resource-node
+                           (g/node-value app-view :active-resource-node evaluation-context))]
+       (project/select project-id resource-node node-ids open-resource-nodes evaluation-context)))))
 
 (defn select!
   ([app-view node-ids]
@@ -2277,7 +2280,7 @@
              (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when (or (nil? existing-tab) (:select-node opts))
                (g/transact
-                (select app-view resource-node [(:select-node opts resource-node)])))
+                 (select app-view resource-node [(:select-node opts resource-node)])))
              (when (not (:ignore-refresh-layout opts))
                (when-let [focus (:focus-fn view-type)]
                  (ui/force-scene-layout! (g/node-value app-view :scene))
@@ -2310,10 +2313,10 @@
 (defn- open-tabs-from-prefs [app-view prefs localization workspace project tab-panes-to-restore evaluation-context]
   (into []
         (let [tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
-          (for [[pane-num pane] (map-indexed vector tab-panes-to-restore)
+          (for [[pane-num pane] (map-indexed pair tab-panes-to-restore)
                 [proj-path view-type-id] pane
                 :let [resource (workspace/find-resource workspace proj-path evaluation-context)
-                      view-type (workspace/get-view-type workspace view-type-id)]
+                      view-type (workspace/get-view-type workspace view-type-id evaluation-context)]
                 :when (and (resource/openable-resource? resource)
                            (resource/exists? resource))
                 :let [opened? (open-resource app-view prefs localization workspace project resource
@@ -2324,36 +2327,36 @@
             {:pane-num pane-num
              :tab (ui/selected-tab tab-pane)}))))
 
-(defn restore-tabs-from-prefs! [app-view prefs localization workspace project evaluation-context]
-  (when-let [tab-panes-to-restore (seq (prefs/get prefs [:workflow :open-tabs]))]
-    (let [{:keys [selected-pane tab-selection-by-pane]} (prefs/get prefs [:workflow :last-selected-tabs])
-          editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)
-          opened-tabs (open-tabs-from-prefs app-view prefs localization workspace
-                                            project tab-panes-to-restore evaluation-context)
-          tab-panes (.getItems editor-tabs-split)
-          first-tab-pane (.get tab-panes 0)
-          tabs-to-move (coll/transfer opened-tabs []
-                         (filter #(= 1 (:pane-num %)))
-                         (map :tab))
-          ;; NOTE: We're just assuming there's only ever going to be two max splits, certainly would
-          ;; need to change if we made a more elaborate window tiling system.
-          second-tab-pane (when (coll/not-empty tabs-to-move)
-                            (add-other-tab-pane! editor-tabs-split app-view prefs))
-          select-tab-fn (fn [pane-idx ^TabPane pane]
-                          (when-let [selected-tab-idx (get tab-selection-by-pane pane-idx)]
-                            (when (< -1 selected-tab-idx (.size (.getTabs pane)))
-                              (.select (.getSelectionModel pane) (int selected-tab-idx)))))]
-      (when second-tab-pane
-        (doseq [tab tabs-to-move]
-          (.remove (.getTabs ^TabPane first-tab-pane) tab)
-          (.add (.getTabs second-tab-pane) tab))
-        (select-tab-fn 1 second-tab-pane))
-      (select-tab-fn 0 first-tab-pane)
-      (doseq [^TabPane pane tab-panes]
-        (ui/add-style! pane "inactive"))
-      (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
-        (ui/remove-style! selected-tab-pane "inactive")
-        (.requestFocus selected-tab-pane)))))
+(defn restore-tabs-from-prefs! [app-view prefs localization workspace project]
+  (when-let [tab-panes-to-restore (not-empty (prefs/get prefs [:workflow :open-tabs]))]
+    (g/let-ec [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
+               opened-tabs (open-tabs-from-prefs app-view prefs localization workspace project tab-panes-to-restore evaluation-context)]
+      (let [{:keys [selected-pane tab-selection-by-pane]} (prefs/get prefs [:workflow :last-selected-tabs])
+            tab-panes (.getItems editor-tabs-split)
+            first-tab-pane (.get tab-panes 0)
+            tabs-to-move (coll/transfer opened-tabs []
+                           (filter #(= 1 (:pane-num %)))
+                           (map :tab))
+            ;; NOTE: We're just assuming there's only ever going to be two max
+            ;; splits, certainly would need to change if we made a more
+            ;; elaborate window tiling system.
+            second-tab-pane (when (coll/not-empty tabs-to-move)
+                              (add-other-tab-pane! editor-tabs-split app-view prefs))
+            select-tab-fn (fn [pane-idx ^TabPane pane]
+                            (when-let [selected-tab-idx (get tab-selection-by-pane pane-idx)]
+                              (when (< -1 selected-tab-idx (.size (.getTabs pane)))
+                                (.select (.getSelectionModel pane) (int selected-tab-idx)))))]
+        (when second-tab-pane
+          (doseq [tab tabs-to-move]
+            (.remove (.getTabs ^TabPane first-tab-pane) tab)
+            (.add (.getTabs second-tab-pane) tab))
+          (select-tab-fn 1 second-tab-pane))
+        (select-tab-fn 0 first-tab-pane)
+        (doseq [^TabPane pane tab-panes]
+          (ui/add-style! pane "inactive"))
+        (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
+          (ui/remove-style! selected-tab-pane "inactive")
+          (.requestFocus selected-tab-pane))))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
@@ -3076,7 +3079,7 @@
    :message (localization/message "notification.liveupdate-settings.unavailable.error")
    :actions [{:message (localization/message "notification.liveupdate-settings.action.open-game-project")
               :on-action #(ui/execute-command
-                            (ui/contexts (ui/main-scene))
+                            (ui/contexts (ui/main-scene) true)
                             :file.open
                             "/game.project")}]})
 
@@ -3143,25 +3146,3 @@
              :icon :icon/triangle-error
              :content {:wrap-text true
                        :text (localization/message "dialog.desktop-entry.creation-failed.content" {"error" (.getMessage e)})}}))))))
-
-(comment
-  (ui/run-later
-    (let [editor-tabs-split ^SplitPane (g/node-value (dev/app-view) :editor-tabs-split)]
-      (g/set-property! (dev/app-view) :active-tab-pane (second (.getItems editor-tabs-split)))))
-  (ui/run-later
-    (time
-      (g/with-auto-evaluation-context ec
-        (restore-tabs-from-prefs! (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project) ec))))
-  (ui/run-later
-    (ui/run-command (ui/main-root) :window.tab.close-all))
-  (g/with-auto-evaluation-context ec
-    (let [resource (workspace/find-resource (dev/workspace) "/scripts/knight_copy.script" ec)]
-      (resource/openable-resource? resource)))
-  (ui/run-later
-    (g/with-auto-evaluation-context ec
-      (clojure.pprint/pprint
-        (open-tabs-from-prefs (dev/app-view) (dev/prefs) (dev/localization) (dev/workspace) (dev/project)
-                              '([["/scripts/game.script" :code] ["/scripts/knight.script" :code]]
-                                [["/scripts/utils.lua" :code]])
-                              ec))))
-  ,)

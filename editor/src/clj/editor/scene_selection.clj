@@ -30,10 +30,10 @@
             [util.eduction :as e])
   (:import [com.jogamp.opengl GL2]
            [editor.types Rect]
-           [java.lang Runnable Math]
+           [java.lang Math Runnable]
            [javafx.scene Node Scene]
            [javafx.scene.input DragEvent]
-           [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
+           [javax.vecmath Matrix4d Point2i Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -137,24 +137,24 @@
 
 (defn- handle-drag-dropped!
   [drop-fn root-id select-fn action]
-  (let [op-seq (gensym)
-        {:keys [^DragEvent event string gesture-target world-pos world-dir]} action
-        _ (ui/request-focus! gesture-target)
-        env (-> gesture-target (ui/node-contexts false) first :env)
-        {:keys [selection workspace]} env
-        resource-strings (some-> string string/split-lines sort)
-        resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
-        z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
-        drop-fn (partial drop-fn root-id selection workspace z-plane-pos)
-        added-nodes (add-dropped-resources! drop-fn resources op-seq)]
-    (.consume event)
-    (when (seq added-nodes)
-      (let [top-ids (->> (e/map g/node-by-id added-nodes)
-                         (scene-picking/top-nodes)
-                         (e/keep :_node-id))]
-        (select-fn top-ids op-seq))
-      (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-      (.setDropCompleted event true))))
+  (let [{:keys [^DragEvent event string gesture-target world-pos world-dir]} action]
+    (ui/request-focus! gesture-target)
+    (g/let-ec [op-seq (gensym)
+               env (-> gesture-target (ui/node-contexts false evaluation-context) first :env)
+               {:keys [selection workspace]} env
+               resource-strings (some-> string string/split-lines sort)
+               resources (e/keep #(workspace/resolve-workspace-resource workspace % evaluation-context) resource-strings)
+               z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
+               drop-fn (partial drop-fn root-id selection workspace z-plane-pos)]
+      (.consume event)
+      (when-some [added-nodes (not-empty (add-dropped-resources! drop-fn resources op-seq))]
+        (let [basis (g/now)
+              top-ids (->> (e/map #(g/node-by-id basis %) added-nodes)
+                           (scene-picking/top-nodes)
+                           (e/keep :_node-id))]
+          (select-fn top-ids op-seq))
+        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+        (.setDropCompleted event true)))))
 
 (defn handle-selection-input [self action _user-data]
   (let [start (g/node-value self :start)

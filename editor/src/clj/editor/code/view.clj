@@ -3113,7 +3113,8 @@
     (ui/bind-action! go-button :private/goto-entered-line)
     (ui/observe (.textProperty line-field)
                 (fn [_ _ line-field-text]
-                  (ui/refresh-bound-action-enabled! go-button)
+                  (g/let-ec [can-go (ui/bound-action-enabled? go-button evaluation-context)]
+                    (ui/enable! go-button can-go))
                   (let [maybe-row (try-parse-goto-line-text view-node line-field-text)
                         error-message (when-not (number? maybe-row) maybe-row)]
                     (assert (or (nil? error-message) (string? error-message)))

@@ -309,9 +309,9 @@
 
 (defn- ->breakpoints-selection-provider [table-view breakpoints]
   (reify handler/SelectionProvider
-    (selection [_] (mapv #(get breakpoints %) (ui/selection table-view)))
-    (succeeding-selection [_] [])
-    (alt-selection [_] [])))
+    (selection [_this _evaluation-context] (mapv #(get breakpoints %) (ui/selection table-view)))
+    (succeeding-selection [_this _evaluation-context] [])
+    (alt-selection [_this _evaluation-context] [])))
 
 (def ^:private prop-table-context-menu
   (fx.prop/make (fx.mutator/setter ui/register-context-menu) fx.lifecycle/scalar))

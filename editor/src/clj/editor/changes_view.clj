@@ -172,7 +172,8 @@
         view-id                 (g/make-node! view-graph ChangesView :list-view list-view :progress-overlay progress-overlay :git git :prefs prefs)
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
-                                    (ui/refresh-bound-action-enabled! revert-button)))]
+                                    (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
+                                      (ui/enable! revert-button can-revert))))]
     (localization/localize! diff-button localization (localization/message "changes-view.button.diff"))
     (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
@@ -206,6 +207,8 @@
                      (.removeListener disk-availability/available-property disk-available-listener)))
     (ui/observe-selection list-view
                           (fn [_ _]
-                            (ui/refresh-bound-action-enabled! diff-button)
-                            (ui/refresh-bound-action-enabled! revert-button)))
+                            (g/let-ec [can-diff (ui/bound-action-enabled? diff-button evaluation-context)
+                                       can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
+                              (ui/enable! diff-button can-diff)
+                              (ui/enable! revert-button can-revert))))
     view-id))

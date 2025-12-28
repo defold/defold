@@ -193,7 +193,7 @@
          (keyword? ui-handler)
          (map? user-data)]}
   @(fx/on-fx-thread
-     (let [command-contexts (ui/node-contexts ui-node true)]
+     (g/let-ec [command-contexts (ui/node-contexts ui-node true evaluation-context)]
        (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
 
 (defn router [ui-node render-reload-progress!]

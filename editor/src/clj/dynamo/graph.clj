@@ -59,8 +59,35 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(defn now
-  "The basis at the current point in time"
+;; If a new Basis or evaluation-context is created from inside an auto
+;; evaluation-context scope, it typically suggests you're bypassing the active
+;; evaluation-context. This could lead to values produced in the
+;; evaluation-context not being committed to the system cache, or multiple
+;; identical values being produced and then ending up referenced from different
+;; cache entries.
+;;
+;; When strict-evaluation-context-scopes are true, we will assert in case g/now
+;; or g/make-evaluation-context is called from within an auto evaluation-context
+;; scope.
+;;
+;; We're still in the process of fixing all the various places where this rule
+;; is violated. When complete, we should enable strict evaluation-context scope
+;; checks by default.
+;;
+;; Until that day, you can enable these asserts using the :strict-ec-scopes lein
+;; profile when running tasks: `lein with-profile +strict-ec-scopes <task>`.
+(def ^:private strict-evaluation-context-scopes (and *assert* (Boolean/getBoolean "defold.graph.strict-evaluation-context-scopes.enable")))
+
+(defn ^{:dynamic strict-evaluation-context-scopes} now
+  "Returns the basis at the current point in time. Will assert if called inside
+  an auto evaluation-context scope when strict evaluation-context scope checks
+  are enabled."
+  []
+  (is/basis @*the-system*))
+
+(defn unsafe-basis
+  "Returns the basis at the current point in time. Bypasses strict
+  evaluation-context scope checks. Use with caution!"
   []
   (is/basis @*the-system*))
 
@@ -965,7 +992,11 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn make-evaluation-context
+
+(defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
+  "Returns a new evaluation-context from the current state of *the-system*. Will
+  assert if called inside an auto evaluation-context scope when strict
+  evaluation-context scope checks are enabled."
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
@@ -983,18 +1014,47 @@
   (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
   nil)
 
+(defmacro do-evaluation-context-body [body-exprs]
+  (if strict-evaluation-context-scopes
+    `(binding [now #(throw (Error. "g/now called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation."))
+               make-evaluation-context #(throw (Error. "g/make-evaluation-context called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation."))]
+       ~@body-exprs)
+    `(do ~@body-exprs)))
+
 (defmacro with-auto-evaluation-context [ec & body]
   `(let [~ec (make-evaluation-context)
-         result# (do ~@body)]
+         result# (do-evaluation-context-body ~body)]
      (update-cache-from-evaluation-context! ~ec)
      result#))
+
+(defmacro let-ec [binding-forms & body]
+  {:pre [(vector? binding-forms)
+         (even? (count binding-forms))]}
+  (if strict-evaluation-context-scopes
+    (let [binding-syms (mapv first (partition 2 binding-forms))]
+      (list*
+        `let
+        [binding-syms
+         `(with-auto-evaluation-context ~'evaluation-context
+            (let ~binding-forms
+              ~binding-syms))]
+        body))
+    (list*
+      `let
+      (vec
+        (concat
+          ['evaluation-context `(make-evaluation-context)]
+          binding-forms
+          ['_ `(update-cache-from-evaluation-context! ~'evaluation-context)
+           'evaluation-context nil]))
+      body)))
 
 (def fake-system (is/make-system {:cache-size 0}))
 
 (defmacro with-auto-or-fake-evaluation-context [ec & body]
   `(let [real-system# @*the-system*
          ~ec (is/default-evaluation-context (or real-system# fake-system))
-         result# (do ~@body)]
+         result# (do-evaluation-context-body ~body)]
      (when (some? real-system#)
        (update-cache-from-evaluation-context! ~ec))
      result#))

@@ -104,6 +104,6 @@
   "Like g/with-auto-evaluation-context, but for the background threads"
   [ec & body]
   `(let [~ec (g/make-evaluation-context)
-         ret# (do ~@body)]
+         ret# (g/do-evaluation-context-body ~body)]
      (fx/on-fx-thread (g/update-cache-from-evaluation-context! ~ec))
      ret#))

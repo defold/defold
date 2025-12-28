@@ -290,9 +290,9 @@
 (defonce ^:dynamic *adapters* nil)
 
 (defonce/protocol SelectionProvider
-  (selection [this])
-  (succeeding-selection [this])
-  (alt-selection [this]))
+  (selection [this evaluation-context])
+  (succeeding-selection [this evaluation-context])
+  (alt-selection [this evaluation-context]))
 
 (defonce/record Context [name env selection-provider dynamics adapters])
 
@@ -455,19 +455,19 @@
                  [handler full-ctx])))
            command-contexts))))
 
-(defn- context-selections [context]
+(defn- context-selections [context evaluation-context]
   (if-let [s (get-in context [:env :selection])]
     [s]
     (if-let [sp (:selection-provider context)]
-      (let [s (selection sp)
-            alt-s (alt-selection sp)]
+      (let [s (selection sp evaluation-context)
+            alt-s (alt-selection sp evaluation-context)]
         (if (and (seq alt-s) (not= s alt-s))
           [s alt-s]
           [s]))
       [nil])))
 
-(defn- eval-selection-context [{:keys [name selection-provider] :as context}]
-  (let [selections (context-selections context)]
+(defn- eval-selection-context [{:keys [name selection-provider] :as context} evaluation-context]
+  (let [selections (context-selections context evaluation-context)]
     (mapv (fn [selection]
             (update context :env assoc
                     :selection selection
@@ -475,11 +475,9 @@
                     :selection-provider selection-provider))
           selections)))
 
-(defn eval-contexts [contexts all-selections?]
-  (let [contexts (g/with-auto-evaluation-context evaluation-context
-                   (mapv #(eval-dynamics % evaluation-context)
-                         contexts))]
-    (loop [selection-contexts (mapcat eval-selection-context contexts)
+(defn eval-contexts [contexts all-selections? evaluation-context]
+  (let [contexts (mapv #(eval-dynamics % evaluation-context) contexts)]
+    (loop [selection-contexts (mapcat #(eval-selection-context % evaluation-context) contexts)
            result []]
       (if-let [ctx (and (or all-selections?
                             (= (:name (first selection-contexts)) (:name (first contexts))))
