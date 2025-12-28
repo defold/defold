@@ -84,11 +84,13 @@ static bool LayoutText(LayoutContext* ctx,
     params.baseline_align     = SKB_BASELINE_MIDDLE,
     params.flags              = 0;
 
+    float tracking = settings->m_Tracking * settings->m_Size;
+
     // TODO: Allo setting default as italic etc
     const skb_attribute_t attributes[] = {
         skb_attribute_make_font(SKB_FONT_FAMILY_DEFAULT, settings->m_Size, SKB_WEIGHT_NORMAL, SKB_STYLE_NORMAL, SKB_STRETCH_NORMAL),
         skb_attribute_make_line_height(SKB_LINE_HEIGHT_METRICS_RELATIVE, settings->m_Leading),
-        skb_attribute_make_spacing(settings->m_Tracking, 0.0f)
+        skb_attribute_make_spacing(tracking, 0.0f)
     };
 
     // TODO: Support rich text
@@ -205,7 +207,7 @@ static bool LayoutText(LayoutContext* ctx,
         uint32_t glyph_index = layout->m_Glyphs.Size();
 
         TextLine l;
-        l.m_Width   = line->bounds.width;
+        l.m_Width   = line->bounds.width - (tracking > 0 ? tracking : 0);
         l.m_Index   = prev_glyph_index;
         l.m_Length  = glyph_index - prev_glyph_index;
         layout->m_Lines.Push(l);
@@ -215,8 +217,14 @@ static bool LayoutText(LayoutContext* ctx,
     layout->m_Direction = skb_is_rtl(skb_layout_get_resolved_direction(skblayout)) ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
 
     skb_rect2_t layout_bounds = skb_layout_get_bounds(skblayout);
-    layout->m_Width = layout_bounds.width;
+    layout->m_Width = layout_bounds.width - (tracking > 0 ? tracking : 0);
     layout->m_Height = layout_bounds.height;
+    if (lines_count > 0 && settings->m_Leading > 0.0f)
+    {
+        // Normalize Skribidi line height so leading affects only inter-line spacing.
+        float base_line_height = layout_bounds.height / ((float)lines_count * settings->m_Leading);
+        layout->m_Height = layout_bounds.height - base_line_height * (settings->m_Leading - 1.0f);
+    }
 
     return true;
 }
