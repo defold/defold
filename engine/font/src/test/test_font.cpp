@@ -352,6 +352,99 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
     TextLayoutFree(layout);
 }
 
+TEST_F(FontTest, LayoutTrackingAndLeading)
+{
+    dmArray<uint32_t> codepoints;
+
+    HTextLayout layout = 0;
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0.0f;
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+
+    // Capture the layout line height used by the engine for comparison.
+    const char* line_height_text = "A";
+    TextToCodePoints(line_height_text, codepoints);
+
+    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    float line_height = layout->m_Height;
+    TextLayoutFree(layout);
+
+    // Measure tracking impact as a width delta between two adjacent glyphs.
+    const char* tracking_text = "AA";
+    TextToCodePoints(tracking_text, codepoints);
+    r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    float width_no_tracking = layout->m_Width;
+#if !defined(FONT_USE_SKRIBIDI)
+    float first_advance = layout->m_Glyphs[0].m_Advance;
+#endif
+    TextLayoutFree(layout);
+
+    float tracking_value = 0.25f;
+    settings.m_Tracking = tracking_value;
+    r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    float width_tracking = layout->m_Width;
+    TextLayoutFree(layout);
+
+    // Legacy tracking scales by line height and is quantized to integer pixel steps.
+    // Skribidi scales by font size in pixels.
+    float expected_tracking = 0.0f;
+#if defined(FONT_USE_SKRIBIDI)
+    // Skribidi interprets tracking in pixels based on font size.
+    expected_tracking = tracking_value * settings.m_Size;
+#else
+    // Legacy uses line height (font metrics scaled by size) for tracking.
+    float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    float raw_tracking = tracking_value * line_height * scale;
+    uint32_t advance_px = (uint32_t)first_advance;
+    uint32_t advance_plus_tracking_px = (uint32_t)(first_advance + raw_tracking);
+    expected_tracking = (float)(advance_plus_tracking_px - advance_px);
+#endif
+
+    const float epsilon = 0.05f;
+    ASSERT_NEAR(expected_tracking, width_tracking - width_no_tracking, epsilon);
+
+    // Enable explicit line breaks and compare leading deltas across two lines.
+    // Skribidi layout height is normalized in text_layout_skribidi.cpp to match legacy.
+    const char* leading_text = "A\nA";
+    TextToCodePoints(leading_text, codepoints);
+
+    settings.m_LineBreak = true;
+    settings.m_Width = 1000.0f;
+    settings.m_Tracking = 0.0f;
+    settings.m_Leading = 1.0f;
+
+    r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    uint32_t line_count = layout->m_Lines.Size();
+    ASSERT_EQ(2u, line_count);
+    float height_leading_1 = layout->m_Height;
+    TextLayoutFree(layout);
+
+    settings.m_Leading = 2.0f;
+    r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(2u, layout->m_Lines.Size());
+    float height_leading_2 = layout->m_Height;
+    TextLayoutFree(layout);
+
+    // Leading should add one extra line height for the entire layout.
+    float expected_leading_delta = line_height;
+    float height_leading_delta = height_leading_2 - height_leading_1;
+    ASSERT_NEAR(expected_leading_delta, height_leading_delta, epsilon);
+}
+
 
 #if !defined(FONT_USE_SKRIBIDI) && defined(FOO)
 static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_step, dmArray<uint32_t>& codepoints)
