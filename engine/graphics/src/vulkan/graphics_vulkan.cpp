@@ -4352,8 +4352,6 @@ bail:
         data_state &= ~(1<<ap.m_Params.m_MipMap);
         dmAtomicStore32(&tex->m_DataState, data_state);
 
-        tex->m_DataState  &= ~(1<<ap.m_Params.m_MipMap);
-
         return 0;
     }
 
