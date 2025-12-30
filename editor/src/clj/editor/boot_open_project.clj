@@ -43,6 +43,7 @@
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
+            [editor.prefs-api :as prefs-api]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -215,7 +216,8 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
-                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))]))
+                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))
+                                  (prefs-api/router)]))
           server-port (:port cli-options)
           web-server (try
                        (http-server/start! server-handler :port server-port)
