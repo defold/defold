@@ -79,6 +79,12 @@
         }
     }
 
+    .custom-separator .line {
+        -fx-background-color: derive(-df-background-darker, 20%);
+        -fx-pref-height: 1;
+        -fx-border-color: null;
+    }
+
     .separator {
         &:horizontal {
             -fx-padding: 3 0 3 0;
