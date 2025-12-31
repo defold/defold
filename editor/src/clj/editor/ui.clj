@@ -1479,31 +1479,16 @@
     menu-item))
 
 (defn- make-grid-menu-item [^Scene scene localization ^Collection style-classes children command-contexts evaluation-context]
-  (let [grouping-rules {"property" {"Audio & Input" #{"Sound" "Gamepads" "Input Binding"}
-                                    "Graphics Configuration" #{"Texture Profiles" "Display Profiles" "Camera" "Render"}
-                                    "Advanced Components" #{"Factory" "Collection Factory" "Collection Proxy" "Animation Set" "Material" "Compute"}}
-                        "design" {"2D Graphics" #{"Sprite" "Atlas" "Tile Map" "Tile Source" "Particle FX"}
-                                  "3D & Physics" #{"Model" "Collision Object" "Cubemap"}
-                                  "UI & Text" #{"GUI" "Label" "Font"}
-                                  "Containers" #{"Game Object" "Collection" "Render Target"}}
-                        "script" {"Scripts" #{"Script" "GUI Script" "Render Script" "Lua Module"}
-                                  "Shaders" #{"Vertex Program" "Fragment Program" "Compute Program" "Shader Include"}}
-                        "other" {"Editor" #{"Editor Script" "Editor Localization"}
-                                 "Data Resources" #{"Buffer" "Mesh" "App Manifest"}}}
-        find-subgroup (fn [col-name child-label]
-                        (let [col-groups (get grouping-rules col-name {})]
-                          (or (first (for [[group-name items] col-groups
-                                           :when (contains? items child-label)]
-                                       group-name))
-                              "Other")))
-        grouped (group-by (fn [child]
-                            (let [child-style (:style child)
-                                  kind (some-> (disj child-style "resource")
-                                               first
-                                               (clojure.string/split #"-")
-                                               last)]
-                              (or kind "other")))
-                          children)]
+  (let [column-groups
+        [[["Objects" ["Game Object" "Collection"]]
+          ["Scripts" ["Lua Module" "Script" "GUI Script"]]
+          ["Shaders" ["Material" "Vertex Program" "Fragment Program" "Shader Include"]]]
+         [["Components" ["Camera" "Collection Factory" "Collection Proxy" "Collision Object" "Factory" "GUI" "Label" "Model" "Mesh" "Particle FX" "Sound" "Sprite" "Tile Map"]]]
+         [["Resources" ["Animation Set" "Atlas" "Buffer" "Cubemap" "Font" "Render Target" "Tile Source"]]]
+         [["Editor" ["Editor Script" "Editor Localization"]]
+          ["Render" ["Compute" "Compute Program" "Render" "Render Script"]]
+          ["Project Settings" ["App Manifest" "Display Profiles" "Gamepads" "Input Binding" "Texture Profiles"]]]]
+        children-by-label (group-by #(localization (:label %)) children)]
     (fx/instance
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
@@ -1513,61 +1498,51 @@
          {:fx/type fx.h-box/lifecycle
           :spacing 10.0
           :padding (Insets. 5.0)
-          :children (interpose
-                      {:fx/type fx.region/lifecycle
-                       :min-width 1.0
-                       :max-width 1.0
-                       :style {:-fx-background-color "#333333"
-                               :-fx-background-insets "10 0 10 0"}}
-                      (for [col-name ["property" "design" "script" "other"]
-                            :let [col-children (get grouped col-name [])]]
-                        {:fx/type fx.v-box/lifecycle
-                         :spacing 2.0
-                         :children
-                         (let [buttons-with-groups
-                               (keep (fn [child]
-                                       (let [command (:command child)
-                                             user-data (:user-data child)
-                                             child-label (:label child)
-                                             child-icon (:icon child)
-                                             child-style (:style child)]
-                                         (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                           (let [enabled? (handler/enabled? handler-ctx evaluation-context)
-                                                 lbl (localization child-label)
-                                                 subgroup (find-subgroup col-name lbl)]
-                                             {:button {:fx/type fx.button/lifecycle
-                                                       :text lbl
-                                                       :disable (not enabled?)
-                                                       :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
-                                                       :style-class (into ["grid-menu-button"] child-style)
-                                                       :graphic {:fx/type fx.image-view/lifecycle
-                                                                 :image (icons/get-image child-icon 18)}}
-                                              :subgroup subgroup
-                                              :label lbl}))))
-                                     col-children)
-                               subgrouped (group-by :subgroup buttons-with-groups)
-                               subgroup-order (keys (get grouping-rules col-name {}))
-                               column-items
-                               (for [subgroup-name subgroup-order
-                                     :let [group-buttons (get subgrouped subgroup-name [])]
-                                     :when (seq group-buttons)]
-                                 (concat
-                                   [{:fx/type fx.h-box/lifecycle
-                                     :alignment :center-left
-                                     :children [{:fx/type fx.label/lifecycle
-                                                 :text subgroup-name
-                                                 :style {:-fx-font-size 11
-                                                         :-fx-font-style "italic"
-                                                         :-fx-text-fill "derive(-df-text-dark, 20%)"}}
-                                                {:fx/type fx.separator/lifecycle
-                                                 :h-box/hgrow :always
-                                                 :padding (Insets. 0 0 0 5)
-                                                 :style-class ["custom-separator"]
-                                                 :orientation :horizontal}]}]
-                                   (map :button group-buttons)
-                                   [{:fx/type fx.region/lifecycle
-                                     :pref-height 20}]))]
-                           (apply concat column-items))}))}}))))
+          :children
+          (interpose
+            {:fx/type fx.region/lifecycle
+             :min-width 1.0
+             :max-width 1.0
+             :style {:-fx-background-color "#333333"
+                     :-fx-background-insets "10 0 10 0"}}
+            (for [column column-groups]
+              {:fx/type fx.v-box/lifecycle
+               :spacing 2.0
+               :children
+               (mapcat (fn [[group-name group-set]]
+                         (concat
+                           [{:fx/type fx.h-box/lifecycle
+                             :alignment :center-left
+                             :children [{:fx/type fx.label/lifecycle
+                                         :text group-name
+                                         :style {:-fx-font-size 11
+                                                 :-fx-font-style "italic"
+                                                 :-fx-text-fill "derive(-df-text-dark, 20%)"}}
+                                        {:fx/type fx.separator/lifecycle
+                                         :h-box/hgrow :always
+                                         :padding (Insets. 0 0 0 5)
+                                         :style-class ["custom-separator"]
+                                         :orientation :horizontal}]}]
+                           (keep (fn [child]
+                                   (let [command (:command child)
+                                         user-data (:user-data child)
+                                         child-label (:label child)
+                                         child-icon (:icon child)
+                                         child-style (:style child)]
+                                     (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                                       (let [enabled? (handler/enabled? handler-ctx evaluation-context)
+                                             lbl (localization child-label)]
+                                         {:fx/type fx.button/lifecycle
+                                          :text lbl
+                                          :disable (not enabled?)
+                                          :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                          :style-class (into ["grid-menu-button"] child-style)
+                                          :graphic {:fx/type fx.image-view/lifecycle
+                                                    :image (icons/get-image child-icon 18)}}))))
+                                 (mapcat children-by-label group-set))
+                           [{:fx/type fx.region/lifecycle
+                             :pref-height 20}]))
+                       column)}))}}))))
 
 
 (declare make-menu-items)
