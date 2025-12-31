@@ -202,7 +202,12 @@ namespace dmGui
         context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_AdjustWidth = params->m_PhysicalWidth;
+        context->m_AdjustHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
+        context->m_AdjustOffsetX = 0.0f;
+        context->m_AdjustOffsetY = 0.0f;
+        context->m_UseSafeAreaAdjust = false;
         context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
@@ -255,6 +260,13 @@ namespace dmGui
     {
         context->m_PhysicalWidth = width;
         context->m_PhysicalHeight = height;
+        if (!context->m_UseSafeAreaAdjust)
+        {
+            context->m_AdjustWidth = width;
+            context->m_AdjustHeight = height;
+            context->m_AdjustOffsetX = 0.0f;
+            context->m_AdjustOffsetY = 0.0f;
+        }
         dmArray<HScene>& scenes = context->m_Scenes;
         uint32_t scene_count = scenes.Size();
 
@@ -266,6 +278,34 @@ namespace dmGui
             {
                 scene->m_OnWindowResizeCallback(scene, width, height);
             }
+        }
+    }
+
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+        context->m_UseSafeAreaAdjust = enabled;
+        if (enabled)
+        {
+            context->m_AdjustWidth = width;
+            context->m_AdjustHeight = height;
+            context->m_AdjustOffsetX = offset_x;
+            context->m_AdjustOffsetY = offset_y;
+        }
+        else
+        {
+            context->m_AdjustWidth = context->m_PhysicalWidth;
+            context->m_AdjustHeight = context->m_PhysicalHeight;
+            context->m_AdjustOffsetX = 0.0f;
+            context->m_AdjustOffsetY = 0.0f;
+        }
+
+        dmArray<HScene>& scenes = context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            Scene* scene = scenes[i];
+            scene->m_ResChanged = 1;
         }
     }
 
@@ -1108,8 +1148,8 @@ namespace dmGui
         float scale_y = 1.0f;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX) {
-            scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
-            scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
+            scale_x = (float) scene->m_Context->m_AdjustWidth / (float) scene->m_Width;
+            scale_y = (float) scene->m_Context->m_AdjustHeight / (float) scene->m_Height;
         } else {
             Vector4 adjust_scale = scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalAdjustScale;
             scale_x = adjust_scale.getX();
@@ -2746,10 +2786,12 @@ namespace dmGui
         Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
         Vector4 ref_size;
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
-            ref_size = Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f);
+            ref_size = Vector4((float) context->m_AdjustWidth, (float) context->m_AdjustHeight, 0.0f, 1.0f);
 
             // need to calculate offset for root nodes, since (0,0) is in middle of scene
             offset = (ref_size - adjusted_dims) * 0.5f;
+            offset.setX(offset.getX() + context->m_AdjustOffsetX);
+            offset.setY(offset.getY() + context->m_AdjustOffsetY);
         } else {
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
             ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
@@ -4185,8 +4227,10 @@ namespace dmGui
 
             Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
             Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
-            Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
+            Vector4 ref_size = Vector4((float) scene->m_Context->m_AdjustWidth, (float) scene->m_Context->m_AdjustHeight, 0.0f, 1.0f);
             offset = (ref_size - adjusted_dims) * 0.5f;
+            offset.setX(offset.getX() + scene->m_Context->m_AdjustOffsetX);
+            offset.setY(offset.getY() + scene->m_Context->m_AdjustOffsetY);
         }
 
         // We calculate a new position that will be the relative position once

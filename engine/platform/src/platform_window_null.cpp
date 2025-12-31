@@ -78,6 +78,23 @@ namespace dmPlatform
         return window->m_WindowHeight;
     }
 
+    bool GetSafeArea(HWindow window, SafeArea* out)
+    {
+        const uint32_t width = GetWindowWidth(window);
+        const uint32_t height = GetWindowHeight(window);
+
+        out->m_X = 0;
+        out->m_Y = 0;
+        out->m_Width = width;
+        out->m_Height = height;
+        out->m_InsetLeft = 0;
+        out->m_InsetTop = 0;
+        out->m_InsetRight = 0;
+        out->m_InsetBottom = 0;
+
+        return true;
+    }
+
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         switch(state)

@@ -87,9 +87,14 @@ namespace dmGui
         GetTextMetricsCallback          m_GetTextMetricsCallback;
         uint32_t                        m_PhysicalWidth;
         uint32_t                        m_PhysicalHeight;
+        uint32_t                        m_AdjustWidth;
+        uint32_t                        m_AdjustHeight;
         uint32_t                        m_DefaultProjectWidth;
         uint32_t                        m_DefaultProjectHeight;
         uint32_t                        m_Dpi;
+        float                           m_AdjustOffsetX;
+        float                           m_AdjustOffsetY;
+        bool                            m_UseSafeAreaAdjust;
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
         dmArray<dmVMath::Matrix4>       m_RenderTransforms;

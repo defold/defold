@@ -25,6 +25,7 @@ namespace dmPlatform
     id   GetiOSUIWindow();
     id   GetiOSUIView();
     id   GetiOSEAGLContext();
+    bool GetSafeAreaiOS(HWindow window, SafeArea* out);
 }
 
 #endif // DM_PLATFORM_WINDOW_IOS_H

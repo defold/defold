@@ -96,6 +96,10 @@ namespace dmGui
     {
     }
 
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+    }
+
     void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
     {
         width = 0;

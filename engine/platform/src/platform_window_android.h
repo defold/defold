@@ -32,6 +32,7 @@ namespace dmPlatform
     JavaVM*      GetAndroidJavaVM();
     jobject      GetAndroidActivity();
     android_app* GetAndroidApp();
+    bool         GetSafeAreaAndroid(HWindow window, SafeArea* out);
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

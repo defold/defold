@@ -405,6 +405,31 @@ namespace dmPlatform
         return (uint32_t) window->m_Height;
     }
 
+    static void SetSafeAreaFull(HWindow window, SafeArea* out)
+    {
+        const uint32_t width = GetWindowWidth(window);
+        const uint32_t height = GetWindowHeight(window);
+
+        out->m_X = 0;
+        out->m_Y = 0;
+        out->m_Width = width;
+        out->m_Height = height;
+        out->m_InsetLeft = 0;
+        out->m_InsetTop = 0;
+        out->m_InsetRight = 0;
+        out->m_InsetBottom = 0;
+    }
+
+    bool GetSafeArea(HWindow window, SafeArea* out)
+    {
+        if (!out)
+        {
+            return false;
+        }
+        SetSafeAreaFull(window, out);
+        return true;
+    }
+
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
     {
         if (window->m_SwapIntervalSupported)

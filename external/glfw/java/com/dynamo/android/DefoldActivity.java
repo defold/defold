@@ -37,7 +37,12 @@ import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.view.DisplayCutout;
+import android.graphics.Insets;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputConnection;
@@ -84,19 +89,43 @@ public class DefoldActivity extends NativeActivity {
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
     private void updateFullscreenMode() {
+        final Window window = getWindow();
         if (mImmersiveMode) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false);
+
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.hide(WindowInsets.Type.systemBars());
+                    controller.setSystemBarsBehavior(
+                            WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    );
+                }
+            } else {
+                @SuppressWarnings("deprecation")
+                View decorView = window.getDecorView();
+                @SuppressWarnings("deprecation")
+                int flags =
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+
+                decorView.setSystemUiVisibility(flags);
+            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (mDisplayCutout) {
                 WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-                layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    // Android 11+ also has ALWAYS, and on Android 15 SHORT_EDGES is treated like ALWAYS for non-floating windows
+                    layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+                } else {
+                    // Android 9-10
+                    layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                }
                 getWindow().setAttributes(layoutParams);
             }
         }
@@ -489,6 +518,43 @@ public class DefoldActivity extends NativeActivity {
                 updateFullscreenMode();
             }
         });
+    }
+
+    public int[] getSafeAreaInsets() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return new int[] { 0, 0, 0, 0 };
+        }
+
+        View decor = getWindow().getDecorView();
+        WindowInsets insets = decor.getRootWindowInsets();
+        if (insets == null) {
+            return new int[] { 0, 0, 0, 0 };
+        }
+
+        DisplayCutout cutout = insets.getDisplayCutout();
+        if (cutout != null) {
+            return new int[] {
+                cutout.getSafeInsetLeft(),
+                cutout.getSafeInsetTop(),
+                cutout.getSafeInsetRight(),
+                cutout.getSafeInsetBottom()
+            };
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Insets sys = insets.getInsets(WindowInsets.Type.systemBars());
+            return new int[] { sys.left, sys.top, sys.right, sys.bottom };
+        }
+
+        @SuppressWarnings("deprecation")
+        int left = insets.getSystemWindowInsetLeft();
+        @SuppressWarnings("deprecation")
+        int top = insets.getSystemWindowInsetTop();
+        @SuppressWarnings("deprecation")
+        int right = insets.getSystemWindowInsetRight();
+        @SuppressWarnings("deprecation")
+        int bottom = insets.getSystemWindowInsetBottom();
+        return new int[] { left, top, right, bottom };
     }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {

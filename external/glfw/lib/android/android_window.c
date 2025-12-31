@@ -672,6 +672,64 @@ void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
 
+int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
+{
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return 0;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID get_safe_area_insets = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getSafeAreaInsets", "()[I");
+    if (!get_safe_area_insets)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jintArray array = (jintArray)(*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_safe_area_insets);
+    if (!array)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jsize len = (*lJNIEnv)->GetArrayLength(lJNIEnv, array);
+    if (len < 4)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jint* values = (*lJNIEnv)->GetIntArrayElements(lJNIEnv, array, NULL);
+    if (!values)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    *left = values[0];
+    *top = values[1];
+    *right = values[2];
+    *bottom = values[3];
+
+    (*lJNIEnv)->ReleaseIntArrayElements(lJNIEnv, array, values, JNI_ABORT);
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    return 1;
+}
+
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================

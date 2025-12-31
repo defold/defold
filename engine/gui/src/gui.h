@@ -514,6 +514,7 @@ namespace dmGui
     void DeleteContext(HContext context, dmScript::HContext script_context);
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
 
     void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
 

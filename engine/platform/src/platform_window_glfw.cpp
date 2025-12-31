@@ -28,6 +28,12 @@
 #include "platform_window_constants.h"
 #include "platform_window_opengl.h"
 
+#if defined(ANDROID)
+#include "platform_window_android.h"
+#elif defined(DM_PLATFORM_IOS)
+#include "platform_window_ios.h"
+#endif
+
 namespace dmPlatform
 {
     struct dmWindow
@@ -378,6 +384,40 @@ namespace dmPlatform
     uint32_t GetWindowHeight(HWindow window)
     {
         return (uint32_t) window->m_Height;
+    }
+
+    static void SetSafeAreaFull(HWindow window, SafeArea* out)
+    {
+        const uint32_t width = GetWindowWidth(window);
+        const uint32_t height = GetWindowHeight(window);
+
+        out->m_X = 0;
+        out->m_Y = 0;
+        out->m_Width = width;
+        out->m_Height = height;
+        out->m_InsetLeft = 0;
+        out->m_InsetTop = 0;
+        out->m_InsetRight = 0;
+        out->m_InsetBottom = 0;
+    }
+
+    bool GetSafeArea(HWindow window, SafeArea* out)
+    {
+        SetSafeAreaFull(window, out);
+
+#if defined(ANDROID)
+        if (GetSafeAreaAndroid(window, out))
+        {
+            return true;
+        }
+#elif defined(DM_PLATFORM_IOS)
+        if (GetSafeAreaiOS(window, out))
+        {
+            return true;
+        }
+#endif
+
+        return true;
     }
 
     static int WindowStateToGLFW(WindowState state)
