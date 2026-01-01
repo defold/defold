@@ -210,6 +210,26 @@
   (when attention?
     (show-debugger! main-scene tool-tab-pane)))
 
+(defn- tab->view-id [^Tab tab]
+  (some-> tab (ui/user-data ::view)))
+
+(defn- tab->view-type [^Tab tab]
+  (some-> tab (ui/user-data ::view-type)))
+
+(defn- tab->view-type-id [^Tab tab]
+  (:id (tab->view-type tab)))
+
+(defn- tab->resource-node
+  ([^Tab tab]
+   (g/with-auto-evaluation-context evaluation-context
+     (tab->resource-node tab evaluation-context)))
+  ([^Tab tab evaluation-context]
+   (some-> tab
+           tab->view-id
+           (g/node-value :view-data evaluation-context)
+           second
+           :resource-node)))
+
 (defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
@@ -220,7 +240,7 @@
   (.remove (.getTabs tab-pane) tab))
 
 (defn remove-invalid-tabs! [tab-panes open-views]
-  (let [invalid-tab? (fn [tab] (nil? (get open-views (ui/user-data tab ::view))))
+  (let [invalid-tab? (fn [tab] (nil? (get open-views (tab->view-id tab))))
         closed-tabs-by-tab-pane (into []
                                       (keep (fn [^TabPane tab-pane]
                                               (when-some [closed-tabs (not-empty (filterv invalid-tab? (.getTabs tab-pane)))]
@@ -291,7 +311,6 @@
   (property stage Stage)
   (property scene Scene)
   (property editor-tabs-split SplitPane)
-  (property active-tab-pane TabPane)
   (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
@@ -317,15 +336,16 @@
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
+  (output active-tab-pane TabPane (g/fnk [^Tab active-tab ^SplitPane editor-tabs-split]
+                                    (or (some-> active-tab .getTabPane)
+                                        (first (.getItems editor-tabs-split)))))
   (output active-outline g/Any (gu/passthrough active-outline))
   (output active-scene g/Any (gu/passthrough active-scene))
-  (output active-view g/NodeID (g/fnk [^Tab active-tab]
-                                   (when active-tab
-                                     (ui/user-data active-tab ::view))))
+  (output active-view g/NodeID (g/fnk [^Tab active-tab] (tab->view-id active-tab)))
   (output active-view-info g/Any (g/fnk [^Tab active-tab]
                                         (when active-tab
-                                          {:view-id (ui/user-data active-tab ::view)
-                                           :view-type (ui/user-data active-tab ::view-type)})))
+                                          {:view-id (tab->view-id active-tab)
+                                           :view-type (tab->view-type active-tab)})))
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource-node+type g/Any :cached
@@ -346,7 +366,7 @@
 
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
-                                                      :let [view (ui/user-data tab ::view)
+                                                      :let [view (tab->view-id tab)
                                                             resource (:resource (get open-views view))
                                                             dirty (contains? open-dirty-views view)
                                                             title (tab-title resource dirty)]]
@@ -396,16 +416,6 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view app-scene tab resource-node view-type]
-  (g/transact
-    (concat
-      (replace-connection resource-node :node-outline app-view :active-outline)
-      (if (= :scene view-type)
-        (replace-connection resource-node :scene app-view :active-scene)
-        (disconnect-sources app-view :active-scene))
-      (g/set-property app-view :active-tab tab)))
-  (ui/user-data! app-scene ::ui/refresh-requested? true))
-
 (handler/defhandler :scene.select-move-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
@@ -420,15 +430,13 @@
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view scene-visibility]
-    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
-                           ui/selected-tab
+    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab)
                            .getContent
                            (.lookup "#visibility-settings-graphic")
                            .getParent)]
       (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane evaluation-context)
-                           ui/selected-tab
+    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
                            .getContent
                            (.lookup "#visibility-settings-graphic")
                            .getParent)]
@@ -440,24 +448,21 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(defn get-grid-settings-button
-  [^TabPane tab-pane]
-  (some-> tab-pane
-          ui/selected-tab
+(defn- get-grid-settings-button
+  [^Tab tab]
+  (some-> tab
           .getContent
           (.lookup "#show-grid-settings")))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs]
-       (let [active-tab-pane (g/node-value app-view :active-tab-pane)
-             btn (get-grid-settings-button active-tab-pane)]
-         (when btn
-           (grid/show-settings! app-view btn prefs))))
+    (when-some [btn (some-> (g/node-value app-view :active-tab)
+                            (get-grid-settings-button))]
+      (grid/show-settings! app-view btn prefs)))
   (state [app-view scene-visibility evaluation-context]
-         (let [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
-           (some-> active-tab-pane
-                   (get-grid-settings-button)
-                   (scene-visibility/settings-visible?)))))
+    (some-> (g/node-value app-view :active-tab evaluation-context)
+            (get-grid-settings-button)
+            (scene-visibility/settings-visible?))))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
@@ -1584,8 +1589,8 @@
         (remove-tab! tab-pane tab)))))
 
 (defn- editor-tab-pane
-  "Returns the editor TabPane that is above the Node in the scene hierarchy, or
-  nil if the Node does not reside under an editor TabPane."
+  "Returns the closest editor TabPane at or above the Node in the scene
+  hierarchy, or nil if the Node is not an editor TabPane or resides under one."
   ^TabPane [node]
   (when-some [parent-tab-pane (ui/parent-tab-pane node)]
     (when (= "editor-tabs-split" (some-> (ui/tab-pane-parent parent-tab-pane) (.getId)))
@@ -1601,12 +1606,10 @@
 (defn- add-other-tab-pane!
   ^TabPane [^SplitPane editor-tabs-split app-view prefs]
   (let [tab-panes (.getItems editor-tabs-split)
-        app-stage ^Stage (g/node-value app-view :stage)
-        app-scene (.getScene app-stage)
         new-tab-pane (TabPane.)]
     (assert (= 1 (count tab-panes)))
     (.add tab-panes new-tab-pane)
-    (configure-editor-tab-pane! new-tab-pane app-scene app-view prefs)
+    (configure-editor-tab-pane! new-tab-pane app-view prefs)
     new-tab-pane))
 
 (defn- open-tab-count
@@ -1629,13 +1632,13 @@
             (< 1 (open-tab-count app-view evaluation-context)))
   (run [app-view user-data prefs]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
-             source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
-             selected-tab (ui/selected-tab source-tab-pane)
+             active-tab ^Tab (g/node-value app-view :active-tab)
+             source-tab-pane (.getTabPane active-tab)
              dest-tab-pane (or (find-other-tab-pane editor-tabs-split source-tab-pane)
                                (add-other-tab-pane! editor-tabs-split app-view prefs))]
-         (.remove (.getTabs source-tab-pane) selected-tab)
-         (.add (.getTabs dest-tab-pane) selected-tab)
-         (.select (.getSelectionModel dest-tab-pane) selected-tab)
+         (.remove (.getTabs source-tab-pane) active-tab)
+         (.add (.getTabs dest-tab-pane) active-tab)
+         (.select (.getSelectionModel dest-tab-pane) active-tab)
          (.requestFocus dest-tab-pane))))
 
 (handler/defhandler :window.tab.swap-with-other-group :global
@@ -1643,7 +1646,8 @@
             (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
-             active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             active-tab ^Tab (g/node-value app-view :active-tab)
+             active-tab-pane (.getTabPane active-tab)
              other-tab-pane (find-other-tab-pane editor-tabs-split active-tab-pane)
              active-tab-pane-selection (.getSelectionModel active-tab-pane)
              other-tab-pane-selection (.getSelectionModel other-tab-pane)
@@ -1651,7 +1655,6 @@
              other-tab-index (.getSelectedIndex other-tab-pane-selection)
              active-tabs (.getTabs active-tab-pane)
              other-tabs (.getTabs other-tab-pane)
-             active-tab (.get active-tabs active-tab-index)
              other-tab (.get other-tabs other-tab-index)]
          ;; Fix for DEFEDIT-1673:
          ;; We need to swap in a dummy tab here so that a tab is never in both
@@ -1669,8 +1672,7 @@
             (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
-             active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
-             selected-tab (ui/selected-tab active-tab-pane)
+             active-tab ^Tab (g/node-value app-view :active-tab)
              tab-panes (.getItems editor-tabs-split)
              first-tab-pane ^TabPane (.get tab-panes 0)
              second-tab-pane ^TabPane (.get tab-panes 1)
@@ -1679,7 +1681,7 @@
              moved-tabs (vec second-tabs)]
          (.clear second-tabs)
          (.addAll first-tabs ^Collection moved-tabs)
-         (.select (.getSelectionModel first-tab-pane) selected-tab)
+         (.select (.getSelectionModel first-tab-pane) active-tab)
          (.requestFocus first-tab-pane))))
 
 (defn make-about-dialog [localization]
@@ -2002,16 +2004,6 @@
         (error-reporting/report-exception! error))))
   (scene-cache/drop-context! nil))
 
-(defn- tab->resource-node [^Tab tab]
-  (some-> tab
-    (ui/user-data ::view)
-    (g/node-value :view-data)
-    second
-    :resource-node))
-
-(defn- tab->view-type [^Tab tab]
-  (some-> tab (ui/user-data ::view-type) :id))
-
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
       getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
   (.setAccessible getTab true)
@@ -2022,16 +2014,22 @@
         (->> (.invoke getTab node (into-array Object []))
              (.select (.getSelectionModel tab-pane)))))))
 
-(defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view prefs]
+(defn- apply-tab-pane-active-style! [^TabPane tab-pane active]
+  (ui/set-style! tab-pane "inactive" (not active)))
+
+(defn- configure-editor-tab-pane! [^TabPane tab-pane app-view prefs]
+  (apply-tab-pane-active-style! tab-pane false)
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
+
+  ;; We update the editor tab preferences in response to focus changes in the
+  ;; handle-focus-owner-change! function, but
   (-> tab-pane
       (.getSelectionModel)
-      (.selectedItemProperty)
+      (.selectedIndexProperty)
       (^[ChangeListener] ObservableValue/.addListener
-        (fn [_observable _old-val new-val]
-          (recent-files/save-tab-selections prefs app-view)
-          (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val)))))
+        (fn [_observable _old-val _new-val]
+          (recent-files/save-tab-selections prefs app-view))))
   (-> tab-pane
       (.getTabs)
       (^[ListChangeListener] ObservableList/.addListener
@@ -2044,48 +2042,53 @@
                   tab-panes (.getItems editor-tabs-split)]
               (when (< 1 (count tab-panes))
                 (.remove tab-panes tab-pane)
-                (let [remaining-tab-pane (.get tab-panes 0)
-                      selected-tab (ui/selected-tab remaining-tab-pane)
-                      resource-node (tab->resource-node selected-tab)
-                      view-type (tab->view-type selected-tab)]
-                  (.requestFocus ^TabPane remaining-tab-pane)
-                  (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type))))))))
+                (let [remaining-tab-pane (.get tab-panes 0)]
+                  (.requestFocus ^TabPane remaining-tab-pane))))))))
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
 (defn- handle-focus-owner-change! [prefs app-view app-scene new-focus-owner]
-  (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
-        new-editor-tab-pane (editor-tab-pane new-focus-owner)]
-    (when (and (some? new-editor-tab-pane)
-               (not (identical? old-editor-tab-pane new-editor-tab-pane)))
-      (let [selected-tab (ui/selected-tab new-editor-tab-pane)
-            resource-node (tab->resource-node selected-tab)
-            view-type (tab->view-type selected-tab)]
-        (ui/add-style! old-editor-tab-pane "inactive")
-        (ui/remove-style! new-editor-tab-pane "inactive")
-        (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (recent-files/save-tab-selections prefs app-view)
-        (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
+  (when-some [new-editor-tab-pane (editor-tab-pane new-focus-owner)]
+    ;; The new focus owner is or belongs to an editor TabPane.
+    (g/let-ec [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
+               ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
+               ^Tab new-active-tab (ui/selected-tab new-editor-tab-pane)]
+      (when-not (identical? old-active-tab new-active-tab)
+        (let [resource-node (tab->resource-node new-active-tab)
+              view-type-id (tab->view-type-id new-active-tab)]
+          (g/transact
+            (concat
+              (replace-connection resource-node :node-outline app-view :active-outline)
+              (if (= :scene view-type-id)
+                (replace-connection resource-node :scene app-view :active-scene)
+                (disconnect-sources app-view :active-scene))
+              (g/set-property app-view :active-tab new-active-tab))))
+        (ui/user-data! app-scene ::ui/refresh-requested? true))
+
+      ;; Do these steps even if identical, since tabs might move between panes.
+      (recent-files/save-tab-selections prefs app-view)
+
+      (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
+        (apply-tab-pane-active-style! tab-pane (identical? new-editor-tab-pane tab-pane))))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
-  (let [app-scene (.getScene stage)]
+  (let [app-scene (.getScene stage)
+        editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (ui/make-title))
-    (let [editor-tab-pane (TabPane.)
-          keymap (keymap/from-prefs prefs)
+    (.add (.getItems editor-tabs-split) editor-tab-pane)
+    (let [keymap (keymap/from-prefs prefs)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
                                                                      :scene app-scene
                                                                      :editor-tabs-split editor-tabs-split
-                                                                     :active-tab-pane editor-tab-pane
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
                                                                      :manip-space :world
                                                                      :keymap keymap
                                                                      :localization localization))))]
-      (.add (.getItems editor-tabs-split) editor-tab-pane)
-      (configure-editor-tab-pane! editor-tab-pane app-scene app-view prefs)
+      (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
@@ -2132,11 +2135,15 @@
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
 
-(declare open-resource)
+(declare open-resource!)
 
-(defn- make-tab! [app-view prefs localization workspace project resource resource-node
-                  resource-type view-type make-view-fn ^ObservableList tabs opts]
-  (let [parent (AnchorPane.)
+(defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
+  (let [basis (g/now)
+        project (project/get-project basis resource-node)
+        resource (resource-node/resource basis resource-node)
+        workspace (resource/workspace resource)
+        resource-type (resource/lookup-resource-type basis workspace resource)
+        parent (AnchorPane.)
         tab-content (if (resource/read-only? resource)
                       (doto (VBox.)
                         (ui/children! [(make-info-box! localization)
@@ -2148,16 +2155,18 @@
               (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn (partial select app-view)
+        open-resource-fn (partial open-resource! app-view prefs localization project)
         opts (merge opts
                     (get (:view-opts resource-type) (:id view-type))
                     {:app-view app-view
                      :select-fn select-fn
-                     :open-resource-fn (partial open-resource app-view prefs localization workspace project)
+                     :open-resource-fn open-resource-fn
                      :prefs prefs
                      :project project
                      :workspace workspace
                      :localization localization
                      :tab tab})
+        make-view-fn (:make-view-fn view-type)
         view (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
@@ -2202,175 +2211,237 @@
           (string/trim)
           (not-empty)))
 
-(defn view-types
+(defn- view-types
   [resource]
   (cond->> (:view-types (resource/resource-type resource))
            (text-util/binary? resource)
            (e/filter #(not= :code (:id %)))))
 
-(defn open-resource
-  ([app-view prefs localization workspace project resource]
-   (open-resource app-view prefs localization workspace project resource {}))
-  ([app-view prefs localization workspace project resource opts]
-   (let [resource-type  (resource/resource-type resource)
-         resource-node  (or (project/get-resource-node project resource)
-                            (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                            {})))
-         text-view-type (workspace/get-view-type workspace :text)
-         view-type      (or (:selected-view-type opts)
-                            (first (view-types resource))
-                            text-view-type)
-         view-type-id (:id view-type)
-         specific-view-type-selected (some? (:selected-view-type opts))]
-     (cond
-       (not (resource/loaded? resource))
-       (do (dialogs/make-info-dialog
-             localization
-             {:title (localization/message "dialog.open-resource.excluded.title")
-              :icon :icon/triangle-error
-              :header (localization/message "dialog.open-resource.excluded.header"
-                                           {"resource" (resource/proj-path resource)})})
-           false)
+(defn- select-editor-tab!
+  ([^Tab tab open-opts]
+   (select-editor-tab! tab open-opts fn/constantly-nil))
+  ([^Tab tab open-opts done-fn]
+   (ui/select-tab! tab)
+   (when-some [focus-fn (:focus-fn (tab->view-type tab))]
+     (let [view-id (tab->view-id tab)
+           tab-pane (.getTabPane tab)
+           scene (.getScene tab-pane)]
+       (ui/force-scene-layout! scene)
+       (focus-fn view-id open-opts done-fn)))))
 
-       (g/defective? resource-node)
-       (do (dialogs/make-info-dialog
-             localization
-             {:title (localization/message "dialog.open-resource.unrecognized.title")
-              :icon :icon/triangle-error
-              :header (localization/message "dialog.open-resource.unrecognized.header"
-                                           {"resource" (resource/proj-path resource)})})
-           false)
+(defn make-open-resource-plan
+  [app-view prefs project resource opts evaluation-context]
+  (let [basis (:basis evaluation-context)
+        workspace (resource/workspace resource)
+        resource-type (resource/resource-type resource)
+        resource-node (or (project/get-resource-node project resource evaluation-context)
+                          (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                          {})))
+        text-view-type (workspace/get-view-type workspace :text evaluation-context)
+        view-type (or (:selected-view-type opts)
+                      (first (view-types resource))
+                      text-view-type)
+        view-type-id (:id view-type)
+        specific-view-type-selected (some? (:selected-view-type opts))]
+    (cond
+      (not (resource/loaded? resource))
+      {:type :resource-error
+       :error-type :resource-unloaded
+       :resource resource}
 
-       :else
-       (if-let [custom-editor
-                (when (:use-custom-editor opts true)
-                  (let [is-code-editor-view-type (contains? #{:code :text} view-type-id)
-                        default-to-custom-editor (get-in resource-type [:view-opts view-type-id :use-custom-editor] true)]
-                    (when (and is-code-editor-view-type
-                               (or default-to-custom-editor
-                                   specific-view-type-selected))
-                      (custom-code-editor-executable-path-preference prefs))))]
-         (let [cursor-range (:cursor-range opts)
-               arg-tmpl (string/trim (if cursor-range
-                                       (prefs/get prefs [:code :open-file-at-line])
-                                       (prefs/get prefs [:code :open-file])))
-               arg-sub (cond-> {:file (resource/externally-available-absolute-path resource)}
-                               cursor-range (assoc :line (CursorRange->line-number cursor-range)))
-               args (->> (string/split arg-tmpl #" ")
-                         (map #(substitute-args % arg-sub)))]
-           (doto (ProcessBuilder. ^List (cons custom-editor args))
-             (.directory (workspace/project-directory workspace))
-             (.start))
-           false)
-         (if (contains? view-type :make-view-fn)
-           (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
-                 tab-panes (.getItems editor-tabs-split)
-                 open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
-                 make-view-fn (:make-view-fn view-type)
-                 existing-tab (some #(when (and (= (tab->resource-node %) resource-node)
-                                                (= view-type (ui/user-data % ::view-type)))
-                                       %)
-                                    open-tabs)
-                 ^Tab tab (or existing-tab
-                              (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
-                                    active-tab-pane-tabs (.getTabs active-tab-pane)]
-                                (make-tab! app-view prefs localization workspace project resource resource-node
-                                           resource-type view-type make-view-fn active-tab-pane-tabs opts)))
-                 view-id (ui/user-data tab ::view)]
-             (.select (.getSelectionModel (.getTabPane tab)) tab)
-             (when (or (nil? existing-tab) (:select-node opts))
-               (g/transact
-                 (select app-view resource-node [(:select-node opts resource-node)])))
-             (when (not (:ignore-refresh-layout opts))
-               (when-let [focus (:focus-fn view-type)]
-                 (ui/force-scene-layout! (g/node-value app-view :scene))
-                 (focus view-id opts))
-               ;; If we're opening a scene view, do an initial refresh so it
-               ;; shows up as fast as possible.
-               (ui/run-later
-                 (if (g/node-instance? scene/SceneView view-id)
-                   (do (refresh-scene-view! view-id 1/60)
-                       (ui/run-later
-                         (slog/smoke-log "opened-resource")))
-                   (slog/smoke-log "opened-resource"))))
-             true)
-           (let [^String path (or (resource/abs-path resource)
-                                  (resource/temp-path resource))
-                 ^File f (File. path)]
-             (ui/open-file f (fn [msg]
-                               (ui/run-later
-                                 (dialogs/make-info-dialog
-                                   localization
-                                   {:title (localization/message "dialog.open-resource.open-file-failed.title")
-                                    :icon :icon/triangle-error
-                                    :header (localization/message "dialog.open-resource.open-file-failed.header"
-                                                                  {"resource" (.getName f)})
-                                    :content {:wrap-text true
-                                              :text (localization/message "dialog.open-resource.open-file-failed.detail"
-                                                                          {"error" msg})}}))))
-             false)))))))
+      (g/defective? basis resource-node)
+      {:type :resource-error
+       :error-type :resource-defective
+       :resource resource}
 
-(defn- open-tabs-from-prefs [app-view prefs localization workspace project tab-panes-to-restore evaluation-context]
-  (into []
-        (let [tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
-          (for [[pane-num pane] (map-indexed pair tab-panes-to-restore)
-                [proj-path view-type-id] pane
-                :let [resource (workspace/find-resource workspace proj-path evaluation-context)
-                      view-type (workspace/get-view-type workspace view-type-id evaluation-context)]
-                :when (and (resource/openable-resource? resource)
-                           (resource/exists? resource))
-                :let [opened? (open-resource app-view prefs localization workspace project resource
-                                             {:selected-view-type view-type
-                                              :use-custom-editor false
-                                              :ignore-refresh-layout true})]
-                :when opened?]
-            {:pane-num pane-num
-             :tab (ui/selected-tab tab-pane)}))))
+      :else
+      (if-let [custom-editor
+               (when (:use-custom-editor opts true)
+                 (let [is-code-editor-view-type (contains? #{:code :text} view-type-id)
+                       default-to-custom-editor (get-in resource-type [:view-opts view-type-id :use-custom-editor] true)]
+                   (when (and is-code-editor-view-type
+                              (or default-to-custom-editor
+                                  specific-view-type-selected))
+                     (custom-code-editor-executable-path-preference prefs))))]
+        (let [cursor-range (:cursor-range opts)
+              arg-tmpl (string/trim (if cursor-range
+                                      (prefs/get prefs [:code :open-file-at-line])
+                                      (prefs/get prefs [:code :open-file])))
+              arg-sub (cond-> {:file (resource/externally-available-absolute-path resource)}
+                              cursor-range (assoc :line (CursorRange->line-number cursor-range)))
+              args (->> (string/split arg-tmpl #" ")
+                        (mapv #(substitute-args % arg-sub)))
+              project-directory (workspace/project-directory basis workspace)]
+          {:type :os-execute
+           :executable custom-editor
+           :args args
+           :working-directory project-directory})
+        (if (contains? view-type :make-view-fn)
+          (let [^SplitPane editor-tabs-split (g/valid-node-value app-view :editor-tabs-split evaluation-context)
+                tab-panes (.getItems editor-tabs-split)
+                existing-tab (->> tab-panes
+                                  (e/mapcat TabPane/.getTabs)
+                                  (coll/first-where
+                                    (fn [^Tab tab]
+                                      (and (= view-type-id (tab->view-type-id tab))
+                                           (= resource-node (tab->resource-node tab evaluation-context))))))]
+            (if (some? existing-tab)
+              {:type :show-existing-tab
+               :existing-tab existing-tab
+               :resource-node resource-node
+               :open-opts opts
+               :app-view app-view}
+              (let [tab-pane-index (or (:tab-pane-index opts)
+                                       (coll/index-of tab-panes (g/valid-node-value app-view :active-tab-pane evaluation-context)))]
+                (assert (#{0 1} tab-pane-index))
+                {:type :open-new-tab
+                 :resource-node resource-node
+                 :open-opts opts
+                 :view-type view-type
+                 :app-view app-view
+                 :editor-tabs-split editor-tabs-split
+                 :tab-pane-index tab-pane-index
+                 :prefs prefs})))
+          (let [^String path (or (resource/abs-path resource)
+                                 (resource/temp-path resource))]
+            {:type :os-open
+             :file (File. path)}))))))
+
+(defn perform-open-resource-plan!
+  [open-resource-plan localization]
+  (case (:type open-resource-plan)
+    :resource-error
+    (let [{:keys [error-type resource]} open-resource-plan]
+      (case error-type
+        :resource-defective
+        (dialogs/make-info-dialog
+          localization
+          {:title (localization/message "dialog.open-resource.unrecognized.title")
+           :icon :icon/triangle-error
+           :header (localization/message "dialog.open-resource.unrecognized.header"
+                                         {"resource" (resource/proj-path resource)})})
+
+        :resource-unloaded
+        (dialogs/make-info-dialog
+          localization
+          {:title (localization/message "dialog.open-resource.excluded.title")
+           :icon :icon/triangle-error
+           :header (localization/message "dialog.open-resource.excluded.header"
+                                         {"resource" (resource/proj-path resource)})}))
+      false)
+
+    :os-execute
+    (let [{:keys [args executable working-directory]} open-resource-plan
+          ^List command (cons executable args)]
+      (doto (ProcessBuilder. command)
+        (.directory working-directory)
+        (.start))
+      false)
+
+    :os-open
+    (let [^File file (:file open-resource-plan)]
+      (ui/open-file
+        file
+        (fn os-open-error-fn [msg]
+          (ui/run-later
+            (dialogs/make-info-dialog
+              localization
+              {:title (localization/message "dialog.open-resource.open-file-failed.title")
+               :icon :icon/triangle-error
+               :header (localization/message "dialog.open-resource.open-file-failed.header"
+                                             {"resource" (.getName file)})
+               :content {:wrap-text true
+                         :text (localization/message "dialog.open-resource.open-file-failed.detail"
+                                                     {"error" msg})}}))))
+      false)
+
+    :show-existing-tab
+    (let [{:keys [app-view ^Tab existing-tab open-opts resource-node]} open-resource-plan]
+      (when-some [select-node (:select-node open-opts)]
+        (g/transact
+          (select app-view resource-node [select-node])))
+      (select-editor-tab! existing-tab open-opts)
+      true)
+
+    :open-new-tab
+    (let [{:keys [app-view ^SplitPane editor-tabs-split open-opts prefs resource-node tab-pane-index view-type]} open-resource-plan
+          _ (assert (#{0 1} tab-pane-index))
+          select-tab (:select-tab open-resource-plan true)
+          select-node (:select-node open-opts resource-node)
+          tab-panes (.getItems editor-tabs-split)
+          ^TabPane tab-pane (or (nth tab-panes tab-pane-index nil)
+                                (add-other-tab-pane! editor-tabs-split app-view prefs))
+          tab-pane-tabs (.getTabs tab-pane)
+          new-tab (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)]
+      (g/transact
+        (select app-view resource-node [select-node]))
+      (when select-tab
+        (select-editor-tab!
+          new-tab open-opts
+          (fn refresh-done-fn []
+            (ui/run-later
+              (slog/smoke-log "opened-resource")))))
+      true)))
+
+(defn open-resource!
+  ([app-view prefs localization project resource]
+   (open-resource! app-view prefs localization project resource {}))
+  ([app-view prefs localization project resource opts]
+   (-> (g/with-auto-evaluation-context evaluation-context
+         (make-open-resource-plan app-view prefs project resource opts evaluation-context))
+       (perform-open-resource-plan! localization))))
+
+(defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
+  (let [prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
+        selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
+    (coll/transfer prefs-data-per-tab-per-tab-pane []
+      (coll/mapcat-indexed
+        (fn [tab-pane-index prefs-data-per-tab]
+          (let [selected-tab-index (nth selected-tab-index-by-tab-pane-index tab-pane-index 0)]
+            (coll/transfer prefs-data-per-tab :eduction
+              (keep-indexed
+                (fn [tab-index [proj-path view-type-id]]
+                  (let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+                    (when (and (resource/openable-resource? resource)
+                               (resource/exists? resource))
+                      (let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)
+                            open-opts {:selected-view-type view-type
+                                       :tab-pane-index tab-pane-index
+                                       :use-custom-editor false}
+                            open-resource-plan (make-open-resource-plan app-view prefs project resource open-opts evaluation-context)
+                            select-tab (= selected-tab-index tab-index)]
+                        (when (= :open-new-tab (:type open-resource-plan))
+                          (assoc open-resource-plan :select-tab select-tab))))))))))))))
 
 (defn restore-tabs-from-prefs! [app-view prefs localization workspace project]
-  (when-let [tab-panes-to-restore (not-empty (prefs/get prefs [:workflow :open-tabs]))]
-    (g/let-ec [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
-               opened-tabs (open-tabs-from-prefs app-view prefs localization workspace project tab-panes-to-restore evaluation-context)]
-      (let [{:keys [selected-pane tab-selection-by-pane]} (prefs/get prefs [:workflow :last-selected-tabs])
-            tab-panes (.getItems editor-tabs-split)
-            first-tab-pane (.get tab-panes 0)
-            tabs-to-move (coll/transfer opened-tabs []
-                           (filter #(= 1 (:pane-num %)))
-                           (map :tab))
-            ;; NOTE: We're just assuming there's only ever going to be two max
-            ;; splits, certainly would need to change if we made a more
-            ;; elaborate window tiling system.
-            second-tab-pane (when (coll/not-empty tabs-to-move)
-                              (add-other-tab-pane! editor-tabs-split app-view prefs))
-            select-tab-fn (fn [pane-idx ^TabPane pane]
-                            (when-let [selected-tab-idx (get tab-selection-by-pane pane-idx)]
-                              (when (< -1 selected-tab-idx (.size (.getTabs pane)))
-                                (.select (.getSelectionModel pane) (int selected-tab-idx)))))]
-        (when second-tab-pane
-          (doseq [tab tabs-to-move]
-            (.remove (.getTabs ^TabPane first-tab-pane) tab)
-            (.add (.getTabs second-tab-pane) tab))
-          (select-tab-fn 1 second-tab-pane))
-        (select-tab-fn 0 first-tab-pane)
-        (doseq [^TabPane pane tab-panes]
-          (ui/add-style! pane "inactive"))
-        (let [^TabPane selected-tab-pane (.get tab-panes (min selected-pane (- (count tab-panes) 1)))]
-          (ui/remove-style! selected-tab-pane "inactive")
-          (.requestFocus selected-tab-pane))))))
+  (let [selected-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :selected-pane])]
+    ;; Restore the previously open tabs and selection state within each TabPane.
+    (g/let-ec [open-resource-plans (open-resource-plans-from-prefs app-view prefs workspace project evaluation-context)]
+      (run! #(perform-open-resource-plan! % localization)
+            open-resource-plans))
+
+    ;; Restore the focus to the TabPane selected in the preferences, if any. The
+    ;; selection state of the correct Tabs inside each TabPane has already been
+    ;; restored when the Tabs were created above.
+    (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
+          tab-panes (.getItems editor-tabs-split)
+          ^TabPane selected-tab-pane (nth tab-panes selected-tab-pane-index (first tab-panes))]
+      (when selected-tab-pane
+        (.requestFocus selected-tab-pane)))))
 
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
   (enabled? [selection] (some resource/exists? (selection->openable-resources selection)))
   (run [selection app-view prefs localization workspace project]
     (doseq [resource (filter resource/exists? (selection->openable-resources selection))]
-      (open-resource app-view prefs localization workspace project resource))))
+      (open-resource! app-view prefs localization project resource))))
 
 (handler/defhandler :file.open-as :global
   (active? [app-view selection evaluation-context] (context-openable-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context] (resource/exists? (context-openable-resource app-view selection evaluation-context)))
   (run [selection app-view prefs localization workspace project user-data]
        (let [resource (context-openable-resource app-view selection)]
-         (open-resource app-view prefs localization workspace project resource user-data)))
+         (open-resource! app-view prefs localization project resource user-data)))
   (options [app-view prefs workspace selection user-data evaluation-context]
     (when-not user-data
       (let [[resource active-view-type-id]
@@ -2438,8 +2509,8 @@
 (handler/defhandler :private/open-selected-recent-file :global
   (run [prefs localization app-view workspace project user-data]
     (let [[resource view-type] user-data]
-      (open-resource app-view prefs localization workspace project resource {:selected-view-type view-type
-                                                                             :use-custom-editor false}))))
+      (open-resource! app-view prefs localization project resource {:selected-view-type view-type
+                                                                    :use-custom-editor false}))))
 
 (handler/defhandler :file.open-recent :global
   (active? [prefs workspace evaluation-context]
@@ -2447,8 +2518,8 @@
   (run [prefs localization app-view workspace project]
     (g/with-auto-evaluation-context evaluation-context
       (doseq [[resource view-type] (recent-files/select prefs workspace evaluation-context)]
-        (open-resource app-view prefs localization workspace project resource {:selected-view-type view-type
-                                                                               :use-custom-editor false})))))
+        (open-resource! app-view prefs localization project resource {:selected-view-type view-type
+                                                                      :use-custom-editor false})))))
 
 (handler/defhandler :file.reopen-recent :global
   (enabled? [prefs workspace evaluation-context app-view]
@@ -2456,8 +2527,8 @@
   (run [prefs localization app-view workspace project]
     (g/with-auto-evaluation-context evaluation-context
       (let [[resource view-type] (recent-files/last-closed prefs workspace app-view evaluation-context)]
-        (open-resource app-view prefs localization workspace project resource {:selected-view-type view-type
-                                                                               :use-custom-editor false})))))
+        (open-resource! app-view prefs localization project resource {:selected-view-type view-type
+                                                                      :use-custom-editor false})))))
 
 (defn- async-save!
   ([app-view changes-view project save-data-fn]
@@ -2622,7 +2693,7 @@
                                      :selection :multiple
                                      :ok-label (localization/message "dialog.referencing-files.button.ok")
                                      :filter (format "refs:%s" (resource/proj-path r))})]
-           (run! #(open-resource app-view prefs localization workspace project %)
+           (run! #(open-resource! app-view prefs localization project %)
                  (e/filter resource/openable-resource? selected-resources))))))
 
 (handler/defhandler :file.show-dependencies :global
@@ -2641,7 +2712,7 @@
                                      :selection :multiple
                                      :ok-label (localization/message "dialog.dependencies.button.ok")
                                      :filter (format "deps:%s" (resource/proj-path r))})]
-           (run! #(open-resource app-view prefs localization workspace project %)
+           (run! #(open-resource! app-view prefs localization project %)
                  (e/filter resource/openable-resource? selected-resources))))))
 
 (defn show-override-inspector!
@@ -2846,7 +2917,7 @@
     (when (not= prev-filter-term filter-term)
       (prefs/set! prefs open-assets-term-prefs-key filter-term))
     (doseq [resource selected-resources]
-      (open-resource app-view prefs localization workspace project resource))))
+      (open-resource! app-view prefs localization project resource))))
 
 (handler/defhandler :private/select-items :global
   (run [user-data localization]
@@ -2880,7 +2951,7 @@
 (handler/defhandler :file.open :global
   (run [workspace project app-view prefs user-data localization]
     (if user-data
-      (run! #(open-resource app-view prefs localization workspace project %) (file-open-user-data->openable-resources workspace user-data))
+      (run! #(open-resource! app-view prefs localization project %) (file-open-user-data->openable-resources workspace user-data))
       (let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
         (query-and-open! workspace project app-view prefs localization term)))))
 
@@ -2957,7 +3028,7 @@
                       (let [f (future/make)]
                         (ui/run-later
                           (try
-                            (open-resource app-view prefs localization workspace project resource)
+                            (open-resource! app-view prefs localization project resource)
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
                         f))
@@ -3061,7 +3132,7 @@
                             (fn [successful?]
                               (when successful?
                                 (when-some [created-resource (workspace/find-resource workspace proj-path)]
-                                  (open-resource app-view prefs localization workspace project created-resource))))))
+                                  (open-resource! app-view prefs localization project created-resource))))))
 
       (= :folder (resource/source-type resource))
       (notifications/show!
@@ -3071,7 +3142,7 @@
                 assoc "reason" (localization/message "notification.ensure-exists.reason.folder")))
 
       :else
-      (open-resource app-view prefs localization workspace project resource))))
+      (open-resource! app-view prefs localization project resource))))
 
 (def ^:private open-liveupdate-settings-failure-notification
   {:type :error

@@ -1779,9 +1779,14 @@
     (.destroy drawable)
     (g/set-property! node-id :drawable nil)))
 
-(defn- focus-view [view-id opts]
-  (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
-    (.requestFocus image-view)))
+(defn- focus-view! [view-id _opts done-fn]
+  (if-some [^ImageView image-view (g/node-value view-id :image-view)]
+    (do
+      (.requestFocus image-view)
+      (ui/run-later
+        (refresh-scene-view! view-id 1/60)
+        (done-fn)))
+    (done-fn)))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
@@ -1790,7 +1795,7 @@
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview
                                 :dispose-preview-fn dispose-preview
-                                :focus-fn focus-view))
+                                :focus-fn focus-view!))
 
 (g/defnk produce-transform [position rotation scale]
   (math/clj->mat4 position rotation scale))

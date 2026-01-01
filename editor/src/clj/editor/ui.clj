@@ -608,6 +608,8 @@
                     tab)))
               (.getTabs ^TabPane tab-pane))))))
 
+(declare selected-tab)
+
 (defn focus-owner
   "Returns the Node that owns focus in the specified Scene, or nil if no node
   has input focus. This function works around a bug in JavaFX related to nodes
@@ -618,7 +620,7 @@
   ^Node [^Scene scene]
   (when-some [focus-owner (.getFocusOwner scene)]
     (if-some [owning-tab (owning-tab focus-owner)]
-      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selection-model .getSelectedItem)]
+      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selected-tab)]
         (when (identical? owning-tab selected-tab-in-owning-tab-pane)
           focus-owner))
       focus-owner)))
@@ -2334,8 +2336,8 @@
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
 
 (defn parent-tab-pane
-  "Returns the closest TabPane above the Node in the scene hierarchy, or nil if
-  the Node is not under a TabPane."
+  "Returns the closest TabPane at or above the Node in the scene hierarchy, or
+  nil if the Node is not a TabPane or under a TabPane."
   ^TabPane [^Node node]
   (closest-node-of-type TabPane node))
 
@@ -2348,6 +2350,11 @@
 (defn selected-tab
   ^Tab [^TabPane tab-pane]
   (.. tab-pane getSelectionModel getSelectedItem))
+
+(defn select-tab! [^Tab tab]
+  (let [tab-pane (.getTabPane tab)
+        selection-model (.getSelectionModel tab-pane)]
+    (.select selection-model tab)))
 
 (defn inside-hidden-tab? [^Node node]
   (let [tab-content-area (closest-node-with-style "tab-content-area" node)]

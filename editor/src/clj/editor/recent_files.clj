@@ -112,15 +112,15 @@
 
 (defn- tab->resource [^Tab tab]
   {:pre [(some? tab)]
-   :post [#(resource/resource? %)]}
-  (-> tab
-      (ui/user-data :editor.app-view/view)
-      (g/node-value :view-data)
-      second
-      :resource))
+   :post [(or (nil? %)
+              (resource/resource? %))]}
+  (some-> (ui/user-data tab :editor.app-view/view)
+          (g/node-value :view-data)
+          second
+          :resource))
 
 (defn- tab->prefs-data [tab]
-  (let [tab-resource (tab->resource tab)]
+  (when-some [tab-resource (tab->resource tab)]
     [(resource/proj-path tab-resource)
      (-> tab-resource
          resource/resource-type
@@ -131,7 +131,9 @@
 (defn- collect-open-tabs [app-view]
   (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
     (mapv (fn [^TabPane tab-pane]
-            (mapv tab->prefs-data (.getTabs tab-pane)))
+            (into []
+                  (keep tab->prefs-data)
+                  (.getTabs tab-pane)))
           (.getItems editor-tabs-split))))
 
 (defn- collect-tab-selections [app-view]

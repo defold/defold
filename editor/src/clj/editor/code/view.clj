@@ -4272,13 +4272,14 @@
         (when (= :tool prefix)
           (handler/register-handler! handler-id command tool-context-definition fnks))))))
 
-(defn- focus-view! [view-node opts]
+(defn- focus-view! [view-node opts done-fn]
   (.requestFocus ^Node (g/node-value view-node :canvas))
   (when-some [cursor-range (:cursor-range opts)]
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            cursor-range))))
+                                            cursor-range)))
+  (done-fn))
 
 (defn register-view-types [workspace]
   (concat

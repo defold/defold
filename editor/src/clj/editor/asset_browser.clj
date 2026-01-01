@@ -548,7 +548,7 @@
                 new-resource-path (resource/file->proj-path project-directory new-file)
                 resource (resource-map new-resource-path)]
             (when (resource/loaded? resource)
-              (app-view/open-resource app-view prefs localization workspace project resource))
+              (app-view/open-resource! app-view prefs localization project resource))
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data evaluation-context]
     (when (not user-data)
