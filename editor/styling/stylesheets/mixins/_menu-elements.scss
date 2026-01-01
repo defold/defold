@@ -37,54 +37,6 @@
         @include extensions(menu);
     }
 
-    .grid-menu-button {
-        -fx-padding: 4 10 4 10;
-        -fx-alignment: center-left;
-        -fx-max-width: infinity;
-        -fx-text-fill: -df-text;
-
-        &:hover {
-            -fx-background-color: -df-component-lighter;
-            -fx-text-fill: -df-text-selected;
-            > .image-view, > .graphic-container > .image-view {
-                @include effect-lighten-blue();
-            }
-        }
-        &.resource-kind-script > .image-view {
-            @include colorize-image-view(-df-script-file);
-        }
-        &:hover.resource-kind-script > .image-view {
-            @include colorize-image-view(-df-script-file-active);
-        }
-
-        &.resource-kind-design > .image-view {
-            @include colorize-image-view(-df-design-file);
-        }
-        &:hover.resource-kind-design > .image-view {
-            @include colorize-image-view(-df-design-file-active);
-        }
-
-        &.resource-kind-property > .image-view {
-            @include colorize-image-view(-df-property-file);
-        }
-        &:hover.resource-kind-property > .image-view {
-            @include colorize-image-view(-df-property-file-active);
-        }
-    }
-    .custom-menu-item.no-hover-effect {
-        -fx-background-color: transparent !important;
-
-        &:hover, &:focused {
-            -fx-background-color: transparent !important;
-        }
-    }
-
-    .custom-separator .line {
-        -fx-background-color: derive(-df-background-darker, 20%);
-        -fx-pref-height: 1;
-        -fx-border-color: null;
-    }
-
     .separator {
         &:horizontal {
             -fx-padding: 3 0 3 0;
