@@ -1493,7 +1493,7 @@
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
          :hide-on-click false
-         :style-class ["no-hover-effect"]
+         :style-class ["grid-menu"]
          :content
          {:fx/type fx.h-box/lifecycle
           :spacing 10.0
@@ -1503,8 +1503,7 @@
             {:fx/type fx.region/lifecycle
              :min-width 1.0
              :max-width 1.0
-             :style {:-fx-background-color "#333333"
-                     :-fx-background-insets "10 0 10 0"}}
+             :style-class ["grid-menu-column-separator"]}
             (for [column column-groups]
               {:fx/type fx.v-box/lifecycle
                :spacing 2.0
@@ -1515,12 +1514,9 @@
                              :alignment :center-left
                              :children [{:fx/type fx.label/lifecycle
                                          :text group-name
-                                         :style {:-fx-font-size 11
-                                                 :-fx-font-style "italic"
-                                                 :-fx-text-fill "derive(-df-text-dark, 20%)"}}
+                                         :style-class ["grid-menu-group-label"]}
                                         {:fx/type fx.separator/lifecycle
                                          :h-box/hgrow :always
-                                         :padding (Insets. 0 0 0 5)
                                          :style-class ["custom-separator"]
                                          :orientation :horizontal}]}]
                            (keep (fn [child]
@@ -1530,10 +1526,9 @@
                                          child-icon (:icon child)
                                          child-style (:style child)]
                                      (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                       (let [enabled? (handler/enabled? handler-ctx evaluation-context)
-                                             lbl (localization child-label)]
+                                       (let [enabled? (handler/enabled? handler-ctx evaluation-context)]
                                          {:fx/type fx.button/lifecycle
-                                          :text lbl
+                                          :text (localization child-label)
                                           :disable (not enabled?)
                                           :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
                                           :style-class (into ["grid-menu-button"] child-style)

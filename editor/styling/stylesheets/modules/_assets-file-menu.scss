@@ -1,3 +1,5 @@
+@import '../mixins/effects';
+
 .grid-menu-button {
     -fx-padding: 4 10 4 10;
     -fx-alignment: center-left;
@@ -32,9 +34,9 @@
         @include colorize-image-view(-df-property-file-active);
     }
 }
-.custom-menu-item.no-hover-effect {
-    -fx-background-color: transparent !important;
 
+.custom-menu-item.grid-menu {
+    -fx-background-color: transparent !important;
     &:hover, &:focused {
         -fx-background-color: transparent !important;
     }
@@ -43,5 +45,17 @@
 .custom-separator .line {
     -fx-background-color: derive(-df-background-darker, 20%);
     -fx-pref-height: 1;
+    -fx-padding: 0 0 0 5;
     -fx-border-color: null;
+}
+
+.grid-menu-group-label {
+    -fx-font-size: 11;
+    -fx-font-style: italic;
+    -fx-text-fill: derive(-df-text-dark, 20%);
+}
+
+.grid-menu-column-separator {
+    -fx-background-color: #333333;
+    -fx-background-insets: 10 0 10 0;
 }
