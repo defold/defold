@@ -529,13 +529,14 @@ namespace dmGameSystem
     }
 
     dmGameObject::PropertyResult SetMaterialAttribute(
-        DynamicAttributePool&            pool,
-        uint16_t*                        dynamic_attribute_index,
-        dmRender::HMaterial              material,
-        dmhash_t                         name_hash,
-        const dmGameObject::PropertyVar& var,
-        CompGetMaterialAttributeCallback callback,
-        void*                            callback_user_data)
+        DynamicAttributePool&               pool,
+        uint16_t*                           dynamic_attribute_index,
+        dmRender::HMaterial                 material,
+        dmhash_t                            name_hash,
+        const dmGameObject::PropertyVar&    var,
+        CompGetMaterialAttributeCallback    callback,
+        void*                               callback_user_data,
+        const dmGraphics::VertexAttribute** attribute_out)
     {
         if (var.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER &&
             var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3 &&
@@ -638,6 +639,13 @@ namespace dmGameSystem
         else
         {
             memcpy(values, var.m_V4, sizeof(var.m_V4));
+        }
+
+        // Optional: We can opt-out of expensive code in some places if we know
+        //           which attribute it is that we are overriding.
+        if (attribute_out)
+        {
+            *attribute_out = info.m_Attribute;
         }
 
         return dmGameObject::PROPERTY_RESULT_OK;
