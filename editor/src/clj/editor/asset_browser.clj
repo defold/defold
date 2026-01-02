@@ -506,25 +506,6 @@
         contents (workspace/replace-template-name template base-name)]
     (spit new-file contents)))
 
-;; NOTE: Neither "go" and "collection" are not here so they remain part of the top menu
-(def resource-ext-groups
-  {"resource.group.components"
-   #{"sound" "factory" "model" "collisionobject" "label" "tilemap" "camera" "particlefx" "gui" "sprite" "mesh" "collectionfactory" "collectionproxy"}
-   "resource.group.resources"
-   #{"atlas" "buffer" "render_target" "font" "animationset" "tilesource" "cubemap" "material"}
-   "resource.group.shaders"
-   #{"glsl" "fp" "vp" "compute"}
-   "resource.group.scripts"
-   #{"cp" "gui_script" "render_script" "script" "lua" "editor_script"}
-   "resource.group.project"
-   #{"gamepads" "texture_profiles" "editor_localization" "display_profiles" "render" "input_binding" "appmanifest"}})
-
-(defn- find-group-for-resource-type [resource-type]
-  (some (fn [[group-name extensions]]
-          (when (extensions (:ext resource-type))
-            group-name))
-        resource-ext-groups))
-
 (handler/defhandler :file.new :global
   (label [user-data] (if-not user-data
                        (localization/message "command.file.new")
@@ -577,8 +558,7 @@
                    :icon (:icon resource-type)
                    :style (resource/type-style-classes resource-type)
                    :command :file.new
-                   :user-data {:resource-type resource-type}
-                   :group (find-group-for-resource-type resource-type)}))
+                   :user-data {:resource-type resource-type}}))
               (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))}])))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
