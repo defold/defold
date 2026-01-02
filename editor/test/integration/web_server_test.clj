@@ -26,12 +26,16 @@
             [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
+            [editor.http-server.prefs :as http-server.prefs]
             [editor.pipeline.bob :as bob]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [util.http-client :as http]
             [util.http-server :as http-server])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
@@ -157,6 +161,81 @@
              200
              (ByteArrayInputStream. (.getBytes "input stream" StandardCharsets/UTF_8)))
            :as :string))))
+
+(defn- schema-leaves
+  ([schema]
+   (schema-leaves [] schema))
+  ([path schema]
+   (case (:type schema)
+     :object (cond-> (e/mapcat
+                       (fn [[k v]]
+                         (schema-leaves (conj path k) v))
+                       (:properties schema))
+                     (not (coll/empty? path))
+                     (e/conj [path schema]))
+     [[path schema]])))
+
+(defn- different-value [value schema]
+  (case (:type schema)
+    :any [value]
+    :boolean (not value)
+    (:password :string :locale) (str value "++")
+    :keyword (keyword (str (if value (name value) "foo") "++"))
+    (:integer :number) (inc value)
+    :array (let [item-schema (:item schema)
+                 value (if (coll/empty? value)
+                         [(prefs/default-value item-schema)]
+                         value)]
+             (mapv #(different-value % item-schema) value))
+    :set (let [item-schema (:item schema)
+               value (if (coll/empty? value)
+                       #{(prefs/default-value item-schema)}
+                       value)]
+           (into #{} (map #(different-value % item-schema)) value))
+    :object (coll/pair-map-by
+              key
+              (fn [[k v]]
+                (different-value (k value (prefs/default-value v)) v))
+              (:properties schema))
+    :object-of (let [{:keys [key val]} schema
+                     value (if (coll/empty? value)
+                             {(prefs/default-value key) (prefs/default-value val)}
+                             value)]
+                 (into {}
+                       (map (fn [[k v]]
+                              (coll/pair (different-value k key) (different-value v val))))
+                       value))
+    :tuple (mapv different-value value (:items schema))
+    :enum (let [{:keys [values]} schema
+                [a b] values]
+            (if (= value a) b a))))
+
+(deftest prefs-endpoint-roundtrip-test
+  (let [prefs (prefs/make :scopes {:global (fs/create-temp-file!)
+                                   :project (fs/create-temp-file!)}
+                          :schemas [:default])]
+    (with-open [server (http-server/start! (http-server/router-handler (http-server.prefs/routes prefs)))]
+      (let [url (http-server/local-url server)]
+        (doseq [[path schema] (schema-leaves (prefs/schema prefs []))]
+          (let [path-str (coll/join-to-string "." (e/map name path))
+                path-url (str url "/prefs/" path-str)]
+            (testing path-str
+              (let [first-get @(http/request path-url :as :string)]
+                (when (is (= 200 (:status first-get)))
+                  (let [first-json (json/read-str (:body first-get))]
+                    (testing "write the same value"
+                      (when (is (= 200 (:status @(http/request path-url :method "POST" :body (json/write-str first-json)))))
+                        (let [second-get @(http/request path-url :as :string)]
+                          (when (is (= 200 (:status second-get)))
+                            (let [second-json (json/read-str (:body second-get))]
+                              (is (= first-json second-json)))))))
+                    (testing "write a different value"
+                      (let [new-value (different-value (prefs/get prefs path) schema)]
+                        (when (is (= 200 (:status @(http/request path-url :method "POST" :body (json/write-str new-value)))))
+                          (let [second-get @(http/request path-url :as :string)]
+                            (when (is (= 200 (:status second-get)))
+                              (let [second-json (json/read-str (:body second-get))]
+                                (is (not= first-json second-json))))))))))))))))))
 
 (deftest web-server-test
   (test-util/with-loaded-project
