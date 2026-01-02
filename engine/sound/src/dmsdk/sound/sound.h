@@ -52,6 +52,7 @@ namespace dmSound
      * @member RESULT_FINI_ERROR
      * @member RESULT_NO_DATA
      * @member RESULT_END_OF_STREAM
+     * @member RESULT_DEVICE_LOST
      * @member RESULT_UNKNOWN_ERROR
      */
     enum Result
@@ -76,6 +77,7 @@ namespace dmSound
         RESULT_FINI_ERROR         = -16,
         RESULT_NO_DATA            = -17,
         RESULT_END_OF_STREAM      = -18,
+        RESULT_DEVICE_LOST        = -19,
         RESULT_UNKNOWN_ERROR      = -1000,
     };
 

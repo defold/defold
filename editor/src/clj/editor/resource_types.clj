@@ -17,6 +17,7 @@
             [editor.animation-set :as animation-set]
             [editor.app-manifest :as app-manifest]
             [editor.atlas :as atlas]
+            [editor.binary-file :as binary-file]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
             [editor.code.script :as code-script]
@@ -66,6 +67,7 @@
       (animation-set/register-resource-types workspace)
       (app-manifest/register-resource-types workspace)
       (atlas/register-resource-types workspace)
+      (binary-file/register-resource-types workspace)
       (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)
       (model-scene/register-resource-types workspace)

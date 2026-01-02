@@ -91,7 +91,8 @@ HFont FontLoadFromPath(const char* path)
         return 0;
     }
 
-    Font* font = FontLoadFromMemory(path, data, data_size, false);
+    Font* font = FontLoadFromMemory(path, data, data_size, true);
+    free(data);
     if (!font)
     {
         free((void*)data);

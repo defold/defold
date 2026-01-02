@@ -1414,6 +1414,8 @@ TYPED_TEST(PhysicsTest, GravityChange)
     // Verify that the gravity has affected the y position in the opposite direction.
     ASSERT_LT(y, vo.m_Position.getY());
 
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
 enum FilterGroup

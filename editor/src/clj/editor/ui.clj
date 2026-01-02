@@ -27,6 +27,7 @@
             [editor.math :as math]
             [editor.os :as os]
             [editor.progress :as progress]
+            [editor.system :as system]
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
@@ -527,6 +528,12 @@
 
 (defn title! [^Stage window t]
   (.setTitle window t))
+
+(defn make-title
+  ([] (if-some [version (system/defold-version)]
+        (str "Defold " version)
+        "Defold"))
+  ([project-title] (str project-title " - " (make-title))))
 
 (defn tooltip! [^Control ctrl tip localization]
   (.setTooltip ctrl (when tip (localization/localize! (Tooltip.) localization tip))))

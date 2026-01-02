@@ -125,6 +125,8 @@ namespace dmShaderc
 
     void FreeShaderCompileResult(ShaderCompileResult* result)
     {
+        result->m_Data.SetCapacity(0);
+        result->m_HLSLResourceMappings.SetCapacity(0);
         free(result);
     }
 

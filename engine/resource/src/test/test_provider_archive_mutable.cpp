@@ -390,5 +390,8 @@ int main(int argc, char **argv)
     dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

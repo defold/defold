@@ -261,8 +261,9 @@ namespace dmPhysics
         return false;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
+        return true;
     }
 
     void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)

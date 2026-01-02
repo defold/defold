@@ -21,11 +21,9 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
-#include "../graphics_private.h"
+#include <dmsdk/graphics/graphics_webgpu.h>
 
-#ifdef __EMSCRIPTEN__
-#include <webgpu/webgpu.h>
-#endif
+#include "../graphics_private.h"
 
 #ifdef DM_GRAPHICS_WEBGPU_WAGYU
 #define DM_GRAPHICS_WEBGPU2

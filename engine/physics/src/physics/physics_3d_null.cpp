@@ -209,8 +209,9 @@ namespace dmPhysics
     {
     }
 
-    void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
+    bool RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
+        return true;
     }
 
     void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)

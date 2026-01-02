@@ -115,6 +115,10 @@ namespace dmRender
 
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)
     {
+        for (uint32_t i = 0; i < program->m_Constants.Size(); ++i)
+        {
+            dmRender::DeleteConstant(program->m_Constants[i].m_Constant);
+        }
         delete program;
     }
 

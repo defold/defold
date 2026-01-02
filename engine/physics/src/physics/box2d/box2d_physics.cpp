@@ -205,6 +205,20 @@ namespace dmPhysics
         return world;
     }
 
+    static void ClearPendingRayCasts2D(HWorld2D world)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_UserData)
+            {
+                free(request.m_UserData);
+            }
+        }
+        world->m_RayCastRequests.SetSize(0);
+    }
+
     void DeleteWorld2D(HContext2D context, HWorld2D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
@@ -214,6 +228,8 @@ namespace dmPhysics
                 context->m_Worlds.EraseSwap(i);
             }
         }
+
+        ClearPendingRayCasts2D(world);
 
         if (b2World_IsValid(world->m_WorldId))
         {
@@ -912,7 +928,7 @@ namespace dmPhysics
         delete (HullSet*) hull_set;
     }
 
-    static inline void InitializeGridSHapeData(GridShapeData* shape_data)
+    static inline void InitializeGridShapeData(GridShapeData* shape_data)
     {
         uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
         uint32_t size       = sizeof(GridShapeData::Cell) * cell_count;
@@ -962,7 +978,7 @@ namespace dmPhysics
         shape_data->m_ColumnCount = column_count;
         shape_data->m_Radius      = b2_polygonRadius;
 
-        InitializeGridSHapeData(shape_data);
+        InitializeGridShapeData(shape_data);
 
         return shape_data;
     }
@@ -1238,24 +1254,51 @@ namespace dmPhysics
         }
     }
 
-    void DeleteCollisionShape2D(HCollisionShape2D _shape)
+    static void FreeShape(ShapeData* shape)
     {
-        ShapeData* shape = (ShapeData*) _shape;
-
-        switch (shape->m_Type)
+        switch(shape->m_Type)
         {
             case SHAPE_TYPE_CIRCLE:
-                delete (CircleShapeData*) shape;
-                break;
+            {
+                if (b2Shape_IsValid(shape->m_ShapeId))
+                    b2DestroyShape(shape->m_ShapeId, false);
+                CircleShapeData* circle_shape = (CircleShapeData*) shape;
+                delete circle_shape;
+            }
+            break;
             case SHAPE_TYPE_POLYGON:
-                delete (PolygonShapeData*) shape;
-                break;
+            {
+                if (b2Shape_IsValid(shape->m_ShapeId))
+                    b2DestroyShape(shape->m_ShapeId, false);
+                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
+                delete poly_shape;
+            }
+            break;
             case SHAPE_TYPE_GRID:
-                delete (GridShapeData*) shape;
-                break;
-            default:
-                assert(false);
+            {
+                GridShapeData* grid_shape = (GridShapeData*) shape;
+
+                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+
+                for (int i = 0; i < cell_count; ++i)
+                {
+                    if (grid_shape->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
+                    {
+                        if (b2Shape_IsValid(grid_shape->m_CellPolygonShapes[i]))
+                            b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
+                    }
+                }
+
+                FreeGridShapeData(grid_shape);
+                delete grid_shape;
+            } break;
+            default: break;
         }
+    }
+
+    void DeleteCollisionShape2D(HCollisionShape2D _shape)
+    {
+        FreeShape((ShapeData*)_shape);
     }
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
@@ -1353,7 +1396,7 @@ namespace dmPhysics
                 GridShapeData* grid_shape_prim = new GridShapeData;
                 memcpy(grid_shape_prim, grid_shape, sizeof(GridShapeData));
 
-                InitializeGridSHapeData(grid_shape_prim);
+                InitializeGridShapeData(grid_shape_prim);
 
                 ret = (ShapeData*) grid_shape_prim;
             } break;
@@ -1366,48 +1409,6 @@ namespace dmPhysics
         }
 
         return ret;
-    }
-
-    static void FreeShape(ShapeData* shape)
-    {
-        switch(shape->m_Type)
-        {
-            case SHAPE_TYPE_CIRCLE:
-            {
-                if (b2Shape_IsValid(shape->m_ShapeId))
-                    b2DestroyShape(shape->m_ShapeId, false);
-                CircleShapeData* circle_shape = (CircleShapeData*) shape;
-                delete circle_shape;
-            }
-            break;
-            case SHAPE_TYPE_POLYGON:
-            {
-                if (b2Shape_IsValid(shape->m_ShapeId))
-                    b2DestroyShape(shape->m_ShapeId, false);
-                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
-                delete poly_shape;
-            }
-            break;
-            case SHAPE_TYPE_GRID:
-            {
-                GridShapeData* grid_shape = (GridShapeData*) shape;
-
-                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
-
-                for (int i = 0; i < cell_count; ++i)
-                {
-                    if (grid_shape->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
-                    {
-                        if (b2Shape_IsValid(grid_shape->m_CellPolygonShapes[i]))
-                            b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
-                    }
-                }
-
-                FreeGridShapeData(grid_shape);
-                delete grid_shape;
-            } break;
-            default: break;
-        }
     }
 
     /*
@@ -1564,6 +1565,7 @@ namespace dmPhysics
         world->m_Bodies.Push(body);
 
         UpdateMass2D(world, body, data.m_Mass);
+
         return body;
     }
 
@@ -1577,6 +1579,7 @@ namespace dmPhysics
         {
             FreeShape(body->m_Shapes[i]);
         }
+        free(body->m_Shapes);
 
         b2DestroyBody(body->m_BodyId);
         uint32_t num_bodies = world->m_Bodies.Size();
@@ -1589,6 +1592,7 @@ namespace dmPhysics
                 break;
             }
         }
+        delete body;
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
@@ -1669,10 +1673,10 @@ namespace dmPhysics
 
             PolygonShapeData* polygon_shape = (PolygonShapeData*) shape;
             b2Vec2* vertices = polygon_shape->m_Polygon.vertices;
-            float min_x = INT32_MAX,
-                  min_y = INT32_MAX,
-                  max_x = -INT32_MAX,
-                  max_y = -INT32_MAX;
+            float min_x = (float)INT32_MAX,
+                  min_y = (float)INT32_MAX,
+                  max_x = (float)-INT32_MAX,
+                  max_y = (float)-INT32_MAX;
             float inv_scale = world->m_Context->m_InvScale;
             for (int i = 0; i < polygon_shape->m_Polygon.count; i += 1)
             {
@@ -2012,7 +2016,7 @@ namespace dmPhysics
         return true;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
         {
@@ -2023,16 +2027,19 @@ namespace dmPhysics
             if (lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+                return false;
             }
             else
             {
                 world->m_RayCastRequests.Push(request);
+                return true;
             }
         }
         else
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request. See 'physics.ray_cast_limit_2d' in game.project", world->m_RayCastRequests.Capacity());
         }
+        return false;
     }
 
     static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
@@ -2207,7 +2214,7 @@ namespace dmPhysics
                                     // Free and replace grid so we can recreate cells correctly
                                     FreeGridShapeData(grid_shape);
                                     memcpy(grid_shape, new_grid_shape, sizeof(GridShapeData));
-                                    InitializeGridSHapeData(grid_shape);
+                                    InitializeGridShapeData(grid_shape);
                                 } break;
                             }
                         }

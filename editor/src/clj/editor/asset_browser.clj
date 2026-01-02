@@ -547,7 +547,7 @@
             (when (resource/loaded? resource)
               (app-view/open-resource app-view prefs localization workspace project resource))
             (select-resource! asset-browser resource))))))
-  (options [workspace selection user-data]
+  (options [workspace selection user-data evaluation-context]
     (when (not user-data)
       (localization/annotate-as-sorted
         localization/natural-sort-by-label
@@ -556,13 +556,13 @@
                 :command :file.new
                 :user-data {:any-file true}}]
               (keep (fn [[_ext resource-type]]
-                      (when (workspace/has-template? workspace resource-type)
+                      (when (workspace/has-template? workspace resource-type evaluation-context)
                         {:label (or (:label resource-type) (:ext resource-type))
                          :icon (:icon resource-type)
                          :style (resource/type-style-classes resource-type)
                          :command :file.new
                          :user-data {:resource-type resource-type}})))
-              (workspace/get-resource-type-map workspace))))))
+              (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))

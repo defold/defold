@@ -18,7 +18,12 @@
 #include <dmsdk/graphics/graphics.h>
 
 #ifdef __EMSCRIPTEN__
-    #include <webgpu/webgpu.h>
+    #if defined(DM_GRAPHICS_WEBGPU_WAGYU)
+        #include <webgpu/webgpu_wagyu.h>
+    #else
+        #include <webgpu/webgpu.h>
+    #endif
+
 #else
     typedef int WGPUInstance;
     typedef int WGPUAdapter;

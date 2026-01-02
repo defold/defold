@@ -45,6 +45,7 @@
             [editor.workspace :as workspace]
             [internal.cache :as c]
             [internal.util :as util]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc]
            [internal.graph.types Arc]
@@ -852,11 +853,23 @@
                                  ;; be validated by the game-object :load-fn.
                                  (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
                                  (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
-          new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
-          id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
-          child->parent (into {} (map #(do [% nil]) (keys id->nid)))
-          rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))
-          child->parent (merge child->parent (rev-child-parent-fn (concat (:instances collection) (:embedded-instances collection))))]
+          id->nid (-> tx-go-creation
+                      (g/tx-data-added-nodes)
+                      (coll/transfer {}
+                        (filter #(g/node-instance*? GameObjectInstanceNode %))
+                        (map (fn [node]
+                               (pair (:id node)
+                                     (g/node-id node))))))
+          child->parent (-> {}
+                            (into (map #(pair (key %) nil))
+                                  id->nid)
+                            (into
+                              (comp cat
+                                    (mapcat (fn [{:keys [children id]}]
+                                              (map #(pair % id)
+                                                   children))))
+                              (pair (:instances collection)
+                                    (:embedded-instances collection))))]
       (concat
         tx-go-creation
         (for [[child parent] child->parent

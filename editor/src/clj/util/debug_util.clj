@@ -21,6 +21,7 @@
   (:import [java.io File]
            [java.lang.reflect Field]
            [java.util List Locale Map Set]
+           [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.lang3.time DurationFormatUtils]))
 
 (set! *warn-on-reflection* true)
@@ -190,17 +191,29 @@
         (log/info :message (str ~label " completed in " (nanos->string (- end# start#))))
         ret#))))
 
+(defonce ^AtomicLong gc-overhead-ns-atomic (AtomicLong.))
+
+(defn gc-overhead-ns
+  ^long []
+  (.get gc-overhead-ns-atomic))
+
 (defmacro allocated-bytes
   "Performs a garbage collection, then returns the number of bytes currently
-  allocated in the JVM."
+  allocated in the JVM. The number of nanoseconds spent performing garbage
+  collection is added to the global gc-overhead-ns AtomicLong."
   ([]
    `(allocated-bytes (Runtime/getRuntime)))
   ([runtime-expr]
-   `(long (let [^Runtime runtime# ~runtime-expr]
+   `(long (let [start# (System/nanoTime)
+                ^Runtime runtime# ~runtime-expr]
             (System/gc)
             (System/runFinalization)
-            (- (.totalMemory runtime#)
-               (.freeMemory runtime#))))))
+            (let [allocated# (- (.totalMemory runtime#)
+                                (.freeMemory runtime#))
+                  end# (System/nanoTime)
+                  elapsed# (- end# start#)]
+              (.getAndAdd gc-overhead-ns-atomic elapsed#)
+              allocated#)))))
 
 (defmacro log-time-and-memory
   "Evaluates expr. Then logs the supplied label along with the time it took and
@@ -222,9 +235,11 @@
         (if (pos? allocated-bytes#)
           (log/info :message ~label
                     :elapsed (nanos->string elapsed-ns#)
-                    :allocated (bytes->string allocated-bytes#))
+                    :allocated (bytes->string allocated-bytes#)
+                    :heap (bytes->string end-bytes#))
           (log/info :message ~label
-                    :elapsed (nanos->string elapsed-ns#)))
+                    :elapsed (nanos->string elapsed-ns#)
+                    :heap (bytes->string end-bytes#)))
         ret#))))
 
 (defmacro log-statistics!

@@ -251,7 +251,7 @@ ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void**
  * @name GetDescriptor
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: dmhash_t] Resource path
- * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
+ * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor. Temporary, don't copy.
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* descriptor);
@@ -261,7 +261,7 @@ ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path,
  * @name GetDescriptorByHash
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash
- * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
+ * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor. Temporary, don't copy.
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor);
@@ -644,7 +644,7 @@ struct ResourcePreloadParams
  * @member m_Buffer [type: const void*] Buffer containing the loaded file
  * @member m_BufferSize [type: uint32_t] Size of data buffer (in bytes)
  * @member m_PreloadData [type: void*] Preloaded data from Preload phase.
- * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update.
+ * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update. Temporary, don't copy.
  * @member m_Type [type: HResourceType] The resource type
  */
 struct ResourceCreateParams
@@ -669,7 +669,7 @@ struct ResourceCreateParams
  * @member m_Context [type: void*] The context registered with the resource type
  * @member m_Filename [type: const char*] Path of the loaded file
  * @member m_PreloadData [type: void*] Preloaded data from Preload phase.
- * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update.
+ * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update. Temporary, don't copy.
  * @member m_Type [type: HResourceType] The resource type
  */
 struct ResourcePostCreateParams
@@ -692,7 +692,7 @@ struct ResourcePostCreateParams
  * @member m_Buffer [type: const void*] Buffer containing the loaded file
  * @member m_BufferSize [type: uint32_t] Size of data buffer (in bytes)
  * @member m_Message [type: const void*] Pointer holding a precreated message
- * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update
+ * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update. Temporary, don't copy.
  * @member m_Type [type: HResourceType] The resource type
  */
 struct ResourceRecreateParams
@@ -733,7 +733,7 @@ struct ResourceDestroyParams
  * @member m_UserData [type: void*] User data supplied when the callback was registered
  * @member m_FilenameHash [type: dmhash_t] File name hash of the data
  * @member m_Filename [type: const char*] Path of the resource, same as provided to Get() when the resource was obtained
- * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update
+ * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update. Temporary, don't copy.
  * @member m_Type [type: HResourceType] The resource type
  */
 typedef struct ResourceReloadedParams

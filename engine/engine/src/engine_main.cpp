@@ -15,6 +15,7 @@
 #if defined(ANDROID)
 #include <android_native_app_glue.h>
 
+#include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/thread.h>
 #include <glfw/glfw.h>
@@ -79,16 +80,16 @@ static int WaitForWindow()
 {
     while (glfwAndroidWindowOpened() == 0)
     {
-        int ident;
-        int events;
-        struct android_poll_source* source;
+        void* data = NULL;
+        int ident = ALooper_pollOnce(300, NULL, NULL, &data);
 
-        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
-        {
-            // Process this event.
-            if (source != NULL) {
-                source->process(g_AndroidApp, source);
-            }
+        if (ident >= 0 && data != NULL) {
+            struct android_poll_source* source = (struct android_poll_source*)data;
+            source->process(g_AndroidApp, source);
+        }
+        if (ident == ALOOPER_POLL_ERROR) {
+            dmLogFatal("ALooper_pollOnce returned an error");
+            return 0;
         }
 
         glfwAndroidFlushEvents();

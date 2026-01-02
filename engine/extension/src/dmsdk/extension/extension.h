@@ -151,6 +151,7 @@ typedef struct ExtensionParams
  * Extension event
  * @struct
  * @name ExtensionEvent
+ * @member m_Event [type:ExtensionEventID]
  */
 typedef struct ExtensionEvent
 {

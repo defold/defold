@@ -1030,8 +1030,9 @@
    (g/with-auto-evaluation-context evaluation-context
      (active-scene-view app-view evaluation-context)))
   ([app-view evaluation-context]
-   (let [view (g/node-value app-view :active-view evaluation-context)]
-     (when (and view (g/node-instance? SceneView view))
+   (let [basis (:basis evaluation-context)
+         view (g/node-value app-view :active-view evaluation-context)]
+     (when (and view (g/node-instance? basis SceneView view))
        view))))
 
 (defn- play-handler [view-id]
@@ -1303,7 +1304,7 @@
         :command :scene.set-manipulator-space
         :user-data {:manip-space :local}}]))
   (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
-  (state [app-view user-data] (= (g/node-value app-view :manip-space) (:manip-space user-data))))
+  (state [app-view user-data evaluation-context] (= (g/node-value app-view :manip-space evaluation-context) (:manip-space user-data))))
 
 (handler/defhandler :scene.toggle-move-whole-pixels :global
   (active? [app-view evaluation-context] (active-scene-view app-view evaluation-context))

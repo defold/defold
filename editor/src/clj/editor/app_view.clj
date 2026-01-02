@@ -1958,18 +1958,12 @@
            (g/operation-label (localization/message "operation.select"))
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
-(defn- make-title
-  ([] (if-some [version (system/defold-version)]
-        (str "Defold " version)
-        "Defold"))
-  ([project-title] (str project-title " - " (make-title))))
-
 (defn- refresh-app-title! [^Stage stage project evaluation-context]
   (let [project-title (some-> (g/maybe-node-value project :settings evaluation-context)
                               (get ["project" "title"]))
         new-title (if project-title
-                    (make-title project-title)
-                    (make-title))]
+                    (ui/make-title project-title)
+                    (ui/make-title))]
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
@@ -2074,7 +2068,7 @@
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
-    (.setTitle stage (make-title))
+    (.setTitle stage (ui/make-title))
     (let [editor-tab-pane (TabPane.)
           keymap (keymap/from-prefs prefs)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
@@ -2374,70 +2368,69 @@
   (run [selection app-view prefs localization workspace project user-data]
        (let [resource (context-openable-resource app-view selection)]
          (open-resource app-view prefs localization workspace project resource user-data)))
-  (options [app-view prefs workspace selection user-data]
-           (when-not user-data
-             (let [[resource active-view-type-id]
-                   (g/with-auto-evaluation-context evaluation-context
-                     (if-let [selected-resource (selection->single-resource selection)]
-                       (pair selected-resource nil)
-                       (let [active-resource (g/node-value app-view :active-resource evaluation-context)
-                             active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
-                         (pair active-resource active-view-type-id))))
+  (options [app-view prefs workspace selection user-data evaluation-context]
+    (when-not user-data
+      (let [[resource active-view-type-id]
+            (if-let [selected-resource (selection->single-resource selection)]
+              (pair selected-resource nil)
+              (let [active-resource (g/node-value app-view :active-resource evaluation-context)
+                    active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
+                (pair active-resource active-view-type-id)))]
+        (when (and (resource/openable-resource? resource)
+                   (resource/exists? resource))
+          (let [is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
 
-                   is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
+                make-option
+                (fn make-option [label user-data]
+                  {:label label
+                   :command :file.open-as
+                   :user-data user-data})
 
-                   make-option
-                   (fn make-option [label user-data]
-                     {:label label
-                      :command :file.open-as
-                      :user-data user-data})
+                view-type->option
+                (fn view-type->option [{:keys [label] :as view-type}]
+                  (make-option (or label (localization/message "command.file.open-as.option.associated-application"))
+                               {:selected-view-type view-type}))]
 
-                   view-type->option
-                   (fn view-type->option [{:keys [label] :as view-type}]
-                     (make-option (or label (localization/message "command.file.open-as.option.associated-application"))
-                                  {:selected-view-type view-type}))]
+            (into []
+                  (if is-custom-code-editor-configured
+                    (mapcat (fn [{:keys [id label] :as view-type}]
+                              (case id
+                                (:code :text)
+                                [(make-option (localization/message "command.file.open-as.option.in-custom-editor" {"view" label})
+                                              {:selected-view-type view-type})
+                                 (make-option (localization/message "command.file.open-as.option.in-defold-editor" {"view" label})
+                                              {:selected-view-type view-type
+                                               :use-custom-editor false})]
+                                [(view-type->option view-type)])))
+                    (map view-type->option))
+                  (cond->> (view-types resource)
 
-               (into []
-                     (if is-custom-code-editor-configured
-                       (mapcat (fn [{:keys [id label] :as view-type}]
-                                 (case id
-                                   (:code :text)
-                                   [(make-option (localization/message "command.file.open-as.option.in-custom-editor" {"view" label})
-                                                 {:selected-view-type view-type})
-                                    (make-option (localization/message "command.file.open-as.option.in-defold-editor" {"view" label})
-                                                 {:selected-view-type view-type
-                                                  :use-custom-editor false})]
-                                   [(view-type->option view-type)])))
-                       (map view-type->option))
-                     (cond->> (view-types resource)
-
-                              active-view-type-id
-                              (e/filter #(not= active-view-type-id (:id %)))))))))
+                           active-view-type-id
+                           (e/filter #(not= active-view-type-id (:id %)))))))))))
 
 (handler/defhandler :private/recent-files :global
   (enabled? [prefs workspace evaluation-context]
     (recent-files/exist? prefs workspace evaluation-context))
   (active? [] true)
-  (options [prefs workspace app-view]
-    (g/with-auto-evaluation-context evaluation-context
-      (-> [{:label (localization/message "command.file.reopen-recent")
-            :command :file.reopen-recent}]
-          (cond-> (recent-files/exist? prefs workspace evaluation-context)
-                  (->
-                    (conj menu-items/separator)
-                    (into
-                      (map (fn [[resource view-type :as resource+view-type]]
-                             {:label (-> "command.private.recent-files.option.entry"
-                                         (localization/message
-                                           {"path" (resource/proj-path resource)
-                                            "view" (:label view-type)})
-                                         (localization/transform string/replace "_" "__"))
-                              :command :private/open-selected-recent-file
-                              :user-data resource+view-type}))
-                      (recent-files/some-recent prefs workspace evaluation-context))
-                    (conj menu-items/separator)))
-          (conj {:label (localization/message "command.private.recent-files.option.more")
-                 :command :file.open-recent})))))
+  (options [prefs workspace app-view evaluation-context]
+    (-> [{:label (localization/message "command.file.reopen-recent")
+          :command :file.reopen-recent}]
+        (cond-> (recent-files/exist? prefs workspace evaluation-context)
+                (->
+                  (conj menu-items/separator)
+                  (into
+                    (map (fn [[resource view-type :as resource+view-type]]
+                           {:label (-> "command.private.recent-files.option.entry"
+                                       (localization/message
+                                         {"path" (resource/proj-path resource)
+                                          "view" (:label view-type)})
+                                       (localization/transform string/replace "_" "__"))
+                            :command :private/open-selected-recent-file
+                            :user-data resource+view-type}))
+                    (recent-files/some-recent prefs workspace evaluation-context))
+                  (conj menu-items/separator)))
+        (conj {:label (localization/message "command.private.recent-files.option.more")
+               :command :file.open-recent}))))
 
 (handler/defhandler :private/open-selected-recent-file :global
   (run [prefs localization app-view workspace project user-data]
@@ -2698,16 +2691,15 @@
         (if-let [node-id (handler/selection->node-id selection)]
           (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
           false)))
-  (options [selection user-data]
+  (options [selection user-data evaluation-context]
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
-        (g/with-auto-evaluation-context evaluation-context
-          (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
-            (mapv (fn [transfer-overrides-plan]
-                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                     :command :edit.pull-up-overrides
-                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                  (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context)))))))
+        (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
+          (mapv (fn [transfer-overrides-plan]
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                   :command :edit.pull-up-overrides
+                   :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
@@ -2720,16 +2712,15 @@
           (and (not (coll/empty? (g/overrides basis node-id)))
                (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
         false)))
-  (options [selection user-data]
+  (options [selection user-data evaluation-context]
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
-        (g/with-auto-evaluation-context evaluation-context
-          (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
-            (mapv (fn [transfer-overrides-plan]
-                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                     :command :edit.push-down-overrides
-                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                  (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context)))))))
+        (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
+          (mapv (fn [transfer-overrides-plan]
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                   :command :edit.push-down-overrides
+                   :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 

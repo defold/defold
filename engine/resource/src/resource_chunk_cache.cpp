@@ -67,7 +67,7 @@ static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, dmhash_t
 static void FreeChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
     cache->m_CacheSizeUsed -= chunk->m_Size;
-    delete chunk->m_Data;
+    delete[] chunk->m_Data;
     delete chunk;
 }
 

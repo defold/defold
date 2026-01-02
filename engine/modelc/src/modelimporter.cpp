@@ -57,6 +57,24 @@ Options::Options()
 {
 }
 
+static void DestroySampler(Sampler* sampler)
+{
+    free((void*)sampler->m_Name);
+}
+
+static void DestroyTexture(Texture* texture)
+{
+    free((void*)texture->m_Name);
+}
+
+static void DestroyImage(Image* image)
+{
+    free((void*)image->m_Name);
+    free((void*)image->m_Uri);
+    free((void*)image->m_MimeType);
+    //buffer->m_Buffer Memory owned by the gltf data
+}
+
 static void DestroyMesh(Mesh* mesh)
 {
     mesh->m_Positions.SetCapacity(0);
@@ -67,6 +85,7 @@ static void DestroyMesh(Mesh* mesh)
     mesh->m_Bones.SetCapacity(0);
     mesh->m_TexCoords0.SetCapacity(0);
     mesh->m_TexCoords1.SetCapacity(0);
+    mesh->m_Indices.SetCapacity(0);
     free((void*)mesh->m_Name);
 }
 
@@ -81,6 +100,7 @@ static void DestroyModel(Model* model)
 static void DestroyNode(Node* node)
 {
     free((void*)node->m_Name);
+    node->m_Children.SetCapacity(0);
 }
 
 static void DestroyBone(Bone* bone)
@@ -188,12 +208,27 @@ void DestroyScene(Scene* scene)
     scene->m_Materials.SetCapacity(0);
 
     for (uint32_t i = 0; i < scene->m_DynamicMaterials.Size(); ++i)
+    {
         DestroyMaterial(scene->m_DynamicMaterials[i]);
+        delete scene->m_DynamicMaterials[i];
+    }
     scene->m_DynamicMaterials.SetCapacity(0);
 
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         DestroyBuffer(&scene->m_Buffers[i]);
     scene->m_Buffers.SetCapacity(0);
+
+    for (uint32_t i = 0; i < scene->m_Images.Size(); ++i)
+        DestroyImage(&scene->m_Images[i]);
+    scene->m_Images.SetCapacity(0);
+
+    for (uint32_t i = 0; i < scene->m_Textures.Size(); ++i)
+        DestroyTexture(&scene->m_Textures[i]);
+    scene->m_Textures.SetCapacity(0);
+
+    for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
+        DestroySampler(&scene->m_Samplers[i]);
+    scene->m_Samplers.SetCapacity(0);
 
     delete scene;
 }

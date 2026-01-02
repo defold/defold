@@ -472,6 +472,8 @@ namespace dmGameSystem
 
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
+        delete[] gui_world->m_BoxVertexStreamDeclaration;
+
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }

@@ -15,6 +15,7 @@
 #include "engine_private.h"
 #include "engine.h"
 #include <crash/crash.h>
+#include <stdlib.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -58,6 +59,8 @@ namespace dmEngine
 
         int argc = params->m_Argc;
         char** argv = params->m_Argv;
+        int allocated_argc = 0;
+        char** allocated_argv = 0;
         int exit_code = 0;
         dmEngine::HEngine engine = 0;
         dmEngine::UpdateResult result = RESULT_OK;
@@ -86,7 +89,20 @@ namespace dmEngine
             if (RESULT_OK != result)
             {
                 int run_action = 0;
+                for (int i = 0; i < allocated_argc; ++i)
+                {
+                    free(allocated_argv[i]);
+                }
+                free(allocated_argv);
+                allocated_argv = 0;
+                allocated_argc = 0;
+
                 params->m_EngineGetResult(engine, &run_action, &exit_code, &argc, &argv);
+                if (argv != params->m_Argv)
+                {
+                    allocated_argv = argv;
+                    allocated_argc = argc;
+                }
 
                 params->m_EngineDestroy(engine);
                 engine = 0;
@@ -101,6 +117,12 @@ namespace dmEngine
 
         if (params->m_AppDestroy)
             params->m_AppDestroy(params->m_AppCtx);
+
+        for (int i = 0; i < allocated_argc; ++i)
+        {
+            free(allocated_argv[i]);
+        }
+        free(allocated_argv);
 
         return exit_code;
     }

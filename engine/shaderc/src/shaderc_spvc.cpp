@@ -155,10 +155,10 @@ namespace dmShaderc
         type_info->m_Name = type_name;
         type_info->m_NameHash = type_name_hash;
 
-        ResourceMember* members = (ResourceMember*) malloc(sizeof(ResourceMember) * member_count);
+        type_info->m_Members.SetCapacity(member_count);
+        type_info->m_Members.SetSize(member_count);
+        ResourceMember* members = type_info->m_Members.Begin();
         memset(members, 0, sizeof(ResourceMember) * member_count);
-
-        type_info->m_Members.Set(members, member_count, member_count, false);
 
         for (int i = 0; i < member_count; ++i)
         {
@@ -333,8 +333,25 @@ namespace dmShaderc
         return (HShaderContext) context;
     }
 
+    static void DeleteReflection(ShaderReflection* reflection)
+    {
+        reflection->m_Inputs.SetCapacity(0);
+        reflection->m_Outputs.SetCapacity(0);
+        reflection->m_UniformBuffers.SetCapacity(0);
+        reflection->m_StorageBuffers.SetCapacity(0);
+        reflection->m_Textures.SetCapacity(0);
+
+        for (uint32_t i = 0; i < reflection->m_Types.Size(); ++i)
+        {
+            ResourceTypeInfo* type = &reflection->m_Types[i];
+            type->m_Members.SetCapacity(0);
+        }
+        reflection->m_Types.SetCapacity(0);
+    }
+
     void DeleteShaderContext(HShaderContext context)
     {
+        DeleteReflection(&context->m_Reflection);
         spvc_context_destroy(context->m_SPVCContext);
         free(context->m_ShaderCode);
         free(context);

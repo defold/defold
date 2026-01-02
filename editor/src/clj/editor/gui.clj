@@ -1205,7 +1205,7 @@
 
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
-                                         (into {id _overridden-properties}
+                                         (into {id (dissoc _overridden-properties :layout->prop->override)}
                                                node-overrides)))
   (output layout->prop->value g/Any :cached
           (g/fnk [^:unsafe _evaluation-context _this layout->prop->override trivial-gui-scene-info]
@@ -2281,8 +2281,8 @@
                                                       (cond-> (empty? (:parent %)) (assoc :parent id))))
                                             scene-node-msgs))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
-                                              (-> {id _overridden-properties}
-                                                (merge template-overrides))))
+                                         (coll/merge {id (dissoc _overridden-properties :layout->prop->override)}
+                                                     template-overrides)))
   (output aabb g/Any (g/fnk [template-scene]
                        (if (some? template-scene)
                          (:aabb template-scene)
@@ -3720,12 +3720,6 @@
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
             (coll/merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
 
-(defn- tx-create-node? [tx-entry]
-  (= :create-node (:type tx-entry)))
-
-(defn- tx-node-id [tx-entry]
-  (get-in tx-entry [:node :_node-id]))
-
 (defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
   (-> (g/with-auto-evaluation-context evaluation-context
         (let [node-tree (g/node-value scene :node-tree evaluation-context)
@@ -3777,15 +3771,15 @@
   {:label label :icon icon :command :edit.add-embedded-component
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
 
-(defn- add-handler-options [node]
-  ;; TODO: We should probably use an evaluation-context here.
-  (let [type-infos (get-registered-node-type-infos)
-        node (g/override-root node)
-        scene (node->gui-scene node)
+(defn- add-handler-options [node evaluation-context]
+  (let [basis (:basis evaluation-context)
+        type-infos (get-registered-node-type-infos)
+        node (g/override-root basis node)
+        scene (node->gui-scene basis node)
         node-options (cond
-                       (g/node-instance? TemplateNode node)
-                       (if-some [template-scene (g/override-root (g/node-feeding-into node :template-resource))]
-                         (let [parent (g/node-value template-scene :node-tree)]
+                       (g/node-instance? basis TemplateNode node)
+                       (if-some [template-scene (g/override-root basis (g/node-feeding-into basis node :template-resource))]
+                         (let [parent (g/node-value template-scene :node-tree evaluation-context)]
                            (mapv (fn [info]
                                    (if-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
@@ -3793,9 +3787,9 @@
                                  type-infos))
                          [])
 
-                       (g/node-instance-match node [GuiSceneNode GuiNode NodeTree])
+                       (g/node-instance-match basis node [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
-                                      (g/node-value scene :node-tree)
+                                      (g/node-value scene :node-tree evaluation-context)
                                       node)]
                          (mapv (fn [info]
                                  (if-not (:deprecated info)
@@ -3809,32 +3803,31 @@
                        :else
                        [])
         handler-options (when (empty? node-options)
-                          (when (g/has-output? (g/node-type* node) :add-handler-info)
-                            (->> (g/node-value node :add-handler-info)
+                          (when (g/has-output? (g/node-type* basis node) :add-handler-info)
+                            (->> (g/node-value node :add-handler-info evaluation-context)
                                  one-or-many-handler-infos-to-vec
                                  (map (fn [[parent menu-label menu-icon add-fn opts]]
                                         (let [parent (if (= node scene) parent node)]
                                           (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
     (filter some? (into node-options handler-options))))
 
-(defn- add-layout-options [node user-data]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [scene (node->gui-scene node)
-          parent (if (= node scene)
-                   (g/node-value scene :layouts-node evaluation-context)
-                   node)]
-      (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
-            (g/node-value scene :unused-display-profiles evaluation-context)))))
+(defn- add-layout-options [node evaluation-context]
+  (let [scene (node->gui-scene node)
+        parent (if (= node scene)
+                 (g/node-value scene :layouts-node evaluation-context)
+                 node)]
+    (mapv #(make-add-handler scene parent % layout-icon add-layout-handler {:display-profile %})
+          (g/node-value scene :unused-display-profiles evaluation-context))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (active? [selection] (not-empty (some->> (handler/selection->node-id selection) add-handler-options)))
+  (active? [selection evaluation-context] (not-empty (some-> (handler/selection->node-id selection) (add-handler-options evaluation-context))))
   (run [project user-data app-view] (when user-data ((:handler-fn user-data) project user-data (fn [node-ids] (app-view/select app-view node-ids)))))
-  (options [selection user-data]
+  (options [selection user-data evaluation-context]
     (let [node-id (handler/selection->node-id selection)]
       (if (not user-data)
-        (add-handler-options node-id)
+        (add-handler-options node-id evaluation-context)
         (when (:layout user-data)
-          (add-layout-options node-id user-data))))))
+          (add-layout-options node-id evaluation-context))))))
 
 (defn- node-desc->node-properties [node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
@@ -3903,14 +3896,20 @@
                 {}
                 (:layouts scene))
 
+        with-layout-prop-overrides
+        (fn with-layout-prop-overrides [node-desc id]
+          (let [layout->prop->override (get node->layout->prop->override id)]
+            (cond-> node-desc
+                    (coll/not-empty layout->prop->override)
+                    (assoc :layout->prop->override layout->prop->override))))
+
         node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
         tmpl-node-descs    (into {}
                                  (comp (filter :template-node-child)
                                        (map (fn [{:keys [id parent] :as node-desc}]
                                               (pair id
                                                     {:template parent
-                                                     :data (assoc (extract-overrides node-desc)
-                                                             :layout->prop->override (get node->layout->prop->override id {}))}))))
+                                                     :data (with-layout-prop-overrides (extract-overrides node-desc) id)}))))
                                  node-descs)
         tmpl-node-descs    (into {}
                                  (map (fn [[id data]]
@@ -3924,21 +3923,26 @@
         node-descs         (eduction
                              (remove :template-node-child)
                              (map (fn [{:keys [id] :as node-desc}]
-                                    (assoc node-desc :layout->prop->override (get node->layout->prop->override id {}))))
+                                    (with-layout-prop-overrides node-desc id)))
                              node-descs)
         tmpl-children      (group-by (comp :template second) tmpl-node-descs)
-        tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
-        template-data      (into {}
-                                 (map (fn [r]
-                                        (pair r
-                                              (into {}
-                                                    (map (fn [[id tmpl]]
-                                                           (pair (subs id (inc (count r)))
-                                                                 (:data tmpl))))
-                                                    (rest (tree-seq fn/constantly-true
-                                                                    (comp tmpl-children first)
-                                                                    (pair r nil)))))))
-                                 tmpl-roots)
+
+        template-data
+        (coll/transfer tmpl-children {}
+          (map first)
+          (remove tmpl-node-descs)
+          (keep (fn [importing-id]
+                  (let [imported-id->prop->override
+                        (into {}
+                              (keep (fn [[id tmpl]]
+                                      (when-some [prop->override (coll/not-empty (:data tmpl))]
+                                        (let [imported-id (subs id (inc (count importing-id)))]
+                                          (pair imported-id prop->override)))))
+                              (rest (tree-seq fn/constantly-true
+                                              (comp tmpl-children first)
+                                              (pair importing-id nil))))]
+                    (when (pos? (count imported-id->prop->override))
+                      (pair importing-id imported-id->prop->override))))))
 
         custom-loader-fns  (get-registered-gui-scene-loaders)
         custom-data        (for [loader-fn custom-loader-fns
@@ -4069,7 +4073,7 @@
                                                             node-tree
                                                             (id->node parent))]
                                           (attach-gui-node node-tree parent-node gui-node)))
-                              node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
+                              node-id (first (g/tx-data-added-node-ids tx-data))]
                           (recur more
                                  (assoc id->node (:id node-desc) node-id)
                                  (into all-tx-data tx-data)
@@ -4441,16 +4445,16 @@
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]
                                                (g/transact (g/set-property scene :visible-layout user-data)))))
-  (state [project active-resource]
-         (when-let [scene (resource->gui-scene project active-resource)]
-           (let [visible (g/node-value scene :visible-layout)]
+  (state [project active-resource evaluation-context]
+         (when-let [scene (resource->gui-scene project active-resource evaluation-context)]
+           (let [visible (g/node-value scene :visible-layout evaluation-context)]
              {:label (if (empty? visible) (localization/message "gui.layout.default") visible)
               :command :scene.set-gui-layout
               :user-data visible})))
-  (options [project active-resource user-data]
+  (options [project active-resource user-data evaluation-context]
            (when-not user-data
-             (when-let [scene (resource->gui-scene project active-resource)]
-               (let [layout-names (g/node-value scene :layout-names)
+             (when-let [scene (resource->gui-scene project active-resource evaluation-context)]
+               (let [layout-names (g/node-value scene :layout-names evaluation-context)
                      layouts (cons "" layout-names)]
                  (for [l layouts]
                    {:label (if (empty? l) (localization/message "gui.layout.default") l)
@@ -4625,7 +4629,7 @@
                 :custom-type custom-type
                 :type node-type)]
     (concat
-      (apply g/set-property child-node-id (coll/mapcat identity props))
+      (apply g/set-properties child-node-id (coll/mapcat identity props))
       (-> attachment
           (eutil/provide-defaults
             "id" (rt/->lua

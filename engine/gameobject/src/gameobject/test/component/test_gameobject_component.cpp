@@ -717,6 +717,7 @@ TEST(ComponentApi, CreateDestroyType)
 
     free((void*)g_ComponentApiTestContext.m_CreateContext);
     dmGameObject::DeleteRegister(regist);
+    dmScript::Finalize(script_context);
     dmScript::DeleteContext(script_context);
     dmResource::DeleteFactory(factory);
 }

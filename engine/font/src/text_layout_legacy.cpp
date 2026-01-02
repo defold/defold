@@ -134,7 +134,7 @@ void Layout(TextLayout*     layout,
     *text_width = max_width;
 }
 
-static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t n, bool monospace, float padding, float tracking, bool measure_trailing_space)
+static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t n, bool monospace, float padding, bool measure_trailing_space)
 {
     if (n <= 0)
         return 0;
@@ -153,18 +153,8 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     TextGlyph& last = glyphs[n-1];
 
     float row_start_x = glyphs[0].m_X;
-
-    if (monospace)
-    {
-        float extent_last = last.m_Advance + padding;
-        float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
-        return width;
-    }
-
-    // the extent of the last character is left bearing + width
-    float extent_last = last.m_LeftBearing + last.m_Width;
-    float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
-
+    float extent_last = monospace ? (last.m_Advance + padding) : (last.m_Advance);
+    float width = last.m_X - row_start_x + extent_last;
     return width;
 }
 
@@ -173,16 +163,14 @@ struct LayoutMetrics
     TextGlyph*  m_Glyphs;
     bool        m_Monospace;
     float       m_Padding;
-    float       m_Tracking;
-    LayoutMetrics(TextGlyph* glyphs, bool monospace, float padding, float tracking)
+    LayoutMetrics(TextGlyph* glyphs, bool monospace, float padding)
     : m_Glyphs(glyphs)
     , m_Monospace(monospace)
     , m_Padding(padding)
-    , m_Tracking(tracking)
     {}
     float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
     {
-        return GetLineTextMetrics(m_Glyphs, row_start, n, m_Monospace, m_Padding, m_Tracking, measure_trailing_space);
+        return GetLineTextMetrics(m_Glyphs, row_start, n, m_Monospace, m_Padding, measure_trailing_space);
     }
 };
 
@@ -208,12 +196,19 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     HFont font = FontCollectionGetFont(collection, 0);
     float scale = FontGetScaleFromSize(font, settings->m_Size);
 
+    uint32_t ascent = (uint32_t)FontGetAscent(font, 1.0f);
+    uint32_t descent = (uint32_t)FontGetDescent(font, 1.0f); // positive value
+    uint32_t line_height = ascent + descent;
+    float line_height_scaled = line_height * scale;
+    float tracking = line_height_scaled * settings->m_Tracking;
+
     FontGlyphOptions options;
     options.m_Scale = 1.0f; // Return in points
     options.m_GenerateImage = false;
 
     uint32_t num_whitespaces = 0;
     // Lay them all out in a single line, using points
+// TODO: Make this optional, so that user can choose to use pixel alignment
     uint32_t x = 0;
     uint32_t y = 0; // the legacy "shaping" doesn't support Y offsets
     FontGlyph font_glyph;
@@ -248,7 +243,7 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
             g.m_Advance = font_glyph.m_Advance * scale;
             g.m_LeftBearing = font_glyph.m_LeftBearing * scale;
 
-            x += g.m_Advance;
+            x += g.m_Advance + tracking;
         }
 
         layout->m_Glyphs[i] = g;
@@ -256,17 +251,13 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
 
     layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
 
-    LayoutMetrics lm(layout->m_Glyphs.Begin(), settings->m_Monospace, settings->m_Padding, settings->m_Tracking);
+    LayoutMetrics lm(layout->m_Glyphs.Begin(), settings->m_Monospace, settings->m_Padding);
     float max_line_width;
 
     float width = settings->m_Width;
     if (!settings->m_LineBreak)
         width = 1000000.0f;
     Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak);
-
-    uint32_t ascent = (uint32_t)FontGetAscent(font, 1.0f);
-    uint32_t descent = (uint32_t)FontGetDescent(font, 1.0f); // positive value
-    uint32_t line_height = ascent + descent;
 
     // metrics->m_MaxAscent = ascent;
     // metrics->m_MaxDescent = descent;
