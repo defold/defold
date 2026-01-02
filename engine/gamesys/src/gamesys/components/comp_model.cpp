@@ -2698,8 +2698,9 @@ namespace dmGameSystem
         // TODO: This will use the dynamic vertex attribute index for the first render item only.
         //       We need a way to address sub-components to support custom attributes for sub-models
         MeshRenderItem* render_item = GetMeshRenderItem(component, 0);
+        uint16_t dynamic_attribute_index = render_item ? render_item->m_DynamicVertexAttributeIndex : INVALID_DYNAMIC_ATTRIBUTE_INDEX;
 
-        return GetMaterialAttribute(world->m_DynamicVertexAttributePool, render_item->m_DynamicVertexAttributeIndex, material, params.m_PropertyId, out_value, CompModelGetMaterialAttributeCallback, component);
+        return GetMaterialAttribute(world->m_DynamicVertexAttributePool, dynamic_attribute_index, material, params.m_PropertyId, out_value, CompModelGetMaterialAttributeCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -2770,13 +2771,15 @@ namespace dmGameSystem
         {
             const dmGraphics::VertexAttribute* attribute = 0;
             MeshRenderItem* render_item = GetMeshRenderItem(component, 0);
-            res = SetMaterialAttribute(world->m_DynamicVertexAttributePool, &render_item->m_DynamicVertexAttributeIndex, material, params.m_PropertyId, params.m_Value, CompModelGetMaterialAttributeCallback, component, &attribute);
+            uint16_t* dynamic_attribute_index_ptr = render_item ? &render_item->m_DynamicVertexAttributeIndex : 0;
+
+            res = SetMaterialAttribute(world->m_DynamicVertexAttributePool, dynamic_attribute_index_ptr, material, params.m_PropertyId, params.m_Value, CompModelGetMaterialAttributeCallback, component, &attribute);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 // Mark the render item as dirty if the overridden attribute is not an instanced attribute
                 // For instanced attributes, we will copy the data anyway so this just makes sure we don't
                 // copy the base vertex data when we don't need to.
-                if (attribute->m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                if (attribute->m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE && render_item)
                 {
                     // TODO: This will mark only the first render item as dirty.
                     //       We need a way to address sub-components to support custom attributes for sub-models
