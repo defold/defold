@@ -2628,10 +2628,11 @@ namespace dmGameSystem
 
     static inline MeshRenderItem* GetMeshRenderItem(ModelComponent* component, uint32_t render_item_index)
     {
+        if (render_item_index >= component->m_RenderItems.Size())
+            return 0;
         return &component->m_RenderItems[render_item_index];
     }
 
-    // MERGE WITH the sprite equivalent function
     static bool CompModelGetMaterialAttributeCallback(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute)
     {
         ModelComponent* component = (ModelComponent*) user_data;
@@ -2693,7 +2694,6 @@ namespace dmGameSystem
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-
 
         // TODO: This will use the dynamic vertex attribute index for the first render item only.
         //       We need a way to address sub-components to support custom attributes for sub-models
@@ -3009,5 +3009,23 @@ namespace dmGameSystem
         }
 
         *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
+    }
+
+    // For tests
+    void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl)
+    {
+        ModelComponent* component = (ModelComponent*) model_component;
+        if (render_item_ix < 0 || render_item_ix >= component->m_RenderItems.Size())
+        {
+            *vx_buffer = 0x0;
+            return;
+        }
+
+        MeshRenderItem& item = component->m_RenderItems[render_item_ix];
+        MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[item.m_AttributeRenderDataIndex];
+
+        *vx_buffer = rd.m_VertexBuffer;
+        *vx_decl = rd.m_VertexDeclaration;
+        *inst_decl = rd.m_InstanceVertexDeclaration;
     }
 }
