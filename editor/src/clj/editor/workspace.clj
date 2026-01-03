@@ -63,7 +63,7 @@ ordinary paths."
 (defn project-directory
   "Returns a File representing the canonical path of the project directory."
   (^File [workspace]
-   (resource/project-directory (g/now) workspace))
+   (resource/project-directory (g/unsafe-basis) workspace))
   (^File [basis workspace]
    (resource/project-directory basis workspace)))
 

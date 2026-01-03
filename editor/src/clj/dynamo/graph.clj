@@ -66,17 +66,20 @@
 ;; identical values being produced and then ending up referenced from different
 ;; cache entries.
 ;;
-;; When strict-evaluation-context-scopes are true, we will assert in case g/now
+;; When strict-evaluation-context-scopes are :log, we will log whenever g/now
 ;; or g/make-evaluation-context is called from within an auto evaluation-context
-;; scope.
+;; scope. You can also set it to :throw to throw an exception instead.
 ;;
 ;; We're still in the process of fixing all the various places where this rule
 ;; is violated. When complete, we should enable strict evaluation-context scope
 ;; checks by default.
 ;;
-;; Until that day, you can enable these asserts using the :strict-ec-scopes lein
+;; Until that day, you can turn on these checks using the :strict-ec-scopes lein
 ;; profile when running tasks: `lein with-profile +strict-ec-scopes <task>`.
-(def ^:private strict-evaluation-context-scopes (and *assert* (Boolean/getBoolean "defold.graph.strict-evaluation-context-scopes.enable")))
+(def ^:private strict-evaluation-context-scopes
+  (let [strict-evaluation-context-scopes-setting (and *assert* (some-> (System/getProperty "defold.graph.strict-evaluation-context-scopes") keyword))]
+    (assert #{nil :log :throw} strict-evaluation-context-scopes-setting)
+    strict-evaluation-context-scopes-setting))
 
 (defn ^{:dynamic strict-evaluation-context-scopes} now
   "Returns the basis at the current point in time. Will assert if called inside
@@ -1014,10 +1017,31 @@
   (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
   nil)
 
+(defmacro make-evaluation-context-scope-violation-exception [fn-sym]
+  `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
+
+(defn log-evaluation-context-scope-violation-exception! [exception]
+  (log/warn :message "evaluation-context scope violation" :exception exception))
+
+(defmacro strict-evaluation-context-scope-reporting-variant [fn-sym]
+  (let [rebound-fn-sym (symbol (str "rebound-" (name fn-sym)))]
+    (case strict-evaluation-context-scopes
+      :log
+      `(let [~'original-fn ~fn-sym]
+         (fn ~rebound-fn-sym [& ~'args]
+           (log-evaluation-context-scope-violation-exception!
+             (make-evaluation-context-scope-violation-exception ~fn-sym))
+           (apply ~'original-fn ~'args)))
+
+      :throw
+      `(fn ~rebound-fn-sym [& ~'_]
+         (throw
+           (make-evaluation-context-scope-violation-exception ~fn-sym))))))
+
 (defmacro do-evaluation-context-body [body-exprs]
   (if strict-evaluation-context-scopes
-    `(binding [now #(throw (Error. "g/now called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation."))
-               make-evaluation-context #(throw (Error. "g/make-evaluation-context called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation."))]
+    `(binding [now (strict-evaluation-context-scope-reporting-variant now)
+               make-evaluation-context (strict-evaluation-context-scope-reporting-variant make-evaluation-context)]
        ~@body-exprs)
     `(do ~@body-exprs)))
 

@@ -3532,31 +3532,25 @@
   (g/user-data! view-node :elapsed-time elapsed-time)
 
   ;; Perform necessary property updates in preparation for repaint.
-  (g/with-auto-evaluation-context evaluation-context
-    (let [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
-                                (g/node-value view-node :layout evaluation-context)
-                                (g/node-value view-node :gesture-start evaluation-context))
-          props (if-not cursor-visible
-                  tick-props
-                  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-                        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-                        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
-                    (cond-> tick-props
-                            (not= old-cursor-opacity new-cursor-opacity)
-                            (assoc :cursor-opacity new-cursor-opacity))))]
-      (set-properties! view-node nil props)))
+  (g/let-ec [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
+                                   (g/node-value view-node :layout evaluation-context)
+                                   (g/node-value view-node :gesture-start evaluation-context))
+             props (if-not cursor-visible
+                     tick-props
+                     (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+                           old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
+                           new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+                       (cond-> tick-props
+                               (not= old-cursor-opacity new-cursor-opacity)
+                               (assoc :cursor-opacity new-cursor-opacity))))]
+    (set-properties! view-node nil props))
 
   ;; Repaint the view.
-  (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
-        prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-
-        [resource-node
-         canvas-repaint-info
-         cursor-repaint-info]
-        (g/with-auto-evaluation-context evaluation-context
-          [(g/node-value view-node :resource-node evaluation-context)
-           (g/node-value view-node :canvas-repaint-info evaluation-context)
-           (g/node-value view-node :cursor-repaint-info evaluation-context)])]
+  (g/let-ec [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
+             prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
+             resource-node (g/node-value view-node :resource-node evaluation-context)
+             canvas-repaint-info (g/node-value view-node :canvas-repaint-info evaluation-context)
+             cursor-repaint-info (g/node-value view-node :cursor-repaint-info evaluation-context)]
 
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
