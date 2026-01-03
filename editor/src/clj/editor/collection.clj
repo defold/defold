@@ -484,8 +484,9 @@
     (outline-coll-resolve-id self-id child-id)
     (tx-attach-coll-coll self-id child-id)))
 
-(g/defnk produce-coll-outline [_node-id child-outlines]
-  (let [{go-outlines false coll-outlines true} (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
+(g/defnk produce-coll-outline [^:unsafe _evaluation-context _node-id child-outlines]
+  (let [basis (:basis _evaluation-context)
+        {go-outlines false coll-outlines true} (group-by #(g/node-instance? basis CollectionInstanceNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Collection"
      :label (localization/message "outline.collection")

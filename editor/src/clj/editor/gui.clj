@@ -4443,9 +4443,10 @@
    (g/with-auto-evaluation-context evaluation-context
      (resource->gui-scene project resource evaluation-context)))
   ([project resource evaluation-context]
-   (let [res-node (when resource
+   (let [basis (:basis evaluation-context)
+         res-node (when resource
                     (project/get-resource-node project resource evaluation-context))]
-     (when (and res-node (g/node-instance? GuiSceneNode res-node))
+     (when (and res-node (g/node-instance? basis GuiSceneNode res-node))
        res-node))))
 
 (handler/defhandler :scene.set-gui-layout :workbench

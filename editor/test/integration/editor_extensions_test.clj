@@ -305,9 +305,10 @@
                       :web-server web-server))
 
 (defn- eval-handler-contexts [context-name selection]
-  (let [command-contexts [(handler/->context context-name {} (->StaticSelection selection))]]
+  (let [selection-provider (->StaticSelection selection)
+        command-context (handler/->context context-name {} selection-provider)]
     (g/with-auto-evaluation-context evaluation-context
-      (handler/eval-contexts command-contexts false evaluation-context))))
+      (handler/eval-contexts [command-context] false evaluation-context))))
 
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -329,9 +330,9 @@
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate))))
       (let [handler+context (handler/active
-                             (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                             (eval-handler-contexts :global [sprite-outline])
-                             {})]
+                              (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
+                              (eval-handler-contexts :global [sprite-outline])
+                              {})]
         (is (= [1.0 1.0 1.0] (test-util/prop sprite-outline :scale)))
         (is (some? handler+context))
         (is (handler/enabled? handler+context))
