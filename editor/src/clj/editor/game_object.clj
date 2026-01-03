@@ -53,6 +53,8 @@
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
+(declare add-embedded-component)
+
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
   (-> (protobuf/make-map-without-defaults GameObject$ComponentDesc
         :id id
@@ -503,6 +505,21 @@
         (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-component go-id resource id nil nil select-fn)))))
 
+(defn- raw-audio-resource? [resource]
+  (contains? sound/supported-audio-formats (resource/type-ext resource)))
+
+(defn- add-embedded-sound-component! [go-id audio-resource select-fn]
+  (let [project (project/get-project go-id)
+        workspace (project/workspace project)
+        resource-type (workspace/get-resource-type workspace "sound")
+        pb-map (assoc (game-object-common/template-pb-map workspace resource-type)
+                 :sound (resource/proj-path audio-resource))
+        id (gen-component-id go-id (resource/base-name audio-resource))]
+    (g/transact
+      (concat
+        (g/operation-label (localization/message "operation.game-object.add-component"))
+        (add-embedded-component go-id project "sound" pb-map id nil select-fn)))))
+
 (defn add-component-handler [workspace project go-id select-fn]
   (when-let [resources (resource-dialog/make
                          workspace project
@@ -510,7 +527,9 @@
                           :title (localization/message "dialog.select-component-file.title")
                           :selection :multiple})]
     (doseq [resource resources]
-      (add-referenced-component! go-id resource select-fn))))
+      (if (raw-audio-resource? resource)
+        (add-embedded-sound-component! go-id resource select-fn)
+        (add-referenced-component! go-id resource select-fn)))))
 
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
