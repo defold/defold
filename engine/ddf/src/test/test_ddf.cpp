@@ -64,7 +64,7 @@ static bool DDFStringSaveFunction(void* context, const void* buffer, uint32_t bu
     return true;
 }
 
-static dmDDF::Result DDFSaveToString(const void* message, const dmDDF::Descriptor* desc, std::string& str)
+dmDDF::Result DDFSaveToString(const void* message, const dmDDF::Descriptor* desc, std::string& str)
 {
     return SaveMessage(message, desc, &str, DDFStringSaveFunction);
 }
