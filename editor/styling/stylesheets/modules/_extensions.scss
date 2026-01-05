@@ -390,6 +390,13 @@ $ext-line-height: 26px;
                 }
             }
         }
+        &.resource-picker-drop-target {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-defold-green !important;
+            }
+        }
     }
     &-combo-box {
         & > .label {
