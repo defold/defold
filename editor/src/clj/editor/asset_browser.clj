@@ -704,17 +704,7 @@
         paths (->> resources
                    (mapv resource/proj-path)
                    (string/join "\n"))
-        ;; Note: It would seem we should use the TransferMode/COPY_OR_MOVE mode
-        ;; here in order to support making copies of non-readonly files, but
-        ;; that results in every drag operation becoming a copy on macOS due to
-        ;; https://bugs.openjdk.java.net/browse/JDK-8148025
-        mode (if (every? (fn [resource]
-                           (and (resource/editable? resource)
-                                (not (resource/read-only? resource))))
-                         resources)
-               TransferMode/MOVE
-               TransferMode/COPY)
-        db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
+        db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
         content (ClipboardContent.)]
     (when (= 1 (count resources))
       (.setDragView db (icons/get-image (workspace/resource-icon (first resources)) 16)
@@ -797,7 +787,12 @@
             resource (-> target (.getTreeItem) (.getValue))
             ^Path tgt-dir-path (.toPath (fs/to-folder (File. (resource/abs-path resource))))
             move? (and (= (.getGestureSource e) tree-view)
-                       (= (.getTransferMode e) TransferMode/MOVE))
+                       (every? (fn [^File f]
+                                 (let [workspace (resource/workspace resource)
+                                       res (workspace/file-resource workspace f)]
+                                   (and (resource/editable? res)
+                                        (not (resource/read-only? res)))))
+                               (.getFiles db)))
             pairs (->> (.getFiles db)
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
                        (resolve-any-conflicts localization)

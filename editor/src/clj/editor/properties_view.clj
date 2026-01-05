@@ -542,7 +542,7 @@
        :on-drag-over
        (fn [^DragEvent e]
          (when (single-drag-resource e ext-set workspace)
-           (.acceptTransferModes e (into-array TransferMode [TransferMode/MOVE]))
+           (.acceptTransferModes e (into-array TransferMode TransferMode/COPY_OR_MOVE))
            (.consume e)))
        :on-drag-dropped
        (fn [^DragEvent e]
