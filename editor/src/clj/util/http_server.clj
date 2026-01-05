@@ -249,6 +249,9 @@
   Object (->connection [x] x)
   nil (->connection [x] x))
 
+(defn error [response]
+  (ex-info "HTTP server error" {::response response}))
+
 (defn start!
   "Start a generic HTTP server
 
@@ -314,8 +317,9 @@
                   (catch Throwable e (future/failed e)))
                 (future/catch
                   (fn [e]
-                    (error-reporting/report-exception! e)
-                    internal-server-error))
+                    (or (::response (ex-data e))
+                        (do (error-reporting/report-exception! e)
+                            internal-server-error))))
                 (future/then
                   (fn [response]
                     (future/io

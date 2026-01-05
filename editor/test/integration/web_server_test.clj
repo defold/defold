@@ -217,7 +217,7 @@
     (with-open [server (http-server/start! (http-server/router-handler (http-server.prefs/routes prefs)))]
       (let [url (http-server/local-url server)]
         (doseq [[path schema] (schema-leaves (prefs/schema prefs []))]
-          (let [path-str (coll/join-to-string "." (e/map name path))
+          (let [path-str (coll/join-to-string "/" (e/map name path))
                 path-url (str url "/prefs/" path-str)]
             (testing path-str
               (let [first-get @(http/request path-url :as :string)]

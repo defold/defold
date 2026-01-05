@@ -221,7 +221,7 @@
                                         {:x {:type :number :default 1.0}
                                          :y {:type :number :default 1.0}
                                          :z {:type :number :default 1.0}}}
-                                 :active-plane {:type :keyword :default :z}
+                                 :active-plane {:type :enum :values [:x :y :z] :default :z}
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]

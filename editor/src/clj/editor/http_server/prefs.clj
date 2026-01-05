@@ -15,21 +15,42 @@
 (ns editor.http-server.prefs
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [editor.editor-extensions.prefs-functions :as prefs-functions]
+            [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.prefs :as prefs]
             [util.coll :as coll]
             [util.http-server :as http-server])
-  (:import [clojure.lang ExceptionInfo]
-           [org.luaj.vm2 LuaError]))
+  (:import [clojure.lang ExceptionInfo]))
 
 (set! *warn-on-reflection* true)
+
+(defn- get-prefs-path [request]
+  (let [^String s (-> request :path-params :path)
+        n (.length s)
+        add-non-empty! (fn add-non-empty! [acc ^String s]
+                         (cond-> acc (not (.isEmpty s)) (conj! (keyword s))))
+        ret (loop [acc (transient [])
+                   from 0
+                   to 0]
+              (if (= n to)
+                (persistent! (add-non-empty! acc (.substring s from to)))
+                (let [ch (.charAt s to)]
+                  (cond
+                    (= ch \/)
+                    (recur (add-non-empty! acc (.substring s from to)) (inc to) (inc to))
+
+                    (prefs-docs/allowed-keyword-character? ch)
+                    (recur acc from (inc to))
+
+                    :else
+                    (throw (http-server/error (http-server/response 400 (format "Invalid prefs path character: '%s'" ch))))))))]
+    (if (coll/empty? ret)
+      (throw (http-server/error (http-server/response 400 "No prefs path specified")))
+      ret)))
 
 (defn- handle-get-prefs [prefs request]
   (try
     (http-server/json-response
-      (prefs/get prefs (prefs-functions/parse-dot-separated-path (-> request :path-params :path))))
-    (catch LuaError e
-      (http-server/response 400 (.getMessage e)))
+      (prefs/get prefs (get-prefs-path request)))
     (catch ExceptionInfo e
       (if (::prefs/error (ex-data e))
         (http-server/response 400 (.getMessage e))
@@ -82,18 +103,18 @@
 
 (defn- handle-post-prefs [prefs request]
   (try
-    (let [path (prefs-functions/parse-dot-separated-path (-> request :path-params :path))
+    (let [path (get-prefs-path request)
           value (with-open [r (io/reader (:body request))]
-                  (json/read r))]
+                  (try
+                    (json/read r)
+                    (catch Exception e (throw (http-server/error (http-server/response 400 (.getMessage e)))))))]
       (prefs/set! prefs path (json->value value (prefs/schema prefs path)))
       (http-server/response 200))
-    (catch LuaError e
-      (http-server/response 400 (.getMessage e)))
     (catch ExceptionInfo e
       (if (::prefs/error (ex-data e))
         (http-server/response 400 (.getMessage e))
         (throw e)))))
 
 (defn routes [prefs]
-  {"/prefs/{path}" {"GET" (partial #'handle-get-prefs prefs)
-                    "POST" (partial #'handle-post-prefs prefs)}})
+  {"/prefs/{*path}" {"GET" (partial #'handle-get-prefs prefs)
+                     "POST" (partial #'handle-post-prefs prefs)}})
