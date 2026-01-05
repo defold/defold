@@ -53,7 +53,7 @@ namespace dmDDF
             return m_Options;
         }
 
-    private:
+    // private:
         dmHashTable32<uint32_t> m_ArrayCount;
 
         dmArray<uint32_t> m_DynamicOffsets;
