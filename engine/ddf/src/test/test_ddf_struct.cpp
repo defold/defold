@@ -18,8 +18,6 @@
 
 #include "ddf/ddf_struct.h"
 
-#include <dlib/log.h>
-
 static dmStructDDF::Struct::FieldsEntry* FindEntry(dmStructDDF::Struct* message, const char* key)
 {
     for (uint32_t i = 0; i < message->m_Fields.m_Count; ++i)

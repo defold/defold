@@ -23,7 +23,6 @@
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/log.h>
 #include "ddf.h"
 #include "ddf_inputbuffer.h"
 #include "ddf_load.h"
@@ -125,8 +124,6 @@ namespace dmDDF
                 is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                 if (is_dynamic_type)
                 {
-                    dmLogInfo("Adding dynamic message size for %s - size: %d", field->m_Name, field->m_MessageDescriptor->m_Size);
-
                     // We need to account for the injected oneof index value that we insert into the structs via ddfc.py!
                     uint32_t dynamic_size = field->m_MessageDescriptor->m_Size;
                     if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
@@ -228,8 +225,6 @@ namespace dmDDF
                         is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                         if (is_dynamic_type && *array_info_hash != 0)
                         {
-                            dmLogInfo("Adding dynamic message size for %s - size: %d", field->m_Name, field->m_MessageDescriptor->m_Size);
-
                             // We need to account for the injected oneof index value that we insert into the structs via ddfc.py!
                             uint32_t dynamic_size = field->m_MessageDescriptor->m_Size;
                             if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)

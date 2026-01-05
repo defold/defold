@@ -17,8 +17,6 @@
 #include "ddf_load.h"
 #include "ddf_util.h"
 
-#include <dlib/log.h>
-
 namespace dmDDF
 {
     Message::Message(const Descriptor* message_descriptor, char* buffer, uint32_t buffer_size, bool dry_run)
@@ -53,9 +51,6 @@ namespace dmDDF
                                           const FieldDescriptor* field,
                                           InputBuffer* input_buffer)
     {
-        if (!m_DryRun)
-            dmLogInfo("Reading scalar field %s", field->m_Name);
-
         if (WireTypeCorrespondence((Type) field->m_Type) != wire_type)
         {
             return RESULT_WIRE_FORMAT_ERROR;
@@ -86,9 +81,6 @@ namespace dmDDF
                                           const FieldDescriptor* field,
                                           InputBuffer* input_buffer)
     {
-        if (!m_DryRun)
-        dmLogInfo("Reading string field %s", field->m_Name);
-
         if (wire_type != WIRETYPE_LENGTH_DELIMITED)
         {
             return RESULT_WIRE_FORMAT_ERROR;
@@ -124,9 +116,6 @@ namespace dmDDF
                                          const FieldDescriptor* field,
                                          InputBuffer* input_buffer)
     {
-        if (!m_DryRun)
-        dmLogInfo("Reading bytes field %s", field->m_Name);
-
         if (wire_type != WIRETYPE_LENGTH_DELIMITED)
         {
             return RESULT_WIRE_FORMAT_ERROR;
@@ -157,9 +146,6 @@ namespace dmDDF
                                            InputBuffer* input_buffer)
     {
         assert(field->m_MessageDescriptor);
-
-        if (!m_DryRun)
-        dmLogInfo("Reading message field %s, desc-size: %d", field->m_Name, field->m_MessageDescriptor->m_Size);
 
         if (wire_type != WIRETYPE_LENGTH_DELIMITED)
         {
@@ -197,9 +183,6 @@ namespace dmDDF
         }
 
         Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
-
-        if (!m_DryRun)
-        dmLogInfo("    Message-ptr: msg_buf: %p offset=%d", msg_buf, (int) ((uintptr_t) msg_buf - (uintptr_t) load_context->m_Start));
 
         InputBuffer sub_buffer;
         if (!input_buffer->SubBuffer(length, &sub_buffer))
@@ -266,8 +249,6 @@ namespace dmDDF
             uint32_t data_offset = desc->m_OneOfDataOffsets[oneof_index_from_zero];
             uint8_t* oneof_index = (uint8_t*) GetBuffer(data_offset);
             *oneof_index = field->m_Number;
-
-            dmLogInfo("  Set oneof field %s to %d", field->m_Name, field->m_Number);
         }
     }
 
@@ -345,8 +326,6 @@ namespace dmDDF
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
-            dmLogInfo("  Set string field %s to %s", field->m_Name, str_buf);
-
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
             {
                 *string_field = (char*)(uintptr_t) load_context->GetOffset(str_buf);
@@ -380,8 +359,6 @@ namespace dmDDF
 
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
-
-            dmLogInfo("  Adding string field %s to %s", field->m_Name, str_buf);
 
             uintptr_t dest = array + repeated_field->m_ArrayCount * sizeof(const char*);
             if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
