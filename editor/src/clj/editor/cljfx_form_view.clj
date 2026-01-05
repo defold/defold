@@ -1202,12 +1202,23 @@
                                             state-path
                                             panel-key
                                             resource-string-converter
-                                            localization-state]
+                                            localization-state
+                                            auto-select-first?]
                                      :as field}]
   (let [indented-label-column-width 150
         default-row (form/two-panel-defaults field)
         key-path (:path panel-key)
         selected-index (-> state :key :selected-indices util/only)
+        auto-select-index (when (and auto-select-first?
+                                     (nil? selected-index)
+                                     (not (contains? state :key))
+                                     (seq value))
+                            0)
+        selected-index (or selected-index auto-select-index)
+        key-state (cond-> (:key state)
+                          auto-select-index (assoc :selected-indices [auto-select-index]))
+        state (cond-> state
+                      auto-select-index (assoc :key key-state))
         fn-setter (:set field)
 
         item-list
