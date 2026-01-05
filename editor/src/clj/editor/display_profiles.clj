@@ -82,7 +82,7 @@
      :fields [{:path [:auto-layout-selection]
                :localization-key "display-profiles.auto-layout-selection"
                :type :boolean}
-             {:path [:profiles]
+              {:path [:profiles]
                :localization-key "display-profiles.profile"
                :type :2panel
                :auto-select-first? true
