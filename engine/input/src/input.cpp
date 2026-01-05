@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -141,10 +142,19 @@ namespace dmInput
         return config;
     }
 
-    static GamepadConfig* GetGamepadConfig(HBinding binding, dmHID::HGamepad gamepad, char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH])
+    static GamepadConfig* GetGamepadConfig(HBinding binding, dmHID::HGamepad gamepad, char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH], uint64_t* out_device_guid_hash = 0, bool* out_matched_guid = 0)
     {
         char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+        char device_guid[dmHID::MAX_GAMEPAD_GUID_LENGTH];
+        dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, device_guid);
+        if (device_name[0] || device_guid[0])
+            dmLogInfo("Gamepad connect name='%s' guid='%s'", device_name, device_guid);
+
+        if (out_device_guid_hash)
+            *out_device_guid_hash = 0;
+        if (out_matched_guid)
+            *out_matched_guid = false;
 
         /*
          * NOTE: We used to log a warning here but the warning is removed for the following reasons:
@@ -159,18 +169,35 @@ namespace dmInput
         if (device_name[0] == 0)
             return 0x0;
 
-        GamepadConfig* best_config = 0x0;
-        int best_config_name_index = -1;
-
         uint32_t num_names = 1;
         char* device_names[] = { device_name, 0 };
 
-    #ifdef _WIN32
+#ifdef _WIN32
         // for backwards compatability with GLFW 2.7
         device_names[num_names++] = "XBox 360 Controller";
-    #endif
+#endif
 
-        for (int i = 0; i < num_names; ++i)
+        GamepadConfig* best_config = 0x0;
+        int best_config_name_index = -1;
+
+        uint64_t guid_hash = 0;
+        if (device_guid[0] != 0)
+        {
+            guid_hash = dmHashString64(device_guid);
+            if (out_device_guid_hash)
+                *out_device_guid_hash = guid_hash;
+            GamepadConfig* guid_config = binding->m_Context->m_GamepadGuidMaps.Get(guid_hash);
+            if (guid_config)
+            {
+                best_config = guid_config;
+                best_config_name_index = 0;
+                if (out_matched_guid)
+                    *out_matched_guid = true;
+                dmLogInfo("Gamepad guid match '%s' -> device '%s'", device_guid, device_names[0]);
+            }
+        }
+
+        for (int i = 0; i < num_names && best_config == 0x0; ++i)
         {
             GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_names[i]));
             if (!config)
@@ -198,13 +225,16 @@ namespace dmInput
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
 
         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+        uint64_t device_guid_hash = 0;
+        bool matched_guid = false;
+        GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out, &device_guid_hash, &matched_guid);
 
         if (selected_config)
         {
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
             gamepad_binding->m_Gamepad = gamepad;
+            gamepad_binding->m_DeviceGuid = matched_guid ? device_guid_hash : 0;
 
             if (selected_config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
@@ -477,6 +507,8 @@ namespace dmInput
         }
 
         context->m_GamepadMaps.SetCapacity(dmMath::Max(1, (count + 1) / 3), count + 1);
+        context->m_GamepadGuidMaps.SetCapacity(dmMath::Max(1, (count + 1) / 3), count + 1);
+        context->m_GamepadGuidMaps.Clear();
 
         // Add a gamepad config that will be used when an unidentified gamepad
         // is connected. This will allow developers to at least read raw button,
@@ -503,50 +535,66 @@ namespace dmInput
             if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 uint32_t device_id = dmHashString32(gamepad_map.m_Device);
+
+                GamepadConfig config;
+                config.m_DeadZone = gamepad_map.m_DeadZone;
+                config.m_DeviceId = device_id;
+                memset(config.m_Inputs, 0, sizeof(config.m_Inputs));
+                for (uint32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
+                {
+                    config.m_Inputs[j].m_Index = INVALID_INDEX;
+                }
+
+                for (uint32_t j = 0; j < gamepad_map.m_Map.m_Count; ++j)
+                {
+                    const dmInputDDF::GamepadMapEntry& entry = gamepad_map.m_Map[j];
+                    GamepadInput& input = config.m_Inputs[entry.m_Input];
+                    input.m_Index = (uint16_t)entry.m_Index;
+                    input.m_Type = entry.m_Type;
+                    if (entry.m_Type == dmInputDDF::GAMEPAD_TYPE_HAT)
+                    {
+                        input.m_HatMask = entry.m_HatMask;
+                    }
+                    for (uint32_t k = 0; k < entry.m_Mod.m_Count; ++k)
+                    {
+                        switch (entry.m_Mod[k].m_Mod)
+                        {
+                        case dmInputDDF::GAMEPAD_MODIFIER_CLAMP:
+                            input.m_Clamp = 1;
+                            break;
+                        case dmInputDDF::GAMEPAD_MODIFIER_NEGATE:
+                            input.m_Negate = 1;
+                            break;
+                        case dmInputDDF::GAMEPAD_MODIFIER_SCALE:
+                            input.m_Scale = 1;
+                            break;
+                        default:
+                            break;
+                        }
+                    }
+                }
+
                 if (context->m_GamepadMaps.Get(device_id) == 0x0)
                 {
-                    GamepadConfig config;
-                    config.m_DeadZone = gamepad_map.m_DeadZone;
-                    config.m_DeviceId = device_id;
-                    memset(config.m_Inputs, 0, sizeof(config.m_Inputs));
-                    for (uint32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
-                    {
-                        config.m_Inputs[j].m_Index = INVALID_INDEX;
-                    }
-
-                    for (uint32_t j = 0; j < gamepad_map.m_Map.m_Count; ++j)
-                    {
-                        const dmInputDDF::GamepadMapEntry& entry = gamepad_map.m_Map[j];
-                        GamepadInput& input = config.m_Inputs[entry.m_Input];
-                        input.m_Index = (uint16_t)entry.m_Index;
-                        input.m_Type = entry.m_Type;
-                        if (entry.m_Type == dmInputDDF::GAMEPAD_TYPE_HAT)
-                        {
-                            input.m_HatMask = entry.m_HatMask;
-                        }
-                        for (uint32_t k = 0; k < entry.m_Mod.m_Count; ++k)
-                        {
-                            switch (entry.m_Mod[k].m_Mod)
-                            {
-                            case dmInputDDF::GAMEPAD_MODIFIER_CLAMP:
-                                input.m_Clamp = 1;
-                                break;
-                            case dmInputDDF::GAMEPAD_MODIFIER_NEGATE:
-                                input.m_Negate = 1;
-                                break;
-                            case dmInputDDF::GAMEPAD_MODIFIER_SCALE:
-                                input.m_Scale = 1;
-                                break;
-                            default:
-                                break;
-                            }
-                        }
-                    }
                     context->m_GamepadMaps.Put(device_id, config);
+                    dmLogInfo("Registered gamepad '%s' guid '%s'", gamepad_map.m_Device, gamepad_map.m_Guid ? gamepad_map.m_Guid : "<none>");
                 }
                 else
                 {
                     dmLogWarning("Gamepad map for device '%s' already registered.", ddf->m_Driver[i].m_Device);
+                }
+
+                if (gamepad_map.m_Guid != 0 && gamepad_map.m_Guid[0] != '\0')
+                {
+                    uint64_t guid_hash = dmHashString64(gamepad_map.m_Guid);
+                    if (context->m_GamepadGuidMaps.Get(guid_hash) == 0x0)
+                    {
+                        context->m_GamepadGuidMaps.Put(guid_hash, config);
+                    }
+                    else
+                    {
+                        dmLogWarning("Gamepad GUID '%s' already registered. (device '%s')", gamepad_map.m_Guid, gamepad_map.m_Device);
+                    }
                 }
             }
         }
@@ -747,9 +795,12 @@ namespace dmInput
                     if (connected)
                     {
                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-                        GetGamepadConfig(binding, gamepad, device_name_out);
+                        uint64_t guid_hash = 0;
+                        bool matched_guid = false;
+                        GetGamepadConfig(binding, gamepad, device_name_out, &guid_hash, &matched_guid);
 
                         gamepad_binding->m_DeviceId = dmHashString32(device_name_out);
+                        gamepad_binding->m_DeviceGuid = matched_guid ? guid_hash : 0;
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
                     }
@@ -765,7 +816,15 @@ namespace dmInput
                     dmHID::GamepadPacket* packet = &gamepad_binding->m_Packet;
 
                     dmHID::GamepadPacket* prev_packet = &gamepad_binding->m_PreviousPacket;
-                    GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, gamepad_binding->m_DeviceId);
+                    GamepadConfig* config = 0x0;
+                    if (gamepad_binding->m_DeviceGuid != 0)
+                    {
+                        config = binding->m_Context->m_GamepadGuidMaps.Get(gamepad_binding->m_DeviceGuid);
+                    }
+                    if (config == 0x0)
+                    {
+                        config = GetGamepadConfigFromDeviceName(binding, gamepad_binding->m_DeviceId);
+                    }
                     if (config != 0x0)
                     {
                         dmHID::GetGamepadPacket(gamepad, packet);

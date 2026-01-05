@@ -64,6 +64,7 @@ namespace dmInput
         dmArray<GamepadTrigger> m_Triggers;
         dmHashTable64< Action > m_Actions;
         uint32_t m_DeviceId;
+        uint64_t m_DeviceGuid;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
         uint8_t m_Unknown : 1;
@@ -139,6 +140,7 @@ namespace dmInput
     {
         dmIndexPool8                    m_GamepadIndices;
         dmHashTable32< GamepadConfig >  m_GamepadMaps;
+        dmHashTable64<GamepadConfig>    m_GamepadGuidMaps;
         dmHashTable32<bool>             m_UnmappedGamepads;
         dmHID::HContext                 m_HidContext;
         Binding*                        m_Binding;

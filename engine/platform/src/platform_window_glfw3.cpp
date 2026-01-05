@@ -552,6 +552,12 @@ namespace dmPlatform
         return glfwGetJoystickName((int) gamepad_index);
     }
 
+    const char* GetJoystickGUID(HWindow window, uint32_t gamepad_index)
+    {
+        (void) window;
+        return glfwGetJoystickGUID((int) gamepad_index);
+    }
+
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
         int32_t count = 0;

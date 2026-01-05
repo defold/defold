@@ -124,6 +124,11 @@ namespace dmHID
      * @name dmHID::MAX_CHAR_COUNT
      */
     const static uint32_t MAX_CHAR_COUNT = 256;
+    /*# Maximum length of a gamepad GUID (including null terminator)
+     * @constant
+     * @name dmHID::MAX_GAMEPAD_GUID_LENGTH
+     */
+    const static uint32_t MAX_GAMEPAD_GUID_LENGTH = 64;
 
     /*# touch phase enumeration
      * @note By convention the enumeration corresponds to the iOS values

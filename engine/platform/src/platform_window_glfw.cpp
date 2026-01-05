@@ -592,6 +592,13 @@ namespace dmPlatform
         return (const char*) device_name;
     }
 
+    const char* GetJoystickGUID(HWindow window, uint32_t joystick_index)
+    {
+        (void) window;
+        (void) joystick_index;
+        return 0;
+    }
+
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
         uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_AXES), (int) values_capacity);

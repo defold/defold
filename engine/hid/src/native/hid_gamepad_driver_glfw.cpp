@@ -77,6 +77,8 @@ namespace dmHID
 
     static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
 
+    static void GetGamepadDeviceGuidInternal(HContext context, int glfw_id, char guid[MAX_GAMEPAD_GUID_LENGTH]);
+
     static GLFWGamepadDriver* g_GLFWGamepadDriver = 0;
 
     static Gamepad* GLFWGetGamepad(GLFWGamepadDriver* driver, int gamepad_id)
@@ -427,10 +429,29 @@ namespace dmHID
         }
     }
 
-    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
+    
+    static void GetGamepadDeviceGuidInternal(HContext context, int glfw_id, char guid[MAX_GAMEPAD_GUID_LENGTH])
+    {
+        const char* device_guid = dmPlatform::GetJoystickGUID(context->m_Window, glfw_id);
+        if (device_guid != 0x0)
+        {
+            dmStrlCpy(guid, device_guid, MAX_GAMEPAD_GUID_LENGTH);
+        }
+        else
+        {
+            guid[0] = 0;
+        }
+    }
+static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
         GetGamepadDeviceNameInternal(context, gamepad_index, name);
+    }
+
+    static void GLFWGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriver* driver, HGamepad gamepad, char guid[MAX_GAMEPAD_GUID_LENGTH])
+    {
+        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
+        GetGamepadDeviceGuidInternal(context, gamepad_index, guid);
     }
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
@@ -461,6 +482,8 @@ namespace dmHID
         driver->m_Update               = GLFWGamepadDriverUpdate;
         driver->m_DetectDevices        = GLFWGamepadDriverDetectDevices;
         driver->m_GetGamepadDeviceName = GLFWGamepadDriverGetGamepadDeviceName;
+
+        driver->m_GetGamepadDeviceGuid = GLFWGamepadDriverGetGamepadDeviceGuid;
 
         assert(g_GLFWGamepadDriver == 0);
         g_GLFWGamepadDriver               = driver;
