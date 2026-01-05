@@ -698,15 +698,17 @@
       (when select-fn
         (select-fn [go-node])))))
 
-(defn- selection->collection [basis selection]
-  (g/override-root
-    basis
-    (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode)]
-      (g/node-feeding-into basis collection-instance :source-resource)
-      (handler/adapt-single selection CollectionNode))))
+(defn- selection->collection [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root
+      basis
+      (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode evaluation-context)]
+        (g/node-feeding-into basis collection-instance :source-resource)
+        (handler/adapt-single selection CollectionNode evaluation-context)))))
 
-(defn- selection->game-object-instance [basis selection]
-  (g/override-root basis (handler/adapt-single selection GameObjectInstanceNode)))
+(defn- selection->game-object-instance [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection GameObjectInstanceNode evaluation-context))))
 
 (defn add-referenced-game-object! [coll-node parent resource select-fn]
   (let [base (resource/base-name resource)
@@ -721,12 +723,9 @@
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.collection")
-  (active? [selection evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (selection->collection basis selection)))
+  (active? [selection evaluation-context] (selection->collection selection evaluation-context))
   (run [workspace project app-view selection]
-    (let [basis (g/now)
-          collection (selection->collection basis selection)]
+    (g/let-ec [collection (selection->collection selection evaluation-context)]
       (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")}))]
         (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
@@ -775,12 +774,9 @@
 
 (handler/defhandler :edit.add-embedded-component :workbench
   :label (localization/message "command.edit.add-embedded-component.variant.collection")
-  (active? [selection evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (selection->collection basis selection)))
+  (active? [selection evaluation-context] (selection->collection selection evaluation-context))
   (run [selection workspace project user-data app-view]
-    (let [basis (g/now)
-          collection (selection->collection basis selection)]
+    (g/let-ec [collection (selection->collection selection evaluation-context)]
       (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- make-collection-instance [self source-resource id transform-properties overrides select-fn]
@@ -806,13 +802,11 @@
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench
   :label (localization/message "command.edit.add-secondary-embedded-component.variant.collection-game-object")
-  (active? [selection evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (selection->game-object-instance basis selection)))
+  (active? [selection evaluation-context] (selection->game-object-instance selection evaluation-context))
   (run [selection project workspace app-view]
-    (let [basis (g/now)
-          go-node (selection->game-object-instance basis selection)
-          collection (core/scope-of-type basis go-node CollectionNode)]
+    (g/let-ec [basis (:basis evaluation-context)
+               go-node (selection->game-object-instance selection evaluation-context)
+               collection (core/scope-of-type basis go-node CollectionNode)]
       (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- contains-resource? [project collection resource evaluation-context]
@@ -822,16 +816,15 @@
 
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
   (active? [selection evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (or (selection->collection basis selection)
-          (selection->game-object-instance basis selection))))
+    (or (selection->collection selection evaluation-context)
+        (selection->game-object-instance selection evaluation-context)))
   (label [selection evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (if (selection->collection basis selection)
-        (localization/message "command.edit.add-secondary-referenced-component.variant.collection")
-        (localization/message "command.edit.add-secondary-referenced-component.variant.collection-game-object"))))
+    (if (selection->collection selection evaluation-context)
+      (localization/message "command.edit.add-secondary-referenced-component.variant.collection")
+      (localization/message "command.edit.add-secondary-referenced-component.variant.collection-game-object")))
   (run [selection workspace project app-view]
-    (if-let [coll-node (selection->collection (g/now) selection)]
+    (if-let [coll-node (g/with-auto-evaluation-context evaluation-context
+                         (selection->collection selection evaluation-context))]
       (let [ext "collection"]
         (when-let [resource
                    (first
@@ -846,10 +839,10 @@
                 select-fn (fn [node-ids] (app-view/select app-view node-ids))]
             (add-referenced-collection! coll-node resource id nil nil select-fn))))
       (when-let [resource (select-go-file workspace project)]
-        (let [basis (g/now)
-              go-node (selection->game-object-instance basis selection)
-              coll-node (core/scope-of-type basis go-node CollectionNode)
-              select-fn (fn [node-ids] (app-view/select app-view node-ids))]
+        (g/let-ec [basis (:basis evaluation-context)
+                   go-node (selection->game-object-instance selection evaluation-context)
+                   coll-node (core/scope-of-type basis go-node CollectionNode)
+                   select-fn (fn [node-ids] (app-view/select app-view node-ids))]
           (add-referenced-game-object! coll-node go-node resource select-fn))))))
 
 (defn load-collection [project self resource collection]

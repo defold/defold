@@ -106,15 +106,15 @@
 
 (handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
-    (when-let [node-id (handler/selection->node-id selection)]
+    (when-let [node-id (handler/selection->node-id selection evaluation-context)]
       (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
   (run [property selection search-results-view app-view workspace]
-    (let [localization (g/with-auto-evaluation-context evaluation-context
-                         (workspace/localization workspace evaluation-context))]
+    (g/let-ec [localization (workspace/localization workspace evaluation-context)
+               node-id (handler/selection->node-id selection evaluation-context)]
       (app-view/show-override-inspector!
         app-view
         search-results-view
-        (handler/selection->node-id selection)
+        node-id
         [(:key property)]
         localization))))
 
@@ -131,7 +131,7 @@
       true))
   (options [property selection user-data evaluation-context]
     (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
+      (when-let [node-id (handler/selection->node-id selection evaluation-context)]
         (let [prop-kws [(:key property)]
               source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
           (when source-prop-infos-by-prop-kw
@@ -150,7 +150,7 @@
   (active? [property selection user-data evaluation-context]
     (or (some? user-data)
         (and (= 1 (count (:original-values property)))
-             (if-let [node-id (handler/selection->node-id selection)]
+             (if-let [node-id (handler/selection->node-id selection evaluation-context)]
                (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
                false))))
   (enabled? [user-data]
@@ -159,7 +159,7 @@
       true))
   (options [property selection user-data evaluation-context]
     (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
+      (when-let [node-id (handler/selection->node-id selection evaluation-context)]
         (let [prop-kws [(:key property)]
               source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
           (when source-prop-infos-by-prop-kw

@@ -1905,5 +1905,5 @@
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))
 
-(defn selection->movable [selection]
-  (handler/selection->node-ids selection scene-tools/manip-movable?))
+(defn selection->movable [selection evaluation-context]
+  (handler/selection->node-ids selection scene-tools/manip-movable? evaluation-context))

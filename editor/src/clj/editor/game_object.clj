@@ -512,14 +512,16 @@
     (doseq [resource resources]
       (add-referenced-component! go-id resource select-fn))))
 
-(defn- selection->game-object [selection]
-  (g/override-root (handler/adapt-single selection GameObjectNode)))
+(defn- selection->game-object [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection GameObjectNode evaluation-context))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.game-object")
-  (active? [selection] (selection->game-object selection))
+  (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [workspace project selection app-view]
-       (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
+    (g/let-ec [game-object-node (selection->game-object selection evaluation-context)]
+      (add-component-handler workspace project game-object-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- connect-embedded-resource [node-type resource-node comp-node]
   (gu/connect-existing-outputs node-type resource-node comp-node
@@ -595,10 +597,10 @@
       (localization/message "command.edit.add-embedded-component.variant.game-object")
       (let [rt (:resource-type user-data)]
         (or (:label rt) (:ext rt)))))
-  (active? [selection] (selection->game-object selection))
+  (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data evaluation-context]
-    (let [self (selection->game-object selection)
+    (let [self (selection->game-object selection evaluation-context)
           workspace (:workspace (g/node-value self :resource evaluation-context))]
       (add-embedded-component-options self workspace user-data evaluation-context))))
 

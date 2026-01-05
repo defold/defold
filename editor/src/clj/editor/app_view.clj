@@ -373,36 +373,34 @@
                                                 (ui/text! tab title)))))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
-(defn- selection->openable-resources [selection]
-  (when-let [resources (handler/adapt-every selection resource/Resource)]
+(defn- selection->openable-resources [selection evaluation-context]
+  (when-let [resources (handler/adapt-every selection resource/Resource evaluation-context)]
     (filterv resource/openable-resource? resources)))
 
-(defn- selection->single-openable-resource [selection]
-  (when-let [r (handler/adapt-single selection resource/Resource)]
+(defn- selection->single-openable-resource [selection evaluation-context]
+  (when-let [r (handler/adapt-single selection resource/Resource evaluation-context)]
     (when (resource/openable-resource? r)
       r)))
 
-(defn- selection->single-resource [selection]
-  (handler/adapt-single selection resource/Resource))
+(defn- selection->single-resource [selection evaluation-context]
+  (handler/adapt-single selection resource/Resource evaluation-context))
 
 (defn- context-openable-resource
   ([app-view selection]
-   (when-let [resource (or (selection->single-resource selection)
-                           (g/node-value app-view :active-resource))]
-     (when (resource/openable-resource? resource)
-       resource)))
+   (g/with-auto-evaluation-context evaluation-context
+     (context-openable-resource app-view selection evaluation-context)))
   ([app-view selection evaluation-context]
-   (when-let [resource (or (selection->single-resource selection)
+   (when-let [resource (or (selection->single-resource selection evaluation-context)
                            (g/node-value app-view :active-resource evaluation-context))]
      (when (resource/openable-resource? resource)
        resource))))
 
 (defn- context-resource
   ([app-view selection]
-   (or (selection->single-resource selection)
-       (g/node-value app-view :active-resource)))
+   (g/with-auto-evaluation-context evaluation-context
+     (context-resource app-view selection evaluation-context)))
   ([app-view selection evaluation-context]
-   (or (selection->single-resource selection)
+   (or (selection->single-resource selection evaluation-context)
        (g/node-value app-view :active-resource evaluation-context))))
 
 (defn- disconnect-sources [target-node target-label]
@@ -2430,11 +2428,13 @@
         (.requestFocus selected-tab-pane)))))
 
 (handler/defhandler :file.open-selected :global
-  (active? [selection] (not-empty (selection->openable-resources selection)))
-  (enabled? [selection] (some resource/exists? (selection->openable-resources selection)))
+  (active? [selection evaluation-context] (not-empty (selection->openable-resources selection evaluation-context)))
+  (enabled? [selection evaluation-context] (some resource/exists? (selection->openable-resources selection evaluation-context)))
   (run [selection app-view prefs localization workspace project]
-    (doseq [resource (filter resource/exists? (selection->openable-resources selection))]
-      (open-resource! app-view prefs localization project resource))))
+    (->> (g/with-auto-evaluation-context evaluation-context
+           (selection->openable-resources selection evaluation-context))
+         (filter resource/exists?)
+         (run! #(open-resource! app-view prefs localization project %)))))
 
 (handler/defhandler :file.open-as :global
   (active? [app-view selection evaluation-context] (context-openable-resource app-view selection evaluation-context))
@@ -2445,7 +2445,7 @@
   (options [app-view prefs workspace selection user-data evaluation-context]
     (when-not user-data
       (let [[resource active-view-type-id]
-            (if-let [selected-resource (selection->single-resource selection)]
+            (if-let [selected-resource (selection->single-resource selection evaluation-context)]
               (pair selected-resource nil)
               (let [active-resource (g/node-value app-view :active-resource evaluation-context)
                     active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
@@ -2736,8 +2736,8 @@
   ;; TODO: This will return the outline-selected resource-node when used from an
   ;; editor tab context. Shouldn't we use the resource-node associated with the
   ;; editor tab in that scenario?
-  (or (handler/selection->node-id selection)
-      (when-let [resource (handler/adapt-single selection resource/Resource)]
+  (or (handler/selection->node-id selection evaluation-context)
+      (when-let [resource (handler/adapt-single selection resource/Resource evaluation-context)]
         (when (resource/overridable? resource)
           (project/get-resource-node project resource evaluation-context)))))
 
@@ -2758,16 +2758,16 @@
   (enabled? [selection user-data evaluation-context]
     (if user-data
       (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
-      (if-let [node-id (handler/selection->node-id selection)]
+      (if-let [node-id (handler/selection->node-id selection evaluation-context)]
         (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
         false))
     (or (some? user-data)
-        (if-let [node-id (handler/selection->node-id selection)]
+        (if-let [node-id (handler/selection->node-id selection evaluation-context)]
           (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
           false)))
   (options [selection user-data evaluation-context]
     (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
+      (when-let [node-id (handler/selection->node-id selection evaluation-context)]
         (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
           (mapv (fn [transfer-overrides-plan]
                   {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
@@ -2781,14 +2781,14 @@
   (enabled? [selection user-data evaluation-context]
     (if user-data
       (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
-      (if-let [node-id (handler/selection->node-id selection)]
+      (if-let [node-id (handler/selection->node-id selection evaluation-context)]
         (let [basis (:basis evaluation-context)]
           (and (not (coll/empty? (g/overrides basis node-id)))
                (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
         false)))
   (options [selection user-data evaluation-context]
     (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
+      (when-let [node-id (handler/selection->node-id selection evaluation-context)]
         (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
           (mapv (fn [transfer-overrides-plan]
                   {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)

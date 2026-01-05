@@ -77,7 +77,7 @@
 
 (extend-type java.lang.String
   core/Adaptable
-  (adapt [this t]
+  (adapt [this t _evaluation-context]
     (cond
       (= t Keyword) (keyword this))))
 
@@ -87,7 +87,8 @@
       (handler/defhandler :c1 :global
         (active? [selection] selection)
         (run [selection]
-             (handler/adapt selection Keyword)))
+             (g/with-auto-evaluation-context evaluation-context
+               (handler/adapt selection Keyword evaluation-context))))
       (doseq [[local-selection expected-selection] [[["b"] [:b]]
                                                     [[] []]
                                                     [nil [:a]]]]
@@ -153,7 +154,11 @@
   AProtocol)
 
 (deftest adaptables
-  (is (not-empty (keep identity (handler/adapt [(->ARecord)] AProtocol)))))
+  (with-clean-system
+    (is (not-empty
+          (keep identity
+                (g/with-auto-evaluation-context evaluation-context
+                  (handler/adapt [(->ARecord)] AProtocol evaluation-context)))))))
 
 (g/defnode StringNode
   (property string g/Str))
@@ -165,20 +170,25 @@
 
 (deftest adapt-nodes
   (handler/defhandler :string-command :global
-    (enabled? [selection] (handler/adapt-every selection String))
-    (run [selection] (handler/adapt-every selection String)))
+    (enabled? [selection evaluation-context] (handler/adapt-every selection String evaluation-context))
+    (run [selection] (g/with-auto-evaluation-context evaluation-context
+                       (handler/adapt-every selection String evaluation-context))))
   (handler/defhandler :single-string-command :global
-    (enabled? [selection] (handler/adapt-single selection String))
-    (run [selection] (handler/adapt-single selection String)))
+    (enabled? [selection evaluation-context] (handler/adapt-single selection String evaluation-context))
+    (run [selection] (g/with-auto-evaluation-context evaluation-context
+                       (handler/adapt-single selection String evaluation-context))))
   (handler/defhandler :int-command :global
-    (enabled? [selection] (handler/adapt-every selection Integer))
-    (run [selection] (handler/adapt-every selection Integer)))
+    (enabled? [selection evaluation-context] (handler/adapt-every selection Integer evaluation-context))
+    (run [selection] (g/with-auto-evaluation-context evaluation-context
+                       (handler/adapt-every selection Integer evaluation-context))))
   (handler/defhandler :string-node-command :global
-    (enabled? [selection] (handler/adapt-every selection StringNode))
-    (run [selection] (handler/adapt-every selection StringNode)))
+    (enabled? [selection evaluation-context] (handler/adapt-every selection StringNode evaluation-context))
+    (run [selection] (g/with-auto-evaluation-context evaluation-context
+                       (handler/adapt-every selection StringNode evaluation-context))))
   (handler/defhandler :other-command :global
-    (enabled? [selection] (handler/adapt-every selection OtherType))
-    (run [selection] (handler/adapt-every selection OtherType)))
+    (enabled? [selection evaluation-context] (handler/adapt-every selection OtherType evaluation-context))
+    (run [selection] (g/with-auto-evaluation-context evaluation-context
+                       (handler/adapt-every selection OtherType evaluation-context))))
   (with-clean-system
     (let [[s i] (tx-nodes (g/make-nodes world
                                         [s [StringNode :string "test"]
@@ -223,8 +233,9 @@
 
 (deftest adapt-nested
   (handler/defhandler :string-node-command :global
-    (enabled? [selection] (handler/adapt-every selection StringNode))
-    (run [selection] (handler/adapt-every selection StringNode)))
+    (enabled? [selection evaluation-context] (handler/adapt-every selection StringNode evaluation-context))
+    (run [selection] (g/with-auto-evaluation-context evaluation-context
+                       (handler/adapt-every selection StringNode evaluation-context))))
   (with-clean-system
     (let [[s] (tx-nodes (g/make-nodes world
                                       [s [StringNode :string "test"]]))
@@ -288,7 +299,7 @@
   (succeeding-selection [_this _evaluation-context] [])
   (alt-selection [this evaluation-context]
     (let [s (handler/selection this evaluation-context)]
-      (if-let [s' (handler/adapt-every s ImposterStringNode)]
+      (if-let [s' (handler/adapt-every s ImposterStringNode evaluation-context)]
         (into []
               (keep #(:alt (g/node-value % :selection-data evaluation-context)))
               s')
@@ -296,8 +307,11 @@
 
 (deftest alternative-selections
   (handler/defhandler :string-command :global
-      (active? [selection] (handler/adapt-single selection StringNode))
-      (run [selection] (g/node-value (handler/adapt-single selection StringNode) :string)))
+    (active? [selection evaluation-context] (handler/adapt-single selection StringNode evaluation-context))
+    (run [selection]
+      (g/with-auto-evaluation-context evaluation-context
+        (let [string-node (handler/adapt-single selection StringNode evaluation-context)]
+          (g/node-value string-node :string evaluation-context)))))
   (with-clean-system
     (let [[s i lonely-i] (tx-nodes (g/make-nodes world
                                                  [s [StringNode :string "test"]

@@ -222,9 +222,9 @@
 (handler/defhandler :edit.cut :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
-    (let [next (-> (g/with-auto-evaluation-context evaluation-context
-                     (handler/succeeding-selection selection-provider evaluation-context))
-                   (handler/adapt-single resource/Resource))
+    (let [next (g/with-auto-evaluation-context evaluation-context
+                 (-> (handler/succeeding-selection selection-provider evaluation-context)
+                     (handler/adapt-single resource/Resource evaluation-context)))
           cut-files-directory (fs/create-temp-directory! "asset-cut")]
       (copy (mapv #(temp-resource-file! cut-files-directory %) (roots selection)))
       (delete selection)
@@ -464,9 +464,9 @@
 (handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider localization]
-    (let [next (-> (g/with-auto-evaluation-context evaluation-context
-                     (handler/succeeding-selection selection-provider evaluation-context))
-                   (handler/adapt-single resource/Resource))]
+    (let [next (g/with-auto-evaluation-context evaluation-context
+                 (-> (handler/succeeding-selection selection-provider evaluation-context)
+                     (handler/adapt-single resource/Resource evaluation-context)))]
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
                 localization
@@ -514,17 +514,20 @@
                        (localization/message "command.file.new")
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
-  (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
-                                                                                (= (count selection) 1)
-                                                                                (not= nil (some-> (handler/adapt-single selection resource/Resource)
-                                                                                            resource/abs-path)))))
+  (active? [selection selection-context evaluation-context]
+    (or (= :global selection-context)
+        (and (= :asset-browser selection-context)
+             (= (count selection) 1)
+             (some? (some-> (handler/adapt-single selection resource/Resource evaluation-context)
+                            resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
-          base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
-                                first
-                                resource/abs-path
-                                (File.))
+          base-folder (-> (or (some-> (g/with-auto-evaluation-context evaluation-context
+                                        (handler/adapt-every selection resource/Resource evaluation-context))
+                                      first
+                                      resource/abs-path
+                                      (File.))
                               project-directory)
                           fs/to-folder)
           rt (:resource-type user-data)
@@ -600,17 +603,18 @@
               (select-resource! asset-browser (workspace/file-resource workspace folder))))))))
 
 (defn- selected-or-active-resource
-  [selection active-resource]
-  (or (handler/adapt-single selection resource/Resource)
+  [selection active-resource evaluation-context]
+  (or (handler/adapt-single selection resource/Resource evaluation-context)
       active-resource))
 
 (handler/defhandler :file.show-in-assets :global
-  (active? [active-resource selection] (selected-or-active-resource selection active-resource))
-  (enabled? [active-resource selection]
-            (when-let [r (selected-or-active-resource selection active-resource)]
-              (resource/exists? r)))
+  (active? [active-resource selection evaluation-context] (selected-or-active-resource selection active-resource evaluation-context))
+  (enabled? [active-resource selection evaluation-context]
+    (when-let [r (selected-or-active-resource selection active-resource evaluation-context)]
+      (resource/exists? r)))
   (run [active-resource asset-browser selection main-stage]
-    (when-let [r (selected-or-active-resource selection active-resource)]
+    (when-let [r (g/with-auto-evaluation-context evaluation-context
+                   (selected-or-active-resource selection active-resource evaluation-context))]
       (app-view/show-asset-browser! (.getScene ^Stage main-stage))
       (select-resource! asset-browser r {:scroll? true}))))
 
