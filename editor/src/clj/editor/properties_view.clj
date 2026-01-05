@@ -552,11 +552,12 @@
            (.consume e)))
        :on-drag-entered
        (fn [^DragEvent e]
-         (when (single-drag-resource e ext-set workspace)
-           (ui/add-style! (.getTarget e) "resource-picker-drop-target")))
+         (if (single-drag-resource e ext-set workspace)
+           (ui/add-style! (.getTarget e) "resource-picker-drop-target")
+           (ui/add-style! (.getTarget e) "resource-picker-drop-target-invalid")))
        :on-drag-exited
        (fn [^DragEvent e]
-         (ui/remove-style! (.getTarget e) "resource-picker-drop-target"))
+         (ui/remove-styles! (.getTarget e) ["resource-picker-drop-target" "resource-picker-drop-target-invalid"]))
        :children
        [{:fx/type fxui/value-field
          :h-box/hgrow :always

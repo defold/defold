@@ -397,6 +397,13 @@ $ext-line-height: 26px;
                 -fx-border-color: -df-defold-green !important;
             }
         }
+        &.resource-picker-drop-target-invalid {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-defold-red !important;
+            }
+        }
     }
     &-combo-box {
         & > .label {
