@@ -45,7 +45,6 @@ import com.defold.extension.pipeline.texture.*;
 import com.dynamo.bob.pipeline.Texc.FlipAxis;
 
 import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -63,9 +62,10 @@ public class TextureGenerator {
     public static class GenerateResult {
         public TextureImage textureImage;
         public ArrayList<byte[]> imageDatas;
-    };
+    }
 
     private static final HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<>();
+
     static {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_LUMINANCE, Texc.PixelFormat.PF_L8.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB, Texc.PixelFormat.PF_R8G8B8.getValue());
@@ -222,31 +222,26 @@ public class TextureGenerator {
         return targetFormat;
     }
 
-    private static ByteBuffer getByteBuffer(BufferedImage bi)
-    {
+    private static ByteBuffer getByteBuffer(BufferedImage bi) {
         ByteBuffer byteBuffer;
         DataBuffer dataBuffer = bi.getRaster().getDataBuffer();
 
         if (dataBuffer instanceof DataBufferByte) { // This is the usual case, where data is simply wrapped
             byte[] pixelData = ((DataBufferByte) dataBuffer).getData();
             byteBuffer = ByteBuffer.wrap(pixelData);
-        }
-        else if (dataBuffer instanceof DataBufferUShort) {
+        } else if (dataBuffer instanceof DataBufferUShort) {
             short[] pixelData = ((DataBufferUShort) dataBuffer).getData();
             byteBuffer = ByteBuffer.allocate(pixelData.length * 2);
             byteBuffer.asShortBuffer().put(ShortBuffer.wrap(pixelData));
-        }
-        else if (dataBuffer instanceof DataBufferShort) {
+        } else if (dataBuffer instanceof DataBufferShort) {
             short[] pixelData = ((DataBufferShort) dataBuffer).getData();
             byteBuffer = ByteBuffer.allocate(pixelData.length * 2);
             byteBuffer.asShortBuffer().put(ShortBuffer.wrap(pixelData));
-        }
-        else if (dataBuffer instanceof DataBufferInt) {
+        } else if (dataBuffer instanceof DataBufferInt) {
             int[] pixelData = ((DataBufferInt) dataBuffer).getData();
             byteBuffer = ByteBuffer.allocate(pixelData.length * 4);
             byteBuffer.asIntBuffer().put(IntBuffer.wrap(pixelData));
-        }
-        else {
+        } else {
             throw new IllegalArgumentException("Not implemented for data buffer type: " + dataBuffer.getClass());
         }
 
@@ -301,15 +296,15 @@ public class TextureGenerator {
     }
 
     private static List<byte[]> generateFromColorAndFormat(TextureImage.Image.Builder builder,
-                                                     BufferedImage image,
-                                                     ColorModel colorModel,
-                                                     TextureFormat textureFormat,
-                                                     String compressorName,
-                                                     String compressorPresetName,
-                                                     boolean generateMipMaps,
-                                                     int maxTextureSize,
-                                                     boolean premulAlpha,
-                                                     EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+                                                           BufferedImage image,
+                                                           ColorModel colorModel,
+                                                           TextureFormat textureFormat,
+                                                           String compressorName,
+                                                           String compressorPresetName,
+                                                           boolean generateMipMaps,
+                                                           int maxTextureSize,
+                                                           boolean premulAlpha,
+                                                           EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -332,8 +327,8 @@ public class TextureGenerator {
 
         TimeProfiler.start("CreateTexture");
         long textureImage = TexcLibraryJni.CreateImage(null, width, height,
-                                                        Texc.PixelFormat.PF_A8B8G8R8.getValue(),
-                                                        Texc.ColorSpace.CS_SRGB.getValue(), bytes);
+                                                       Texc.PixelFormat.PF_A8B8G8R8.getValue(),
+                                                       Texc.ColorSpace.CS_SRGB.getValue(), bytes);
 
         TimeProfiler.stop();
         if (textureImage == 0) {
@@ -587,6 +582,40 @@ public class TextureGenerator {
         }
         // TODO: This shouldn't be needed eventually, but right now we need a compression type in the engine.
         return TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
+    }
+
+    // NOTE: This is being used to generate atlas and tilesource previews in the Editor, avoiding some of the extra
+    // overhead of the generalized path, which helps since the editor currently blocks the UI during this operation
+    public static GenerateResult generateAtlasPreview(BufferedImage image) throws TextureGeneratorException {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        byte[] inputBuffer = getByteBuffer(image).array();
+        byte[] outputBuffer = new byte[width * height * 4];
+
+        int res = TexcLibraryJni.CreatePreviewImage(width, height, inputBuffer, outputBuffer);
+        if (res == -1) {
+            throw new TextureGeneratorException("Failed to create texture");
+        }
+
+        var result = new GenerateResult();
+        result.imageDatas = new ArrayList<>();
+        result.imageDatas.add(outputBuffer);
+
+        result.textureImage = TextureImage.newBuilder()
+            .addAlternatives(TextureImage.Image.newBuilder()
+                             .setWidth(width)
+                             .setHeight(height)
+                             .setOriginalWidth(width)
+                             .setOriginalHeight(height)
+                             .setFormat(TextureFormat.TEXTURE_FORMAT_RGBA)
+                             .addMipMapOffset(0)
+                             .addMipMapSize(outputBuffer.length)
+                             .setDataSize(outputBuffer.length))
+            .setType(Type.TYPE_2D)
+            .setCount(1)
+            .build();
+
+        return result;
     }
 
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.

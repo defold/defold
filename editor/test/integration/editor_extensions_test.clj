@@ -1342,7 +1342,7 @@ Expected errors:
   Added value is not a table => \"/foo.png\" is not a table
   Added nested value is not a table => \"/foo.png\" is not a table
   Added node has invalid property value => \"invalid-pivot\" is not a tuple
-  Added resource has wrong type => resource extension should be jpg or png
+  Added resource has wrong type => resource extension should be jpeg, jpg or png
 Tilesource initial state:
   animations: 0
   collision groups: 0

@@ -606,6 +606,17 @@
     (.flush digest-output-stream)
     (digest/completed-stream->hex digest-output-stream)))
 
+(defn resource->path-inclusive-sha1
+  "Returns SHA-1 digest as bytes."
+  ^bytes [resource]
+  (with-open [input-stream (io/input-stream resource)
+              digest-output-stream (digest/make-digest-output-stream "SHA-1")]
+    (io/copy input-stream digest-output-stream)
+    (when-some [^String proj-path (proj-path resource)]
+      (.write digest-output-stream (.getBytes proj-path "UTF-8")))
+    (.flush digest-output-stream)
+    (.digest (.getMessageDigest digest-output-stream))))
+
 (defn read-source-value+sha256-hex
   "Returns a pair of [read-fn-result, disk-sha256-or-nil]. If the resource is a
   file in the project, wraps the read in a DigestInputStream that concurrently

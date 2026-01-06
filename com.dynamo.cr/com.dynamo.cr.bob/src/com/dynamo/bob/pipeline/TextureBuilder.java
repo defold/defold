@@ -27,7 +27,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-@BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", isCacheble = true, paramsForSignature = {"texture-compression"})
+@BuilderParams(name = "Texture", inExts = {".png", ".jpg", ".jpeg"}, outExt = ".texturec", isCacheble = true, paramsForSignature = {"texture-compression"})
 public class TextureBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(TextureBuilder.class.getName());

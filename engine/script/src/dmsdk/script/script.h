@@ -688,6 +688,7 @@ namespace dmScript
      * It also gets the current (caller) url if the a pointer is passed to `out_default_url`
      * @name ResolveURL
      * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
      * @param out_url [type:dmMessage::URL*] where to store the result
      * @param out_default_url [type:dmMessage::URL*] default URL used in the resolve, can be 0x0 (not used)
      * @return result [type:int] 0 if successful. Throws Lua error on failure

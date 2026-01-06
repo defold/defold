@@ -110,8 +110,9 @@ namespace dmTexc
         ColorSpace  m_ColorSpace;
     };
 
-    Image* CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
-    void DestroyImage(Image* image);
+    Image*   CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
+    void     CreatePreviewImage(uint32_t width, uint32_t height, uint32_t data_size, const uint8_t* input_data, uint8_t* output_data);
+    void     DestroyImage(Image* image);
 
     uint32_t GetWidth(Image* image);
     uint32_t GetHeight(Image* image);
