@@ -1480,15 +1480,15 @@
 
 (defn- make-grid-menu-item [^Scene scene localization ^Collection style-classes children command-contexts evaluation-context]
   (let [column-groups
-        [[["Objects" ["Game Object" "Collection"]]
-          ["Scripts" ["Lua Module" "Script" "GUI Script"]]
-          ["Shaders" ["Material" "Vertex Program" "Fragment Program" "Shader Include"]]]
-         [["Components" ["Camera" "Collection Factory" "Collection Proxy" "Collision Object" "Factory" "GUI" "Label" "Model" "Mesh" "Particle FX" "Sound" "Sprite" "Tile Map"]]]
-         [["Resources" ["Animation Set" "Atlas" "Buffer" "Cubemap" "Font" "Render Target" "Tile Source"]]]
-         [["Editor" ["Editor Script" "Editor Localization"]]
-          ["Render" ["Compute" "Compute Program" "Render" "Render Script"]]
-          ["Project Settings" ["App Manifest" "Display Profiles" "Gamepads" "Input Binding" "Texture Profiles"]]]]
-        children-by-label (group-by #(localization (:label %)) children)]
+        [[["resource.group.objects" ["resource.type.go" "resource.type.collection"]]
+          ["resource.group.scripts" ["resource.type.lua" "resource.type.script" "resource.type.gui-script"]]
+          ["resource.group.shaders" ["resource.type.material" "resource.type.vp" "resource.type.fp" "resource.type.glsl"]]]
+         [["resource.group.components" ["resource.type.camera" "resource.type.collectionfactory" "resource.type.collectionproxy" "resource.type.collisionobject" "resource.type.factory" "resource.type.gui" "resource.type.label" "resource.type.model" "resource.type.mesh" "resource.type.particlefx" "resource.type.sound" "resource.type.sprite" "resource.type.tilemap"]]]
+         [["resource.group.resources" ["resource.type.animationset" "resource.type.atlas" "resource.type.buffer" "resource.type.cubemap" "resource.type.font" "resource.type.render-target" "resource.type.tilesource"]]]
+         [["resource.group.editor" ["resource.type.editor-script" "resource.type.editor-localization"]]
+          ["resource.group.render" ["resource.type.compute" "resource.type.cp" "resource.type.render" "resource.type.render-script"]]
+          ["resource.group.project_settings" ["resource.type.appmanifest" "resource.type.display-profiles" "resource.type.gamepads" "resource.type.input-binding" "resource.type.texture-profiles"]]]]
+        children-by-label (group-by #(:k (:label %)) children)]
     (fx/instance
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
@@ -1513,7 +1513,7 @@
                            [{:fx/type fx.h-box/lifecycle
                              :alignment :center-left
                              :children [{:fx/type fx.label/lifecycle
-                                         :text group-name
+                                         :text (localization (localization/message group-name))
                                          :style-class ["grid-menu-group-label"]}
                                         {:fx/type fx.separator/lifecycle
                                          :h-box/hgrow :always
@@ -2619,11 +2619,5 @@
       (timer-stop! timer))))
 
 (comment
-  (let [asset-browser (dev/view-of-type editor.asset-browser/AssetBrowser)]
-    (register-popup-on-context-menu (g/node-value asset-browser :raw-tree-view)))
-
-  (let [scene (.getScene (editor.ui/main-stage))]
-    (run-now (show-test-popup! (.getRoot scene) 1000 300)))
-
   (run-now (reload-root-styles!))
   :-)
