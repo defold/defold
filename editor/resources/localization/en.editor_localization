@@ -968,6 +968,11 @@ command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
 
+# Scene
+
+scene.preview.close = Close preview
+scene.preview.close.tooltip = Close preview ({shortcut})
+
 # Code editor – find bar
 
 code.find.word = Word

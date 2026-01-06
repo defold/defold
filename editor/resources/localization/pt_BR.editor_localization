@@ -943,6 +943,11 @@ command.app.about = Sobre
 command.vcs.diff = Ver Diff
 command.vcs.revert = Desfazer
 
+# Scene
+
+scene.preview.close = Fechar visualização
+scene.preview.close.tooltip = Fechar visualização ({shortcut})
+
 # Code editor – find bar
 
 code.find.word = Palavra

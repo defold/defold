@@ -952,6 +952,11 @@ command.app.about = О программе
 command.vcs.diff = Сравнить
 command.vcs.revert = Откатить
 
+# Scene
+
+scene.preview.close = Закрыть предпросмотр
+scene.preview.close.tooltip = Закрыть предпросмотр ({shortcut})
+
 # Code editor – find bar
 
 code.find.word = Слово
