@@ -21,7 +21,7 @@
 
 namespace dmTexc
 {
-    void RGB565ToRGB888(const uint16_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
+    void RGB565ToRGB888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -44,7 +44,7 @@ namespace dmTexc
         return r | g | b;
     }
 
-    void RGB565ToRGBA8888(const uint16_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void RGB565ToRGBA8888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -61,7 +61,7 @@ namespace dmTexc
     }
 
     // https://docs.microsoft.com/en-us/windows/win32/directshow/working-with-16-bit-rgb
-    void RGBA8888ToRGB565(const uint8_t* data, const uint32_t width, const uint32_t height, uint16_t* color_rgb)
+    void RGBA8888ToRGB565(const uint8_t* data, uint32_t width, uint32_t height, uint16_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -86,7 +86,7 @@ namespace dmTexc
         return (r | g | b | a);
     }
 
-    void RGBA4444ToRGBA8888(const uint16_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void RGBA4444ToRGBA8888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -104,7 +104,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToRGBA4444(const uint8_t* data, const uint32_t width, const uint32_t height, uint16_t* color_rgba)
+    void RGBA8888ToRGBA4444(const uint8_t* data, uint32_t width, uint32_t height, uint16_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -117,7 +117,7 @@ namespace dmTexc
         }
     }
 
-    void L8ToRGB888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
+    void L8ToRGB888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -127,7 +127,7 @@ namespace dmTexc
         }
     }
 
-    void L8ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void L8ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -138,7 +138,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToL8(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_l)
+    void RGBA8888ToL8(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_l)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -147,7 +147,7 @@ namespace dmTexc
         }
     }
 
-    void L8A8ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void L8A8ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -158,7 +158,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToL8A8(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_la)
+    void RGBA8888ToL8A8(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_la)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -168,7 +168,7 @@ namespace dmTexc
         }
     }
 
-    void RGB888ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void RGB888ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -179,7 +179,7 @@ namespace dmTexc
         }
     }
 
-    void ABGR8888ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void ABGR8888ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -195,7 +195,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToRGB888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
+    void RGBA8888ToRGB888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -206,7 +206,7 @@ namespace dmTexc
         }
     }
 
-    void PreMultiplyAlpha(uint8_t* data, const uint32_t width, const uint32_t height)
+    void PreMultiplyAlpha(uint8_t* data, uint32_t width, uint32_t height)
     {
         // If this is an issue, we could simd it
         // e.g (v6) https://github.com/Wizermil/premultiply_alpha/blob/master/premultiply_alpha/premultiply_alpha.hpp
@@ -221,7 +221,7 @@ namespace dmTexc
         }
     }
 
-    void FlipImageX_RGBA8888(uint32_t* data, const uint32_t width, const uint32_t height)
+    void FlipImageX_RGBA8888(uint32_t* data, uint32_t width, uint32_t height)
     {
         for (uint32_t y = 0; y < height; ++y)
         {
@@ -235,7 +235,7 @@ namespace dmTexc
         }
     }
 
-    void FlipImageY_RGBA8888(uint32_t* data, const uint32_t width, const uint32_t height)
+    void FlipImageY_RGBA8888(uint32_t* data, uint32_t width, uint32_t height)
     {
         for (uint32_t y = 0; y < height/2; ++y)
         {
@@ -303,7 +303,7 @@ namespace dmTexc
         return bytes_per_pixel * width * height;
     }
 
-    bool ConvertToRGBA8888(const uint8_t* input, const uint32_t width, const uint32_t height, PixelFormat pf, uint8_t* out)
+    bool ConvertToRGBA8888(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out)
     {
         switch(pf)
         {
@@ -338,7 +338,7 @@ namespace dmTexc
 
     // NOTE: This is used by the Defold Editor when Generating a Preview Image for atlases
     // We merge all the required steps to optimize since this blocks the editor UI while this is generated
-    void ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, const uint32_t width, const uint32_t height)
+    void ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height)
     {
         for (uint32_t y = 0; y < height; ++y)
         {
