@@ -78,6 +78,10 @@ namespace dmGui
     static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
+    static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
+    static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                                      int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
+                                      uint32_t* out_width, uint32_t* out_height, float* out_offset_x, float* out_offset_y);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
     static void RemoveFromNodeList(HScene scene, InternalNode* n);
@@ -281,6 +285,12 @@ namespace dmGui
         {
             Scene* scene = scenes[i];
             scene->m_ResChanged = 1;
+            if (!scene->m_SafeAreaModeOverride)
+            {
+                SetSceneSafeAreaAdjust(scene, context->m_UseSafeAreaAdjust,
+                    context->m_AdjustWidth, context->m_AdjustHeight,
+                    context->m_AdjustOffsetX, context->m_AdjustOffsetY);
+            }
             if(scene->m_OnWindowResizeCallback)
             {
                 scene->m_OnWindowResizeCallback(scene, width, height);
@@ -2942,7 +2952,6 @@ namespace dmGui
         // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
         Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode);
 
-        Context* context = scene->m_Context;
         Vector4 parent_dims;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
