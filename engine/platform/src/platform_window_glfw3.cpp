@@ -422,10 +422,6 @@ namespace dmPlatform
 
     bool GetSafeArea(HWindow window, SafeArea* out)
     {
-        if (!out)
-        {
-            return false;
-        }
         SetSafeAreaFull(window, out);
         return true;
     }

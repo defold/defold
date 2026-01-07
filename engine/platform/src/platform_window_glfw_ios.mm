@@ -55,6 +55,7 @@ namespace dmPlatform
         const uint32_t window_width = GetWindowWidth(window);
         const uint32_t window_height = GetWindowHeight(window);
 
+        // Convert UIKit points to pixel units to match window.get_size().
         CGFloat scale = view.contentScaleFactor;
         if (view.bounds.size.width > 0.0f)
         {
