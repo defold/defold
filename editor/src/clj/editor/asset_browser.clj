@@ -120,9 +120,6 @@
    {:label (localization/message "command.file.new-folder")
     :command :file.new-folder
     :icon "icons/32/Icons_01-Folder-closed.png"}
-   {:label (localization/message "command.file.new")
-    :command :file.new
-    :icon "icons/64/Icons_29-AT-Unknown.png"}
    menu-items/separator
    {:label (localization/message "command.edit.cut")
     :command :edit.cut}

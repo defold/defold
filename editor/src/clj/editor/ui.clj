@@ -1481,13 +1481,12 @@
 (defn- make-grid-menu-item [^Scene scene localization ^Collection style-classes children command-contexts evaluation-context]
   (let [column-groups
         [[["resource.group.objects" ["resource.type.go" "resource.type.collection"]]
-          ["resource.group.scripts" ["resource.type.lua" "resource.type.script" "resource.type.gui-script"]]
-          ["resource.group.shaders" ["resource.type.material" "resource.type.vp" "resource.type.fp" "resource.type.glsl"]]]
+          ["resource.group.scripts" ["resource.type.lua" "resource.type.script" "resource.type.gui-script" "resource.type.render-script"]]
+          ["resource.group.shaders" ["resource.type.material" "resource.type.vp" "resource.type.fp" "resource.type.glsl" "resource.type.compute" "resource.type.cp"]]]
          [["resource.group.components" ["resource.type.camera" "resource.type.collectionfactory" "resource.type.collectionproxy" "resource.type.collisionobject" "resource.type.factory" "resource.type.gui" "resource.type.label" "resource.type.model" "resource.type.mesh" "resource.type.particlefx" "resource.type.sound" "resource.type.sprite" "resource.type.tilemap"]]]
          [["resource.group.resources" ["resource.type.animationset" "resource.type.atlas" "resource.type.buffer" "resource.type.cubemap" "resource.type.font" "resource.type.render-target" "resource.type.tilesource"]]]
          [["resource.group.editor" ["resource.type.editor-script" "resource.type.editor-localization"]]
-          ["resource.group.render" ["resource.type.compute" "resource.type.cp" "resource.type.render" "resource.type.render-script"]]
-          ["resource.group.project_settings" ["resource.type.appmanifest" "resource.type.display-profiles" "resource.type.gamepads" "resource.type.input-binding" "resource.type.texture-profiles"]]]]
+          ["resource.group.project_settings" ["resource.type.appmanifest" "resource.type.display-profiles" "resource.type.gamepads" "resource.type.input-binding" "resource.type.texture-profiles" "resource.type.render"]]]]
         children-by-label (group-by #(:k (:label %)) children)]
     (fx/instance
       (fx/create-component
@@ -1538,7 +1537,6 @@
                            [{:fx/type fx.region/lifecycle
                              :pref-height 20}]))
                        column)}))}}))))
-
 
 (declare make-menu-items)
 
