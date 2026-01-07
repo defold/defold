@@ -57,7 +57,6 @@
       (coerce/wrap-transform keyword)))
 
 (def schema-components
-  ;; todo add one-of, add editor script tests
   (let [scope-prop (ui-docs/make-prop :scope
                                       :coerce (coerce/enum :global :project)
                                       :types ["string"]
@@ -154,6 +153,16 @@
                                             :distinct true)
                                   :types ["any[]"]
                                   :doc "allowed values, must be scalar (nil, boolean, number or string)")
+               (make-default-prop "any")
+               scope-prop])
+     (ui-docs/component
+       "one_of"
+       :description "one of schema"
+       :props [(ui-docs/make-prop :schemas
+                                  :required true
+                                  :coerce (coerce/vector-of schema-coercer :min-count 2)
+                                  :types ["schema[]"]
+                                  :doc "alternative schemas")
                (make-default-prop "any")
                scope-prop])
      (ui-docs/component

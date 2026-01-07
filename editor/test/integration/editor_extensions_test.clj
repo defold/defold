@@ -726,6 +726,8 @@
               [:out "keyword: string code-view"]
               [:out "number: 12.3"]
               [:out "number: 0.1"]
+              [:out "one_of: a string"]
+              [:out "one_of: 17"]
               [:out "object: table foo"]
               [:out "object: table bar"]
               [:out "object: table baz"]
