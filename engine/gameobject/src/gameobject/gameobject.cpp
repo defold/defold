@@ -2726,34 +2726,18 @@ namespace dmGameObject
         * In that case, the loop looks like above, but with one extra function in the list:
         *
         * - For each function "UpdateFn" in ["FixedUpdate", "Update", "LateUpdateFn]:
-        *   - same as above
-
-When using fixed physics update, we call into the fixed update functions for each component type.
-Currently, only the Script and CollisionObject components that support this function.
-
-The
-
-        * 1. Script fixed update - calls the Lua fixed_update callback
-        * 2. Script and animation update - calls the Lua update callback and runs/updates/finishes animations (started via go.animate)
-        * 3. Component fixed update - usually physics simulation
-        * 4. Component regular update - every component (except script, animation, and physics) runs its internal update logic (excluding the final transform calculation)
-        * 5. Component late update - scripts call the Lua late_update callback. The rest of the components call UpdateTransforms to finalize vertex position data
+        *   - same as above: for each component type...
         *
-        * Message flushing happens after every step:
+        * When using fixed physics update, we call into the fixed update functions for each component type.
+        * Currently, only the Script and CollisionObject components support this function.
         *
-        * The update order was formed this way because:
-        * 1. We want to run all user calculations before any other component update
-        * 2. We want to run all components that do not depend on the game object's transform (such as the animation component) before other component updates
-        * 3. We want to simulate physics before any other component update (except script and animation because of point 2), since physics can affect
-        *    the parent game object's transform
+        * To summarize, the default update loop looks like:
         *
-        * The only problem with the current update order is the model component, which can have a rig.
-        * The rig may change the transforms of game objects attached to bones. If attached objects have a physics body, there will be no collision events from that 
-        * physics body until the next frame, because there is no additional place to simulate physics.
+        *     script update(), animation, ..., physics update, ...
         *
-        * NOTE: This order is also resistant to the feature flag that turns fixed update time on or off.
-        * If fixed update time is turned off, physics will be simulated during the regular
-        * component update (e.g. script -> animation -> physics -> <rest_of_the_components>).
+        * With fixed update enabled, the update loop looks like:
+        *
+        *     [script fixed_update(), physics fixed update], animation, ...,
         */
 
         ComponentsUpdateParams update_params;
@@ -2767,6 +2751,7 @@ The
         uint32_t component_type_count = collection->m_Register->m_ComponentTypeCount;
 
         // See gamesys.cpp for list of priorities for each component type.
+        // These priorities ensure the update order between components.
         // I.e. collectionproxy, script, animation, collision ...
 
         // 1. for each fixed step, call component's fixed update
