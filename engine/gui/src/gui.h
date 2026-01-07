@@ -516,6 +516,18 @@ namespace dmGui
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
     void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
 
+    enum SafeAreaMode
+    {
+        SAFE_AREA_NONE = 0,
+        SAFE_AREA_LONG = 1,
+        SAFE_AREA_SHORT = 2,
+        SAFE_AREA_BOTH = 3,
+    };
+
+    SafeAreaMode ParseSafeAreaMode(const char* mode);
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom);
+
     void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
 
     uint32_t GetDisplayDpi(HContext context);

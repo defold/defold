@@ -201,31 +201,6 @@ namespace dmEngine
     };
 
 
-    static void UpdateGuiSafeArea(Engine* engine)
-    {
-        if (!engine->m_GuiSafeAreaAdjust)
-        {
-            dmGui::SetSafeAreaAdjust(engine->m_GuiContext, false, 0, 0, 0.0f, 0.0f);
-            return;
-        }
-
-        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
-        dmPlatform::SafeArea safe_area;
-        uint32_t window_width = dmPlatform::GetWindowWidth(window);
-        uint32_t window_height = dmPlatform::GetWindowHeight(window);
-
-        bool ok = dmPlatform::GetSafeArea(window, &safe_area);
-        if (!ok || safe_area.m_Width == 0 || safe_area.m_Height == 0)
-        {
-            safe_area.m_X = 0;
-            safe_area.m_Y = 0;
-            safe_area.m_Width = window_width;
-            safe_area.m_Height = window_height;
-        }
-
-        dmGui::SetSafeAreaAdjust(engine->m_GuiContext, true, safe_area.m_Width, safe_area.m_Height, safe_area.m_X, safe_area.m_Y);
-    }
-
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
@@ -260,7 +235,24 @@ namespace dmEngine
         {
             dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
-        UpdateGuiSafeArea(engine);
+
+        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
+        dmPlatform::SafeArea safe_area;
+        uint32_t window_width = dmPlatform::GetWindowWidth(window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(window);
+
+        if (!dmPlatform::GetSafeArea(window, &safe_area))
+        {
+            safe_area.m_InsetLeft = 0;
+            safe_area.m_InsetTop = 0;
+            safe_area.m_InsetRight = 0;
+            safe_area.m_InsetBottom = 0;
+        }
+
+        dmGui::UpdateSafeAreaAdjust(engine->m_GuiContext, (dmGui::SafeAreaMode)engine->m_GuiSafeAreaMode,
+                                    window_width, window_height,
+                                    safe_area.m_InsetLeft, safe_area.m_InsetTop,
+                                    safe_area.m_InsetRight, safe_area.m_InsetBottom);
 
         dmGameSystem::OnWindowResized(width, height);
     }
@@ -1335,7 +1327,8 @@ namespace dmEngine
             dmLogWarning("`rig.max_instance_count` deprecated. Use component specific counters.");
         }
 
-        engine->m_GuiSafeAreaAdjust = dmConfigFile::GetInt(engine->m_Config, "gui.safe_area_adjust", 0) != 0;
+        const char* safe_area_mode = dmConfigFile::GetString(engine->m_Config, "gui.safe_area_mode", "none");
+        engine->m_GuiSafeAreaMode = (uint8_t)dmGui::ParseSafeAreaMode(safe_area_mode);
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -1356,7 +1349,24 @@ namespace dmEngine
         gui_params.m_Dpi = physical_dpi;
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
-        UpdateGuiSafeArea(engine);
+
+        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
+        dmPlatform::SafeArea safe_area;
+        uint32_t window_width = dmPlatform::GetWindowWidth(window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(window);
+
+        if (!dmPlatform::GetSafeArea(window, &safe_area))
+        {
+            safe_area.m_InsetLeft = 0;
+            safe_area.m_InsetTop = 0;
+            safe_area.m_InsetRight = 0;
+            safe_area.m_InsetBottom = 0;
+        }
+
+        dmGui::UpdateSafeAreaAdjust(engine->m_GuiContext, (dmGui::SafeAreaMode)engine->m_GuiSafeAreaMode,
+                                    window_width, window_height,
+                                    safe_area.m_InsetLeft, safe_area.m_InsetTop,
+                                    safe_area.m_InsetRight, safe_area.m_InsetBottom);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);

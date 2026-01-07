@@ -309,6 +309,72 @@ namespace dmGui
         }
     }
 
+    SafeAreaMode ParseSafeAreaMode(const char* mode)
+    {
+        if (!mode || dmStrCaseCmp(mode, "none") == 0)
+        {
+            return SAFE_AREA_NONE;
+        }
+        if (dmStrCaseCmp(mode, "long") == 0)
+        {
+            return SAFE_AREA_LONG;
+        }
+        if (dmStrCaseCmp(mode, "short") == 0)
+        {
+            return SAFE_AREA_SHORT;
+        }
+        if (dmStrCaseCmp(mode, "both") == 0)
+        {
+            return SAFE_AREA_BOTH;
+        }
+
+        dmLogWarning("Unknown gui.safe_area_mode '%s', defaulting to 'none'", mode);
+        return SAFE_AREA_NONE;
+    }
+
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom)
+    {
+        if (!context || mode == SAFE_AREA_NONE)
+        {
+            SetSafeAreaAdjust(context, false, 0, 0, 0.0f, 0.0f);
+            return;
+        }
+
+        if (mode == SAFE_AREA_LONG || mode == SAFE_AREA_SHORT)
+        {
+            const bool landscape = window_width >= window_height;
+            const bool apply_long = mode == SAFE_AREA_LONG;
+            const bool apply_lr = landscape ? apply_long : !apply_long;
+
+            if (apply_lr)
+            {
+                inset_top = 0;
+                inset_bottom = 0;
+            }
+            else
+            {
+                inset_left = 0;
+                inset_right = 0;
+            }
+        }
+        else if (mode != SAFE_AREA_BOTH)
+        {
+            inset_left = 0;
+            inset_top = 0;
+            inset_right = 0;
+            inset_bottom = 0;
+        }
+
+        uint32_t safe_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
+        uint32_t safe_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
+
+        float center_offset_x = ((float)inset_left + (float)safe_width * 0.5f) - (float)window_width * 0.5f;
+        float center_offset_y = ((float)inset_bottom + (float)safe_height * 0.5f) - (float)window_height * 0.5f;
+
+        SetSafeAreaAdjust(context, true, safe_width, safe_height, center_offset_x, center_offset_y);
+    }
+
     void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
     {
         width = context->m_DefaultProjectWidth;

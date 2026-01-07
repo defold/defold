@@ -163,7 +163,6 @@ namespace dmEngine
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
         bool                                        m_UseSwVSync;
-        bool                                        m_GuiSafeAreaAdjust;
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
@@ -180,6 +179,7 @@ namespace dmEngine
         bool                                        m_ThrottleEnabled;
 
         RecordData                                  m_RecordData;
+        uint8_t                                     m_GuiSafeAreaMode;
     };
 
 
