@@ -662,11 +662,9 @@ namespace dmGameObject
             return RESULT_ALREADY_REGISTERED;
 
         if ((type.m_UpdateFunction != 0x0 
-            || type.m_PreUpdateFunction != 0x0 
-            || type.m_PreFixedUpdateFunction != 0x0 
             || type.m_FixedUpdateFunction != 0x0
             || type.m_LateUpdateFunction != 0x0) && type.m_AddToUpdateFunction == 0x0) {
-            dmLogWarning("Registering an PreUpdate/Update/FixedUpdate/LateUpdate function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
+            dmLogWarning("Registering an Update/FixedUpdate/LateUpdate function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
             return RESULT_INVALID_OPERATION;
         }
 
@@ -2597,10 +2595,8 @@ namespace dmGameObject
 
     enum UpdateFunctionType
     {
-        UPDATE_FUNCTION_TYPE_PRE_FIXED_UPDATE,
-        UPDATE_FUNCTION_TYPE_PRE_UPDATE,
-        UPDATE_FUNCTION_TYPE_UPDATE,
         UPDATE_FUNCTION_TYPE_FIXED_UPDATE,
+        UPDATE_FUNCTION_TYPE_UPDATE,
         UPDATE_FUNCTION_TYPE_LATE_UPDATE
     };
 
@@ -2617,19 +2613,11 @@ namespace dmGameObject
             {
                 UpdateTransforms(collection);
             }
-            ComponentsUpdate func = 0x0;
+
+            // TODO: Could be stored in an array in component type, and just use the function type as index
+            ComponentsUpdate func = 0;
             switch(function_type)
             {
-                case UPDATE_FUNCTION_TYPE_PRE_FIXED_UPDATE:
-                {
-                    func = component_type->m_PreFixedUpdateFunction;
-                    break;
-                }
-                case UPDATE_FUNCTION_TYPE_PRE_UPDATE:
-                {
-                    func = component_type->m_PreUpdateFunction;
-                    break;
-                }
                 case UPDATE_FUNCTION_TYPE_UPDATE:
                 {
                     func = component_type->m_UpdateFunction;
@@ -2646,6 +2634,7 @@ namespace dmGameObject
                     break;
                 }
             }
+
             if (func)
             {
                 DM_PROFILE_DYN(component_type->m_Name, 0);
@@ -2726,6 +2715,24 @@ namespace dmGameObject
         }
 
         /* The overall function order is as follows:
+        *
+        * - For each function "UpdateFn" in ["FixedUpdate", "Update", "LateUpdateFn]:
+        *   - For each component type:
+        *       - Call type->UpdateFn()
+        *       - Flush messages (if necessary)
+        *       - Update transforms (if necessary)
+        *
+        * Note that FixedUpdate is only called if the project has the setting enabled.
+        * In that case, the loop looks like above, but with one extra function in the list:
+        *
+        * - For each function "UpdateFn" in ["FixedUpdate", "Update", "LateUpdateFn]:
+        *   - same as above
+
+When using fixed physics update, we call into the fixed update functions for each component type.
+Currently, only the Script and CollisionObject components that support this function.
+
+The
+
         * 1. Script fixed update - calls the Lua fixed_update callback
         * 2. Script and animation update - calls the Lua update callback and runs/updates/finishes animations (started via go.animate)
         * 3. Component fixed update - usually physics simulation
@@ -2749,9 +2756,6 @@ namespace dmGameObject
         * component update (e.g. script -> animation -> physics -> <rest_of_the_components>).
         */
 
-        /* The names of the component callbacks are subject to change in the future.
-        * Since this is internal naming, it is acceptable to change them to better reflect their place in the overall update order.
-        */
         ComponentsUpdateParams update_params;
         update_params.m_Collection = collection->m_HCollection;
         update_params.m_UpdateContext = &dynamic_update_context;
@@ -2762,23 +2766,21 @@ namespace dmGameObject
 
         uint32_t component_type_count = collection->m_Register->m_ComponentTypeCount;
 
-        // 1. for each fixed step, run a user fixed_update, followed by a physics engine tick (and message dispatch)
+        // See gamesys.cpp for list of priorities for each component type.
+        // I.e. collectionproxy, script, animation, collision ...
+
+        // 1. for each fixed step, call component's fixed update
+        //      - Lua fixed_update() (comp_script.cpp)
+        //      - CompCollisionObjectFixedUpdate() (comp_collision_object.cpp)
         for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
-            // call script fixed_update
-            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_PRE_FIXED_UPDATE, fixed_update_params);
-
-            // call physics simulation
             ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
         }
 
-        // 2. call script and animation update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_PRE_UPDATE, update_params);
-
-        // 3. call component's regular update
+        // 2. call component's regular update
         ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params);
 
-        // 4. call component's late update
+        // 3. call component's late update
         ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params);
 
         collection->m_InUpdate = 0;
