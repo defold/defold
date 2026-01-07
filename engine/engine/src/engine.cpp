@@ -201,6 +201,24 @@ namespace dmEngine
     };
 
 
+    static void UpdateGuiSafeAreaAdjust(Engine* engine, uint32_t window_width, uint32_t window_height)
+    {
+        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
+        dmPlatform::SafeArea safe_area;
+        if (!dmPlatform::GetSafeArea(window, &safe_area))
+        {
+            safe_area.m_InsetLeft = 0;
+            safe_area.m_InsetTop = 0;
+            safe_area.m_InsetRight = 0;
+            safe_area.m_InsetBottom = 0;
+        }
+
+        dmGui::UpdateSafeAreaAdjust(engine->m_GuiContext, (dmGui::SafeAreaMode)engine->m_GuiSafeAreaMode,
+                                    window_width, window_height,
+                                    safe_area.m_InsetLeft, safe_area.m_InsetTop,
+                                    safe_area.m_InsetRight, safe_area.m_InsetBottom);
+    }
+
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
@@ -236,23 +254,7 @@ namespace dmEngine
             dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
 
-        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
-        dmPlatform::SafeArea safe_area;
-        uint32_t window_width = dmPlatform::GetWindowWidth(window);
-        uint32_t window_height = dmPlatform::GetWindowHeight(window);
-
-        if (!dmPlatform::GetSafeArea(window, &safe_area))
-        {
-            safe_area.m_InsetLeft = 0;
-            safe_area.m_InsetTop = 0;
-            safe_area.m_InsetRight = 0;
-            safe_area.m_InsetBottom = 0;
-        }
-
-        dmGui::UpdateSafeAreaAdjust(engine->m_GuiContext, (dmGui::SafeAreaMode)engine->m_GuiSafeAreaMode,
-                                    window_width, window_height,
-                                    safe_area.m_InsetLeft, safe_area.m_InsetTop,
-                                    safe_area.m_InsetRight, safe_area.m_InsetBottom);
+        UpdateGuiSafeAreaAdjust(engine, width, height);
 
         dmGameSystem::OnWindowResized(width, height);
     }
@@ -1350,23 +1352,7 @@ namespace dmEngine
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
 
-        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
-        dmPlatform::SafeArea safe_area;
-        uint32_t window_width = dmPlatform::GetWindowWidth(window);
-        uint32_t window_height = dmPlatform::GetWindowHeight(window);
-
-        if (!dmPlatform::GetSafeArea(window, &safe_area))
-        {
-            safe_area.m_InsetLeft = 0;
-            safe_area.m_InsetTop = 0;
-            safe_area.m_InsetRight = 0;
-            safe_area.m_InsetBottom = 0;
-        }
-
-        dmGui::UpdateSafeAreaAdjust(engine->m_GuiContext, (dmGui::SafeAreaMode)engine->m_GuiSafeAreaMode,
-                                    window_width, window_height,
-                                    safe_area.m_InsetLeft, safe_area.m_InsetTop,
-                                    safe_area.m_InsetRight, safe_area.m_InsetBottom);
+        UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -1527,7 +1513,7 @@ namespace dmEngine
                     if (!filename || strlen(filename) == 0) {
                         continue;
                     }
-                    
+
                     // We need the size, in order to send it as a proper LuaModule message
                     void* data;
                     uint32_t datasize;
@@ -1705,8 +1691,8 @@ namespace dmEngine
         if (engine->m_EngineService)
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
-            
-            dmEngineService::EngineState state;  
+
+            dmEngineService::EngineState state;
             state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
             dmEngineService::InitState(engine->m_EngineService, &state);
         }
