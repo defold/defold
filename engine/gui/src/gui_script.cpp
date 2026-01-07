@@ -3671,6 +3671,34 @@ namespace dmGui
         return 0;
     }
 
+    /*# sets the safe area mode for the gui scene
+     *
+     * Sets how the safe area is applied to this gui scene.
+     *
+     * @name gui.set_safe_mode
+     * @param mode [type:constant] safe area mode
+     *
+     * - `gui.SAFE_AREA_NONE`
+     * - `gui.SAFE_AREA_LONG`
+     * - `gui.SAFE_AREA_SHORT`
+     * - `gui.SAFE_AREA_BOTH`
+     */
+    static int LuaSetSafeMode(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        int mode = luaL_checkinteger(L, 1);
+        if (mode < SAFE_AREA_NONE || mode > SAFE_AREA_BOTH)
+        {
+            return luaL_error(L, "Invalid safe area mode");
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmGui::SetSceneSafeAreaMode(scene, (dmGui::SafeAreaMode)mode);
+
+        return 0;
+    }
+
     /*# gets the node size mode
      * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
@@ -5086,6 +5114,7 @@ namespace dmGui
         {"set_visible",     LuaSetVisible},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
+        {"set_safe_mode",   LuaSetSafeMode},
         {"get_size_mode",   LuaGetSizeMode},
         {"set_size_mode",   LuaSetSizeMode},
         {"move_above",      LuaMoveAbove},
@@ -5610,6 +5639,17 @@ namespace dmGui
         SETADJUST(STRETCH)
 
 #undef SETADJUST
+
+#define SETSAFEAREA(name) \
+        lua_pushnumber(L, (lua_Number) SAFE_AREA_##name); \
+        lua_setfield(L, -2, "SAFE_AREA_"#name);\
+
+        SETSAFEAREA(NONE)
+        SETSAFEAREA(LONG)
+        SETSAFEAREA(SHORT)
+        SETSAFEAREA(BOTH)
+
+#undef SETSAFEAREA
 
 #define SETPLAYBACK(name) \
         lua_pushnumber(L, (lua_Number) PLAYBACK_##name); \

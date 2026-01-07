@@ -110,6 +110,10 @@ namespace dmGui
         return SAFE_AREA_NONE;
     }
 
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode)
+    {
+    }
+
     void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
     {
         width = 0;

@@ -527,6 +527,7 @@ namespace dmGui
     SafeAreaMode ParseSafeAreaMode(const char* mode);
     void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
                               int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom);
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode);
 
     void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
 
