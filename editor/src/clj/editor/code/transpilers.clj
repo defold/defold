@@ -71,7 +71,7 @@
           all-source-save-datas)
     dir))
 
-(g/defnk produce-build-output [^ILuaTranspiler instance build-file-save-data source-code-save-datas root lua-preprocessors]
+(g/defnk produce-build-output [^:unsafe _evaluation-context ^ILuaTranspiler instance build-file-save-data source-code-save-datas root lua-preprocessors]
   (g/precluding-errors source-code-save-datas
     (when (and build-file-save-data (pos? (count source-code-save-datas)))
       (let [build-file-node-id (:node-id build-file-save-data)
@@ -105,7 +105,7 @@
                             ;; a build error that points to a lua file that does not exist in the
                             ;; resource tree
                             (let [resource (resource/make-file-resource workspace (str output-dir) file [] fn/constantly-false fn/constantly-false)
-                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
+                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id _evaluation-context)]
                               (pair (resource/proj-path resource) build-targets)))))
                       (fs/file-walker output-dir false))))
           (catch Exception e

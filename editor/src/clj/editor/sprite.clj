@@ -379,8 +379,9 @@
 (defn- set-texture-binding-id [sampler-name _ node-id _ new]
   (create-texture-binding-tx node-id sampler-name new))
 
-(g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
-  (let [extension (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)
+(g/defnk produce-properties [^:unsafe _evaluation-context _declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader resource texture-binding-infos vertex-attribute-overrides]
+  (let [workspace (resource/workspace resource)
+        extension (workspace/resource-kind-extensions workspace :atlas _evaluation-context)
         is-paged-material (and (shader/shader-lifecycle? material-shader)
                                (shader/is-using-array-samplers? material-shader))
         texture-binding-index (util/name-index texture-binding-infos :sampler)

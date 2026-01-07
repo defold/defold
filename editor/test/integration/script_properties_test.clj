@@ -219,7 +219,8 @@
 (defn- resource-kind-property? [resource-kind property value]
   (and (is (resource/resource? value))
        (let [workspace (resource/workspace value)
-             ext (script-compilation/resource-kind-extensions workspace resource-kind)]
+             ext (g/with-auto-evaluation-context evaluation-context
+                   (script-compilation/resource-kind-extensions workspace resource-kind evaluation-context))]
          (and (is (resource/resource? value))
               (is (= :property-type-hash (:go-prop-type property)))
               (is (= value (:value property)))

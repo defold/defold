@@ -137,7 +137,7 @@
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id resource packed-image-generator texture-set texture-profile build-settings]
-  (let [workspace (project/workspace (project/get-project _node-id))
+  (let [workspace (resource/workspace resource)
         compress? (:compress-textures? build-settings false)
         texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
     [(bt/with-content-hash

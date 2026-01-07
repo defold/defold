@@ -375,9 +375,9 @@ ordinary paths."
 
 (defn get-resource-type-map
   ([workspace]
-   (resource/resource-types-by-type-ext (g/now) workspace :editable))
+   (resource/resource-types-by-type-ext (g/unsafe-basis) workspace :editable))
   ([workspace editability]
-   (resource/resource-types-by-type-ext (g/now) workspace editability)))
+   (resource/resource-types-by-type-ext (g/unsafe-basis) workspace editability)))
 
 (defn get-resource-type
   ([workspace ext]
@@ -487,15 +487,20 @@ ordinary paths."
      rel-path
      (str base "/" rel-path))))
 
-(defn resolve-resource [base-resource path]
-  (when-not (empty? path)
-    (let [workspace (:workspace base-resource)
-          path  (if (absolute-path path)
-                  path
-                  (resource/file->proj-path (project-directory workspace)
-                                            (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
-                                                                        path))))]
-      (resolve-workspace-resource workspace path))))
+(defn resolve-resource
+  ([base-resource path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-resource base-resource path evaluation-context)))
+  ([base-resource path evaluation-context]
+   (when-not (empty? path)
+     (let [basis (:basis evaluation-context)
+           workspace (:workspace base-resource)
+           path  (if (absolute-path path)
+                   path
+                   (resource/file->proj-path (project-directory basis workspace)
+                                             (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
+                                                                         path))))]
+       (resolve-workspace-resource workspace path evaluation-context)))))
 
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
@@ -975,8 +980,10 @@ ordinary paths."
           extensions-by-resource-kind) ; Already registered, return unaltered.
         (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind)))))))
 
-(defn resource-kind-extensions [workspace resource-kind]
-  (let [extensions-by-resource-kind (g/node-value workspace :resource-kind-extensions)]
+(defn resource-kind-extensions [workspace resource-kind evaluation-context]
+  ;; TODO: This is often abused inside production functions, but this data
+  ;; should really be passed through graph connections.
+  (let [extensions-by-resource-kind (g/node-value workspace :resource-kind-extensions evaluation-context)]
     (or (extensions-by-resource-kind resource-kind)
         (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind))))))
 

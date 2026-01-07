@@ -2477,9 +2477,13 @@
                              (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic label (properties/label-dynamic :gui :texture))
             (dynamic tooltip (properties/tooltip-dynamic :gui :texture))
-            (dynamic edit-type (g/fnk [_node-id]
-                                 {:type resource/Resource
-                                  :ext (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)})))
+            (dynamic edit-type (g/fnk [^:unsafe _evaluation-context _node-id]
+                                 (let [basis (:basis _evaluation-context)
+                                       project (project/get-project basis _node-id)
+                                       workspace (project/workspace project _evaluation-context)
+                                       exts (workspace/resource-kind-extensions workspace :atlas _evaluation-context)]
+                                   {:type resource/Resource
+                                    :ext exts}))))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
@@ -2825,9 +2829,12 @@
                 (attach-texture scene textures-node node)))
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
-  (query-and-add-resources!
-   "Textures" (workspace/resource-kind-extensions (project/workspace project) :atlas) (g/node-value parent :name-counts) project select-fn
-   (partial add-texture scene parent)))
+  (g/let-ec [workspace (project/workspace project evaluation-context)
+             resource-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
+             name-counts (g/node-value parent :name-counts evaluation-context)]
+    (query-and-add-resources!
+      "Textures" resource-exts name-counts project select-fn
+      (partial add-texture scene parent))))
 
 (g/defnode TexturesNode
   (inherits core/Scope)
@@ -4196,26 +4203,36 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material fn/or default-material-proj-path))))
 
+(defn- drop-target-node-id+unique-name [gui-scene-node-id target-node-id-label base-name evaluation-context]
+  (let [target-node-id (g/node-value gui-scene-node-id target-node-id-label evaluation-context)
+        name-counts (g/node-value target-node-id :name-counts evaluation-context)
+        unique-name (id/gen base-name name-counts)]
+    (pair target-node-id unique-name)))
+
 (defn- add-dropped-resource
-  [scene workspace resource]
+  [gui-scene workspace resource]
   (let [ext (resource/type-ext resource)
-        base-name (resource/base-name resource)
-        gen-name #(id/gen base-name (g/node-value (g/node-value scene %) :name-counts))]
-    (cond
-      (= ext "particlefx")
-      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))
+        base-name (resource/base-name resource)]
 
-      (= ext "font")
-      (add-font scene (g/node-value scene :fonts-node) resource (gen-name :fonts-node))
+    (case ext
+      "particlefx"
+      (g/let-ec [[target-node name] (drop-target-node-id+unique-name gui-scene :particlefx-resources-node base-name evaluation-context)]
+        (add-particlefx-resource gui-scene target-node resource name))
 
-      (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
-      (add-texture scene (g/node-value scene :textures-node) resource (gen-name :textures-node))
+      "font"
+      (g/let-ec [[target-node name] (drop-target-node-id+unique-name gui-scene :fonts-node base-name evaluation-context)]
+        (add-font gui-scene target-node resource name))
 
-      (= ext "material")
-      (add-material scene (g/node-value scene :materials-node) resource (gen-name :materials-node))
+      "material"
+      (g/let-ec [[target-node name] (drop-target-node-id+unique-name gui-scene :materials-node base-name evaluation-context)]
+        (add-material gui-scene target-node resource name))
 
-      :else
-      nil)))
+      ;; else
+      (g/let-ec [atlas-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
+                 target-node+name (when (contains? atlas-exts ext)
+                                    (drop-target-node-id+unique-name gui-scene :textures-node base-name evaluation-context))]
+        (when-some [[target-node name] target-node+name]
+          (add-texture gui-scene target-node resource name))))))
 
 (defn- handle-drop
   [root-id _selection workspace _world-pos resources]

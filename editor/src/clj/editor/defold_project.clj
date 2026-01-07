@@ -864,8 +864,7 @@
 
 (defn workspace
   ([project]
-   (g/with-auto-evaluation-context evaluation-context
-     (workspace project evaluation-context)))
+   (g/raw-property-value (g/unsafe-basis) project :workspace))
   ([project evaluation-context]
    (g/node-value project :workspace evaluation-context)))
 

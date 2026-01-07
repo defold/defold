@@ -41,6 +41,7 @@
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
@@ -188,8 +189,8 @@
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
                                       (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
-            (dynamic read-only? (g/fnk [_node-id]
-                                  (g/override? _node-id))))
+            (dynamic read-only? (g/fnk [_this]
+                                  (some? (gt/original _this)))))
   (property url g/Str ; Just for presentation.
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
