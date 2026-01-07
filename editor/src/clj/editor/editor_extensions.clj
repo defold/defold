@@ -36,6 +36,7 @@
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
+            [editor.editor-extensions.zlib :as zlib]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.future :as future]
@@ -969,7 +970,8 @@
                            "tmpname" nil}
                      "pprint" ext-pprint
                      "tilemap" tile-map/env
-                     "zip" (zip/env project-path reload-resources!)})
+                     "zip" (zip/env project-path reload-resources!)
+                     "zlib" zlib/env})
           _ (rt/invoke-immediate rt (rt/bind rt @prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts

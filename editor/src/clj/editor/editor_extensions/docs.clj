@@ -981,4 +981,17 @@ zip.unpack(
           :description "`\"skip\"`, existing file is preserved"}
          {:name "zip.ON_CONFLICT.OVERWRITE"
           :type :constant
-          :description "`\"skip\"`, existing file is overwritten"}]))))
+          :description "`\"skip\"`, existing file is overwritten"}
+         {:name "zlib"
+          :type :module
+          :description "Module for compressing and decompressing string buffers"}
+         {:name "zlib.deflate"
+          :type :function
+          :parameters [{:name "buf" :types ["string"] :doc "buffer to deflate"}]
+          :returnvalues [{:name "buf" :types ["string"] :doc "deflated buffer"}]
+          :description "Deflate (compress) a buffer"}
+         {:name "zlib.inflate"
+          :type :function
+          :parameters [{:name "buf" :types ["string"] :doc "buffer to inflate"}]
+          :returnvalues [{:name "buf" :types ["string"] :doc "inflated buffer"}]
+          :description "Inflate (decompress) a buffer"}]))))
