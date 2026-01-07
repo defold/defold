@@ -42,7 +42,6 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.DisplayCutout;
-import android.graphics.Insets;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputConnection;
@@ -552,20 +551,7 @@ public class DefoldActivity extends NativeActivity {
             };
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Insets sys = insets.getInsets(WindowInsets.Type.systemBars());
-            return new int[] { sys.left, sys.top, sys.right, sys.bottom };
-        }
-
-        @SuppressWarnings("deprecation")
-        int left = insets.getSystemWindowInsetLeft();
-        @SuppressWarnings("deprecation")
-        int top = insets.getSystemWindowInsetTop();
-        @SuppressWarnings("deprecation")
-        int right = insets.getSystemWindowInsetRight();
-        @SuppressWarnings("deprecation")
-        int bottom = insets.getSystemWindowInsetBottom();
-        return new int[] { left, top, right, bottom };
+        return new int[] { 0, 0, 0, 0 };
     }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
