@@ -555,10 +555,9 @@
     ;; default
     (add-list-elements [(form/field-default element)] map-event)))
 
-(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state selected-indices]}]
-  (let [indices-path (conj state-path :selected-indices)
-        indices (set (or selected-indices (get-in ui-state indices-path)))]
-    [[:dispatch (assoc on-removed :fx/event indices)]
+(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
+  (let [indices-path (conj state-path :selected-indices)]
+    [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
      [:set-ui-state (-> ui-state
                         (assoc-in indices-path [])
                         (update-in state-path dissoc :edit))]]))
@@ -632,17 +631,12 @@
                            on-removed                       ;; #{index ...}
                            ;; field
                            element
-                           auto-select-index
                            localization-key
                            localization-state]
                     :or {state {:selected-indices []}
                          value []}
                     :as field}]
   (let [{:keys [selected-indices edit]} state
-        selected-indices (if (and (some? auto-select-index)
-                                  (empty? selected-indices))
-                           [auto-select-index]
-                           selected-indices)
         disable-add (not (form/has-default? element))
         disable-remove (empty? selected-indices)
         add-event {:event-type :add-list-element
@@ -653,8 +647,7 @@
                    :localization-key localization-key}
         remove-event {:event-type :remove-list-selection
                       :on-removed on-removed
-                      :state-path state-path
-                      :selected-indices selected-indices}]
+                      :state-path state-path}]
     {:fx/type fx.v-box/lifecycle
      :spacing 4
      :children [{:fx/type fx/ext-let-refs
@@ -1209,25 +1202,17 @@
                                             state-path
                                             panel-key
                                             resource-string-converter
-                                            localization-state
-                                            auto-select-first]
+                                            localization-state]
                                      :as field}]
   (let [indented-label-column-width 150
         default-row (form/two-panel-defaults field)
         key-path (:path panel-key)
         selected-index (-> state :key :selected-indices util/only)
-        auto-select-index (when (and auto-select-first
-                                     (nil? selected-index)
-                                     (not (contains? state :key))
-                                     (seq value))
-                            0)
-        selected-index (or selected-index auto-select-index)
         fn-setter (:set field)
 
         item-list
         (cond-> {:fx/type list-input
                  :value (mapv #(get-in % key-path) value)
-                 :auto-select-index auto-select-index
                  :on-added {:event-type :2panel-key-added
                             :value value
                             :on-value-changed on-value-changed
@@ -1561,6 +1546,44 @@
       [[] false]
       sections)))
 
+;; region auto-selection
+
+(defn- auto-select-ui-state [form-data]
+  (letfn [(field-items [values path]
+            (or (get values path)
+                (get values (first path))))
+          (panel-form-fields [field selected-item]
+            (when-some [panel-form (if-some [panel-form-fn (:panel-form-fn field)]
+                                     (panel-form-fn selected-item)
+                                     (:panel-form field))]
+              (mapcat :fields (:sections panel-form))))
+          (select-panel [values state-path field]
+            (let [path (:path field)
+                  items (field-items values path)]
+              (when (and (:auto-select-first field) (seq items))
+                (let [selected-index 0
+                      selection-path (conj state-path path :key :selected-indices)
+                      selected-item (nth items selected-index)
+                      child-fields (panel-form-fields field selected-item)
+                      child-state-path (conj state-path path :val selected-index)
+                      acc (assoc-in {} selection-path [selected-index])]
+                  (if (and (map? selected-item) (seq child-fields))
+                    (coll/deep-merge acc (fields->state selected-item child-state-path child-fields))
+                    acc)))))
+          (fields->state [values state-path fields]
+            (reduce (fn [acc field]
+                      (if (= :2panel (:type field))
+                        (coll/deep-merge acc (or (select-panel values state-path field) {}))
+                        acc))
+                    {}
+                    fields))]
+    (let [sections (:sections form-data)
+          values (:values form-data)]
+      (when (and (seq sections) (map? values))
+        (fields->state values [:components] (mapcat :fields sections))))))
+
+;; endregion
+
 ;; region jump-to
 
 (defmethod handle-event :jump-to [{:keys [section ui-state]}]
@@ -1780,6 +1803,12 @@
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
+    (let [ui-state (g/node-value view-id :ui-state)
+          form-data (g/node-value view-id :form-data)
+          auto-state (auto-select-ui-state form-data)]
+      (when (and (seq auto-state)
+                 (empty? (:components ui-state)))
+        (g/set-property! view-id :ui-state (coll/deep-merge ui-state auto-state))))
     (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)
     (ui/on-closed! tab (fn [_]
