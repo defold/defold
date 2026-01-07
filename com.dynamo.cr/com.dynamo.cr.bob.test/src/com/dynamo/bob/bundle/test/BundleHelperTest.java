@@ -19,19 +19,28 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.IResource;
@@ -331,4 +340,121 @@ public class BundleHelperTest {
 
         // only a-z, A-Z, 0-9, _
         assertFalse(BundleHelper.isValidAppleBundleIdentifier("cöm.föö"));
-    }}
+    }
+
+    private void createMockFile(File dir, String name) throws IOException {
+        File file = new File(dir, name);
+        FileUtil.deleteOnExit(file);
+        FileUtils.copyInputStreamToFile(new ByteArrayInputStream("dummy".getBytes()), file);
+    }
+
+    @Test
+    public void testCollectSharedLibrariesLinux() throws IOException {
+        File tempDir = Files.createTempDirectory("test_linux_shared_collect").toFile();
+        try {
+            createMockFile(tempDir, "libfoo.so");
+            createMockFile(tempDir, "libbar.so");
+            createMockFile(tempDir, "notlib.txt");
+            createMockFile(tempDir, "libtest.a");
+
+            Set<String> result = BundleHelper.collectSharedLibraries(Platform.X86_64Linux, tempDir)
+                    .map(path -> path.getFileName().toString())
+                    .collect(Collectors.toSet());
+
+            assertEquals(2, result.size());
+            assertTrue(result.contains("libfoo.so"));
+            assertTrue(result.contains("libbar.so"));
+            assertFalse(result.contains("notlib.txt"));
+            assertFalse(result.contains("libtest.a"));
+        } finally {
+            FileUtils.deleteDirectory(tempDir);
+        }
+    }
+
+    @Test
+    public void testCollectSharedLibrariesWindows() throws IOException {
+        File tempDir = Files.createTempDirectory("test_windows_shared_collect").toFile();
+        try {
+            createMockFile(tempDir, "foo.dll");
+            createMockFile(tempDir, "bar.dll");
+            createMockFile(tempDir, "libfoo.dll");
+            createMockFile(tempDir, "test.exe");
+
+            Set<String> result = BundleHelper.collectSharedLibraries(Platform.X86_64Win32, tempDir)
+                    .map(path -> path.getFileName().toString())
+                    .collect(Collectors.toSet());
+
+            assertEquals(3, result.size());
+            assertTrue(result.contains("foo.dll"));
+            assertTrue(result.contains("bar.dll"));
+            assertTrue(result.contains("libfoo.dll"));
+            assertFalse(result.contains("test.exe"));
+        } finally {
+            FileUtils.deleteDirectory(tempDir);
+        }
+    }
+
+    @Test
+    public void testCollectSharedLibrariesMacOS() throws IOException {
+        File tempDir = Files.createTempDirectory("test_mac_shared_collect").toFile();
+        try {
+            createMockFile(tempDir, "libfoo.dylib");
+            createMockFile(tempDir, "libbar.dylib");
+            createMockFile(tempDir, "foo.dylib"); // not match
+            createMockFile(tempDir, "libtest.a");
+
+            Set<String> result = BundleHelper.collectSharedLibraries(Platform.X86_64MacOS, tempDir)
+                    .map(path -> path.getFileName().toString())
+                    .collect(Collectors.toSet());
+
+            assertEquals(2, result.size());
+            assertTrue(result.contains("libfoo.dylib"));
+            assertTrue(result.contains("libbar.dylib"));
+            assertFalse(result.contains("foo.dylib"));
+            assertFalse(result.contains("libtest.a"));
+        } finally {
+            FileUtils.deleteDirectory(tempDir);
+        }
+    }
+
+    @Test
+    public void testCollectSharedLibrariesEmptyDir() throws IOException {
+        File emptyDir = Files.createTempDirectory("test_collection").toFile();
+        try {
+            Set<String> result = BundleHelper.collectSharedLibraries(Platform.X86_64Linux, emptyDir)
+                    .map(path -> path.getFileName().toString())
+                    .collect(Collectors.toSet());
+            assertEquals(0, result.size());
+        } finally {
+            FileUtils.deleteDirectory(emptyDir);
+        }
+
+        File nonExistent = new File("/non_existent_dir" + System.currentTimeMillis());
+        Set<String> result = BundleHelper.collectSharedLibraries(Platform.X86_64Linux, nonExistent)
+                .map(path -> path.getFileName().toString())
+                .collect(Collectors.toSet());
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    public void testCopySharedLibraries() throws IOException {
+        File sourceDir = Files.createTempDirectory("test_shared_copy_src").toFile();
+        File targetDir = Files.createTempDirectory("test_shared_copy_dst").toFile();
+        try {
+            createMockFile(sourceDir, "libfoo.so");
+            createMockFile(sourceDir, "libbar.so");
+
+            BundleHelper.copySharedLibraries(Platform.X86_64Linux, sourceDir, targetDir);
+
+            File copiedFoo = new File(targetDir, "libfoo.so");
+            File copiedBar = new File(targetDir, "libbar.so");
+            assertTrue(copiedFoo.exists());
+            assertTrue(copiedBar.exists());
+            assertEquals("dummy", FileUtils.readFileToString(copiedFoo, "UTF-8"));
+            assertEquals("dummy", FileUtils.readFileToString(copiedBar, "UTF-8"));
+        } finally {
+            FileUtils.deleteDirectory(sourceDir);
+            FileUtils.deleteDirectory(targetDir);
+        }
+    }
+}
