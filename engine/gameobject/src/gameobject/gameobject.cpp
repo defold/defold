@@ -2716,7 +2716,7 @@ namespace dmGameObject
 
         /* The overall function order is as follows:
         *
-        * - For each function "UpdateFn" in ["FixedUpdate", "Update", "LateUpdateFn]:
+        * - For each function "UpdateFn" in ["Update", "LateUpdateFn]:
         *   - For each component type:
         *       - Call type->UpdateFn()
         *       - Flush messages (if necessary)
