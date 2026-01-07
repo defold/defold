@@ -26,12 +26,8 @@ local function test_done(response, data_str)
 end
 
 function test_get(self)
-    local chunked_data   = ""
     local chunk_size_tot = 64 * 1024 * 2
-
-    for i=1,chunk_size_tot do
-        chunked_data = chunked_data .. "A"
-    end
+    local chunked_data   = string.rep("A", chunk_size_tot)
 
     -- 1
     http.request(ADDRESS, "GET",
@@ -142,4 +138,3 @@ function init(self)
     test_post(self)
     test_head(self)
 end
-
