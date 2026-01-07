@@ -46,7 +46,7 @@ static int JobProcess(dmJobThread::HContext, dmJobThread::HJob hjob, void* conte
 
     uint32_t resource_size;
     uint32_t buffer_size;
-    dmResource::Result result = dmResource::LoadResourceToBufferLocked(factory, job->m_CanonicalPath, job->m_Path, job->m_Offset, job->m_Size, &resource_size, &buffer_size, &job->m_Data);
+    dmResource::Result result = dmResource::LoadResourceToBufferWithOffset(factory, job->m_CanonicalPath, job->m_Path, job->m_Offset, job->m_Size, &resource_size, &buffer_size, &job->m_Data);
     if (dmResource::RESULT_OK != result)
     {
         dmLogError("Failed to read chunk (offset: %u, size: %u) from '%s' (%s)", job->m_Offset, job->m_Size, job->m_Path, dmResource::ResultToString(result));

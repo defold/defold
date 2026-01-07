@@ -158,6 +158,28 @@ namespace dmJNI
         }
     };
 
+    struct ScopedByteArrayCritical
+    {
+        JNIEnv*    m_Env;
+        jbyte*     m_Array;
+        jsize      m_ArraySize;
+        jbyteArray m_JArray;
+        ScopedByteArrayCritical(JNIEnv* env, jbyteArray arr)
+            : m_Env(env)
+            , m_Array(arr ? (jbyte*)env->GetPrimitiveArrayCritical(arr, 0) : 0)
+            , m_ArraySize(arr ? env->GetArrayLength(arr) : 0)
+            , m_JArray(arr)
+        {
+        }
+        ~ScopedByteArrayCritical()
+        {
+            if (m_Array && m_JArray)
+            {
+                m_Env->ReleasePrimitiveArrayCritical(m_JArray, m_Array, JNI_ABORT);
+            }
+        }
+    };
+
     struct SignalContextScope
     {
         JNIEnv* m_Env;

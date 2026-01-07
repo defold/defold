@@ -30,7 +30,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def exts ["jpg" "png"])
+(def exts ["jpg" "jpeg" "png"])
 
 (defn image-resource?
   [resource]

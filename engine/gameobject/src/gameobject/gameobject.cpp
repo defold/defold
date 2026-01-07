@@ -2762,25 +2762,23 @@ namespace dmGameObject
 
         uint32_t component_type_count = collection->m_Register->m_ComponentTypeCount;
 
-        // 1. call script fixed update function first
+        // 1. for each fixed step, run a user fixed_update, followed by a physics engine tick (and message dispatch)
         for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
+            // call script fixed_update
             ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_PRE_FIXED_UPDATE, fixed_update_params);
+
+            // call physics simulation
+            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
         }
 
         // 2. call script and animation update
         ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_PRE_UPDATE, update_params);
 
-        // 3. call physics simulation
-        for (uint32_t step = 0; step < num_fixed_steps; ++step)
-        {
-            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
-        }
-
-        // 4. call component's regular update
+        // 3. call component's regular update
         ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params);
 
-        // 5. call component's late update
+        // 4. call component's late update
         ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params);
 
         collection->m_InUpdate = 0;

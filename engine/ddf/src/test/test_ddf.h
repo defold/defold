@@ -15,11 +15,22 @@
 #ifndef TEST_DDF_H
 #define TEST_DDF_H
 
+#include <string>
+
+#include "../ddf/ddf.h"
+
 struct MyVector2
 {
     float m_X;
     float m_Y;
 };
+
+dmDDF::Result DDFSaveToString(const void* message, const dmDDF::Descriptor* desc, std::string& str);
+
+void TestStructSimple(const char* msg, uint32_t msg_size);
+void TestStructNested(const char* msg, uint32_t msg_size);
+void TestStructList(const char* msg, uint32_t msg_size);
+void TestStructJSON(const char* msg, uint32_t msg_size);
 
 #endif
 

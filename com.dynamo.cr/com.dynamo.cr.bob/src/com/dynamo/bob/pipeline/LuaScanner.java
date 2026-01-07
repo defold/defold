@@ -28,7 +28,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -179,22 +178,22 @@ public class LuaScanner {
         lexer.removeErrorListeners();
         lexer.addErrorListener(errorListener);
         var tokenStream = new CommonTokenStream(lexer);
-        var rewriter = new TokenStreamRewriter(tokenStream);
+        var tokenEditor = new TokenEditor();
 
-        // Remove comments in rewriter
+        // Remove comments
         tokenStream.fill();
         for (Token token : tokenStream.getTokens()) {
             if (token.getChannel() == LuaLexer.COMMENTS) {
                 int type = token.getType();
                 if (type == LuaLexer.LINE_COMMENT) {
                     // Single line comment (might end with \n)
-                    rewriter.replace(token, token.getText().endsWith("\n") ? System.lineSeparator() : "");
+                    tokenEditor.replaceToken(token, token.getText().endsWith("\n") ? System.lineSeparator() : "");
                 } else if (type == LuaLexer.COMMENT) {
                     // Multiline comment
                     if (isDebug) {
-                        rewriter.replace(token, NON_LINE_BREAKS.matcher(token.getText()).replaceAll(" "));
+                        tokenEditor.replaceToken(token, NON_LINE_BREAKS.matcher(token.getText()).replaceAll(" "));
                     } else {
-                        rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
+                        tokenEditor.replaceToken(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
                     }
                 }
             }
@@ -204,8 +203,8 @@ public class LuaScanner {
         var parser = new LuaParser(tokenStream);
         parser.removeErrorListeners();
         parser.addErrorListener(errorListener);
-        new ParseTreeWalker().walk(new ScannerListener(modules, tokenStream, errors, properties, rewriter, isDebug, resourceKindPredicate), parser.chunk());
-        String resultCode = rewriter.getText();
+        new ParseTreeWalker().walk(new ScannerListener(modules, tokenStream, errors, properties, tokenEditor, isDebug, resourceKindPredicate), parser.chunk());
+        String resultCode = buildText(charStream, tokenStream.getTokens(), tokenEditor);
 
         var result = new Result(errors.isEmpty(), errors, List.copyOf(modules), properties, resultCode);
         TimeProfiler.stop();
@@ -239,7 +238,7 @@ public class LuaScanner {
         private final CommonTokenStream tokenStream;
         private final ArrayList<ParseError> errors;
         private final ArrayList<Property> properties;
-        private final TokenStreamRewriter rewriter;
+        private final TokenEditor tokenEditor;
         private final boolean isDebug;
         private final Predicate<String> resourceKindPredicate;
 
@@ -247,12 +246,12 @@ public class LuaScanner {
         int nestingDepth = 0;
         boolean encounteredError = false;
 
-        public ScannerListener(LinkedHashSet<String> modules, CommonTokenStream tokenStream, ArrayList<ParseError> errors, ArrayList<Property> properties, TokenStreamRewriter rewriter, boolean isDebug, Predicate<String> resourceKindPredicate) {
+        public ScannerListener(LinkedHashSet<String> modules, CommonTokenStream tokenStream, ArrayList<ParseError> errors, ArrayList<Property> properties, TokenEditor tokenEditor, boolean isDebug, Predicate<String> resourceKindPredicate) {
             this.modules = modules;
             this.tokenStream = tokenStream;
             this.errors = errors;
             this.properties = properties;
-            this.rewriter = rewriter;
+            this.tokenEditor = tokenEditor;
             this.isDebug = isDebug;
             this.resourceKindPredicate = resourceKindPredicate;
         }
@@ -321,7 +320,7 @@ public class LuaScanner {
                 if (isDebug && !property.isResource() && property.type == PropertyType.PROPERTY_TYPE_HASH) {
                     tokens.removeAll(getTokens(tokenStream, paramsContext));
                 }
-                removeTokens(rewriter, tokens, isDebug);
+                removeTokens(tokenEditor, tokenStream, tokens, isDebug);
             }
         }
 
@@ -347,7 +346,7 @@ public class LuaScanner {
                     LuaParser.BlockContext blockCtx = ctx.funcbody().block();
                     if (blockCtx != null && blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
                         List<Token> tokens = getTokens(tokenStream, ctx, Token.DEFAULT_CHANNEL);
-                        removeTokens(rewriter, tokens, isDebug);
+                        removeTokens(tokenEditor, tokenStream, tokens, isDebug);
                     }
                 }
             }
@@ -386,31 +385,93 @@ public class LuaScanner {
     }
 
     // replace the token with an empty string
-    private static void removeTokens(TokenStreamRewriter rewriter, List<Token> tokens, boolean isDebug) {
-        for (Token token : tokens) {
-            removeToken(rewriter, token, isDebug);
+    private static void removeTokens(TokenEditor tokenEditor, CommonTokenStream tokenStream, List<Token> tokens, boolean isDebug) {
+        if (tokens.isEmpty()) {
+            return;
         }
+        int rangeStartIndex = tokens.getFirst().getTokenIndex();
+        int rangeStopIndex = rangeStartIndex;
+        int rangeLength = tokens.getFirst().getText().length();
+        for (int i = 1; i < tokens.size(); i++) {
+            Token token = tokens.get(i);
+            int tokenIndex = token.getTokenIndex();
+            if (tokenIndex == rangeStopIndex + 1) {
+                rangeStopIndex = tokenIndex;
+                rangeLength += token.getText().length();
+            } else {
+                removeTokenRange(tokenEditor, rangeStartIndex, rangeStopIndex, rangeLength, isDebug);
+                rangeStartIndex = tokenIndex;
+                rangeStopIndex = tokenIndex;
+                rangeLength = token.getText().length();
+            }
+        }
+        removeTokenRange(tokenEditor, rangeStartIndex, rangeStopIndex, rangeLength, isDebug);
+
         int lastTokenIndex = tokens.getLast().getTokenIndex();
         int nextTokenIndex = lastTokenIndex + 1;
-        Token token = rewriter.getTokenStream().get(nextTokenIndex);
+        Token token = tokenStream.get(nextTokenIndex);
         while (token != null && token.getType() == LuaLexer.WS) {
-            token = rewriter.getTokenStream().get(token.getTokenIndex() + 1);
+            token = tokenStream.get(token.getTokenIndex() + 1);
         }
 
         // We use this to remove semicolon statements in the end of line;
         // The semicolon may cause problems if it is at the end of a go.property call
         // as it will be removed after it has been parsed.
         if (token != null && token.getType() == LuaLexer.SEMICOLON) {
-            removeToken(rewriter, token, isDebug);
+            removeToken(tokenEditor, token, isDebug);
         }
     }
 
-    private static void removeToken(TokenStreamRewriter rewriter, Token token, boolean isDebug) {
-        if (isDebug) {
-            rewriter.replace(token, " ".repeat(token.getText().length()));
-        } else {
-            rewriter.delete(token);
+    private static void removeTokenRange(TokenEditor tokenEditor, int startTokenIndex, int stopTokenIndex, int length, boolean isDebug) {
+        tokenEditor.replaceRange(startTokenIndex, stopTokenIndex, isDebug ? " ".repeat(length) : "");
+    }
+
+    private static void removeToken(TokenEditor tokenEditor, Token token, boolean isDebug) {
+        tokenEditor.replaceRange(token.getTokenIndex(), token.getTokenIndex(), isDebug ? " ".repeat(token.getText().length()) : "");
+    }
+
+    private record RangeEdit(int startIndex, int stopIndex, String replacement) {
+    }
+
+    private static final class TokenEditor {
+        private final ArrayList<RangeEdit> edits = new ArrayList<>();
+
+        void replaceToken(Token token, String replacement) {
+            replaceRange(token.getTokenIndex(), token.getTokenIndex(), replacement);
         }
+
+        void replaceRange(int startIndex, int stopIndex, String replacement) {
+            edits.add(new RangeEdit(startIndex, stopIndex, replacement));
+        }
+
+        List<RangeEdit> all() {
+            return edits;
+        }
+    }
+
+    private static String buildText(CharStream charStream, List<Token> tokens, TokenEditor tokenEditor) {
+        List<RangeEdit> ranges = tokenEditor.all();
+        ranges.sort((a, b) -> Integer.compare(a.startIndex(), b.startIndex()));
+
+        int initialCapacity = Math.max(0, charStream.size());
+        StringBuilder builder = new StringBuilder(initialCapacity);
+
+        int rangeIndex = 0;
+        RangeEdit currentRange = rangeIndex < ranges.size() ? ranges.get(rangeIndex) : null;
+        for (int i = 0; i < tokens.size(); i++) {
+            if (currentRange != null && i == currentRange.startIndex()) {
+                builder.append(currentRange.replacement());
+                i = currentRange.stopIndex();
+                rangeIndex++;
+                currentRange = rangeIndex < ranges.size() ? ranges.get(rangeIndex) : null;
+                continue;
+            }
+            Token token = tokens.get(i);
+            if (token.getType() != Token.EOF) {
+                builder.append(token.getText());
+            }
+        }
+        return builder.toString();
     }
 
     private static final Map<Integer, String> QUOTES = Map.of(
