@@ -167,39 +167,49 @@
    (schema-leaves [] schema))
   ([path schema]
    (case (:type schema)
-     :object (cond-> (e/mapcat
-                       (fn [[k v]]
-                         (schema-leaves (conj path k) v))
-                       (:properties schema))
-                     (not (coll/empty? path))
-                     (e/conj [path schema]))
+     :object (e/cons
+               [path schema]
+               (e/mapcat
+                 (fn [[k v]]
+                   (schema-leaves (conj path k) v))
+                 (:properties schema)))
      [[path schema]])))
+
+(defn- default-value [schema]
+  (if (contains? schema :default)
+    (:default schema)
+    (if (= :keyword (:type schema))
+      :test
+      (prefs/default-value schema))))
 
 (defn- different-value [value schema]
   (case (:type schema)
-    :any [value]
     :boolean (not value)
     (:password :string :locale) (str value "++")
     :keyword (keyword (str (if value (name value) "foo") "++"))
     (:integer :number) (inc value)
+    :one-of (let [[a b] (:schemas schema)]
+              (if (prefs/valid? a value)
+                (default-value b)
+                (default-value a)))
     :array (let [item-schema (:item schema)
                  value (if (coll/empty? value)
-                         [(prefs/default-value item-schema)]
+                         [(default-value item-schema)]
                          value)]
              (mapv #(different-value % item-schema) value))
     :set (let [item-schema (:item schema)
                value (if (coll/empty? value)
-                       #{(prefs/default-value item-schema)}
+                       #{(default-value item-schema)}
                        value)]
            (into #{} (map #(different-value % item-schema)) value))
     :object (coll/pair-map-by
               key
               (fn [[k v]]
-                (different-value (k value (prefs/default-value v)) v))
+                (different-value (k value (default-value v)) v))
               (:properties schema))
     :object-of (let [{:keys [key val]} schema
                      value (if (coll/empty? value)
-                             {(prefs/default-value key) (prefs/default-value val)}
+                             {(default-value key) (default-value val)}
                              value)]
                  (into {}
                        (map (fn [[k v]]
@@ -222,20 +232,26 @@
             (testing path-str
               (let [first-get @(http/request path-url :as :string)]
                 (when (is (= 200 (:status first-get)))
-                  (let [first-json (json/read-str (:body first-get))]
+                  (let [first-json (json/read-str (:body first-get))
+                        first-clj (prefs/get prefs path)]
                     (testing "write the same value"
                       (when (is (= 200 (:status @(http/request path-url :method "POST" :body (json/write-str first-json)))))
                         (let [second-get @(http/request path-url :as :string)]
                           (when (is (= 200 (:status second-get)))
-                            (let [second-json (json/read-str (:body second-get))]
-                              (is (= first-json second-json)))))))
+                            (let [second-json (json/read-str (:body second-get))
+                                  second-clj (prefs/get prefs path)]
+                              (is (= first-json second-json))
+                              (is (= first-clj second-clj)))))))
                     (testing "write a different value"
                       (let [new-value (different-value (prefs/get prefs path) schema)]
                         (when (is (= 200 (:status @(http/request path-url :method "POST" :body (json/write-str new-value)))))
                           (let [second-get @(http/request path-url :as :string)]
                             (when (is (= 200 (:status second-get)))
-                              (let [second-json (json/read-str (:body second-get))]
-                                (is (not= first-json second-json))))))))))))))))))
+                              (let [second-json (json/read-str (:body second-get))
+                                    second-clj (prefs/get prefs path)]
+                                (is (not= first-json second-json))
+                                (is (not= first-clj second-clj))
+                                (is (= new-value second-clj))))))))))))))))))
 
 (deftest web-server-test
   (test-util/with-loaded-project

@@ -39,7 +39,6 @@
 
 (defn- schema->coercer [schema]
   (case (:type schema)
-    :any coerce/any
     :boolean coerce/boolean
     :string coerce/string
     :password coerce/string
@@ -47,6 +46,7 @@
     :keyword prefs-docs/serializable-keyword-coercer
     :integer coerce/integer
     :number number->double-coercer
+    :one-of (apply coerce/one-of (mapv schema->coercer (:schemas schema)))
     :array (coerce/vector-of (schema->coercer (:item schema)))
     :set (coerce/wrap-transform
            (coerce/map-of (schema->coercer (:item schema)) (coerce/const true))

@@ -57,6 +57,7 @@
       (coerce/wrap-transform keyword)))
 
 (def schema-components
+  ;; todo add one-of, add editor script tests
   (let [scope-prop (ui-docs/make-prop :scope
                                       :coerce (coerce/enum :global :project)
                                       :types ["string"]

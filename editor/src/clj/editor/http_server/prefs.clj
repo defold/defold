@@ -18,6 +18,7 @@
             [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.prefs :as prefs]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.http-server :as http-server])
   (:import [clojure.lang ExceptionInfo]))
 
@@ -27,25 +28,22 @@
   (let [^String s (-> request :path-params :path)
         n (.length s)
         add-non-empty! (fn add-non-empty! [acc ^String s]
-                         (cond-> acc (not (.isEmpty s)) (conj! (keyword s))))
-        ret (loop [acc (transient [])
-                   from 0
-                   to 0]
-              (if (= n to)
-                (persistent! (add-non-empty! acc (.substring s from to)))
-                (let [ch (.charAt s to)]
-                  (cond
-                    (= ch \/)
-                    (recur (add-non-empty! acc (.substring s from to)) (inc to) (inc to))
+                         (cond-> acc (not (.isEmpty s)) (conj! (keyword s))))]
+    (loop [acc (transient [])
+           from 0
+           to 0]
+      (if (= n to)
+        (persistent! (add-non-empty! acc (.substring s from to)))
+        (let [ch (.charAt s to)]
+          (cond
+            (= ch \/)
+            (recur (add-non-empty! acc (.substring s from to)) (inc to) (inc to))
 
-                    (prefs-docs/allowed-keyword-character? ch)
-                    (recur acc from (inc to))
+            (prefs-docs/allowed-keyword-character? ch)
+            (recur acc from (inc to))
 
-                    :else
-                    (throw (http-server/error (http-server/response 400 (format "Invalid prefs path character: '%s'" ch))))))))]
-    (if (coll/empty? ret)
-      (throw (http-server/error (http-server/response 400 "No prefs path specified")))
-      ret)))
+            :else
+            (throw (http-server/error (http-server/response 400 (format "Invalid prefs path character: '%s'" ch))))))))))
 
 (defn- handle-get-prefs [prefs request]
   (try
@@ -56,60 +54,103 @@
         (http-server/response 400 (.getMessage e))
         (throw e)))))
 
-(defn- json->value
-  "Coerce JSON value with string keys to prefs value"
+(defonce/type JsonParseError [json message]
+  Object
+  (toString [_]
+    (str (json/write-str json) " " message)))
+
+(defn- json-parse-error? [x]
+  (instance? JsonParseError x))
+
+(defn- parse-json
+  "Parse JSON value with string keys to a valid prefs value or a JsonParseError"
   [json schema]
   (case (:type schema)
-    (:any :string :password :locale :boolean :integer) json
-    :keyword (cond-> json (string? json) keyword)
-    :number (cond-> json (number? json) double)
+    :boolean (cond-> json (not (boolean? json)) (->JsonParseError "is not a boolean"))
+    (:string :password :locale) (cond-> json (not (string? json)) (->JsonParseError "is not a string"))
+    :keyword (if (string? json) (keyword json) (->JsonParseError json "is not a string"))
+    :integer (cond-> json (not (int? json)) (->JsonParseError "is not an integer"))
+    :number (if (number? json) (double json) (->JsonParseError json "is not a number"))
+    :one-of (let [{:keys [schemas]} schema
+                  n (count schemas)]
+              (loop [i 0]
+                (if (= i n)
+                  (->JsonParseError json "is invalid")
+                  (let [result (parse-json json (schemas i))]
+                    (if (json-parse-error? result)
+                      (recur (inc i))
+                      result)))))
     :array (if (vector? json)
-             (let [item-schema (:item schema)]
-               (mapv #(json->value % item-schema) json))
-             json)
+             (let [{:keys [item]} schema]
+               (coll/transfer json []
+                 (map #(parse-json % item))
+                 (halt-when json-parse-error?)))
+             (->JsonParseError json "is not an array"))
     :set (if (vector? json)
-           (let [item-schema (:item schema)]
-             (into #{} (map #(json->value % item-schema)) json))
-           json)
+           (let [{:keys [item]} schema]
+             (coll/transfer json #{}
+               (map #(parse-json % item))
+               (halt-when json-parse-error?)))
+           ;; sets should be represented as arrays in JSON
+           (->JsonParseError json "is not an array"))
     :object (if (map? json)
-              (let [property-schemas (:properties schema)]
-                (persistent!
-                  (reduce-kv
-                    (fn [acc k v]
-                      (let [kw (keyword k)
-                            property-schema (kw property-schemas)]
-                        (assoc! acc kw (cond-> v property-schema (json->value property-schema)))))
-                    (transient {})
-                    json)))
-              json)
+              (let [{:keys [properties]} schema]
+                (coll/transfer json {}
+                  (map (fn [[k v]]
+                         (let [kw (keyword k)]
+                           (if-let [property-schema (kw properties)]
+                             (let [result (parse-json v property-schema)]
+                               (if (json-parse-error? result)
+                                 result
+                                 (coll/pair kw result)))
+                             (->JsonParseError k "is not a valid property key")))))
+                  (halt-when json-parse-error?)))
+              (->JsonParseError json "is not an object"))
     :object-of (if (map? json)
-                 (let [key-schema (:key schema)
-                       val-schema (:val schema)]
-                   (persistent!
-                     (reduce-kv
-                       (fn [acc k v]
-                         (assoc! acc (json->value k key-schema) (json->value v val-schema)))
-                       (transient {})
-                       json)))
-                 json)
-    :enum (let [->value (coll/pair-map-by (comp json/read-str json/write-str) identity (:values schema))]
-            (->value json json))
+                 (let [{:keys [key val]} schema]
+                   (coll/transfer json {}
+                     (map (fn [[k v]]
+                            (let [k-result (parse-json k key)]
+                              (if (json-parse-error? k-result)
+                                k-result
+                                (let [v-result (parse-json v val)]
+                                  (if (json-parse-error? v-result)
+                                    v-result
+                                    (coll/pair k-result v-result)))))))
+                     (halt-when json-parse-error?)))
+                 (->JsonParseError json "is not an object"))
+    :enum (let [{:keys [values]} schema
+                n (count values)]
+            (loop [i 0]
+              (if (= i n)
+                (->JsonParseError json "is invalid")
+                (let [v (values i)]
+                  (if (= json (json/read-str (json/write-str v)))
+                    v
+                    (recur (inc i)))))))
     :tuple (if (vector? json)
-             (let [item-schemas (:items schema)]
-               (if (= (count json) (count item-schemas))
-                 (mapv json->value json (:items schema))
-                 json))
-             json)))
+             (let [{:keys [items]} schema
+                   n (count items)]
+               (if (= n (count json))
+                 (coll/transfer (range n) []
+                   (map #(parse-json (json %) (items %)))
+                   (halt-when json-parse-error?))
+                 (->JsonParseError json (format "should have %s elements" n))))
+             (->JsonParseError json "is not an array"))))
 
 (defn- handle-post-prefs [prefs request]
   (try
     (let [path (get-prefs-path request)
-          value (with-open [r (io/reader (:body request))]
-                  (try
-                    (json/read r)
-                    (catch Exception e (throw (http-server/error (http-server/response 400 (.getMessage e)))))))]
-      (prefs/set! prefs path (json->value value (prefs/schema prefs path)))
-      (http-server/response 200))
+          json (with-open [r (io/reader (:body request))]
+                 (try
+                   (json/read r)
+                   (catch Exception e (throw (http-server/error (http-server/response 400 (.getMessage e)))))))
+          value (parse-json json (prefs/schema prefs path))]
+      (if (json-parse-error? value)
+        (http-server/response 400 (str value))
+        (do
+          (prefs/set! prefs path value)
+          (http-server/response 200))))
     (catch ExceptionInfo e
       (if (::prefs/error (ex-data e))
         (http-server/response 400 (.getMessage e))
