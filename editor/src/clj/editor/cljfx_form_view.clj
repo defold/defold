@@ -555,9 +555,10 @@
     ;; default
     (add-list-elements [(form/field-default element)] map-event)))
 
-(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
-  (let [indices-path (conj state-path :selected-indices)]
-    [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
+(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state selected-indices]}]
+  (let [indices-path (conj state-path :selected-indices)
+        indices (set (or selected-indices (get-in ui-state indices-path)))]
+    [[:dispatch (assoc on-removed :fx/event indices)]
      [:set-ui-state (-> ui-state
                         (assoc-in indices-path [])
                         (update-in state-path dissoc :edit))]]))
@@ -631,12 +632,17 @@
                            on-removed                       ;; #{index ...}
                            ;; field
                            element
+                           auto-select-index
                            localization-key
                            localization-state]
                     :or {state {:selected-indices []}
                          value []}
                     :as field}]
   (let [{:keys [selected-indices edit]} state
+        selected-indices (if (and (some? auto-select-index)
+                                  (empty? selected-indices))
+                           [auto-select-index]
+                           selected-indices)
         disable-add (not (form/has-default? element))
         disable-remove (empty? selected-indices)
         add-event {:event-type :add-list-element
@@ -647,7 +653,8 @@
                    :localization-key localization-key}
         remove-event {:event-type :remove-list-selection
                       :on-removed on-removed
-                      :state-path state-path}]
+                      :state-path state-path
+                      :selected-indices selected-indices}]
     {:fx/type fx.v-box/lifecycle
      :spacing 4
      :children [{:fx/type fx/ext-let-refs
@@ -1215,12 +1222,12 @@
                                      (seq value))
                             0)
         selected-index (or selected-index auto-select-index)
-        state (cond-> state auto-select-index (update :key assoc :selected-indices [auto-select-index]))
         fn-setter (:set field)
 
         item-list
         (cond-> {:fx/type list-input
                  :value (mapv #(get-in % key-path) value)
+                 :auto-select-index auto-select-index
                  :on-added {:event-type :2panel-key-added
                             :value value
                             :on-value-changed on-value-changed
