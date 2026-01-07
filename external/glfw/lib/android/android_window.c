@@ -59,6 +59,7 @@ int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
 int g_SpecialKeyActive = -1;
 static int g_PendingResize = 0;
+static int g_PendingResizeBecauseOfInsets = 0;
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeBackspace(JNIEnv* env, jobject obj)
 {
@@ -86,6 +87,11 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNativ
     if (write(_glfwWinAndroid.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         LOGF("Failed to write command");
     }
+}
+
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetPendingResizeBecauseOfInsets(JNIEnv* env, jobject obj)
+{
+    g_PendingResizeBecauseOfInsets = 1;
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextNative(JNIEnv* env, jobject obj, jstring text)
@@ -297,10 +303,11 @@ static void _glfwPlatformSwapBuffersNoLock( void )
      report the old EGL size at the time of the event, so we defer the query
      until a swap occurs.
      */
-    if (g_PendingResize)
+    if (g_PendingResize || g_PendingResizeBecauseOfInsets)
     {
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
         g_PendingResize = 0;
+        g_PendingResizeBecauseOfInsets = 0;
     }
 }
 

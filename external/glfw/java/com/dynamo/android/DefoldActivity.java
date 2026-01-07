@@ -249,6 +249,7 @@ public class DefoldActivity extends NativeActivity {
     }
 
     public static native void nativeOnCreate(Activity activity);
+    public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -287,6 +288,16 @@ public class DefoldActivity extends NativeActivity {
         }
 
         nativeOnCreate(this);
+
+        View decorView = getWindow().getDecorView();
+        decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                glfwSetPendingResizeBecauseOfInsets();
+                return v.onApplyWindowInsets(insets);
+            }
+        });
+        decorView.requestApplyInsets();
     }
 
     @Override
