@@ -19,13 +19,14 @@
   additional properties of the schema. The schema is largely inspired by JSON
   schema, which is used in vscode extensions that contribute configuration
   used by the language servers. Supported types:
-    :any           anything goes, no validation is performed
     :boolean       a boolean value
     :string        a string
     :password      a string, stored encrypted
     :keyword       a keyword
     :integer       an integer
     :number        floating point number
+    :one-of        multiple-choice schema, requires :schemas that defines a
+                   vector of possible fitting schemas
     :array         homogeneous typed array, requires :item key which defines
                    array item schema
     :set           typed set, requires :item key which defines set item schema
@@ -76,7 +77,7 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :password :locale :keyword :integer :number :array :set :object :object-of :enum :tuple]
+#_[:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple]
 
 (def default-schema
   {:type :object
@@ -156,14 +157,26 @@
     :bundle {:type :object
              :scope :project
              :properties
-             {:last-bundle-command {:type :any}
+             {:last-bundle-command {:type :one-of :schemas [{:type :enum :values [nil]}
+                                                            {:type :keyword}]}
               :output-directory {:type :string}
               :open-output-directory {:type :boolean
                                       :default true}}}
     :window {:type :object
              :properties
-             {:dimensions {:type :any}
-              :split-positions {:type :any}
+             {:dimensions {:type :one-of
+                           :schemas [{:type :enum :values [nil]}
+                                     {:type :object
+                                      :properties
+                                      {:x {:type :number}
+                                       :y {:type :number}
+                                       :width {:type :number}
+                                       :height {:type :number}
+                                       :maximized {:type :boolean}
+                                       :full-screen {:type :boolean}}}]}
+              :split-positions {:type :object-of
+                                :key {:type :keyword}
+                                :val {:type :array :item {:type :number}}}
               :hidden-panes {:type :set :item {:type :keyword}}
               :locale {:type :locale}
               :keymap {:type :object-of
@@ -202,11 +215,18 @@
     :run {:type :object
           :properties
           {:instance-count {:type :integer :default 1 :scope :project}
-           :selected-target-id {:type :any}
+           :selected-target-id {:type :one-of
+                                :schemas [{:type :enum :values [nil :all-launched-targets]}
+                                          {:type :string}]}
            :manual-target-ip+port {:type :string}
            :quit-on-escape {:type :boolean}
            :simulate-rotated-device {:type :boolean :scope :project}
-           :simulated-resolution {:type :any :scope :project}
+           :simulated-resolution {:type :one-of
+                                  :schemas [{:type :enum :values [nil]}
+                                            {:type :object
+                                             :properties {:width {:type :integer}
+                                                          :height {:type :integer}
+                                                          :custom {:type :boolean}}}]}
            :engine-arguments {:type :string
                               :scope :project
                               :ui {:multiline true}}}}
@@ -221,21 +241,22 @@
                                         {:x {:type :number :default 1.0}
                                          :y {:type :number :default 1.0}
                                          :z {:type :number :default 1.0}}}
-                                 :active-plane {:type :keyword :default :z}
+                                 :active-plane {:type :enum :values [:x :y :z] :default :z}
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
                                          :default [0.5 0.5 0.5 1.0]}}}}}
     :dev {:type :object
           :properties
-          {:custom-engine {:type :any
+          {:custom-engine {:type :one-of
+                           :schemas [{:type :enum :values [nil]}
+                                     {:type :string}]
                            :ui {:type :string}}}}
-    :git {:type :object
-          :properties
-          {:credentials {:type :any :scope :project}}}
     :welcome {:type :object
               :properties
-              {:last-opened-project-directory {:type :any}
+              {:last-opened-project-directory {:type :one-of
+                                               :schemas [{:type :enum :values [nil]}
+                                                         {:type :string}]}
                :recent-projects {:type :object-of
                                  :key {:type :string}
                                  :val {:type :string}}}}}})
@@ -244,7 +265,6 @@
 
 (defn valid? [schema value]
   (case (:type schema)
-    :any true
     :boolean (boolean? value)
     :string (string? value)
     :password (string? value)
@@ -252,6 +272,7 @@
     :keyword (keyword? value)
     :integer (int? value)
     :number (number? value)
+    :one-of (coll/any? #(valid? % value) (:schemas schema))
     :array (and (vector? value)
                 (let [item-schema (:item schema)]
                   (every? #(valid? item-schema %) value)))
@@ -280,7 +301,6 @@
   (let [explicit-default (:default schema ::not-found)]
     (if (identical? explicit-default ::not-found)
       (case (:type schema)
-        :any nil
         :boolean false
         :string ""
         :password ""
@@ -288,6 +308,7 @@
         :keyword nil
         :integer 0
         :number 0.0
+        :one-of (default-value (first (:schemas schema)))
         :array []
         :set #{}
         :object {}
@@ -341,7 +362,7 @@
   (s/keys :opt-un [::multiline ::prompt ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :password :locale :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(s/def ::type #{:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple})
 (defmulti type-spec :type)
 (s/def ::schema
   (s/and
@@ -349,6 +370,8 @@
     (s/keys :req-un [::type] :opt-un [::default ::scope ::ui])
     default-valid?))
 (defmethod type-spec :default [_] any?)
+(s/def :editor.prefs.one-of/schemas (s/coll-of ::schema :kind vector? :min-count 2))
+(defmethod type-spec :one-of [_] (s/keys :req-un [:editor.prefs.one-of/schemas]))
 (s/def ::item ::schema)
 (defmethod type-spec :array [_] (s/keys :req-un [::item]))
 (defmethod type-spec :set [_] (s/keys :req-un [::item]))
@@ -860,7 +883,6 @@
      "extensions-server" [:extensions :build-server]
      "extensions-server-headers" [:extensions :build-server-headers]
      "window-dimensions" [:window :dimensions]
-     "split-positions" [:window :split-positions]
      "hidden-panes" [:window :hidden-panes]
      "console-filters" [:console :filters]
      "selected-target-id" [:run :selected-target-id]
@@ -916,8 +938,7 @@
                                "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
                                "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
                                "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
-                               "bundle-windows-platform" [:bundle :windows :platform]
-                               "project-git-credentials" [:git :credentials]}
+                               "bundle-windows-platform" [:bundle :windows :platform]}
                               ;; these prefs already used project scope
                               (e/map #(coll/pair (str (key %) suffix) (val %))
                                      {"bundle-output-directory" [:bundle :output-directory]

@@ -720,6 +720,8 @@
               [:out "keyword: string code-view"]
               [:out "number: 12.3"]
               [:out "number: 0.1"]
+              [:out "one_of: a string"]
+              [:out "one_of: 17"]
               [:out "object: table foo"]
               [:out "object: table bar"]
               [:out "object: table baz"]
@@ -1336,7 +1338,7 @@ Expected errors:
   Added value is not a table => \"/foo.png\" is not a table
   Added nested value is not a table => \"/foo.png\" is not a table
   Added node has invalid property value => \"invalid-pivot\" is not a tuple
-  Added resource has wrong type => resource extension should be jpg or png
+  Added resource has wrong type => resource extension should be jpeg, jpg or png
 Tilesource initial state:
   animations: 0
   collision groups: 0

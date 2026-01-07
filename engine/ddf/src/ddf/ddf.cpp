@@ -124,7 +124,14 @@ namespace dmDDF
                 is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                 if (is_dynamic_type)
                 {
-                    load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
+                    // We need to account for the injected oneof index value that we insert into the structs via ddfc.py!
+                    uint32_t dynamic_size = field->m_MessageDescriptor->m_Size;
+                    if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+                    {
+                        dynamic_size += sizeof(uint32_t);
+                    }
+
+                    load_context->AddDynamicMessageSize(dynamic_size);
                 }
 
                 // Recurse into the submessage descriptor
@@ -218,7 +225,14 @@ namespace dmDDF
                         is_dynamic_type = is_dynamic_type || !field->m_FullyDefinedType;
                         if (is_dynamic_type && *array_info_hash != 0)
                         {
-                            load_context->AddDynamicMessageSize(field->m_MessageDescriptor->m_Size);
+                            // We need to account for the injected oneof index value that we insert into the structs via ddfc.py!
+                            uint32_t dynamic_size = field->m_MessageDescriptor->m_Size;
+                            if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+                            {
+                                dynamic_size += sizeof(uint32_t);
+                            }
+
+                            load_context->AddDynamicMessageSize(dynamic_size);
                         }
 
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash, is_dynamic_type);

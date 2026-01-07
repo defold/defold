@@ -627,8 +627,7 @@ dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
     return factory->m_BaseArchiveMount;
 }
 
-// Assumes m_LoadMutex is already held
-Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
+Result LoadResourceToBufferWithOffset(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
     DM_PROFILE(__FUNCTION__);
 
@@ -700,14 +699,10 @@ LoadBufferType* GetGlobalLoadBuffer(HFactory factory)
 }
 #endif
 
-// Called from the resource_preloader.cpp
-// Takes the lock.
 Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
-    // Called from async queue so we wrap around a lock
-    dmMutex::ScopedLock lk(factory->m_LoadMutex);
     uint32_t offset = 0;
-    return LoadResourceToBufferLocked(factory, path, original_name, offset, preload_size, resource_size, buffer_size, buffer);
+    return LoadResourceToBufferWithOffset(factory, path, original_name, offset, preload_size, resource_size, buffer_size, buffer);
 }
 
 // Assumes m_LoadMutex is already held
@@ -718,7 +713,7 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     }
     factory->m_Buffer.SetSize(0);
     uint32_t offset = 0;
-    Result r = LoadResourceToBufferLocked(factory, path, original_name, offset, preload_size, resource_size, buffer_size, &factory->m_Buffer);
+    Result r = LoadResourceToBufferWithOffset(factory, path, original_name, offset, preload_size, resource_size, buffer_size, &factory->m_Buffer);
     if (r == RESULT_OK)
     {
         *buffer = factory->m_Buffer.Begin();

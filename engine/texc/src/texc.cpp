@@ -44,6 +44,11 @@ namespace dmTexc
         return image;
     }
 
+    void CreatePreviewImage(uint32_t width, uint32_t height, uint32_t data_size, const uint8_t* input_data, uint8_t* output_data)
+    {
+        ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(input_data, output_data, width, height);
+    }
+
     void DestroyImage(Image* image)
     {
         free((void*)image->m_Data);

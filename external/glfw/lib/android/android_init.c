@@ -272,7 +272,9 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
-        // See _glfwPlatformSwapBuffers for handling of orientation changes
+    case APP_CMD_WINDOW_REDRAW_NEEDED:
+    case APP_CMD_CONTENT_RECT_CHANGED:
+        // See glfwAndroidFlushEvents for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
         g_AppResumed = false;

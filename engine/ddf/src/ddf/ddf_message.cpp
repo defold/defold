@@ -258,6 +258,7 @@ namespace dmDDF
         assert(field->m_MessageDescriptor == 0);
 
         assert(m_Start + field->m_Offset + buffer_size <= m_End);
+
         if (!m_DryRun)
         {
             memcpy(GetBuffer(field->m_Offset), buffer, buffer_size);

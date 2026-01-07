@@ -41,11 +41,9 @@ namespace dmGameObject
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentGet            m_GetFunction;
-        ComponentsUpdate        m_PreFixedUpdateFunction;
-        ComponentsUpdate        m_PreUpdateFunction;
+        ComponentsUpdate        m_FixedUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsUpdate        m_LateUpdateFunction;
-        ComponentsUpdate        m_FixedUpdateFunction;
         ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
@@ -133,23 +131,6 @@ namespace dmGameObject
     /*# Calls the destroy function for all registered component types
      */
     Result DestroyRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx);
-
-    /*# set the component pre-update callback
-     * Set the component pre-update callback. Called before regular update callback.
-     * @name ComponentTypeSetPreUpdateFn
-     * @param type [type: HComponentType] the type
-     * @param fn [type: ComponentsUpdate] callback
-     */
-    void ComponentTypeSetPreUpdateFn(HComponentType type, ComponentsUpdate fn);
-
-
-    /*# set the component update callback
-     * Set the component update callback. Called when it's time to update all component instances.
-     * @name ComponentTypeSetPreFixedUpdateFn
-     * @param type [type: HComponentType] the type
-     * @param fn [type: ComponentsUpdate] callback
-     */
-    void ComponentTypeSetPreFixedUpdateFn(HComponentType type, ComponentsUpdate fn);
 }
 
 #endif // #ifndef DM_COMPONENT_H

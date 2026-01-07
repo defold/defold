@@ -16,8 +16,8 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.breakpoints-view :as breakpoints-view]
             [editor.asset-browser :as asset-browser]
+            [editor.breakpoints-view :as breakpoints-view]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
@@ -35,6 +35,7 @@
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
+            [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.notifications :as notifications]
@@ -215,7 +216,8 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
-                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))]))
+                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))
+                                  (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
                        (http-server/start! server-handler :port server-port)

@@ -4311,7 +4311,8 @@ bail:
                     RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, temp_data);
                     tex_data_ptr  = temp_data;
                     uint32_t tex_bpp       = 32;
-                    tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                    uint32_t tex_data_size_bpp = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                    tex_data_size = (uint32_t) ceil((float) tex_data_size_bpp / 8.0f);
                 }
 
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
@@ -4350,8 +4351,6 @@ bail:
         int32_t data_state = dmAtomicGet32(&tex->m_DataState);
         data_state &= ~(1<<ap.m_Params.m_MipMap);
         dmAtomicStore32(&tex->m_DataState, data_state);
-
-        tex->m_DataState  &= ~(1<<ap.m_Params.m_MipMap);
 
         return 0;
     }

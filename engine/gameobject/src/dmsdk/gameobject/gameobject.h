@@ -680,7 +680,7 @@ namespace dmGameObject
      * Get gameobject instance position
      * @name GetPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Point3] Position
+     * @return [type:dmVMath::Point3] Position
      */
     dmVMath::Point3 GetPosition(HInstance instance);
 
@@ -777,7 +777,7 @@ namespace dmGameObject
      * Get game object instance world transform as Matrix4.
      * @name GetWorldMatrix
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::MAtrix4] World transform matrix.
+     * @return [type:dmGameObject::Matrix4] World transform matrix.
      */
     const dmVMath::Matrix4& GetWorldMatrix(HInstance instance);
 

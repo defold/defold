@@ -3,7 +3,6 @@ package TestDDF;
 
 import "ddf/ddf_extensions.proto";
 
-
 option java_package = "com.dynamo.ddf.proto";
 option (ddf_namespace) = "DUMMY";
 option java_outer_classname = "TestDDF";

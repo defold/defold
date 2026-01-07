@@ -159,9 +159,9 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    UpdateResult CompAnimPreUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
-        DM_PROFILE("PreUpdate");
+        DM_PROFILE("Update");
 
         /*
          * The update is divided into three passes.
