@@ -337,16 +337,10 @@ namespace dmGui
             inset_bottom = 0;
         }
 
-        uint32_t safe_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
-        uint32_t safe_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
-
-        float center_offset_x = ((float)inset_left + (float)safe_width * 0.5f) - (float)window_width * 0.5f;
-        float center_offset_y = ((float)inset_bottom + (float)safe_height * 0.5f) - (float)window_height * 0.5f;
-
-        *out_width = safe_width;
-        *out_height = safe_height;
-        *out_offset_x = center_offset_x;
-        *out_offset_y = center_offset_y;
+        *out_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
+        *out_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
+        *out_offset_x = (float) inset_left;
+        *out_offset_y = (float) inset_bottom;
     }
 
     void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)

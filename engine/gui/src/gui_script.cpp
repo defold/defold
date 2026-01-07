@@ -5415,6 +5415,30 @@ namespace dmGui
      * @constant
      */
 
+    /*# no safe area
+     * Safe area mode that ignores safe area insets.
+     * @name gui.SAFE_AREA_NONE
+     * @constant
+     */
+
+    /*# long side safe area
+     * Safe area mode that applies insets only on the long edges.
+     * @name gui.SAFE_AREA_LONG
+     * @constant
+     */
+
+    /*# short side safe area
+     * Safe area mode that applies insets only on the short edges.
+     * @name gui.SAFE_AREA_SHORT
+     * @constant
+     */
+
+    /*# both sides safe area
+     * Safe area mode that applies insets on all edges.
+     * @name gui.SAFE_AREA_BOTH
+     * @constant
+     */
+
     /*# elliptical pie node bounds
      * @name gui.PIEBOUNDS_ELLIPSE
      * @constant
