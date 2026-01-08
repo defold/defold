@@ -570,7 +570,7 @@ namespace dmGui
      * - `gui.TYPE_PIE`
      * - `gui.TYPE_PARTICLEFX`
      * - `gui.TYPE_CUSTOM`
-     * 
+     *
      * @return subtype [type:number|nil] id of the custom type
      */
     static int LuaGetType(lua_State* L)
@@ -650,8 +650,8 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the named property of a specified gui node 
-     * 
+    /*# gets the named property of a specified gui node
+     *
      * Instead of using specific getters such as gui.get_position or gui.get_scale,
      * you can use gui.get instead and supply the property as a string or a hash.
      * While this function is similar to go.get, there are a few more restrictions
@@ -677,7 +677,7 @@ namespace dmGui
      *
      * @name gui.get
      * @param node [type:node] node to get the property for
-     * @param property [type:string|hash|constant] the property to retrieve 
+     * @param property [type:string|hash|constant] the property to retrieve
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:number] index into array property (1 based)
      *
@@ -781,8 +781,8 @@ namespace dmGui
         return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
     }
 
-    /*# sets the named property of a specified gui node 
-     * 
+    /*# sets the named property of a specified gui node
+     *
      * Instead of using specific setteres such as gui.set_position or gui.set_scale,
      * you can use gui.set instead and supply the property as a string or a hash.
      * While this function is similar to go.get and go.set, there are a few more restrictions
@@ -817,7 +817,7 @@ namespace dmGui
      *
      * @name gui.set
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
-     * @param property [type:string|hash|constant] the property to set 
+     * @param property [type:string|hash|constant] the property to set
      * @param value [type:number|vector4|vector3|quaternion] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:number] index into array property (1 based)
@@ -1616,9 +1616,9 @@ namespace dmGui
      * -- cancel animation of the x component.
      * gui.cancel_animations(node, "position.x")
      * ```
-     * 
+     *
      * Cancels all property animations on a node in a single call:
-     * 
+     *
      * ```lua
      * local node = gui.get_node("my_node")
      * -- animate to new position and scale
@@ -2390,7 +2390,7 @@ namespace dmGui
     }
 
     /*# sets the node material
-     * Set the material on a node. The material must be mapped to the gui scene in the gui editor, 
+     * Set the material on a node. The material must be mapped to the gui scene in the gui editor,
      * and assigning a material is supported for all node types. To set the default material that
      * is assigned to the gui scene node, use `gui.reset_material(node_id)` instead.
      *
@@ -3675,7 +3675,7 @@ namespace dmGui
      *
      * Sets how the safe area is applied to this gui scene.
      *
-     * @name gui.set_safe_mode
+     * @name gui.set_safe_area_mode
      * @param mode [type:constant] safe area mode
      *
      * - `gui.SAFE_AREA_NONE`
@@ -4551,7 +4551,7 @@ namespace dmGui
     }
 
     /*# sets screen position to the node
-     * 
+     *
      * Set the screen position to the supplied node
      *
      * @name gui.set_screen_position
@@ -4569,7 +4569,7 @@ namespace dmGui
     }
 
     /*# convert screen position to the local node position
-     * 
+     *
      * Convert the screen position to the local position of supplied node
      *
      * @name gui.screen_to_local
@@ -5114,7 +5114,7 @@ namespace dmGui
         {"set_visible",     LuaSetVisible},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
-        {"set_safe_mode",   LuaSetSafeMode},
+        {"set_safe_area_mode",   LuaSetSafeMode},
         {"get_size_mode",   LuaGetSizeMode},
         {"set_size_mode",   LuaSetSizeMode},
         {"move_above",      LuaMoveAbove},
