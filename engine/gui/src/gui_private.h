@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,9 +87,21 @@ namespace dmGui
         GetTextMetricsCallback          m_GetTextMetricsCallback;
         uint32_t                        m_PhysicalWidth;
         uint32_t                        m_PhysicalHeight;
+        uint32_t                        m_AdjustWidth;
+        uint32_t                        m_AdjustHeight;
         uint32_t                        m_DefaultProjectWidth;
         uint32_t                        m_DefaultProjectHeight;
         uint32_t                        m_Dpi;
+        float                           m_AdjustOffsetX;
+        float                           m_AdjustOffsetY;
+        bool                            m_UseSafeAreaAdjust;
+        SafeAreaMode                    m_SafeAreaMode;
+        uint32_t                        m_WindowWidth;
+        uint32_t                        m_WindowHeight;
+        int32_t                         m_WindowInsetLeft;
+        int32_t                         m_WindowInsetTop;
+        int32_t                         m_WindowInsetRight;
+        int32_t                         m_WindowInsetBottom;
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
         dmArray<dmVMath::Matrix4>       m_RenderTransforms;
@@ -281,6 +293,13 @@ namespace dmGui
         uint16_t                              m_ResChanged : 1;
         uint32_t                              m_Width;
         uint32_t                              m_Height;
+        uint32_t                              m_AdjustWidth;
+        uint32_t                              m_AdjustHeight;
+        float                                 m_AdjustOffsetX;
+        float                                 m_AdjustOffsetY;
+        SafeAreaMode                          m_SafeAreaMode;
+        bool                                  m_SafeAreaModeOverride;
+        bool                                  m_UseSafeAreaAdjust;
         dmScript::ScriptWorld*                m_ScriptWorld;
         CreateCustomNodeCallback              m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback             m_DestroyCustomNodeCallback;
