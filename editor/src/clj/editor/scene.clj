@@ -785,8 +785,8 @@
            :max-width preview-close-button-size
            :max-height preview-close-button-size
            :graphic {:fx/type fxui/icon-graphic
-                     :type :icon/cross
-                     :size 10.0
+                     :type :icon/cross-thick
+                     :size 8.0
                      :style-class "scene-preview-close-icon"}
            :tooltip (stop-preview-tooltip localization keymap)
            :on-action (fn [^ActionEvent event]
