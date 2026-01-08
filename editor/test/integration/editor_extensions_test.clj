@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -726,6 +726,8 @@
               [:out "keyword: string code-view"]
               [:out "number: 12.3"]
               [:out "number: 0.1"]
+              [:out "one_of: a string"]
+              [:out "one_of: 17"]
               [:out "object: table foo"]
               [:out "object: table bar"]
               [:out "object: table baz"]

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,7 +39,6 @@
 
 (defn- schema->coercer [schema]
   (case (:type schema)
-    :any coerce/any
     :boolean coerce/boolean
     :string coerce/string
     :password coerce/string
@@ -47,6 +46,7 @@
     :keyword prefs-docs/serializable-keyword-coercer
     :integer coerce/integer
     :number number->double-coercer
+    :one-of (apply coerce/one-of (mapv schema->coercer (:schemas schema)))
     :array (coerce/vector-of (schema->coercer (:item schema)))
     :set (coerce/wrap-transform
            (coerce/map-of (schema->coercer (:item schema)) (coerce/const true))

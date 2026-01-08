@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -254,7 +254,7 @@ namespace dmGameObject
         return result;
     }
 
-    UpdateResult CompScriptPreUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
@@ -262,7 +262,7 @@ namespace dmGameObject
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
     }
 
-    UpdateResult CompScriptPreFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
+    UpdateResult CompScriptFixedUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::FixedUpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
