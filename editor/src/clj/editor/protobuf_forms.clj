@@ -178,7 +178,6 @@
                  [{:path [:driver]
                    :localization-key "gamepads.driver"
                    :type :2panel
-                   :auto-select-first true
                    :panel-key {:path [:device] :type :string}
                    :panel-form {:sections
                                 [{:fields
@@ -274,14 +273,12 @@
         {:path [:profiles]
          :localization-key "texture-profiles.profiles"
          :type :2panel
-         :auto-select-first true
          :panel-key {:path [:name] :type :string :default "Default"}
          :panel-form {:sections
                       [{:fields
                         [{:path [:platforms]
                           :localization-key "texture-profiles.profiles.platforms"
                           :type :2panel
-                          :auto-select-first true
                           :panel-key {:path [:os]
                                       :type :choicebox
                                       :options (sort-by first (make-options os-values))
@@ -291,7 +288,6 @@
                                          [{:path [:formats]
                                            :localization-key "texture-profiles.profiles.platforms.formats"
                                            :type :2panel
-                                           :auto-select-first true
                                            :panel-key {:path [:format]
                                                        :localization-key "texture-profiles.profiles.platforms.formats.format"
                                                        :type :choicebox

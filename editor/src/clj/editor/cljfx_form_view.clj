@@ -36,6 +36,8 @@
             [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -555,9 +557,9 @@
     ;; default
     (add-list-elements [(form/field-default element)] map-event)))
 
-(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
+(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state selected-indices]}]
   (let [indices-path (conj state-path :selected-indices)]
-    [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
+    [[:dispatch (assoc on-removed :fx/event (set selected-indices))]
      [:set-ui-state (-> ui-state
                         (assoc-in indices-path [])
                         (update-in state-path dissoc :edit))]]))
@@ -621,6 +623,16 @@
 
 (def ^:private remove-message (localization/message "form.context-menu.remove"))
 
+(def ^:private prop-list-selected-indices
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^ListView view [selected-indices _]]
+        (let [model (.getSelectionModel view)]
+          (.clearSelection model)
+          (when-not (coll/empty? selected-indices)
+            (.selectIndices (.getSelectionModel view) (first selected-indices) (into-array Integer/TYPE (rest selected-indices)))))))
+    fx.lifecycle/scalar))
+
 (defn- list-input [{:keys [;; state
                            state
                            state-path
@@ -647,7 +659,8 @@
                    :localization-key localization-key}
         remove-event {:event-type :remove-list-selection
                       :on-removed on-removed
-                      :state-path state-path}]
+                      :state-path state-path
+                      :selected-indices selected-indices}]
     {:fx/type fx.v-box/lifecycle
      :spacing 4
      :children [{:fx/type fx/ext-let-refs
@@ -665,7 +678,9 @@
                          :desc
                          {:fx/type fx.ext.list-view/with-selection-props
                           :props {:selection-mode :multiple
-                                  :selected-indices selected-indices
+                                  ;; item count is used as a "refresh key", i.e.
+                                  ;; it forces re-selection on item remove
+                                  prop-list-selected-indices [selected-indices (count value)]
                                   :on-selected-indices-changed {:event-type :list-select
                                                                 :state-path state-path}}
                           :desc
@@ -1207,6 +1222,7 @@
   (let [indented-label-column-width 150
         default-row (form/two-panel-defaults field)
         key-path (:path panel-key)
+        state (cond-> state (not (coll/empty? value)) (update :key update :selected-indices #(if (coll/empty? %) [0] %)))
         selected-index (-> state :key :selected-indices util/only)
         fn-setter (:set field)
 
@@ -1546,44 +1562,6 @@
       [[] false]
       sections)))
 
-;; region auto-selection
-
-(defn- auto-select-ui-state [form-data]
-  (letfn [(field-items [values path]
-            (or (get values path)
-                (get values (first path))))
-          (panel-form-fields [field selected-item]
-            (when-some [panel-form (if-some [panel-form-fn (:panel-form-fn field)]
-                                     (panel-form-fn selected-item)
-                                     (:panel-form field))]
-              (mapcat :fields (:sections panel-form))))
-          (select-panel [values state-path field]
-            (let [path (:path field)
-                  items (field-items values path)]
-              (when (and (:auto-select-first field) (seq items))
-                (let [selected-index 0
-                      selection-path (conj state-path path :key :selected-indices)
-                      selected-item (nth items selected-index)
-                      child-fields (panel-form-fields field selected-item)
-                      child-state-path (conj state-path path :val selected-index)
-                      acc (assoc-in {} selection-path [selected-index])]
-                  (if (and (map? selected-item) (seq child-fields))
-                    (coll/deep-merge acc (fields->state selected-item child-state-path child-fields))
-                    acc)))))
-          (fields->state [values state-path fields]
-            (reduce (fn [acc field]
-                      (if (= :2panel (:type field))
-                        (coll/deep-merge acc (or (select-panel values state-path field) {}))
-                        acc))
-                    {}
-                    fields))]
-    (let [sections (:sections form-data)
-          values (:values form-data)]
-      (when (and (seq sections) (map? values))
-        (fields->state values [:components] (mapcat :fields sections))))))
-
-;; endregion
-
 ;; region jump-to
 
 (defmethod handle-event :jump-to [{:keys [section ui-state]}]
@@ -1803,12 +1781,6 @@
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
-    (let [ui-state (g/node-value view-id :ui-state)
-          form-data (g/node-value view-id :form-data)
-          auto-state (auto-select-ui-state form-data)]
-      (when (and (seq auto-state)
-                 (empty? (:components ui-state)))
-        (g/set-property! view-id :ui-state (coll/deep-merge ui-state auto-state))))
     (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)
     (ui/on-closed! tab (fn [_]

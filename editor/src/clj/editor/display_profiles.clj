@@ -85,7 +85,6 @@
               {:path [:profiles]
                :localization-key "display-profiles.profile"
                :type :2panel
-               :auto-select-first true
                :panel-key {:path [:name] :type :string :default "New Display Profile"}
                :on-add #(add-profile! _node-id "New Display Profile" [])
                :on-remove (fn [vals] (g/transact (map #(g/delete-node (:node-id %)) vals)))
