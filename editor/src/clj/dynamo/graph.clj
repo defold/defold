@@ -78,8 +78,15 @@
 ;; profile when running tasks: `lein with-profile +strict-ec-scopes <task>`.
 (def ^:private strict-evaluation-context-scopes
   (let [strict-evaluation-context-scopes-setting (and *assert* (some-> (System/getProperty "defold.graph.strict-evaluation-context-scopes") keyword))]
-    (assert #{nil :log :throw} strict-evaluation-context-scopes-setting)
+    (assert #{nil :log :log-once :throw} strict-evaluation-context-scopes-setting)
     strict-evaluation-context-scopes-setting))
+
+(defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
+  "Returns a new evaluation-context from the current state of *the-system*. Will
+  assert if called inside an auto evaluation-context scope when strict
+  evaluation-context scope checks are enabled."
+  ([] (is/default-evaluation-context @*the-system*))
+  ([options] (is/custom-evaluation-context @*the-system* options)))
 
 (defn ^{:dynamic strict-evaluation-context-scopes} now
   "Returns the basis at the current point in time. Will assert if called inside
@@ -93,6 +100,51 @@
   evaluation-context scope checks. Use with caution!"
   []
   (is/basis @*the-system*))
+
+(defn- comparable-exception-data [^Throwable exception]
+  (let [cause (.getCause exception)]
+    (cond-> {:class (.getName (.getClass exception))
+             :stacktrace (mapv (fn [^StackTraceElement ste]
+                                 (pair (.getFileName ste)
+                                       (.getLineNumber ste)))
+                               (.getStackTrace exception))}
+            cause (assoc :cause (comparable-exception-data cause)))))
+
+(defmacro make-evaluation-context-scope-violation-exception [fn-sym]
+  `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
+
+(defonce ^:private logged-evaluation-context-scope-violations-atom
+  (when (= :log-once strict-evaluation-context-scopes)
+    (atom #{})))
+
+(defn log-evaluation-context-scope-violation-exception! [exception]
+  (when (or (nil? logged-evaluation-context-scope-violations-atom)
+            (let [[old new] (swap-vals! logged-evaluation-context-scope-violations-atom conj (comparable-exception-data exception))]
+              (not= (count old)
+                    (count new))))
+    (log/warn :message "evaluation-context scope violation" :exception exception)))
+
+(defmacro strict-evaluation-context-scope-reporting-variant [fn-sym]
+  (let [rebound-fn-sym (symbol (str "rebound-" (name fn-sym)))]
+    (case strict-evaluation-context-scopes
+      (:log :log-once)
+      `(let [~'original-fn ~fn-sym]
+         (fn ~rebound-fn-sym [& ~'args]
+           (log-evaluation-context-scope-violation-exception!
+             (make-evaluation-context-scope-violation-exception ~fn-sym))
+           (apply ~'original-fn ~'args)))
+
+      (:throw)
+      `(fn ~rebound-fn-sym [& ~'_]
+         (throw
+           (make-evaluation-context-scope-violation-exception ~fn-sym))))))
+
+(defmacro do-strict-evaluation-context-scope-body [& body]
+  (if strict-evaluation-context-scopes
+    `(binding [now (strict-evaluation-context-scope-reporting-variant now)
+               make-evaluation-context (strict-evaluation-context-scope-reporting-variant make-evaluation-context)]
+       ~@body)
+    `(do ~@body)))
 
 (defn clone-system
   ([] (clone-system @*the-system*))
@@ -225,6 +277,12 @@
         (aset-long tps-counts 0 0)))
     tps-counts))
 
+(defn eager-tx-data
+  "Given a sequence of possibly nested sequences of transaction steps, force its
+  evaluation into a flat sequence of realized transaction steps."
+  [txs]
+  (doall (filter some? (flatten txs))))
+
 (defn make-transaction-context [opts]
   (let [system (deref *the-system*)
         basis (is/basis system)
@@ -260,8 +318,10 @@
   ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
-   (let [transaction-context (make-transaction-context opts)
-         tx-result (it/transact* transaction-context txs)]
+   (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
+         transaction-context (make-transaction-context opts)
+         tx-result (do-strict-evaluation-context-scope-body
+                     (it/transact* transaction-context txs))]
      (commit-tx-result! tx-result opts)
      tx-result)))
 
@@ -996,13 +1056,6 @@
 ;; Values
 ;; ---------------------------------------------------------------------------
 
-(defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
-  "Returns a new evaluation-context from the current state of *the-system*. Will
-  assert if called inside an auto evaluation-context scope when strict
-  evaluation-context scope checks are enabled."
-  ([] (is/default-evaluation-context @*the-system*))
-  ([options] (is/custom-evaluation-context @*the-system* options)))
-
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
   Returns a new evaluation context with only the cache entries that passed the
@@ -1017,37 +1070,9 @@
   (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
   nil)
 
-(defmacro make-evaluation-context-scope-violation-exception [fn-sym]
-  `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
-
-(defn log-evaluation-context-scope-violation-exception! [exception]
-  (log/warn :message "evaluation-context scope violation" :exception exception))
-
-(defmacro strict-evaluation-context-scope-reporting-variant [fn-sym]
-  (let [rebound-fn-sym (symbol (str "rebound-" (name fn-sym)))]
-    (case strict-evaluation-context-scopes
-      :log
-      `(let [~'original-fn ~fn-sym]
-         (fn ~rebound-fn-sym [& ~'args]
-           (log-evaluation-context-scope-violation-exception!
-             (make-evaluation-context-scope-violation-exception ~fn-sym))
-           (apply ~'original-fn ~'args)))
-
-      :throw
-      `(fn ~rebound-fn-sym [& ~'_]
-         (throw
-           (make-evaluation-context-scope-violation-exception ~fn-sym))))))
-
-(defmacro do-evaluation-context-body [body-exprs]
-  (if strict-evaluation-context-scopes
-    `(binding [now (strict-evaluation-context-scope-reporting-variant now)
-               make-evaluation-context (strict-evaluation-context-scope-reporting-variant make-evaluation-context)]
-       ~@body-exprs)
-    `(do ~@body-exprs)))
-
 (defmacro with-auto-evaluation-context [ec & body]
   `(let [~ec (make-evaluation-context)
-         result# (do-evaluation-context-body ~body)]
+         result# (do-strict-evaluation-context-scope-body ~@body)]
      (update-cache-from-evaluation-context! ~ec)
      result#))
 
@@ -1078,7 +1103,7 @@
 (defmacro with-auto-or-fake-evaluation-context [ec & body]
   `(let [real-system# @*the-system*
          ~ec (is/default-evaluation-context (or real-system# fake-system))
-         result# (do-evaluation-context-body ~body)]
+         result# (do-strict-evaluation-context-scope-body ~@body)]
      (when (some? real-system#)
        (update-cache-from-evaluation-context! ~ec))
      result#))

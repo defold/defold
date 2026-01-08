@@ -1152,7 +1152,7 @@
                      (some #(core/scope-of-type basis % AtlasAnimation) selection)
                      root-id)
           image-resources (e/filter image/image-resource? resources)]
-      (flatten
+      (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
 (defn handle-input [self action selection-data]

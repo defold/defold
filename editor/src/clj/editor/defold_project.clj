@@ -1413,17 +1413,16 @@
                  dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))
                  old-all-selections (g/node-value project :all-selections evaluation-context)
                  old-all-sub-selections (g/node-value project :all-sub-selections evaluation-context)
-                 tx-data (vec
-                           (flatten
-                             (concat
-                               (let [all-selections (-> old-all-selections
-                                                        (dissoc-deleted)
-                                                        (remap-selection old->new (comp vector first)))]
-                                 (perform-selection basis project all-selections old-all-selections))
-                               (let [all-sub-selections (-> old-all-sub-selections
-                                                            (dissoc-deleted)
-                                                            (remap-selection old->new (constantly [])))]
-                                 (perform-sub-selection project all-sub-selections)))))]
+                 tx-data (g/eager-tx-data
+                           (concat
+                             (let [all-selections (-> old-all-selections
+                                                      (dissoc-deleted)
+                                                      (remap-selection old->new (comp vector first)))]
+                               (perform-selection basis project all-selections old-all-selections))
+                             (let [all-sub-selections (-> old-all-sub-selections
+                                                          (dissoc-deleted)
+                                                          (remap-selection old->new (constantly [])))]
+                               (perform-sub-selection project all-sub-selections))))]
         (g/transact transact-opts tx-data)))
 
     ;; Invalidating outputs is the only change that does not reset the undo
@@ -1763,12 +1762,11 @@
 
       {:node-id node-id
        :created-in-tx (nil? existing-resource-node-id)
-       :tx-data (vec
-                  (flatten
-                    (concat
-                      creation-tx-data
-                      load-tx-data
-                      (gu/connect-existing-outputs node-type node-id consumer-node connections))))})))
+       :tx-data (g/eager-tx-data
+                  (concat
+                    creation-tx-data
+                    load-tx-data
+                    (gu/connect-existing-outputs node-type node-id consumer-node connections)))})))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener

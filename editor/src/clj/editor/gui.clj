@@ -721,12 +721,12 @@
 
 (def base-display-order [:id :generated-id scene/SceneNode])
 
-(defn- validate-layer [emit-warnings? node-id layer-names layer]
+(defn- validate-layer [basis emit-warnings? node-id layer-names layer]
   (when-not (empty? layer)
     ;; Layers are not brought in from template sources. The brought in nodes act
     ;; as if they belong to no layer if the layer does not exist in the scene,
     ;; but a warning is emitted.
-    (if (g/property-value-origin? node-id :layer)
+    (if (g/property-value-origin? basis node-id :layer)
       (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-names layer)
       (when emit-warnings?
         (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
@@ -1116,9 +1116,10 @@
                                  (let [layer->index (:layer->index basic-gui-scene-info)
                                        layer-names (:layer-names basic-gui-scene-info)]
                                    (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))))
-            (dynamic error (g/fnk [_node-id layer basic-gui-scene-info]
-                             (let [layer-names (:layer-names basic-gui-scene-info)]
-                               (validate-layer true _node-id layer-names layer))))
+            (dynamic error (g/fnk [^:unsafe _evaluation-context _node-id layer basic-gui-scene-info]
+                             (let [basis (:basis _evaluation-context)
+                                   layer-names (:layer-names basic-gui-scene-info)]
+                               (validate-layer basis true _node-id layer-names layer))))
             (dynamic label (properties/label-dynamic :gui :layer))
             (dynamic tooltip (properties/tooltip-dynamic :gui :layer))
             (value (layout-property-getter layer))
@@ -1328,12 +1329,13 @@
                                   prop-kw->prop-info))))))))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any
-          (g/fnk [_node-id basic-gui-scene-info id id-counts layer]
-            (let [layer-names (:layer-names basic-gui-scene-info)]
+          (g/fnk [^:unsafe _evaluation-context _node-id basic-gui-scene-info id id-counts layer]
+            (let [basis (:basis _evaluation-context)
+                  layer-names (:layer-names basic-gui-scene-info)]
               (g/package-errors
                 _node-id
                 (prop-unique-id-error _node-id :id id id-counts "Id")
-                (validate-layer false _node-id layer-names layer)))))
+                (validate-layer basis false _node-id layer-names layer)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-gui-node))
   (output build-errors g/Any (g/fnk [_node-id own-build-errors child-build-errors]
                                (g/package-errors _node-id
