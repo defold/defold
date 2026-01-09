@@ -212,6 +212,7 @@ void* _glfwPlatformAcquireAuxContext()
     {
         _glfwPlatformAcquireAuxContextOpenGL();
     }
+    return 0;
 }
 
 void _glfwPlatformUnacquireAuxContext(void* context)

@@ -36,10 +36,10 @@ def build(bld):
                       ddf_ext.path.find_or_declare('plugin_pb2.py'))
 
     bld.add_group()
-  
+
     bld.stlib(features = 'cxx ddf',
         includes = '../.. ..',
-        source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
+        source = 'ddf_extensions.proto ddf_math.proto ddf_struct.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
         proto_gen_cc = True,
         proto_compile_cc = True,
         proto_gen_py = True,
@@ -50,7 +50,7 @@ def build(bld):
 
     bld.stlib(features = 'cxx ddf skip_asan',
         includes = '../.. ..',
-        source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
+        source = 'ddf_extensions.proto ddf_math.proto ddf_struct.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
         proto_compile_cc = True,
         protoc_includes = '..',
         target = 'ddf_noasan')
