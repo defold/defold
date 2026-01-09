@@ -293,6 +293,8 @@ ordinary paths."
                         string; default \"icons/32/Icons_29-AT-Unknown.png\"
     :icon-class         either :design, :script or :property, controls the
                         resource icon color in UI
+    :category           category to group like resources together for display,
+                        either a string or a MessagePattern instance
     :view-types         vector of alternative views that can be used for
                         resources of the resource type, e.g. :code, :scene,
                         :cljfx-form-view, :text, :html or :default.

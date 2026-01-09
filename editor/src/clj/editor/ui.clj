@@ -1487,13 +1487,15 @@
                     keys (strings) that should appear in that column, e.g.
                     [[\"resource.category.objects\" \"resource.category.scripts\"]
                      [\"resource.category.components\"]]
-    :children       collection of menu-item maps, should match `make-menu-item` shape
+    :children       collection of menu-item maps, should match `make-menu-item`
+                    shape, with a :category keyword containing the name of the
+                    group or a localization key
 
   Returns:
     A JavaFX custom menu item containing the grid layout"
   [^Scene scene localization grid-config command-contexts evaluation-context]
   (let [{:keys [columns children]} grid-config
-        items-by-category (-> (group-by #(or (:k (:category %))
+        items-by-category (-> (group-by #(or (:category %)
                                              "resource.category.other")
                                         children)
                               (update-vals #(localization/natural-sort-by-label localization %)))]
@@ -1522,7 +1524,7 @@
                              [{:fx/type fx.h-box/lifecycle
                                :alignment :center-left
                                :children [{:fx/type fx.label/lifecycle
-                                           :text (localization (localization/message category-key))
+                                           :text (localization (localization/message category-key {} category-key))
                                            :style-class ["grid-menu-group-label"]}
                                           {:fx/type fx.separator/lifecycle
                                            :h-box/hgrow :always

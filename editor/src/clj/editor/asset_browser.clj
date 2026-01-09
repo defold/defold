@@ -550,21 +550,32 @@
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data localization evaluation-context]
     (when (not user-data)
-      [{:layout :grid
-        :columns [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
-                  ["resource.category.components"]
-                  ["resource.category.resources"]
-                  ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]]
-        :children
-        (keep (fn [[_ext resource-type]]
-                (when (workspace/has-template? workspace resource-type evaluation-context)
-                  {:label (or (:label resource-type) (:ext resource-type))
-                   :icon (:icon resource-type)
-                   :category (:category resource-type)
-                   :style (resource/type-style-classes resource-type)
-                   :command :file.new
-                   :user-data {:resource-type resource-type}}))
-              (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))}])))
+      (let [base-columns [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
+                          ["resource.category.components"]
+                          ["resource.category.resources"]
+                          ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]]
+            predefined-categories (into #{} cat base-columns)
+            all-items (keep (fn [[_ext resource-type]]
+                              (when (workspace/has-template? workspace resource-type evaluation-context)
+                                (let [resource-type (if (= "resource.type.appmanifest" (:k (:label resource-type)))
+                                                      (assoc-in resource-type [:category] "Random")
+                                                      resource-type)]
+                                 {:label (or (:label resource-type) (:ext resource-type))
+                                  :icon (:icon resource-type)
+                                  :category (or (:k (:category resource-type))
+                                                (:category resource-type)
+                                                "resource.category.other")
+                                  :style (resource/type-style-classes resource-type)
+                                  :command :file.new
+                                  :user-data {:resource-type resource-type}})))
+                            (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))
+            unlisted-categories (vec (remove predefined-categories (into #{} (map :category all-items))))
+            columns (cond-> base-columns
+                      (seq unlisted-categories)
+                      (conj (vec (sort unlisted-categories))))]
+        [{:layout :grid
+          :columns columns
+          :children all-items}]))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))
