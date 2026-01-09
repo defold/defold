@@ -1478,7 +1478,7 @@
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
-(defn- make-grid-menu-item [^Scene scene localization children command-contexts evaluation-context]
+(defn- make-categorized-resources-menu [^Scene scene localization children command-contexts evaluation-context]
   (let [column-groups [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
                        ["resource.category.components"]
                        ["resource.category.resources"]
@@ -1548,7 +1548,7 @@
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
       (if (:grid-layout item)
-        (make-grid-menu-item scene localization children command-contexts evaluation-context)
+        (make-categorized-resources-menu scene localization children command-contexts evaluation-context)
         (make-submenu id
                       item-label
                       localization
@@ -2615,7 +2615,3 @@
       (.remove node-properties key)
       (.removeListener running-property on-running-changed)
       (timer-stop! timer))))
-
-(comment
-  (run-now (reload-root-styles!))
-  :-)
