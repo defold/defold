@@ -64,12 +64,12 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D Insets]
            [javafx.scene Cursor Group Node Parent Scene]
-           [javafx.scene.control PopupControl Skin Label Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control Label Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane HBox Pane Priority VBox]
+           [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
            [javafx.scene.shape SVGPath]
-           [javafx.stage Popup Modality PopupWindow Stage StageStyle Window]
+           [javafx.stage Modality PopupWindow Stage StageStyle Window]
            [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
@@ -1478,7 +1478,7 @@
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
-(defn- make-grid-menu-item [^Scene scene localization ^Collection style-classes children command-contexts evaluation-context]
+(defn- make-grid-menu-item [^Scene scene localization children command-contexts evaluation-context]
   (let [column-groups [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
                        ["resource.category.components"]
                        ["resource.category.resources"]
@@ -1548,7 +1548,7 @@
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
       (if (:grid-layout item)
-        (make-grid-menu-item scene localization style-classes children command-contexts evaluation-context)
+        (make-grid-menu-item scene localization children command-contexts evaluation-context)
         (make-submenu id
                       item-label
                       localization
