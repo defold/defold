@@ -552,9 +552,9 @@
            (.consume e)))
        :on-drag-entered
        (fn [^DragEvent e]
-         (if (single-drag-resource e ext-set workspace)
-           (ui/add-style! (.getTarget e) "resource-picker-drop-target")
-           (ui/add-style! (.getTarget e) "resource-picker-drop-target-invalid")))
+         (ui/add-style! (.getTarget e) (if (single-drag-resource e ext-set workspace)
+                                         "resource-picker-drop-target"
+                                         "resource-picker-drop-target-invalid")))
        :on-drag-exited
        (fn [^DragEvent e]
          (ui/remove-styles! (.getTarget e) ["resource-picker-drop-target" "resource-picker-drop-target-invalid"]))
