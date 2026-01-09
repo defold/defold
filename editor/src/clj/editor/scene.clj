@@ -770,7 +770,7 @@
   (localization-state
     (localization/message
       "command.tooltip"
-      {"command" (localization/message "command.scene.close-animation-preview")
+      {"command" (localization/message "command.scene.stop")
        "shortcut" (keymap/display-text keymap :scene.stop "none")})))
 
 (fxui/defc close-preview-button
@@ -846,7 +846,7 @@
                 (when (and (string? scene-info-text)
                            (pos? (count scene-info-text)))
                   scene-info-text)))
-            close-button (when-let [anim-data (and (seq active-updatable-ids)
+            close-button (when-let [anim-data (and (not (coll/empty? active-updatable-ids))
                                                    (active-animation-anim-data updatables active-updatable-ids))]
                            (merge (animation-preview-anchor-props camera viewport anim-data)
                                   {:fx/type close-preview-button

@@ -908,7 +908,6 @@ command.debugger.detach = Отсоединить отладчик
 command.debugger.stop = Остановить отладчик
 command.debugger.toggle-breakpoint = Переключить точку останова
 command.debugger.edit-breakpoint = Изменить точку останова
-command.scene.close-animation-preview = Закрыть просмотр
 command.scene.set-manipulator-space = Задать пространство манипулятора
 command.scene.set-manipulator-space.option.world = Глобальное пространство
 command.scene.set-manipulator-space.option.local = Локальное пространство
