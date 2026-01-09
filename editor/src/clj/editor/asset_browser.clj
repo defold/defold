@@ -556,6 +556,7 @@
                 (when (workspace/has-template? workspace resource-type evaluation-context)
                   {:label (or (:label resource-type) (:ext resource-type))
                    :icon (:icon resource-type)
+                   :category (:category resource-type)
                    :style (resource/type-style-classes resource-type)
                    :command :file.new
                    :user-data {:resource-type resource-type}}))

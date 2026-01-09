@@ -1479,15 +1479,13 @@
     menu-item))
 
 (defn- make-grid-menu-item [^Scene scene localization ^Collection style-classes children command-contexts evaluation-context]
-  (let [column-groups
-        [[["resource.group.objects" ["resource.type.go" "resource.type.collection"]]
-          ["resource.group.scripts" ["resource.type.lua" "resource.type.script" "resource.type.gui-script" "resource.type.render-script"]]
-          ["resource.group.shaders" ["resource.type.material" "resource.type.vp" "resource.type.fp" "resource.type.glsl" "resource.type.compute" "resource.type.cp"]]]
-         [["resource.group.components" ["resource.type.camera" "resource.type.collectionfactory" "resource.type.collectionproxy" "resource.type.collisionobject" "resource.type.factory" "resource.type.gui" "resource.type.label" "resource.type.model" "resource.type.mesh" "resource.type.particlefx" "resource.type.sound" "resource.type.sprite" "resource.type.tilemap"]]]
-         [["resource.group.resources" ["resource.type.animationset" "resource.type.atlas" "resource.type.buffer" "resource.type.cubemap" "resource.type.font" "resource.type.render-target" "resource.type.tilesource"]]]
-         [["resource.group.editor" ["resource.type.editor-script" "resource.type.editor-localization"]]
-          ["resource.group.project_settings" ["resource.type.appmanifest" "resource.type.display-profiles" "resource.type.gamepads" "resource.type.input-binding" "resource.type.texture-profiles" "resource.type.render"]]]]
-        children-by-label (group-by #(:k (:label %)) children)]
+  (let [column-groups [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
+                       ["resource.category.components"]
+                       ["resource.category.resources"]
+                       ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]]
+        children-by-category (group-by #(or (:k (:category %))
+                                            "resource.category.other")
+                                       children)]
     (fx/instance
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
@@ -1507,35 +1505,36 @@
               {:fx/type fx.v-box/lifecycle
                :spacing 2.0
                :children
-               (mapcat (fn [[group-name group-set]]
-                         (concat
-                           [{:fx/type fx.h-box/lifecycle
-                             :alignment :center-left
-                             :children [{:fx/type fx.label/lifecycle
-                                         :text (localization (localization/message group-name))
-                                         :style-class ["grid-menu-group-label"]}
-                                        {:fx/type fx.separator/lifecycle
-                                         :h-box/hgrow :always
-                                         :style-class ["custom-separator"]
-                                         :orientation :horizontal}]}]
-                           (keep (fn [child]
-                                   (let [command (:command child)
-                                         user-data (:user-data child)
-                                         child-label (:label child)
-                                         child-icon (:icon child)
-                                         child-style (:style child)]
-                                     (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                       (let [enabled? (handler/enabled? handler-ctx evaluation-context)]
-                                         {:fx/type fx.button/lifecycle
-                                          :text (localization child-label)
-                                          :disable (not enabled?)
-                                          :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
-                                          :style-class (into ["grid-menu-button"] child-style)
-                                          :graphic {:fx/type fx.image-view/lifecycle
-                                                    :image (icons/get-image child-icon 18)}}))))
-                                 (mapcat children-by-label group-set))
-                           [{:fx/type fx.region/lifecycle
-                             :pref-height 20}]))
+               (mapcat (fn [category-key]
+                         (when-let [category-children (seq (get children-by-category category-key))]
+                           (concat
+                             [{:fx/type fx.h-box/lifecycle
+                               :alignment :center-left
+                               :children [{:fx/type fx.label/lifecycle
+                                           :text (localization (localization/message category-key))
+                                           :style-class ["grid-menu-group-label"]}
+                                          {:fx/type fx.separator/lifecycle
+                                           :h-box/hgrow :always
+                                           :style-class ["custom-separator"]
+                                           :orientation :horizontal}]}]
+                             (keep (fn [child]
+                                     (let [command (:command child)
+                                           user-data (:user-data child)
+                                           child-label (:label child)
+                                           child-icon (:icon child)
+                                           child-style (:style child)]
+                                       (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                                         (let [enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                           {:fx/type fx.button/lifecycle
+                                            :text (localization child-label)
+                                            :disable (not enabled?)
+                                            :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                            :style-class (into ["grid-menu-button"] child-style)
+                                            :graphic {:fx/type fx.image-view/lifecycle
+                                                      :image (icons/get-image child-icon 18)}}))))
+                                   category-children)
+                             [{:fx/type fx.region/lifecycle
+                               :pref-height 20}])))
                        column)}))}}))))
 
 (declare make-menu-items)
