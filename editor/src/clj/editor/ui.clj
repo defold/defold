@@ -1483,9 +1483,10 @@
                        ["resource.category.components"]
                        ["resource.category.resources"]
                        ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]]
-        children-by-category (group-by #(or (:k (:category %))
-                                            "resource.category.other")
-                                       children)]
+        children-by-category (-> (group-by #(or (:k (:category %))
+                                                "resource.category.other")
+                                           children)
+                                 (update-vals #(localization/natural-sort-by-label localization %)))]
     (fx/instance
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
