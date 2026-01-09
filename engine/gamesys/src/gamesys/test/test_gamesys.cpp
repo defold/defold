@@ -1786,6 +1786,86 @@ TEST_F(FontTest, DynamicGlyph)
     dmResource::Release(m_Factory, font);
 }
 
+// Verifies the Lua API for dynamic font collections updates resource refs and collection membership.
+TEST_F(FontTest, ScriptAddRemoveFont)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobThread       = m_JobThread;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Create a temporary .ttf resource by copying an existing test font into the custom file mount.
+    // We avoid the default font path used by the dynamic font to exercise add/remove behavior.
+    const char* ttf_source_path = "/font/valid.ttf";
+    const char* ttf_test_path = "/font/valid_copy.ttf";
+    void* ttf_data = 0;
+    uint32_t ttf_size = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, ttf_source_path, &ttf_data, &ttf_size));
+    ASSERT_NE((void*)0, ttf_data);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, ttf_test_path, ttf_size, ttf_data));
+
+    dmhash_t ttf_hash = dmHashString64(ttf_test_path);
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, ttf_hash));
+
+    // Load the temp font so the hash-based Lua API can find it via the resource system.
+    dmGameSystem::TTFResource* ttf_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetWithExt(m_Factory, ttf_test_path, "ttf", (void**) &ttf_resource));
+    ASSERT_NE((void*)0, ttf_resource);
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, ttf_hash));
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    uint32_t font_count_before = FontCollectionGetFontCount(font_collection);
+
+    // Add the font via Lua and verify refcount + collection size.
+    lua_State* L = scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
+
+    dmLogInfo("Expected errors ->");
+    // Adding the same font twice should fail and keep counts intact.
+    ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
+
+    // Remove the font via Lua and verify refcount + collection size restored.
+    ASSERT_TRUE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    // The default font referenced by the .fontc should not be re-added (string path).
+    ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), \"/font/valid.ttf\")"));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    // The default font referenced by the .fontc should not be re-added (hashed path).
+    ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid.ttf\"))"));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    // The default font referenced by the .fontc should not be removable.
+    ASSERT_FALSE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid.ttf\"))"));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    dmLogInfo("<- End of expected errors.");
+
+    dmResource::Release(m_Factory, font);
+    dmResource::Release(m_Factory, ttf_resource);
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, ttf_test_path));
+    free(ttf_data);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(WindowTest, MouseLock)
 {
     dmPlatform::WindowParams window_params = {};
