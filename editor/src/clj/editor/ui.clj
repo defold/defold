@@ -1564,7 +1564,7 @@
         item-label (:label item)
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
-      (if (:layout item)
+      (if (= (:layout item) :grid)
         (make-grid-menu scene localization item command-contexts evaluation-context)
         (make-submenu id
                       item-label
