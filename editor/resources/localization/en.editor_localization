@@ -763,6 +763,8 @@ menu.help = Help
 
 # Commands
 
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
+
 command.file.new = New…
 command.file.new.option.any-file = File
 command.file.new.any-file = New File
@@ -922,6 +924,7 @@ command.debugger.stop = Stop Debugger
 command.debugger.toggle-breakpoint = Toggle Breakpoint
 command.debugger.toggle-breakpoint-enabled = Toggle Breakpoint Enabled
 command.debugger.edit-breakpoint = Edit Breakpoint
+command.scene.close-animation-preview = Close preview
 command.scene.set-manipulator-space = Set Manipulator Space
 command.scene.set-manipulator-space.option.world = World Space
 command.scene.set-manipulator-space.option.local = Local Space
@@ -967,11 +970,6 @@ command.help.open-donations = Development Fund
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
-
-# Scene
-
-scene.preview.close = Close preview
-scene.preview.close.tooltip = Close preview ({shortcut})
 
 # Code editor – find bar
 

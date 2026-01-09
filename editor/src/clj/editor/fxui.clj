@@ -601,7 +601,7 @@
     :else
     (throw (ex-info (str "Unexpected tooltip value: " v) {:tooltip v}))))
 
-(defn resolve-tooltip
+(defn- resolve-tooltip
   "Replace :tooltip prop with prop-delayed-tooltip or prop-immediate-tooltip
 
   Works on any Node, not just Controls
@@ -1247,7 +1247,8 @@
                 (util/provide-defaults
                   :alignment :center
                   :focus-traversable false)
-                resolve-alignment)}))
+                resolve-alignment
+                resolve-tooltip)}))
 
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]

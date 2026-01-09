@@ -766,32 +766,34 @@
 
 (def ^:private preview-close-button-size 18.0)
 
-(defn- stop-preview-tooltip [localization keymap]
-  (let [shortcut (when keymap
-                   (keymap/display-text keymap :scene.stop nil))]
-    (if (and shortcut (not (string/blank? shortcut)))
-      (localization (localization/message "scene.preview.close.tooltip" {"shortcut" shortcut}))
-      (localization (localization/message "scene.preview.close")))))
+(defn- close-preview-tooltip [localization-state keymap]
+  (localization-state
+    (localization/message
+      "command.tooltip"
+      {"command" (localization/message "command.scene.close-animation-preview")
+       "shortcut" (keymap/display-text keymap :scene.stop "none")})))
 
-(defn- stop-preview-button [anchor-props localization keymap]
-  (-> (fxui/button
-        (fxui/resolve-tooltip
-          {:focus-traversable false
-           :style-class "scene-preview-close-button"
-           :min-width preview-close-button-size
-           :min-height preview-close-button-size
-           :pref-width preview-close-button-size
-           :pref-height preview-close-button-size
-           :max-width preview-close-button-size
-           :max-height preview-close-button-size
-           :graphic {:fx/type fxui/icon-graphic
-                     :type :icon/cross-thick
-                     :size 8.0
-                     :style-class "scene-preview-close-icon"}
-           :tooltip (stop-preview-tooltip localization keymap)
-           :on-action (fn [^ActionEvent event]
-                        (ui/run-command (.getSource event) :scene.stop))}))
-      (merge anchor-props)))
+(fxui/defc close-preview-button
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [localization-state keymap]}]
+  {:fx/type fxui/button
+   :focus-traversable false
+   :style-class "scene-preview-close-button"
+   :min-width preview-close-button-size
+   :min-height preview-close-button-size
+   :pref-width preview-close-button-size
+   :pref-height preview-close-button-size
+   :max-width preview-close-button-size
+   :max-height preview-close-button-size
+   :graphic {:fx/type fxui/icon-graphic
+             :type :icon/cross-thick
+             :size 8.0
+             :style-class "scene-preview-close-icon"}
+   :tooltip (close-preview-tooltip localization-state keymap)
+   :on-action (fn [^ActionEvent event]
+                (ui/run-command (.getSource event) :scene.stop))})
 
 (defn- info-label [info-text]
   {:fx/type fx.label/lifecycle
@@ -846,18 +848,17 @@
                   scene-info-text)))
             close-button (when-let [anim-data (and (seq active-updatable-ids)
                                                    (active-animation-anim-data updatables active-updatable-ids))]
-                           (stop-preview-button
-                             (animation-preview-anchor-props camera viewport anim-data)
-                             localization
-                             keymap))
+                           (merge (animation-preview-anchor-props camera viewport anim-data)
+                                  {:fx/type close-preview-button
+                                   :localization localization
+                                   :keymap keymap}))
             children (cond-> []
                              info-text (conj (info-label info-text))
                              close-button (conj close-button))]
-        (if (seq children)
-          (cond-> {:pick-on-bounds false
-                   :children children}
-                  (nil? close-button) (assoc :mouse-transparent true)
-                  close-button (assoc :mouse-transparent false))
+        (if (not (coll/empty? children))
+          {:pick-on-bounds false
+           :children children
+           :mouse-transparent (nil? close-button)}
           {:visible false})))))
 
 (g/defnk produce-selection [scene-render-data renderables-aabb+picking-node-id ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args ^Rect picking-rect]

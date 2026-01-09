@@ -748,6 +748,8 @@ menu.help = Справка
 
 # Commands
 
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
+
 command.file.new = Создать…
 command.file.new.option.any-file = Файл
 command.file.new.any-file = Новый файл
@@ -906,6 +908,7 @@ command.debugger.detach = Отсоединить отладчик
 command.debugger.stop = Остановить отладчик
 command.debugger.toggle-breakpoint = Переключить точку останова
 command.debugger.edit-breakpoint = Изменить точку останова
+command.scene.close-animation-preview = Закрыть просмотр
 command.scene.set-manipulator-space = Задать пространство манипулятора
 command.scene.set-manipulator-space.option.world = Глобальное пространство
 command.scene.set-manipulator-space.option.local = Локальное пространство
@@ -951,11 +954,6 @@ command.help.open-donations = Фонд разработки
 command.app.about = О программе
 command.vcs.diff = Сравнить
 command.vcs.revert = Откатить
-
-# Scene
-
-scene.preview.close = Закрыть предпросмотр
-scene.preview.close.tooltip = Закрыть предпросмотр ({shortcut})
 
 # Code editor – find bar
 
