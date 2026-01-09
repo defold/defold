@@ -217,6 +217,7 @@
       :load-fn load-sound
       :icon sound-icon
       :icon-class :property
+      :category (localization/message "resource.category.components")
       :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}

@@ -204,22 +204,26 @@
                    :label (localization/message "resource.type.script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label (localization/message "resource.type.render-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :tags #{:debuggable}}
                   {:ext "gui_script"
                    :label (localization/message "resource.type.gui-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :tags #{:debuggable}}
                   {:ext "lua"
                    :label (localization/message "resource.type.lua")
                    :icon "icons/32/Icons_11-Script-general.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :annotations true
                    :tags #{:debuggable}}])
 

@@ -45,6 +45,7 @@
     :node-type EditorLocalizationNode
     :label (localization/message "resource.type.editor-localization")
     :icon "icons/32/Icons_05-Project-info.png"
+    :category (localization/message "resource.category.editor")
     :language "properties"
     :additional-load-fn additional-load-fn
     :view-types [:code :default]

@@ -310,4 +310,5 @@
     :load-fn load-cubemap
     :icon cubemap-icon
     :icon-class :design
+    :category (localization/message "resource.category.resources")
     :view-types [:scene :text]))

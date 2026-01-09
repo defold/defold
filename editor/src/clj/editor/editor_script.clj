@@ -43,6 +43,7 @@
                                  :language "lua"
                                  :label (localization/message "resource.type.editor-script")
                                  :icon "icons/32/Icons_29-AT-Unknown.png"
+                                 :category (localization/message "resource.category.editor")
                                  :view-types [:code :default]
                                  :view-opts script/lua-code-opts
                                  :node-type EditorScript

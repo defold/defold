@@ -1113,5 +1113,6 @@
       :load-fn load-tile-source
       :icon tile-source-icon
       :icon-class :design
+      :category (localization/message "resource.category.resources")
       :view-types [:scene :text]
       :view-opts {:scene {:tool-controller ToolController}})))

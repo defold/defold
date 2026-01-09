@@ -446,6 +446,7 @@
     :sanitize-fn sanitize-label
     :icon label-icon
     :icon-class :design
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}

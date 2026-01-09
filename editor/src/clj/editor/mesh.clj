@@ -527,6 +527,7 @@
     :ddf-type MeshProto$MeshDesc
     :load-fn load-mesh
     :icon mesh-icon
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))

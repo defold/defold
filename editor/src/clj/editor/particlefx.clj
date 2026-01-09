@@ -1399,6 +1399,7 @@
       :sanitize-fn sanitize-particle-fx
       :icon particle-fx-icon
       :icon-class :design
+      :category (localization/message "resource.category.components")
       :tags #{:component :non-embeddable}
       :tag-opts {:component {:transform-properties #{:position :rotation}}}
       :view-types [:scene :text]

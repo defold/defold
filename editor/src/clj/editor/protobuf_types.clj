@@ -92,6 +92,7 @@
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
                :icon-class :property
+               :category (localization/message "resource.category.project_settings")
                :pb-class Input$InputBinding
                :label (localization/message "resource.type.input-binding")
                :view-types [:cljfx-form-view :text]}
@@ -105,6 +106,7 @@
                :label (localization/message "resource.type.gamepads")
                :icon "icons/32/Icons_34-Gamepad.png"
                :icon-class :property
+               :category (localization/message "resource.category.project_settings")
                :pb-class Input$GamepadMaps
                :view-types [:cljfx-form-view :text]}
               {:ext "convexshape"
@@ -117,6 +119,7 @@
                :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
                :icon-class :property
+               :category (localization/message "resource.category.project_settings")
                :pb-class Graphics$TextureProfiles
                :pb-errors-fn texture-profiles-errors-fn
                :sanitize-fn sanitize-texture-profiles}])
@@ -174,6 +177,7 @@
         :load-fn (partial load-pb def)
         :icon (:icon def)
         :icon-class (:icon-class def)
+        :category (:category def)
         :view-types (:view-types def)
         :view-opts (:view-opts def)
         :sanitize-fn (:sanitize-fn def)
