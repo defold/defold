@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -595,9 +595,8 @@
 
 (defn- cancel-rename!
   [^TreeView tree-view]
-  (when-let [future (ui/user-data tree-view ::future-rename)]
-    (ui/cancel future)
-    (ui/user-data! tree-view ::future-rename nil)))
+  (when (ui/user-data tree-view ::editing-id)
+    (set-editing-id! tree-view nil)))
 
 (defn- click-handler!
   [^TreeView tree-view ^Label text-label ^MouseEvent event]
@@ -614,14 +613,6 @@
         (do
           (cancel-rename! tree-view)
           (ui/run-command (.getSource event) :file.open-selected {} false (fn [] (.consume event))))
-
-        (= (get-selected-node-id tree-view)
-           (ui/user-data text-label ::node-id))
-        (let [future-rename (ui/->future (/ db-click-threshold 1000)
-                                         (fn []
-                                           (ui/user-data! tree-view ::future-rename nil)
-                                           (ui/run-command (.getSource event) :edit.rename)))]
-          (ui/user-data! tree-view ::future-rename future-rename))
 
         :else nil))))
 

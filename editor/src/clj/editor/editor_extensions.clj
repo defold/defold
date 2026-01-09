@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,7 @@
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
+            [editor.editor-extensions.zlib :as zlib]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.future :as future]
@@ -969,7 +970,8 @@
                            "tmpname" nil}
                      "pprint" ext-pprint
                      "tilemap" tile-map/env
-                     "zip" (zip/env project-path reload-resources!)})
+                     "zip" (zip/env project-path reload-resources!)
+                     "zlib" zlib/env})
           _ (rt/invoke-immediate rt (rt/bind rt @prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts

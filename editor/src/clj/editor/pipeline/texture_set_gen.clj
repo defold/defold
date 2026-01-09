@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -153,7 +153,10 @@
 
 (defn atlas->texture-set-data
   [animations images margin inner-padding extrude-borders max-page-size]
-  (let [sprite-geometries (mapv make-image-sprite-geometry images)]
+  ;; NOTE: Images order matters when generating the layouts, especially if they are of the same size.
+  ;; Since the SHA1 for the packed-page-images-generator is insensitive to order, things could get out of sync
+  (let [images (sort-by #(-> % :path resource/proj-path) images)
+        sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
       (let [img-to-index (into {}
                                (map-indexed #(pair %2 (Integer/valueOf ^int %1)))

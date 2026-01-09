@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,6 +38,7 @@
 #include <dlib/sslsocket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
+#include <platform/platform_window.h>
 #include <dlib/time.h>
 #include <graphics/graphics.h>
 #include <extension/extension.hpp>
@@ -200,6 +201,24 @@ namespace dmEngine
     };
 
 
+    static void UpdateGuiSafeAreaAdjust(Engine* engine, uint32_t window_width, uint32_t window_height)
+    {
+        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
+        dmPlatform::SafeArea safe_area;
+        if (!dmPlatform::GetSafeArea(window, &safe_area))
+        {
+            safe_area.m_InsetLeft = 0;
+            safe_area.m_InsetTop = 0;
+            safe_area.m_InsetRight = 0;
+            safe_area.m_InsetBottom = 0;
+        }
+
+        dmGui::UpdateSafeAreaAdjust(engine->m_GuiContext, (dmGui::SafeAreaMode)engine->m_GuiSafeAreaMode,
+                                    window_width, window_height,
+                                    safe_area.m_InsetLeft, safe_area.m_InsetTop,
+                                    safe_area.m_InsetRight, safe_area.m_InsetBottom);
+    }
+
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
@@ -234,6 +253,8 @@ namespace dmEngine
         {
             dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
+
+        UpdateGuiSafeAreaAdjust(engine, width, height);
 
         dmGameSystem::OnWindowResized(width, height);
     }
@@ -1308,6 +1329,9 @@ namespace dmEngine
             dmLogWarning("`rig.max_instance_count` deprecated. Use component specific counters.");
         }
 
+        const char* safe_area_mode = dmConfigFile::GetString(engine->m_Config, "gui.safe_area_mode", "none");
+        engine->m_GuiSafeAreaMode = (uint8_t)dmGui::ParseSafeAreaMode(safe_area_mode);
+
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_HidContext = engine->m_HidContext;
@@ -1327,6 +1351,8 @@ namespace dmEngine
         gui_params.m_Dpi = physical_dpi;
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
+
+        UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -1487,7 +1513,7 @@ namespace dmEngine
                     if (!filename || strlen(filename) == 0) {
                         continue;
                     }
-                    
+
                     // We need the size, in order to send it as a proper LuaModule message
                     void* data;
                     uint32_t datasize;
@@ -1665,8 +1691,8 @@ namespace dmEngine
         if (engine->m_EngineService)
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
-            
-            dmEngineService::EngineState state;  
+
+            dmEngineService::EngineState state;
             state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
             dmEngineService::InitState(engine->m_EngineService, &state);
         }
