@@ -772,8 +772,7 @@ public class BundlerTest {
     @Test
     public void testBundleWithDynamicLibraries()
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        if (platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
-                platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+        if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             return;
         }
 
@@ -823,6 +822,10 @@ public class BundlerTest {
             return "Contents/MacOS/" + libName;
         } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             return "Payload/unnamed.app/" + libName;
+        } else if (platform == Platform.Armv7Android) {
+            return "lib/armeabi-v7a/" + libName;
+        } else if (platform == Platform.Arm64Android) {
+            return "lib/arm64-v8a/" + libName;
         }
         return null;
     }

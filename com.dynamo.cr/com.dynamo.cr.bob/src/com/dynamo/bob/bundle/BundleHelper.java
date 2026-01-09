@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1018,12 +1019,19 @@ public class BundleHelper {
     }
 
     public static void copySharedLibraries(Platform platform, File buildDir, File targetDir) throws IOException {
-        collectSharedLibraries(platform, buildDir).forEach(path -> {
-            try {
-                FileUtils.copyFileToDirectory(path.toFile(), targetDir);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        BundleHelper.copySharedLibraries(platform, buildDir, targetDir, path -> true);
+    }
+
+    public static void copySharedLibraries(Platform platform, File buildDir, File targetDir, Predicate<Path> filter)
+            throws IOException {
+        collectSharedLibraries(platform, buildDir)
+                .filter(filter)
+                .forEach(path -> {
+                    try {
+                        FileUtils.copyFileToDirectory(path.toFile(), targetDir);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 }
