@@ -1717,6 +1717,8 @@
   (input input-handlers Runnable :array)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
+  (input localization g/Any)
+  (input keymap g/Any)
 
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
