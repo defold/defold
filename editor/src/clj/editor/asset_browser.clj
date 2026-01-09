@@ -786,18 +786,17 @@
             tree-view (.getTreeView target)
             resource (-> target (.getTreeItem) (.getValue))
             ^Path tgt-dir-path (.toPath (fs/to-folder (File. (resource/abs-path resource))))
+            workspace (resource/workspace resource)
             move? (and (= (.getGestureSource e) tree-view)
                        (every? (fn [^File f]
-                                 (let [workspace (resource/workspace resource)
-                                       res (workspace/file-resource workspace f)]
+                                 (let [res (workspace/file-resource workspace f)]
                                    (and (resource/editable? res)
                                         (not (resource/read-only? res)))))
                                (.getFiles db)))
             pairs (->> (.getFiles db)
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
                        (resolve-any-conflicts localization)
-                       (vec))
-            workspace (resource/workspace resource)]
+                       (vec))]
         (when (seq pairs)
           (let [moved (drop-files! workspace pairs move?)]
             (select-files! workspace tree-view (mapv second pairs))
