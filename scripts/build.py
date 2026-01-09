@@ -783,7 +783,7 @@ class Configuration(object):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
         print("Installing waf")
-        waf_package = "waf-2.0.3"
+        waf_package = "waf-2.1.9"
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 

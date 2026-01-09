@@ -94,7 +94,7 @@ public class BobProjectPropertiesTest {
     public void testExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
 
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.loadProjectFile(true);
@@ -107,7 +107,7 @@ public class BobProjectPropertiesTest {
     public void testOverrideExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 0");
 
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
