@@ -1481,13 +1481,6 @@
 (defn- make-grid-menu
   "Create a grid-based menu component with categorized items arranged in columns
 
-  Args:
-    scene                 the JavaFX Scene
-    localization          localization function for translating labels
-    grid-config           configuration map for the grid layout
-    command-contexts      command contexts for handler resolution
-    evaluation-context    evaluation context for command availability
-
   grid-config structure:
     :layout         for now, just use :grid
     :columns        vector of vectors, where each inner vector contains category
