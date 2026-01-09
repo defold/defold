@@ -1478,15 +1478,32 @@
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
-(defn- make-categorized-resources-menu [^Scene scene localization children command-contexts evaluation-context]
-  (let [column-groups [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
-                       ["resource.category.components"]
-                       ["resource.category.resources"]
-                       ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]]
-        children-by-category (-> (group-by #(or (:k (:category %))
-                                                "resource.category.other")
-                                           children)
-                                 (update-vals #(localization/natural-sort-by-label localization %)))]
+(defn- make-grid-menu
+  "Create a grid-based menu component with categorized items arranged in columns
+
+  Args:
+    scene                 the JavaFX Scene
+    localization          localization function for translating labels
+    grid-config           configuration map for the grid layout
+    command-contexts      command contexts for handler resolution
+    evaluation-context    evaluation context for command availability
+
+  grid-config structure:
+    :layout         for now, just use :grid
+    :columns        vector of vectors, where each inner vector contains category
+                    keys (strings) that should appear in that column, e.g.
+                    [[\"resource.category.objects\" \"resource.category.scripts\"]
+                     [\"resource.category.components\"]]
+    :children       collection of menu-item maps, should match `make-menu-item` shape
+
+  Returns:
+    A JavaFX custom menu item containing the grid layout"
+  [^Scene scene localization grid-config command-contexts evaluation-context]
+  (let [{:keys [columns children]} grid-config
+        items-by-category (-> (group-by #(or (:k (:category %))
+                                             "resource.category.other")
+                                        children)
+                              (update-vals #(localization/natural-sort-by-label localization %)))]
     (fx/instance
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
@@ -1502,12 +1519,12 @@
              :min-width 1.0
              :max-width 1.0
              :style-class ["grid-menu-column-separator"]}
-            (for [column column-groups]
+            (for [column columns]
               {:fx/type fx.v-box/lifecycle
                :spacing 2.0
                :children
                (mapcat (fn [category-key]
-                         (when-let [category-children (seq (get children-by-category category-key))]
+                         (when-let [category-items (seq (get items-by-category category-key))]
                            (concat
                              [{:fx/type fx.h-box/lifecycle
                                :alignment :center-left
@@ -1533,7 +1550,7 @@
                                             :style-class (into ["grid-menu-button"] child-style)
                                             :graphic {:fx/type fx.image-view/lifecycle
                                                       :image (icons/get-image child-icon 18)}}))))
-                                   category-children)
+                                   category-items)
                              [{:fx/type fx.region/lifecycle
                                :pref-height 20}])))
                        column)}))}}))))
@@ -1547,8 +1564,8 @@
         item-label (:label item)
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
-      (if (:grid-layout item)
-        (make-categorized-resources-menu scene localization children command-contexts evaluation-context)
+      (if (:layout item)
+        (make-grid-menu scene localization item command-contexts evaluation-context)
         (make-submenu id
                       item-label
                       localization

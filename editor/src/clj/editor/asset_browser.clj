@@ -550,7 +550,11 @@
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data localization evaluation-context]
     (when (not user-data)
-      [{:grid-layout true
+      [{:layout :grid
+        :columns [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
+                  ["resource.category.components"]
+                  ["resource.category.resources"]
+                  ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]]
         :children
         (keep (fn [[_ext resource-type]]
                 (when (workspace/has-template? workspace resource-type evaluation-context)
