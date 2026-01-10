@@ -704,7 +704,7 @@
         paths (->> resources
                    (mapv resource/proj-path)
                    (string/join "\n"))
-        db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
+        db (.startDragAndDrop ^Node (.getSource e) TransferMode/COPY_OR_MOVE)
         content (ClipboardContent.)]
     (when (= 1 (count resources))
       (.setDragView db (icons/get-image (workspace/resource-icon (first resources)) 16)
@@ -788,11 +788,11 @@
             ^Path tgt-dir-path (.toPath (fs/to-folder (File. (resource/abs-path resource))))
             workspace (resource/workspace resource)
             move? (and (= (.getGestureSource e) tree-view)
-                       (every? (fn [^File f]
-                                 (let [res (workspace/file-resource workspace f)]
-                                   (and (resource/editable? res)
-                                        (not (resource/read-only? res)))))
-                               (.getFiles db)))
+                       (coll/every? (fn [^File f]
+                                      (let [res (workspace/file-resource workspace f)]
+                                        (and (resource/editable? res)
+                                             (not (resource/read-only? res)))))
+                                    (.getFiles db)))
             pairs (->> (.getFiles db)
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
                        (resolve-any-conflicts localization)

@@ -519,7 +519,8 @@
     (when (= 1 (count files))
       (let [resource (workspace/resolve-workspace-resource workspace (.getString db))
             resource-ext (resource/type-ext resource)]
-        (when (contains? valid-extensions resource-ext)
+        (when (and (resource/exists? resource)
+                   (contains? valid-extensions resource-ext))
           resource)))))
 
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
@@ -542,7 +543,7 @@
        :on-drag-over
        (fn [^DragEvent e]
          (when (single-drag-resource e ext-set workspace)
-           (.acceptTransferModes e (into-array TransferMode TransferMode/COPY_OR_MOVE))
+           (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
            (.consume e)))
        :on-drag-dropped
        (fn [^DragEvent e]
