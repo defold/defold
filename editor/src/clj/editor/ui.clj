@@ -1489,7 +1489,7 @@
                      [\"resource.category.components\"]]
     :children       collection of menu-item maps, should match `make-menu-item`
                     shape, with a :category keyword containing the name of the
-                    group as a string or MessagePattern instance
+                    group or a localization key as a string
 
   Returns:
     A JavaFX custom menu item containing the grid layout"

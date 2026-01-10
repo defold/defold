@@ -557,17 +557,14 @@
             predefined-categories (into #{} cat base-columns)
             all-items (keep (fn [[_ext resource-type]]
                               (when (workspace/has-template? workspace resource-type evaluation-context)
-                                (let [resource-type (if (= "resource.type.appmanifest" (:k (:label resource-type)))
-                                                      (assoc-in resource-type [:category] "Random")
-                                                      resource-type)]
-                                  {:label (or (:label resource-type) (:ext resource-type))
-                                   :icon (:icon resource-type)
-                                   :category (or (some-> resource-type :category :k)
-                                                 (:category resource-type)
-                                                 "resource.category.other")
-                                   :style (resource/type-style-classes resource-type)
-                                   :command :file.new
-                                   :user-data {:resource-type resource-type}})))
+                                {:label (or (:label resource-type) (:ext resource-type))
+                                 :icon (:icon resource-type)
+                                 :category (or (some-> resource-type :category :k)
+                                               (:category resource-type)
+                                               "resource.category.other")
+                                 :style (resource/type-style-classes resource-type)
+                                 :command :file.new
+                                 :user-data {:resource-type resource-type}}))
                             (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))
             unlisted-categories (vec (remove predefined-categories (into #{} (map :category all-items))))
             columns (cond-> base-columns
