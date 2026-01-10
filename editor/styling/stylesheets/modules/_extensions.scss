@@ -390,18 +390,18 @@ $ext-line-height: 26px;
                 }
             }
         }
-        &.resource-picker-drop-target {
+        &:drag-over {
             & > .ext-resource-picker-field,
             & > .ext-resource-picker-open-button,
             & > .ext-resource-picker-browse-button {
-                -fx-border-color: -df-defold-green !important;
+                -fx-border-color: -df-defold-green;
             }
         }
-        &.resource-picker-drop-target-invalid {
+        &:drag-over:drag-invalid {
             & > .ext-resource-picker-field,
             & > .ext-resource-picker-open-button,
             & > .ext-resource-picker-browse-button {
-                -fx-border-color: -df-defold-red !important;
+                -fx-border-color: -df-defold-red;
             }
         }
     }

@@ -41,6 +41,7 @@
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
            [javafx.beans.value ChangeListener]
+           [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node Parent]
            [javafx.scene.control Slider]
@@ -553,12 +554,13 @@
            (.consume e)))
        :on-drag-entered
        (fn [^DragEvent e]
-         (ui/add-style! (.getTarget e) (if (single-drag-resource e ext-set workspace)
-                                         "resource-picker-drop-target"
-                                         "resource-picker-drop-target-invalid")))
+         (.pseudoClassStateChanged (.getTarget e) (PseudoClass/getPseudoClass "drag-over") true)
+         (.pseudoClassStateChanged (.getTarget e)
+                                   (PseudoClass/getPseudoClass "drag-invalid")
+                                   (not (boolean (single-drag-resource e ext-set workspace)))))
        :on-drag-exited
        (fn [^DragEvent e]
-         (ui/remove-styles! (.getTarget e) ["resource-picker-drop-target" "resource-picker-drop-target-invalid"]))
+         (.pseudoClassStateChanged (.getTarget e) (PseudoClass/getPseudoClass "drag-over") false))
        :children
        [{:fx/type fxui/value-field
          :h-box/hgrow :always
