@@ -1530,7 +1530,7 @@
                                      :style-class ["grid-menu-group-label"]}
                                     {:fx/type fx.separator/lifecycle
                                      :h-box/hgrow :always
-                                     :style-class ["custom-separator"]
+                                     :style-class ["grid-menu-separator"]
                                      :orientation :horizontal}]}]
                        (keep
                          (fn [child]
@@ -1546,7 +1546,7 @@
                                   :text (localization label)
                                   :disable (not enabled?)
                                   :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
-                                  :style-class (into ["grid-menu-button"] child-style)
+                                  :style-class (into ["grid-menu-item"] child-style)
                                   :graphic {:fx/type fx.image-view/lifecycle
                                             :image (icons/get-image child-icon 18)}}))))
                          category-items)
