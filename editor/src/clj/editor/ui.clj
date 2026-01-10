@@ -1495,9 +1495,10 @@
     A JavaFX custom menu item containing the grid layout"
   [^Scene scene localization grid-config command-contexts evaluation-context]
   (let [{:keys [columns children]} grid-config
-        items-by-category (-> (group-by #(or (:category %)
-                                             "resource.category.other")
-                                        children)
+        items-by-category (-> (util/group-into {} []
+                                #(or (:category %)
+                                     "resource.category.other")
+                                children)
                               (update-vals #(localization/natural-sort-by-label localization %)))]
     (fx/instance
       (fx/create-component
@@ -1518,38 +1519,40 @@
               {:fx/type fx.v-box/lifecycle
                :spacing 2.0
                :children
-               (mapcat (fn [category-key]
-                         (when-let [category-items (seq (get items-by-category category-key))]
-                           (concat
-                             [{:fx/type fx.h-box/lifecycle
-                               :alignment :center-left
-                               :children [{:fx/type fx.label/lifecycle
-                                           :text (localization (localization/message category-key {} category-key))
-                                           :style-class ["grid-menu-group-label"]}
-                                          {:fx/type fx.separator/lifecycle
-                                           :h-box/hgrow :always
-                                           :style-class ["custom-separator"]
-                                           :orientation :horizontal}]}]
-                             (keep (fn [child]
-                                     (let [command (:command child)
-                                           user-data (:user-data child)
-                                           child-label (:label child)
-                                           child-icon (:icon child)
-                                           child-style (:style child)]
-                                       (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                         (let [label (or (handler/label handler-ctx evaluation-context) child-label)
-                                               enabled? (handler/enabled? handler-ctx evaluation-context)]
-                                           {:fx/type fx.button/lifecycle
-                                            :text (localization label)
-                                            :disable (not enabled?)
-                                            :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
-                                            :style-class (into ["grid-menu-button"] child-style)
-                                            :graphic {:fx/type fx.image-view/lifecycle
-                                                      :image (icons/get-image child-icon 18)}}))))
-                                   category-items)
-                             [{:fx/type fx.region/lifecycle
-                               :pref-height 20}])))
-                       column)}))}}))))
+               (mapcat
+                 (fn [category-key]
+                   (when-let [category-items (seq (get items-by-category category-key))]
+                     (concat
+                       [{:fx/type fx.h-box/lifecycle
+                         :alignment :center-left
+                         :children [{:fx/type fx.label/lifecycle
+                                     :text (localization (localization/message category-key {} category-key))
+                                     :style-class ["grid-menu-group-label"]}
+                                    {:fx/type fx.separator/lifecycle
+                                     :h-box/hgrow :always
+                                     :style-class ["custom-separator"]
+                                     :orientation :horizontal}]}]
+                       (keep
+                         (fn [child]
+                           (let [command (:command child)
+                                 user-data (:user-data child)
+                                 child-label (:label child)
+                                 child-icon (:icon child)
+                                 child-style (:style child)]
+                             (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                               (let [label (or (handler/label handler-ctx evaluation-context) child-label)
+                                     enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                 {:fx/type fx.button/lifecycle
+                                  :text (localization label)
+                                  :disable (not enabled?)
+                                  :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                  :style-class (into ["grid-menu-button"] child-style)
+                                  :graphic {:fx/type fx.image-view/lifecycle
+                                            :image (icons/get-image child-icon 18)}}))))
+                         category-items)
+                       [{:fx/type fx.region/lifecycle
+                         :pref-height 20}])))
+                 column)}))}}))))
 
 (declare make-menu-items)
 
