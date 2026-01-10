@@ -172,7 +172,7 @@
 (def control-flow-keywords #{"break" "do" "else" "for" "if" "elseif" "return" "then" "repeat" "while" "until" "end" "function"
                              "local" "goto" "in"})
 
-(def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
+(def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "fixed_update" "update" "late_update" "acquire_input_focus" "disable" "enable"
                        "release_input_focus" "request_transform" "set_parent" "transform_response"})
 
 (def lua-constants #{"nil" "false" "true"})

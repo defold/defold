@@ -763,6 +763,8 @@ menu.help = Help
 
 # Commands
 
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
+
 command.file.new = New…
 command.file.new.option.any-file = File
 command.file.new.any-file = New File

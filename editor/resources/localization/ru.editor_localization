@@ -748,6 +748,8 @@ menu.help = Справка
 
 # Commands
 
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
+
 command.file.new = Создать…
 command.file.new.option.any-file = Файл
 command.file.new.any-file = Новый файл
