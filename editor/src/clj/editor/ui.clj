@@ -1482,14 +1482,14 @@
   "Create a grid-based menu component with categorized items arranged in columns
 
   grid-config structure:
-    :layout         for now, just use :grid
+    :layout         With the keyword :grid
     :columns        vector of vectors, where each inner vector contains category
                     keys (strings) that should appear in that column, e.g.
                     [[\"resource.category.objects\" \"resource.category.scripts\"]
                      [\"resource.category.components\"]]
     :children       collection of menu-item maps, should match `make-menu-item`
                     shape, with a :category keyword containing the name of the
-                    group or a localization key
+                    group as a string or MessagePattern instance
 
   Returns:
     A JavaFX custom menu item containing the grid layout"
@@ -1537,9 +1537,10 @@
                                            child-icon (:icon child)
                                            child-style (:style child)]
                                        (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                         (let [enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                         (let [label (or (handler/label handler-ctx evaluation-context) child-label)
+                                               enabled? (handler/enabled? handler-ctx evaluation-context)]
                                            {:fx/type fx.button/lifecycle
-                                            :text (localization child-label)
+                                            :text (localization label)
                                             :disable (not enabled?)
                                             :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
                                             :style-class (into ["grid-menu-button"] child-style)
