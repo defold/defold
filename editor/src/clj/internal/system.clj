@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,8 @@
             [internal.history :as h]
             [internal.node :as in]
             [internal.util :as util]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.defonce :as defonce])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -41,7 +42,7 @@
 (defn- new-history []
   {:tape (conj (h/paper-tape history-size-max) [])})
 
-(defrecord HistoryState [label graph sequence-label cache-keys])
+(defonce/record HistoryState [label graph sequence-label cache-keys])
 
 (defn history-state [graph outputs-modified]
   (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph) outputs-modified))

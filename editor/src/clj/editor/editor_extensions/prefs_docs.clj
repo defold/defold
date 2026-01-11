@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,7 +36,11 @@
   (coerce/wrap-with-pred coerce/userdata editor-script-defined-schema? "is not a schema"))
 
 (definline allowed-keyword-character? [ch]
-  `(or (Character/isLetterOrDigit (char ~ch)) (= \- ~ch) (= \. ~ch) (= \_ ~ch)))
+  `(or (Character/isLetterOrDigit (char ~ch))
+       (= \- ~ch)
+       (= \. ~ch)
+       (= \_ ~ch)
+       (= \+ ~ch)))
 
 (defn- edn-serializable-keyword-name? [^String s]
   (let [n (.length s)]
@@ -149,6 +153,16 @@
                                             :distinct true)
                                   :types ["any[]"]
                                   :doc "allowed values, must be scalar (nil, boolean, number or string)")
+               (make-default-prop "any")
+               scope-prop])
+     (ui-docs/component
+       "one_of"
+       :description "one of schema"
+       :props [(ui-docs/make-prop :schemas
+                                  :required true
+                                  :coerce (coerce/vector-of schema-coercer :min-count 2)
+                                  :types ["schema[]"]
+                                  :doc "alternative schemas")
                (make-default-prop "any")
                scope-prop])
      (ui-docs/component

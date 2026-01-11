@@ -2,6 +2,9 @@
   pkgs ? import <nixpkgs> { },
 }:
 
+let
+  jdk = pkgs.openjdk25;
+in
 pkgs.mkShell {
   buildInputs = with pkgs; [
     clang
@@ -9,15 +12,13 @@ pkgs.mkShell {
     freeglut
     git
     glib
-    leiningen
     libGL
     libGLU
     libxext
     ninja
     openal
-    openjdk21
+    jdk
     pkg-config
-    protobuf
     xorg.libX11
     xorg.libXcursor
     xorg.libXi
@@ -26,6 +27,7 @@ pkgs.mkShell {
     xorg.libXtst
     xorg.libXxf86vm
 
+    (leiningen.override { jdk = jdk; })
     (python313.withPackages (
       ps: with ps; [
         pip
@@ -37,6 +39,7 @@ pkgs.mkShell {
   shellHook = ''
     export CC=clang
     export CXX=clang++
+    export JAVA_HOME="${jdk.home}"
     export LD_LIBRARY_PATH=${
       pkgs.lib.makeLibraryPath [
         pkgs.freeglut

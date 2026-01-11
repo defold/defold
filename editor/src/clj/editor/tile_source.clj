@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,6 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
-            [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
@@ -43,7 +42,9 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
+            [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -53,7 +54,6 @@
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
-           [java.awt.image BufferedImage]
            [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -73,51 +73,18 @@
    :wrap-t     gl/clamp})
 
 (vtx/defvertex pos-uv-vtx
-  (vec4 position)
-  (vec2 texcoord0)
-  (vec1 page_index))
+  (vec3 position)
+  (vec2 texcoord))
 
-(vtx2/defvertex pos-uv-vtx2
-  (vec4 position)
-  (vec2 texcoord0)
-  (vec1 page_index))
-
-(shader/defshader pos-uv-vert
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
-
-(def tile-shader (shader/make-shader ::tile-shader pos-uv-vert pos-uv-frag))
+(def ^:private tile-shader shaders/basic-texture-local-space)
 
 (vtx/defvertex pos-color-vtx
   (vec3 position)
   (vec4 color))
 
-(shader/defshader pos-color-vert
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
+(def ^:private color-shader shaders/basic-color-local-space)
 
-(shader/defshader pos-color-frag
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
-
-(def tile-border-size 3.0)
+(def ^:private tile-border-size 3.0)
 
 (defn- tile-coords
   [tile-index tile-source-attributes [scale-x scale-y]]
@@ -277,7 +244,7 @@
               (.glEnd gl)))))
 
       pass/overlay
-      (texture-set/render-animation-overlay gl render-args renderables n ->pos-uv-vtx2 tile-shader))))
+      (texture-set/render-animation-overlay gl render-args renderables))))
 
 (g/defnk produce-animation-updatable
   [_node-id id anim-data]
@@ -426,8 +393,7 @@
 
 (defn gen-tiles-vbuf
   [tile-source-attributes uv-transforms scale]
-  (let [page-index 0 ; Tile-sources does not support pages.
-        uvs uv-transforms
+  (let [uvs uv-transforms
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
@@ -436,10 +402,10 @@
                      [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
                  (-> vbuf
-                     (conj! [x0 y0 0 1 u0 v1 page-index])
-                     (conj! [x0 y1 0 1 u0 v0 page-index])
-                     (conj! [x1 y1 0 1 u1 v0 page-index])
-                     (conj! [x1 y0 0 1 u1 v1 page-index]))))
+                     (conj! [x0 y0 0.0 u0 v1])
+                     (conj! [x0 y1 0.0 u0 v0])
+                     (conj! [x1 y1 0.0 u1 v0])
+                     (conj! [x1 y0 0.0 u1 v1]))))
              (->pos-uv-vtx (* 4 rows cols))
              (range (* rows cols))))))
 
@@ -466,10 +432,10 @@
                                        [1.0 1.0 1.0 1.0])
                                      [0.15 0.15 0.15 0.15])]
                  (-> vbuf
-                     (conj! [x0 y0 0 cr cg cb ca])
-                     (conj! [x0 y1 0 cr cg cb ca])
-                     (conj! [x1 y1 0 cr cg cb ca])
-                     (conj! [x1 y0 0 cr cg cb ca]))))
+                     (conj! [x0 y0 0.0 cr cg cb ca])
+                     (conj! [x0 y1 0.0 cr cg cb ca])
+                     (conj! [x1 y1 0.0 cr cg cb ca])
+                     (conj! [x1 y0 0.0 cr cg cb ca]))))
              (->pos-color-vtx (* 4 rows cols))
              (range (* rows cols))))))
 
@@ -638,9 +604,6 @@
       buffered-image
       (texture-set-gen/tile-source->texture-set-data layout-result tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
 
-(defn- call-generator [generator]
-  ((:f generator) (:args generator)))
-
 (defn- generate-packed-image [{:keys [digest-ignored/error-node-id layout-result image-resource tile-source-attributes]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
@@ -758,28 +721,30 @@
                                                               (assoc :animation-ddfs animation-ddfs
                                                                      :digest-ignored/error-node-id _node-id))}))))
 
-  (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
+  (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (texture-util/call-generator texture-set-data-generator)))
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))
   (output texture-set g/Any (g/fnk [texture-set-data] (:texture-set texture-set-data)))
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output texture-page-count g/Int (g/constantly 0)) ; We do not use pages. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
-  (output packed-image-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes]
-                                         (let [packed-image-sha1 (digestable/sha1-hash
-                                                                   {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
-                                                                    :tile-source-attributes tile-source-attributes
-                                                                    :type :packed-tile-source-image})]
-                                           {:f generate-packed-image
-                                            :sha1 packed-image-sha1
-                                            :args {:digest-ignored/error-node-id _node-id
-                                                   :layout-result layout-result
-                                                   :image-resource image-resource
-                                                   :tile-source-attributes tile-source-attributes}})))
-
-  (output packed-image BufferedImage (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
-
-  (output texture-image g/Any (g/fnk [packed-image texture-profile]
-                                (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output packed-image-generator g/Any
+          (g/fnk [_node-id layout-result image-resource tile-source-attributes]
+            (let [image-sha1
+                  (resource-io/with-error-translation image-resource _node-id :packed-image-generator
+                    (resource/resource->path-inclusive-sha1-hex image-resource))]
+              (if (g/error-value? image-sha1)
+                image-sha1
+                (let [packed-image-sha1
+                      (digestable/sha1-hash
+                        {:image-sha1 image-sha1
+                         :tile-source-attributes tile-source-attributes
+                         :type :packed-tile-source-image})]
+                  {:f generate-packed-image
+                   :sha1 packed-image-sha1
+                   :args {:digest-ignored/error-node-id _node-id
+                          :layout-result layout-result
+                          :image-resource image-resource
+                          :tile-source-attributes tile-source-attributes}})))))
 
   (output convex-hull-points g/Any :cached produce-convex-hull-points)
   (output convex-hulls g/Any :cached produce-convex-hulls)
@@ -789,14 +754,14 @@
   (output node-outline outline/OutlineData :cached produce-tile-source-outline)
   (output pb g/Any :cached produce-pb)
   (output save-value g/Any (g/fnk [pb] (dissoc pb :convex-hull-points)))
-
-
   (output build-targets g/Any :cached produce-build-targets)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
-                                      (texture/texture-image->gpu-texture _node-id
-                                                                          texture-image
-                                                                          {:min-filter gl/nearest
-                                                                           :mag-filter gl/nearest})))
+
+  (output gpu-texture g/Any :cached
+          (g/fnk [_node-id packed-image-generator texture-profile]
+            (-> (texture-util/construct-gpu-texture _node-id packed-image-generator texture-profile)
+                (texture/set-params {:min-filter gl/nearest
+                                     :mag-filter gl/nearest}))))
+
   (output anim-data g/Any :cached produce-anim-data)
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 
@@ -1042,14 +1007,8 @@
 (defn- make-tile->collision-group-node-map
   [{:keys [convex-hulls] :as tile-set} collision-group-nodes-tx-data]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.
-  (let [collision-group->node-id
-        (into {}
-              (keep (fn [tx]
-                      (let [{:keys [_node-id id]} (:node tx)]
-                        (when id
-                          (pair id _node-id)))))
-              collision-group-nodes-tx-data)]
-
+  (let [collision-group-nodes (g/tx-data-added-nodes collision-group-nodes-tx-data)
+        collision-group->node-id (coll/pair-map-by :id g/node-id collision-group-nodes)]
     (into {}
           (map-indexed (fn [idx {:keys [collision-group]}]
                          (pair idx (collision-group->node-id collision-group))))

@@ -187,7 +187,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 into "${project.bobDir}/libexec/$platform"
             }
         }
-        def defaultTarName = 'luajit-2.1.0-a4f56a4'
+        def defaultTarName = 'luajit-2.1.0-3e223cb'
         def tarFiles = [
                 'x86_64-linux': [pattern: 'bin/x86_64-linux/**', name: defaultTarName],
                 'arm64-linux': [pattern: 'bin/arm64-linux/**', name: defaultTarName],

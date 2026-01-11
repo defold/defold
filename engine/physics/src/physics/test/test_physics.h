@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -141,7 +141,7 @@ struct Funcs
     typedef float (*GetAngularDampingFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetAngularDampingFunc)(typename T::CollisionObjectType collision_object, float angular_damping);
     typedef float (*GetMassFunc)(typename T::CollisionObjectType collision_object);
-    typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
+    typedef bool (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
     typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);

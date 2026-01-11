@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,9 +16,8 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.resource :as resource]
-            [integration.test-util :as test-util]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]))
+            [integration.test-util :as test-util]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -60,9 +59,9 @@
           build-targets-material-1 (g/node-value node-id-material-1 :build-targets)
           build-targets-material-2 (g/node-value node-id-material-2 :build-targets)
           build-targets-material-3 (g/node-value node-id-material-3 :build-targets)
-          sp-dep-material_1 (get-in build-targets-material-1 [0 :deps 0])
-          sp-dep-material_2 (get-in build-targets-material-2 [0 :deps 0])
-          sp-dep-material_3 (get-in build-targets-material-3 [0 :deps 0])]
+          sp-dep-material-1 (get-in build-targets-material-1 [0 :deps 0])
+          sp-dep-material-2 (get-in build-targets-material-2 [0 :deps 0])
+          sp-dep-material-3 (get-in build-targets-material-3 [0 :deps 0])]
       (is (= (g/node-value node-id-material-1 :vertex-program)
              (g/node-value node-id-material-2 :vertex-program)
              (g/node-value node-id-material-3 :vertex-program)))
@@ -73,15 +72,15 @@
       (is (not (= (get-in build-targets-material-1 [0 :content-hash])
                   (get-in build-targets-material-2 [0 :content-hash])
                   (get-in build-targets-material-3 [0 :content-hash]))))
-      (is (and some? (:resource sp-dep-material_1)
+      (is (and some? (:resource sp-dep-material-1)
                ;; Same resource path
-               (= (resource/proj-path (:resource sp-dep-material_1))
-                  (resource/proj-path (:resource sp-dep-material_2))
-                  (resource/proj-path (:resource sp-dep-material_3)))
+               (= (resource/proj-path (:resource sp-dep-material-1))
+                  (resource/proj-path (:resource sp-dep-material-2))
+                  (resource/proj-path (:resource sp-dep-material-3)))
                ;; Same content hash of the dependency
-               (= (:content-hash sp-dep-material_1)
-                  (:content-hash sp-dep-material_2)
-                  (:content-hash sp-dep-material_3)))))))
+               (= (:content-hash sp-dep-material-1)
+                  (:content-hash sp-dep-material-2)
+                  (:content-hash sp-dep-material-3)))))))
 
 (deftest material-validation
   (test-util/with-loaded-project

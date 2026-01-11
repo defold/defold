@@ -1,0 +1,13 @@
+#version 140
+
+in vec4 position;
+in vec3 normal;
+in vec2 texcoord0;
+
+out vec2 var_texcoord0;
+
+void main()
+{
+    gl_Position = position;
+    var_texcoord0 = texcoord0;
+}

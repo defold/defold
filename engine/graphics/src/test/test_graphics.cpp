@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -127,6 +127,7 @@ public:
             dmJobThread::Destroy(m_JobThread);
         dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -1968,7 +1969,9 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
 
         dmGraphics::HTexture texture_2 = dmGraphics::NewTexture(m_Context, creation_params);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture_2));
         ASSERT_NE(texture, texture_2);
+        dmGraphics::DeleteTexture(m_Context, texture_2);
     }
 
     // Test render targets

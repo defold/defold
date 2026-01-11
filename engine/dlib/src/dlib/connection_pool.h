@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -59,6 +59,18 @@ namespace dmConnectionPool
      * during testing, or subsequent tests will break when the pool has been put in shutdown mode.
      */
     void Reopen(HPool pool);
+
+    /**
+     * Create an SSL Socket for the specified connection. The socket perform an
+     * SSL handshake with the specified host.
+     * @param pool [type:dmConnectionPool::HPool] pool
+     * @param connection [type:dmConnectionPool::HConnection] connection
+     * @param host [type:const char*] host
+     * @param timeout [type:int] The timeout (micro seconds) for the connection and ssl handshake
+     * @param sock_res [type:int] Pointer to write a dmSocket::Result to
+     * @return dmConnectionPool::RESULT_OK on success
+     */
+    Result CreateSSLSocket(HPool pool, HConnection connection, const char* host, int timeout, dmSocket::Result* sock_res);
 }
 
 #endif // #ifndef DM_CONNECTION_POOL

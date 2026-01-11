@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,13 +42,37 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls,
         dmJNI::ScopedString j_path(env, _path);
         const char* path = strdup(j_path.m_String ? j_path.m_String : "null");
 
-        dmJNI::ScopedByteArray j_array(env, array);
+        dmJNI::ScopedByteArrayCritical j_array(env, array);
 
         dmTexc::Image* image = dmTexc::CreateImage(path, width, height, (dmTexc::PixelFormat)pixelFormat, (dmTexc::ColorSpace)colorSpace, j_array.m_ArraySize, (uint8_t*)j_array.m_Array);
         obj = (jlong)image;
 
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
+}
+
+JNIEXPORT jint JNICALL Java_TexcLibraryJni_CreatePreviewImage(JNIEnv* env, jclass cls, jint width, jint height, jbyteArray inputArray, jbyteArray outputArray)
+{
+    dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
+    // DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
+
+    if (!inputArray)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return 0;
+    }
+
+    DM_JNI_GUARD_SCOPE_BEGIN();
+
+    dmTexc::jni::ScopedContext     jni_scope(env);
+
+    dmJNI::ScopedByteArrayCritical j_input_array(env, inputArray);
+    dmJNI::ScopedByteArrayCritical j_output_array(env, outputArray);
+
+    dmTexc::CreatePreviewImage(width, height, j_input_array.m_ArraySize, (uint8_t*)j_input_array.m_Array, (uint8_t*)j_output_array.m_Array);
+
+    DM_JNI_GUARD_SCOPE_END(return -1;);
+    return 0;
 }
 
 JNIEXPORT void JNICALL Java_TexcLibraryJni_DestroyImage(JNIEnv* env, jclass cls, jlong _image)
@@ -328,15 +352,16 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
         // Image api
-        JNIFUNC(CreateImage,           "(Ljava/lang/String;IIII[B)J"),
-        JNIFUNC(DestroyImage,           "(J)V"),
-        JNIFUNC(GetWidth,               "(J)I"),
-        JNIFUNC(GetHeight,              "(J)I"),
-        JNIFUNC(GetData,                "(J)[B"),
-        JNIFUNC(Resize,                 "(JII)J"),
-        JNIFUNC(PreMultiplyAlpha,       "(J)Z"),
-        JNIFUNC(Flip,                   "(JI)Z"),
-        JNIFUNC(Dither,                 "(JI)Z"),
+        JNIFUNC(CreateImage, "(Ljava/lang/String;IIII[B)J"),
+        JNIFUNC(CreatePreviewImage, "(II[B[B)I"),
+        JNIFUNC(DestroyImage, "(J)V"),
+        JNIFUNC(GetWidth, "(J)I"),
+        JNIFUNC(GetHeight, "(J)I"),
+        JNIFUNC(GetData, "(J)[B"),
+        JNIFUNC(Resize, "(JII)J"),
+        JNIFUNC(PreMultiplyAlpha, "(J)Z"),
+        JNIFUNC(Flip, "(JI)Z"),
+        JNIFUNC(Dither, "(JI)Z"),
 
         // Font glyph buffers
         JNIFUNC(CompressBuffer,         "([B)L" CLASS_NAME "$Buffer;"),

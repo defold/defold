@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
   (:require [clojure.core :as core]
             [clojure.test :refer :all]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.fn :as fn])
   (:import [clojure.lang IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
            [java.util Hashtable]))
@@ -23,9 +24,9 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defrecord Nothing [])
-(defrecord JustA [a])
-(defrecord PairAB [a b])
+(defonce/record Nothing [])
+(defonce/record JustA [a])
+(defonce/record PairAB [a b])
 
 (defn- java-map
   ^Hashtable [& key-vals]
@@ -34,6 +35,117 @@
     (doseq [[key value] (partition-all 2 key-vals)]
       (.put coll key value))
     coll))
+
+(deftest transform-test
+  (testing "Empty collection."
+    (let [colls [nil
+                 ""
+                 []
+                 (vector-of :long)
+                 '()
+                 {}
+                 #{}
+                 (sorted-map)
+                 (sorted-set)
+                 (double-array 0)
+                 (object-array 0)
+                 (range 0)
+                 (repeatedly 0 (constantly 1))
+                 (Nothing.)]]
+
+      (testing "No transducer."
+        (doseq [coll colls]
+          (testing (or (some-> coll class .getSimpleName) "nil")
+            (let [transformed-coll (coll/transform coll)]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Single transducer."
+        (doseq [coll colls]
+          (testing (or (some-> coll class .getSimpleName) "nil")
+            (let [transformed-coll (coll/transform coll
+                                     (take 1))]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Multiple transducers."
+        (doseq [coll colls]
+          (testing (or (some-> coll class .getSimpleName) "nil")
+            (let [transformed-coll (coll/transform coll
+                                     (take 1)
+                                     (mapcat (juxt identity identity identity))
+                                     (drop 2))]
+              (is (identical? coll transformed-coll))))))))
+
+  (testing "Non-empty sequence."
+    (let [colls (mapv #(with-meta % {:version "original"})
+                      [[1]
+                       (vector-of :long 1)
+                       '(1)
+                       #{1}
+                       (sorted-set 1)])]
+
+      (testing "No transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll)]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Single transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (take 1))]
+              (is (= (class coll) (class transformed-coll)))
+              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= (first coll) (first transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll)))))))
+
+      (testing "Multiple transducers."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (take 1)
+                                     (mapcat (juxt identity identity identity))
+                                     (drop 2))]
+              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= (first coll) (first transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll)))))))))
+
+  (testing "Non-empty map."
+    (let [colls (mapv #(with-meta % {:version "original"})
+                      [{:a 1}
+                       (sorted-map :a 1)
+                       (JustA. 1)])]
+
+      (testing "No transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll)]
+              (is (identical? coll transformed-coll))))))
+
+      (testing "Single transducer."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (map (fn [entry]
+                                            [(key entry)
+                                             (inc (long (val entry)))])))]
+              (is (= (class coll) (class transformed-coll)))
+              (is (= (map inc (vals coll)) (vals transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll)))))))
+
+      (testing "Multiple transducers."
+        (doseq [coll colls]
+          (testing (.getSimpleName (class coll))
+            (let [transformed-coll (coll/transform coll
+                                     (take 1)
+                                     (mapcat (juxt identity identity identity))
+                                     (map (fn [entry]
+                                            [(key entry)
+                                             (inc (long (val entry)))]))
+                                     (drop 2))]
+              (is (= 1 (bounded-count 2 transformed-coll)))
+              (is (= (map inc (vals coll)) (vals transformed-coll)))
+              (is (identical? (meta coll) (meta transformed-coll))))))))))
 
 (deftest key-set-test
   (letfn [(check! [expected actual]
@@ -365,6 +477,18 @@
             IllegalArgumentException
             #"The partition-length must be positive."
             (coll/reduce-partitioned partition-length vector [] (range 6)))))))
+
+(deftest index-of-test
+  (is (= 0 (coll/index-of [:a :b :a :b] :a)))
+  (is (= 1 (coll/index-of [:a :b :a :b] :b)))
+  (is (= -1 (coll/index-of [:a :b :a :b] :c)))
+  (is (= [-1 1 0] (map #(coll/index-of [:a :b :a :b] %) [:c :b :a]))))
+
+(deftest last-index-of-test
+  (is (= 2 (coll/last-index-of [:a :b :a :b] :a)))
+  (is (= 3 (coll/last-index-of [:a :b :a :b] :b)))
+  (is (= -1 (coll/last-index-of [:a :b :a :b] :c)))
+  (is (= [-1 3 2] (map #(coll/last-index-of [:a :b :a :b] %) [:c :b :a]))))
 
 (deftest remove-index-test
   (testing "Returns a vector without the item at the specified index."
@@ -1584,6 +1708,128 @@
                           :stop
                           {:children (repeatedly #(throw (Exception. "Should not be reduced!")))}]}])))))
 
+(deftest find-values-test
+  (testing "Empty collections."
+    (doseq [coll [nil
+                  ""
+                  []
+                  (vector-of :long)
+                  '()
+                  {}
+                  #{}
+                  (sorted-map)
+                  (sorted-set)
+                  (double-array 0)
+                  (object-array 0)
+                  (range 0)
+                  (repeatedly 0 rand)
+                  (Nothing.)]]
+      (is (= []
+             (coll/find-values
+               #(= :wanted (:type %))
+               coll)))))
+
+  (testing "Traverses collections."
+    (let [make-coll-fns
+          [vector
+           list
+           #(array-map :key %)
+           #(hash-map :key %)
+           hash-set
+           #(object-array [%])
+           #(repeatedly 1 (constantly %))
+           ->JustA]]
+
+      (testing "Top-level."
+        (doseq [make-coll make-coll-fns]
+          (is (= [{:type :wanted}]
+                 (coll/find-values
+                   #(= :wanted (:type %))
+                   (make-coll {:type :wanted}))))))
+
+      (testing "Nested."
+        (doseq [make-inner-coll make-coll-fns
+                make-middle-coll make-coll-fns
+                make-outer-coll make-coll-fns]
+          (is (= [{:type :wanted}]
+                 (coll/find-values
+                   #(= :wanted (:type %))
+                   (make-outer-coll
+                     (make-middle-coll
+                       (make-inner-coll {:type :wanted}))))))))))
+
+  (testing "Match is returned as-is."
+    (is (= [{:type :wanted
+             :vec [{:type :wanted
+                    :map {:a 1}
+                    :vec [0]}]
+             :map {:type :wanted
+                   :map {:a 1}
+                   :vec [0]}}]
+           (coll/find-values
+             #(= :wanted (:type %))
+             [{:type :wanted
+               :vec [{:type :wanted
+                      :map {:a 1}
+                      :vec [0]}]
+               :map {:type :wanted
+                     :map {:a 1}
+                     :vec [0]}}]))))
+
+  (testing "Over sequence."
+    (is (= [{:type :wanted :index 0}
+            {:type :wanted :index 1}
+            {:type :wanted :index 2}]
+           (coll/find-values
+             #(= :wanted (:type %))
+             [{:type :wanted :index 0}
+              [{:type :wanted :index 1}]
+              {:key {:type :wanted :index 2}}]))))
+
+
+  (testing "As transducer."
+    (is (= [{:type :wanted :index 0}
+            {:type :wanted :index 1}
+            {:type :wanted :index 2}]
+           (into []
+                 (coll/find-values #(= :wanted (:type %)))
+                 [{:type :wanted :index 0}
+                  [{:type :wanted :index 1}]
+                  {:key {:type :wanted :index 2}}])))))
+
+(deftest first-where-test
+  (is (= 2 (coll/first-where even? (range 1 4))))
+  (is (nil? (coll/first-where nil? [:a :b nil :d])))
+  (is (= [:d 4] (coll/first-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= :e (coll/first-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= "f" (coll/first-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (coll/first-where nil? nil)))
+  (is (nil? (coll/first-where even? nil)))
+  (is (nil? (coll/first-where even? [])))
+  (is (nil? (coll/first-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (fn/make-call-logger fn/constantly-true)]
+      (is (= 0 (coll/first-where pred (range 10))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
+
+(deftest first-index-where-test
+  (is (= 1 (coll/first-index-where even? (range 1 4))))
+  (is (= 2 (coll/first-index-where nil? [:a :b nil :d])))
+  (is (= 3 (coll/first-index-where ^[char] Character/isDigit "abc123def")))
+  (is (= 3 (coll/first-index-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= 4 (coll/first-index-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= 5 (coll/first-index-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (coll/first-index-where nil? nil)))
+  (is (nil? (coll/first-index-where even? nil)))
+  (is (nil? (coll/first-index-where even? [])))
+  (is (nil? (coll/first-index-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (fn/make-call-logger fn/constantly-true)]
+      (is (= 0 (coll/first-index-where pred (range 10))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
+
 (deftest some-test
   (testing "some behavior"
     (are [pred coll ret] (= ret (some pred coll) (coll/some pred coll))
@@ -1638,3 +1884,24 @@
   (is (= "12" (coll/join-to-string [1 nil 2])))
   (is (= "1,,2" (coll/join-to-string "," [1 nil 2])))
   (is (= "0, 1, 2, 3, 4" (coll/join-to-string ", " (range 5)))))
+
+(deftest unanimous-value-test
+  (is (nil? (coll/unanimous-value nil)))
+  (is (= ::no-unanimous-value (coll/unanimous-value nil ::no-unanimous-value)))
+  (is (nil? (coll/unanimous-value [])))
+  (is (= ::no-unanimous-value (coll/unanimous-value [] ::no-unanimous-value)))
+  (is (= ::one-value (coll/unanimous-value [::one-value])))
+  (is (= ::one-value (coll/unanimous-value [::one-value] ::no-unanimous-value)))
+  (is (= ::equal-value (coll/unanimous-value [::equal-value ::equal-value])))
+  (is (= ::equal-value (coll/unanimous-value [::equal-value ::equal-value] ::no-unanimous-value)))
+  (is (nil? (coll/unanimous-value [::one-value ::conflicting-value])))
+  (is (= ::no-unanimous-value (coll/unanimous-value [::one-value ::conflicting-value] ::no-unanimous-value))))
+
+(deftest primitive-vector-type-test
+  (is (nil? (coll/primitive-vector-type nil)))
+  (is (nil? (coll/primitive-vector-type 0)))
+  (is (nil? (coll/primitive-vector-type [])))
+  (is (nil? (coll/primitive-vector-type "")))
+  (is (nil? (coll/primitive-vector-type (Object.))))
+  (doseq [primitive-type [:boolean :char :byte :short :int :long :float :double]]
+    (is (= primitive-type (coll/primitive-vector-type (vector-of primitive-type))))))

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -318,10 +318,13 @@ TEST_F(dmHttpServerTest, TestServerClient)
         dmTime::Sleep(10 * 1000);
     }
 
+    dmURI::Parts uri;
+    dmURI::Parse("http://127.0.0.1:8500", &uri);
+
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
-    dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
+    dmHttpClient::HClient client = dmHttpClient::New(&client_params, &uri);
 
     dmHttpClient::Result r;
     m_ClientData = "";

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -96,6 +96,26 @@
 
              (coll/not-empty dynamic-deps)
              (assoc :dynamic-deps dynamic-deps)))))
+
+;;--------------------------------------------------------------------
+
+(defn- build-source-bytes [build-resource _dep-resources _user-data]
+  (let [source-resource (:resource build-resource)
+        source-bytes (resource/resource->bytes source-resource)]
+    {:resource build-resource
+     :content source-bytes}))
+
+(defn make-source-bytes-build-target [node-id source-resource]
+  ;; Warning: May throw IOException.
+  ;; We hash the source resource contents to ensure the build target is
+  ;; invalidated from the on-disk build cache when the contents change.
+  (let [build-resource (workspace/make-build-resource source-resource)
+        source-hash (resource/resource->path-inclusive-sha1-hex source-resource)]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource build-resource
+       :build-fn build-source-bytes
+       :user-data {:source-hash source-hash}})))
 
 ;;--------------------------------------------------------------------
 

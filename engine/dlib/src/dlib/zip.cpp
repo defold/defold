@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,12 @@ namespace dmZip
 Result Open(const char* path, HZip* zip)
 {
     *zip = zip_open(path, 9, 'r');
+    return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
+}
+
+Result OpenStream(const char *stream, uint32_t size, HZip* zip)
+{
+    *zip = zip_stream_open(stream, size, 9, 'r');
     return *zip != 0 ? RESULT_OK : RESULT_NO_SUCH_ENTRY;
 }
 

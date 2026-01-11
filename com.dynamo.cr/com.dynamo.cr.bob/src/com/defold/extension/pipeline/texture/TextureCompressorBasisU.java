@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 
 import java.util.ArrayList;
@@ -105,6 +106,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
 
+        // increasing of threads count for basisu isn't that efficient, so keep it 4 for now
         settings.numThreads = 4;
         settings.debug = false;
         settings.data = input;

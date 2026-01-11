@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1158,16 +1158,18 @@ namespace dmPhysics
      *
      * @param world Physics world in which to perform the ray cast
      * @param request Struct containing data for the query
+     * @return result True if successful
      */
-    void RequestRayCast3D(HWorld3D world, const RayCastRequest& request);
+    bool RequestRayCast3D(HWorld3D world, const RayCastRequest& request);
 
     /**
      * Request a ray cast that will be performed the next time the 2D world is updated
      *
      * @param world Physics world in which to perform the ray cast
      * @param request Struct containing data for the query
+     * @return result True if successful
      */
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request);
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request);
 
     /**
      * Request a synchronous ray cast

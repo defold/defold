@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1373,7 +1373,7 @@ namespace dmRender
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
      * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
-     * @param [buffer_type] [type:type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
+     * @param [buffer_type] [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      *
@@ -3318,6 +3318,25 @@ bail:
         }
     }
 
+    static void ReleaseRenderScript(HRenderContext render_context, HRenderScript render_script)
+    {
+        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
+        {
+            if (render_script->m_FunctionReferences[i])
+                dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
+        }
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        free((void*)render_script->m_SourceFileName);
+    }
+
+    void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
+    {
+        ReleaseRenderScript(render_context, render_script);
+        render_script->~RenderScript();
+        ResetRenderScript(render_script);
+    }
+
     HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
@@ -3347,21 +3366,8 @@ bail:
 
     bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
+        ReleaseRenderScript(render_context, render_script);
         return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
-    }
-
-    void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
-    {
-        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
-        for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
-        {
-            if (render_script->m_FunctionReferences[i])
-                dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
-        }
-        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
-        free((void*)render_script->m_SourceFileName);
-        render_script->~RenderScript();
-        ResetRenderScript(render_script);
     }
 
     static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance) {

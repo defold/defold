@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -266,11 +266,26 @@ namespace dmPhysics
         return world;
     }
 
+    static void ClearPendingRayCasts2D(HWorld2D world)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_UserData)
+            {
+                free(request.m_UserData);
+            }
+        }
+        world->m_RayCastRequests.SetSize(0);
+    }
+
     void DeleteWorld2D(HContext2D context, HWorld2D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
+        ClearPendingRayCasts2D(world);
         delete world;
     }
 
@@ -1094,10 +1109,10 @@ namespace dmPhysics
             b2Transform transform(t, r);
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
             b2Vec2* vertices = polygon_shape->m_vertices;
-            float min_x = INT32_MAX,
-              min_y = INT32_MAX,
-              max_x = -INT32_MAX,
-              max_y = -INT32_MAX;
+            float min_x = (float)INT32_MAX,
+                  min_y = (float)INT32_MAX,
+                  max_x = (float)-INT32_MAX,
+                  max_y = (float)-INT32_MAX;
             float inv_scale = world->m_Context->m_InvScale;
             for (int i = 0; i < polygon_shape->GetVertexCount(); i += 1)
             {
@@ -1352,7 +1367,7 @@ namespace dmPhysics
         return false;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
         {
@@ -1363,16 +1378,19 @@ namespace dmPhysics
             if (lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+                return false;
             }
             else
             {
                 world->m_RayCastRequests.Push(request);
+                return true;
             }
         }
         else
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request. See 'physics.ray_cast_limit_2d' in game.project", world->m_RayCastRequests.Capacity());
         }
+        return false;
     }
 
     static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)

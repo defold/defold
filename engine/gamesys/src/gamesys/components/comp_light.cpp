@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -104,7 +104,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompLightLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         LightWorld* light_world = (LightWorld*) params.m_World;
         const uint32_t data_size = sizeof(dmGameSystemDDF::SetLight) + 9;
@@ -150,6 +150,7 @@ namespace dmGameSystem
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

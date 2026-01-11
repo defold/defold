@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -493,18 +493,31 @@ namespace dmGameSystem
             // Give that the assumption above holds, this assert will hold too.
             assert(world->m_ComponentTypeIndex == component_type_index);
 
-            dmMessage::URL* receiver = (dmMessage::URL*)malloc(sizeof(dmMessage::URL));
-            memcpy(receiver, &message->m_Sender, sizeof(*receiver));
-
             dmPhysics::RayCastRequest request;
             request.m_From = ddf->m_From;
             request.m_To = ddf->m_To;
             request.m_Mask = ddf->m_Mask;
             request.m_UserId = (ddf->m_RequestId & 0xff);
+            dmVMath::Vector3 from2d = dmVMath::Vector3(ddf->m_From);
+            dmVMath::Vector3 to2d = dmVMath::Vector3(ddf->m_To);
+            from2d.setZ(0.0f);
+            to2d.setZ(0.0f);
+            if (dmVMath::LengthSqr(to2d - from2d) <= 0.0f)
+            {
+                return;
+            }
+
+            dmMessage::URL* receiver = (dmMessage::URL*)malloc(sizeof(dmMessage::URL));
+            memcpy(receiver, &message->m_Sender, sizeof(*receiver));
+
             request.m_UserData = (void*)receiver;
             request.m_IgnoredUserData = 0;
 
-            dmPhysics::RequestRayCast2D(world->m_World2D, request);
+            if (!dmPhysics::RequestRayCast2D(world->m_World2D, request))
+            {
+                free(receiver);
+                return;
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,8 @@
 
 set -e
 
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPTDIR="$( cd "$( dirname "${_SOURCE}" )" >/dev/null 2>&1 && pwd )"
 
 eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
@@ -48,10 +49,17 @@ if [ "Darwin" == "${HOST_PLATFORM}" ]; then
     if [ "arm64" == "${HOST_ARCH}" ]; then
         HOST_PLATFORM="arm64-macos"
     fi
+elif [ "Linux" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-linux"
+    if [ "${HOST_ARCH}" == "aarch64" ] || [ "${HOST_ARCH}" == "arm64" ]; then
+        HOST_PLATFORM="arm64-linux"
+    fi
+elif [[ "${HOST_PLATFORM}" == MINGW* ]] || [[ "${HOST_PLATFORM}" == MSYS* ]] || [[ "${HOST_PLATFORM}" == CYGWIN* ]]; then
+    HOST_PLATFORM="x86_64-win32"
+    if [ "${HOST_ARCH}" == "i686" ] || [ "${HOST_ARCH}" == "i386" ]; then
+        HOST_PLATFORM="win32"
+    fi
 fi
-# if [ "Linux" == "${HOST_PLATFORM}" ]; then
-
-# fi
 
 if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
     echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"

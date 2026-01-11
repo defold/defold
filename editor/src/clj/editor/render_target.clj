@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,13 +15,13 @@
 (ns editor.render-target
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.texture-util :as texture-util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.fn :as fn])
@@ -103,9 +103,6 @@
         :build-fn build-render-target
         :user-data {:pb-msg save-value}})]))
 
-(defn- generate-gpu-texture [_args request-id _params _unit]
-  (texture/image-texture request-id nil))
-
 (defn- validate-color-attachment-count [v name]
   (when (> (count v) max-color-attachment-count)
     (format "'%s' render targets cannot have more than %d color attachments"
@@ -138,7 +135,7 @@
 
   (output save-value g/Any :cached produce-save-value)
   (output form-data g/Any produce-form-data)
-  (output gpu-texture-generator g/Any {:f generate-gpu-texture})
+  (output gpu-texture-generator g/Any (g/constantly texture-util/placeholder-gpu-texture-generator))
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -299,7 +299,10 @@ namespace dmGameSystem
             request.m_UserId = (ddf->m_RequestId & 0xff);
             request.m_UserData = (void*)receiver;
             request.m_IgnoredUserData = 0;
-            dmPhysics::RequestRayCast3D(world->m_World3D, request);
+            if (!dmPhysics::RequestRayCast3D(world->m_World3D, request))
+            {
+                free(receiver);
+            }
         }
     }
 

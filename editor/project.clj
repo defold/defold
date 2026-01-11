@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,8 +16,7 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
-                     "jogamp" "https://jogamp.org/deployment/maven"}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
@@ -81,7 +80,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.9.6"
+                     [cljfx "1.10.6"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -293,7 +292,7 @@
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
-                                                    [io.github.cljfx/dev "1.0.39"]
+                                                    [io.github.cljfx/dev "1.10.6.42"]
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]]
@@ -302,11 +301,11 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/8.4.3.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.0.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.1.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.3.0.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.4.0.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.5.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

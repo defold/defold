@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,7 +23,8 @@
            [com.defold.util IDigestable]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.graphics.proto Graphics$ShaderDesc]
-           [java.io BufferedWriter OutputStreamWriter Writer]))
+           [java.io BufferedWriter OutputStreamWriter Writer]
+           [java.util Arrays]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -248,3 +249,28 @@
      (digest/completed-stream->hex digest-output-stream))))
 
 (def sha1-hash? digest/sha1-hex?)
+
+(defn sha1s->unordered-sha1-hex
+  "Takes a collection of SHA-1 byte arrays, and adds them all together
+  as 160-bit unsigned integers (mod 2^160) to produce an order-independent hash."
+  [byte-arrays]
+  (let [modulus (.shiftLeft BigInteger/ONE 160)
+        sum (reduce
+              (fn [acc ba]
+                (-> (BigInteger. 1 ^bytes ba)
+                    (.add acc)
+                    (.mod modulus)))
+              BigInteger/ZERO
+              byte-arrays)
+        result-bytes ^bytes (.toByteArray ^BigInteger sum)
+        ;; NOTE: BigInteger.toByteArray() returns variable length:
+        ;; 21 bytes if high bit set (adds sign byte), <20 if leading zeros, else 20
+        len (alength result-bytes)
+        normalized (case len
+                     20 result-bytes
+                     21 (Arrays/copyOfRange result-bytes 1 21)
+                     (let [padded (byte-array 20)]
+                       (System/arraycopy result-bytes 0 padded (- 20 len) len)
+                       padded))]
+    (util.digest/bytes->hex normalized)))
+

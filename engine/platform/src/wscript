@@ -34,7 +34,7 @@ def build(bld):
             glfw3_source_vulkan = ['platform_window_glfw3_vulkan.cpp']
 
             if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
-                glfw_source += ['platform_window_glfw3_osx.cpp']
+                glfw_source += ['platform_window_glfw3_osx.mm']
             elif bld.env.PLATFORM in ('x86_64-win32', 'win32'):
                 glfw_source += ['platform_window_glfw3_win32.cpp']
             elif bld.env.PLATFORM in ['x86_64-linux', 'arm64-linux']:
@@ -43,7 +43,7 @@ def build(bld):
             if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
                 glfw_source += ['platform_window_glfw_android.cpp']
             elif bld.env.PLATFORM in ('x86_64-ios', 'arm64-ios'):
-                glfw_source += ['platform_window_glfw_ios.cpp']
+                glfw_source += ['platform_window_glfw_ios.mm']
 
         lib = bld.stlib(features = 'cxx c ddf',
                         includes = '.',

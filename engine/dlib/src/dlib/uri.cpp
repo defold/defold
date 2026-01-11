@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -193,6 +193,16 @@ namespace dmURI
             dst++;
         }
         *dst = '\0';
+    }
+
+    bool Compare(Parts* a, Parts* b)
+    {
+        if (a->m_Port != b->m_Port) return false;
+        if (strcmp(a->m_Scheme, b->m_Scheme) != 0) return false;
+        if (strcmp(a->m_Location, b->m_Location) != 0) return false;
+        if (strcmp(a->m_Hostname, b->m_Hostname) != 0) return false;
+        if (strcmp(a->m_Path, b->m_Path) != 0) return false;
+        return true;
     }
 
 }   // namespace dmURI

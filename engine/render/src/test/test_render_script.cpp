@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -178,13 +178,13 @@ protected:
         dmRender::DeleteMaterial(m_Context, m_FontMaterial);
         dmRender::DeleteComputeProgram(m_Context, m_Compute);
 
-        dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
 
         FontDestroy(m_Font);
         DestroyGlyphBank(m_GlyphBank);
 
+        dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmPlatform::CloseWindow(m_Window);
         dmPlatform::DeleteWindow(m_Window);
@@ -1257,16 +1257,25 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
     const char* script =
         "function init(self)\n"
         "   self.my_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.TEXTURE_FORMAT_RGBA, width = 128, height = 128 }})\n"
+        "   self.counter = 0\n"
         "end\n"
         "function update(self)\n"
-        "    render.enable_texture(0, self.my_rt)\n"
-        "    render.set_render_target(self.my_rt)\n"
+        "    self.counter = self.counter + 1"
+        "    if self.counter == 1 then"
+        "       render.enable_texture(0, self.my_rt)\n"
+        "       render.set_render_target(self.my_rt)\n"
+        "    end"
+        "    if self.counter == 2 then"
+        "       render.delete_render_target(self.my_rt)\n"
+        "       self.my_rt = nil\n"
+        "    end\n"
         "end\n";
 
     dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
@@ -1519,6 +1528,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
 TEST_F(dmRenderScriptTest, TestRenderResourceTable)
@@ -1706,6 +1716,7 @@ TEST_F(dmRenderScriptTest, TestCameraScreenToWorldPerspective)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 
 TEST_F(dmRenderScriptTest, TestCameraWorldToScreenPerspective)
@@ -1761,6 +1772,7 @@ TEST_F(dmRenderScriptTest, TestCameraWorldToScreenPerspective)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 
 TEST_F(dmRenderScriptTest, TestCameraWorldToScreenOrthographic)
@@ -1808,6 +1820,7 @@ TEST_F(dmRenderScriptTest, TestCameraWorldToScreenOrthographic)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 
 TEST_F(dmRenderScriptTest, TestCameraScreenWorldRoundtrip)
@@ -1854,6 +1867,7 @@ TEST_F(dmRenderScriptTest, TestCameraScreenWorldRoundtrip)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 TEST_F(dmRenderScriptTest, TestCameraScreenToWorldOrthographic)
 {
@@ -1911,6 +1925,7 @@ TEST_F(dmRenderScriptTest, TestCameraScreenToWorldOrthographic)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 
 TEST_F(dmRenderScriptTest, TestCameraScreenToWorldViewport)
@@ -1962,6 +1977,7 @@ TEST_F(dmRenderScriptTest, TestCameraScreenToWorldViewport)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 
 TEST_F(dmRenderScriptTest, TestCameraScreenToWorld_Ortho_LargeCoords_ExplicitURL)
@@ -2010,6 +2026,7 @@ TEST_F(dmRenderScriptTest, TestCameraScreenToWorld_Ortho_LargeCoords_ExplicitURL
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(inst));
     dmRender::DeleteRenderScriptInstance(inst);
     dmRender::DeleteRenderScript(m_Context, render_script);
+    dmRender::DeleteRenderCamera(m_Context, cam_handle);
 }
 
 TEST_F(dmRenderScriptTest, TestComputeEnableDisable)

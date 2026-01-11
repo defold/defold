@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -110,7 +110,7 @@
   (coerce/hash-map
     :req {:label ui-docs/string-or-message-pattern-coercer
           :locations (coerce/vector-of
-                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View")
+                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
                        :distinct true
                        :min-count 1)}
     :opt {:query (coerce/hash-map
@@ -148,7 +148,8 @@
                              "Outline" :outline
                              "Project" :global
                              "Scene" :global
-                             "View" :global})
+                             "View" :global
+                             "Help" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
@@ -158,7 +159,8 @@
                               "Outline" :editor.outline-view/context-menu-end
                               "Project" ::project/project-end
                               "Scene" :editor.scene-selection/context-menu-end
-                              "View" :editor.app-view/view-end})
+                              "View" :editor.app-view/view-end
+                              "Help" :editor.app-view/help-end})
                         locations)]
     (cond-> {:contexts contexts
              :label label

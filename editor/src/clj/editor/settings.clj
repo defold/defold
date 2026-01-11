@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -172,6 +172,21 @@
                       error))))
           setting-values)))
 
+(defn get-dependencies-setting-errors-from
+  "Return build errors derived from a dependency vector (e.g., incompatible
+  library.defold_min_version)."
+  [dependencies]
+  (into []
+        (comp
+          (filter #(and (= :error (:status %))
+                        (= :defold-min-version (:reason %))))
+          (map (fn [{:keys [uri required current]}]
+                 (g/map->error
+                   {:severity :fatal
+                    :message (format "Library '%s' requires Defold %s or newer (current Defold version is %s). Update Defold or check older extension versions for compatibility."
+                                     (str uri) (str required) (str current))}))))
+        dependencies))
+
 (g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   (let [meta-settings (:settings meta-info)
         sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
@@ -205,6 +220,7 @@
   (input project g/NodeID)
   (input owner-resource resource/Resource)
   (input meta-infos g/Any)
+  (input project-dependencies g/Any)
 
   (output resource-setting-nodes g/Any :cached
           (g/fnk [resource-setting-references]
@@ -234,8 +250,9 @@
   (output form-data g/Any :cached produce-form-data)
 
   (output save-value g/Any (gu/passthrough merged-raw-settings))
-  (output setting-errors g/Any :cached (g/fnk [form-data]
-                                              (get-settings-errors form-data)))
+  (output setting-errors g/Any :cached (g/fnk [form-data project-dependencies]
+                                         (let [base-errors (get-settings-errors form-data)]
+                                           (into base-errors (get-dependencies-setting-errors-from project-dependencies)))))
   (output meta-info g/Any :cached
           (g/fnk [raw-meta-info meta-infos owner-resource]
             (let [{:keys [ext-meta-info game-project-proj-path->additional-meta-info]} meta-infos
@@ -273,6 +290,7 @@
       (g/set-properties self :raw-settings raw-settings :raw-meta-info meta-info :resource-setting-connections resource-setting-connections)
       (g/connect project :meta-infos self :meta-infos)
       (g/connect project :_node-id self :project)
+      (g/connect project :dependencies self :project-dependencies)
       (g/connect owner-resource-node :resource self :owner-resource)
       (for [path resource-setting-paths]
         (let [resource (settings-core/get-setting-or-default meta-settings settings path)]

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1414,6 +1414,8 @@ TYPED_TEST(PhysicsTest, GravityChange)
     // Verify that the gravity has affected the y position in the opposite direction.
     ASSERT_LT(y, vo.m_Position.getY());
 
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
 enum FilterGroup

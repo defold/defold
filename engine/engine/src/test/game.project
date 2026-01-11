@@ -11,7 +11,7 @@ uri = src/test/build/default
 [physics]
 world_count = 18
 [collection_proxy]
-max_count = 40
+max_count = 60
 [particle_fx]
 max_count = 1
 

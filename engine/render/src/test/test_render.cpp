@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -129,6 +129,7 @@ protected:
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
         m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
 
+        printf("%s : %d\n", __FUNCTION__, __LINE__);
         HFontCollection font_collection = FontCollectionCreate();
         FontCollectionAddFont(font_collection, m_Font);
 
@@ -141,6 +142,7 @@ protected:
         font_map_params.m_MaxDescent = 1;
         font_map_params.m_FontCollection = font_collection;
 
+        printf("%s : %d\n", __FUNCTION__, __LINE__);
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
     }
 
@@ -152,6 +154,7 @@ protected:
         DestroyGlyphBank(m_GlyphBank);
         FontDestroy(m_Font);
 
+        dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
 
@@ -570,6 +573,8 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
     dmGraphics::DeleteVertexBuffer(vx_buffer);
+    printf("DeleteVertexDeclaration; %p\n", vx_decl);
+
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
 
@@ -1514,11 +1519,6 @@ TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE);
 
     ASSERT_EQ(ctx.m_Index, ctx.m_Count);
-}
-
-static float Metric(const char* text, int n, bool measure_trailing_space)
-{
-    return n * 4;
 }
 
 #define ASSERT_LINE(index, count, lines, i)\

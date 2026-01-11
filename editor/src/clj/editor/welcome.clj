@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,7 +25,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.game-project-core :as game-project-core]
-            [editor.jfx :as jfx]
+            [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -53,7 +53,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListCell ListView OverrunStyle ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input KeyEvent KeyCode MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Text TextFlow]
@@ -363,7 +363,7 @@
                 (ui/on-action!
                   (fn [_]
                     (on-remove)))
-                (.setGraphic (jfx/get-image-view "icons/32/Icons_S_01_SmallClose.png" 10)))
+                (.setGraphic (icons/get-image-view "icons/32/Icons_S_01_SmallClose.png" 10)))
               (timestamp-label timestamp localization)]))
          (timestamp-label timestamp localization))])))
 
@@ -644,7 +644,9 @@
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
          min-width 792.0
          min-height 338.0
-         stage (doto (ui/make-dialog-stage) (.setResizable true))
+         stage (doto (ui/make-dialog-stage)
+                 (.setTitle (ui/make-title))
+                 (.setResizable true))
          ;; Adapted from https://stackoverflow.com/questions/57425534/how-to-limit-how-much-the-user-can-resize-a-javafx-window
          ;; because setting minWidth/minHeight on a resizable stage does not prevent resizing the stage to a smaller size
          _ (.addListener (.widthProperty stage)

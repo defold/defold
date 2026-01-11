@@ -114,7 +114,7 @@ def build(bld):
 
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
-                     includes = ['.', './mbedtls/include'],
+                     includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
                      target   = 'dlib',
                      defines  = ['VALGRIND'] + extra_defines)
 
@@ -135,7 +135,7 @@ def build(bld):
     dlib_noasan.source = [x for x in dlib.source]
 
 
-    mbedtls_dirs = 'mbedtls/library/**/*.c'.split()
+    mbedtls_dirs = 'mbedtls/crypto/library/**/*.c mbedtls/library/**/*.c'.split()
     if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
         mbedtls_dirs = 'mbedtls_stub/**/*.c'.split()
 
@@ -156,7 +156,7 @@ def build(bld):
         extra_defines += ['MBEDTLS_ERROR_C']
 
     mbedtls = bld.stlib(features    = 'c cxx remove_flags',
-                  includes    = '. ./mbedtls/include',
+                  includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
                   target      = 'mbedtls',
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
@@ -249,7 +249,7 @@ def build(bld):
 
     if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
-                                includes = '. ./mbedtls/include',
+                                includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])

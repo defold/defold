@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.material :as material]
             [editor.particle-lib :as plib]
             [editor.properties :as properties]
@@ -30,14 +31,14 @@
 (deftest basic
   (testing "Basic scene"
            (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+             (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
                    scene (g/node-value node-id :scene)]
                (is (= 1 (count (:children scene))))))))
 
 (deftest modifiers
   (testing "Basic scene"
            (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+             (let [node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
                    outline (g/node-value node-id :node-outline)]
                (is (= 4 (count (:children outline))))
                (let [mod-drag (get-in outline [:children 3 :node-id])
@@ -47,17 +48,21 @@
 
 (deftest simulation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+    (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
           prototype-msg (g/node-value node-id :rt-pb-data)
           emitter-sim-data (g/node-value node-id :emitter-sim-data)
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
           transforms [(doto (Matrix4d.) (.setIdentity))]
           sim (plib/make-sim 16 256 prototype-msg transforms)
-          attribute-infos [(-> :position
-                               (graphics/attribute-key->default-attribute-info)
-                               (assoc :coordinate-space :coordinate-space-world))]
-          vertex-description (graphics/make-vertex-description attribute-infos)
-          attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos 0 {})]
+          attribute-infos [{:name "position"
+                            :name-key :position
+                            :vector-type :vector-type-vec3
+                            :data-type :type-float
+                            :normalize false
+                            :semantic-type :semantic-type-position
+                            :coordinate-space :coordinate-space-world
+                            :step-function :vertex-step-function-vertex}]
+          vertex-description (graphics.types/make-vertex-description attribute-infos)]
       (testing "Sim sleeping"
                (is (plib/sleeping? sim))
                (plib/simulate sim 1/60 fetch-anim-fn transforms)
@@ -66,7 +71,7 @@
                (let [sim (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms))
-                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description attribute-infos attribute-bytes)
+                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})
                                (plib/stats sim))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"

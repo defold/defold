@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -528,6 +528,7 @@ namespace dmEngineService
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
         char                 m_StateJson[sizeof(STATE_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
 
+        ResourceHandlerParams m_ResourceHandlerParams;
         HProfile             m_Profile;
     };
 
@@ -941,10 +942,9 @@ namespace dmEngineService
     {
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
-        ResourceHandlerParams* params = (ResourceHandlerParams*) malloc(sizeof(ResourceHandlerParams));
-        params->m_Factory = factory;
-        params->m_Regist = regist;
-        resource_params.m_Userdata = params;
+        engine_service->m_ResourceHandlerParams.m_Factory = factory;
+        engine_service->m_ResourceHandlerParams.m_Regist = regist;
+        resource_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
         dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
 
         dmWebServer::HandlerParams gameobject_params;

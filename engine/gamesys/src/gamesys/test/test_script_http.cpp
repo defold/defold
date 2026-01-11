@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -188,6 +188,8 @@ protected:
         dmScript::SetInstance(L);
         assert(top == lua_gettop(L));
         m_NumberOfFails = 0;
+
+        dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
     }
 
     void TearDown() override
@@ -212,6 +214,7 @@ protected:
         ExtensionAppParamsFinalize(&m_AppParams);
 
         dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+        dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
 
         dmScript::Finalize(m_ScriptContext);
@@ -464,5 +467,6 @@ int main(int argc, char **argv)
     int ret = jc_test_run_all();
 
     Destroy();
+    dmLog::LogFinalize();
     return ret;
 }

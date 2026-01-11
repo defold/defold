@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,6 +40,15 @@ namespace dmRender
 
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+
+            dmHashTable<uint64_t, FontGlyph*>::Iterator iter = m_Glyphs.GetIterator();
+            while(iter.Next())
+            {
+                FontGlyph* glyph = iter.GetValue();
+                if ( (glyph->m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED) == 0)
+                    free((void*)glyph->m_Bitmap.m_Data);
+                delete glyph;
+            }
         }
 
         dmMutex::HMutex         m_Mutex;

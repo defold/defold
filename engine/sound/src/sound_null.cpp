@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -181,6 +181,27 @@ namespace dmSound
         // NOTE: Not supported.
         // sound_null is deprecated and should be replaced by sound2 with null-device
         return RESULT_OK;
+    }
+
+    Result SetGroupMute(dmhash_t group_hash, bool mute)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        (void)group_hash;
+        (void)mute;
+        return RESULT_OK;
+    }
+
+    Result ToggleGroupMute(dmhash_t group_hash)
+    {
+        (void)group_hash;
+        return RESULT_OK;
+    }
+
+    bool IsGroupMuted(dmhash_t group_hash)
+    {
+        (void)group_hash;
+        return false;
     }
 
     Result GetGroupHashes(uint32_t* count, dmhash_t* buffer)

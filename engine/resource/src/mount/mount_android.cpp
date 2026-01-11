@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -41,8 +41,10 @@ namespace dmResource
         uint32_t index_length;
     };
 
-    Result MapAsset(AAssetManager* am, const char* path,  void*& out_asset, uint32_t& out_size, void*& out_map)
+    Result MapAsset(const char* path, void*& out_asset, uint32_t& out_size, void*& out_map)
     {
+        AAssetManager* am = g_AndroidApp->activity->assetManager;
+
         out_asset = (void*)AAssetManager_open(am, path, AASSET_MODE_RANDOM);
         if (!out_asset)
         {
@@ -87,11 +89,11 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    static Result UnmapAsset(AAsset*& asset)
+    Result UnmapAsset(void*& asset, uint32_t size)
     {
         if (asset != 0x0)
         {
-            AAsset_close(asset);
+            AAsset_close((AAsset*)asset);
         }
         return RESULT_OK;
     }
@@ -118,7 +120,6 @@ namespace dmResource
 
     Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
         AAsset* index_asset = 0x0;
         uint32_t index_length = 0;
         void* index_map = 0x0;
@@ -132,7 +133,7 @@ namespace dmResource
         bool mem_mapped_data = false;
         if (strcmp(data_path, "game.arcd") == 0)
         {
-            r = MapAsset(am, data_path, (void*&)data_asset, data_length, data_map);
+            r = MapAsset(data_path, (void*&)data_asset, data_length, data_map);
             if (r != RESULT_OK)
             {
                 dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
@@ -153,13 +154,13 @@ namespace dmResource
         bool mem_mapped_index = false;
         if (strcmp(index_path, "game.arci") == 0)
         {
-            r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
+            r = MapAsset(index_path, (void*&)index_asset, index_length, index_map);
             if (r != RESULT_OK)
             {
                 if (mem_mapped_data)
                     UnmapFile(data_map, data_length);
                 else
-                    UnmapAsset(data_asset);
+                    UnmapAsset((void*&)data_asset, data_length);
                 dmLogError("Error when mapping index file, result: %i", r);
                 return RESULT_IO_ERROR;
             }
@@ -172,7 +173,7 @@ namespace dmResource
                 if (mem_mapped_data)
                     UnmapFile(data_map, data_length);
                 else
-                    UnmapAsset(data_asset);
+                    UnmapAsset((void*&)data_asset, data_length);
                 dmLogError("Error mapping liveupdate index file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
@@ -187,12 +188,12 @@ namespace dmResource
             if (mem_mapped_data)
                 UnmapFile(data_map, data_length);
             else
-                UnmapAsset(data_asset);
+                UnmapAsset((void*&)data_asset, data_length);
 
             if (mem_mapped_index)
                 UnmapFile(index_map, index_length);
             else
-                UnmapAsset(index_asset);
+                UnmapAsset((void*&)index_asset, index_length);
 
             if (res == dmResourceArchive::RESULT_VERSION_MISMATCH)
                 return RESULT_VERSION_MISMATCH;
@@ -221,7 +222,7 @@ namespace dmResource
 
         if (info->index_asset)
         {
-            UnmapAsset(info->index_asset);
+            UnmapAsset((void*&)info->index_asset, info->index_length);
         }
         else if (info->index_map)
         {
@@ -230,7 +231,7 @@ namespace dmResource
 
         if (info->data_asset)
         {
-            UnmapAsset(info->data_asset);
+            UnmapAsset((void*&)info->data_asset, info->data_length);
         } else if(info->data_map)
         {
             UnmapFile(info->data_map, info->data_length);

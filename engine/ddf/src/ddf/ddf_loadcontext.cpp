@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,6 +32,9 @@ namespace dmDDF
             memset(buffer, 0, buffer_size);
         }
         m_ArrayCount.SetCapacity(2048, 2048);
+
+        m_DynamicOffsetCursor = 0;
+        m_DynamicTypeMemoryTotal = 0;
     }
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
@@ -40,7 +43,6 @@ namespace dmDDF
         uintptr_t b = m_Current;
         m_Current += desc->m_Size;
         assert(m_DryRun || m_Current <= m_End);
-
         return Message(desc, (char*)b, desc->m_Size, m_DryRun);
     }
 
@@ -72,7 +74,9 @@ namespace dmDDF
     char* LoadContext::AllocString(int length)
     {
         uintptr_t b = m_Current;
+
         m_Current += length;
+
         assert(m_DryRun || m_Current <= m_End);
 
         return (char*)b;
@@ -109,32 +113,81 @@ namespace dmDDF
         }
     }
 
+    uint32_t LoadContext::GetDynamicTypeMemorySize()
+    {
+        return m_DynamicTypeMemoryTotal;
+    }
+
     int LoadContext::GetMemoryUsage()
     {
         return (int) (m_Current - m_Start);
     }
 
-    void LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
+    uint32_t LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
         if(m_ArrayCount.Full())
+        {
             m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
+        }
+
         uint32_t* value_p = m_ArrayCount.Get(hash);
-        if(value_p) {
+        if(value_p)
+        {
             (*value_p)++;
         }
-        else {
+        else
+        {
             m_ArrayCount.Put(hash, 1);
         }
+
+        return hash;
     }
 
     uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
-        uint32_t *value_p = m_ArrayCount.Get(hash);
-        return value_p == 0 ? 0 : *value_p;
+        uint32_t *info_ptr = m_ArrayCount.Get(hash);
+
+        if (info_ptr == 0)
+        {
+            return 0;
+        }
+        return *info_ptr;
+    }
+
+    void* LoadContext::GetDynamicTypePointer(uint32_t offset)
+    {
+        return (void*)(m_Start + m_DynamicTypeOffset + offset);
+    }
+
+    void LoadContext::SetDynamicTypeBase(uint32_t offset)
+    {
+        m_DynamicTypeOffset = offset;
+    }
+
+    uint32_t LoadContext::AddDynamicMessageSize(uint32_t message_size)
+    {
+        if (m_DynamicOffsets.Full())
+        {
+            m_DynamicOffsets.OffsetCapacity(32);
+        }
+        m_DynamicOffsets.Push(m_DynamicTypeMemoryTotal);
+
+        m_DynamicTypeMemoryTotal += message_size;
+
+        return m_DynamicTypeMemoryTotal;
+    }
+
+    uint32_t LoadContext::NextDynamicTypeOffset()
+    {
+        return m_DynamicOffsets[m_DynamicOffsetCursor++];
+    }
+
+    void LoadContext::ResetDynamicOffsetCursor()
+    {
+        m_DynamicOffsetCursor = 0;
     }
 }
-

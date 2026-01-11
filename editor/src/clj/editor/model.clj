@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,11 +33,12 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
+            [editor.texture-util :as texture-util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]))
 
@@ -146,16 +147,19 @@
   (let [sampler-name->gpu-texture-generator (into {}
                                                   (keep (fn [{:keys [sampler gpu-texture-generator]}]
                                                           (when gpu-texture-generator
-                                                            [sampler gpu-texture-generator])))
+                                                            (pair sampler gpu-texture-generator))))
                                                   texture-binding-infos)
         explicit-textures (into {}
                                 (keep-indexed
                                   (fn [unit-index {:keys [name] :as sampler}]
-                                    (when-let [{tex-fn :f tex-args :args} (sampler-name->gpu-texture-generator name)]
-                                      (let [request-id [_node-id unit-index]
-                                            params (material/sampler->tex-params sampler)
-                                            texture (tex-fn tex-args request-id params unit-index)]
-                                        [name texture]))))
+                                    (when-let [gpu-texture-generator (sampler-name->gpu-texture-generator name)]
+                                      (let [gpu-texture (texture-util/generate-gpu-texture gpu-texture-generator)]
+                                        (pair name
+                                              (-> (if (g/error-value? gpu-texture)
+                                                    @texture/placeholder
+                                                    gpu-texture)
+                                                  (texture/set-params (material/sampler->tex-params sampler))
+                                                  (texture/set-base-unit unit-index)))))))
                                 samplers)
         fallback-texture (if (pos? (count explicit-textures))
                            (val (first explicit-textures))

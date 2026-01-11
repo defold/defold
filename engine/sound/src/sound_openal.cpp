@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -131,6 +131,7 @@ namespace dmSound
     {
         dmhash_t m_NameHash;
         float    m_Gain;
+        bool     m_IsMuted;
     };
 
     struct SoundSystem
@@ -260,6 +261,7 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
         group->m_Gain = 1.0f;
+        group->m_IsMuted = false;
         sound->m_GroupMap.Put(group_hash, index);
         return index;
     }
@@ -343,11 +345,14 @@ namespace dmSound
         sound->m_GroupMap.SetCapacity(MAX_GROUPS * 2 + 1, MAX_GROUPS);
         for (uint32_t i = 0; i < MAX_GROUPS; ++i) {
             memset(&sound->m_Groups[i], 0, sizeof(SoundGroup));
+            sound->m_Groups[i].m_Gain = 1.0f;
+            sound->m_Groups[i].m_IsMuted = false;
         }
 
         int master_index = GetOrCreateGroup("master");
         SoundGroup* master = &sound->m_Groups[master_index];
         master->m_Gain = master_gain;
+        master->m_IsMuted = false;
 
         const char *al_vendor = alGetString(AL_VENDOR);
         const char *al_version = alGetString(AL_VERSION);
@@ -889,6 +894,45 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result SetGroupMute(dmhash_t group_hash, bool mute)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+
+        SoundSystem* sound = g_SoundSystem;
+
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
+            int* index = sound->m_GroupMap.Get(group_hash);
+            if (!index)
+                return RESULT_NO_SUCH_GROUP;
+
+            SoundGroup* group = &sound->m_Groups[*index];
+            group->m_IsMuted = mute;
+        }
+
+        return RESULT_OK;
+    }
+
+    Result ToggleGroupMute(dmhash_t group_hash)
+    {
+        return SetGroupMute(group_hash, !IsGroupMuted(group_hash));
+    }
+
+    bool IsGroupMuted(dmhash_t group_hash)
+    {
+        if (!g_SoundSystem)
+            return false;
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index)
+            return false;
+
+        return sound->m_Groups[*index].m_IsMuted;
+    }
+
     Result GetGroupHashes(uint32_t* count, dmhash_t* buffer)
     {
         SoundSystem* sound = g_SoundSystem;
@@ -1030,9 +1074,24 @@ namespace dmSound
             alSourceQueueBuffers(source, 1, buffer);
             checkForAlErrors("alSourceQueueBuffers");
             float gain = sound_instance->m_Parameters[PARAMETER_GAIN];
+            bool muted = false;
+
             int *group_index = sound->m_GroupMap.Get(sound_instance->m_Group);
             if (group_index) {
-                gain *= sound->m_Groups[*group_index].m_Gain;
+                SoundGroup* group = &sound->m_Groups[*group_index];
+                gain *= group->m_Gain;
+                muted = group->m_IsMuted;
+            }
+
+            int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
+            if (master_index) {
+                SoundGroup* master = &sound->m_Groups[*master_index];
+                gain *= master->m_Gain;
+                muted |= master->m_IsMuted;
+            }
+
+            if (muted) {
+                gain = 0.0f;
             }
             alSourcef(source, AL_PITCH, sound_instance->m_Parameters[PARAMETER_SPEED]);
             alSourcef(source, AL_GAIN, gain);

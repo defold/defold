@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -50,6 +50,7 @@ struct JobItem
     HJob        m_Parent;       // We can only have one parent task (no parent == INVALID_JOB)
     HJob        m_Sibling;      // Index to the next sibling (or INVALID_JOB)
     HJob        m_FirstChild;   // Index to the first child (or INVALID_JOB)
+    HJob        m_LastChild;     // Index to the last child (or INVALID_JOB)
     uint64_t    m_TimeCreated;  // to help sorting, and avoid starvation
     uint32_t    m_Generation;   // Used to detect old handles
     int32_t     m_Result;       // The result after processing
@@ -109,48 +110,109 @@ static inline uint32_t ToIndex(HJob job)
     return job & 0xFFFFFFFF;
 }
 
-// ***********************************************************************************
-// Jobs
-
-static void FreeJob(JobThreadContext* ctx, HJob hjob)
-{
-    uint32_t generation = ToGeneration(hjob);
-    uint32_t index = ToIndex(hjob);
-    JobItem& item = ctx->m_Items.Get(index);
-    assert(item.m_Generation == generation);
-    item.m_Generation = INVALID_INDEX;
-    item.m_Status = JOB_STATUS_FREE;
-
-    ctx->m_Items.Free(index, false);
-}
-
-static JobItem* ToItem(JobThreadContext* ctx, HJob hjob)
+static JobItem* GetJobItem(JobThreadContext* ctx, HJob hjob)
 {
     uint32_t generation = ToGeneration(hjob);
     uint32_t index      = ToIndex(hjob);
-    JobItem* item = &ctx->m_Items.Get(index);
-    if (item->m_Generation != generation)
-    {
+    JobItem* item = ctx->m_Items.GetPtr(index);
+    if (item == 0 || item->m_Generation != generation)
         return 0;
-    }
     return item;
 }
 
 static JobItem* CheckItem(JobThreadContext* ctx, HJob hjob)
 {
-    JobItem* item = ToItem(ctx, hjob);
+    JobItem* item = GetJobItem(ctx, hjob);
     assert(item != 0); // Generation differed!
     return item;
 }
 
-static JobItem* GetJobItem(JobThreadContext* ctx, HJob hjob)
+// ***********************************************************************************
+// Jobs
+
+static void RemoveChildFromParent(JobThreadContext* ctx, HJob hchild)
+{
+    JobItem* child = GetJobItem(ctx, hchild);
+    if (!child)
+        return;
+
+    JobItem* parent = GetJobItem(ctx, child->m_Parent);
+    if (!parent)
+    {
+        return;
+    }
+    child->m_Parent = INVALID_JOB;
+
+    HJob prev_hchild = INVALID_JOB;
+    HJob cur_hchild = parent->m_FirstChild;
+
+    while (cur_hchild != INVALID_JOB)
+    {
+        JobItem* child = GetJobItem(ctx, cur_hchild);
+        HJob next_hchild = child->m_Sibling;
+
+        if (cur_hchild == hchild)
+        {
+            if (prev_hchild == INVALID_JOB)
+            {
+                parent->m_FirstChild = next_hchild;
+            }
+            else
+            {
+                JobItem* prev_child = GetJobItem(ctx, prev_hchild);
+                prev_child->m_Sibling = next_hchild;
+            }
+
+            if (parent->m_LastChild == hchild)
+            {
+                parent->m_LastChild = (prev_hchild == INVALID_JOB) ? next_hchild : prev_hchild;
+            }
+
+            child->m_Sibling = INVALID_JOB;
+            return;
+        }
+
+        prev_hchild = cur_hchild;
+        cur_hchild = next_hchild;
+    }
+}
+
+// static void PrintParent(JobThreadContext* ctx, JobItem* parent)
+// {
+//     if (!parent)
+//         return;
+
+//     printf("Parent state: nc: %d  done: %d\n", dmAtomicGet32(&parent->m_NumChildren), dmAtomicGet32(&parent->m_NumChildrenCompleted));
+//     HJob hchild = parent->m_FirstChild;
+//     while (hchild != INVALID_JOB)
+//     {
+//         JobItem* child = GetJobItem(ctx, hchild);
+//         if (child == 0)
+//         {
+//             printf("  child == 0!!! \n");
+//             break; // We cannot iterate further
+//         }
+
+//         printf("  child: %llx (%u %u)  s: %d\n", hchild, ToGeneration(hchild), ToIndex(hchild), child->m_Status);
+
+//         hchild = child->m_Sibling;
+//     }
+// }
+
+static void FreeJob(JobThreadContext* ctx, HJob hjob)
 {
     uint32_t generation = ToGeneration(hjob);
-    uint32_t index      = ToIndex(hjob);
-    JobItem* item = &ctx->m_Items.Get(index);
-    if (item->m_Generation != generation)
-        return 0;
-    return item;
+    uint32_t index = ToIndex(hjob);
+
+    JobItem& item = ctx->m_Items.Get(index);
+    assert(item.m_Generation == generation);
+
+    RemoveChildFromParent(ctx, hjob);
+
+    item.m_Generation = INVALID_INDEX;
+    item.m_Status = JOB_STATUS_FREE;
+
+    ctx->m_Items.Free(index, false);
 }
 
 JobResult SetParent(HContext context, HJob hchild, HJob hparent)
@@ -169,8 +231,18 @@ JobResult SetParent(HContext context, HJob hchild, HJob hparent)
     assert(item->m_Sibling == INVALID_JOB);
 
     item->m_Parent = hparent;
-    item->m_Sibling = parent->m_FirstChild;
-    parent->m_FirstChild = hchild;
+    item->m_Sibling = INVALID_JOB;
+    if (parent->m_FirstChild == INVALID_JOB)
+    {
+        parent->m_FirstChild = hchild;
+        parent->m_LastChild = hchild;
+    }
+    else
+    {
+        JobItem* last_child = GetJobItem(ctx, parent->m_LastChild);
+        last_child->m_Sibling = hchild;
+        parent->m_LastChild = hchild;
+    }
     dmAtomicIncrement32(&parent->m_NumChildren);
 
     // TODO: Make sure all the children inherit the priority of the parent
@@ -189,7 +261,7 @@ HJob CreateJob(HContext context, Job* job)
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
 
         if (ctx->m_Items.Full())
-            ctx->m_Items.OffsetCapacity(16);
+            ctx->m_Items.OffsetCapacity(64);
 
         index = ctx->m_Items.Alloc();
         generation = ctx->m_Generation++;
@@ -205,8 +277,10 @@ HJob CreateJob(HContext context, Job* job)
     item->m_Parent       = INVALID_JOB;
     item->m_Sibling      = INVALID_JOB;
     item->m_FirstChild   = INVALID_JOB;
+    item->m_LastChild    = INVALID_JOB;
 
-    return MakeHandle(generation, index);
+    HJob hjob = MakeHandle(generation, index);
+    return hjob;
 }
 
 JobResult PushJob(HContext context, HJob hjob)
@@ -262,31 +336,38 @@ static JobResult CancelJobInternal(JobThreadContext* ctx, HJob hjob)
     {
         return JOB_RESULT_PENDING;
     }
-    if (item->m_Status == JOB_STATUS_CANCELED)
-    {
-        return JOB_RESULT_CANCELED;
-    }
     if (item->m_Status == JOB_STATUS_FINISHED)
     {
         return JOB_RESULT_OK;
     }
 
-    // Can only really cancel a queued or created item
-    assert(item->m_Status == JOB_STATUS_CREATED || item->m_Status == JOB_STATUS_QUEUED);
-    item->m_Status = JOB_STATUS_CANCELED;
+    // Can only cancel queued/created items directly, but still wait on children when already canceled
+    assert(item->m_Status == JOB_STATUS_CREATED || item->m_Status == JOB_STATUS_QUEUED || item->m_Status == JOB_STATUS_CANCELED);
 
-    JobResult result = JOB_RESULT_OK;
+    JobResult result = JOB_RESULT_CANCELED;
 
     HJob hchild = item->m_FirstChild;
     while (hchild != INVALID_JOB)
     {
         JobResult childresult = CancelJobInternal(ctx, hchild);
+        if (childresult == JOB_RESULT_INVALID_HANDLE)
+        {
+            break; // We cannot get the item pointer
+        }
+
         JobItem* child = GetJobItem(ctx, hchild);
+        if (child == 0)
+        {
+            break; // We cannot iterate further
+        }
+
         if (childresult == JOB_RESULT_PENDING)
             result = JOB_RESULT_PENDING;
 
         hchild = child->m_Sibling;
     }
+
+    item->m_Status = JOB_STATUS_CANCELED;
     return result;
 }
 
@@ -401,8 +482,10 @@ static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, JobItem** out_
         HJob hjob = ctx->m_Work[i];
         JobItem* item = GetJobItem(ctx, hjob);
 
+        bool children_finished = item->m_NumChildren == item->m_NumChildrenCompleted;
+
         // Check if the item meets our criteria
-        if (item->m_Status == JOB_STATUS_CANCELED)
+        if (item->m_Status == JOB_STATUS_CANCELED && children_finished)
         {
             size--;
             ctx->m_Work.Erase(i);
@@ -410,7 +493,7 @@ static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, JobItem** out_
             continue;
         }
 
-        if (item->m_NumChildren != item->m_NumChildrenCompleted)
+        if (!children_finished)
         {
             // Still waiting for the children to finish
             ++i;
@@ -441,7 +524,7 @@ static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
         ProcessOneJob(ctx, hjob);
 
         uint64_t tend = dmTime::GetMonotonicTime();
-        if ((tend-tstart) > max_time)
+        if (max_time == 0 || (tend-tstart) > max_time)
         {
             break;
         }

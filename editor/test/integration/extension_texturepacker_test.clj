@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,8 +20,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
   (:import [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.graphics.proto Graphics$TextureImage]))
+           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]))
 
 (set! *warn-on-reflection* true)
 

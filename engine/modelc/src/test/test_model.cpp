@@ -1,5 +1,4 @@
-
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -112,6 +111,7 @@ TEST(ModelGLTF, Load)
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
     bool result = dmModelImporter::LoadFinalize(scene);
     ASSERT_TRUE(result);
     result = dmModelImporter::Validate(scene);

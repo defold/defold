@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -401,8 +401,8 @@
                 (when-let [active-view (g/node-value app-view :active-view evaluation-context)]
                   (some? (g/maybe-node-value active-view :grid evaluation-context)))))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :grid))
-  (state [scene-visibility]
-         (not (:grid (g/node-value scene-visibility :filtered-renderable-tags)))))
+  (state [scene-visibility evaluation-context]
+         (not (:grid (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))))
 
 (defn hidden-outline-key-path?
   [hidden-node-outline-key-paths node-outline-key-path]

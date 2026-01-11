@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,6 +42,11 @@ namespace dmTexc
             return 0;
         }
         return image;
+    }
+
+    void CreatePreviewImage(uint32_t width, uint32_t height, uint32_t data_size, const uint8_t* input_data, uint8_t* output_data)
+    {
+        ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(input_data, output_data, width, height);
     }
 
     void DestroyImage(Image* image)

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1604,6 +1604,7 @@ TYPED_TEST(PhysicsTest, JointWheel)
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, circle_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(circle);
@@ -1935,14 +1936,11 @@ TYPED_TEST(PhysicsTest, SetGridShapeEnable)
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     dmPhysics::DeleteHullSet2D(hull_set);
+    dmPhysics::DeleteCollisionShape2D(grid_shape);
 }
 
 TYPED_TEST(PhysicsTest, GetSetGroup2D)
 {
-    int32_t rows = 4;
-    int32_t columns = 10;
-    int32_t cell_width = 16;
-    int32_t cell_height = 16;
     dmPhysics::CollisionObjectData data;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
     data.m_Mass = 0.0f;
@@ -1968,10 +1966,6 @@ TYPED_TEST(PhysicsTest, GetSetGroup2D)
 
 TYPED_TEST(PhysicsTest, GetSetMaskBit2D)
 {
-    int32_t rows = 4;
-    int32_t columns = 10;
-    int32_t cell_width = 16;
-    int32_t cell_height = 16;
     dmPhysics::CollisionObjectData data;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
     data.m_Mass = 0.0f;
@@ -2000,10 +1994,6 @@ TYPED_TEST(PhysicsTest, GetSetMaskBit2D)
 
 TYPED_TEST(PhysicsTest, UpdateMass2D)
 {
-    int32_t rows = 4;
-    int32_t columns = 10;
-    int32_t cell_width = 16;
-    int32_t cell_height = 16;
     dmPhysics::CollisionObjectData data;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
     data.m_Mass = 1.0f;
@@ -2046,6 +2036,7 @@ TYPED_TEST(PhysicsTest, ScriptApiBox2D)
     ASSERT_NE((void*)0, (*TestFixture::m_Test.m_GetCollisionObjectContextFunc)(dynamic_co));
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
 int main(int argc, char **argv)

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -303,6 +303,18 @@ namespace dmGameSystem
 
         if (resource->m_BufferResource != 0x0)
             dmResource::Release(factory, resource->m_BufferResource);
+
+        if (resource->m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(resource->m_VertexDeclaration);
+            resource->m_VertexDeclaration = 0;
+        }
+
+        if (resource->m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
+            resource->m_VertexBuffer = 0;
+        }
 
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {

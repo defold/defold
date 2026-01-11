@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -718,7 +718,7 @@ def default_flags(self):
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', "Bcrypt.lib", 'Gdi32.lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
         # Make sure we prefix with lib*.lib on windows, since this is not done
@@ -809,7 +809,7 @@ def asan_cxxflags(self):
         return
     build_util = create_build_utility(self.env)
     if Options.options.with_asan:
-        if build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+        if build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
             self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -817,11 +817,11 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5','nx64'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5','nx64'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
-    elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+    elif Options.options.with_tsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
@@ -1730,7 +1730,8 @@ def detect(conf):
     if Options.options.with_valgrind:
         conf.find_program('valgrind', var='VALGRIND', mandatory = False)
 
-    conf.find_program('ccache', var='CCACHE', mandatory = False)
+    if not Options.options.disable_ccache:
+        conf.find_program('ccache', var='CCACHE', mandatory = False)
 
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)

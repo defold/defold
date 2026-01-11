@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,8 +21,10 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [internal.cache :as c]
+            [internal.graph.types :as gt]
             [schema.core :as s]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll])
   (:import [com.defold.editor.localization MessagePattern]
            [internal.graph.types Arc]))
 
@@ -109,13 +111,12 @@
                                          (when-some [tx-attach-fn (:tx-attach-fn req)]
                                            (let [target-id (g/override-root (:node-id item))
                                                  tx-data (tx-attach-fn target-id child-id)]
-                                             (keep (fn [tx-step]
-                                                     (when (= :connect (:type tx-step))
-                                                       (let [src-serial-id (node-id->serial-id (:source-id tx-step))
-                                                             tgt-serial-id (node-id->serial-id (:target-id tx-step))]
-                                                         (when (and src-serial-id tgt-serial-id)
-                                                           [src-serial-id (:source-label tx-step) tgt-serial-id (:target-label tx-step)]))))
-                                                   (flatten tx-data)))))))
+                                             (keep (fn [arc]
+                                                     (let [src-serial-id (node-id->serial-id (gt/source-id arc))
+                                                           tgt-serial-id (node-id->serial-id (gt/target-id arc))]
+                                                       (when (and src-serial-id tgt-serial-id)
+                                                         [src-serial-id (gt/source-label arc) tgt-serial-id (gt/target-label arc)])))
+                                                   (g/tx-data-added-arcs tx-data)))))))
                              original-attachments)
 
         attachments (into []
@@ -149,6 +150,8 @@
                                         :external-refs {project :project}
                                         :external-labels {project #{:collision-group-nodes
                                                                     :collision-groups-data
+                                                                    :display-height
+                                                                    :display-width
                                                                     :default-tex-params
                                                                     :settings}}})
                       (add-attachments root-ids))]
@@ -205,11 +208,9 @@
 
 (defn- nodes-by-id
   [paste-data]
-  (into {}
-        (comp (filter #(= (:type %) :create-node))
-              (map :node)
-              (map (juxt :_node-id identity)))
-        (:tx-data paste-data)))
+  (->> (:tx-data paste-data)
+       (g/tx-data-added-nodes)
+       (coll/pair-map-by g/node-id)))
 
 (defn- root-nodes [paste-data]
   (let [id->node (nodes-by-id paste-data)]

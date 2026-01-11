@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
@@ -138,7 +139,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.height = params.getHeight();
         settings.pixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormat());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
-        settings.numThreads = 4;
+        settings.numThreads = TextureGenerator.maxThreads;
         settings.data = input;
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 

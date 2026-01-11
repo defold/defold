@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -527,7 +527,7 @@
   (gutter-metrics [_this _lines _regions _glyph-metrics]
     (gutter-metrics))
 
-  (draw-gutter! [_this gc gutter-rect layout font color-scheme lines regions _visible-cursors]
+  (draw-gutter! [_this gc gutter-rect layout _hovered-ui-element font color-scheme lines regions _visible-cursors _hovered-row]
     (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]

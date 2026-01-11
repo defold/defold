@@ -342,6 +342,15 @@ notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
 notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
 notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
+notification.fetch-libraries.min-version.error = Library {uri} requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
+
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Open game.project
+notification.liveupdate-settings.unavailable.error = Cannot open Live Update settings: {reason}
+notification.shared-editor-settings.unavailable.error = Cannot open Shared Editor Settings: {reason}
+notification.ensure-exists.reason.missing = no settings file is configured.
+notification.ensure-exists.reason.folder = the configured path points to a folder.
 
 # Language server notification
 
@@ -572,6 +581,7 @@ pane.console = Console
 pane.curve-editor = Curve Editor
 pane.build-errors = Build Errors
 pane.search-results = Search Results
+pane.breakpoints = Breakpoints
 
 # Console
 
@@ -580,6 +590,22 @@ console.button.filter = Filter
 console.filter.enable-filtering = Enable filtering
 console.filter.add-filter = Add filter (e.g. text, !exclude)
 console.search = Search
+
+# Breakpoints Tab
+
+breakpoints.button.enable-all = Enable All
+breakpoints.button.disable-all = Disable All
+breakpoints.button.toggle-all = Toggle All
+breakpoints.button.remove-all = Remove All
+breakpoints.column.enabled = Enabled
+breakpoints.column.line = Line
+breakpoints.column.name = Name
+breakpoints.column.condition = Condition
+breakpoints.column.path = Path
+breakpoints.context-menu.edit-selected = Edit Condition
+breakpoints.context-menu.remove-selected = Remove Selected Breakpoint
+breakpoints.context-menu.toggle-selected-enabled = Toggle Selected Breakpoint
+breakpoints.context-menu.go-to-line = Go to Line
 
 # Changes view
 
@@ -671,6 +697,7 @@ progress.initializing-editor = Initializing editor {lib}
 progress.loading-editor = Loading editor
 progress.loading = Loading
 progress.loading-resource = Loading {resource}
+progress.processing-resource = Processing {resource}
 progress.resolving-resource = Resolving {resource}
 progress.reading-resource = Reading {resource}
 progress.finalizing = Finalizing…
@@ -735,6 +762,8 @@ menu.view = View
 menu.help = Help
 
 # Commands
+
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
 
 command.file.new = New…
 command.file.new.option.any-file = File
@@ -893,6 +922,7 @@ command.debugger.step-out = Step Out
 command.debugger.detach = Detach Debugger
 command.debugger.stop = Stop Debugger
 command.debugger.toggle-breakpoint = Toggle Breakpoint
+command.debugger.toggle-breakpoint-enabled = Toggle Breakpoint Enabled
 command.debugger.edit-breakpoint = Edit Breakpoint
 command.scene.set-manipulator-space = Set Manipulator Space
 command.scene.set-manipulator-space.option.world = World Space
@@ -972,6 +1002,12 @@ override.aspect.generic.kind = {count, plural, one {# Aspect} other {# Aspects}}
 
 gui.layout.default = Default
 
+# UI
+
+ui.combo-box.filter-prompt = Type to filter
+ui.combo-box.no-items = No items available
+ui.combo-box.not-found = No items found
+
 # Editing operations
 
 operation.atlas.add-animation = Add Animation
@@ -1027,8 +1063,8 @@ property.appmanifest.rig+model = Rig + Model
 property.appmanifest.rig+model.tooltip = Rig, Model or none
 property.appmanifest.exclude-record = Exclude Record
 property.appmanifest.exclude-record.tooltip = Remove the video recording capabilities (desktop platforms)
-property.appmanifest.exclude-profiler = Exclude Profiler
-property.appmanifest.exclude-profiler.tooltip = Remove the on-screen and web profiler
+property.appmanifest.profiler = Profiler
+property.appmanifest.profiler.tooltip = Choose when to link with the profiler
 property.appmanifest.exclude-sound = Exclude Sound
 property.appmanifest.exclude-sound-decoder-wav = Exclude Sound Decoder: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Exclude Sound Decoder: OGG
@@ -1359,23 +1395,30 @@ resource.type.cubemap = Cubemap
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
 resource.type.display-profiles = Display Profiles
+resource.type.dylib = Dynamic Library
 resource.type.editor-localization = Editor Localization
 resource.type.editor-script = Editor Script
 resource.type.factory = Factory
 resource.type.font = Font
 resource.type.fp = Fragment Program
 resource.type.gamepads = Gamepads
+resource.type.gitignore = .gitignore
 resource.type.glsl = Shader Include
 resource.type.go = Game Object
 resource.type.go.non-editable = Non-Editable Game Object
+resource.type.gradle = Gradle Script
 resource.type.gui = GUI
 resource.type.gui-script = GUI Script
 resource.type.h = C/C++ Header
 resource.type.html = HTML
 resource.type.image = Image
+resource.type.ini = INI
 resource.type.input-binding = Input Binding
+resource.type.jar = JAR
+resource.type.java = Java
 resource.type.json = JSON
 resource.type.label = Label
+resource.type.lib = Library
 resource.type.light = Light
 resource.type.lua = Lua Module
 resource.type.manifest = Manifest
@@ -1386,8 +1429,11 @@ resource.type.model = Model
 resource.type.model-scene = Model Scene
 resource.type.objective-c = Objective-C
 resource.type.particlefx = Particle FX
+resource.type.plist = Property List
 resource.type.project = Project
 resource.type.properties = Properties
+resource.type.proto = Protocol Buffer
+resource.type.py = Python
 resource.type.render = Render
 resource.type.render-script = Render Script
 resource.type.render-target = Render Target
@@ -1395,6 +1441,7 @@ resource.type.script = Script
 resource.type.script-api = Script API
 resource.type.settings = Live Update Settings
 resource.type.shared-editor-settings = Shared Editor Settings
+resource.type.sh = Shell Script
 resource.type.sound = Sound
 resource.type.sprite = Sprite
 resource.type.texture-profiles = Texture Profiles
@@ -1402,6 +1449,7 @@ resource.type.tilemap = Tile Map
 resource.type.tilesource = Tile Source
 resource.type.unknown = Unknown
 resource.type.vp = Vertex Program
+resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Zig Object Notation
 

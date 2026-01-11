@@ -33,6 +33,10 @@ def init(ctx):
     if 'build' in waflib.Options.commands:
         test_context = TestContext.create_test_context()
 
+def _is_mac_ci():
+    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
+    return is_ci and sys.platform == 'darwin'
+
 def options(opt):
     opt.load('waf_dynamo')
 
@@ -40,6 +44,9 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.load('waf_resource')
     conf.load('java')
+
+    if _is_mac_ci():
+        conf.env.append_unique('DEFINES', 'GITHUB_CI')
 
     waf_ddf.configure(conf)
 
@@ -131,14 +138,24 @@ def shutdown(self):
     if not TestContext.is_valid(test_context) or waflib.Options.options.skip_build_tests or waflib.Options.options.skip_tests:
         return
 
-    local_ip = _get_local_ip(self)
-    port = find_free_port()
-    proc, configfile = _start_server(self, local_ip, port)
-    atexit.register(_cleanup_server, (proc, configfile))
+    skip_server = _is_mac_ci()
+    if skip_server:
+        print("Running resource tests without HTTP server on macOS CI")
 
-    _wait_for_server(self, proc, local_ip, port)
+    configfile = None
+    if not skip_server:
+        local_ip = _get_local_ip(self)
+        port = find_free_port()
+        proc, configfile = _start_server(self, local_ip, port)
+        atexit.register(_cleanup_server, (proc, configfile))
+
+        _wait_for_server(self, proc, local_ip, port)
+    else:
+        local_ip = _get_local_ip(self)
+        configfile = waf_dynamo.create_test_server_config(self, port=0, ip=local_ip, config_name="unittest.cfg")
 
     try:
         waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
     finally:
-        os.remove(configfile)
+        if configfile and os.path.exists(configfile):
+            os.remove(configfile)

@@ -148,5 +148,11 @@ embedded_instances {
   "  data: \"collection: \\\"/issue-10323/issue-10323.collection\\\"\\n"
   "\"\n"
   "}\n"
+  "embedded_components {\n"
+  "  id: \"collectionproxy32\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/late_update/late_update.collection\\\"\\n"
+  "\"\n"
+  "}\n"
   ""
 }

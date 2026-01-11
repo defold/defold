@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -79,6 +79,42 @@
     :language "yaml"
     :label (localization/message "resource.type.manifest")
     :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "proto"
+    :language "proto"
+    :label (localization/message "resource.type.proto")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "java"
+    :language "java"
+    :label (localization/message "resource.type.java")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "py"
+    :language "python"
+    :label (localization/message "resource.type.py")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "sh"
+    :language "shellscript"
+    :label (localization/message "resource.type.sh")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "xml"
+    :language "xml"
+    :label (localization/message "resource.type.xml")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "ini"
+    :language "ini"
+    :label (localization/message "resource.type.ini")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "plist"
+    :language "plist"
+    :label (localization/message "resource.type.plist")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "gitignore"
+    :language "gitignore"
+    :label (localization/message "resource.type.gitignore")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "gradle"
+    :language "gradle"
+    :label (localization/message "resource.type.gradle")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
    {:ext "defignore"
     :label (localization/message "resource.type.defignore")
     :icon "icons/32/Icons_11-Script-general.png"}

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -216,6 +216,7 @@ namespace dmConfigFile
         int             m_Argc;
         const char**    m_Argv;
         char*           m_Buffer;
+        char*           m_ValueBuffer; // for parsing values
         int             m_BufferPos;
         int             m_BufferSize;
         const char*     m_URI;
@@ -479,8 +480,9 @@ namespace dmConfigFile
     static void Parse(Context* context)
     {
         int value_len = context->m_BufferSize;
-        char* value_buf = new char[value_len];
+        char* value_buf = context->m_ValueBuffer;
 
+        // May longjmp() out of this loop
         while (true)
         {
             EatSpace(context);
@@ -496,7 +498,6 @@ namespace dmConfigFile
                 ParseEntry(context, value_buf, value_len);
             }
         }
-        delete[] value_buf;
     }
 
     struct HttpContext
@@ -553,6 +554,8 @@ namespace dmConfigFile
         context.m_Buffer[buffer_size] = '\n';
         context.m_BufferSize = buffer_size + 1;
         context.m_BufferPos = 0;
+        context.m_ValueBuffer = new char[buffer_size + 1];
+        context.m_ValueBuffer[buffer_size] = 0;
 
         context.m_Argc = argc;
         context.m_Argv = argv;
@@ -564,6 +567,7 @@ namespace dmConfigFile
         int ret = setjmp(context.m_JmpBuf);
         if (ret != RESULT_OK)
         {
+            delete[] context.m_ValueBuffer;
             delete[] context.m_Buffer;
             return (Result) ret;
         }
@@ -613,6 +617,7 @@ namespace dmConfigFile
             *config = c;
         }
 
+        delete[] context.m_ValueBuffer;
         delete[] context.m_Buffer;
         return RESULT_OK;
 
@@ -695,7 +700,7 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
-        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0, 0);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, &uri_parts, 0);
         if (client == 0x0)
         {
             return RESULT_FILE_NOT_FOUND;

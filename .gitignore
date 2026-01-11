@@ -17,8 +17,12 @@
 .java
 .oracle*
 .bash*
+.lldb
 *.pyc
 __pycache__
+.python_history
+.wget-hsts
+.m2
 
 /.ccache
 *.iml
@@ -82,3 +86,5 @@ editor/.lsp/sqlite.db
 
 # ChatGPT
 AGENTS.md
+/share/ext/astcenc/build/
+/share/ext/astcenc/source

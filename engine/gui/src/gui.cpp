@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -78,6 +78,10 @@ namespace dmGui
     static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
+    static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
+    static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                                      int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
+                                      uint32_t* out_width, uint32_t* out_height, float* out_offset_x, float* out_offset_y);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
     static void RemoveFromNodeList(HScene scene, InternalNode* n);
@@ -202,7 +206,19 @@ namespace dmGui
         context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_AdjustWidth = params->m_PhysicalWidth;
+        context->m_AdjustHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
+        context->m_AdjustOffsetX = 0.0f;
+        context->m_AdjustOffsetY = 0.0f;
+        context->m_UseSafeAreaAdjust = false;
+        context->m_SafeAreaMode = SAFE_AREA_NONE;
+        context->m_WindowWidth = params->m_PhysicalWidth;
+        context->m_WindowHeight = params->m_PhysicalHeight;
+        context->m_WindowInsetLeft = 0;
+        context->m_WindowInsetTop = 0;
+        context->m_WindowInsetRight = 0;
+        context->m_WindowInsetBottom = 0;
         context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
@@ -255,6 +271,13 @@ namespace dmGui
     {
         context->m_PhysicalWidth = width;
         context->m_PhysicalHeight = height;
+        if (!context->m_UseSafeAreaAdjust)
+        {
+            context->m_AdjustWidth = width;
+            context->m_AdjustHeight = height;
+            context->m_AdjustOffsetX = 0.0f;
+            context->m_AdjustOffsetY = 0.0f;
+        }
         dmArray<HScene>& scenes = context->m_Scenes;
         uint32_t scene_count = scenes.Size();
 
@@ -262,11 +285,201 @@ namespace dmGui
         {
             Scene* scene = scenes[i];
             scene->m_ResChanged = 1;
+            if (!scene->m_SafeAreaModeOverride)
+            {
+                SetSceneSafeAreaAdjust(scene, context->m_UseSafeAreaAdjust,
+                    context->m_AdjustWidth, context->m_AdjustHeight,
+                    context->m_AdjustOffsetX, context->m_AdjustOffsetY);
+            }
             if(scene->m_OnWindowResizeCallback)
             {
                 scene->m_OnWindowResizeCallback(scene, width, height);
             }
         }
+    }
+
+    static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+        scene->m_UseSafeAreaAdjust = enabled;
+        if (enabled)
+        {
+            scene->m_AdjustWidth = width;
+            scene->m_AdjustHeight = height;
+            scene->m_AdjustOffsetX = offset_x;
+            scene->m_AdjustOffsetY = offset_y;
+        }
+        else
+        {
+            scene->m_AdjustWidth = scene->m_Context->m_PhysicalWidth;
+            scene->m_AdjustHeight = scene->m_Context->m_PhysicalHeight;
+            scene->m_AdjustOffsetX = 0.0f;
+            scene->m_AdjustOffsetY = 0.0f;
+        }
+        scene->m_ResChanged = 1;
+    }
+
+    static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                                      int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
+                                      uint32_t* out_width, uint32_t* out_height, float* out_offset_x, float* out_offset_y)
+    {
+        if (mode == SAFE_AREA_LONG || mode == SAFE_AREA_SHORT)
+        {
+            const bool landscape = window_width >= window_height;
+            const bool apply_long = mode == SAFE_AREA_LONG;
+            const bool apply_lr = landscape ? apply_long : !apply_long;
+
+            if (apply_lr)
+            {
+                inset_top = 0;
+                inset_bottom = 0;
+            }
+            else
+            {
+                inset_left = 0;
+                inset_right = 0;
+            }
+        }
+        else if (mode != SAFE_AREA_BOTH)
+        {
+            inset_left = 0;
+            inset_top = 0;
+            inset_right = 0;
+            inset_bottom = 0;
+        }
+
+        *out_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
+        *out_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
+        *out_offset_x = (float) inset_left;
+        *out_offset_y = (float) inset_bottom;
+    }
+
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+        context->m_UseSafeAreaAdjust = enabled;
+        if (enabled)
+        {
+            context->m_AdjustWidth = width;
+            context->m_AdjustHeight = height;
+            context->m_AdjustOffsetX = offset_x;
+            context->m_AdjustOffsetY = offset_y;
+        }
+        else
+        {
+            context->m_AdjustWidth = context->m_PhysicalWidth;
+            context->m_AdjustHeight = context->m_PhysicalHeight;
+            context->m_AdjustOffsetX = 0.0f;
+            context->m_AdjustOffsetY = 0.0f;
+        }
+
+        dmArray<HScene>& scenes = context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            Scene* scene = scenes[i];
+            if (!scene->m_SafeAreaModeOverride)
+            {
+                SetSceneSafeAreaAdjust(scene, enabled, width, height, offset_x, offset_y);
+            }
+        }
+    }
+
+    SafeAreaMode ParseSafeAreaMode(const char* mode)
+    {
+        if (!mode || dmStrCaseCmp(mode, "none") == 0)
+        {
+            return SAFE_AREA_NONE;
+        }
+        if (dmStrCaseCmp(mode, "long") == 0)
+        {
+            return SAFE_AREA_LONG;
+        }
+        if (dmStrCaseCmp(mode, "short") == 0)
+        {
+            return SAFE_AREA_SHORT;
+        }
+        if (dmStrCaseCmp(mode, "both") == 0)
+        {
+            return SAFE_AREA_BOTH;
+        }
+
+        dmLogWarning("Unknown gui.safe_area_mode '%s', defaulting to 'none'", mode);
+        return SAFE_AREA_NONE;
+    }
+
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom)
+    {
+        if (!context)
+        {
+            return;
+        }
+
+        context->m_SafeAreaMode = mode;
+        context->m_WindowWidth = window_width;
+        context->m_WindowHeight = window_height;
+        context->m_WindowInsetLeft = inset_left;
+        context->m_WindowInsetTop = inset_top;
+        context->m_WindowInsetRight = inset_right;
+        context->m_WindowInsetBottom = inset_bottom;
+
+        if (mode == SAFE_AREA_NONE)
+        {
+            SetSafeAreaAdjust(context, false, 0, 0, 0.0f, 0.0f);
+        }
+        else
+        {
+            uint32_t safe_width = 0;
+            uint32_t safe_height = 0;
+            float offset_x = 0.0f;
+            float offset_y = 0.0f;
+            ComputeSafeAreaAdjust(mode, window_width, window_height, inset_left, inset_top, inset_right, inset_bottom,
+                                  &safe_width, &safe_height, &offset_x, &offset_y);
+            SetSafeAreaAdjust(context, true, safe_width, safe_height, offset_x, offset_y);
+        }
+
+        dmArray<HScene>& scenes = context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            Scene* scene = scenes[i];
+            if (scene->m_SafeAreaModeOverride)
+            {
+                uint32_t override_width = 0;
+                uint32_t override_height = 0;
+                float override_offset_x = 0.0f;
+                float override_offset_y = 0.0f;
+                ComputeSafeAreaAdjust(scene->m_SafeAreaMode, window_width, window_height, inset_left, inset_top, inset_right, inset_bottom,
+                                      &override_width, &override_height, &override_offset_x, &override_offset_y);
+                SetSceneSafeAreaAdjust(scene, scene->m_SafeAreaMode != SAFE_AREA_NONE, override_width, override_height, override_offset_x, override_offset_y);
+            }
+        }
+    }
+
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode)
+    {
+        Scene* s = scene;
+        Context* context = s->m_Context;
+        s->m_SafeAreaModeOverride = true;
+        s->m_SafeAreaMode = mode;
+
+        uint32_t window_width = context->m_WindowWidth;
+        uint32_t window_height = context->m_WindowHeight;
+        if (window_width == 0 || window_height == 0)
+        {
+            window_width = context->m_PhysicalWidth;
+            window_height = context->m_PhysicalHeight;
+        }
+
+        uint32_t safe_width = 0;
+        uint32_t safe_height = 0;
+        float offset_x = 0.0f;
+        float offset_y = 0.0f;
+        ComputeSafeAreaAdjust(mode, window_width, window_height,
+                              context->m_WindowInsetLeft, context->m_WindowInsetTop,
+                              context->m_WindowInsetRight, context->m_WindowInsetBottom,
+                              &safe_width, &safe_height, &offset_x, &offset_y);
+        SetSceneSafeAreaAdjust(s, mode != SAFE_AREA_NONE, safe_width, safe_height, offset_x, offset_y);
     }
 
     void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
@@ -380,6 +593,13 @@ namespace dmGui
         scene->m_RenderOrder = 0;
         scene->m_Width = context->m_DefaultProjectWidth;
         scene->m_Height = context->m_DefaultProjectHeight;
+        scene->m_AdjustWidth = context->m_AdjustWidth;
+        scene->m_AdjustHeight = context->m_AdjustHeight;
+        scene->m_AdjustOffsetX = context->m_AdjustOffsetX;
+        scene->m_AdjustOffsetY = context->m_AdjustOffsetY;
+        scene->m_SafeAreaMode = context->m_SafeAreaMode;
+        scene->m_SafeAreaModeOverride = false;
+        scene->m_UseSafeAreaAdjust = context->m_UseSafeAreaAdjust;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_CreateCustomNodeCallback = params->m_CreateCustomNodeCallback;
         scene->m_DestroyCustomNodeCallback = params->m_DestroyCustomNodeCallback;
@@ -419,6 +639,26 @@ namespace dmGui
         return scene;
     }
 
+    static void FreeNodeMemory(HScene scene, InternalNode* n)
+    {
+        if (n->m_Node.m_CustomType != 0 && scene->m_DestroyCustomNodeCallback)
+        {
+            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
+        }
+
+        if (n->m_Node.m_RenderConstants && scene->m_DestroyRenderConstantsCallback)
+        {
+            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
+            n->m_Node.m_RenderConstants = 0;
+        }
+
+        free((void*)n->m_Node.m_Text);
+        n->m_Node.m_Text = 0;
+
+        free(n->m_Node.m_ResetPointProperties);
+        n->m_Node.m_ResetPointProperties = 0;
+    }
+
     void DeleteScene(HScene scene)
     {
         lua_State*L = scene->m_Context->m_LuaState;
@@ -433,15 +673,7 @@ namespace dmGui
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            InternalNode* n = &nodes[i];
-
-            if (n->m_Node.m_CustomType != 0)
-            {
-                scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
-            }
-
-            if (n->m_Node.m_Text)
-                free((void*) n->m_Node.m_Text);
+            FreeNodeMemory(scene, &nodes[i]);
         }
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
@@ -622,6 +854,9 @@ namespace dmGui
 
     Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
+        if (scene->m_DynamicTextures.Full())
+            return RESULT_OUT_OF_RESOURCES;
+
         if (compression_type == dmImage::COMPRESSION_TYPE_NONE)
         {
             uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
@@ -1093,8 +1328,8 @@ namespace dmGui
         float scale_y = 1.0f;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX) {
-            scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
-            scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
+            scale_x = (float) scene->m_AdjustWidth / (float) scene->m_Width;
+            scale_y = (float) scene->m_AdjustHeight / (float) scene->m_Height;
         } else {
             Vector4 adjust_scale = scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalAdjustScale;
             scale_x = adjust_scale.getX();
@@ -2593,15 +2828,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
 
-        if (n->m_Node.m_CustomType != 0)
-        {
-            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
-        }
-
-        if (n->m_Node.m_RenderConstants)
-        {
-            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
-        }
+        FreeNodeMemory(scene, n);
 
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
@@ -2680,6 +2907,13 @@ namespace dmGui
 
     void ClearNodes(HScene scene)
     {
+        uint32_t n = scene->m_Nodes.Size();
+        InternalNode* nodes = scene->m_Nodes.Begin();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            FreeNodeMemory(scene, &nodes[i]);
+        }
+
         scene->m_Nodes.SetSize(0);
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
@@ -2718,7 +2952,6 @@ namespace dmGui
         // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
         Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode);
 
-        Context* context = scene->m_Context;
         Vector4 parent_dims;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
@@ -2732,10 +2965,12 @@ namespace dmGui
         Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
         Vector4 ref_size;
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
-            ref_size = Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f);
+            ref_size = Vector4((float) scene->m_AdjustWidth, (float) scene->m_AdjustHeight, 0.0f, 1.0f);
 
             // need to calculate offset for root nodes, since (0,0) is in middle of scene
             offset = (ref_size - adjusted_dims) * 0.5f;
+            offset.setX(offset.getX() + scene->m_AdjustOffsetX);
+            offset.setY(offset.getY() + scene->m_AdjustOffsetY);
         } else {
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
             ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
@@ -4004,8 +4239,8 @@ namespace dmGui
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
-                (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
+        Vector4 scale((float) scene->m_AdjustWidth / (float) scene->m_Context->m_DefaultProjectWidth,
+                (float) scene->m_AdjustHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
         CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
@@ -4171,8 +4406,10 @@ namespace dmGui
 
             Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
             Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
-            Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
+            Vector4 ref_size = Vector4((float) scene->m_AdjustWidth, (float) scene->m_AdjustHeight, 0.0f, 1.0f);
             offset = (ref_size - adjusted_dims) * 0.5f;
+            offset.setX(offset.getX() + scene->m_AdjustOffsetX);
+            offset.setY(offset.getY() + scene->m_AdjustOffsetY);
         }
 
         // We calculate a new position that will be the relative position once
@@ -4503,6 +4740,8 @@ namespace dmGui
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
+
+        free((void*)script->m_SourceFileName);
         script->m_SourceFileName = strdup(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -126,7 +126,7 @@
                              :as props}]
   (let [button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
-                                                   (assoc :fx/type fxui/button
+                                                   (assoc :fx/type fxui/legacy-button
                                                           :on-action {:result (:result button-props)})
                                                    (update :text localization)
                                                    (dissoc :result))]
@@ -269,11 +269,11 @@
                            :text height-text
                            :on-text-changed {:event-type :set-height}}]}
      :footer {:fx/type dialog-buttons
-              :children [{:fx/type fxui/button
+              :children [{:fx/type fxui/legacy-button
                           :cancel-button true
                           :on-action {:event-type :cancel}
                           :text (localization (localization/message "dialog.button.cancel"))}
-                         {:fx/type fxui/button
+                         {:fx/type fxui/legacy-button
                           :variant :primary
                           :disable (or (not width-valid) (not height-valid))
                           :default-button true
@@ -398,12 +398,12 @@
             :children [{:fx/type fxui/legacy-label
                         :text (localization (localization/message "dialog.error.footer"))}
                        {:fx/type dialog-buttons
-                        :children [{:fx/type fxui/button
+                        :children [{:fx/type fxui/legacy-button
                                     :cancel-button true
                                     :on-action {:result false}
                                     :text (localization (localization/message "dialog.button.dismiss"))}
                                    {:fx/type fxui/ext-focused-by-default
-                                    :desc {:fx/type fxui/button
+                                    :desc {:fx/type fxui/legacy-button
                                            :variant :primary
                                            :default-button true
                                            :on-action {:result true}
@@ -426,6 +426,7 @@
 (defn- load-project-dialog [{:keys [progress localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
+   :title (ui/make-title)
    :on-close-request (fn [_] (Platform/exit))
    :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-default"
@@ -448,7 +449,7 @@
                          :progress (or (progress/fraction progress)
                                        -1.0)}]} ; Indeterminate.
    :footer {:fx/type dialog-buttons
-            :children [{:fx/type fxui/button
+            :children [{:fx/type fxui/legacy-button
                         :disable true
                         :text (localization (localization/message "dialog.button.cancel"))}]}})
 
@@ -588,7 +589,7 @@
                         :visible filter-in-progress}
                        {:fx/type dialog-buttons
                         :h-box/hgrow :always
-                        :children [{:fx/type fxui/button
+                        :children [{:fx/type fxui/legacy-button
                                     :text (localization ok-label)
                                     :variant :primary
                                     :disable (zero? (count filtered-items))
@@ -786,11 +787,11 @@
                            :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
-              :children [{:fx/type fxui/button
+              :children [{:fx/type fxui/legacy-button
                           :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
-                         {:fx/type fxui/button
+                         {:fx/type fxui/legacy-button
                           :disable (or invalid path-empty)
                           :text (localization (localization/message "dialog.new-folder.button.create-folder"))
                           :variant :primary
@@ -830,11 +831,11 @@
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
      :footer {:fx/type dialog-buttons
-              :children [{:fx/type fxui/button
+              :children [{:fx/type fxui/legacy-button
                           :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
-                         {:fx/type fxui/button
+                         {:fx/type fxui/legacy-button
                           :disable (not ip-valid)
                           :text (localization (localization/message "dialog.target-ip.button.add"))
                           :variant :primary
@@ -927,11 +928,11 @@
                                           (map #(apply-extension sanitized %))
                                           (string/join ", ")))}]}
      :footer {:fx/type dialog-buttons
-              :children [{:fx/type fxui/button
+              :children [{:fx/type fxui/legacy-button
                           :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
-                         {:fx/type fxui/button
+                         {:fx/type fxui/legacy-button
                           :variant :primary
                           :default-button true
                           :disable invalid
@@ -1011,7 +1012,7 @@
                                        :variant (if location-exists :default :error)
                                        :on-text-changed {:event-type :set-location}
                                        :text relative-path}
-                                      {:fx/type fxui/button
+                                      {:fx/type fxui/legacy-button
                                        :variant :icon
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
@@ -1023,11 +1024,11 @@
                                    (str relative-path \/ sanitized-name)
                                    "")}]}
      :footer {:fx/type dialog-buttons
-              :children [{:fx/type fxui/button
+              :children [{:fx/type fxui/legacy-button
                           :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
-                         {:fx/type fxui/button
+                         {:fx/type fxui/legacy-button
                           :disable (not valid-input)
                           :text (if type
                                   (localization (localization/message "dialog.new-file.button.create.resource" {"type" type}))
@@ -1119,14 +1120,14 @@
                                            :pref-row-count 20
                                            :text str}})
                         :footer {:fx/type dialog-buttons
-                                 :children [{:fx/type fxui/button
+                                 :children [{:fx/type fxui/legacy-button
                                              :text (localization (localization/message "dialog.button.close"))
                                              :cancel-button true
                                              :on-action {:event-type :cancel}}
-                                            {:fx/type fxui/button
+                                            {:fx/type fxui/legacy-button
                                              :text (localization (localization/message "dialog.target-discovery-log.button.clear-log"))
                                              :on-action {:event-type :clear}}
-                                            {:fx/type fxui/button
+                                            {:fx/type fxui/legacy-button
                                              :text (localization (localization/message "dialog.target-discovery-log.button.restart-discovery"))
                                              :on-action {:event-type :restart}}]}})))]
     (vreset! renderer-ref renderer)

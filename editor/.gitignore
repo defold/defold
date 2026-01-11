@@ -27,7 +27,8 @@ pom.xml.asc
 /build
 /preflight-report.txt
 /.calva
-/.lsp
+.lsp/*
+!.lsp/config.edn
 /.portal
 /defunload-issues.txt
 /src/antlr

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,6 +52,8 @@
 (set! *warn-on-reflection* true)
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
+
+(declare add-embedded-component)
 
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
   (-> (protobuf/make-map-without-defaults GameObject$ComponentDesc
@@ -503,6 +505,21 @@
         (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-component go-id resource id nil nil select-fn)))))
 
+(defn- raw-audio-resource? [resource]
+  (contains? sound/supported-audio-formats (resource/type-ext resource)))
+
+(defn- add-embedded-sound-component! [go-id audio-resource select-fn]
+  (let [project (project/get-project go-id)
+        workspace (project/workspace project)
+        resource-type (workspace/get-resource-type workspace "sound")
+        pb-map (assoc (game-object-common/template-pb-map workspace resource-type)
+                 :sound (resource/proj-path audio-resource))
+        id (gen-component-id go-id (resource/base-name audio-resource))]
+    (g/transact
+      (concat
+        (g/operation-label (localization/message "operation.game-object.add-component"))
+        (add-embedded-component go-id project "sound" pb-map id nil select-fn)))))
+
 (defn add-component-handler [workspace project go-id select-fn]
   (when-let [resources (resource-dialog/make
                          workspace project
@@ -510,7 +527,9 @@
                           :title (localization/message "dialog.select-component-file.title")
                           :selection :multiple})]
     (doseq [resource resources]
-      (add-referenced-component! go-id resource select-fn))))
+      (if (raw-audio-resource? resource)
+        (add-embedded-sound-component! go-id resource select-fn)
+        (add-referenced-component! go-id resource select-fn)))))
 
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
@@ -579,9 +598,9 @@
              resource-type))
          (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))
 
-(defn add-embedded-component-options [self workspace user-data]
+(defn- add-embedded-component-options [self workspace user-data evaluation-context]
   (when (not user-data)
-    (->> (embeddable-component-resource-types workspace)
+    (->> (embeddable-component-resource-types workspace evaluation-context)
          (mapv (fn [res-type]
                  {:label (or (:label res-type) (:ext res-type))
                   :icon (:icon res-type)
@@ -597,10 +616,10 @@
         (or (:label rt) (:ext rt)))))
   (active? [selection] (selection->game-object selection))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
-  (options [selection user-data]
-           (let [self (selection->game-object selection)
-                 workspace (:workspace (g/node-value self :resource))]
-             (add-embedded-component-options self workspace user-data))))
+  (options [selection user-data evaluation-context]
+    (let [self (selection->game-object selection)
+          workspace (:workspace (g/node-value self :resource evaluation-context))]
+      (add-embedded-component-options self workspace user-data evaluation-context))))
 
 (defn load-game-object [project self resource prototype-desc]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.

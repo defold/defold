@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -680,7 +680,7 @@ namespace dmGameObject
      * Get gameobject instance position
      * @name GetPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Point3] Position
+     * @return [type:dmVMath::Point3] Position
      */
     dmVMath::Point3 GetPosition(HInstance instance);
 
@@ -777,7 +777,7 @@ namespace dmGameObject
      * Get game object instance world transform as Matrix4.
      * @name GetWorldMatrix
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::MAtrix4] World transform matrix.
+     * @return [type:dmGameObject::Matrix4] World transform matrix.
      */
     const dmVMath::Matrix4& GetWorldMatrix(HInstance instance);
 

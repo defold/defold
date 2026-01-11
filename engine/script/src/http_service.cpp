@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -51,6 +51,7 @@ namespace dmHttpService
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
+        dmURI::Parts          m_CurrentProxyURL;
         dmMessage::URL        m_CurrentRequesterURL;
         dmHttpDDF::HttpRequest*   m_Request;
         const char*           m_Filepath;
@@ -274,7 +275,8 @@ namespace dmHttpService
         dmURI::Parts url;
         request->m_Method = (const char*) ((uintptr_t) request + (uintptr_t) request->m_Method);
         request->m_Url = (const char*) ((uintptr_t) request + (uintptr_t) request->m_Url);
-        dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
+
+        dmURI::Result ur = dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
             SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0, 0, 0, 0);
@@ -286,9 +288,22 @@ namespace dmHttpService
             url.m_Path[1] = '\0';
         }
 
-        if (worker->m_Client == 0 || !(strcmp(url.m_Hostname, worker->m_CurrentURL.m_Hostname) == 0 &&
-                                       strcmp(url.m_Scheme, worker->m_CurrentURL.m_Scheme) == 0 &&
-                                       url.m_Port == worker->m_CurrentURL.m_Port)) {
+
+        dmURI::Parts proxy_url;
+        if (request->m_Proxy)
+        {
+            dmURI::Result pr = dmURI::Parse(request->m_Proxy, &proxy_url);
+            if (pr != dmURI::RESULT_OK)
+            {
+                SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0, 0, 0, 0);
+                return;
+            }
+        }
+
+        if (worker->m_Client == 0 ||
+            !dmURI::Compare(&url, &worker->m_CurrentURL) ||
+            !dmURI::Compare(&proxy_url, &worker->m_CurrentProxyURL)) {
+
             if (worker->m_Client) {
                 dmHttpClient::Delete(worker->m_Client);
             }
@@ -303,9 +318,10 @@ namespace dmHttpService
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             params.m_RequestTimeout = request->m_Timeout;
 
-            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0, &worker->m_Canceled);
+            worker->m_Client = dmHttpClient::New(&params, &url, &worker->m_Canceled, &proxy_url);
 
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
+            memcpy(&worker->m_CurrentProxyURL, &proxy_url, sizeof(proxy_url));
         }
 
         worker->m_Response.SetSize(0);
@@ -480,6 +496,7 @@ namespace dmHttpService
             dmMessage::NewSocket(tmp, &worker->m_Socket);
             worker->m_Client = 0;
             memset(&worker->m_CurrentURL, 0, sizeof(worker->m_CurrentURL));
+            memset(&worker->m_CurrentProxyURL, 0, sizeof(worker->m_CurrentProxyURL));
             worker->m_Request = 0;
             worker->m_Status = 0;
             worker->m_Service = service;

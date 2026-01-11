@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -290,7 +290,7 @@ static int SetText(lua_State* L)
     uint32_t data_size = sizeof(dmGameSystemDDF::SetText) + text_len + 1;
     if (data_size > dmMessage::DM_MESSAGE_MAX_DATA_SIZE)
     {
-        return DM_LUA_ERROR("The label string is too long!");
+        return DM_LUA_ERROR("The label string is too long: %u (max is message size %u)", data_size, dmMessage::DM_MESSAGE_MAX_DATA_SIZE);
     }
     uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
 

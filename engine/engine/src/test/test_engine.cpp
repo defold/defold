@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -522,7 +522,12 @@ TEST_F(EngineTest, ModelComponent)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
-
+TEST_F(EngineTest, LateUpdate)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/late_update/late_update.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
 
 // Adding new test make sure it's linked in main.collection in a collection proxy
 // if you need custom render etc see for cross_script_messaging.ini in this file

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,15 +57,31 @@
     :js-web :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
-  {:x86-win32 {"vulkan" "vulkan-1"}
-   :x86_64-win32 {"vulkan" "vulkan-1"}})
+  {:x86-win32 {"hid" "hid"
+               "hid_null" "hid_null"
+               "input" "input"
+               "platform" "platform"
+               "platform_null" "platform_null"
+               "platform_vulkan" "platform_vulkan"
+               "vpx" "vpx"
+               "vulkan" "vulkan-1"}
+   :x86_64-win32 {"hid" "hid"
+                  "hid_null" "hid_null"
+                  "input" "input"
+                  "platform" "platform"
+                  "platform_null" "platform_null"
+                  "platform_vulkan" "platform_vulkan"
+                  "vpx" "vpx"
+                  "vulkan" "vulkan-1"}})
 
 (defn platformify-excluded-lib [platform lib]
   (or (-> custom-lib-names platform (get lib))
+      (and (contains? windows platform) (str "lib" lib))
       lib))
 
 (defn platformify-lib [platform lib]
-  (or (some-> custom-lib-names platform (get lib))
+  (or (some-> custom-lib-names platform (get lib) (str ".lib"))
+      (and (contains? windows platform) (str "lib" lib ".lib"))
       lib))
 
 ;; region toggles
@@ -318,24 +334,30 @@
       (libs-toggles all-platforms ["record_null"]))))
 
 (def profiler-setting
-  (make-check-box-setting
-    (concat
-      (libs-toggles all-platforms ["profile_null", "profilerext_null"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic"])
-      (exclude-libs-toggles all-platforms ["profile", "profilerext"])
-      (exclude-libs-toggles windows ["profiler_remotery"])
-      (exclude-libs-toggles macos ["profiler_remotery"])
-      (exclude-libs-toggles linux ["profiler_remotery"])
-      (exclude-libs-toggles android ["profiler_remotery"])
-      (exclude-libs-toggles ios ["profiler_remotery"])
-      (exclude-libs-toggles web ["profiler_js"])
-      (generic-contains-toggles windows :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles macos :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles linux :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
-      (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"]))))
+  (let [none-toggles (concat
+                       (libs-toggles all-platforms ["profile_null", "profilerext_null"])
+                       (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery", "ProfilerJS"])
+                       (exclude-libs-toggles all-platforms ["profile", "profilerext", "profiler_remotery", "profiler_js"]))
+        always-toggles (concat
+                         (exclude-libs-toggles all-platforms ["profile_null", "profilerext_null"])
+                         (generic-contains-toggles all-platforms :symbols ["ProfilerExt" "ProfilerBasic"])
+                         (generic-contains-toggles windows :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles macos :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles linux :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles android :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles ios :symbols ["ProfilerRemotery"])
+                         (generic-contains-toggles web :symbols ["ProfilerJS"])
+                         (libs-toggles all-platforms ["profile", "profilerext"])
+                         (libs-toggles windows ["profiler_remotery"])
+                         (libs-toggles macos ["profiler_remotery"])
+                         (libs-toggles linux ["profiler_remotery"])
+                         (libs-toggles android ["profiler_remotery"])
+                         (libs-toggles ios ["profiler_remotery"])
+                         (libs-toggles web ["profiler_js"]))]
+    (make-choice-setting
+      :none none-toggles
+      :always always-toggles
+      :debug-only)))
 
 (def font-setting
   (make-check-box-setting
@@ -592,10 +614,13 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter record-setting))
             (set (setting-property-setter record-setting)))
-  (property exclude-profiler g/Any
-            (dynamic label (properties/label-dynamic :appmanifest :exclude-profiler))
-            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-profiler))
-            (dynamic edit-type (g/constantly {:type g/Bool}))
+  (property profiler g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :profiler))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :profiler))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:debug-only "Debug Only"]
+                                                        [:none "None"]
+                                                        [:always "Always"]]}))
             (value (setting-property-getter profiler-setting))
             (set (setting-property-setter profiler-setting)))
   (property exclude-sound g/Any

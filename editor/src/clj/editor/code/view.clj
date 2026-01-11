@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,9 @@
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
@@ -42,8 +45,8 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
-            [editor.lsp :as lsp]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
@@ -96,7 +99,7 @@
 
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
-  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors] "Draws the gutter into the specified Rect."))
+  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row] "Draws the gutter into the specified Rect."))
 
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
@@ -555,7 +558,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element hovered-row ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -663,7 +666,7 @@
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
       (when (< 0.0 (.w gutter-rect))
-        (draw-gutter! gutter-view gc gutter-rect layout font color-scheme lines regions visible-cursors)))))
+        (draw-gutter! gutter-view gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -843,12 +846,12 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
+(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element hovered-row indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
   canvas-repaint-info)
 
-(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
+(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
   nil)
 
 (g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
@@ -1328,6 +1331,7 @@
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
+  (property hovered-row g/Num (default 0) (dynamic visible (g/constantly false)))
   (property edited-breakpoint r/Region (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
@@ -2616,22 +2620,25 @@
             x (.getX event)
             y (.getY event)
             resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
-        (cond-> (data/mouse-moved (get-property view-node :lines evaluation-context)
-                                  (get-property view-node :cursor-ranges evaluation-context)
-                                  (get-property view-node :visible-regions evaluation-context)
-                                  layout
-                                  (get-property view-node :minimap-layout evaluation-context)
-                                  (get-property view-node :gesture-start evaluation-context)
-                                  (get-property view-node :hovered-element evaluation-context)
-                                  x
-                                  y)
-                (and lsp
-                     (prefs/get prefs hover-pref-path)
-                     (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
-                (merge
-                  (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
-                    (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context)))))))
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            row (data/y->row layout y)]
+        (-> (data/mouse-moved (get-property view-node :lines evaluation-context)
+                              (get-property view-node :cursor-ranges evaluation-context)
+                              (get-property view-node :visible-regions evaluation-context)
+                              layout
+                              (get-property view-node :minimap-layout evaluation-context)
+                              (get-property view-node :gesture-start evaluation-context)
+                              (get-property view-node :hovered-element evaluation-context)
+                              (get-property view-node :hovered-row evaluation-context)
+                              x
+                              y)
+            (cond->
+              (and lsp
+                (prefs/get prefs hover-pref-path)
+                (not (get-property view-node :hover-mouse-over-popup evaluation-context)))
+              (merge
+                (let [hover-character-cursor (data/canvas->character-cursor layout lines x y)]
+                  (request-lsp-hover! view-node lsp resource-node hover-character-cursor evaluation-context))))))))
   (refresh-mouse-cursor! view-node event))
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
@@ -2648,6 +2655,7 @@
                                         (get-property view-node :minimap-layout)
                                         (get-property view-node :gesture-start)
                                         (mouse-button event)
+                                        (get-property view-node :hovered-row)
                                         (.getX event)
                                         (.getY event))))
 
@@ -2764,14 +2772,22 @@
 
 (handler/defhandler :debugger.toggle-breakpoint :code-view
   (run [view-node]
-       (let [lines (get-property view-node :lines)
-             cursor-ranges (get-property view-node :cursor-ranges)
-             regions (get-property view-node :regions)
-             breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
-         (set-properties! view-node nil
-                          (data/toggle-breakpoint lines
-                                                  regions
-                                                  breakpoint-rows)))))
+    (let [lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          regions (get-property view-node :regions)
+          breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
+      (set-properties! view-node nil
+                       (data/toggle-breakpoint-region lines
+                                                      regions
+                                                      breakpoint-rows)))))
+
+(handler/defhandler :debugger.toggle-breakpoint-enabled :code-view
+  (run [view-node]
+    (let [lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          regions (get-property view-node :regions)
+          breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
+      (set-properties! view-node nil (data/toggle-breakpoint-enabled-region lines regions breakpoint-rows)))))
 
 (handler/defhandler :edit.rename :code-view
   (active? [editable] editable)
@@ -3369,6 +3385,7 @@
    {:command :code.show-references :label (localization/message "command.code.show-references")}
    {:label :separator}
    {:command :debugger.toggle-breakpoint :label (localization/message "command.debugger.toggle-breakpoint")}
+   {:command :debugger.toggle-breakpoint-enabled :label (localization/message "command.debugger.toggle-breakpoint-enabled")}
    {:command :debugger.edit-breakpoint :label (localization/message "command.debugger.edit-breakpoint")}])
 
 (handler/register-menu! ::menubar-view :editor.app-view/view-end
@@ -3648,7 +3665,7 @@
     (let [gutter-margin (data/line-height glyph-metrics)]
       (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
 
-  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors]
+  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row]
     (let [^GraphicsContext gc gc
           ^Rect gutter-rect gutter-rect
           ^LayoutInfo layout layout
@@ -3687,11 +3704,11 @@
             source-line-count (count lines)
             indicator-offset 3.0
             indicator-diameter (- line-height indicator-offset indicator-offset)
-            breakpoint-row->condition (into {}
-                                            (comp
-                                              (filter data/breakpoint-region?)
-                                              (map (juxt data/breakpoint-row #(:condition % true))))
-                                            regions)
+            breakpoint-row->condition (coll/transfer regions {}
+                                        (filter data/breakpoint-region?)
+                                        (map (juxt data/breakpoint-row
+                                                   #(-> {:condition (:condition % true)
+                                                         :enabled (:enabled %)}))))
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
             execution-marker-frame-rows (data/cursor-ranges->start-rows lines (:current-frame execution-markers-by-type))]
@@ -3700,13 +3717,32 @@
           (when (and (< drawn-line-index drawn-line-count)
                      (< source-line-index source-line-count))
             (let [y (data/row->y layout source-line-index)
-                  condition (breakpoint-row->condition source-line-index)]
-              (when condition
-                (.setFill gc gutter-breakpoint-color)
+                  breakpoint (breakpoint-row->condition source-line-index)
+                  hovered? (and (= hovered-ui-element :gutter)
+                                (= hovered-row source-line-index))]
+              (when (and hovered? (nil? breakpoint))
+                (.setFill gc ^Color (.deriveColor ^Color gutter-breakpoint-color 0.0 1.0 1.0 0.3))
                 (.fillOval gc
                            (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
-                           (+ y indicator-offset) indicator-diameter indicator-diameter)
-                (when (string? condition)
+                           (+ y indicator-offset) indicator-diameter indicator-diameter))
+              (when breakpoint
+                (if (:enabled breakpoint)
+                  (do
+                    (.setFill gc gutter-breakpoint-color)
+                    (.fillOval gc
+                               (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
+                               (+ y indicator-offset) indicator-diameter indicator-diameter))
+                  (do
+                    (.setStroke gc gutter-breakpoint-color)
+                    (.setLineWidth gc 2)
+                    (.setFill gc gutter-background-color)
+                    (.fillOval gc
+                               (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
+                               (+ y indicator-offset) indicator-diameter indicator-diameter)
+                    (.strokeOval gc
+                                 (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset 1)
+                                 (+ y indicator-offset 1) (- indicator-diameter 2) (- indicator-diameter 2))))
+                (when (string? (:condition breakpoint))
                   (doto gc
                     (.save)
                     (.setFill gutter-background-color)
@@ -3864,35 +3900,49 @@
             :children
             [{:fx/type fx.region/lifecycle
               :style-class "breakpoint-editor-background"}
-             {:fx/type fx.v-box/lifecycle
+             {:fx/type fx.grid-pane/lifecycle
               :style-class "breakpoint-editor-content"
-              :spacing padding
+              :column-constraints [{:fx/type fx.column-constraints/lifecycle :percent-width 20}
+                                   {:fx/type fx.column-constraints/lifecycle :percent-width 80 :fill-width true}]
               :children
               [{:fx/type fx.label/lifecycle
                 :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
-                :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
-               {:fx/type fx.h-box/lifecycle
-                :spacing spacing
-                :alignment :baseline-left
-                :children
-                [{:fx/type fx.label/lifecycle
-                  :style-class ["label" "breakpoint-editor-label"]
-                  :text "Condition"}
-                 {:fx/type fxui/legacy-text-field
-                  :h-box/hgrow :always
-                  :style-class ["text-field" "breakpoint-editor-label"]
-                  :prompt-text "e.g. i == 1"
-                  :text (:condition edited-breakpoint "")
-                  :on-text-changed {:event :edit}
-                  :on-action {:event :apply}}]}
-               {:fx/type fx.h-box/lifecycle
-                :spacing spacing
-                :alignment :center-right
-                :children
-                [{:fx/type fx.button/lifecycle
-                  :style-class ["button" "breakpoint-editor-button"]
-                  :text "OK"
-                  :on-action {:event :apply}}]}]}]}]}]}]}}))
+                :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))
+                :grid-pane/column 0
+                :grid-pane/row 0
+                :grid-pane/column-span 2}
+               {:fx/type fx.label/lifecycle
+                :style-class ["label" "breakpoint-editor-label"]
+                :text "Enabled"
+                :grid-pane/column 0
+                :grid-pane/row 1}
+               {:fx/type fx.check-box/lifecycle
+                :style-class ["check-box" "breakpoint-editor-checkbox"]
+                :selected (get edited-breakpoint :enabled true)
+                :on-selected-changed {:event :toggle-enabled}
+                :grid-pane/column 1
+                :grid-pane/row 1}
+               {:fx/type fx.label/lifecycle
+                :style-class ["label" "breakpoint-editor-label"]
+                :text "Condition"
+                :grid-pane/column 0
+                :grid-pane/row 2}
+               {:fx/type fxui/ext-focused-by-default
+                :grid-pane/column 1
+                :grid-pane/row 2
+                :desc {:fx/type fx.text-field/lifecycle
+                       :style-class ["text-field" "breakpoint-editor-label"]
+                       :prompt-text "e.g. i == 1"
+                       :text (:condition edited-breakpoint "")
+                       :on-text-changed {:event :edit}
+                       :on-action {:event :apply}}}
+               {:fx/type fx.button/lifecycle
+                :style-class ["button" "breakpoint-editor-button"]
+                :text "OK"
+                :on-action {:event :apply}
+                :grid-pane/column 1
+                :grid-pane/row 3
+                :grid-pane/halignment :right}]}]}]}]}]}}))
 
 (defn- create-breakpoint-editor! [view-node canvas ^Tab tab]
   (let [state (atom nil)
@@ -3925,12 +3975,21 @@
                          :cancel
                          {:edited-breakpoint nil}
 
+                         :toggle-enabled
+                         (let [edited-breakpoint (assoc edited-breakpoint :enabled (:fx/event event))]
+                           (assoc (data/ensure-breakpoint-region
+                                    (g/node-value view-node :lines evaluation-context)
+                                    (g/node-value view-node :regions evaluation-context)
+                                    edited-breakpoint)
+                                  :edited-breakpoint edited-breakpoint))
+
                          :apply
-                         (assoc (data/ensure-breakpoint
+                         (assoc (data/ensure-breakpoint-region
                                   (g/node-value view-node :lines evaluation-context)
                                   (g/node-value view-node :regions evaluation-context)
                                   edited-breakpoint)
-                           :edited-breakpoint nil))))))}
+                                :edited-breakpoint nil)))
+                     (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))}
         :middleware (comp
                       fxui/wrap-dedupe-desc
                       (fx/wrap-map-desc #(breakpoint-editor-view canvas %)))))

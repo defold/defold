@@ -6,6 +6,7 @@
 # 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
 welcome.button.open-from-disk = Открыть с Диска…
@@ -341,6 +342,15 @@ notification.fetch-libraries.dependencies-changed.action.fetch = Обновит�
 notification.fetch-libraries.dependencies-missing.warning = Отсутствуют следующие зависимости\:\n{dependencies}\nПроект может не работать без них.\nЧтобы их загрузить, подключитесь к интернету и обновите библиотеки.
 notification.fetch-libraries.dependencies-error.error = Не удалось установить следующие зависимости\:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Открыть game.project
+notification.fetch-libraries.min-version.error = Библиотека {uri} требует Defold {required} или новее (текущая версия Defold {current}). Обновите Defold или используйте более старую версию расширения, совместимую с вашей версией Defold.
+
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Открыть game.project
+notification.liveupdate-settings.unavailable.error = Невозможно открыть настройки Live Update: {reason}
+notification.shared-editor-settings.unavailable.error = Невозможно открыть общие настройки редактора: {reason}
+notification.ensure-exists.reason.missing = файл настроек не указан.
+notification.ensure-exists.reason.folder = указанный путь ссылается на папку.
 
 # Language server notification
 
@@ -580,6 +590,9 @@ console.filter.enable-filtering = Включить фильтрацию
 console.filter.add-filter = Новый фильтр ("текст" или "\!убрать")
 console.search = Поиск
 
+# Breakpoints Tab
+
+
 # Changes view
 
 changes-view.button.diff = Сравнить
@@ -734,6 +747,8 @@ menu.view = Вид
 menu.help = Справка
 
 # Commands
+
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
 
 command.file.new = Создать…
 command.file.new.option.any-file = Файл
@@ -971,6 +986,12 @@ override.aspect.generic.kind = {count, plural, one {\# аспекте} other {\#
 
 gui.layout.default = Базовая
 
+# UI
+
+ui.combo-box.filter-prompt = Отфильтровать…
+ui.combo-box.no-items = Нет доступных элементов
+ui.combo-box.not-found = Ничего не найдено
+
 # Editing operations
 
 operation.atlas.add-animation = Добавить анимацию
@@ -1026,8 +1047,8 @@ property.appmanifest.rig+model = Rig + модель
 property.appmanifest.rig+model.tooltip = Rig, Model или отключено
 property.appmanifest.exclude-record = Отключить запись
 property.appmanifest.exclude-record.tooltip = Удаляет возможности записи видео (настольные платформы)
-property.appmanifest.exclude-profiler = Отключить профайлер
-property.appmanifest.exclude-profiler.tooltip = Удаляет экранный и веб-профайлер
+property.appmanifest.profiler = Профайлер
+property.appmanifest.profiler.tooltip = Выберите, когда привязывать профайлер
 property.appmanifest.exclude-sound = Отключить звук
 property.appmanifest.exclude-sound-decoder-wav = Отключить декодер звука\: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Отключить декодер звука\: OGG
@@ -1045,6 +1066,8 @@ property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
+property.appmanifest.use-font-layout = Полная система текста
+property.appmanifest.use-font-layout.tooltip = Использовать систему полной разметки текста (поддерживающую, например, RTL)
 
 # Properties: atlas
 
@@ -1356,23 +1379,30 @@ resource.type.cubemap = Кубическая карта
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
 resource.type.display-profiles = Профили отображения
+resource.type.dylib = Динамическая библиотека
 resource.type.editor-localization = Локализация редактора
 resource.type.editor-script = Скрипт редактора
 resource.type.factory = Фабрика
 resource.type.font = Шрифт
 resource.type.fp = Фрагментный шейдер
 resource.type.gamepads = Геймпады
+resource.type.gitignore = .gitignore
 resource.type.glsl = Включаемый шейдер
 resource.type.go = Игровой объект
 resource.type.go.non-editable = Нередактируемый игровой объект
+resource.type.gradle = Gradle-скрипт
 resource.type.gui = GUI
 resource.type.gui-script = GUI-скрипт
 resource.type.h = Заголовок C/C++
 resource.type.html = HTML
 resource.type.image = Изображение
+resource.type.ini = INI
 resource.type.input-binding = Привязка ввода
+resource.type.jar = JAR
+resource.type.java = Java
 resource.type.json = JSON
 resource.type.label = Надпись
+resource.type.lib = Библиотека
 resource.type.light = Источник света
 resource.type.lua = Lua-модуль
 resource.type.manifest = Манифест
@@ -1383,8 +1413,11 @@ resource.type.model = Модель
 resource.type.model-scene = Сцена модели
 resource.type.objective-c = Objective-C
 resource.type.particlefx = ParticleFX
+resource.type.plist = Property List
 resource.type.project = Проект
 resource.type.properties = Свойства
+resource.type.proto = Protocol Buffer
+resource.type.py = Python
 resource.type.render = Рендер
 resource.type.render-script = Рендер-скрипт
 resource.type.render-target = Рендер-таргет
@@ -1392,6 +1425,7 @@ resource.type.script = Скрипт
 resource.type.script-api = API скриптов
 resource.type.settings = Настройки Live Update
 resource.type.shared-editor-settings = Общие настройки редактора
+resource.type.sh = Shell-скрипт
 resource.type.sound = Звук
 resource.type.sprite = Спрайт
 resource.type.texture-profiles = Профили текстур
@@ -1399,6 +1433,7 @@ resource.type.tilemap = Тайловая карта
 resource.type.tilesource = Источник тайлов
 resource.type.unknown = Неизвестно
 resource.type.vp = Вершинный шейдер
+resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Нотация объектов Zig
 
@@ -1499,16 +1534,16 @@ form.help.project.android.push_field_title = Имя поля JSON в push-пак
 form.label.project.android.push_field_text = Поле текста push
 form.help.project.android.push_field_text = Имя поля JSON в push-пакете для текста уведомления
 form.label.project.android.version_code = Код версии
-form.help.project.android.version_code = Код версии Android (android:versionCode)
+form.help.project.android.version_code = Код версии Android (android\:versionCode)
 form.label.project.android.minimum_sdk_version = Минимальная версия SDK
-form.help.project.android.minimum_sdk_version = Минимальный API Level, необходимый для работы приложения (android:minSdkVersion)
+form.help.project.android.minimum_sdk_version = Минимальный API Level, необходимый для работы приложения (android\:minSdkVersion)
 form.label.project.android.target_sdk_version = Целевая версия SDK
-form.help.project.android.target_sdk_version = API Level, на который нацелено приложение (android:targetSdkVersion)
+form.help.project.android.target_sdk_version = API Level, на который нацелено приложение (android\:targetSdkVersion)
 form.label.project.android.package = Пакет
 form.help.project.android.package = Идентификатор пакета
-form.label.project.android.gcm_sender_id = GCM Sender ID
+form.label.project.android.gcm_sender_id = ID отправителя GCM
 form.help.project.android.gcm_sender_id = Идентификатор отправителя Firebase Cloud Messaging
-form.label.project.android.fcm_application_id = FCM Application ID
+form.label.project.android.fcm_application_id = ID приложения FCM
 form.help.project.android.fcm_application_id = Идентификатор приложения Firebase Cloud Messaging
 form.label.project.android.manifest = Манифест
 form.help.project.android.manifest = Пользовательский шаблон AndroidManifest.xml
@@ -2050,14 +2085,14 @@ form.label.liveupdate.liveupdate.amazon-bucket = Бакет
 form.help.liveupdate.liveupdate.amazon-bucket = Бакет Amazon
 form.label.liveupdate.liveupdate.amazon-prefix = Префикс
 form.help.liveupdate.liveupdate.amazon-prefix = Префикс Amazon
-form.label.liveupdate.zip = Zip
+form.label.liveupdate.zip = ZIP
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Zip в папке сборки
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Перемещает zip в папку сборки после процесса сборки
 form.label.liveupdate.liveupdate.zip-filepath = Папка для zip
 form.help.liveupdate.liveupdate.zip-filepath = Папка для zip
 form.label.liveupdate.liveupdate.zip-filename = Имя файла
-form.help.liveupdate.liveupdate.zip-filename = Имя zip-файла
 form.title.liveupdate.liveupdate.zip-filepath = Выберите папку для zip-архива
+form.help.liveupdate.liveupdate.zip-filename = Имя zip-файла
 form.label.liveupdate.liveupdate.zip-compression-level = Уровень сжатия
 form.help.liveupdate.liveupdate.zip-compression-level = Уровень сжатия, который используется при создании архива Live Update
 form.label.liveupdate.folder = Папка

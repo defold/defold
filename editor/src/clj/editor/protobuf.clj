@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -125,12 +125,17 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def keyword->field-name (fn/memoize keyword->field-name-raw))
 
-(defn pb-enum->val
-  [val-or-desc]
-  (let [^Descriptors$EnumValueDescriptor desc (if (instance? ProtocolMessageEnum val-or-desc)
-                                                (.getValueDescriptor ^ProtocolMessageEnum val-or-desc)
-                                                val-or-desc)]
-    (enum-name->keyword (.getName desc))))
+(defn- as-enum-desc
+  ^Descriptors$EnumValueDescriptor [val-or-desc]
+  (if (instance? ProtocolMessageEnum val-or-desc)
+    (.getValueDescriptor ^ProtocolMessageEnum val-or-desc)
+    val-or-desc))
+
+(defn pb-enum->val [val-or-desc]
+  (-> val-or-desc as-enum-desc .getName enum-name->keyword))
+
+(defn pb-enum->int ^long [val-or-desc]
+  (-> val-or-desc as-enum-desc .getNumber))
 
 (defn- pb-primitive->clj-fn [field-type-key]
   (case field-type-key

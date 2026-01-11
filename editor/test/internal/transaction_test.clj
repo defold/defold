@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -161,7 +161,7 @@
 (deftest precise-invalidation
   (ts/with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
-      (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-property update)))
+      (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-properties update)))
         [calculator :touched true]                {calculator        #{:_declared-properties :_properties :touched}}
         [person :date-of-birth (java.util.Date.)] {person            #{:_declared-properties :_properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}

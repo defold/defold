@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -120,7 +120,7 @@ def _extract_md5_from_headers(headers):
             md5_hex = etag
     return md5_hex
 
-def download(url, cb=None, cb_count=10, retries=5, timeout=60):
+def download(url, cb=None, cb_count=10, retries=8, timeout=60):
     """
     Download with retries and validation.
     Returns absolute cache file path on success.

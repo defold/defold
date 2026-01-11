@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -471,6 +471,8 @@ namespace dmGameSystem
         dmGraphics::DeleteTexture(graphics_context, gui_world->m_WhiteTexture);
 
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
+
+        delete[] gui_world->m_BoxVertexStreamDeclaration;
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;

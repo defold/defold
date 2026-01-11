@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -661,8 +661,10 @@ namespace dmGameObject
         if (FindComponentType(regist, type.m_ResourceType, 0x0) != 0)
             return RESULT_ALREADY_REGISTERED;
 
-        if ((type.m_UpdateFunction != 0x0 || type.m_PreUpdateFunction != 0x0 || type.m_FixedUpdateFunction != 0x0) && type.m_AddToUpdateFunction == 0x0) {
-            dmLogWarning("Registering an PreUpdate/Update/FixedUpdate function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
+        if ((type.m_UpdateFunction != 0x0 
+            || type.m_FixedUpdateFunction != 0x0
+            || type.m_LateUpdateFunction != 0x0) && type.m_AddToUpdateFunction == 0x0) {
+            dmLogWarning("Registering an Update/FixedUpdate/LateUpdate function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
             return RESULT_INVALID_OPERATION;
         }
 
@@ -2591,6 +2593,74 @@ namespace dmGameObject
         // Note: Do not modify collection->m_DirtyTransforms here; other branches remain stale.
     }
 
+    enum UpdateFunctionType
+    {
+        UPDATE_FUNCTION_TYPE_FIXED_UPDATE,
+        UPDATE_FUNCTION_TYPE_UPDATE,
+        UPDATE_FUNCTION_TYPE_LATE_UPDATE
+    };
+
+    static bool UpdateComponentFunction(Collection* collection, uint32_t component_type_count, UpdateFunctionType function_type, ComponentsUpdateParams& update_params)
+    {
+        bool ret = true;
+        for (uint32_t i = 0; i < component_type_count; ++i)
+        {
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+
+            // Avoid to call UpdateTransforms for each/all component types.
+            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms)
+            {
+                UpdateTransforms(collection);
+            }
+
+            // TODO: Could be stored in an array in component type, and just use the function type as index
+            ComponentsUpdate func = 0;
+            switch(function_type)
+            {
+                case UPDATE_FUNCTION_TYPE_UPDATE:
+                {
+                    func = component_type->m_UpdateFunction;
+                    break;
+                }
+                case UPDATE_FUNCTION_TYPE_FIXED_UPDATE:
+                {
+                    func = component_type->m_FixedUpdateFunction;
+                    break;
+                }
+                case UPDATE_FUNCTION_TYPE_LATE_UPDATE:
+                {
+                    func = component_type->m_LateUpdateFunction;
+                    break;
+                }
+            }
+
+            if (func)
+            {
+                DM_PROFILE_DYN(component_type->m_Name, 0);
+                update_params.m_World = collection->m_ComponentWorlds[update_index];
+                update_params.m_Context = component_type->m_Context;
+
+                ComponentsUpdateResult update_result;
+                update_result.m_TransformsUpdated = false;
+                UpdateResult res = func(update_params, update_result);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
+
+                // Mark the collections transforms as dirty if this component has updated
+                // them in its update function.
+                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+            }
+
+            if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+            {
+                ret = false;
+            }
+        }
+
+        return ret;
+    }
+
     static bool Update(Collection* collection, const UpdateContext* update_context)
     {
         DM_PROFILE("Update");
@@ -2619,40 +2689,8 @@ namespace dmGameObject
             dynamic_update_context.m_AccumFrameTime = collection->m_FixedAccumTime;
         }
 
-        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
-        // pre update 
-        for (uint32_t i = 0; i < component_types; ++i)
-        {
-            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
-            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms)
-            {
-                UpdateTransforms(collection);
-            }
-
-            if (component_type->m_PreUpdateFunction)
-            {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
-                ComponentsUpdateParams params;
-                params.m_Collection = collection->m_HCollection;
-                params.m_UpdateContext = &dynamic_update_context;
-                params.m_World = collection->m_ComponentWorlds[update_index];
-                params.m_Context = component_type->m_Context;
-
-                ComponentsUpdateResult update_result;
-                update_result.m_TransformsUpdated = false;
-                UpdateResult res = component_type->m_PreUpdateFunction(params, update_result);
-                if (res != UPDATE_RESULT_OK)
-                {
-                    ret = false;
-                }
-
-                // Mark the collections transforms as dirty if this component has updated
-                // them in its update function.
-                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
-            }
-        }
-
+        uint32_t num_fixed_steps = 0;
+        UpdateContext fixed_update_context;
         if (update_context->m_FixedUpdateFrequency != 0 && update_context->m_TimeScale > 0.001f)
         {
             if (collection->m_FirstUpdate)
@@ -2665,95 +2703,70 @@ namespace dmGameObject
             const float fixed_frequency = update_context->m_FixedUpdateFrequency;
             // If the proxy is slowed down, we want e.g. the physics to be slowed down as well
             const float fixed_dt = (1.0f / (float)fixed_frequency) * update_context->m_TimeScale;
-            uint32_t num_fixed_steps = (uint32_t)(time / fixed_dt);
+            num_fixed_steps = (uint32_t)(time / fixed_dt);
             // Store the remainder for the next frame
             collection->m_FixedAccumTime = time - (num_fixed_steps * fixed_dt);
 
             if (num_fixed_steps != 0)
             {
-                UpdateContext fixed_update_context;
                 fixed_update_context = dynamic_update_context;
                 fixed_update_context.m_DT = fixed_dt;
-
-                for (uint32_t step = 0; step < num_fixed_steps; ++step)
-                {
-                    for (uint32_t i = 0; i < component_types; ++i)
-                    {
-                        uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
-                        ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-
-                        // Avoid to call UpdateTransforms for each/all component types.
-                        if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
-                            UpdateTransforms(collection);
-                        }
-
-                        if (component_type->m_FixedUpdateFunction)
-                        {
-                            DM_PROFILE_DYN(component_type->m_Name, 0);
-                            ComponentsUpdateParams params;
-                            params.m_Collection = collection->m_HCollection;
-                            params.m_UpdateContext = &fixed_update_context;
-                            params.m_World = collection->m_ComponentWorlds[update_index];
-                            params.m_Context = component_type->m_Context;
-
-                            ComponentsUpdateResult update_result;
-                            update_result.m_TransformsUpdated = false;
-                            UpdateResult res = component_type->m_FixedUpdateFunction(params, update_result);
-                            if (res != UPDATE_RESULT_OK)
-                                ret = false;
-
-                            // Mark the collections transforms as dirty if this component has updated
-                            // them in its update function.
-                            collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
-                        }
-
-                        if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
-                        {
-                            ret = false;
-                        }
-                    }
-                }
-
             }
         }
 
-        // regular update
-        for (uint32_t i = 0; i < component_types; ++i)
+        /* The overall function order is as follows:
+        *
+        * - For each function "UpdateFn" in ["Update", "LateUpdateFn]:
+        *   - For each component type:
+        *       - Call type->UpdateFn()
+        *       - Flush messages (if necessary)
+        *       - Update transforms (if necessary)
+        *
+        * Note that FixedUpdate is only called if the project has the setting enabled.
+        * In that case, the loop looks like above, but with one extra function in the list:
+        *
+        * - For each function "UpdateFn" in ["FixedUpdate", "Update", "LateUpdateFn]:
+        *   - same as above: for each component type...
+        *
+        * When using fixed physics update, we call into the fixed update functions for each component type.
+        * Currently, only the Script and CollisionObject components support this function.
+        *
+        * To summarize, the default update loop looks like:
+        *
+        *     script update(), animation, ..., physics update, ...
+        *
+        * With fixed update enabled, the update loop looks like:
+        *
+        *     [script fixed_update(), physics fixed update], animation, ...,
+        */
+
+        ComponentsUpdateParams update_params;
+        update_params.m_Collection = collection->m_HCollection;
+        update_params.m_UpdateContext = &dynamic_update_context;
+
+        ComponentsUpdateParams fixed_update_params;
+        fixed_update_params.m_Collection = collection->m_HCollection;
+        fixed_update_params.m_UpdateContext = &fixed_update_context;
+
+        uint32_t component_type_count = collection->m_Register->m_ComponentTypeCount;
+
+        // See gamesys.cpp for list of priorities for each component type.
+        // These priorities ensure the update order between components.
+        // I.e. collectionproxy, script, animation, collision ...
+
+        // 1. for each fixed step, call component's fixed update
+        //      - Lua fixed_update() (comp_script.cpp)
+        //      - CompCollisionObjectFixedUpdate() (comp_collision_object.cpp)
+        for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
-            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
-            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-
-            // Avoid to call UpdateTransforms for each/all component types.
-            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms)
-            {
-                UpdateTransforms(collection);
-            }
-
-            if (component_type->m_UpdateFunction)
-            {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
-                ComponentsUpdateParams params;
-                params.m_Collection = collection->m_HCollection;
-                params.m_UpdateContext = &dynamic_update_context;
-                params.m_World = collection->m_ComponentWorlds[update_index];
-                params.m_Context = component_type->m_Context;
-
-                ComponentsUpdateResult update_result;
-                update_result.m_TransformsUpdated = false;
-                UpdateResult res = component_type->m_UpdateFunction(params, update_result);
-                if (res != UPDATE_RESULT_OK)
-                    ret = false;
-
-                // Mark the collections transforms as dirty if this component has updated
-                // them in its update function.
-                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
-            }
-
-            if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
-            {
-                ret = false;
-            }
+            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
         }
+
+        // 2. call component's regular update
+        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params);
+
+        // 3. call component's late update
+        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params);
 
         collection->m_InUpdate = 0;
         if (collection->m_DirtyTransforms)

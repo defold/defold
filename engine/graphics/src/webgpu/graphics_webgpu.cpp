@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,12 +28,12 @@
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
+
+#include "../dmsdk/graphics/graphics_webgpu.h" // Includes webgpu.h (or webgpu_wagyu.h)
+
 #include "graphics_webgpu_private.h"
 
-#include "../dmsdk/graphics/graphics_webgpu.h"
-
 #ifdef DM_GRAPHICS_WEBGPU_WAGYU
-#include <webgpu/webgpu_wagyu.h>
 #define DM_GRAPHICS_WEBGPU_WAGYU_USE_DEPTHSTENCIL
 #endif
 
@@ -1122,7 +1122,7 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU_USE_DEPTHSTENCIL)
         WGPUWagyuDeviceDescriptor wagyuDescriptor = WGPU_WAGYU_DEVICE_DESCRIPTOR_INIT;
-        wagyuDescriptor.wantsIndirectRendering = WGPUOptionalBool_True;
+        wagyuDescriptor.wantsIndirectRendering = WGPUOptionalBool_False;
         descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct *>(&wagyuDescriptor);
 #endif
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -1363,6 +1363,11 @@ static void WebGPUDestroyContext(WebGPUContext* context)
 
 static HContext WebGPUNewContext(const ContextParams& params)
 {
+#if defined(DM_GRAPHICS_WEBGPU_WAGYU)
+    // Making sure we're keeping track of the webgpu.h verssions
+    DM_STATIC_ASSERT(WGPUTextureFormat_RG16Snorm == 0x12, Invalid_webgpu_header);
+#endif
+
     TRACE_CALL;
     if (!g_WebGPUContext)
     {

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,8 +16,8 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.prefs :as prefs]
             [editor.asset-browser :as asset-browser]
+            [editor.breakpoints-view :as breakpoints-view]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
@@ -35,6 +35,7 @@
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
+            [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.notifications :as notifications]
@@ -42,6 +43,7 @@
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
+            [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -205,6 +207,8 @@
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs)
                                                       localization)
+
+          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource *view-graph* prefs (.lookup root "#breakpoints-container"))
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
@@ -212,7 +216,8 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
-                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))]))
+                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))
+                                  (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
                        (http-server/start! server-handler :port server-port)
@@ -238,6 +243,7 @@
       (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
+      (localization/localize! (find-tab tool-tabs "breakpoints-tab") localization (localization/message "pane.breakpoints"))
       (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
       (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
 
@@ -371,13 +377,13 @@
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
-          (let [auto-pulls [[properties-view :pane]
-                            [app-view :refresh-tab-panes]
+          (let [auto-pulls [[app-view :refresh-tab-panes]
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]
                             [debug-view :update-available-controls]
-                            [debug-view :update-call-stack]]]
+                            [debug-view :update-call-stack]
+                            [breakpoints-view :breakpoints-anchor-pane]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
 
       (reset! the-root root)
@@ -398,6 +404,8 @@
               (open-resource readme-resource))
             (g/with-auto-evaluation-context evaluation-context
               (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
+
+          (breakpoints-view/restore-breakpoints! project prefs)
 
           ;; Ensure .gitignore is configured to ignore build output and metadata
           ;; files.

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -280,7 +280,7 @@ namespace dmHID
 
     bool GetKey(KeyboardPacket* packet, Key key)
     {
-       int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+        int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
 
         if (packet != 0x0)
             return packet->m_Keys[key_index / 32] & (1 << (key_index % 32));

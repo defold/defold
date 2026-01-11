@@ -1,0 +1,15 @@
+#version 140
+
+in highp vec3 position;
+in mediump vec2 texcoord0;
+
+uniform vertex_uniforms {
+    highp mat4 mtx_world_view_proj;
+};
+
+out mediump vec2 var_texcoord0;
+
+void main() {
+    var_texcoord0 = texcoord0;
+    gl_Position = mtx_world_view_proj * vec4(position, 1.0);
+}

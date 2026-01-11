@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -75,12 +75,6 @@ const char* EXTRA_FILE_PATHS[] = {
     "/archive_data/file3.adc",
     "/uniquezipdata.adc"
 };
-
-const uint32_t EXTRA_FILE_SIZES[] = {
-    37,
-    29
-};
-
 
 
 static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
@@ -275,10 +269,6 @@ TEST_P(ArchiveProviderZip, ReadFilePartial)
         const char* path = FILE_PATHS[i];
         dmhash_t path_hash = dmHashString64(path);
 
-        uint32_t expected_file_size;
-        uint8_t* expected_file = GetRawFile(path, &expected_file_size, false);
-        ASSERT_NE((uint8_t*)0, expected_file);
-
         if (strstr(path, ".scriptc") != 0)
         {
             // Since the scripts are encrypted, we'll just skip the test for now,
@@ -286,6 +276,10 @@ TEST_P(ArchiveProviderZip, ReadFilePartial)
             printf("Skipping encrypted file: %s\n", path);
             continue;
         }
+
+        uint32_t expected_file_size;
+        uint8_t* expected_file = GetRawFile(path, &expected_file_size, false);
+        ASSERT_NE((uint8_t*)0, expected_file);
 
         dmResourceProvider::Result result;
 
@@ -339,5 +333,9 @@ int main(int argc, char **argv)
     dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

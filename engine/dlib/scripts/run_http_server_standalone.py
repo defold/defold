@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,14 +17,13 @@ import urllib, urllib.request, time, atexit, os, sys, configparser, tempfile
 
 server_sockets = None
 
-os.system('scripts/start_http_server.sh')
-
 server_config_path = "test_http_server.cfg"
 if os.path.exists(server_config_path):
     os.unlink(server_config_path)
 
 start = time.time()
-timeout = 8
+timeout = 30 if sys.platform == 'win32' else 15
+os.system('scripts/start_http_server.sh')
 while True:
     if time.time() - start > timeout:
         error('HTTP server failed to start within ' + timeout + ' seconds')

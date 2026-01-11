@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -183,22 +183,29 @@ namespace dmHttpClient
     /**
      * Create a new HTTP client
      * @param params Parameters
-     * @param hostname Hostname
-     * @param port Port number
+     * @param hostURI Host URI (hostname, port, scheme etc)
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, const char* hostname, uint16_t port);
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI);
 
     /**
      * Create a new HTTP client
      * @param params Parameters
-     * @param hostname Hostname
-     * @param port Port number
-     * @param secure TLS/SSL or not
+     * @param hostURI Host URI (hostname, port, scheme etc)
      * @param if non null and set, aborts the call as soon as possible
      * @return HTTP-client handle on success. 0 on failure.
      */
-    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure, int* cancelflag);
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag);
+
+    /**
+     * Create a new HTTP client
+     * @param params Parameters
+     * @param hostURI Host URI (hostname, port, scheme etc)
+     * @param if non null and set, aborts the call as soon as possible
+     * @param proxyURI Proxy URI (hostname, port, scheme etc)
+     * @return HTTP-client handle on success. 0 on failure.
+     */
+    HClient New(const NewParams* params, const dmURI::Parts* hostURI, int* cancelflag, dmURI::Parts* proxyURI);
 
     /**
      * Set HTTP client option

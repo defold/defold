@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -76,6 +76,18 @@ public class TestLibrariesRule extends ExternalResource {
         out.close();
     }
 
+    void createMinVersionLib(String root, String zipNameBase, String dirName, String minVersion) throws IOException {
+        File file = new File(String.format("%s/%s.zip", root, zipNameBase));
+        ZipOutputStream out = new ZipOutputStream(new FileOutputStream(file));
+        // Construct a simple project with include_dirs and defold_min_version
+        createEntry(out, "game.project", String.format("[library]\ninclude_dirs=%s\ndefold_min_version=%s", dirName, minVersion).getBytes());
+        createEntry(out, String.format("%s/", dirName), null);
+        createEntry(out, String.format("%s/testdir1/", dirName), null);
+        createEntry(out, String.format("%s/testdir2/", dirName), null);
+        createEntry(out, String.format("%s/file.in", dirName), "testfile".getBytes());
+        out.close();
+    }
+
     @Override
     protected void before() throws Throwable {
         serverLocation = new File("server_root");
@@ -87,6 +99,9 @@ public class TestLibrariesRule extends ExternalResource {
         createLib(serverLocation.getAbsolutePath(), "", "5", "555");
         createLib(serverLocation.getAbsolutePath(), "", "6", "666");
         createTestLib(serverLocation.getAbsolutePath(), "test123");
+        // Libraries for defold_min_version tests
+        createMinVersionLib(serverLocation.getAbsolutePath(), "test_min_ok", "min_ok", "1.0.0");
+        createMinVersionLib(serverLocation.getAbsolutePath(), "test_min_fail", "min_fail", "999.0.0");
     }
 
     @Override

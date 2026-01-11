@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -102,7 +102,7 @@ static void RunCallback(CallbackInfo* cbinfo)
 }
 
 /*# sets a window event listener
- * Sets a window event listener.
+ * Sets a window event listener. Only one window event listener can be set at a time.
  *
  * @name window.set_listener
  *
@@ -282,6 +282,80 @@ static int GetSize(lua_State* L)
     return 2;
 }
 
+/*# get the safe area
+ *
+ * This returns the safe area rectangle (x, y, width, height) and the inset
+ * values relative to the window edges. On platforms without a safe area,
+ * this returns the full window size and zero insets.
+ *
+ * @name window.get_safe_area
+ * @return safe_area [type:table] safe area data
+ *
+ * `safe_area`
+ * : [type:table] table containing these keys:
+ *
+ * - [type:number] `x`
+ * - [type:number] `y`
+ * - [type:number] `width`
+ * - [type:number] `height`
+ * - [type:number] `inset_left`
+ * - [type:number] `inset_top`
+ * - [type:number] `inset_right`
+ * - [type:number] `inset_bottom`
+ */
+static int GetSafeArea(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    dmPlatform::SafeArea safe_area;
+    if (!dmPlatform::GetSafeArea(g_Window.m_Window, &safe_area))
+    {
+        safe_area.m_X = 0;
+        safe_area.m_Y = 0;
+        safe_area.m_Width = g_Window.m_Width;
+        safe_area.m_Height = g_Window.m_Height;
+        safe_area.m_InsetLeft = 0;
+        safe_area.m_InsetTop = 0;
+        safe_area.m_InsetRight = 0;
+        safe_area.m_InsetBottom = 0;
+    }
+
+    lua_newtable(L);
+
+    lua_pushstring(L, "x");
+    lua_pushnumber(L, safe_area.m_X);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "y");
+    lua_pushnumber(L, safe_area.m_Y);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "width");
+    lua_pushnumber(L, safe_area.m_Width);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "height");
+    lua_pushnumber(L, safe_area.m_Height);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "inset_left");
+    lua_pushnumber(L, safe_area.m_InsetLeft);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "inset_top");
+    lua_pushnumber(L, safe_area.m_InsetTop);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "inset_right");
+    lua_pushnumber(L, safe_area.m_InsetRight);
+    lua_rawset(L, -3);
+
+    lua_pushstring(L, "inset_bottom");
+    lua_pushnumber(L, safe_area.m_InsetBottom);
+    lua_rawset(L, -3);
+
+    return 1;
+}
 
 /*# get the cursor lock state
  *
@@ -382,6 +456,7 @@ static const luaL_reg Module_methods[] =
     {"set_title",         SetTitle},
     {"get_dim_mode",      GetDimMode},
     {"get_size",          GetSize},
+    {"get_safe_area",     GetSafeArea},
     {"set_size",          SetSize},
     {"set_position",      SetPosition},
     {"get_display_scale", GetDisplayScale},

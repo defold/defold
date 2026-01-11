@@ -119,6 +119,11 @@
                                         <AnchorPane id="search-results-container" styleClass="search-results-view" prefHeight="180.0" prefWidth="200.0" />
                                       </content>
                                     </Tab>
+                                    <Tab id="breakpoints-tab" text="Breakpoints">
+                                      <content>
+                                        <AnchorPane id="breakpoints-container" prefHeight="180.0" prefWidth="200.0" />
+                                      </content>
+                                    </Tab>
                                   </tabs>
                                 </TabPane>
                               </children>
@@ -152,11 +157,7 @@
                                 <VBox styleClass="fake-titled-pane" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                   <children>
                                     <Label id="properties-pane" styleClass="fake-titled-pane-label" text="Properties" />
-                                    <ScrollPane fitToHeight="true" fitToWidth="true" prefViewportHeight="325.0" prefViewportWidth="269.0" VBox.vgrow="ALWAYS">
-                                      <content>
-                                        <AnchorPane id="properties" prefHeight="180.0" prefWidth="200.0" />
-                                      </content>
-                                    </ScrollPane>
+                                    <AnchorPane id="properties" VBox.vgrow="ALWAYS"/>
                                   </children>
                                 </VBox>
                               </children>

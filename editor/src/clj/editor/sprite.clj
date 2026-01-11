@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.pipeline :as pipeline]
@@ -182,16 +183,14 @@
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
-
         renderable-datas (mapv renderable-data renderables)
         num-vertices (count-vertices renderable-datas)]
     (condp = pass
       pass/transparent
       (let [{:keys [blend-mode material-attribute-infos shader]} user-data
-            shader-attribute-infos-by-name (shader/attribute-infos shader gl)
-            manufactured-attribute-keys [:position :texcoord0 :page-index]
-            shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys :coordinate-space-world)
-            vertex-description (graphics/make-vertex-description shader-bound-attributes)
+            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+            combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
+            vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
             vbuf (graphics/put-attributes! (vtx/make-vertex-buffer vertex-description :dynamic num-vertices) renderable-datas)
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
@@ -493,10 +492,7 @@
     (reduce
       (fn [acc i]
         (let [start-texture-unit (-> (acc (dec i)) :gpu-texture :texture-units peek inc)]
-          (update-in acc [i :gpu-texture :texture-units]
-                     (fn [texture-units]
-                       (vec (range start-texture-unit
-                                   (+ start-texture-unit (count texture-units))))))))
+          (update-in acc [i :gpu-texture] texture/set-base-unit start-texture-unit)))
       infos
       (range 1 (count infos)))))
 

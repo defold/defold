@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,14 +38,16 @@ the `do-gl` macro from `editor.gl`."
   (:require [clojure.string :as str]
             [editor.buffers :as b]
             [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
+            [editor.gl.types :as gl.types]
+            [editor.graphics.types :as graphics.types]
             [editor.scene-cache :as scene-cache]
-            [internal.util :as util])
+            [util.defonce :as defonce]
+            [util.eduction :as e])
   (:import [clojure.lang IEditableCollection IPersistentVector ITransientVector]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
-           [java.nio ByteBuffer IntBuffer]
+           [java.nio ByteBuffer]
            [java.util.concurrent.atomic AtomicBoolean AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -212,7 +214,7 @@ the `do-gl` macro from `editor.gl`."
 (declare new-persistent-vertex-buffer)
 (declare new-transient-vertex-buffer)
 
-(deftype PersistentVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicLong count set-fn get-fn]
+(defonce/type PersistentVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicLong count set-fn get-fn]
   b/ByteStringCoding
   (byte-pack [this] (b/byte-pack buffer))
 
@@ -263,7 +265,7 @@ the `do-gl` macro from `editor.gl`."
   (pop    [this]
     (throw (UnsupportedOperationException. "Pop would be slow here. Use 'transient' to create an editable vertex buffer." ))))
 
-(deftype TransientVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicBoolean editable ^AtomicLong position set-fn get-fn]
+(defonce/type TransientVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicBoolean editable ^AtomicLong position set-fn get-fn]
   b/ByteStringCoding
   (byte-pack [this] (b/byte-pack buffer))
 
@@ -344,7 +346,7 @@ the `do-gl` macro from `editor.gl`."
   ([capacity layout vx-size set-fn get-fn]
    (let [buffer-starts (buffer-starts capacity layout)
          byte-size (* capacity vx-size)
-         storage (b/new-byte-buffer byte-size :byte-order/little-endian)
+         storage (b/new-byte-buffer byte-size :byte-order/native)
          slices (b/slice storage buffer-starts)]
      (TransientVertexBuffer.
        layout
@@ -434,31 +436,34 @@ the `do-gl` macro from `editor.gl`."
        (defn ~ctor [capacity#]
          (new-transient-vertex-buffer capacity# ~nm ~vx-size setter-fn# getter-fn#)))))
 
+;; TODO(instancing): Produce proper attribute-infos from the defvertex macro.
+(defn- fake-attribute-info [[name-sym :as _attrib]]
+  {:pre [(symbol? name-sym)]}
+  (let [name (name name-sym)
+        name-key (graphics.types/attribute-name-key name)]
+    {:name name
+     :name-key name-key
+     :semantic-type (graphics.types/infer-semantic-type name-key)}))
+
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (let [attribute-infos (shader/attribute-infos shader gl)]
-    (mapv (fn [attrib]
-            (let [attribute-name (name (first attrib))]
-              (if-some [attribute-info (get attribute-infos attribute-name)]
-                (:index attribute-info)
-                -1)))
-          attribs)))
+  (let [attribute-infos (e/map fake-attribute-info attribs)]
+    (shader/attribute-locations shader gl attribute-infos)))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         ^int stride (vertex-size attribs)
-        attribute-infos (shader/attribute-infos shader gl)]
-    (mapv (fn [^long offset attrib]
-            (let [[nm ^int sz tp & more] attrib
-                  ^boolean norm (if (not (nil? (first more))) (first more) false)
-                  attribute-name (name nm)]
-              (when-some [attribute-info (get attribute-infos attribute-name)]
-                (let [^int loc (:index attribute-info)
-                      ^int gl-type (gl-types tp)]
-                  (gl/gl-vertex-attrib-pointer gl loc sz gl-type norm stride offset)))))
+        attribute-locations (vertex-locate-attribs gl shader attribs)]
+    (mapv (fn [^long offset attrib ^long loc]
+            (when (not= -1 loc)
+              (let [[_nm ^int sz tp & more] attrib
+                    ^boolean norm (if (not (nil? (first more))) (first more) false)
+                    ^int gl-type (gl-types tp)]
+                (gl/gl-vertex-attrib-pointer gl loc sz gl-type norm stride offset))))
           offsets
-          attribs)))
+          attribs
+          attribute-locations)))
 
 (defn- vertex-enable-attribs
   [^GL2 gl locs]
@@ -471,21 +476,6 @@ the `do-gl` macro from `editor.gl`."
   (doseq [l locs
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
-
-(def ^:private access-type-map
-  {[:static :draw] GL2/GL_STATIC_DRAW
-   [:dynamic :draw] GL2/GL_DYNAMIC_DRAW
-   [:stream :draw] GL2/GL_STREAM_DRAW
-   [:static :read] GL2/GL_STATIC_READ
-   [:dynamic :read] GL2/GL_DYNAMIC_READ
-   [:stream :read] GL2/GL_STREAM_READ
-   [:static :copy] GL2/GL_STATIC_COPY
-   [:dynamic :copy] GL2/GL_DYNAMIC_COPY
-   [:stream :copy] GL2/GL_STREAM_COPY})
-
-(defn- find-attribute-index [attribute-name attributes]
-  (util/first-index-where (fn [[name-sym]] (= attribute-name (name name-sym)))
-                          attributes))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
@@ -501,40 +491,24 @@ the `do-gl` macro from `editor.gl`."
     (vertex-disable-attribs gl attrib-locs)
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
 
-(defn- bind-index-buffer! [^GL2 gl request-id ^"[I" index-buffer]
-  (let [ibo (scene-cache/request-object! ::ibo request-id gl index-buffer)]
-    (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
-
-(defn- unbind-index-buffer! [^GL2 gl]
-  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
-
-(defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
-  GlBind
-  (bind [_this gl render-args]
+(defonce/record VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
+  gl.types/GLBinding
+  (bind! [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
 
-  (unbind [_this gl render-args]
+  (unbind! [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)))
 
-(defrecord VertexIndexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer ^"[I" index-buffer shader]
-  GlBind
-  (bind [_this gl render-args]
-    (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
-    (bind-index-buffer! gl request-id index-buffer))
-
-  (unbind [_this gl render-args]
-    (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)
-    (unbind-index-buffer! gl)))
-
 (defn use-with
-  "Return a GlBind implementation that can match vertex buffer attributes to the
-  given shader's attributes. Matching is done by attribute names. An attribute
-  that exists in the vertex buffer but is not used by the shader will simply be
-  ignored."
-  ([request-id ^PersistentVertexBuffer vertex-buffer shader]
-   (->VertexBufferShaderLink request-id vertex-buffer shader))
-  ([request-id ^PersistentVertexBuffer vertex-buffer ^"[I" index-buffer shader]
-   (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader)))
+  "Return a GLBinding implementation that can match vertex buffer attributes to
+  the given shader's attributes. Matching is done by attribute names. An
+  attribute that exists in the vertex buffer but is not used by the shader will
+  simply be ignored."
+  [request-id ^PersistentVertexBuffer vertex-buffer shader]
+  {:pre [(graphics.types/request-id? request-id)
+         (instance? PersistentVertexBuffer vertex-buffer)
+         (satisfies? shader/ShaderVariables shader)]}
+  (->VertexBufferShaderLink request-id vertex-buffer shader))
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
@@ -550,20 +524,3 @@ the `do-gl` macro from `editor.gl`."
   (gl/gl-delete-buffers gl vbos))
 
 (scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)
-
-(defn- update-ibo [^GL2 gl ibo data]
-  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
-  (let [int-buffer (IntBuffer/wrap (int-array data))
-        count (.remaining int-buffer)
-        size (* count 4)]
-    (gl/gl-buffer-data ^GL2 gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
-  ibo)
-
-(defn- make-ibo [^GL2 gl data]
-  (let [ibo (gl/gl-gen-buffer gl)]
-    (update-ibo gl ibo data)))
-
-(defn- destroy-ibos [^GL2 gl ibos _]
-  (gl/gl-delete-buffers gl ibos))
-
-(scene-cache/register-object-cache! ::ibo make-ibo update-ibo destroy-ibos)

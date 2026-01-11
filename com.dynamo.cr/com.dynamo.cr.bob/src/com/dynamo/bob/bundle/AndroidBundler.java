@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -589,7 +589,7 @@ public class AndroidBundler implements IBundler {
             File aabDir = new File(outDir, "aab");
             File baseConfig = new File(aabDir, "BundleConfig.json");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(baseConfig))) {
-                String uncompressedGlob = "\"assets/game.arcd\"";
+                String uncompressedGlob = "\"assets/game.arcd\",\"assets/**/*.zip\"";
                 if (!extractNativeLibs) {
                     uncompressedGlob += ",";
                     uncompressedGlob += "\"lib/**/*.so\"";

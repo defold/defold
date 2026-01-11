@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -145,9 +145,14 @@ range_error:
         uint32_t shape_count = resource_base->m_ShapeCount;
         if (shape_count > 0)
         {
+            for (uint32_t i = 0; i < resource_base->m_ShapeCount; ++i)
+            {
+                dmPhysics::DeleteCollisionShape3D(resource->m_Shapes3D[i]);
+            }
             free(resource->m_Shapes3D);
             free(resource_base->m_ShapeTranslation);
             free(resource_base->m_ShapeRotation);
+            free(resource_base->m_ShapeTypes);
         }
         if (resource_base->m_DDF)
             dmDDF::FreeMessage(resource_base->m_DDF);

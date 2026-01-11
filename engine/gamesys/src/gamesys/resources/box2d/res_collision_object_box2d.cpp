@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -199,9 +199,9 @@ range_error:
                 dmResource::Release(factory, resource->m_TileGridResource);
         }
 
-        uint32_t shape_count = resource_base->m_ShapeCount;
-        if (shape_count > 0)
+        if (resource->m_Shapes2D)
         {
+            uint32_t shape_count = resource_base->m_ShapeCount;
             for (uint32_t i = resource->m_TileGridShapeCount; i < shape_count; ++i)
             {
                 dmPhysics::DeleteCollisionShape2D(resource->m_Shapes2D[i]);
@@ -209,6 +209,7 @@ range_error:
             free(resource->m_Shapes2D);
             free(resource_base->m_ShapeTranslation);
             free(resource_base->m_ShapeRotation);
+            free(resource_base->m_ShapeTypes);
         }
         if (resource_base->m_DDF)
         {

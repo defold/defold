@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -109,14 +109,16 @@ TEST(dmDoubleLinkedList, GetLast)
     dmDoubleLinkedList::ListNode* tail = dmDoubleLinkedList::ListGetLast(&list);
     ASSERT_TRUE(tail == 0);
 
+    dmDoubleLinkedList::ListNode nodes[2];
+
     size_t node_size = sizeof(dmDoubleLinkedList::ListNode);
-    dmDoubleLinkedList::ListNode* node_1 = (dmDoubleLinkedList::ListNode*)malloc(node_size);
+    dmDoubleLinkedList::ListNode* node_1 = &nodes[0];
     dmDoubleLinkedList::ListAdd(&list, node_1);
 
     dmDoubleLinkedList::ListNode* last_node = dmDoubleLinkedList::ListGetLast(&list);
     ASSERT_EQ(node_1, last_node);
 
-    dmDoubleLinkedList::ListNode* node_2 = (dmDoubleLinkedList::ListNode*)malloc(node_size);
+    dmDoubleLinkedList::ListNode* node_2 = &nodes[1];
     dmDoubleLinkedList::ListAdd(&list, node_2);
 
     last_node = dmDoubleLinkedList::ListGetLast(&list);
@@ -131,10 +133,13 @@ TEST(dmDoubleLinkedList, GetFirst)
     dmDoubleLinkedList::ListNode* first = dmDoubleLinkedList::ListGetFirst(&list);
     ASSERT_TRUE(first == 0);
 
+    const uint32_t node_count = 5;
+    dmDoubleLinkedList::ListNode nodes[node_count];
+
     size_t node_size = sizeof(dmDoubleLinkedList::ListNode);
-    for (size_t idx = 0; idx < 5; ++idx)
+    for (size_t idx = 0; idx < node_count; ++idx)
     {
-        dmDoubleLinkedList::ListNode* new_node = (dmDoubleLinkedList::ListNode*)malloc(node_size);
+        dmDoubleLinkedList::ListNode* new_node = &nodes[idx];
         dmDoubleLinkedList::ListAdd(&list, new_node);
 
         dmDoubleLinkedList::ListNode* first_node = dmDoubleLinkedList::ListGetFirst(&list);

@@ -146,6 +146,7 @@ max_count = 128
 max_particlefx_count = 128
 max_animation_count = 512
 max_particle_count = 512
+safe_area_mode = long
 
 [label]
 max_count = 32
@@ -265,6 +266,7 @@ uri = http://localhost:1234/save-data-project
 
 [library]
 include_dirs = library
+defold_min_version = 1.10.0
 
 [liveupdate]
 enabled = 1
@@ -283,4 +285,3 @@ exclude_gles_sm100 = 0
 
 [font]
 runtime_generation = 1
-

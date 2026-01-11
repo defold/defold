@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -726,6 +726,8 @@
               [:out "keyword: string code-view"]
               [:out "number: 12.3"]
               [:out "number: 0.1"]
+              [:out "one_of: a string"]
+              [:out "one_of: 17"]
               [:out "object: table foo"]
               [:out "object: table bar"]
               [:out "object: table baz"]
@@ -1144,6 +1146,25 @@ build/nested/game.project exists: true
               (Files/getPosixFilePermissions (fs/path root "build" "script.sh") fs/empty-link-option-array)
               PosixFilePermission/OWNER_EXECUTE))))))
 
+(def expected-zlib-test-output
+  "inflate zlib: hello
+inflate gzip: hello
+deflate hello: \\120\\94\\203\\72\\205\\201\\201\\7\\0\\6\\44\\2\\21
+same as expected zlib buf: true
+roundtrip: true
+zlib.inflate(false) => bad argument: string expected, got boolean
+zlib.deflate(false) => bad argument: string expected, got boolean
+zlib.inflate('') => Failed to inflate buffer (Unexpected end of ZLIB input stream)
+zlib.inflate('not-a-buf') => Failed to inflate buffer (incorrect header check)
+")
+
+(deftest zlib-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/zlib_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-zlib-test-output out))))
+
 (def expected-http-server-test-output
   "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
 Omitting conflicting routes for '/command/{param}' defined in /test.editor_script (conflict with the editor's built-in routes)
@@ -1342,7 +1363,7 @@ Expected errors:
   Added value is not a table => \"/foo.png\" is not a table
   Added nested value is not a table => \"/foo.png\" is not a table
   Added node has invalid property value => \"invalid-pivot\" is not a tuple
-  Added resource has wrong type => resource extension should be jpg or png
+  Added resource has wrong type => resource extension should be jpeg, jpg or png
 Tilesource initial state:
   animations: 0
   collision groups: 0

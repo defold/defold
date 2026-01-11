@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,7 @@
 #include "engine_private.h"
 #include "engine.h"
 #include <crash/crash.h>
+#include <stdlib.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -58,6 +59,8 @@ namespace dmEngine
 
         int argc = params->m_Argc;
         char** argv = params->m_Argv;
+        int allocated_argc = 0;
+        char** allocated_argv = 0;
         int exit_code = 0;
         dmEngine::HEngine engine = 0;
         dmEngine::UpdateResult result = RESULT_OK;
@@ -86,7 +89,20 @@ namespace dmEngine
             if (RESULT_OK != result)
             {
                 int run_action = 0;
+                for (int i = 0; i < allocated_argc; ++i)
+                {
+                    free(allocated_argv[i]);
+                }
+                free(allocated_argv);
+                allocated_argv = 0;
+                allocated_argc = 0;
+
                 params->m_EngineGetResult(engine, &run_action, &exit_code, &argc, &argv);
+                if (argv != params->m_Argv)
+                {
+                    allocated_argv = argv;
+                    allocated_argc = argc;
+                }
 
                 params->m_EngineDestroy(engine);
                 engine = 0;
@@ -102,6 +118,12 @@ namespace dmEngine
         if (params->m_AppDestroy)
             params->m_AppDestroy(params->m_AppCtx);
 
+        for (int i = 0; i < allocated_argc; ++i)
+        {
+            free(allocated_argv[i]);
+        }
+        free(allocated_argv);
+
         return exit_code;
     }
 
@@ -114,11 +136,9 @@ namespace dmEngine
         const RunLoopParams* params = ctx->m_Params;
         HEngine engine = (HEngine)ctx->m_Engine;
 
-        int argc = params->m_Argc;
-        char** argv = params->m_Argv;
         int exit_code = 0;
         int result = 0;
-        params->m_EngineGetResult(engine, &result, &exit_code, &argc, &argv);
+        params->m_EngineGetResult(engine, &result, &exit_code, NULL, NULL);
 
         if (RESULT_OK != result)
         {
@@ -131,7 +151,18 @@ namespace dmEngine
 
             if (RESULT_REBOOT == result)
             {
+                // Only request argc/argv when actually rebooting
+                int argc = 0;
+                char** argv = NULL;
+                params->m_EngineGetResult(engine, NULL, NULL, &argc, &argv);
+
                 ctx->m_Engine = params->m_EngineCreate(argc, argv);
+
+                // Free argv allocated within dmEngineGetResult
+                for (int i = 0; i < argc; ++i)
+                    free(argv[i]);
+                free(argv);
+
                 if (ctx->m_Engine)
                 {
                     // Won't return from this

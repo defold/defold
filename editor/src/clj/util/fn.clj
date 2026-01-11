@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -138,7 +138,7 @@
 (defn memoize
   "Like core.memoize, but uses an optimized cache based on the number of
   arguments the original function accepts. Also enables you to evict entries
-  from the cache using the dememoize! function."
+  from the cache using the evict-memoized! and clear-memoized! functions."
   [ifn]
   (if (::memoize-cache (meta ifn))
     ifn ; Already memoized.
@@ -340,6 +340,23 @@
                      (when (seq calls#)
                        [(deref var#) calls#]))))
            binding-map#)))
+
+(defmacro among-values-case-expr
+  "Given a sequence of valid-values and a checked-value, returns a case
+  expression that returns true for the valid-values and false otherwise."
+  [valid-values checked-value]
+  `(case ~checked-value
+     ~(seq (eval valid-values)) true
+     false))
+
+(defmacro defamong
+  "Defines a top-level single-argument function that returns true for the
+  provided valid-values, and false otherwise. The valid-values must be a
+  compile-time expression, since the predicate argument is checked against the
+  valid-values in a case expression."
+  [name valid-values]
+  `(defn ~name [~'value]
+     (among-values-case-expr ~valid-values ~'value)))
 
 ;; Keep at the bottom to avoid internal use. Code in this file should use and*.
 (defn and

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -258,7 +258,7 @@ static int PrewarmText(lua_State* L)
 /*#
  * Gets information about a font, such as the associated font files
  *
- * @name font.get_font_info
+ * @name font.get_info
  * @param fontc [type:string|hash] The path to the .fontc resource
  * @return info [type:table] the information table contains these fields:
  *
@@ -355,12 +355,7 @@ static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
     return dmGameSystem::FontGenFinalize(params);
 }
 
-static dmExtension::Result ScriptFontUpdate(dmExtension::Params* params)
-{
-    return dmGameSystem::FontGenUpdate(params);
-}
-
-DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, ScriptFontUpdate, 0, ScriptFontFinalize)
+DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)
 
 } // namespace
 

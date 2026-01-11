@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,6 +29,7 @@ import release_to_steam
 import release_to_egs
 import BuildUtility
 import http_cache
+import sdk_merge
 from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
@@ -123,7 +124,7 @@ PACKAGES_ALL=[
     "maven-3.0.1",
     "vecmath",
     "vpx-1.7.0",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "bullet-2.77",
@@ -140,12 +141,12 @@ PACKAGES_ALL=[
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
@@ -159,7 +160,7 @@ PACKAGES_IOS_X86_64=[
 
 PACKAGES_IOS_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "moltenvk-1474891",
@@ -174,7 +175,7 @@ PACKAGES_IOS_64=[
 
 PACKAGES_MACOS_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -186,7 +187,7 @@ PACKAGES_MACOS_X86_64=[
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -197,7 +198,7 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -208,7 +209,7 @@ PACKAGES_MACOS_ARM64=[
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -219,7 +220,7 @@ PACKAGES_MACOS_ARM64=[
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "bullet-2.77",
     "vulkan-v1.4.307",
@@ -234,7 +235,7 @@ PACKAGES_WIN32=[
 
 PACKAGES_WIN32_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "bullet-2.77",
@@ -245,7 +246,7 @@ PACKAGES_WIN32_64=[
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "directx-headers-1.611.0",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -257,7 +258,7 @@ PACKAGES_WIN32_64=[
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
@@ -269,7 +270,7 @@ PACKAGES_LINUX_X86_64=[
     "glfw-3.4",
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -280,7 +281,7 @@ PACKAGES_LINUX_X86_64=[
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
@@ -291,7 +292,7 @@ PACKAGES_LINUX_ARM64=[
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
-    "astcenc-8b0aa01",
+    "astcenc-30aabb3",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -304,7 +305,7 @@ PACKAGES_ANDROID=[
 "protobuf-3.20.1",
     "android-support-multidex",
     "androidx-multidex",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
@@ -321,7 +322,7 @@ PACKAGES_ANDROID_64=[
 "protobuf-3.20.1",
     "android-support-multidex",
     "androidx-multidex",
-    "luajit-2.1.0-a4f56a4",
+    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
@@ -782,7 +783,7 @@ class Configuration(object):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
         print("Installing waf")
-        waf_package = "waf-2.0.3"
+        waf_package = "waf-2.1.9"
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
@@ -1328,9 +1329,10 @@ class Configuration(object):
 
                 self._add_files_to_zip(zip, protobuf_files, self.dynamo_home, topfolder)
 
-                # bob pipeline classes
-                bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
-                self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+                # bob pipeline classes include only in one sdk
+                if platform in ('x86_64-linux'):
+                    bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
+                    self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
 
 
             # For logging, print all paths in zip:
@@ -1921,7 +1923,6 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         u = urlparse(self.get_archive_path())
-        bucket = s3.get_bucket(u.netloc)
 
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
@@ -1933,30 +1934,12 @@ class Configuration(object):
         else:
             platforms = get_target_platforms()
 
-        # For the linux build tools (protoc, dlib_shared etc)
-        if 'x86_64-linux' not in platforms:
-            platforms.append('x86_64-linux')
-
-        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-        # it last, in order to preserve unix line endings in the files
-        if 'x86_64-linux' in platforms:
-            platforms.remove('x86_64-linux')
-            platforms.append('x86_64-linux')
-
-        for platform in platforms:
-            prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-            entry = bucket.Object(prefix)
-
-            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-            print ("Downloading", entry.key)
-            entry.download_file(platform_sdk_zip.name)
-            print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
-
-            self._extract_zip(platform_sdk_zip.name, tempdir)
-            print ("Extracted", platform_sdk_zip.name, "to", tempdir)
-
-            os.unlink(platform_sdk_zip.name)
-            print ("")
+        sdk_merge.build_combined_sdk_tree(
+            netloc=u.netloc,
+            base_prefix=base_prefix,
+            platforms=platforms,
+            extract_dir=tempdir,
+            canonical_platform='x86_64-linux')
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -61,7 +61,7 @@ import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
 
-    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
+    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".jpeg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
     private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}, {".compute", ".computec"}};
 
     public static String getTextureSetExt(String str) throws Exception {

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -49,7 +49,7 @@ namespace dmGraphics
         {
             for (int j = 0; j < m_Types.Size(); ++j)
             {
-                delete m_Types[j].m_Members.m_Data;
+                delete[] m_Types[j].m_Members.m_Data;
             }
         }
 
@@ -131,16 +131,17 @@ namespace dmGraphics
 
         void AddTypeMember(const char* name, ShaderDesc::ShaderDataType data_type)
         {
-            ShaderDesc::ResourceMember* member = new ShaderDesc::ResourceMember();
-            member->m_Name                     = name;
-            member->m_NameHash                 = dmHashString64(name);
-            member->m_Type.m_Type.m_ShaderType = data_type;
-
             ShaderDesc::ResourceTypeInfo info = {};
             info.m_Name            = name;
             info.m_NameHash        = dmHashString64(name);
-            info.m_Members.m_Data  = member;
+            info.m_Members.m_Data  = new ShaderDesc::ResourceMember[1];
             info.m_Members.m_Count = 1;
+            memset(info.m_Members.m_Data, 0, sizeof(info.m_Members.m_Data[0])*info.m_Members.m_Count);
+
+            ShaderDesc::ResourceMember* member = &info.m_Members.m_Data[0];
+            member->m_Name                     = name;
+            member->m_NameHash                 = dmHashString64(name);
+            member->m_Type.m_Type.m_ShaderType = data_type;
 
             m_Types.OffsetCapacity(1);
             m_Types.Push(info);

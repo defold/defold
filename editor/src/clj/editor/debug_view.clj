@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.code.data :refer [line-number->CursorRange]]
+            [editor.code.data :as code.data]
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
@@ -392,8 +392,13 @@
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
         (when resource
-          (open-resource-fn resource {:cursor-range (line-number->CursorRange line)})))
+          (open-resource-fn resource {:cursor-range (code.data/line-number->CursorRange line)})))
       nil)))
+
+(defn- collect-enabled-breakpoints [project]
+  (into #{}
+        (filter :enabled)
+        (g/node-value project :breakpoints)))
 
 (defn- set-breakpoint!
   [debug-session {:keys [resource row condition] :as _breakpoint}]
@@ -425,7 +430,7 @@
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.
                     (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (let [breakpoints (set (g/node-value project :breakpoints))]
+                      (let [breakpoints (collect-enabled-breakpoints project)]
                         (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
                         (vreset! state {:breakpoints breakpoints})))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
@@ -494,7 +499,7 @@
                                                  (when old (mobdebug/close! old))
                                                  new)
                                                debug-session)
-                           (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                           (update-breakpoints! debug-session (collect-enabled-breakpoints project))
                            (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
                            (state-changed! debug-view true)))
                        (fn [_debug-session]
@@ -909,3 +914,18 @@
                 :check true}
                {:label :separator
                 :id ::debug-end}]}])
+
+
+(comment
+  (defn get-all-script-nodes [project]
+    (keep (fn [node-id]
+            (when (g/node-instance? editor.code.script/ScriptNode node-id)
+              (g/node-by-id node-id)))
+          (g/node-ids (g/graph (g/node-id->graph-id project)))))
+
+  (->> (g/node-value (dev/project) :breakpoints)
+       (group-by #(get-in % [:resource :project-path])))
+
+  (g/targets-of (dev/project) :breakpoints)
+  (g/sources-of (dev/project) :breakpoints)
+  ,)

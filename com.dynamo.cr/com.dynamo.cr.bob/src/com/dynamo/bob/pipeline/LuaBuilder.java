@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -161,7 +161,6 @@ public abstract class LuaBuilder extends Builder {
 
         // check if the platform is using Lua 5.1 or LuaJIT
         // get path of LuaJIT executable if the platform uses LuaJIT
-        Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 

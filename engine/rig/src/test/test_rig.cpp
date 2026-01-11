@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -119,7 +119,27 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
 
     if (mesh_set != 0x0)
     {
-        delete [] mesh_set->m_BoneList.m_Data;
+        for (uint32_t model_index = 0; model_index < mesh_set->m_Models.m_Count; ++model_index)
+        {
+            dmRigDDF::Model& model = mesh_set->m_Models.m_Data[model_index];
+            for (uint32_t mesh_index = 0; mesh_index < model.m_Meshes.m_Count; ++mesh_index)
+            {
+                dmRigDDF::Mesh& mesh = model.m_Meshes.m_Data[mesh_index];
+                delete[] mesh.m_Positions.m_Data;
+                delete[] mesh.m_Normals.m_Data;
+                delete[] mesh.m_Texcoord0.m_Data;
+                delete[] mesh.m_Texcoord1.m_Data;
+                delete[] mesh.m_Tangents.m_Data;
+                delete[] mesh.m_Colors.m_Data;
+                delete[] mesh.m_BoneIndices.m_Data;
+                delete[] mesh.m_Weights.m_Data;
+            }
+
+            delete[] mesh_set->m_Models.m_Data[model_index].m_Meshes.m_Data;
+        }
+
+        delete[] mesh_set->m_Models.m_Data;
+        delete[] mesh_set->m_BoneList.m_Data;
         delete mesh_set;
     }
 }
@@ -205,8 +225,6 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
         mesh.m_Colors.m_Data[i*4+0] = 1.0f;
     }
 
-    mesh.m_Colors.m_Data       = new float[vert_count*4];
-    mesh.m_Colors.m_Count      = vert_count*4;
     mesh.m_Colors[0]           = color.getX();
     mesh.m_Colors[1]           = color.getY();
     mesh.m_Colors[2]           = color.getZ();
@@ -1920,6 +1938,9 @@ TEST_F(RigContextTest, TestBindPoseCache)
 
     dmRig::ResetPoseMatrixCache(m_Context);
     ASSERT_EQ(0, cache->m_PoseMatrices.Size());
+
+    dmRig::InstanceDestroy(m_Context, instance);
+    DeleteRigData(mesh_set, skeleton, animation_set);
 }
 
 #undef ASSERT_VERT_POS

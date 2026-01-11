@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,6 +48,13 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
 
 public class TextureUtil {
+
+    static {
+        TimeProfiler.start("ImageIO.setUseCache");
+        ImageIO.setUseCache(false);
+        TimeProfiler.stop();
+    }
+
     public static int closestPOT(int i) {
         int nextPow2 = 1;
         while (nextPow2 < i) {

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -97,14 +97,14 @@ namespace dmGameSystem
         //       so we only need a pointer here for the data offset.
         mip_map_offsets_compressed[0] = image_data_size;
 
-        dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
-        texture_image->m_Alternatives.m_Data   = image;
+        texture_image->m_Alternatives.m_Data   = new dmGraphics::TextureImage::Image[1];
         texture_image->m_Alternatives.m_Count  = 1;
         texture_image->m_Type                  = params.m_TextureType;
         texture_image->m_Count                 = layer_count;
         texture_image->m_UsageFlags            = params.m_UsageFlags;
         texture_image->m_ImageDataAddress      = (uint64_t) image_data;
 
+        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives.m_Data[0];
         image->m_Width                        = params.m_Width;
         image->m_Height                       = params.m_Height;
         image->m_Depth                        = params.m_Depth;

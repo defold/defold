@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -160,6 +160,18 @@ namespace dmPlatform
         int32_t m_Id;
     };
 
+    struct SafeArea
+    {
+        int32_t   m_X;
+        int32_t   m_Y;
+        uint32_t  m_Width;
+        uint32_t  m_Height;
+        int32_t   m_InsetLeft;
+        int32_t   m_InsetTop;
+        int32_t   m_InsetRight;
+        int32_t   m_InsetBottom;
+    };
+
     HWindow        NewWindow();
     void           DeleteWindow(HWindow window);
     PlatformResult OpenWindow(HWindow window, const WindowParams& params);
@@ -179,6 +191,7 @@ namespace dmPlatform
     void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
     uint32_t       GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);
+    bool           GetSafeArea(HWindow window, SafeArea* out);
 
     const char*    GetJoystickDeviceName(HWindow window, uint32_t joystick_index);
     uint32_t       GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity);

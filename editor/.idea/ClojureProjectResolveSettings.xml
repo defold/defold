@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ClojureProjectResolveSettings">
+    <item key="editor.gl.attribute/def-assign-attribute-fn" resolves-as="clojure.core/def" />
     <item key="editor.fxui/defc" resolves-as="clojure.core/defn" />
     <item key="dynamo.graph/fnk" resolves-as="clojure.core/fn" />
     <item key="clojure.spec.alpha/fdef" resolves-as="clojure.core/def" />
@@ -12,6 +13,7 @@
     <item key="editor.git-test/with-git" resolves-as="clojure.core/let" />
     <item key="util.defonce/record" resolves-as="clojure.core/defrecord" />
     <item key="editor.git-test/with-new-git" resolves-as="clojure.core/def" />
+    <item key="util.fn/defamong" resolves-as="clojure.core/def" />
     <item key="editor.editor-extensions.runtime/lua-fn" resolves-as="clojure.core/fn" />
     <item key="editor.ui/with-controls" resolves-as="clojure.core/fn" />
     <item key="editor.editor-extensions.runtime/suspendable-varargs-lua-fn" resolves-as="clojure.core/fn" />

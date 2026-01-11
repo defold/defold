@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -411,13 +411,13 @@
                       error-value (tu/prop-error props-script :__texture)]
                   (is (texture-resource-property? (:__texture properties) (resource "/from-props-script.material")))
                   (is (g/error? error-value))
-                  (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
+                  (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-value))))
                 (let [error-value (tu/build-error! props-script)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
                           error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                      (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
+                      (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                       (is (= [(resource "/props.script") props-script]
                              (error-item-open-info-without-opts error-item-of-parent-resource)))
                       (is (= [(resource "/props.script") props-script]
@@ -591,13 +591,13 @@
                     error-value (tu/prop-error props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-props-game-object.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
+                (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! props-game-object)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
@@ -627,7 +627,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target")))))))
 
 (deftest rename-resource-referenced-from-component-instance-test
   (with-clean-system
@@ -856,13 +856,13 @@
                     error-value (tu/prop-error ov-props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
+                (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.collection") props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.collection") ov-props-script-component]
@@ -892,7 +892,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target")))))))
 
 (deftest rename-resource-referenced-from-game-object-instance-test
   (with-clean-system
@@ -1144,13 +1144,13 @@
                     error-value (tu/prop-error ov-props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
+                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
@@ -1180,7 +1180,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target")))))))
 
 (deftest edit-collection-instance-embedded-game-object-resource-properties-test
   (with-clean-system
@@ -1389,13 +1389,13 @@
                     error-value (tu/prop-error ov-props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
+                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
@@ -1425,7 +1425,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpeg, .jpg, .png or .render_target")))))))
 
 (deftest rename-resource-referenced-from-collection-instance-test
   (with-clean-system
@@ -1667,14 +1667,14 @@
 
               (let [prop-error (tu/prop-error props-script-component :__atlas)]
                 (is (g/error? prop-error))
-                (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg, .png or .render_target" (:message prop-error))))
+                (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message prop-error))))
 
               (let [build-error (tu/build-error! props-game-object)]
                 (when (is (g/error? build-error))
                   (let [error-tree (build-errors-view/build-resource-tree build-error)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
+                    (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpeg, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]

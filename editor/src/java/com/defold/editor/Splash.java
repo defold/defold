@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -130,7 +130,11 @@ public class Splash {
         String channelName = System.getProperty("defold.channel");
         String sha1 = System.getProperty("defold.editor.sha1");
 
-        versionString = (versionString == null || versionString.isEmpty()) ? "No version" : versionString;
+        boolean hasVersion = true;
+        if (versionString == null || versionString.isEmpty()) {
+            versionString = "No version";
+            hasVersion = false;
+        }
         channelName = (channelName == null || channelName.isEmpty()) ? "No channel" : channelName;
         channelName = channelName.equals("editor-alpha") ? "" : "   •   " + channelName;
         sha1 = (sha1 == null || sha1.isEmpty()) ? "no sha1" : sha1;
@@ -142,6 +146,11 @@ public class Splash {
         channelLabel.setText(versionString + " (" + sha1 + ")" + channelName);
         channelLabel.setVisible(true);
 
+        String windowTitle = "Defold";
+        if (hasVersion) {
+            windowTitle += " " + versionString;
+        }
+        stage.setTitle(windowTitle);
         stage.setOnShown(event -> shown.set(true));
         stage.show();
     }

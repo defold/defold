@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -144,12 +144,22 @@ namespace dmJobThread
      */
     JobResult PushJob(HContext context, HJob job);
 
-    /*# cancel a job
-     * @note A cancelled job will not invoke the process/callback functions if they were not already invoked.
+    /*# cancel a job (and it's children)
+     * @note Cancelled jobs will be flushed at the next Update()
      * @name CancelJob
      * @param context [type: HContext] the job thread context
      * @param job [type: HJob] the job to cancel
-     * @return result [type: JobResult] Returns JOB_RESULT_OK if was canceled. Returns JOB_RESULT_PENDING if it's still in flight
+     * @return result [type: JobResult] Returns JOB_RESULT_OK if finished, JOB_RESULT_CANCELED if canceled, or JOB_RESULT_PENDING if the job (or any child) is still in flight
+     * @examples
+     * How to wait until a job has been cancelled or finished
+     * ```c++
+     * dmJobThread::JobResult jr = dmJobThread::CancelJob(job_context, hjob);
+     * while (dmJobThread::JOB_RESULT_PENDING == jr)
+     * {
+     *     dmTime::Sleep(1000);
+     *     jr = dmJobThread::CancelJob(job_context, hjob);
+     * }
+     * ```
      */
     JobResult CancelJob(HContext context, HJob job);
 

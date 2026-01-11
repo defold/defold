@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
             [editor.editor-extensions :as extensions]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.shared-editor-settings :as shared-editor-settings]
@@ -26,7 +27,9 @@
             [integration.test-util :as test-util]
             [internal.graph.types]
             [internal.system :as is]
+            [internal.transaction :as it]
             [service.log :as log]
+            [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
   (:import [java.util List]))
@@ -36,8 +39,13 @@
 ;; Set to the path of the project directory you want to load.
 (defonce project-path "test/resources/save_data_project")
 
+;; When true, generate tx-data for loaded nodes in a separate step before
+;; applying it in a transaction. Allows us to profile the two phases in
+;; isolation at the cost of increased peak memory usage.
+(defonce separate-load-tx-data-generation true)
+
 ;; Set to one of the task-phases below to skip the rest of the tasks.
-(defonce final-task :cache-save-data)
+(def final-task :cache-save-data)
 
 ;; You can use this to start and stop your own profiling tool for certain tasks.
 (defn- user-profiling-hook! [task-key task-fn]
@@ -57,17 +65,22 @@
     ;; A task we do not care about. Just invoke the task-fn.
     (task-fn)))
 
-(defonce ^:private ^List task-phases
+(def ^:private ^List task-phases
   [:setup-workspace
    :fetch-libraries
    :resource-sync
    :list-resources
    :make-project
    :read-resources
-   :load-nodes
-   :cache-save-data])
+   :generate-load-tx-data
+   :apply-load-tx-data
+   :update-overrides
+   :update-successors
+   :cache-save-data
+   :store-post-load-system
+   :calculate-scene-deps])
 
-(defonce ^:private final-task-index
+(def ^:private final-task-index
   (let [task-index (.indexOf task-phases final-task)]
     (assert (nat-int? task-index) (str "Invalid final-task: " final-task))
     task-index))
@@ -100,6 +113,10 @@
   (let [task-fn-sym (symbol (str "measure-" (name task-key)))]
     `(measure-task-impl! ~task-key (fn ~task-fn-sym [] (do ~@body)))))
 
+(defmacro ^:private run-task! [task-key & body]
+  `(when (run-task? ~task-key)
+     ~@body))
+
 (defmacro ^:private run-and-measure-task! [task-key & body]
   `(when (run-task? ~task-key)
      (measure-task! ~task-key ~@body)))
@@ -122,14 +139,11 @@
   (workspace/find-resource workspace "/game.project"))
 
 (defonce up-to-date-lib-states
-  (when (run-task? :fetch-libraries)
-    (dev/run-with-progress "Fetching Libraries..."
-      (fn fetch-libraries-with-progress [render-progress!]
-        (measure-task!
-          :fetch-libraries
-          (let [dependencies (project/read-dependencies game-project-resource)
-                stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies render-progress!)]
-            (workspace/install-validated-libraries! workspace stale-lib-states)))))))
+  (run-and-measure-task!
+    :fetch-libraries
+    (let [dependencies (project/read-dependencies game-project-resource)
+          stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)]
+      (workspace/install-validated-libraries! workspace stale-lib-states))))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!
@@ -159,28 +173,58 @@
       (project/make-project project-graph-id workspace extensions))))
 
 (defonce node-load-infos
-  (when (run-task? :read-resources)
-    (dev/run-with-progress "Reading Files..."
-      (fn read-resources-with-progress [render-progress!]
-        (measure-task!
-          :read-resources
-          (project/read-nodes node-id+resource-pairs
-            :render-progress! render-progress!
-            :resource-metrics resource-metrics))))))
+  (run-and-measure-task!
+    :read-resources
+    (project/read-nodes node-id+resource-pairs
+      :resource-metrics resource-metrics)))
 
 (defonce migrated-resource-node-ids
-  (let [prelude-tx-data
-        (e/concat
-          (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-          (project/setup-game-project-tx-data project game-project-node-id))
+  (let [tx-data
+        (run-and-measure-task!
+          :generate-load-tx-data
+          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
+                (project/node-load-infos->stored-disk-state node-load-infos)]
+            (resource-node/merge-source-values! node-id+source-value-pairs)
+            (coll/transfer
+              (e/concat
+                (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+                (project/setup-game-project-tx-data project game-project-node-id)
+                (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
+              (if separate-load-tx-data-generation [] :eduction)
+              coll/flatten-xf)))
+
+        tx-result
+        (as-> (g/make-transaction-context transact-opts) transaction-context
+
+              (run-and-measure-task!
+                :apply-load-tx-data
+                (it/apply-tx transaction-context tx-data))
+
+              (run-and-measure-task!
+                :update-overrides
+                (it/update-overrides transaction-context))
+
+              (it/mark-nodes-modified transaction-context)
+
+              (run-and-measure-task!
+                :update-successors
+                (it/update-successors transaction-context))
+
+              (when transaction-context
+                (it/trace-dependencies transaction-context)
+                (it/apply-tx-label transaction-context)
+                (it/finalize-update transaction-context)))
+
+        _ (when tx-result
+            (g/commit-tx-result! tx-result transact-opts))
 
         migrated-resource-node-ids
-        (when (run-task? :load-nodes)
-          (dev/run-with-progress "Loading Nodes..."
-            (fn load-nodes-with-progress [render-progress!]
-              (measure-task!
-                :load-nodes
-                (project/load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))))]
+        (let [basis (:basis tx-result)]
+          (into #{}
+                (keep #(resource-node/owner-resource-node-id basis %))
+                (g/migrated-node-ids tx-result)))]
+
     (when-not change-tracked-transact
       (g/clear-system-cache!))
     (run-and-measure-task!
@@ -202,14 +246,17 @@
   (let [end-time-nanos (System/nanoTime)]
     (- end-time-nanos (long start-time-nanos))))
 
+(defonce end-allocated-bytes (du/allocated-bytes runtime))
+
 (defonce total-allocated-bytes
-  (let [end-allocated-bytes (du/allocated-bytes runtime)]
-    (- end-allocated-bytes (long start-allocated-bytes))))
+  (- end-allocated-bytes (long start-allocated-bytes)))
 
 (defonce ^:private -log-statistics-
   (log/info :message "total"
             :elapsed (du/nanos->string total-duration-nanos)
-            :allocated (du/bytes->string total-allocated-bytes)))
+            :elapsed-sans-gc (du/nanos->string (- total-duration-nanos (du/gc-overhead-ns)))
+            :allocated (du/bytes->string total-allocated-bytes)
+            :heap (du/bytes->string end-allocated-bytes)))
 
 (defonce load-metrics
   (du/when-metrics
@@ -217,3 +264,36 @@
      :task-metrics @task-metrics
      :resource-metrics @resource-metrics
      :transaction-metrics @transaction-metrics}))
+
+(defonce post-load-system
+  (run-task!
+    :store-post-load-system
+    @g/*the-system*))
+
+(defn- evaluated-endpoints-by-proj-path [project output-label render-progress!]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [basis (:basis evaluation-context)
+
+          proj-paths+node-ids
+          (->> (g/valid-node-value project :nodes-by-resource-path evaluation-context)
+               (filterv (fn [[_proj-path node-id]]
+                          (some-> (g/node-type* basis node-id)
+                                  (g/has-output? output-label))))
+               (sort-by key))
+
+          proj-path-count (count proj-paths+node-ids)]
+      (coll/transfer proj-paths+node-ids {}
+        (map-indexed
+          (fn [proj-path-index [proj-path node-id]]
+            (let [message (localization/message nil [] proj-path)
+                  progress (progress/make message proj-path-count proj-path-index)]
+              (render-progress! progress)
+              (let [evaluated-endpoints (dev/recursive-predecessor-endpoints basis node-id output-label)]
+                (pair proj-path evaluated-endpoints)))))))))
+
+(defonce evaluated-scene-endpoints-by-proj-path
+  (run-and-measure-task!
+    :calculate-scene-deps
+    (dev/run-with-terminal-progress "Calculating Scene Dependencies..."
+      (fn calc-scene-deps-with-progress [render-progress!]
+        (evaluated-endpoints-by-proj-path project :scene render-progress!)))))

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,7 +42,7 @@ public class ShaderUtil {
         public static String        includeDirectiveBaseStr              = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
         public static final Pattern includeDirectivePattern              = Pattern.compile(includeDirectiveBaseStr);
         public static final Pattern arrayArraySamplerPattern             = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
-        public static final Pattern regexVersionStringPattern            = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
+        public static final Pattern regexVersionStringPattern            = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\r?\\n");
 
         public static class GLSLShaderInfo
         {

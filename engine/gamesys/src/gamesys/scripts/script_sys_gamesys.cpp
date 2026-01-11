@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -67,6 +67,11 @@ namespace dmGameSystem
         dmOpaqueHandleContainer<LuaRequest> m_LoadRequests;
         dmMutex::HMutex                     m_LoadRequestsMutex;
         uint8_t                             m_LastUpdateResult : 1; // For tests
+
+        SysModule()
+        {
+            memset(this, 0, sizeof(*this));
+        }
     } g_SysModule;
 
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
@@ -421,7 +426,9 @@ namespace dmGameSystem
 
         g_SysModule.m_Factory           = context.m_Factory;
         g_SysModule.m_JobThread         = context.m_JobThread;
-        g_SysModule.m_LoadRequestsMutex = dmMutex::New();
+
+        if (g_SysModule.m_LoadRequestsMutex == 0)
+            g_SysModule.m_LoadRequestsMutex = dmMutex::New();
     }
 
     void ScriptSysGameSysUpdate(const ScriptLibContext& context)

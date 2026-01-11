@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -86,7 +86,7 @@ done
     find "build" -type f -name "*dmengine*" | xargs -I% rm -f "%"
     find "build" -type f -name "classes.dex" | xargs -I% rm -f "%"
     find "build" -type d -name "*dmengine*" | xargs -I% rm -rf "%"
-    waf build install --platform="${PLATFORM}" ${OPTIONS} --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
+    waf install --platform="${PLATFORM}" ${OPTIONS} --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
 )
 
 

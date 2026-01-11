@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,11 +16,8 @@
   (:require [camel-snake-kebab :as camel]
             [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.combo-box :as fx.combo-box]
-            [cljfx.fx.combo-box-list-cell :as fx.combo-box-list-cell]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -35,6 +32,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
@@ -118,16 +116,11 @@
 (defmethod form-input :password [path schema value on-value-changed localization-state _]
   (text-input path value on-value-changed localization-state fxui/password-value-field (:prompt (:ui schema))))
 
-(defn- locale-display-name-cell-factory [s]
-  {:text (localization/locale-display-name s)})
-
 (defmethod form-input :locale [_ _ _ _ localization-state localization]
-  {:fx/type fx.combo-box/lifecycle
+  {:fx/type fxui.combo-box/view
+   :to-string localization/locale-display-name
    :value (localization/current-locale localization-state)
    :items (localization/available-locales localization-state)
-   :button-cell locale-display-name-cell-factory
-   :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                  :describe locale-display-name-cell-factory}
    :on-value-changed #(localization/set-locale! localization %)})
 
 (defn- describe-command-cell [keymap command]

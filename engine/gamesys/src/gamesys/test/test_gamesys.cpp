@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -473,7 +473,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
-     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ResourceTest, TestCreateSoundDataFromScript)
@@ -531,6 +531,7 @@ TEST_F(ResourceTest, TestResourceScriptBuffer)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
+    DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
@@ -644,6 +645,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmResource::Release(m_Factory, texture_set_res);
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
@@ -1320,7 +1323,9 @@ TEST_F(SpriteTest, FrameCount)
 
     WaitForTestsDone(100, false, 0);
 
+    dmGameObject::Delete(m_Collection, go, true);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 }
 
 TEST_F(SpriteTest, GetSetSliceProperty)
@@ -1377,6 +1382,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
@@ -1721,6 +1727,7 @@ TEST_F(FontTest, DynamicGlyph)
 
     uint32_t codepoint = 'A';
 
+    // Triggers a cache miss
     {
         FontGlyph* glyph = 0;
         FontResult r = GetGlyph(font_map, hfont, codepoint, &glyph);
@@ -1733,8 +1740,6 @@ TEST_F(FontTest, DynamicGlyph)
     // Add a new glyph
     const char* data = "Test Image Data";
     {
-        uint8_t* mem = (uint8_t*)strdup(data);
-
         FontGlyph* glyph = new FontGlyph;
         memset(glyph, 0, sizeof(*glyph));
 
@@ -1750,7 +1755,7 @@ TEST_F(FontTest, DynamicGlyph)
         glyph->m_Bitmap.m_Height = 11;
         glyph->m_Bitmap.m_Channels = 12;
         glyph->m_Bitmap.m_Flags = 0;
-        glyph->m_Bitmap.m_Data = (uint8_t*)mem;
+        glyph->m_Bitmap.m_Data = (uint8_t*)strdup(data);;
 
         dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, 0, glyph);
         ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -1779,6 +1784,86 @@ TEST_F(FontTest, DynamicGlyph)
     }
 
     dmResource::Release(m_Factory, font);
+}
+
+// Verifies the Lua API for dynamic font collections updates resource refs and collection membership.
+TEST_F(FontTest, ScriptAddRemoveFont)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobThread       = m_JobThread;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Create a temporary .ttf resource by copying an existing test font into the custom file mount.
+    // We avoid the default font path used by the dynamic font to exercise add/remove behavior.
+    const char* ttf_source_path = "/font/valid.ttf";
+    const char* ttf_test_path = "/font/valid_copy.ttf";
+    void* ttf_data = 0;
+    uint32_t ttf_size = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, ttf_source_path, &ttf_data, &ttf_size));
+    ASSERT_NE((void*)0, ttf_data);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, ttf_test_path, ttf_size, ttf_data));
+
+    dmhash_t ttf_hash = dmHashString64(ttf_test_path);
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, ttf_hash));
+
+    // Load the temp font so the hash-based Lua API can find it via the resource system.
+    dmGameSystem::TTFResource* ttf_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetWithExt(m_Factory, ttf_test_path, "ttf", (void**) &ttf_resource));
+    ASSERT_NE((void*)0, ttf_resource);
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, ttf_hash));
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    uint32_t font_count_before = FontCollectionGetFontCount(font_collection);
+
+    // Add the font via Lua and verify refcount + collection size.
+    lua_State* L = scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
+
+    dmLogInfo("Expected errors ->");
+    // Adding the same font twice should fail and keep counts intact.
+    ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
+
+    // Remove the font via Lua and verify refcount + collection size restored.
+    ASSERT_TRUE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    // The default font referenced by the .fontc should not be re-added (string path).
+    ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), \"/font/valid.ttf\")"));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    // The default font referenced by the .fontc should not be re-added (hashed path).
+    ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid.ttf\"))"));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    // The default font referenced by the .fontc should not be removable.
+    ASSERT_FALSE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid.ttf\"))"));
+    ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+
+    dmLogInfo("<- End of expected errors.");
+
+    dmResource::Release(m_Factory, font);
+    dmResource::Release(m_Factory, ttf_resource);
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, ttf_hash));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, ttf_test_path));
+    free(ttf_data);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(WindowTest, MouseLock)
@@ -1821,6 +1906,7 @@ TEST_F(WindowTest, MouseLock)
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 
+    dmHID::Final(hid_context);
     dmHID::DeleteContext(hid_context);
     dmPlatform::DeleteWindow(window);
 }
@@ -2679,6 +2765,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 // Test case for collision-object properties
@@ -2716,6 +2803,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(Trigger2DTest, EventTriggerFalseTest)
@@ -2756,6 +2844,7 @@ TEST_F(Trigger2DTest, EventTriggerFalseTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
@@ -2817,9 +2906,11 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
+TEST_P(GroupAndMask3DTest, GroupAndMaskTest)
 {
     const GroupAndMaskParams& params = GetParam();
 
@@ -2878,6 +2969,8 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 GroupAndMaskParams groupandmask_params[] = {
@@ -2934,6 +3027,7 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ComponentTest, DispatchBuffersTest)
@@ -4108,6 +4202,7 @@ bool RunFile(lua_State* L, const char* filename)
 
     int ret = luaL_dostring(L, buffer);
     free(buffer);
+    dmDDF::FreeMessage(ddf);
 
     if (ret != 0)
     {
@@ -4817,10 +4912,16 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 
+    dmRender::HConstant constant2 = 0;
+    dmGameSystem::GetRenderConstant(constants, name_hash2, &constant2);
+
     ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash1)); // removed
     ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash1)); // not removed
     ASSERT_NE(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
     ASSERT_EQ(0, dmGameSystem::ClearRenderConstant(constants, name_hash2));
+
+    dmRender::DeleteConstant(constant);
+    dmRender::DeleteConstant(constant2);
 
     // Setting raw value
     dmVMath::Vector4 value(1,2,3,4);
@@ -5585,7 +5686,7 @@ TEST_F(SysTest, LoadBufferASync)
     dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
     ASSERT_TRUE(RunTestLoadBufferASync(2, m_Scriptlibcontext, m_Collection, &m_UpdateContext, false));
     dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
-    free(large_buffer);
+    delete[] large_buffer;
 
     // Test 3
     ASSERT_TRUE(RunTestLoadBufferASync(3, m_Scriptlibcontext, m_Collection, &m_UpdateContext, true));
@@ -5635,6 +5736,8 @@ TEST_F(ShaderTest, Compute)
         ASSERT_EQ(dmHashString64("texture_out"),               ddf->m_Reflection.m_Textures[0].m_NameHash);
         ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, ddf->m_Reflection.m_Textures[0].m_Type.m_Type.m_ShaderType);
     }
+
+    dmDDF::FreeMessage(ddf);
 }
 
 TEST_F(ShaderTest, ComputeResource)
@@ -6049,5 +6152,7 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    dmLog::LogFinalize();
+    return result;
 }

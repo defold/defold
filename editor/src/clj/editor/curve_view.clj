@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,6 +32,7 @@
             [editor.scene-selection :as selection]
             [editor.types :as types]
             [editor.ui :as ui]
+            [util.defonce :as defonce]
             [util.id-vec :as iv])
   (:import [com.defold.control DefoldStringConverter]
            [com.jogamp.opengl GL GL2 GLAutoDrawable]
@@ -489,7 +490,7 @@
   (property list ListView)
   (property hidden-curves g/Any)
   (property input-action-queue g/Any (default []))
-  (property updatable-states g/Any (default (atom {})))
+  (property updatable-states g/Any)
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
@@ -579,7 +580,7 @@
       :focus-point (Vector4d. 0.5 y 0.0 1.0)
       :fov-x 1.2)))
 
-(defrecord SubSelectionProvider [app-view]
+(defonce/record SubSelectionProvider [app-view]
   handler/SelectionProvider
   (selection [this] (g/node-value app-view :sub-selection))
   (succeeding-selection [this] [])
@@ -628,7 +629,7 @@
      view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
    (let [[node-id] (g/tx-nodes-added
-                     (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{}]
+                     (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       background background/Background

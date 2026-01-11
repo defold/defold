@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -429,6 +429,7 @@
       fallback
       state)))
 
+;; SDK API
 (defn message
   "Create a message pattern
 
@@ -455,6 +456,23 @@
                                      variables))))]
      (->MessageWithNestedPatterns key variables fallback localizable-keys)
      (->SimpleMessage key variables fallback))))
+
+(defn set-message-key
+  "Returns a new message pattern with the key and fallback replaced
+
+  To actually format, invoke localization (or its state) with pattern
+
+  Args:
+    original    localization message created using [[message]] fn
+    key         localization key, a dot-separated string, e.g. \"dialog.title\"
+    fallback    optional fallback string used in the case when localization key
+                does not exist"
+  ([original key]
+   (set-message-key original key nil))
+  ([original key fallback]
+   {:pre [(or (instance? SimpleMessage original)
+              (instance? MessageWithNestedPatterns original))]}
+   (message key (:m original) fallback)))
 
 (defn vary-message-variables
   "Transforms message variable map with a supplied function
@@ -651,7 +669,6 @@
     items))
 
 ;; TODO:
-;;  - editor scripts localization
-;;  - build errors view
+;;  - build errors
 ;;  - missed things...
 ;;  - extensions: resource types, properties, outlines...

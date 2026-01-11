@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -70,6 +70,7 @@ TEST_F(ComponentTest, HTTPRequest)
 
     ASSERT_TRUE(tests_done);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
 }
 
 extern "C" void dmExportedSymbols();
@@ -112,5 +113,7 @@ int main(int argc, char **argv)
     }
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    dmLog::LogFinalize();
+    return result;
 }

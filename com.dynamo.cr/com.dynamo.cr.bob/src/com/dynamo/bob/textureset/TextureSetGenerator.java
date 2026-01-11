@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -746,12 +746,9 @@ public class TextureSetGenerator {
 
         AnimDesc animDesc = null;
         while ((animDesc = iterator.nextAnim()) != null) {
-            String animId = animDesc.getId();
-
             Rect ref = null;
             Integer index = null;
             int startIndex = quadIndex;
-            int localIndex = 0; // 0 .. num_frames(anim)-1
             while ((index = iterator.nextFrameIndex()) != null) {
 
                 String frameId = iterator.getFrameId(); // either "id" or "anim./id"
@@ -769,7 +766,6 @@ public class TextureSetGenerator {
                 textureSet.addPageIndices(r.getPage());
 
                 ++quadIndex;
-                ++localIndex;
             }
             if (ref == null) {
                 continue;

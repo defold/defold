@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,7 +36,7 @@ static void GBFontDestroy(HFont hfont)
 {
     GlyphBankFont* font = (GlyphBankFont*)hfont;
     // The actual data comes from the resource system, so no need to free that
-    free((void*)font);
+    delete font;
 }
 
 static uint32_t GBGetResourceSize(HFont hfont)
@@ -140,7 +140,7 @@ static FontResult GBGetGlyph(HFont hfont, uint32_t glyph_index, const FontGlyphO
 
             out->m_Bitmap.m_DataSize = g->m_GlyphDataSize;
             out->m_Bitmap.m_Data = glyph_data + 1;
-            out->m_Bitmap.m_Flags = glyph_data[0];
+            out->m_Bitmap.m_Flags = glyph_data[0] | FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED;
             out->m_Bitmap.m_Width = out->m_Width;
             out->m_Bitmap.m_Height = out->m_Height;
             out->m_Bitmap.m_Channels = bank->m_GlyphChannels;
