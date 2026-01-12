@@ -554,13 +554,13 @@
            (.consume e)))
        :on-drag-entered
        (fn [^DragEvent e]
-         (.pseudoClassStateChanged (.getTarget e) (PseudoClass/getPseudoClass "drag-over") true)
-         (.pseudoClassStateChanged (.getTarget e)
+         (.pseudoClassStateChanged ^Node (.getTarget e) (PseudoClass/getPseudoClass "drag-over") true)
+         (.pseudoClassStateChanged ^Node (.getTarget e)
                                    (PseudoClass/getPseudoClass "drag-invalid")
                                    (not (boolean (single-drag-resource e ext-set workspace)))))
        :on-drag-exited
        (fn [^DragEvent e]
-         (.pseudoClassStateChanged (.getTarget e) (PseudoClass/getPseudoClass "drag-over") false))
+         (.pseudoClassStateChanged ^Node (.getTarget e) (PseudoClass/getPseudoClass "drag-over") false))
        :children
        [{:fx/type fxui/value-field
          :h-box/hgrow :always
