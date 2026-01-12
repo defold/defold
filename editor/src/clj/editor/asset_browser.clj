@@ -511,11 +511,10 @@
                        (localization/message "command.file.new")
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
-  (active? [selection selection-context] (or (= :global selection-context)
-                                             (and (= :asset-browser selection-context)
-                                                  (= (count selection) 1)
-                                                  (not= nil (some-> (handler/adapt-single selection resource/Resource)
-                                                                    resource/abs-path)))))
+  (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
+                                                                                (= (count selection) 1)
+                                                                                (not= nil (some-> (handler/adapt-single selection resource/Resource)
+                                                                                            resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
