@@ -516,3 +516,172 @@
       (is (false? (g/defective? error-node)))
       (g/mark-defective! error-node (g/error-fatal "bad"))
       (is (true? (g/defective? error-node))))))
+
+(g/defnode LetECTestNode
+  (property value g/Any)
+  (output cached-value g/Any :cached (g/fnk [value] value)))
+
+(defmacro check-let-ec [let-ec-sym]
+  `(do
+     (testing "Creates and merges evaluation-context."
+       (with-clean-system
+         (let [~'value (Object.)
+               ~'node-id (g/make-node! ~'world LetECTestNode :value ~'value)]
+           (~let-ec-sym
+             [~'cached-value (g/node-value ~'node-id :cached-value ~'evaluation-context)
+              ~'local-cache-atom (:local ~'evaluation-context)
+              ~'local-cache-before-merge (deref ~'local-cache-atom)
+              ~'system-cache-before-merge (g/cache)]
+             (let [~'system-cache-after-merge (g/cache)
+                   ~'cached-endpoint (g/endpoint ~'node-id :cached-value)]
+               (is (identical? ~'value ~'cached-value))
+               (is (= {~'cached-endpoint ~'cached-value} ~'local-cache-before-merge))
+               (is (nil? (cc/lookup ~'system-cache-before-merge ~'cached-endpoint)))
+               (is (identical? ~'value (cc/lookup ~'system-cache-after-merge ~'cached-endpoint))))))))
+
+     (testing "Bindings can use results of prior bindings."
+       (with-clean-system
+         (let [~'referencing-node-id (g/make-node! ~'world LetECTestNode :value {:referenced-node-id (g/make-node! ~'world LetECTestNode :value "referenced node value")})]
+           (~let-ec-sym
+             [~'referencing-node-value (g/node-value ~'referencing-node-id :cached-value ~'evaluation-context)
+              ~'referenced-node-id (:referenced-node-id ~'referencing-node-value)
+              ~'referenced-node-value (g/node-value ~'referenced-node-id :cached-value ~'evaluation-context)]
+             (let [~'system-cache-after-merge (g/cache)]
+               (is (cc/has? ~'system-cache-after-merge (g/endpoint ~'referencing-node-id :cached-value)))
+               (is (cc/has? ~'system-cache-after-merge (g/endpoint ~'referenced-node-id :cached-value)))
+               (is (= "referenced node value" ~'referenced-node-value)))))))
+
+     (testing "Vector destructuring."
+       (with-clean-system
+         (let [~'node-id (g/make-node! ~'world LetECTestNode)]
+           (testing "Anonymous vector."
+             (g/set-property! ~'node-id :value ["one" "two"])
+             (~let-ec-sym
+               [[~'one ~'two]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))))
+           (testing "Vector of strings."
+             (g/set-property! ~'node-id :value ["one" "two" "three"])
+             (~let-ec-sym
+               [[~'one ~'two ~'three ~'four :as ~'value]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= ["one" "two" "three"] ~'value))
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))
+               (is (= "three" ~'three))
+               (is (nil? ~'four))))
+           (testing "Vector of vectors."
+             (g/set-property! ~'node-id :value [["one-one" "one-two"]
+                                                ["two-one" "two-two"]])
+             (~let-ec-sym
+               [[[~'one-one ~'one-two :as ~'one]
+                 [~'two-one ~'two-two :as ~'two]
+                 :as ~'value]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= [["one-one" "one-two"] ["two-one" "two-two"]] ~'value))
+               (is (= ["one-one" "one-two"] ~'one))
+               (is (= ["two-one" "two-two"] ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two))))
+           (testing "Vector of maps."
+             (g/set-property! ~'node-id :value [{:one-one "one-one" :one-two "one-two"}
+                                                {:two-one "two-one" :two-two "two-two"}])
+             (~let-ec-sym
+               [[{:keys [~'one-one ~'one-two] :as ~'one}
+                 {:keys [~'two-one ~'two-two] :as ~'two}
+                 :as ~'value]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= [{:one-one "one-one" :one-two "one-two"} {:two-one "two-one" :two-two "two-two"}] ~'value))
+               (is (= {:one-one "one-one" :one-two "one-two"} ~'one))
+               (is (= {:two-one "two-one" :two-two "two-two"} ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two)))))))
+
+     (testing "Map destructuring."
+       (with-clean-system
+         (let [~'node-id (g/make-node! ~'world LetECTestNode)]
+           (testing "Anonymous map."
+             (g/set-property! ~'node-id :value {:one "one" :two "two"})
+             (~let-ec-sym
+               [{:keys [~'one ~'two]}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))))
+           (testing "Map with string values."
+             (g/set-property! ~'node-id :value {:one "one" :two "two" :three "three"})
+             (~let-ec-sym
+               [{:keys [~'one ~'two ~'three ~'four] :as ~'value}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= {:one "one" :two "two" :three "three"} ~'value))
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))
+               (is (= "three" ~'three))
+               (is (nil? ~'four))))
+           (testing "Map with map values."
+             (g/set-property! ~'node-id :value {:one {:one-one "one-one" :one-two "one-two"}
+                                                :two {:two-one "two-one" :two-two "two-two"}})
+             (~let-ec-sym
+               [{{:keys [~'one-one ~'one-two] :as ~'one} :one
+                 {:keys [~'two-one ~'two-two] :as ~'two} :two
+                 :as ~'value}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= {:one {:one-one "one-one" :one-two "one-two"} :two {:two-one "two-one" :two-two "two-two"}} ~'value))
+               (is (= {:one-one "one-one" :one-two "one-two"} ~'one))
+               (is (= {:two-one "two-one" :two-two "two-two"} ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two))))
+           (testing "Map with vector values."
+             (g/set-property! ~'node-id :value {:one ["one-one" "one-two"]
+                                                :two ["two-one" "two-two"]})
+             (~let-ec-sym
+               [{[~'one-one ~'one-two :as ~'one] :one
+                 [~'two-one ~'two-two :as ~'two] :two
+                 :as ~'value}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= {:one ["one-one" "one-two"] :two ["two-one" "two-two"]} ~'value))
+               (is (= ["one-one" "one-two"] ~'one))
+               (is (= ["two-one" "two-two"] ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two)))))))))
+
+(defmacro let-ec-strict [bindings & body]
+  (apply #'g/let-ec-strict-form bindings body))
+
+(deftest let-ec-strict-test
+  (check-let-ec let-ec-strict)
+
+  (testing "Evaluation context is inaccessible outside let bindings."
+    (is (= `(let [[~'resource]
+                  (g/with-auto-evaluation-context ~'evaluation-context
+                    (let [~'resource (g/node-value ~'resource-node :resource ~'evaluation-context)]
+                      [~'resource]))]
+              ~'resource)
+           (#'g/let-ec-strict-form
+             `[~'resource (g/node-value ~'resource-node :resource ~'evaluation-context)]
+             'resource)))))
+
+(defmacro let-ec-relaxed [bindings & body]
+  (apply #'g/let-ec-relaxed-form 'hidden-evaluation-context bindings body))
+
+(deftest let-ec-relaxed-test
+  (check-let-ec let-ec-relaxed)
+
+  (testing "Evaluation context is inaccessible outside let bindings."
+    (let [evaluation-context-sym (gensym "evaluation-context__")]
+      (is (= `(let [~evaluation-context-sym (g/make-evaluation-context)
+                    ~'resource (g/node-value ~'resource-node :resource ~evaluation-context-sym)]
+                (g/update-cache-from-evaluation-context! ~evaluation-context-sym)
+                ~'resource)
+             (#'g/let-ec-relaxed-form
+               evaluation-context-sym
+               `[~'resource (g/node-value ~'resource-node :resource ~'evaluation-context)]
+               'resource))))))

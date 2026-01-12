@@ -16,6 +16,7 @@
   "Main api for graph and node"
   (:refer-clojure :exclude [constantly deftype])
   (:require [clojure.tools.macro :as ctm]
+            [clojure.walk :as walk]
             [cognitect.transit :as transit]
             [internal.cache :as c]
             [internal.graph :as ig]
@@ -1076,27 +1077,73 @@
      (update-cache-from-evaluation-context! ~ec)
      result#))
 
-(defmacro let-ec [binding-forms & body]
-  {:pre [(vector? binding-forms)
-         (even? (count binding-forms))]}
-  (if strict-evaluation-context-scopes
-    (let [binding-syms (mapv first (partition 2 binding-forms))]
-      (list*
-        `let
-        [binding-syms
-         `(with-auto-evaluation-context ~'evaluation-context
-            (let ~binding-forms
-              ~binding-syms))]
-        body))
+(defn- let-ec-strict-form
+  [bindings & body]
+  {:pre [(vector? bindings)
+         (even? (count bindings))]}
+  (let [binding-form+init-expr-pairs (partition 2 bindings)
+        binding-forms (mapv first binding-form+init-expr-pairs)
+        private-bindings-per-binding (mapv destructure binding-form+init-expr-pairs)
+        private-bindings (into [] cat private-bindings-per-binding)
+        init-expr-results (mapv first private-bindings-per-binding)]
     (list*
       `let
-      (vec
-        (concat
-          ['evaluation-context `(make-evaluation-context)]
-          binding-forms
-          ['_ `(update-cache-from-evaluation-context! ~'evaluation-context)
-           'evaluation-context nil]))
+      [binding-forms
+       (list
+         `with-auto-evaluation-context 'evaluation-context
+         (list
+           `let
+           private-bindings
+           init-expr-results))]
       body)))
+
+(defn- let-ec-relaxed-form
+  [evaluation-context-sym bindings & body]
+  {:pre [(symbol? evaluation-context-sym)
+         (vector? bindings)
+         (even? (count bindings))]}
+  (list*
+    `let
+    (coll/transfer bindings
+      [evaluation-context-sym `(make-evaluation-context)]
+      (partition-all 2)
+      (mapcat (fn [[binding-form init-expr]]
+                ;; Replace all references to `evaluation-context` in the
+                ;; init-exprs with our generated symbol. Using a generated
+                ;; symbol ensures the evaluation-context cannot be
+                ;; referenced from the body after it has been closed.
+                (pair binding-form
+                      (walk/postwalk-replace
+                        {'evaluation-context evaluation-context-sym}
+                        init-expr)))))
+    `(update-cache-from-evaluation-context! ~evaluation-context-sym)
+    body))
+
+(defmacro let-ec
+  "binding => binding-form init-expr
+  binding-form => name, or destructuring-form
+  destructuring-form => map-destructure-form, or seq-destructure-form
+
+  Emit the supplied bindings in a let expression after creating a new
+  evaluation-context from the current state of *the-system*. The
+  evaluation-context is available for use inside the binding-forms, but is
+  closed and merged back into the system cache before executing the body.
+
+  Example:
+  (g/let-ec [{:keys [view-id view-type]}
+             (g/node-value app-view :active-view-info evaluation-context)
+
+             camera-matrix
+             (when (= :scene (:id view-type))
+               (let [camera-id (g/node-value view-id :camera evaluation-context)]
+                 (camera/matrix camera-id evaluation-context)))]
+
+    (some-> camera-matrix
+            math/invert))"
+  [bindings & body]
+  (if strict-evaluation-context-scopes
+    (apply let-ec-strict-form bindings body)
+    (apply let-ec-relaxed-form (gensym "evaluation-context__") bindings body)))
 
 (def fake-system (is/make-system {:cache-size 0}))
 
