@@ -1731,8 +1731,9 @@ class Configuration(object):
         host = self.host
 
         # Make sure we build these for the host platform for the toolchain (bob light)
+        host_lib_skip_tests = host != self.target_platform
         for lib in HOST_LIBS:
-            self._build_engine_lib(args, lib, host)
+            self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()

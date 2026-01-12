@@ -133,7 +133,7 @@ def build(bld):
     skip_threads = False
     if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         skip_http = True
-        if bld.env in ('js-web', 'wasm-web'):
+        if bld.env.PLATFORM in ('js-web', 'wasm-web'):
             skip_threads = True
 
     if _is_mac_ci():

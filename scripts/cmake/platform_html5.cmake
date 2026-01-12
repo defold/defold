@@ -35,6 +35,11 @@ if(_DEFOLD_WITH_PTHREAD)
 endif()
 
 # Link options base
+set(_DEFOLD_INITIAL_MEMORY 33554432)
+if(WITH_ASAN AND TARGET_PLATFORM MATCHES "^wasm")
+  set(_DEFOLD_INITIAL_MEMORY 67108864)
+endif()
+
 set(_DEFOLD_EM_LINK_OPTS
   -Wno-warn-absolute-paths
   --emit-symbol-map
@@ -44,7 +49,7 @@ set(_DEFOLD_EM_LINK_OPTS
   -sEXPORTED_RUNTIME_METHODS=["ccall","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]
   -sEXPORTED_FUNCTIONS=_main,_malloc,_free
   -sERROR_ON_UNDEFINED_SYMBOLS=1
-  -sINITIAL_MEMORY=33554432
+  -sINITIAL_MEMORY=${_DEFOLD_INITIAL_MEMORY}
   -sMAX_WEBGL_VERSION=2
   -sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0
   -sIMPORTED_MEMORY=1
@@ -76,6 +81,9 @@ endif()
 
 # WASM vs asm.js
 if(TARGET_PLATFORM MATCHES "^wasm")
+  if(WITH_UBSAN)
+    list(APPEND _DEFOLD_EM_LINK_OPTS -sASSERTIONS=1)
+  endif()
   list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=1 -sALLOW_MEMORY_GROWTH=1)
 else()
   list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=0 -sLEGACY_VM_SUPPORT=1)
@@ -83,6 +91,24 @@ endif()
 
 if(_DEFOLD_WITH_PTHREAD)
   list(APPEND _DEFOLD_EM_LINK_OPTS -pthread)
+endif()
+
+if(WITH_ASAN AND TARGET_PLATFORM MATCHES "^wasm")
+  target_compile_options(defold_sdk INTERFACE
+    -fsanitize=address
+    -fno-omit-frame-pointer
+    -fsanitize-address-use-after-scope)
+  target_compile_definitions(defold_sdk INTERFACE DM_SANITIZE_ADDRESS)
+  target_link_options(defold_sdk INTERFACE
+    -fsanitize=address
+    -fno-omit-frame-pointer
+    -fsanitize-address-use-after-scope)
+endif()
+
+if(WITH_UBSAN AND TARGET_PLATFORM MATCHES "^wasm")
+  target_compile_options(defold_sdk INTERFACE -fsanitize=undefined)
+  target_compile_definitions(defold_sdk INTERFACE DM_SANITIZE_UNDEFINED)
+  target_link_options(defold_sdk INTERFACE -fsanitize=undefined)
 endif()
 
 target_link_options(defold_sdk INTERFACE ${_DEFOLD_EM_LINK_OPTS})
