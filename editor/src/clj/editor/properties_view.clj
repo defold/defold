@@ -515,14 +515,15 @@
 
 (defn- single-drag-resource [^DragEvent e valid-extensions workspace]
   {:pre [(set? valid-extensions)]}
-  (let [db (.getDragboard e)
-        files (.getFiles db)]
-    (when (= 1 (count files))
-      (let [resource (workspace/resolve-workspace-resource workspace (.getString db))
-            resource-ext (resource/type-ext resource)]
-        (when (and (resource/exists? resource)
-                   (contains? valid-extensions resource-ext))
-          resource)))))
+  (let [files (.getFiles (.getDragboard e))]
+    (when-some [file (and (= 1 (count files))
+                          (first files))]
+      (when-some [proj-path (workspace/as-proj-path workspace file)]
+        (let [resource (workspace/resolve-workspace-resource workspace proj-path)
+              resource-ext (resource/type-ext resource)]
+          (when (and (resource/exists? resource)
+                     (contains? valid-extensions resource-ext))
+            resource))))))
 
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
