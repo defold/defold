@@ -1481,24 +1481,24 @@
 (defn- make-grid-menu
   "Create a grid-based menu component with categorized items arranged in columns
 
-  grid-config structure:
-    :layout         With the keyword :grid
-    :columns        vector of vectors, where each inner vector contains category
-                    keys (strings) that should appear in that column, e.g.
-                    [[\"resource.category.objects\" \"resource.category.scripts\"]
-                     [\"resource.category.components\"]]
-    :children       collection of menu-item maps, should match `make-menu-item`
-                    shape, with a :category keyword containing a localization
-                    message or a string
+  Arguments:
+    items              vector of menu-item maps (see `make-menu-item` for shape)
+                       with metadata containing grid configuration. Each item should
+                       have a :category key containing a localization message or string
+
+  Grid configuration (as metadata on items):
+    :layout            Must be the keyword :grid
+    :columns           Vector of vectors, where each inner vector contains category
+                       keys that should appear in that column
 
   Returns:
     A JavaFX custom menu item containing the grid layout"
-  [^Scene scene localization grid-config command-contexts evaluation-context]
-  (let [{:keys [columns children]} grid-config
+  [^Scene scene localization items command-contexts evaluation-context]
+  (let [columns (:columns (meta items))
         items-by-category (-> (util/group-into {} []
                                 #(or (:category %)
                                      (localization/message "resource.category.other"))
-                                children)
+                                items)
                               (update-vals #(localization/natural-sort-by-label localization %)))]
     (fx/instance
       (fx/create-component
@@ -1565,15 +1565,13 @@
         item-label (:label item)
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
-      (if (= (:layout item) :grid)
-        (make-grid-menu scene localization item command-contexts evaluation-context)
-        (make-submenu id
-                      item-label
-                      localization
-                      icon
-                      style-classes
-                      (make-menu-items scene children command-contexts keymap localization evaluation-context)
-                      on-open))
+      (make-submenu id
+                    item-label
+                    localization
+                    icon
+                    style-classes
+                    (make-menu-items scene children command-contexts keymap localization evaluation-context)
+                    on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
         (let [command (:command item)
@@ -1591,7 +1589,9 @@
                                 localization
                                 icon
                                 style-classes
-                                (make-menu-items scene (localization/sort-if-annotated @localization options) command-contexts keymap localization evaluation-context)
+                                (if (some-> options meta :layout (= :grid))
+                                  [(make-grid-menu scene localization options command-contexts evaluation-context)]
+                                  (make-menu-items scene (localization/sort-if-annotated @localization options) command-contexts keymap localization evaluation-context))
                                 on-open))
                 (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)))))))))
 
