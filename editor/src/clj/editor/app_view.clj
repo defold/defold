@@ -412,7 +412,7 @@
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
 
              tx-data
-             (when (and (not (identical? old-active-tab new-active-tab))
+             (when (and (not= old-active-tab new-active-tab)
                         (some-> editor-tab-pane .isFocusWithin))
                (g/eager-tx-data
                  (concat
@@ -431,7 +431,7 @@
     (recent-files/save-tab-selections prefs app-view)
 
     (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
-      (apply-tab-pane-active-style! tab-pane (identical? editor-tab-pane tab-pane)))))
+      (apply-tab-pane-active-style! tab-pane (= editor-tab-pane tab-pane)))))
 
 (handler/defhandler :scene.select-move-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
@@ -1607,7 +1607,7 @@
 
 (defn- find-other-tab-pane
   ^TabPane [^SplitPane editor-tabs-split ^TabPane current-tab-pane]
-  (first-where #(not (identical? current-tab-pane %))
+  (first-where #(not= current-tab-pane %)
                (.getItems editor-tabs-split)))
 
 (defn- add-other-tab-pane!
@@ -1677,7 +1677,7 @@
 (handler/defhandler :window.tab.join-groups :global
   (enabled? [app-view evaluation-context]
             (< 1 (open-tab-pane-count app-view evaluation-context)))
-  (run [app-view user-data]
+  (run [app-view prefs user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              active-tab ^Tab (g/node-value app-view :active-tab)
              tab-panes (.getItems editor-tabs-split)
@@ -1685,11 +1685,21 @@
              second-tab-pane ^TabPane (.get tab-panes 1)
              first-tabs (.getTabs first-tab-pane)
              second-tabs (.getTabs second-tab-pane)
-             moved-tabs (vec second-tabs)]
+             moved-tabs (vec second-tabs)
+             first-tab-pane-was-active (= first-tab-pane (some-> active-tab .getTabPane))]
          (.clear second-tabs)
          (.addAll first-tabs ^Collection moved-tabs)
-         (.select (.getSelectionModel first-tab-pane) active-tab)
-         (.requestFocus first-tab-pane))))
+         (cond
+           (not first-tab-pane-was-active)
+           (do
+             (.requestFocus first-tab-pane)
+             (.select (.getSelectionModel first-tab-pane) active-tab))
+
+           (not= active-tab (ui/selected-tab first-tab-pane))
+           (.select (.getSelectionModel first-tab-pane) active-tab)
+
+           :else
+           (on-active-tab-changed! app-view prefs active-tab)))))
 
 (defn make-about-dialog [localization]
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -2061,8 +2071,10 @@
                   tab-panes (.getItems editor-tabs-split)]
               (when (< 1 (count tab-panes))
                 (.remove tab-panes tab-pane)
-                (let [remaining-tab-pane (.get tab-panes 0)]
-                  (.requestFocus ^TabPane remaining-tab-pane))))))))
+                (let [^TabPane remaining-tab-pane (.get tab-panes 0)]
+                  (if (.isFocusWithin remaining-tab-pane)
+                    (on-active-tab-changed! app-view prefs (ui/selected-tab remaining-tab-pane))
+                    (.requestFocus remaining-tab-pane)))))))))
 
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
@@ -2070,8 +2082,7 @@
 (defn- handle-focus-owner-change! [app-view prefs new-focus-owner]
   (when-some [editor-tab-pane (editor-tab-pane new-focus-owner)]
     ;; The new focus owner is or belongs to an editor TabPane.
-    (let [selected-tab (ui/selected-tab editor-tab-pane)]
-      (on-active-tab-changed! app-view prefs selected-tab))))
+    (on-active-tab-changed! app-view prefs (ui/selected-tab editor-tab-pane))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
@@ -2223,13 +2234,16 @@
   ([^Tab tab open-opts]
    (select-editor-tab! tab open-opts fn/constantly-nil))
   ([^Tab tab open-opts done-fn]
-   (ui/select-tab! tab)
-   (when-some [focus-fn (:focus-fn (editor-tab/view-type tab))]
-     (let [view-id (editor-tab/view-node-id tab)
-           tab-pane (.getTabPane tab)
-           scene (.getScene tab-pane)]
-       (ui/force-scene-layout! scene)
-       (focus-fn view-id open-opts done-fn)))))
+   (let [tab-pane (.getTabPane tab)]
+     (ui/select-tab! tab)
+     (if-some [focus-fn (:focus-fn (editor-tab/view-type tab))]
+       (let [view-id (editor-tab/view-node-id tab)
+             scene (.getScene tab-pane)]
+         (ui/force-scene-layout! scene)
+         (focus-fn view-id open-opts done-fn))
+       (do
+         (.requestFocus tab-pane)
+         (done-fn))))))
 
 (defn make-open-resource-plan
   [app-view prefs project resource opts evaluation-context]
