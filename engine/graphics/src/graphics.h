@@ -63,6 +63,7 @@ namespace dmGraphics
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
+    typedef uint64_t HUniformBuffer;
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
@@ -236,6 +237,45 @@ namespace dmGraphics
         uint32_t         m_Count;
     };
 
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
+    };
+
+    struct ShaderResourceType
+    {
+        union
+        {
+            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                               m_TypeIndex;
+        };
+        uint8_t m_UseTypeIndex : 1;
+    };
+
+    struct ShaderResourceBinding
+    {
+        union BindingInfo
+        {
+            uint16_t m_BlockSize;
+            uint16_t m_SamplerTextureIndex;
+        };
+
+        char*                       m_Name;
+        dmhash_t                    m_NameHash;
+        char*                       m_InstanceName;
+        dmhash_t                    m_InstanceNameHash;
+        ShaderResourceType          m_Type;
+        ShaderResourceBindingFamily m_BindingFamily;
+        BindingInfo                 m_BindingInfo;
+        uint16_t                    m_Set;
+        uint16_t                    m_Binding;
+        uint16_t                    m_ElementCount;
+        uint8_t                     m_StageFlags;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
@@ -407,9 +447,19 @@ namespace dmGraphics
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
-    // Uniforms
+    // Uniforms/resource reflection
     uint32_t         GetUniformCount(HProgram prog);
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
+    void             GetResourceBindings(HProgram prog, ShaderResourceBindingFamily family, const ShaderResourceBinding** bindings, uint32_t* num_bindings);
+
+    /*
+    // Uniform buffers
+    HUniformBuffer   NewUniformBuffer(HContext context, uint32_t size);
+    void             DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
+    void             SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
+    void             EnableUniformBuffer(HContext context, uint32_t unit, HUniformBuffer uniform_buffer);
+    void             DisableUniformBuffer(HContext context, uint32_t unit);
+    */
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

@@ -2052,7 +2052,7 @@ namespace dmGraphics
 
             switch(pgm_res.m_Res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                 {
                     DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
 
@@ -2076,17 +2076,17 @@ namespace dmGraphics
                         }
                     }
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                case BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     assert(0);
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
                     const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
                     void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
                     memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                 default: continue;
             }
         }
@@ -2226,7 +2226,7 @@ namespace dmGraphics
         for (int i = 0; i < texture_resources.Size(); ++i)
         {
             const ShaderResourceBinding& shader_res = texture_resources[i];
-            assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+            assert(shader_res.m_BindingFamily == BINDING_FAMILY_TEXTURE);
 
             ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
 

@@ -1027,7 +1027,7 @@ namespace dmGraphics
         }
     }
 
-    static void PutShaderResourceBindings(const ShaderDesc::ResourceBinding* bindings, uint32_t bindings_count, dmArray<ShaderResourceBinding>& bindings_out, ShaderResourceBinding::BindingFamily family)
+    static void PutShaderResourceBindings(const ShaderDesc::ResourceBinding* bindings, uint32_t bindings_count, dmArray<ShaderResourceBinding>& bindings_out, ShaderResourceBindingFamily family)
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
@@ -1065,10 +1065,10 @@ namespace dmGraphics
 
     void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta)
     {
-        PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER);
-        PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER);
-        PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
-        PutShaderResourceBindings(ddf->m_Inputs.m_Data, ddf->m_Inputs.m_Count, meta->m_Inputs, ShaderResourceBinding::BINDING_FAMILY_GENERIC);
+        PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, BINDING_FAMILY_UNIFORM_BUFFER);
+        PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, BINDING_FAMILY_STORAGE_BUFFER);
+        PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, BINDING_FAMILY_TEXTURE);
+        PutShaderResourceBindings(ddf->m_Inputs.m_Data, ddf->m_Inputs.m_Count, meta->m_Inputs, BINDING_FAMILY_GENERIC);
 
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
@@ -1253,8 +1253,8 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while((next = it.Next()))
         {
-            if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE ||
+                next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
                 params.m_CanonicalName = next->m_Res->m_Name;
@@ -1262,7 +1262,7 @@ namespace dmGraphics
 
                 callback(params, user_data);
             }
-            else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+            else if (next->m_Res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER)
             {
                 uint32_t canonical_name_buffer_offset = 0;
 
@@ -1354,11 +1354,11 @@ namespace dmGraphics
 
                 switch(res.m_BindingFamily)
                 {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    case BINDING_FAMILY_TEXTURE:
                         program_resource_binding.m_TextureUnit = info.m_TextureCount;
                         info.m_TextureCount++;
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    case BINDING_FAMILY_STORAGE_BUFFER:
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
 
@@ -1367,7 +1367,7 @@ namespace dmGraphics
                     #endif
 
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
                         program_resource_binding.m_DataOffset = info.m_UniformDataSize;
@@ -1377,7 +1377,7 @@ namespace dmGraphics
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
                     break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    case BINDING_FAMILY_GENERIC:
                     default:break;
                 }
 
@@ -1551,7 +1551,29 @@ namespace dmGraphics
         Program* p = (Program*) prog;
         *uniform_desc = p->m_Uniforms[index];
     }
-
+    void GetResourceBindings(HProgram prog, ShaderResourceBindingFamily family, const ShaderResourceBinding** bindings, uint32_t* num_bindings)
+    {
+        Program* p = (Program*) prog;
+        switch (family)
+        {
+            case BINDING_FAMILY_TEXTURE:
+            {
+                *bindings = p->m_ShaderMeta.m_Textures.Begin();
+                *num_bindings = p->m_ShaderMeta.m_Textures.Size();
+            } break;
+            case BINDING_FAMILY_UNIFORM_BUFFER:
+            {
+                *bindings = p->m_ShaderMeta.m_UniformBuffers.Begin();
+                *num_bindings = p->m_ShaderMeta.m_UniformBuffers.Size();
+            } break;
+            case BINDING_FAMILY_STORAGE_BUFFER:
+            {
+                *bindings = p->m_ShaderMeta.m_StorageBuffers.Begin();
+                *num_bindings = p->m_ShaderMeta.m_StorageBuffers.Size();
+            } break;
+            default: break;
+        }
+    }
     ///////////////////////////////////////////////////
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
     void CloseWindow(HContext context)

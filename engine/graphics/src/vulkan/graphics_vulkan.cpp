@@ -2257,14 +2257,14 @@ bail:
 
             switch(res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                     UpdateImageDescriptor(context,
                         context->m_TextureUnits[next->m_TextureUnit],
                         res,
                         vk_write_image_descriptors[image_to_write_index++],
                         vk_write_desc_info);
                     break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                case BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
 
@@ -2278,7 +2278,7 @@ bail:
                         binding.m_BufferOffset,
                         VK_WHOLE_SIZE);
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
                     dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
                     const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
@@ -2305,7 +2305,7 @@ bail:
 
                     dynamic_offset_index++;
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                 default: continue;
             }
         }
@@ -2628,14 +2628,14 @@ bail:
 
     static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
     {
-        if (ShaderResourceBinding::BINDING_FAMILY_GENERIC)
+        if (BINDING_FAMILY_GENERIC)
             return (VkDescriptorType) -1;
 
-        if (res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE)
+        if (res.m_BindingFamily == BINDING_FAMILY_TEXTURE)
         {
             return TextureTypeToDescriptorType(res.m_Type.m_ShaderType);
         }
-        else if (res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+        else if (res.m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
         {
             return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         }
@@ -2681,7 +2681,7 @@ bail:
         for (int i = 0; i < texture_resources.Size(); ++i)
         {
             const ShaderResourceBinding& shader_res = texture_resources[i];
-            assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+            assert(shader_res.m_BindingFamily == BINDING_FAMILY_TEXTURE);
 
             ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
 
@@ -2746,7 +2746,7 @@ bail:
 
                 switch(res.m_BindingFamily)
                 {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    case BINDING_FAMILY_TEXTURE:
                         if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
                             // Texture unit will be resolved in a second pass after.
@@ -2764,14 +2764,14 @@ bail:
                         dmLogInfo("Texture: name=%s, set=%d, binding=%d, sampler-index=%d", res.m_Name, res.m_Set, res.m_Binding, res.m_BindingInfo.m_SamplerTextureIndex);
                     #endif
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    case BINDING_FAMILY_STORAGE_BUFFER:
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
                     #if 0
                         dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
                     #endif
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
                         program_resource_binding.m_DataOffset = info.m_UniformDataSize;
@@ -2781,7 +2781,7 @@ bail:
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
                     break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    case BINDING_FAMILY_GENERIC:
                     default:break;
                 }
 

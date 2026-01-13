@@ -2213,7 +2213,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
             entries[desc.entryCount].binding = pgm_res.m_Res->m_Binding;
             switch (pgm_res.m_Res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE: {
+                case BINDING_FAMILY_TEXTURE: {
                     WebGPUTexture* texture = context->m_CurrentTextureUnits[pgm_res.m_TextureUnit];
                     if (!texture)
                     {
@@ -2256,12 +2256,12 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     }
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
+                case BINDING_FAMILY_STORAGE_BUFFER: {
                     // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
                     assert(false);
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
+                case BINDING_FAMILY_UNIFORM_BUFFER: {
 #if defined(DM_GRAPHICS_WEBGPU2)
                     const uint32_t ubo_alignment = context->m_DeviceLimits.minUniformBufferOffsetAlignment;
 #else
@@ -2305,7 +2305,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                     assert(false);
                     break;
             }
@@ -2514,7 +2514,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 
             switch (res.m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                     switch (res.m_Type.m_ShaderType)
                     {
                         case ShaderDesc::SHADER_TYPE_SAMPLER:
@@ -2553,7 +2553,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     program_resource_binding.m_TextureUnit = info.m_TextureCount;
                     info.m_TextureCount++;
                     break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
+                case BINDING_FAMILY_STORAGE_BUFFER: {
                     assert(false);
                     // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
                     binding.buffer.type = WGPUBufferBindingType_Storage;
@@ -2562,7 +2562,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     info.m_StorageBufferCount++;
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
+                case BINDING_FAMILY_UNIFORM_BUFFER: {
 #if defined(DM_GRAPHICS_WEBGPU2)
                     const uint32_t ubo_alignment = context->m_DeviceLimits.minUniformBufferOffsetAlignment;
 #else
@@ -2578,7 +2578,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                     break;
             }
 

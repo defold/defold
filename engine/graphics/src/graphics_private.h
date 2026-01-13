@@ -87,16 +87,6 @@ namespace dmGraphics
         uint8_t            m_StreamCount;
     };
 
-    struct ShaderResourceType
-    {
-        union
-        {
-            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                               m_TypeIndex;
-        };
-        uint8_t m_UseTypeIndex : 1;
-    };
-
     struct ShaderResourceMember
     {
         char*                       m_Name;
@@ -111,35 +101,6 @@ namespace dmGraphics
         char*                         m_Name;
         dmhash_t                      m_NameHash;
         dmArray<ShaderResourceMember> m_Members;
-    };
-
-    struct ShaderResourceBinding
-    {
-        enum BindingFamily
-        {
-            BINDING_FAMILY_GENERIC        = 0,
-            BINDING_FAMILY_UNIFORM_BUFFER = 1,
-            BINDING_FAMILY_STORAGE_BUFFER = 2,
-            BINDING_FAMILY_TEXTURE        = 3,
-        };
-
-        union BindingInfo
-        {
-            uint16_t m_BlockSize;
-            uint16_t m_SamplerTextureIndex;
-        };
-
-        char*              m_Name;
-        dmhash_t           m_NameHash;
-        char*              m_InstanceName;
-        dmhash_t           m_InstanceNameHash;
-        ShaderResourceType m_Type;
-        BindingFamily      m_BindingFamily;
-        uint16_t           m_Set;
-        uint16_t           m_Binding;
-        uint16_t           m_ElementCount;
-        BindingInfo        m_BindingInfo;
-        uint8_t            m_StageFlags;
     };
 
     struct ShaderMeta
