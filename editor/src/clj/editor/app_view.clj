@@ -34,6 +34,7 @@
             [editor.disk-availability :as disk-availability]
             [editor.editor-extensions :as extensions]
             [editor.editor-localization-bundle :as editor-localization-bundle]
+            [editor.editor-tab :as editor-tab]
             [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
@@ -210,26 +211,6 @@
   (when attention?
     (show-debugger! main-scene tool-tab-pane)))
 
-(defn- tab->view-id [^Tab tab]
-  (some-> tab (ui/user-data ::view)))
-
-(defn- tab->view-type [^Tab tab]
-  (some-> tab (ui/user-data ::view-type)))
-
-(defn- tab->view-type-id [^Tab tab]
-  (:id (tab->view-type tab)))
-
-(defn- tab->resource-node
-  ([^Tab tab]
-   (g/with-auto-evaluation-context evaluation-context
-     (tab->resource-node tab evaluation-context)))
-  ([^Tab tab evaluation-context]
-   (some-> tab
-           tab->view-id
-           (g/node-value :view-data evaluation-context)
-           second
-           :resource-node)))
-
 (defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
@@ -240,7 +221,9 @@
   (.remove (.getTabs tab-pane) tab))
 
 (defn remove-invalid-tabs! [tab-panes open-views]
-  (let [invalid-tab? (fn [tab] (nil? (get open-views (tab->view-id tab))))
+  (let [invalid-tab? (fn invalid-tab? [tab]
+                       (nil? (some->> (editor-tab/view-node-id tab)
+                                      (get open-views))))
         closed-tabs-by-tab-pane (into []
                                       (keep (fn [^TabPane tab-pane]
                                               (when-some [closed-tabs (not-empty (filterv invalid-tab? (.getTabs tab-pane)))]
@@ -264,7 +247,7 @@
   ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
   ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
   ;; underscores with the a unicode character that looks somewhat similar.
-  (let [resource-name (resource/resource-name resource)
+  (let [resource-name (or (some-> resource resource/resource-name) "")
         escaped-resource-name (string/replace resource-name "_" "\u02CD")]
     (if dirty
       (str "*" escaped-resource-name)
@@ -341,11 +324,13 @@
                                         (first (.getItems editor-tabs-split)))))
   (output active-outline g/Any (gu/passthrough active-outline))
   (output active-scene g/Any (gu/passthrough active-scene))
-  (output active-view g/NodeID (g/fnk [^Tab active-tab] (tab->view-id active-tab)))
-  (output active-view-info g/Any (g/fnk [^Tab active-tab]
-                                        (when active-tab
-                                          {:view-id (tab->view-id active-tab)
-                                           :view-type (tab->view-type active-tab)})))
+  (output active-view g/NodeID (g/fnk [^Tab active-tab] (some-> active-tab editor-tab/view-node-id)))
+  (output active-view-info g/Any
+          (g/fnk [^Tab active-tab]
+            (when-let [view-node-id (some-> active-tab editor-tab/view-node-id)]
+              (when-let [view-type (editor-tab/view-type active-tab)]
+                {:view-id view-node-id
+                 :view-type view-type}))))
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource-node+type g/Any :cached
@@ -366,7 +351,7 @@
 
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
-                                                      :let [view (tab->view-id tab)
+                                                      :let [view (editor-tab/view-node-id tab)
                                                             resource (:resource (get open-views view))
                                                             dirty (contains? open-dirty-views view)
                                                             title (tab-title resource dirty)]]
@@ -2040,17 +2025,20 @@
     ;; The new focus owner is or belongs to an editor TabPane.
     (g/let-ec [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
                ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
-               ^Tab new-active-tab (ui/selected-tab new-editor-tab-pane)]
-      (when-not (identical? old-active-tab new-active-tab)
-        (let [resource-node (tab->resource-node new-active-tab)
-              view-type-id (tab->view-type-id new-active-tab)]
-          (g/transact
-            (concat
-              (replace-connection resource-node :node-outline app-view :active-outline)
-              (if (= :scene view-type-id)
-                (replace-connection resource-node :scene app-view :active-scene)
-                (disconnect-sources app-view :active-scene))
-              (g/set-property app-view :active-tab new-active-tab))))
+               ^Tab new-active-tab (ui/selected-tab new-editor-tab-pane)
+
+               new-connected-resource-node-id
+               (when-not (identical? old-active-tab new-active-tab)
+                 (some-> new-active-tab (editor-tab/resource-node-id evaluation-context)))]
+
+      (when new-connected-resource-node-id
+        (g/transact
+          (concat
+            (replace-connection new-connected-resource-node-id :node-outline app-view :active-outline)
+            (if (= :scene (editor-tab/view-type-id new-active-tab))
+              (replace-connection new-connected-resource-node-id :scene app-view :active-scene)
+              (disconnect-sources app-view :active-scene))
+            (g/set-property app-view :active-tab new-active-tab)))
         (ui/user-data! app-scene ::ui/refresh-requested? true))
 
       ;; Do these steps even if identical, since tabs might move between panes.
@@ -2140,7 +2128,7 @@
         tab (doto (Tab. (tab-title resource false))
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
-              (ui/user-data! ::view-type view-type))
+              (editor-tab/set-view-type! view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
@@ -2163,7 +2151,7 @@
         (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty app-view :open-dirty-views)))
-    (ui/user-data! tab ::view view)
+    (editor-tab/set-view-node-id! tab view)
     (.add tabs tab)
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
@@ -2180,8 +2168,8 @@
                           ;; graph nodes. Using run-later here prevents this.
                           (ui/run-later
                             (doto tab
-                              (ui/user-data! ::view-type nil)
-                              (ui/user-data! ::view nil))
+                              (editor-tab/set-view-type! nil)
+                              (editor-tab/set-view-node-id! nil))
                             (g/delete-graph! view-graph))
                           (when close-handler
                             (.handle close-handler event)))))
@@ -2210,8 +2198,8 @@
    (select-editor-tab! tab open-opts fn/constantly-nil))
   ([^Tab tab open-opts done-fn]
    (ui/select-tab! tab)
-   (when-some [focus-fn (:focus-fn (tab->view-type tab))]
-     (let [view-id (tab->view-id tab)
+   (when-some [focus-fn (:focus-fn (editor-tab/view-type tab))]
+     (let [view-id (editor-tab/view-node-id tab)
            tab-pane (.getTabPane tab)
            scene (.getScene tab-pane)]
        (ui/force-scene-layout! scene)
@@ -2271,8 +2259,8 @@
                                   (e/mapcat TabPane/.getTabs)
                                   (coll/first-where
                                     (fn [^Tab tab]
-                                      (and (= view-type-id (tab->view-type-id tab))
-                                           (= resource-node (tab->resource-node tab evaluation-context))))))]
+                                      (and (= view-type-id (editor-tab/view-type-id tab))
+                                           (= resource-node (editor-tab/resource-node-id tab evaluation-context))))))]
             (if (some? existing-tab)
               {:type :show-existing-tab
                :existing-tab existing-tab
