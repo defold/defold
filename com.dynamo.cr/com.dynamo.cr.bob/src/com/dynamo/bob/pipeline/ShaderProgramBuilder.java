@@ -493,6 +493,18 @@ public class ShaderProgramBuilder extends Builder {
         if (newShaders.size() > 0 && oldShaders.size() > 0) {
             System.out.println("Warning: Mixing old shaders with new shaders is slow. Consider migrating old shaders to using the new shader pipeline.");
 
+            System.out.print("  Old shaders:");
+            for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
+                System.out.print(" " + old.resourcePath);
+            }
+            System.out.println();
+
+            System.out.print("  New shaders:");
+            for (ShaderCompilePipeline.ShaderModuleDesc shader : newShaders) {
+                System.out.print(" " + shader.resourcePath);
+            }
+            System.out.println();
+
             ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
             for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
                 ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers);

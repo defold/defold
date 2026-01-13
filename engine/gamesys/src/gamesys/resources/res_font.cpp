@@ -808,9 +808,28 @@ namespace dmGameSystem
 
     static dmResource::Result AddFontInternal(dmResource::HFactory factory, FontResource* resource, dmGameSystem::TTFResource* ttfresource, dmhash_t ttf_hash)
     {
-        HFont hfont = dmGameSystem::GetFont(ttfresource);
+        if (resource->m_TTFResource == ttfresource)
+        {
+            dmLogError("The default font is already added to the font collection: '%s'", dmHashReverseSafe64(ttf_hash));
+            dmResource::Release(factory, ttfresource);
+            return dmResource::RESULT_INVALID_DATA;
+        }
 
+        HFont hfont = dmGameSystem::GetFont(ttfresource);
         HFontCollection font_collection = dmRender::GetFontCollection(resource->m_FontMap);
+
+        uint32_t num_fonts = FontCollectionGetFontCount(font_collection);
+        for (uint32_t i = 0; i < num_fonts; ++i)
+        {
+            HFont font_i = FontCollectionGetFont(font_collection, i);
+            if (hfont == font_i)
+            {
+                dmLogError("The font is already added to the font collection: '%s'", dmHashReverseSafe64(ttf_hash));
+                dmResource::Release(factory, ttfresource);
+                return dmResource::RESULT_INVALID_DATA;
+            }
+        }
+
         FontResult fr = FontCollectionAddFont(font_collection, hfont);
         if (FONT_RESULT_OK != fr)
         {
@@ -865,7 +884,7 @@ namespace dmGameSystem
         }
 
         dmhash_t ttf_hash;
-        dmResource::GetPath(factory, resource->m_TTFResource, &ttf_hash); // We get it like this in case the path != canonical path
+        dmResource::GetPath(factory, ttfresource, &ttf_hash); // We get it like this in case the path != canonical path
 
         return AddFontInternal(factory, resource, ttfresource, ttf_hash);
     }
@@ -876,6 +895,12 @@ namespace dmGameSystem
         if (!ttfresource)
         {
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if (font->m_TTFResource == ttfresource)
+        {
+            dmLogError("You cannot remove the default font from the font collection: '%s'", dmHashReverseSafe64(ttf_hash));
+            return dmResource::RESULT_INVALID_DATA;
         }
 
         HFont hfont = dmGameSystem::GetFont(ttfresource);

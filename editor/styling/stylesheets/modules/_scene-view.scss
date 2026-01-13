@@ -300,4 +300,43 @@
             -fx-padding: 27px 22px;
         }
     }
+
+    .scene-preview-close-button {
+        -fx-padding: 0;
+        -fx-min-width: 18px;
+        -fx-min-height: 18px;
+        -fx-pref-width: 18px;
+        -fx-pref-height: 18px;
+        -fx-max-width: 18px;
+        -fx-max-height: 18px;
+        -fx-background-color: transparent;
+        -fx-border-color: transparent;
+        -fx-background-insets: 0;
+        -fx-border-insets: 0;
+        -fx-background-radius: 3px;
+        -fx-border-radius: 3px;
+
+        &:hover {
+            -fx-border-color: transparent;
+            -fx-background-color: transparent;
+        }
+
+        &:armed {
+            -fx-border-color: transparent;
+            -fx-background-color: transparent;
+        }
+    }
+
+    .scene-preview-close-icon {
+        -fx-effect: null;
+        -fx-background-color: -df-text;
+    }
+
+    .scene-preview-close-button:hover .scene-preview-close-icon {
+        -fx-effect: innershadow(gaussian, -df-text-selected, 10, 0.35, 0, 0);
+    }
+
+    .scene-preview-close-button:armed .scene-preview-close-icon {
+        -fx-effect: innershadow(gaussian, -df-text-selected, 12, 0.45, 0, 0);
+    }
 }

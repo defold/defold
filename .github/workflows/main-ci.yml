@@ -179,6 +179,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Cache lein installation for docs', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: 'editor/build/lein', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-\n${{ runner.os }}-lein-" } },
       { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },

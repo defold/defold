@@ -30,7 +30,7 @@
 
 #include "fontgen.h"
 
-#define FONTGEN_DEBUG
+//#define FONTGEN_DEBUG
 
 namespace dmGameSystem
 {

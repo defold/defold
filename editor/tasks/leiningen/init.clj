@@ -55,7 +55,7 @@
       "dynamo-home"     nil ; for symmetry
       "archived-stable" (sha-from-version-file)
       "archived"        (sha-from-ref "HEAD")
-      version)))
+      (sha-from-ref version))))
 
 (defn- resolve-archive-domain
   [user_domain]

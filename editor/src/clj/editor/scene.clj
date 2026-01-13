@@ -30,6 +30,7 @@
             [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.input :as i]
+            [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
@@ -49,6 +50,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
+            [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -66,6 +68,7 @@
            [java.lang Math Runnable]
            [java.nio IntBuffer]
            [javafx.embed.swing SwingFXUtils]
+           [javafx.event ActionEvent]
            [javafx.geometry HPos VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.image ImageView WritableImage]
@@ -681,8 +684,11 @@
                                              (map (fn [[updatable-node-id renderables]]
                                                     (let [renderable (first (sort-by (comp count :node-id-path) renderables))
                                                           updatable (:updatable renderable)
+                                                          preview-anim-data (get-in renderable [:user-data :anim-data])
                                                           world-transform (:world-transform renderable)
-                                                          transformed-updatable (assoc updatable :world-transform world-transform)]
+                                                          transformed-updatable (assoc updatable
+                                                                                  :world-transform world-transform
+                                                                                  :preview-anim-data preview-anim-data)]
                                                       [updatable-node-id transformed-updatable])))
                                              renderables-by-updatable-node-id))))
   (output pass->render-args g/Any :cached produce-pass->render-args))
@@ -758,7 +764,68 @@
   (assert (= (count buf) (* picking-drawable-size picking-drawable-size)) "picking buf of unexpected size")
   (map (partial aget buf) picking-buf-spiral-indices))
 
-(g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text]
+(def ^:private preview-close-button-size 18.0)
+
+(defn- close-preview-tooltip [localization-state keymap]
+  (localization-state
+    (localization/message
+      "command.tooltip"
+      {"command" (localization/message "command.scene.stop")
+       "shortcut" (keymap/display-text keymap :scene.stop "none")})))
+
+(fxui/defc close-preview-button
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [localization-state keymap]}]
+  {:fx/type fxui/button
+   :focus-traversable false
+   :style-class "scene-preview-close-button"
+   :min-width preview-close-button-size
+   :min-height preview-close-button-size
+   :pref-width preview-close-button-size
+   :pref-height preview-close-button-size
+   :max-width preview-close-button-size
+   :max-height preview-close-button-size
+   :graphic {:fx/type fxui/icon-graphic
+             :type :icon/cross-thick
+             :size 8.0
+             :style-class "scene-preview-close-icon"}
+   :tooltip (close-preview-tooltip localization-state keymap)
+   :on-action (fn [^ActionEvent event]
+                (ui/run-command (.getSource event) :scene.stop))})
+
+(defn- info-label [info-text]
+  {:fx/type fx.label/lifecycle
+   :style-class "info-label"
+   :mouse-transparent true
+   :anchor-pane/top 15
+   :anchor-pane/left 30
+   :text info-text})
+
+(defn- animation-preview-anchor-props [camera viewport anim-data]
+  (let [[sx sy _] (c/scale-factor camera viewport)
+        offset texture-set/animation-preview-offset
+        image-width (double (:width anim-data))
+        image-height (double (:height anim-data))
+        scaled-width (/ image-width sx)
+        scaled-height (/ image-height sy)
+        x0 offset
+        y0 (- (double (:bottom viewport)) offset)
+        x1 (+ x0 scaled-width)
+        y1 (- y0 scaled-height)
+        left (- x1 preview-close-button-size)
+        top y1]
+    {:anchor-pane/left (max 0.0 left)
+     :anchor-pane/top (max 0.0 top)}))
+
+(defn- active-animation-anim-data [updatables active-updatable-ids]
+  (some (fn [updatable-id]
+          (when-let [updatable (get updatables updatable-id)]
+            (:preview-anim-data updatable)))
+        active-updatable-ids))
+
+(g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap]
   (if-let [error (:error scene)]
     {:children [{:fx/type cljfx.fx.text-area/lifecycle
                  :anchor-pane/bottom 0
@@ -771,21 +838,28 @@
                  :text (string/join \newline (error-message-lines [error]))}]}
     (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
       overlay-anchor-pane-props
-      (if-let [info-text
-               (if (and (string? tool-info-text)
-                        (pos? (count tool-info-text)))
-                 tool-info-text
-                 (let [scene-info-text (:info-text scene)]
-                   (when (and (string? scene-info-text)
-                              (pos? (count scene-info-text)))
-                     scene-info-text)))]
-        {:mouse-transparent true
-         :children [{:fx/type fx.label/lifecycle
-                     :style-class "info-label"
-                     :anchor-pane/top 15
-                     :anchor-pane/left 30
-                     :text info-text}]}
-        {:visible false}))))
+      (let [info-text
+            (if (and (string? tool-info-text)
+                     (pos? (count tool-info-text)))
+              tool-info-text
+              (let [scene-info-text (:info-text scene)]
+                (when (and (string? scene-info-text)
+                           (pos? (count scene-info-text)))
+                  scene-info-text)))
+            close-button (when-let [anim-data (and (not (coll/empty? active-updatable-ids))
+                                                   (active-animation-anim-data updatables active-updatable-ids))]
+                           (merge (animation-preview-anchor-props camera viewport anim-data)
+                                  {:fx/type close-preview-button
+                                   :localization localization
+                                   :keymap keymap}))
+            children (cond-> []
+                             info-text (conj (info-label info-text))
+                             close-button (conj close-button))]
+        (if (not (coll/empty? children))
+          {:pick-on-bounds false
+           :children children
+           :mouse-transparent (nil? close-button)}
+          {:visible false})))))
 
 (g/defnk produce-selection [scene-render-data renderables-aabb+picking-node-id ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args ^Rect picking-rect]
   (when (some? picking-rect)
@@ -916,6 +990,8 @@
   (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
+  (input localization g/Any)
+  (input keymap g/Any)
   (input grid g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
@@ -1059,6 +1135,9 @@
                     (play-handler view))))
 
 (defn- stop-handler [view-id]
+  (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
+    ;; Force a redraw on next refresh without requiring input.
+    (ui/user-data! image-view ::last-frame-version nil))
   (g/transact
     (concat
       (g/set-property view-id :play-mode :idle)
@@ -1639,6 +1718,8 @@
   (input input-handlers Runnable :array)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
+  (input localization g/Any)
+  (input keymap g/Any)
 
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
@@ -1725,6 +1806,8 @@
                   (g/connect app-view-id     :manip-space                   view-id         :manip-space)
                   (g/connect app-view-id     :hidden-renderable-tags        view-id         :hidden-renderable-tags)
                   (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
+                  (g/connect app-view-id     :keymap                        view-id         :keymap)
+                  (g/connect app-view-id     :localization                  view-id         :localization)
 
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
