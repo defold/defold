@@ -1996,7 +1996,8 @@
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
 
   ;; We update the editor tab preferences in response to focus changes in the
-  ;; handle-focus-owner-change! function, but
+  ;; handle-focus-owner-change! function, but we must also do so if the active
+  ;; tab is drag-reordered amongst the tabs.
   (-> tab-pane
       (.getSelectionModel)
       (.selectedIndexProperty)

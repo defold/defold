@@ -1226,7 +1226,7 @@
                :command :edit.add-secondary-embedded-component
                :user-data {:modifier-type type}})
             mod-types))))
-halt-when
+
 (defn- make-emitter
   ([self emitter]
    (make-emitter self emitter nil false))

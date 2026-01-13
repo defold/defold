@@ -67,9 +67,10 @@
 ;; identical values being produced and then ending up referenced from different
 ;; cache entries.
 ;;
-;; When strict-evaluation-context-scopes are :log, we will log whenever g/now
-;; or g/make-evaluation-context is called from within an auto evaluation-context
-;; scope. You can also set it to :throw to throw an exception instead.
+;; When the strict-evaluation-context-scopes setting is :log or :log-once, we
+;; will log whenever g/now or g/make-evaluation-context is called from within an
+;; auto evaluation-context scope. You can also set it to :throw to throw an
+;; exception instead.
 ;;
 ;; We're still in the process of fixing all the various places where this rule
 ;; is violated. When complete, we should enable strict evaluation-context scope
@@ -279,10 +280,10 @@
     tps-counts))
 
 (defn eager-tx-data
-  "Given a sequence of possibly nested sequences of transaction steps, force its
-  evaluation into a flat sequence of realized transaction steps."
+  "Return a vector of flattened transaction steps from a sequence of possibly
+  nested sequences of transaction steps."
   [txs]
-  (doall (filter some? (flatten txs))))
+  (into [] coll/flatten-xf txs))
 
 (defn make-transaction-context [opts]
   (let [system (deref *the-system*)
@@ -319,6 +320,15 @@
   ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
+   ;; When strict evaluation-context scope checks are enabled, we also want to
+   ;; verify that, for example, g/node-value isn't being used to evaluate an
+   ;; out-of-transaction value from something like a property setter or override
+   ;; :traverse-fn. However, it is perfectly valid to evaluate on the
+   ;; out-of-transaction basis to generate the transaction steps themselves.
+   ;; Since we use a lot of lazy sequences in functions that return transaction
+   ;; steps, we flatten and realize the lazy sequence outside the
+   ;; do-strict-evaluation-context-scope-body block to avoid false positives
+   ;; when strict evaluation-context scope checks are enabled.
    (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
          transaction-context (make-transaction-context opts)
          tx-result (do-strict-evaluation-context-scope-body

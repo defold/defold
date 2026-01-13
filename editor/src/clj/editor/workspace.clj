@@ -48,7 +48,6 @@ ordinary paths."
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
            [java.net URI]
-           [java.util List]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -974,8 +973,8 @@ ordinary paths."
   (g/update-property
     workspace :resource-kind-extensions
     (fn [extensions-by-resource-kind]
-      (if-some [^List extensions (extensions-by-resource-kind resource-kind)]
-        (if (neg? (.indexOf extensions extension))
+      (if-some [extensions (extensions-by-resource-kind resource-kind)]
+        (if (neg? (coll/index-of extensions extension))
           (assoc extensions-by-resource-kind resource-kind (conj extensions extension))
           extensions-by-resource-kind) ; Already registered, return unaltered.
         (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind)))))))

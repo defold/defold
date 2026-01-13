@@ -4231,7 +4231,7 @@
 
       ;; else
       (g/let-ec [atlas-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
-                 target-node+name (when (contains? atlas-exts ext)
+                 target-node+name (when-not (neg? (coll/index-of atlas-exts ext))
                                     (drop-target-node-id+unique-name gui-scene :textures-node base-name evaluation-context))]
         (when-some [[target-node name] target-node+name]
           (add-texture gui-scene target-node resource name))))))
