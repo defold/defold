@@ -388,16 +388,50 @@
    (or (selection->single-resource selection evaluation-context)
        (g/node-value app-view :active-resource evaluation-context))))
 
-(defn- disconnect-sources [target-node target-label]
-  (for [[source-node source-label] (g/sources-of target-node target-label)]
+(defn- disconnect-sources [basis target-node target-label]
+  (for [[source-node source-label] (g/sources-of basis target-node target-label)]
     (g/disconnect source-node source-label target-node target-label)))
 
-(defn- replace-connection [source-node source-label target-node target-label]
+(defn- replace-connection [basis source-node source-label target-node target-label]
   (concat
-    (disconnect-sources target-node target-label)
-    (if (and source-node (contains? (-> source-node g/node-type* g/output-labels) source-label))
-      (g/connect source-node source-label target-node target-label)
-      [])))
+    (disconnect-sources basis target-node target-label)
+    (when (and source-node
+               (contains? (->> source-node (g/node-type* basis) g/output-labels)
+                          source-label))
+      (g/connect source-node source-label target-node target-label))))
+
+(defn- apply-tab-pane-active-style! [^TabPane tab-pane active]
+  (ui/set-style! tab-pane "inactive" (not active)))
+
+(defn- on-active-tab-changed! [app-view prefs ^Tab new-active-tab]
+  (g/let-ec [basis (:basis evaluation-context)
+             ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
+             ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
+             ^Scene app-scene (g/node-value app-view :scene evaluation-context)
+             editor-tab-pane (some-> new-active-tab .getTabPane)
+             new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
+
+             tx-data
+             (when (and (not (identical? old-active-tab new-active-tab))
+                        (some-> editor-tab-pane .isFocusWithin))
+               (g/eager-tx-data
+                 (concat
+                   (g/set-property app-view :active-tab new-active-tab)
+                   (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
+                   (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
+                     (replace-connection basis new-resource-node-id :scene app-view :active-scene)
+                     (disconnect-sources basis app-view :active-scene)))))]
+
+    (when (coll/not-empty tx-data)
+      (g/transact tx-data)
+      (ui/user-data! app-scene ::ui/refresh-requested? true))
+
+    ;; The remaining steps should always be performed, even if we didn't end up
+    ;; updating the graph connections.
+    (recent-files/save-tab-selections prefs app-view)
+
+    (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
+      (apply-tab-pane-active-style! tab-pane (identical? editor-tab-pane tab-pane)))))
 
 (handler/defhandler :scene.select-move-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
@@ -1987,23 +2021,34 @@
         (->> (.invoke getTab node (into-array Object []))
              (.select (.getSelectionModel tab-pane)))))))
 
-(defn- apply-tab-pane-active-style! [^TabPane tab-pane active]
-  (ui/set-style! tab-pane "inactive" (not active)))
-
 (defn- configure-editor-tab-pane! [^TabPane tab-pane app-view prefs]
   (apply-tab-pane-active-style! tab-pane false)
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
 
-  ;; We update the editor tab preferences in response to focus changes in the
-  ;; handle-focus-owner-change! function, but we must also do so if the active
-  ;; tab is drag-reordered amongst the tabs.
-  (-> tab-pane
-      (.getSelectionModel)
-      (.selectedIndexProperty)
-      (^[ChangeListener] ObservableValue/.addListener
-        (fn [_observable _old-val _new-val]
-          (recent-files/save-tab-selections prefs app-view))))
+  (let [selection-model (.getSelectionModel tab-pane)]
+    ;; We track changes to the active editor tab in response to focus changes in
+    ;; the handle-focus-owner-change! function. However, when switching between
+    ;; tabs, the focus remains on the TabPane itself. Thus, we must separately
+    ;; respond to Tab selection events on the TabPane.
+    (-> selection-model
+        (.selectedItemProperty)
+        (^[ChangeListener] ObservableValue/.addListener
+          (fn [_observable _old-val new-val]
+            (on-active-tab-changed! app-view prefs new-val))))
+
+    ;; It is possible to rearrange Tabs inside a TabPane. This will not notify
+    ;; listeners of the selectedItemProperty. But we must still update the tab
+    ;; selection preferences since they are index-based.
+    (-> selection-model
+        (.selectedIndexProperty)
+        (^[ChangeListener] ObservableValue/.addListener
+          (fn [_observable _old-val _new-val]
+            (recent-files/save-tab-selections prefs app-view)))))
+
+  ;; Finally, we must update the open tabs preferences whenever we add, remove,
+  ;; or rearrange editor tabs. We also collapse empty splits into a single
+  ;; TabPane here.
   (-> tab-pane
       (.getTabs)
       (^[ListChangeListener] ObservableList/.addListener
@@ -2018,35 +2063,15 @@
                 (.remove tab-panes tab-pane)
                 (let [remaining-tab-pane (.get tab-panes 0)]
                   (.requestFocus ^TabPane remaining-tab-pane))))))))
+
   (.addEventFilter tab-pane MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-tab-pane-mouse-pressed! tab-pane event)))
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
-(defn- handle-focus-owner-change! [prefs app-view app-scene new-focus-owner]
-  (when-some [new-editor-tab-pane (editor-tab-pane new-focus-owner)]
+(defn- handle-focus-owner-change! [app-view prefs new-focus-owner]
+  (when-some [editor-tab-pane (editor-tab-pane new-focus-owner)]
     ;; The new focus owner is or belongs to an editor TabPane.
-    (g/let-ec [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
-               ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
-               ^Tab new-active-tab (ui/selected-tab new-editor-tab-pane)
-
-               new-connected-resource-node-id
-               (when-not (identical? old-active-tab new-active-tab)
-                 (some-> new-active-tab (editor-tab/resource-node-id evaluation-context)))]
-
-      (when new-connected-resource-node-id
-        (g/transact
-          (concat
-            (replace-connection new-connected-resource-node-id :node-outline app-view :active-outline)
-            (if (= :scene (editor-tab/view-type-id new-active-tab))
-              (replace-connection new-connected-resource-node-id :scene app-view :active-scene)
-              (disconnect-sources app-view :active-scene))
-            (g/set-property app-view :active-tab new-active-tab)))
-        (ui/user-data! app-scene ::ui/refresh-requested? true))
-
-      ;; Do these steps even if identical, since tabs might move between panes.
-      (recent-files/save-tab-selections prefs app-view)
-
-      (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
-        (apply-tab-pane-active-style! tab-pane (identical? new-editor-tab-pane tab-pane))))))
+    (let [selected-tab (ui/selected-tab editor-tab-pane)]
+      (on-active-tab-changed! app-view prefs selected-tab))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
@@ -2069,7 +2094,7 @@
 
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
-                    (handle-focus-owner-change! prefs app-view app-scene new-focus-owner)))
+                    (handle-focus-owner-change! app-view prefs new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
