@@ -400,7 +400,17 @@ Once installed, verify the installation with
 defold$ ./scripts/build.py check_sdk --verbose
 ```
 
-If you're using Ubuntu and it fails to install `libncurses5`, check out solutions from [here](https://askubuntu.com/questions/1531398/how-to-install-libncurses-so-5-for-ubuntu-24-04).
+If you're using Ubuntu and it fails to install `libncurses5`, try:
+
+```sh
+sudo ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.5 /usr/lib/libtinfo.so.5
+```
+
+and:
+
+```sh
+sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.5 /usr/lib/libncurses.so.5
+```
 
 </p></details>
 
