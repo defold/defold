@@ -1488,8 +1488,8 @@
                     [[\"resource.category.objects\" \"resource.category.scripts\"]
                      [\"resource.category.components\"]]
     :children       collection of menu-item maps, should match `make-menu-item`
-                    shape, with a :category keyword containing the name of the
-                    group or a localization key as a string
+                    shape, with a :category keyword containing a localization
+                    message or a string
 
   Returns:
     A JavaFX custom menu item containing the grid layout"
@@ -1497,7 +1497,7 @@
   (let [{:keys [columns children]} grid-config
         items-by-category (-> (util/group-into {} []
                                 #(or (:category %)
-                                     "resource.category.other")
+                                     (localization/message "resource.category.other"))
                                 children)
                               (update-vals #(localization/natural-sort-by-label localization %)))]
     (fx/instance
@@ -1526,7 +1526,9 @@
                        [{:fx/type fx.h-box/lifecycle
                          :alignment :center-left
                          :children [{:fx/type fx.label/lifecycle
-                                     :text (localization (localization/message category-key {} category-key))
+                                     :text (if (string? category-key)
+                                             category-key
+                                             (localization category-key))
                                      :style-class ["grid-menu-group-label"]}
                                     {:fx/type fx.separator/lifecycle
                                      :h-box/hgrow :always
