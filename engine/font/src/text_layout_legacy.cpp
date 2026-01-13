@@ -158,7 +158,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     // box of the glyph, UNLESS the last glyph is a whitespace in which case the
     // width is the full advance of the whitespace
     float last_width = (last.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE) ? last.m_Advance : last.m_Width;
-    float extent_last = monospace ? (last_width + padding) : last_width;
+    float extent_last = last.m_LeftBearing + last_width + (monospace ? padding : 0);
 
     float width = last.m_X - row_start_x + extent_last;
     return width;
