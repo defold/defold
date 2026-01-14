@@ -1508,7 +1508,7 @@
          :content
          {:fx/type fx.h-box/lifecycle
           :spacing 10.0
-          :padding (Insets. 5.0)
+          :padding 5.0
           :children
           (interpose
             {:fx/type fx.region/lifecycle
@@ -1517,43 +1517,46 @@
              :style-class ["grid-menu-column-separator"]}
             (for [column columns]
               {:fx/type fx.v-box/lifecycle
-               :spacing 2.0
                :children
-               (mapcat
-                 (fn [category-key]
-                   (when-let [category-items (get items-by-category category-key)]
-                     (concat
-                       [{:fx/type fx.h-box/lifecycle
-                         :alignment :center-left
-                         :children [{:fx/type fx.label/lifecycle
-                                     :text (localization category-key)
-                                     :style-class ["grid-menu-group-label"]}
-                                    {:fx/type fx.separator/lifecycle
-                                     :h-box/hgrow :always
-                                     :style-class ["grid-menu-separator"]
-                                     :orientation :horizontal}]}]
-                       (keep
-                         (fn [child]
-                           (let [command (:command child)
-                                 user-data (:user-data child)
-                                 child-label (:label child)
-                                 child-icon (:icon child)
-                                 child-style (:style child)]
-                             (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                               (let [label (or (handler/label handler-ctx evaluation-context) child-label)
-                                     enabled? (handler/enabled? handler-ctx evaluation-context)]
-                                 {:fx/type fx.button/lifecycle
-                                  :text (localization label)
-                                  :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
-                                  ;; NOTE: Without this, grid-menu loses focus for some reason when you hover over buttons
-                                  :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
-                                  :style-class (into ["grid-menu-item"] child-style)
-                                  :graphic {:fx/type fx.image-view/lifecycle
-                                            :image (icons/get-image child-icon 18)}}))))
-                         category-items)
-                       [{:fx/type fx.region/lifecycle
-                         :pref-height 20}])))
-                 column)}))}}))))
+               (interpose
+                 {:fx/type fx.region/lifecycle
+                  :min-height 18.0
+                  :max-height 18.0}
+                 (keep
+                   (fn [category-key]
+                     (when-let [category-items (get items-by-category category-key)]
+                       {:fx/type fx.v-box/lifecycle
+                        :spacing 3.0
+                        :children
+                        (concat
+                          [{:fx/type fx.h-box/lifecycle
+                            :alignment :center-left
+                            :children [{:fx/type fx.label/lifecycle
+                                        :text (localization category-key)
+                                        :style-class ["grid-menu-group-label"]}
+                                       {:fx/type fx.separator/lifecycle
+                                        :h-box/hgrow :always
+                                        :style-class ["grid-menu-separator"]
+                                        :orientation :horizontal}]}]
+                          (keep
+                            (fn [child]
+                              (let [command (:command child)
+                                    user-data (:user-data child)
+                                    child-label (:label child)
+                                    child-icon (:icon child)
+                                    child-style (:style child)]
+                                (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                                  (let [label (or (handler/label handler-ctx evaluation-context) child-label)
+                                        enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                    {:fx/type fx.button/lifecycle
+                                     :text (localization label)
+                                     :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                     :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
+                                     :style-class (into ["grid-menu-item"] child-style)
+                                     :graphic {:fx/type fx.image-view/lifecycle
+                                               :image (icons/get-image child-icon 18)}}))))
+                            category-items))}))
+                   column))}))}}))))
 
 (declare make-menu-items)
 

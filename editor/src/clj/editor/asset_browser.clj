@@ -547,7 +547,7 @@
             (when (resource/loaded? resource)
               (app-view/open-resource app-view prefs localization workspace project resource))
             (select-resource! asset-browser resource))))))
-  (options [workspace selection user-data localization evaluation-context]
+  (options [workspace user-data localization evaluation-context]
     (when (not user-data)
       (let [base-columns
             (mapv #(mapv localization/message %)
@@ -568,14 +568,11 @@
                                    :style (resource/type-style-classes resource-type)
                                    :command :file.new
                                    :user-data {:resource-type resource-type}}))))
-            unlisted-categories (vec (remove predefined-categories (distinct (map :category all-items))))
             unlisted-categories (coll/transfer all-items []
                                   (map :category)
                                   (distinct)
                                   (remove predefined-categories))
-            columns (cond-> base-columns
-                      (not (coll/empty? unlisted-categories))
-                      (conj (vec (sort unlisted-categories))))]
+            columns (into base-columns unlisted-categories)]
         (with-meta
           (localization/natural-sort-by-label @localization all-items)
           {:layout :grid :columns columns})))))
