@@ -33,9 +33,12 @@ CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/*
 CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/logging/*
 CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../build/src/test/http_server
 
+LOGFILE="${TEST_HTTP_SERVER_LOG:-test_http_server.log}"
+
 echo $CLASSPATH
+echo "Logging TestHttpServer output to ${LOGFILE}"
 
 #DEBUG="-DDEBUG=true -Dorg.eclipse.jetty.LEVEL=DEBUG -Djavax.net.debug=ssl,handshake,data"
 
-java -cp $CLASSPATH ${DEBUG} TestHttpServer &
+java -cp $CLASSPATH ${DEBUG} TestHttpServer >> "${LOGFILE}" 2>&1 &
 echo $! > test_http_server.pid

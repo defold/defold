@@ -74,6 +74,7 @@ def shutdown(sht):
         bash_prefix = 'sh '
 
     configfilepath = None
+    server_log_path = "test_http_server.log"
 
     if not mac_ci:
         server_config_path = "test_http_server.cfg"
@@ -81,6 +82,10 @@ def shutdown(sht):
             os.unlink(server_config_path)
             print('File ' + server_config_path + ' already exist. Removing.')
 
+        if os.path.exists(server_log_path):
+            os.unlink(server_log_path)
+
+        os.environ['TEST_HTTP_SERVER_LOG'] = server_log_path
         os.system(bash_prefix + './scripts/start_http_server.sh')
         atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
 
@@ -89,6 +94,17 @@ def shutdown(sht):
         while True:
             if time.time() - start > timeout:
                 error('HTTP server failed to start within ' + str(timeout) + ' seconds')
+                if os.path.exists(server_log_path):
+                    try:
+                        with open(server_log_path, 'r') as f:
+                            lines = f.readlines()
+                        tail = ''.join(lines[-200:])
+                        if tail:
+                            print("---- TestHttpServer log tail ----")
+                            print(tail)
+                            print("---- End TestHttpServer log tail ----")
+                    except Exception as ex:
+                        print("Failed to read TestHttpServer log: %s" % ex)
                 sys.exit(1)
             try:
                 if not os.path.exists(server_config_path):
