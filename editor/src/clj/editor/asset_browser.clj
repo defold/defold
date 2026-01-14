@@ -139,12 +139,9 @@
        (not (resource/read-only? x))
        (not (fixed-resource-paths (resource/proj-path x)))))
 
-(defn- resource-roots
-  "Accepts selection (Resources and AssetGroups), returns resource roots only"
-  [selection]
-  (let [path->resource (->> selection
-                            (e/filter resource/resource?)
-                            (coll/pair-map-by (comp ->path resource/proj-path)))
+(defn- roots [resources]
+  {:pre [(coll/every? resource/resource? resources)]}
+  (let [path->resource (coll/pair-map-by (comp ->path resource/proj-path) resources)
         roots (loop [paths (keys path->resource)
                      roots []]
                 (if-let [^Path path (first paths)]
@@ -193,7 +190,7 @@
   (enabled? [selection]
     (coll/any? resource/resource? selection))
   (run [selection]
-    (copy (-> selection resource-roots fileify-resources!))))
+    (copy (fileify-resources! (roots (filterv resource/resource? selection))))))
 
 (defn- select-resource!
   ([asset-browser resource]
@@ -209,7 +206,10 @@
          tree-items (ui/tree-item-seq (.getRoot tree-view))
          path (resource/resource->proj-path resource)]
      (when-let [tree-item (coll/first-where
-                            #(and (resource/resource? %) (= path (resource/proj-path %)))
+                            (fn [^TreeItem tree-item]
+                              (let [item (.getValue tree-item)]
+                                (and (resource/resource? item)
+                                     (= path (resource/proj-path item)))))
                             tree-items)]
        (doto (.getSelectionModel tree-view)
          (.clearSelection)
@@ -227,7 +227,7 @@
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))
           cut-files-directory (fs/create-temp-directory! "asset-cut")
-          resources (resource-roots selection)]
+          resources (roots (filterv deletable-resource? selection))]
       (copy (mapv #(temp-resource-file! cut-files-directory %) resources))
       (delete resources)
       (when next
@@ -471,7 +471,7 @@
   (run [selection asset-browser selection-provider localization]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))
-          resources (resource-roots selection)]
+          resources (roots (filterv deletable-resource? selection))]
       (when (if (= 1 (count resources))
               (dialogs/make-confirmation-dialog
                 localization
@@ -736,7 +736,7 @@
       raw-tree-view)))
 
 (defn- drag-detected [^MouseEvent e selection]
-  (let [resources (resource-roots selection)
+  (let [resources (roots (filterv resource/resource? selection))
         files (fileify-resources! resources)
         paths (->> resources
                    (mapv resource/proj-path)
