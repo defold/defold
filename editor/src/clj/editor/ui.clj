@@ -1499,7 +1499,7 @@
                                 #(or (:category %)
                                      (localization/message "resource.category.other"))
                                 items)
-                              (update-vals #(localization/natural-sort-by-label localization %)))]
+                              (update-vals #(localization/natural-sort-by-label @localization %)))]
     (fx/instance
       (fx/create-component
         {:fx/type fx.custom-menu-item/lifecycle
@@ -1521,14 +1521,12 @@
                :children
                (mapcat
                  (fn [category-key]
-                   (when-let [category-items (seq (get items-by-category category-key))]
+                   (when-let [category-items (get items-by-category category-key)]
                      (concat
                        [{:fx/type fx.h-box/lifecycle
                          :alignment :center-left
                          :children [{:fx/type fx.label/lifecycle
-                                     :text (if (string? category-key)
-                                             category-key
-                                             (localization category-key))
+                                     :text (localization category-key)
                                      :style-class ["grid-menu-group-label"]}
                                     {:fx/type fx.separator/lifecycle
                                      :h-box/hgrow :always
