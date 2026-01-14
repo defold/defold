@@ -22,7 +22,8 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]]))
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [util.macro :as macro]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
@@ -660,14 +661,24 @@
   (check-let-ec let-ec-strict)
 
   (testing "Evaluation context is inaccessible outside let bindings."
-    (is (= `(let [[~'resource]
-                  (g/with-auto-evaluation-context ~'evaluation-context
-                    (let [~'resource (g/node-value ~'resource-node :resource ~'evaluation-context)]
-                      [~'resource]))]
-              ~'resource)
-           (#'g/let-ec-strict-form
-             `[~'resource (g/node-value ~'resource-node :resource ~'evaluation-context)]
-             'resource)))))
+    (is (= (macro/conform-gensyms
+             `(let [[~'basis [~'node-id ~'resource] ~'save-value ~'dirty]
+                    (g/with-auto-evaluation-context ~'evaluation-context
+                      (let [~'basis (:basis ~'evaluation-context)
+                            vec# (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                            ~'node-id (nth vec# 0 nil)
+                            ~'resource (nth vec# 1 nil)
+                            ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                            ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                        [~'basis vec# ~'save-value ~'dirty]))]
+                (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
+           (macro/conform-gensyms
+             (#'g/let-ec-strict-form
+               `[~'basis (:basis ~'evaluation-context)
+                 [~'node-id ~'resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                 ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                 ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+               `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))))))
 
 (defmacro let-ec-relaxed [bindings & body]
   (apply #'g/let-ec-relaxed-form 'hidden-evaluation-context bindings body))
@@ -677,11 +688,22 @@
 
   (testing "Evaluation context is inaccessible outside let bindings."
     (let [evaluation-context-sym (gensym "evaluation-context__")]
-      (is (= `(let [~evaluation-context-sym (g/make-evaluation-context)
-                    ~'resource (g/node-value ~'resource-node :resource ~evaluation-context-sym)]
-                (g/update-cache-from-evaluation-context! ~evaluation-context-sym)
-                ~'resource)
-             (#'g/let-ec-relaxed-form
-               evaluation-context-sym
-               `[~'resource (g/node-value ~'resource-node :resource ~'evaluation-context)]
-               'resource))))))
+      (is (= (macro/conform-gensyms
+               `(let [~evaluation-context-sym (g/make-evaluation-context)
+                      ~'basis (let [~'evaluation-context ~evaluation-context-sym]
+                                (:basis ~'evaluation-context))
+                      [~'node-id ~'resource] (let [~'evaluation-context ~evaluation-context-sym]
+                                               (g/node-value ~'resource-node :node-id+resource ~'evaluation-context))
+                      ~'save-value (let [~'evaluation-context ~evaluation-context-sym]
+                                     (g/node-value ~'node-id :save-value ~'evaluation-context))
+                      ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                  (g/update-cache-from-evaluation-context! ~evaluation-context-sym)
+                  (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
+             (macro/conform-gensyms
+               (#'g/let-ec-relaxed-form
+                 evaluation-context-sym
+                 `[~'basis (:basis ~'evaluation-context)
+                   [~'node-id ~'resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                   ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                   ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                 `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty))))))))

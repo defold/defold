@@ -1,8 +1,22 @@
+;; Copyright 2020-2026 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns macro
   (:require [clojure.pprint :as pprint]
-            [clojure.string :as string]
             [clojure.walk :as walk]
-            [util.coll :as coll :refer [pair]]))
+            [util.coll :as coll :refer [pair]]
+            [util.macro :as macro]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -38,46 +52,17 @@
       ::not-found namespace-name
       alias-name)))
 
-(defn- claim-simplified-symbol-name!
-  ^String [symbol-name name-without-suffix simple-names-by-gensym-name-atom]
-  {:pre [(string? symbol-name)
-         (not-empty symbol-name)
-         (string? name-without-suffix)
-         (not-empty name-without-suffix)]}
-  (-> simple-names-by-gensym-name-atom
-      (swap! (fn [simple-names-by-gensym-name]
-               (if (contains? simple-names-by-gensym-name symbol-name)
-                 simple-names-by-gensym-name
-                 (assoc simple-names-by-gensym-name
-                   symbol-name
-                   (let [taken-simple-name? (set (vals simple-names-by-gensym-name))]
-                     (loop [suffix 0]
-                       (let [simple-name (case suffix
-                                           0 (str name-without-suffix \#)
-                                           (str name-without-suffix \# suffix))]
-                         (if (taken-simple-name? simple-name)
-                           (recur (inc suffix))
-                           simple-name))))))))
-      (get symbol-name)))
-
-(defn- simplify-symbol-name [symbol-name simple-names-by-gensym-name-atom]
-  (let [name-without-hash-auto-suffix (string/replace symbol-name
-                                                      #"__(\d+)__auto__$"
-                                                      "")]
-    (if (not= symbol-name name-without-hash-auto-suffix)
-      (claim-simplified-symbol-name! symbol-name name-without-hash-auto-suffix simple-names-by-gensym-name-atom)
-      (let [name-without-gensym-suffix (string/replace symbol-name
-                                                       #"__(\d+)$"
-                                                       "")]
-        (if (not= symbol-name name-without-gensym-suffix)
-          (claim-simplified-symbol-name! symbol-name name-without-gensym-suffix simple-names-by-gensym-name-atom)
-          symbol-name)))))
+(defn- assigned-gensym-name
+  ^String [name-without-suffix ^long numeric-suffix]
+  (case numeric-suffix
+    0 (str name-without-suffix \#)
+    (str name-without-suffix \# numeric-suffix)))
 
 (defn- simplify-symbol [expression alias-names-by-namespace-name simple-names-by-gensym-name-atom]
   (-> expression
       (namespace)
       (simplify-namespace-name alias-names-by-namespace-name)
-      (symbol (-> expression name (simplify-symbol-name simple-names-by-gensym-name-atom)))
+      (symbol (-> expression name (macro/conform-gensym-name! simple-names-by-gensym-name-atom assigned-gensym-name)))
       (with-meta (meta expression))))
 
 (defn- simplify-keyword [expression alias-names-by-namespace-name]

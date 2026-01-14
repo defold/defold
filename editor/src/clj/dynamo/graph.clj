@@ -1107,6 +1107,15 @@
            init-expr-results))]
       body)))
 
+(defn- form-references-evaluation-context? [form]
+  (coll/some
+    true?
+    (coll/search
+      form
+      (fn [sub-form]
+        (when (= 'evaluation-context sub-form)
+          true)))))
+
 (defn- let-ec-relaxed-form
   [evaluation-context-sym bindings & body]
   {:pre [(symbol? evaluation-context-sym)
@@ -1118,13 +1127,12 @@
       [evaluation-context-sym `(make-evaluation-context)]
       (partition-all 2)
       (mapcat (fn [[binding-form init-expr]]
-                ;; Replace all references to `evaluation-context` in the
-                ;; init-exprs with our generated symbol. Using a generated
-                ;; symbol ensures the evaluation-context cannot be
-                ;; referenced from the body after it has been closed.
+                ;; Using a generated symbol ensures the evaluation-context
+                ;; cannot be referenced from the body after it has been closed.
                 (pair binding-form
-                      (walk/postwalk-replace
-                        {'evaluation-context evaluation-context-sym}
+                      (if (form-references-evaluation-context? init-expr)
+                        `(let [~'evaluation-context ~evaluation-context-sym]
+                           ~init-expr)
                         init-expr)))))
     `(update-cache-from-evaluation-context! ~evaluation-context-sym)
     body))

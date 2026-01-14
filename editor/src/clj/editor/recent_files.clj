@@ -127,15 +127,15 @@
                                   (-> pane .getSelectionModel .getSelectedIndex))
                                 tab-panes)})))
 
-(defn save-open-tabs [prefs app-view]
+(defn save-open-tabs! [prefs app-view]
   (prefs/set! prefs [:workflow :open-tabs] (collect-open-tabs app-view)))
 
-(defn save-tab-selections [prefs app-view]
+(defn save-tab-selections! [prefs app-view]
   (prefs/set! prefs [:workflow :last-selected-tabs] (collect-tab-selections app-view)))
 
 (comment
-  (defn save-open-tabs [prefs app-view] nil)
-  (defn save-tab-selections [prefs app-view] nil)
+  (defn save-open-tabs! [prefs app-view] nil)
+  (defn save-tab-selections! [prefs app-view] nil)
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
                                                   [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/scripts/utils.lua" :code]["/scripts/knight.script" :code]]])
