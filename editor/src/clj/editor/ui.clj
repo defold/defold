@@ -1544,8 +1544,9 @@
                                      enabled? (handler/enabled? handler-ctx evaluation-context)]
                                  {:fx/type fx.button/lifecycle
                                   :text (localization label)
-                                  :disable (not enabled?)
                                   :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                  ;; NOTE: Without this, grid-menu loses focus for some reason when you hover over buttons
+                                  :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
                                   :style-class (into ["grid-menu-item"] child-style)
                                   :graphic {:fx/type fx.image-view/lifecycle
                                             :image (icons/get-image child-icon 18)}}))))

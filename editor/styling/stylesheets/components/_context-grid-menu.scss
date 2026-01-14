@@ -4,7 +4,7 @@
     -fx-max-width: infinity;
     -fx-text-fill: -df-text;
 
-    &:focused, &:hover {
+    &:focused, {
         -fx-background-color: -df-component-lighter;
         -fx-text-fill: -df-text-selected;
     }
