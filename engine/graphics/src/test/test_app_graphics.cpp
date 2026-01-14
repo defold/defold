@@ -375,41 +375,6 @@ struct ComputeTest : ITest
     }
 };
 
-/*
-struct ShaderResourceType
-{
-    union
-    {
-        dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
-        uint32_t                               m_TypeIndex;
-    };
-    uint8_t m_UseTypeIndex : 1;
-};
-
-struct ShaderResourceMember
-{
-    char*                       m_Name;
-    dmhash_t                    m_NameHash;
-    ShaderResourceType          m_Type;
-    uint32_t                    m_ElementCount;
-    uint32_t                    m_Offset;
-};
-
-struct ShaderResourceTypeInfo
-{
-    char*                 m_Name;
-    dmhash_t              m_NameHash;
-    ShaderResourceMember* m_Members;
-    uint32_t              m_MemberCount;
-};
-*/
-
-struct UniformBufferLayout
-{
-    dmhash_t m_Hash;
-    uint32_t m_DerivedSize;
-};
-
 struct UniformBufferTest : ITest
 {
     dmGraphics::HUniformBuffer m_UBO;
