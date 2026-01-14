@@ -623,13 +623,17 @@ def default_flags(self):
         emflags_compile = zip(['-s'] * len(emflags_compile), emflags_compile)
         emflags_compile =[j for i in emflags_compile for j in i]
 
+        initial_memory = 'INITIAL_MEMORY=33554432'
+        if Options.options.with_asan and target_arch == 'wasm':
+            initial_memory = 'INITIAL_MEMORY=67108864'
+
         emflags_link = [
             'DISABLE_EXCEPTION_CATCHING=1',
             'ALLOW_UNIMPLEMENTED_SYSCALLS=0',
             'EXPORTED_RUNTIME_METHODS=["ccall","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]',
             'EXPORTED_FUNCTIONS=_main,_malloc,_free',
             'ERROR_ON_UNDEFINED_SYMBOLS=1',
-            'INITIAL_MEMORY=33554432',
+            initial_memory,
             'MAX_WEBGL_VERSION=2',
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
             'IMPORTED_MEMORY=1',
@@ -669,6 +673,8 @@ def default_flags(self):
             emflags_link += ['PTHREAD_POOL_SIZE=1']
 
         if 'wasm' == target_arch:
+            if Options.options.with_ubsan:
+                emflags_link += ['ASSERTIONS=1']
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
@@ -808,8 +814,10 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
+    target_os = build_util.get_target_os()
+    target_arch = build_util.get_target_architecture()
     if Options.options.with_asan:
-        if build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
+        if target_os in ('linux','macos','ios','android','ps4','ps5') or ('wasm' in target_arch):
             self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -817,10 +825,11 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5','nx64'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
-        self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
-        self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
+    elif Options.options.with_ubsan:
+        if target_os in ('linux','macos','ios','android','ps4','ps5','nx64') or ('wasm' in target_arch):
+            self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
+            self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
+            self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
     elif Options.options.with_tsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
