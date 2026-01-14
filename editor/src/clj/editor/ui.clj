@@ -1546,8 +1546,7 @@
                                     child-icon (:icon child)
                                     child-style (:style child)]
                                 (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                  (let [label (or (handler/label handler-ctx evaluation-context) child-label)
-                                        enabled? (handler/enabled? handler-ctx evaluation-context)]
+                                  (let [label (or (handler/label handler-ctx evaluation-context) child-label)]
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
