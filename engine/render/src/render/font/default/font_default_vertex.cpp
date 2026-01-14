@@ -368,6 +368,9 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     layoutsettings.m_Width = te.m_Width;
     layoutsettings.m_Tracking = te.m_Tracking;
     layoutsettings.m_Leading = te.m_Leading;
+    // legacy options for glyph bank fonts
+    layoutsettings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+    layoutsettings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
     TextLayout* layout = 0;
     TextResult r = TextLayoutCreate(font_collection, codepoints.Begin(), codepoints.Size(), &layoutsettings, &layout);
