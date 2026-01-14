@@ -150,7 +150,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         }
     }
 
-    TextGlyph& last = glyphs[n-1];
+    TextGlyph last = glyphs[n-1];
 
     float row_start_x = glyphs[0].m_X;
 
@@ -166,7 +166,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     float trailing_space_width = 0;
     for (int i = n - 1; i >= 0; i--)
     {
-        TextGlyph& g = glyphs[i];
+        TextGlyph g = glyphs[i];
         if (g.m_Codepoint != dmUtf8::UTF_WHITESPACE_SPACE)
         {
             last = g;
