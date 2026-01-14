@@ -1,17 +1,10 @@
-.grid-menu {
-    -fx-background-color: transparent !important;
-    &:hover, &:focused {
-        -fx-background-color: transparent !important;
-    }
-}
-
 .grid-menu-item {
     -fx-padding: 4 10 4 10;
     -fx-alignment: center-left;
     -fx-max-width: infinity;
     -fx-text-fill: -df-text;
 
-    &:hover {
+    &:focused, &:hover {
         -fx-background-color: -df-component-lighter;
         -fx-text-fill: -df-text-selected;
     }
