@@ -41,10 +41,11 @@
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
            [javafx.beans.value ChangeListener]
+           [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node Parent]
            [javafx.scene.control Slider]
-           [javafx.scene.input KeyCode KeyEvent MouseEvent]
+           [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]))
 
 (set! *warn-on-reflection* true)
@@ -512,9 +513,22 @@
                 :not-found-text (localization-state (localization/message "ui.combo-box.not-found"))}
                (resolve-validation property localization-state))}))
 
+(defn- single-drag-resource [^DragEvent e valid-extensions workspace]
+  {:pre [(set? valid-extensions)]}
+  (let [files (.getFiles (.getDragboard e))]
+    (when-some [file (and (= 1 (count files))
+                          (first files))]
+      (when-some [proj-path (workspace/as-proj-path workspace file)]
+        (let [resource (workspace/resolve-workspace-resource workspace proj-path)
+              resource-ext (resource/type-ext resource)]
+          (when (and (resource/exists? resource)
+                     (contains? valid-extensions resource-ext))
+            resource))))))
+
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
         {:keys [ext dialog-accept-fn]} (:edit-type property)
+        ext-set (set ext)
         dialog-opts (cond-> {}
                             ext (assoc :ext ext)
                             dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
@@ -528,6 +542,26 @@
                          :fatal #{:error}
                          :warning #{:warning}
                          #{})
+       :on-drag-over
+       (fn [^DragEvent e]
+         (when (single-drag-resource e ext-set workspace)
+           (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+           (.consume e)))
+       :on-drag-dropped
+       (fn [^DragEvent e]
+         (when-let [resource (single-drag-resource e ext-set workspace)]
+           (set-values! property (repeat resource))
+           (.setDropCompleted e true)
+           (.consume e)))
+       :on-drag-entered
+       (fn [^DragEvent e]
+         (.pseudoClassStateChanged ^Node (.getTarget e) (PseudoClass/getPseudoClass "drag-over") true)
+         (.pseudoClassStateChanged ^Node (.getTarget e)
+                                   (PseudoClass/getPseudoClass "drag-invalid")
+                                   (not (boolean (single-drag-resource e ext-set workspace)))))
+       :on-drag-exited
+       (fn [^DragEvent e]
+         (.pseudoClassStateChanged ^Node (.getTarget e) (PseudoClass/getPseudoClass "drag-over") false))
        :children
        [{:fx/type fxui/value-field
          :h-box/hgrow :always
