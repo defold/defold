@@ -150,6 +150,9 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         }
     }
 
+    // note: tracking is ignored since it's already added in TextLayoutLegacyCreate
+    // note: padding is only intended for monospaced fonts, see comment in fontmap.h
+
     TextGlyph last = glyphs[n-1];
 
     float row_start_x = glyphs[0].m_X;
@@ -157,7 +160,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
     if (monospace)
     {
         float extent_last = last.m_Advance + padding;
-        float width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
+        float width = last.m_X - row_start_x + extent_last;
         return width;
     }
 
@@ -175,7 +178,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         trailing_space_width = trailing_space_width + g.m_Advance;
     }
     float extent_last = last.m_Width;
-    float width = last.m_X - row_start_x + (n-1) * tracking + extent_last + trailing_space_width;
+    float width = last.m_X - row_start_x + extent_last + trailing_space_width;
     return width;
 }
 
