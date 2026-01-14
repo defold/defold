@@ -1546,12 +1546,17 @@
                                     child-icon (:icon child)
                                     child-style (:style child)]
                                 (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                  (let [label (or (handler/label handler-ctx evaluation-context) child-label)]
+                                  (let [label (or (handler/label handler-ctx evaluation-context) child-label)
+                                        enabled? (handler/enabled? handler-ctx evaluation-context)]
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
+                                     :disable (not enabled?)
                                      :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
                                      :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
-                                     :style-class (into ["grid-menu-item"] child-style)
+                                     :style-class (into ["grid-menu-item-base"]
+                                                        (when enabled?
+                                                          (into ["grid-menu-item-enabled"]
+                                                                child-style)))
                                      :graphic {:fx/type fx.image-view/lifecycle
                                                :image (icons/get-image child-icon 18)}}))))
                             category-items))}))

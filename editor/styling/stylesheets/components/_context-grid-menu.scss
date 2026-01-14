@@ -1,9 +1,11 @@
-.grid-menu-item {
+.grid-menu-item-base {
     -fx-padding: 4 10 4 10;
     -fx-alignment: center-left;
     -fx-max-width: infinity;
     -fx-text-fill: -df-text;
+}
 
+.grid-menu-item-enabled {
     &:focused, {
         -fx-background-color: -df-component-lighter;
         -fx-text-fill: -df-text-selected;
