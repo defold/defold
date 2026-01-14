@@ -104,6 +104,12 @@ namespace dmGraphics
 
     struct OpenGLUniformBuffer
     {
+        UniformBufferLayout m_Layout;
+        HOpenglID           m_Id;
+    };
+
+    struct OpenGLUniformBufferLegacy
+    {
         dmArray<GLint> m_Indices;
         dmArray<GLint> m_Offsets;
         uint8_t*       m_BlockMemory;
@@ -123,7 +129,7 @@ namespace dmGraphics
         uint32_t                       m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;
-        dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
+        dmArray<OpenGLUniformBufferLegacy> m_UniformBuffers;
     };
 
     /*

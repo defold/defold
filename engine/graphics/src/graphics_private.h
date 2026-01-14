@@ -87,22 +87,6 @@ namespace dmGraphics
         uint8_t            m_StreamCount;
     };
 
-    struct ShaderResourceMember
-    {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint16_t                    m_Offset;
-    };
-
-    struct ShaderResourceTypeInfo
-    {
-        char*                         m_Name;
-        dmhash_t                      m_NameHash;
-        dmArray<ShaderResourceMember> m_Members;
-    };
-
     struct ShaderMeta
     {
         dmArray<ShaderResourceBinding>  m_UniformBuffers;
@@ -229,6 +213,8 @@ namespace dmGraphics
     uint32_t             CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                 BuildUniforms(Program* program);
     void                 IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
+    // Uniform buffers
+    void                 UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,
         dmArray<ShaderResourceBinding>&       resources,

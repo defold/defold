@@ -1435,6 +1435,15 @@ namespace dmGraphics
         // DeviceBuffer wrapped_heap_buffer();
     }
 
+    static HUniformBuffer DX12NewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        return 0;
+    }
+
+    static void DX12SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+    }
+
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DX12Context* context        = (DX12Context*) _context;

@@ -1793,6 +1793,15 @@ bail:
         DeviceBufferUploadHelper(context, data, size, 0, buffer);
     }
 
+    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        return 0;
+    }
+
+    static void VulkanSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*)_context;

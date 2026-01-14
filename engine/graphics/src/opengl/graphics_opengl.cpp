@@ -1713,6 +1713,33 @@ static void LogFrameBufferError(GLenum status)
         return buffer_usage_lut[buffer_usage];
     }
 
+    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
+        ubo->m_Layout = layout;
+
+        GLuint buffer_handle = 0;
+        glGenBuffers(1, &buffer_handle);
+        ubo->m_Id = AddNewGLHandle(context, buffer_handle);
+        CHECK_GL_ERROR;
+
+        return (HUniformBuffer) ubo;
+    }
+
+    static void OpenGLSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
+        assert(offset + size <= ubo->m_Layout.m_Size);
+
+        GLuint handle = GetGLHandle(context, ubo->m_Id);
+
+        glBindBuffer(GL_UNIFORM_BUFFER, handle);
+        glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -2065,7 +2092,7 @@ static void LogFrameBufferError(GLenum status)
         {
             for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
             {
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[i];
+                OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[i];
 
                 if (ubo.m_ActiveUniforms > 0)
                 {
@@ -2311,7 +2338,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLUniformBuffer) * num_ubos);
+        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLUniformBufferLegacy) * num_ubos);
 
         for (uint32_t i = 0; i < num_shaders; ++i)
         {
@@ -2340,7 +2367,7 @@ static void LogFrameBufferError(GLenum status)
                 glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
                 CHECK_GL_ERROR;
 
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
+                OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[blockIndex];
 
                 ubo.m_Indices.SetCapacity(activeUniforms);
                 ubo.m_Indices.SetSize(activeUniforms);
@@ -2617,7 +2644,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (uniform_block_index != -1)
             {
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[uniform_block_index];
+                OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[uniform_block_index];
                 uint32_t uniform_member_index = 0;
 
                 for (int j = 0; j < ubo.m_Indices.Size(); ++j)
@@ -3113,7 +3140,7 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
+            OpenGLUniformBufferLegacy& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count);
@@ -3135,7 +3162,7 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
+            OpenGLUniformBufferLegacy& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count * 4);

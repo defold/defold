@@ -52,6 +52,9 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
+    // FWD declarations:
+    static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
+
     static bool SelectAdapterByFamily(AdapterFamily family)
     {
         if (family != ADAPTER_FAMILY_NONE)
@@ -1080,8 +1083,8 @@ namespace dmGraphics
             ShaderResourceTypeInfo& info = meta->m_TypeInfos[i];
             info.m_Name     = strdup(ddf->m_Types[i].m_Name);
             info.m_NameHash = ddf->m_Types[i].m_NameHash;
-            info.m_Members.SetCapacity(ddf->m_Types[i].m_Members.m_Count);
-            info.m_Members.SetSize(ddf->m_Types[i].m_Members.m_Count);
+            info.m_MemberCount = ddf->m_Types[i].m_Members.m_Count;
+            info.m_Members = new ShaderResourceMember[info.m_MemberCount];
 
             for (int j = 0; j < ddf->m_Types[i].m_Members.m_Count; ++j)
             {
@@ -1123,13 +1126,12 @@ namespace dmGraphics
         for (int i = 0; i < meta.m_TypeInfos.Size(); ++i)
         {
             free(meta.m_TypeInfos[i].m_Name);
-            for (int j = 0; j < meta.m_TypeInfos[i].m_Members.Size(); ++j)
+            for (int j = 0; j < meta.m_TypeInfos[i].m_MemberCount; ++j)
             {
                 free(meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
 
-            meta.m_TypeInfos[i].m_Members.SetSize(0);
-            meta.m_TypeInfos[i].m_Members.SetCapacity(0);
+            delete[] meta.m_TypeInfos[i].m_Members;
         }
         meta.m_TypeInfos.SetSize(0);
         meta.m_TypeInfos.SetCapacity(0);
@@ -1143,8 +1145,7 @@ namespace dmGraphics
         }
 
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
-        const uint32_t num_members = type_info.m_Members.Size();
-        for (int i = 0; i < num_members; ++i)
+        for (int i = 0; i < type_info.m_MemberCount; ++i)
         {
             const ShaderResourceMember& member = type_info.m_Members[i];
             count += CountShaderResourceLeafMembers(type_infos, member.m_Type, count);
@@ -1194,8 +1195,8 @@ namespace dmGraphics
         uint32_t                                base_offset = 0)
     {
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
-        const uint32_t num_members = type_info.m_Members.Size();
-        for (int i = 0; i < num_members; ++i)
+
+        for (int i = 0; i < type_info.m_MemberCount; ++i)
         {
             const ShaderResourceMember& member = type_info.m_Members[i];
 
@@ -1406,6 +1407,127 @@ namespace dmGraphics
         }
     }
 
+    // For uniform buffers:
+    static uint32_t GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type)
+    {
+        switch (type)
+        {
+            case ShaderDesc::SHADER_TYPE_FLOAT:
+            case ShaderDesc::SHADER_TYPE_INT:
+            case ShaderDesc::SHADER_TYPE_UINT:
+                return 4;
+            case ShaderDesc::SHADER_TYPE_VEC2:
+                return 8;
+            case ShaderDesc::SHADER_TYPE_VEC3:
+            case ShaderDesc::SHADER_TYPE_VEC4:
+                return 16;
+            case ShaderDesc::SHADER_TYPE_MAT2:
+            case ShaderDesc::SHADER_TYPE_MAT3:
+            case ShaderDesc::SHADER_TYPE_MAT4:
+                return 16;
+            default:
+                return 16; // conservative default for structs
+        }
+    }
+
+    static uint32_t GetStd140TypeSize(dmGraphics::ShaderDesc::ShaderDataType type)
+    {
+        switch (type)
+        {
+            case ShaderDesc::SHADER_TYPE_FLOAT:
+            case ShaderDesc::SHADER_TYPE_INT:
+            case ShaderDesc::SHADER_TYPE_UINT:
+                return 4;
+            case ShaderDesc::SHADER_TYPE_VEC2:
+                return 8;
+            case ShaderDesc::SHADER_TYPE_VEC3:
+            case ShaderDesc::SHADER_TYPE_VEC4:
+                return 16;
+            case ShaderDesc::SHADER_TYPE_MAT2:
+                return 2 * 16;
+            case ShaderDesc::SHADER_TYPE_MAT3:
+                return 3 * 16;
+            case ShaderDesc::SHADER_TYPE_MAT4:
+                return 4 * 16;
+            default:
+                return 0;
+        }
+    }
+
+    static uint32_t CalculateStd140MemberSize(const ShaderResourceTypeInfo* type_infos, const ShaderResourceMember& member, bool update_offsets)
+    {
+        uint32_t element_size = 0;
+
+        if (member.m_Type.m_UseTypeIndex)
+        {
+            // Nested struct
+            uint32_t struct_size = CalculateStd140StructSize(type_infos, member.m_Type.m_TypeIndex, update_offsets);
+
+            element_size = DM_ALIGN(struct_size, 16);
+        }
+        else
+        {
+            element_size = GetStd140TypeSize(member.m_Type.m_ShaderType);
+        }
+
+        // Arrays: stride rounded up to 16
+        if (member.m_ElementCount > 1)
+        {
+            uint32_t stride = DM_ALIGN(element_size, 16);
+            return stride * member.m_ElementCount;
+        }
+
+        return element_size;
+    }
+
+    static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets)
+    {
+        const ShaderResourceTypeInfo& type_info = type_infos[type_index];
+
+        const uint32_t STRUCT_ALIGNMENT = 16;
+        uint32_t offset                 = 0;
+        uint32_t max_alignment          = 16;
+
+        for (int i = 0; i < type_info.m_MemberCount; ++i)
+        {
+            ShaderResourceMember& member = type_info.m_Members[i];
+
+            uint32_t alignment = STRUCT_ALIGNMENT;
+            if (!member.m_Type.m_UseTypeIndex)
+            {
+                alignment = GetStd140BaseAlignment(member.m_Type.m_ShaderType);
+            }
+
+            // Align the offset for this member
+            offset = DM_ALIGN(offset, alignment);
+
+            if (update_offsets)
+            {
+                member.m_Offset = offset;
+            }
+
+            offset += CalculateStd140MemberSize(type_infos, member, update_offsets);
+
+            if (alignment > max_alignment)
+                max_alignment = alignment;
+        }
+
+        return DM_ALIGN(offset, max_alignment);
+    }
+
+    static uint32_t CalculateShaderTypesSize(const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    {
+        uint32_t size = CalculateStd140StructSize(type_infos, 0, false);
+
+        // UBO size must always be aligned to 16 bytes
+        return DM_ALIGN(size, 16);
+    }
+
+    void UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    {
+        CalculateStd140StructSize(type_infos, 0, true);
+    }
+
     void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
     {
         state.m_Mutex = dmMutex::New();
@@ -1551,28 +1673,26 @@ namespace dmGraphics
         Program* p = (Program*) prog;
         *uniform_desc = p->m_Uniforms[index];
     }
-    void GetResourceBindings(HProgram prog, ShaderResourceBindingFamily family, const ShaderResourceBinding** bindings, uint32_t* num_bindings)
+    // This function expects that the offsets are already calculated! I.e, if the types are created manually
+    // you can use the UpdateShaderTypesOffsets function (graphics_private.h) first.
+    void GetUniformBufferLayout(const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
     {
-        Program* p = (Program*) prog;
-        switch (family)
+        HashState32 hash_state;
+        dmHashInit32(&hash_state, false);
+
+        for (int i = 0; i < num_types; ++i)
         {
-            case BINDING_FAMILY_TEXTURE:
+            const ShaderResourceTypeInfo& type = types[i];
+            for (int j = 0; j < type.m_MemberCount; ++j)
             {
-                *bindings = p->m_ShaderMeta.m_Textures.Begin();
-                *num_bindings = p->m_ShaderMeta.m_Textures.Size();
-            } break;
-            case BINDING_FAMILY_UNIFORM_BUFFER:
-            {
-                *bindings = p->m_ShaderMeta.m_UniformBuffers.Begin();
-                *num_bindings = p->m_ShaderMeta.m_UniformBuffers.Size();
-            } break;
-            case BINDING_FAMILY_STORAGE_BUFFER:
-            {
-                *bindings = p->m_ShaderMeta.m_StorageBuffers.Begin();
-                *num_bindings = p->m_ShaderMeta.m_StorageBuffers.Size();
-            } break;
-            default: break;
+                dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_Type, sizeof(type.m_Members[j].m_Type));
+                dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_ElementCount, sizeof(type.m_Members[j].m_ElementCount));
+                dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_Offset, sizeof(type.m_Members[j].m_Offset));
+            }
         }
+
+        layout_desc->m_Hash = dmHashFinal32(&hash_state);
+        layout_desc->m_Size = CalculateShaderTypesSize(types, num_types);
     }
     ///////////////////////////////////////////////////
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
@@ -1975,6 +2095,14 @@ namespace dmGraphics
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         g_functions.m_GetViewport(context, x, y, width, height);
+    }
+    HUniformBuffer NewUniformBuffer(HContext context, const UniformBufferLayout& layout)
+    {
+        return g_functions.m_NewUniformBuffer(context, layout);
+    }
+    void SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        g_functions.m_SetUniformBuffer(context, uniform_buffer, offset, size, data);
     }
 
 #if defined(DM_PLATFORM_IOS)

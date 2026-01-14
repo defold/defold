@@ -375,6 +375,115 @@ struct ComputeTest : ITest
     }
 };
 
+/*
+struct ShaderResourceType
+{
+    union
+    {
+        dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
+        uint32_t                               m_TypeIndex;
+    };
+    uint8_t m_UseTypeIndex : 1;
+};
+
+struct ShaderResourceMember
+{
+    char*                       m_Name;
+    dmhash_t                    m_NameHash;
+    ShaderResourceType          m_Type;
+    uint32_t                    m_ElementCount;
+    uint32_t                    m_Offset;
+};
+
+struct ShaderResourceTypeInfo
+{
+    char*                 m_Name;
+    dmhash_t              m_NameHash;
+    ShaderResourceMember* m_Members;
+    uint32_t              m_MemberCount;
+};
+*/
+
+struct UniformBufferLayout
+{
+    dmhash_t m_Hash;
+    uint32_t m_DerivedSize;
+};
+
+struct UniformBufferTest : ITest
+{
+    dmGraphics::HUniformBuffer m_UBO;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        struct LightColor
+        {
+            float m_Color[3];
+            float m_Intensity;
+        };
+
+        struct Light
+        {
+            float      m_Position[3];
+            LightColor m_Color;
+        };
+
+        struct LightData
+        {
+            Light m_Lights[4];
+            float m_LightCount;
+        };
+
+        dmGraphics::ShaderResourceMember light_color_members[] = {
+            { "m_Color", dmHashString64("m_Color"), { dmGraphics::ShaderDesc::SHADER_TYPE_VEC3, 0 }, 1, 0},
+            { "m_Intensity", dmHashString64("m_Intensity"), { dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT, 0 }, 1, 0},
+        };
+
+        dmGraphics::ShaderResourceMember light_members[] = {
+            { "m_Position", dmHashString64("m_Position"), { dmGraphics::ShaderDesc::SHADER_TYPE_VEC3, 0 }, 1, 0},
+            { "m_Color", dmHashString64("m_Color"), { (dmGraphics::ShaderDesc::ShaderDataType) 2, 1 }, 1, 0},
+        };
+
+        dmGraphics::ShaderResourceMember light_data_members[] = {
+            {"m_Lights", dmHashString64("m_Lights"), { (dmGraphics::ShaderDesc::ShaderDataType) 1, 1 }, 4, 0},
+            {"m_LightCount", dmHashString64("m_LightCount"), { dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT, 0 }, 1, 0}
+        };
+
+        dmGraphics::ShaderResourceTypeInfo light_data  = { "LightData", dmHashString64("LightData"), light_data_members, DM_ARRAY_SIZE(light_data_members) };
+        dmGraphics::ShaderResourceTypeInfo light       = { "Light", dmHashString64("Light"), light_members, DM_ARRAY_SIZE(light_members) };
+        dmGraphics::ShaderResourceTypeInfo light_color = { "LightColor", dmHashString64("LightColor"), light_color_members, DM_ARRAY_SIZE(light_color_members) };
+        dmGraphics::ShaderResourceTypeInfo types[]     = { light_data, light, light_color };
+        dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+        dmGraphics::UniformBufferLayout ubo_layout;
+        dmGraphics::GetUniformBufferLayout(types, DM_ARRAY_SIZE(types), &ubo_layout);
+
+        uint8_t* ubo_data = new uint8_t[ubo_layout.m_Size];
+        memset(ubo_data, 0, ubo_layout.m_Size);
+
+        // Write test data
+        uint32_t lights_offset = light_data_members[0].m_Offset; // 0
+        uint32_t light_stride  = 48;                             // from layout
+
+        {
+            uint32_t light0_offset   = lights_offset + 0 * light_stride;
+            uint32_t light0_position = light0_offset + light_members[0].m_Offset; // m_Position
+
+            float tmp_v3[] = { 1.0f, 2.0f, 3.0f };
+            WriteFloats(ubo_data, light0_position, tmp_v3, 3);
+        }
+
+        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout);
+        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_layout.m_Size, (const void*) ubo_data);
+    }
+
+    void WriteFloats(uint8_t* buffer, uint32_t offset, float* data, uint32_t num_floats)
+    {
+        float* ptr = (float*) (buffer + offset);
+        memcpy(ptr, data, sizeof(float) * num_floats);
+    }
+};
+
 // Note: the vulkan dmsdk doens't contain these functions anymore, but since SSBOs is something we want eventually,
 //       we can leave this test code here for later.
 #if 0
@@ -512,8 +621,9 @@ static void* EngineCreate(int argc, char** argv)
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-    engine->m_Test = new AsyncTextureUploadTest();
-    // engine->m_Test = new ClearBackbufferTest();
+    //engine->m_Test = new AsyncTextureUploadTest();
+    //engine->m_Test = new ClearBackbufferTest();
+    engine->m_Test = new UniformBufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;

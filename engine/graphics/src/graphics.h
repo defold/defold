@@ -109,6 +109,14 @@ namespace dmGraphics
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
     };
 
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
+    };
+
     // Translation table to translate RenderTargetAttachment to BufferType
     struct AttachmentToBufferType
     {
@@ -237,14 +245,6 @@ namespace dmGraphics
         uint32_t         m_Count;
     };
 
-    enum ShaderResourceBindingFamily
-    {
-        BINDING_FAMILY_GENERIC        = 0,
-        BINDING_FAMILY_UNIFORM_BUFFER = 1,
-        BINDING_FAMILY_STORAGE_BUFFER = 2,
-        BINDING_FAMILY_TEXTURE        = 3,
-    };
-
     struct ShaderResourceType
     {
         union
@@ -253,6 +253,23 @@ namespace dmGraphics
             uint32_t                               m_TypeIndex;
         };
         uint8_t m_UseTypeIndex : 1;
+    };
+
+    struct ShaderResourceMember
+    {
+        char*                       m_Name;
+        dmhash_t                    m_NameHash;
+        ShaderResourceType          m_Type;
+        uint32_t                    m_ElementCount;
+        uint32_t                    m_Offset;
+    };
+
+    struct ShaderResourceTypeInfo
+    {
+        char*                 m_Name;
+        dmhash_t              m_NameHash;
+        ShaderResourceMember* m_Members;
+        uint32_t              m_MemberCount;
     };
 
     struct ShaderResourceBinding
@@ -274,6 +291,12 @@ namespace dmGraphics
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
         uint8_t                     m_StageFlags;
+    };
+
+    struct UniformBufferLayout
+    {
+        uint32_t m_Size;
+        uint32_t m_Hash;
     };
 
     /** Creates a graphics context
@@ -447,19 +470,15 @@ namespace dmGraphics
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
-    // Uniforms/resource reflection
+    // Uniforms
     uint32_t         GetUniformCount(HProgram prog);
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
-    void             GetResourceBindings(HProgram prog, ShaderResourceBindingFamily family, const ShaderResourceBinding** bindings, uint32_t* num_bindings);
 
-    /*
     // Uniform buffers
-    HUniformBuffer   NewUniformBuffer(HContext context, uint32_t size);
-    void             DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
-    void             SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-    void             EnableUniformBuffer(HContext context, uint32_t unit, HUniformBuffer uniform_buffer);
-    void             DisableUniformBuffer(HContext context, uint32_t unit);
-    */
+    void                GetUniformBufferLayout(const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
+    HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
+    void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
+    // void             EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

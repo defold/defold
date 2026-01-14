@@ -94,7 +94,6 @@ namespace dmGraphics
     typedef void (*DisableProgramFn)(HContext context);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
-
     typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     typedef void (*SetSamplerFn)(HContext context, HUniformLocation location, int32_t unit);
@@ -151,6 +150,8 @@ namespace dmGraphics
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
     typedef void (*GetViewportFn)(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
+    typedef HUniformBuffer (*NewUniformBufferFn)(HContext context, const UniformBufferLayout& layout);
+    typedef void (*SetUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -256,6 +257,8 @@ namespace dmGraphics
         IsAssetHandleValidFn m_IsAssetHandleValid;
         InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
         GetViewportFn m_GetViewport;
+        NewUniformBufferFn m_NewUniformBuffer;
+        SetUniformBufferFn m_SetUniformBuffer;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -362,7 +365,9 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetViewport);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetViewport); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewUniformBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetUniformBuffer);
 }
 
 #endif

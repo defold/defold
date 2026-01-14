@@ -382,6 +382,15 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
+    static HUniformBuffer NullNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        return 0;
+    }
+
+    static void NullSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+    }
+
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();
