@@ -1444,6 +1444,16 @@ namespace dmGraphics
     {
     }
 
+    static void DX12DisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+
+    }
+
+    static void DX12EnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+
+    }
+
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DX12Context* context        = (DX12Context*) _context;

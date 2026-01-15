@@ -1820,7 +1820,7 @@ bail:
         // TODO: Actually, it will still be bound at this time. We need to defer this somehow.
         ubo->m_BoundToSet = false;
 
-        context->m_BoundUniformBuffers[ubo->m_BoundBinding][ubo->m_BoundSet] = 0;
+        context->m_BoundUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
     }
 
     static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1832,12 +1832,12 @@ bail:
         ubo->m_BoundSet     = set;
         ubo->m_Bound        = true;
 
-        if (context->m_BoundUniformBuffers[binding][set])
+        if (context->m_BoundUniformBuffers[set][binding])
         {
-            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_BoundUniformBuffers[binding][set]);
+            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_BoundUniformBuffers[set][binding]);
         }
 
-        context->m_BoundUniformBuffers[binding][set] = ubo;
+        context->m_BoundUniformBuffers[set][binding] = ubo;
     }
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2330,18 +2330,18 @@ bail:
                     VulkanUniformBuffer* bound_ubo = context->m_BoundUniformBuffers[res->m_Set][res->m_Binding];
                     if (bound_ubo)
                     {
-                        if (!bound_ubo->m_BoundToSet)
-                        {
-                            UpdateUniformBufferDescriptor(context,
-                                bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
-                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                vk_write_buffer_descriptors[buffer_to_write_index++],
-                                vk_write_desc_info,
-                                0,
-                                bound_ubo->m_Layout.m_Size);
-                            TouchResource(context, &bound_ubo->m_DeviceBuffer);
-                            bound_ubo->m_BoundToSet = true;
-                        }
+                        // TODO: We shouldn't have to rebind this UBO every time it has to be used,
+                        //       but in order for us to do that we need persistent descriptor sets.
+                        //       To solve that, we should cache bindings. For now we simply update
+                        //       the descriptor every frame, like animals..
+                        UpdateUniformBufferDescriptor(context,
+                            bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
+                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            vk_write_buffer_descriptors[buffer_to_write_index++],
+                            vk_write_desc_info,
+                            0,
+                            bound_ubo->m_Layout.m_Size);
+                        TouchResource(context, &bound_ubo->m_DeviceBuffer);
                     }
                     else
                     {
@@ -2860,6 +2860,7 @@ bail:
             #endif
             }
 
+            assert(res.m_StageFlags != 0);
             binding.stageFlags |= GetShaderStageFlags(res.m_StageFlags);
         }
     }

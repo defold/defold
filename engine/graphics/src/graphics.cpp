@@ -2093,7 +2093,7 @@ namespace dmGraphics
     {
         g_functions.m_SetUniformBuffer(context, uniform_buffer, offset, size, data);
     }
-    void EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    void EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding)
     {
         g_functions.m_EnableUniformBuffer(context, uniform_buffer, binding, set);
     }
