@@ -129,6 +129,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setSdfShadow(Fontc.GetFontMapSdfShadow(fontDesc));
         }
 
+        fontMapBuilder.setPadding(Fontc.GetFontMapPadding(fontDesc));
+
         fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
         fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
 
