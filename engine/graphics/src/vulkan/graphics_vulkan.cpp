@@ -1774,32 +1774,70 @@ bail:
         return cached_pipeline;
     }
 
-    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, const void* data)
+    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data)
     {
         if (size == 0)
         {
             return;
         }
 
-        // Coherent memory writes does not seem to be properly synced on MoltenVK,
-        // so for now we always mark the old buffer for destruction when updating the data.
-    #ifndef __MACH__
-        if (size != buffer->m_MemorySize)
-    #endif
+        if (offset == 0)
         {
-            DestroyResourceDeferred(context, buffer);
+            // Coherent memory writes does not seem to be properly synced on MoltenVK,
+            // so for now we always mark the old buffer for destruction when updating the data.
+        #ifndef __MACH__
+            if (size != buffer->m_MemorySize)
+        #endif
+            {
+                DestroyResourceDeferred(context, buffer);
+            }
         }
 
-        DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        DeviceBufferUploadHelper(context, data, size, offset, buffer);
     }
 
     static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        return 0;
+        VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
+        ubo->m_Layout               = layout;
+        ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        return (HUniformBuffer) ubo;
     }
 
-    static void VulkanSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    static void VulkanSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        VulkanContext* context   = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+        SetDeviceBuffer(context, &ubo->m_DeviceBuffer, size, offset, data);
+    }
+
+    static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+        ubo->m_Bound      = false;
+        // TODO: Actually, it will still be bound at this time. We need to defer this somehow.
+        ubo->m_BoundToSet = false;
+
+        context->m_BoundUniformBuffers[ubo->m_BoundBinding][ubo->m_BoundSet] = 0;
+    }
+
+    static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+        ubo->m_BoundBinding = binding;
+        ubo->m_BoundSet     = set;
+        ubo->m_Bound        = true;
+
+        if (context->m_BoundUniformBuffers[binding][set])
+        {
+            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_BoundUniformBuffers[binding][set]);
+        }
+
+        context->m_BoundUniformBuffers[binding][set] = ubo;
     }
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1838,7 +1876,7 @@ bail:
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, 0, data);
     }
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1906,7 +1944,7 @@ bail:
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, 0, data);
     }
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -2253,7 +2291,7 @@ bail:
         {
             ShaderResourceBinding* res = next->m_Res;
 
-            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index++];
+            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
             vk_write_desc_info.sType                 = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext                 = 0;
             vk_write_desc_info.dstSet                = vk_descriptor_sets[res->m_Set];
@@ -2289,34 +2327,55 @@ bail:
                 } break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
-                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+                    VulkanUniformBuffer* bound_ubo = context->m_BoundUniformBuffers[res->m_Set][res->m_Binding];
+                    if (bound_ubo)
+                    {
+                        if (!bound_ubo->m_BoundToSet)
+                        {
+                            UpdateUniformBufferDescriptor(context,
+                                bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                vk_write_buffer_descriptors[buffer_to_write_index++],
+                                vk_write_desc_info,
+                                0,
+                                bound_ubo->m_Layout.m_Size);
+                            TouchResource(context, &bound_ubo->m_DeviceBuffer);
+                            bound_ubo->m_BoundToSet = true;
+                        }
+                    }
+                    else
+                    {
+                        dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                        const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
+                        const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
-                    assert(uniform_size_nonalign > 0);
+                        assert(uniform_size_nonalign > 0);
 
-                    // Copy client data to aligned host memory
-                    // The data_offset here is the offset into the programs uniform data,
-                    // i.e the source buffer.
-                    memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
-                        &program->m_UniformData[next->m_DataOffset], uniform_size_nonalign);
+                        // Copy client data to aligned host memory
+                        // The data_offset here is the offset into the programs uniform data,
+                        // i.e the source buffer.
+                        memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
+                            &program->m_UniformData[next->m_DataOffset], uniform_size_nonalign);
 
-                    UpdateUniformBufferDescriptor(context,
-                        scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                        vk_write_buffer_descriptors[buffer_to_write_index++],
-                        vk_write_desc_info,
-                        0,
-                        uniform_size_align);
+                        UpdateUniformBufferDescriptor(context,
+                            scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
+                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            vk_write_buffer_descriptors[buffer_to_write_index++],
+                            vk_write_desc_info,
+                            0,
+                            uniform_size_align);
 
-                    scratch_buffer->m_MappedDataCursor += uniform_size_align;
-                    TouchResource(context, &scratch_buffer->m_DeviceBuffer);
+                        scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                        TouchResource(context, &scratch_buffer->m_DeviceBuffer);
 
-                    dynamic_offset_index++;
+                        dynamic_offset_index++;
+                    }
                 } break;
                 case BINDING_FAMILY_GENERIC:
                 default: continue;
             }
+
+            uniform_to_write_index++;
         }
 
         vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);

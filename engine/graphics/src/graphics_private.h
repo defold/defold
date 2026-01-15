@@ -71,6 +71,14 @@ namespace dmGraphics
         SHADER_STAGE_FLAG_COMPUTE  = 0x4,
     };
 
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
+    };
+
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -85,6 +93,27 @@ namespace dmGraphics
         VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
         VertexStepFunction m_StepFunction;
         uint8_t            m_StreamCount;
+    };
+
+    struct ShaderResourceBinding
+    {
+        union BindingInfo
+        {
+            uint16_t m_BlockSize;
+            uint16_t m_SamplerTextureIndex;
+        };
+
+        char*                       m_Name;
+        dmhash_t                    m_NameHash;
+        char*                       m_InstanceName;
+        dmhash_t                    m_InstanceNameHash;
+        ShaderResourceType          m_Type;
+        ShaderResourceBindingFamily m_BindingFamily;
+        BindingInfo                 m_BindingInfo;
+        uint16_t                    m_Set;
+        uint16_t                    m_Binding;
+        uint16_t                    m_ElementCount;
+        uint8_t                     m_StageFlags;
     };
 
     struct ShaderMeta
@@ -303,6 +332,7 @@ namespace dmGraphics
     void             EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
     void             SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
     const Uniform*   GetUniform(HProgram prog, dmhash_t name_hash);
+    const ShaderMeta* GetShaderMeta(HProgram prog);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

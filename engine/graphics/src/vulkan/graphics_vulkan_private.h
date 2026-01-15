@@ -75,6 +75,16 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct VulkanUniformBuffer
+    {
+        DeviceBuffer        m_DeviceBuffer;
+        UniformBufferLayout m_Layout;
+        uint16_t            m_BoundBinding : 8;
+        uint16_t            m_BoundSet     : 6;
+        uint16_t            m_Bound        : 1;
+        uint16_t            m_BoundToSet   : 1;
+    };
+
     struct VulkanTexture
     {
         struct VulkanHandle
@@ -430,6 +440,9 @@ namespace dmGraphics
         VulkanProgram*                  m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;
+
+        // Globally bound resources
+        VulkanUniformBuffer*            m_BoundUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;

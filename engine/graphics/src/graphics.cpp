@@ -1430,30 +1430,6 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t GetStd140TypeSize(dmGraphics::ShaderDesc::ShaderDataType type)
-    {
-        switch (type)
-        {
-            case ShaderDesc::SHADER_TYPE_FLOAT:
-            case ShaderDesc::SHADER_TYPE_INT:
-            case ShaderDesc::SHADER_TYPE_UINT:
-                return 4;
-            case ShaderDesc::SHADER_TYPE_VEC2:
-                return 8;
-            case ShaderDesc::SHADER_TYPE_VEC3:
-            case ShaderDesc::SHADER_TYPE_VEC4:
-                return 16;
-            case ShaderDesc::SHADER_TYPE_MAT2:
-                return 2 * 16;
-            case ShaderDesc::SHADER_TYPE_MAT3:
-                return 3 * 16;
-            case ShaderDesc::SHADER_TYPE_MAT4:
-                return 4 * 16;
-            default:
-                return 0;
-        }
-    }
-
     static uint32_t CalculateStd140MemberSize(const ShaderResourceTypeInfo* type_infos, const ShaderResourceMember& member, bool update_offsets)
     {
         uint32_t element_size = 0;
@@ -1467,7 +1443,7 @@ namespace dmGraphics
         }
         else
         {
-            element_size = GetStd140TypeSize(member.m_Type.m_ShaderType);
+            element_size = GetShaderTypeSize(member.m_Type.m_ShaderType);
         }
 
         // Arrays: stride rounded up to 16
@@ -1685,9 +1661,22 @@ namespace dmGraphics
             const ShaderResourceTypeInfo& type = types[i];
             for (int j = 0; j < type.m_MemberCount; ++j)
             {
-                dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_Type, sizeof(type.m_Members[j].m_Type));
                 dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_ElementCount, sizeof(type.m_Members[j].m_ElementCount));
                 dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_Offset, sizeof(type.m_Members[j].m_Offset));
+
+                bool use_type_index = type.m_Members[j].m_Type.m_UseTypeIndex;
+                dmHashUpdateBuffer32(&hash_state, &use_type_index, sizeof(use_type_index));
+
+                if (type.m_Members[j].m_Type.m_UseTypeIndex)
+                {
+                    uint32_t type_index = type.m_Members[j].m_Type.m_TypeIndex;
+                    dmHashUpdateBuffer32(&hash_state, &type_index, sizeof(type_index));
+                }
+                else
+                {
+                    ShaderDesc::ShaderDataType shader_type = type.m_Members[j].m_Type.m_ShaderType;
+                    dmHashUpdateBuffer32(&hash_state, &shader_type, sizeof(shader_type));
+                }
             }
         }
 
@@ -2104,6 +2093,14 @@ namespace dmGraphics
     {
         g_functions.m_SetUniformBuffer(context, uniform_buffer, offset, size, data);
     }
+    void EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        g_functions.m_EnableUniformBuffer(context, uniform_buffer, binding, set);
+    }
+    void DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
+    {
+        g_functions.m_DisableUniformBuffer(context, uniform_buffer);
+    }
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
@@ -2111,4 +2108,12 @@ namespace dmGraphics
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
     }
 #endif
+
+    ///////////////////////////////////////////////////
+    /////////// UNIT TEST ONLY FUNCTIONS //////////////
+    const ShaderMeta* GetShaderMeta(HProgram prog)
+    {
+        Program* p = (Program*)prog;
+        return &p->m_ShaderMeta;
+    }
 }

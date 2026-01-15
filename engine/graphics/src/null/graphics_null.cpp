@@ -391,6 +391,16 @@ namespace dmGraphics
     {
     }
 
+    static void NullDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+
+    }
+
+    static void NullEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+
+    }
+
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();

@@ -109,14 +109,6 @@ namespace dmGraphics
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
     };
 
-    enum ShaderResourceBindingFamily
-    {
-        BINDING_FAMILY_GENERIC        = 0,
-        BINDING_FAMILY_UNIFORM_BUFFER = 1,
-        BINDING_FAMILY_STORAGE_BUFFER = 2,
-        BINDING_FAMILY_TEXTURE        = 3,
-    };
-
     // Translation table to translate RenderTargetAttachment to BufferType
     struct AttachmentToBufferType
     {
@@ -249,8 +241,8 @@ namespace dmGraphics
     {
         union
         {
-            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                               m_TypeIndex;
+            ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                   m_TypeIndex;
         };
         uint8_t m_UseTypeIndex : 1;
     };
@@ -270,27 +262,6 @@ namespace dmGraphics
         dmhash_t              m_NameHash;
         ShaderResourceMember* m_Members;
         uint32_t              m_MemberCount;
-    };
-
-    struct ShaderResourceBinding
-    {
-        union BindingInfo
-        {
-            uint16_t m_BlockSize;
-            uint16_t m_SamplerTextureIndex;
-        };
-
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        char*                       m_InstanceName;
-        dmhash_t                    m_InstanceNameHash;
-        ShaderResourceType          m_Type;
-        ShaderResourceBindingFamily m_BindingFamily;
-        BindingInfo                 m_BindingInfo;
-        uint16_t                    m_Set;
-        uint16_t                    m_Binding;
-        uint16_t                    m_ElementCount;
-        uint8_t                     m_StageFlags;
     };
 
     struct UniformBufferLayout
@@ -478,7 +449,8 @@ namespace dmGraphics
     void                GetUniformBufferLayout(const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-    // void             EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

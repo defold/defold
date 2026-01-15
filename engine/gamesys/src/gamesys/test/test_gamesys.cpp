@@ -5628,6 +5628,40 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
+    dmGraphics::ShaderResourceMember light_color_members[] = {
+        { "color", dmHashString64("color"), { dmGraphics::ShaderDesc::SHADER_TYPE_VEC3, 0 }, 1, 0},
+        { "intensity", dmHashString64("intensity"), { dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT, 0 }, 1, 0},
+    };
+
+    dmGraphics::ShaderResourceMember light_members[] = {
+        { "position", dmHashString64("position"), { dmGraphics::ShaderDesc::SHADER_TYPE_VEC3, 0 }, 1, 0},
+        { "color_intensity", dmHashString64("color_intensity"), { (dmGraphics::ShaderDesc::ShaderDataType) 2, 1 }, 1, 0},
+    };
+
+    dmGraphics::ShaderResourceMember light_data_members[] = {
+        {"lights", dmHashString64("lights"), { (dmGraphics::ShaderDesc::ShaderDataType) 1, 1 }, 4, 0},
+        {"light_count", dmHashString64("light_count"), { dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT, 0 }, 1, 0}
+    };
+
+    dmGraphics::ShaderResourceTypeInfo types[] = {
+        { "LightData", dmHashString64("LightData"), light_data_members, DM_ARRAY_SIZE(light_data_members) },
+        { "Light", dmHashString64("Light"), light_members, DM_ARRAY_SIZE(light_members) },
+        { "LightColor", dmHashString64("LightColor"), light_color_members, DM_ARRAY_SIZE(light_color_members) },
+    };
+    dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+    dmGraphics::UniformBufferLayout layout;
+    dmGraphics::GetUniformBufferLayout(types, DM_ARRAY_SIZE(types), &layout);
+
+    dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+    const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
+
+    dmGraphics::UniformBufferLayout built_layout;
+    dmGraphics::GetUniformBufferLayout(program_meta->m_TypeInfos.Begin(), program_meta->m_TypeInfos.Size(), &built_layout);
+
+    ASSERT_EQ(layout.m_Size, built_layout.m_Size);
+    ASSERT_EQ(layout.m_Hash, built_layout.m_Hash);
+
     dmResource::Release(m_Factory, material_res);
 }
 

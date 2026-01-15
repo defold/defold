@@ -27,7 +27,7 @@ enum BindingType
     BINDING_TYPE_STORAGE_BUFFER,
 };
 
-static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, uint8_t* source, int source_size)
+static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, dmGraphics::ShaderDesc::ShaderType shader_type, uint8_t* source, int source_size)
 {
     desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
     dmGraphics::ShaderDesc::Shader* shader = desc->m_Shaders.m_Data + desc->m_Shaders.m_Count;
@@ -35,6 +35,7 @@ static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDes
     desc->m_Shaders.m_Count++;
 
     shader->m_Language       = language;
+    shader->m_ShaderType     = shader_type;
     shader->m_Source.m_Data  = (uint8_t*) source;
     shader->m_Source.m_Count = source_size;
 }
@@ -61,19 +62,31 @@ static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* n
     case BINDING_TYPE_UNIFORM_BUFFER:
         data = &desc->m_Reflection.m_UniformBuffers.m_Data;
         count = &desc->m_Reflection.m_UniformBuffers.m_Count;
+        break;
     case BINDING_TYPE_STORAGE_BUFFER:
         data = &desc->m_Reflection.m_StorageBuffers.m_Data;
         count = &desc->m_Reflection.m_StorageBuffers.m_Count;
+        break;
     }
 
-    *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
+    if (*count == 0)
+    {
+        *data = (dmGraphics::ShaderDesc::ResourceBinding*) malloc(sizeof(dmGraphics::ShaderDesc::ResourceBinding));
+    }
+    else
+    {
+        *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
+    }
+
     dmGraphics::ShaderDesc::ResourceBinding* res = *data + *count;
     memset(res, 0, sizeof(dmGraphics::ShaderDesc::ResourceBinding));
 
-    res->m_Name                     = name;
-    res->m_NameHash                 = dmHashString64(name);
-    res->m_Binding                  = binding;
-    res->m_Type.m_Type.m_ShaderType = shader_type;
+    *count = *count + 1;
+
+    res->m_Name                       = name;
+    res->m_NameHash                   = dmHashString64(name);
+    res->m_Binding                    = binding;
+    res->m_Type.m_Type.m_ShaderType   = shader_type;
 
     if (type_index != -1)
     {
@@ -104,16 +117,39 @@ static inline dmGraphics::ShaderDesc::ResourceTypeInfo* AddShaderType(dmGraphics
     return type_info;
 }
 
-static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type, int type_index)
 {
-    type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) realloc(type_info->m_Members.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceMember) * (type_info->m_Members.m_Count + 1));
+    if (type_info->m_Members.m_Data == 0)
+    {
+        type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) malloc(sizeof(dmGraphics::ShaderDesc::ResourceMember));
+    }
+    else
+    {
+        type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) realloc(type_info->m_Members.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceMember) * (type_info->m_Members.m_Count + 1));
+    }
     dmGraphics::ShaderDesc::ResourceMember* member = type_info->m_Members.m_Data + type_info->m_Members.m_Count;
     memset(member, 0, sizeof(dmGraphics::ShaderDesc::ResourceMember));
     type_info->m_Members.m_Count++;
 
     member->m_Name = name;
-    member->m_Type.m_Type.m_ShaderType = type;
     member->m_NameHash = dmHashString64(name);
+    member->m_Type.m_Type.m_ShaderType = type;
+
+    if (type_index != -1)
+    {
+        member->m_Type.m_Type.m_TypeIndex = type_index;
+        member->m_Type.m_UseTypeIndex = 1;
+    }
+}
+
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+{
+    AddShaderTypeMember(desc, type_info, name, type, -1);
+}
+
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, int type_index)
+{
+    AddShaderTypeMember(desc, type_info, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index);
 }
 
 static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)

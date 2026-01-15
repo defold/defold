@@ -1740,6 +1740,16 @@ static void LogFrameBufferError(GLenum status)
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
+    static void OpenGLDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+
+    }
+
+    static void OpenGLEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+
+    }
+
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
