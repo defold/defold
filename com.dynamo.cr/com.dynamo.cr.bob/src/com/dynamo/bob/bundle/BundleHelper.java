@@ -63,6 +63,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.logging.Logger;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
@@ -75,6 +76,8 @@ import javax.imageio.ImageIO;
 
 
 public class BundleHelper {
+    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
+
     private Project project;
     private Platform platform;
     private BobProjectProperties projectProperties;
@@ -1034,4 +1037,59 @@ public class BundleHelper {
                     }
                 });
     }
+
+    public static void createFatLibrary(List<Platform> architectures, String projectOutputDir, File targetDir, ICanceled canceled) throws IOException {
+        Set<String> copiedFileNames = new HashSet<>();
+        for (int i = 0; i < architectures.size(); ++i) {
+            Platform arch = architectures.get(i);
+            String archStr = arch.getExtenderPair();
+            int archIndex = i;
+            File binaryDir = new File(FilenameUtils.concat(projectOutputDir, arch.getExtenderPair()));
+            BundleHelper.collectSharedLibraries(arch, binaryDir)
+                    .forEach(path -> {
+                        String libraryName = path.getFileName().toString();
+                        if (copiedFileNames.contains(libraryName)) {
+                            return;
+                        }
+                        List<File> allLibs = new ArrayList<>();
+                        allLibs.add(path.toFile());
+                        for (int j = 0; j < architectures.size(); ++j) {
+                            if (archIndex == j) {
+                                continue;
+                            }
+                            String pathStr = path.toString();
+                            pathStr = pathStr.replace(archStr, architectures.get(j).getExtenderPair());
+                            File lib = new File(pathStr);
+                            try {
+                                // in case if initially we have "fat" library contains all requested archs
+                                // check if file the same or not to avoid call 'lipo'
+                                // Extender returns "fat" library as a part of build result for every arch
+                                if (lib.exists() && !FileUtils.contentEquals(path.toFile(), lib)) {
+                                    allLibs.add(lib);
+                                }
+                            } catch (IOException e) {
+                                logger.warning("Exception happened when comparing content of dynamic libs " + e);
+                            }
+                        }
+                        // Create fat/universal binary
+                        try {
+                            if (allLibs.size() > 1) {
+                                File dynamicLib = File.createTempFile(libraryName, "");
+                                FileUtil.deleteOnExit(dynamicLib);
+                                BundleHelper.throwIfCanceled(canceled);
+                                IOSBundler.lipoBinaries(dynamicLib, allLibs);
+
+                                File targetDynamicLib = new File(targetDir, libraryName);
+                                FileUtils.copyFile(dynamicLib, targetDynamicLib);
+                            } else {
+                                FileUtils.copyFileToDirectory(allLibs.get(0), targetDir);
+                            }
+                            copiedFileNames.add(libraryName);
+                        } catch (IOException | CompileExceptionError e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+    }
+
 }

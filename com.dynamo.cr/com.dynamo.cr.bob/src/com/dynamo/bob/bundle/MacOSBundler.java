@@ -177,7 +177,7 @@ public class MacOSBundler implements IBundler {
             File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
             BundleHelper.copySharedLibraries(platform, binaryDir, macosDir);
         } else {
-            IOSBundler.createFatLibrary(architectures, project.getBinaryOutputDirectory(), macosDir, canceled);
+            BundleHelper.createFatLibrary(architectures, project.getBinaryOutputDirectory(), macosDir, canceled);
         }
 
         // Copy debug symbols
