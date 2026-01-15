@@ -39,11 +39,10 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [editor.resource FileResource]
+  (:import [com.defold.control LazyTreeItem]
+           [editor.resource FileResource]
            [java.io File]
            [java.nio.file Path Paths]
-           [java.util Collection]
-           [javafx.collections ObservableList]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.input DragEvent MouseEvent TransferMode]
            [javafx.scene Node]
@@ -69,18 +68,18 @@
 (defn- asset-group? [x]
   (instance? AssetGroup x))
 
+(defn- list-children [asset-group-or-resource]
+  (e/filter
+    #(or (asset-group? %)
+         (and (resource/loaded? %)
+              (not (resource/internal? %))))
+    (if (asset-group? asset-group-or-resource)
+      (:children asset-group-or-resource)
+      (resource/children asset-group-or-resource))))
+
 (defn tree-item
   ^TreeItem [asset-group-or-resource]
-  (let [children (if (asset-group? asset-group-or-resource)
-                   (:children asset-group-or-resource)
-                   (resource/children asset-group-or-resource))
-        child-items (coll/transfer children []
-                      (filter #(or (asset-group? %)
-                                   (and (resource/loaded? %)
-                                        (not (resource/internal? %)))))
-                      (map tree-item))]
-    (doto (TreeItem. asset-group-or-resource)
-      (-> .getChildren (^[Collection] ObservableList/.setAll child-items)))))
+  (LazyTreeItem. asset-group-or-resource list-children))
 
 (handler/register-menu! ::resource-menu
   [menu-items/open-selected
