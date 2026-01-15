@@ -64,7 +64,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Cursor Group Node Parent Scene]
-           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
@@ -1551,7 +1551,10 @@
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :disable (not enabled?)
-                                     :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                     :on-key-pressed (fn [^KeyEvent e]
+                                                       (when (= KeyCode/ENTER (.getCode e))
+                                                         (.consume e)
+                                                         (invoke-handler (contexts scene) command user-data)))
                                      :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
                                      :style-class (into ["grid-menu-item-base"]
                                                         (when enabled?
