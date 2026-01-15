@@ -572,7 +572,9 @@
                                   (map :category)
                                   (distinct)
                                   (remove predefined-categories))
-            columns (conj base-columns unlisted-categories)]
+            columns (cond-> base-columns
+                      (not (coll/empty? unlisted-categories))
+                      (conj unlisted-categories))]
         (with-meta
           (localization/natural-sort-by-label @localization all-items)
           {:layout :grid :columns columns})))))
