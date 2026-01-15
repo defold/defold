@@ -476,9 +476,16 @@ struct UniformBufferTest : ITest
         {
             uint32_t light0_offset   = lights_offset + 0 * light_stride;
             uint32_t light0_position = light0_offset + light_members[0].m_Offset;
+            float pos[] = { 1.0f, 2.0f, 3.0f };
+            WriteFloats(ubo_data, light0_position, pos, 3);
 
-            float tmp_v3[] = { 1.0f, 2.0f, 3.0f };
-            WriteFloats(ubo_data, light0_position, tmp_v3, 3);
+            uint32_t light0_color = light0_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 0.0f, 1.0f, 0.0f };
+            WriteFloats(ubo_data, light0_color, color, 3);
+
+            uint32_t light0_intensity = light0_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.5f;
+            WriteFloats(ubo_data, light0_intensity, &intensity, 1);
         }
 
         // Light 1
@@ -488,6 +495,48 @@ struct UniformBufferTest : ITest
 
             float tmp_v3[] = { 4.0f, 5.0f, 6.0f };
             WriteFloats(ubo_data, light1_position, tmp_v3, 3);
+
+            uint32_t light1_color = light1_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 0.0f, 0.0f, 1.0f };
+            WriteFloats(ubo_data, light1_color, color, 3);
+
+            uint32_t light1_intensity = light1_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.25f;
+            WriteFloats(ubo_data, light1_intensity, &intensity, 1);
+        }
+
+        // Light 2
+        {
+            uint32_t light2_offset   = lights_offset + 2 * light_stride;
+            uint32_t light2_position = light2_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 7.0f, 8.0f, 9.0f };
+            WriteFloats(ubo_data, light2_position, tmp_v3, 3);
+
+            uint32_t light2_color = light2_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 1.0f, 0.0f, 0.0f };
+            WriteFloats(ubo_data, light2_color, color, 3);
+
+            uint32_t light2_intensity = light2_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.15f;
+            WriteFloats(ubo_data, light2_intensity, &intensity, 1);
+        }
+
+        // Light 3
+        {
+            uint32_t light3_offset   = lights_offset + 3 * light_stride;
+            uint32_t light3_position = light3_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 10.0f, 11.0f, 12.0f };
+            WriteFloats(ubo_data, light3_position, tmp_v3, 3);
+
+            uint32_t light3_color = light3_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 1.0f, 1.0f, 1.0f };
+            WriteFloats(ubo_data, light3_color, color, 3);
+
+            uint32_t light3_intensity = light3_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.05f;
+            WriteFloats(ubo_data, light3_intensity, &intensity, 1);
         }
 
         m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout);
@@ -551,9 +600,6 @@ struct UniformBufferTest : ITest
         dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
         dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
-
-        // dmGraphics::HUniformLocation loc = GetUniformLocation(m_Program, "Test");
-        // dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
 
         dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     }
