@@ -24,6 +24,10 @@ public class OutlineTreeViewSkin<T> extends TreeViewSkin<T> {
         super(treeView);
     }
 
+    public VirtualFlow<TreeCell<T>> getFlow() {
+        return getVirtualFlow();
+    }
+
     public boolean shouldScrollTo(int index) {
         VirtualFlow<TreeCell<T>> flow = getVirtualFlow();
         TreeCell<T> firstVisibleCell = flow.getFirstVisibleCell();

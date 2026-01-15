@@ -136,10 +136,16 @@
                   (.clearSelection selection-model)
                   (when-not (coll/empty? new-selected-indices)
                     (let [first-index (new-selected-indices 0)
-                          focus-model (.getFocusModel tree-view)]
+                          focus-model (.getFocusModel tree-view)
+                          skin (.getSkin tree-view)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (when (.shouldScrollTo ^OutlineTreeViewSkin (.getSkin tree-view) first-index)
-                        (.scrollTo tree-view first-index))
+                      (when (.shouldScrollTo ^OutlineTreeViewSkin skin first-index)
+                        (let [selected-index (first new-selected-indices)
+                              cell-height (.getHeight (.getCell (.getFlow ^OutlineTreeViewSkin skin) first-index))
+                              visible-count (int (Math/ceil (/ (.getHeight tree-view) cell-height)))
+                              center-offset (quot visible-count 2)
+                              scroll-target (max 0 (- selected-index center-offset))]
+                          (.scrollTo tree-view scroll-target)))
                       (ui/run-later (.focus focus-model first-index)))))))))
         fx.lifecycle/scalar))))
 
