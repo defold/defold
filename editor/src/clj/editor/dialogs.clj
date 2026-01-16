@@ -26,6 +26,7 @@
             [cljfx.fx.progress-indicator :as fx.progress-indicator]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.prop :as fx.prop]
@@ -44,6 +45,7 @@
             [util.coll :as coll]
             [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
+           [com.defold.control ClippingContainer]
            [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
@@ -56,6 +58,9 @@
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
+
+(def clipping-container
+  (cljfx.composite/describe ClippingContainer :ctor [] :props fx.stack-pane/props))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
@@ -95,7 +100,12 @@
                                                     :children [header]}
                                                    {:fx/type fx.v-box/lifecycle
                                                     :style-class "dialog-content"
-                                                    :children [content]}
+                                                    :children [{:fx/type clipping-container
+                                                                :max-height (case size
+                                                                              :small 480.0
+                                                                              :default 600.0
+                                                                              :large 720.0)
+                                                                :children [content]}]}
                                                    {:fx/type fx.v-box/lifecycle
                                                     :style-class "dialog-with-content-footer"
                                                     :children [footer]}]
