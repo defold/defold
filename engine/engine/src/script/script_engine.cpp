@@ -26,6 +26,17 @@ namespace dmEngine
 {
     dmEngine::HEngine g_Engine = 0;
 
+/*# System API documentation
+ *
+ * Functions and messages for using system resources, controlling the engine,
+ * error handling and debugging.
+ *
+ * @document
+ * @name System
+ * @namespace sys
+ * @language Lua
+ */
+
 /*#
  * Enables engine throttling.
  *
