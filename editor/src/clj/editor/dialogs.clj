@@ -15,6 +15,7 @@
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
+            [cljfx.composite :as fx.composite]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]
@@ -60,7 +61,7 @@
 (set! *warn-on-reflection* true)
 
 (def clipping-container
-  (cljfx.composite/describe ClippingContainer :ctor [] :props fx.stack-pane/props))
+  (fx.composite/describe ClippingContainer :ctor [] :props fx.stack-pane/props))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
