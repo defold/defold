@@ -422,6 +422,14 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         "    gl_FragColor = vec4(1.0);\n"
         "}\n";
 
+    struct ubo_data_t
+    {
+        float f;
+        float v2[2];
+        float v3[3];
+        float v4[4];
+    } ubo_data;
+
     dmGraphics::ShaderDescBuilder shader_desc_builder;
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
@@ -468,13 +476,6 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     // 1. Create a ubo with the same layout
     {
         dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, null_program->m_UniformBuffers[0].m_Layout);
-
-        /*
-        void SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-        void EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
-        void DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
-        */
-
         dmGraphics::EnableProgram(m_Context, program);
 
         // Set the initial v4s data
@@ -493,7 +494,23 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         ASSERT_NEAR(written_floats[2], 3.0f, EPSILON);
         ASSERT_NEAR(written_floats[3], 4.0f, EPSILON);
 
-        // dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        // Bind a UBO and draw again, it should take values from the UBO instead.
+        ubo_data.v4[0] = 5.0f;
+        ubo_data.v4[1] = 6.0f;
+        ubo_data.v4[2] = 7.0f;
+        ubo_data.v4[3] = 8.0f;
+
+        dmGraphics::SetUniformBuffer(m_Context, ubo, 0, sizeof(ubo_data), &ubo_data);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+
+        ASSERT_NEAR(written_floats[0], 5.0f, EPSILON);
+        ASSERT_NEAR(written_floats[1], 6.0f, EPSILON);
+        ASSERT_NEAR(written_floats[2], 7.0f, EPSILON);
+        ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
+
+        dmGraphics::DisableUniformBuffer(m_Context, ubo);
 
         dmGraphics::DisableProgram(m_Context);
     }
