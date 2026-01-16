@@ -1533,7 +1533,7 @@
 
 (defn init-context-menu! ^ContextMenu [menu-location ^Scene scene]
   (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :keymap) keymap/empty) (user-data scene :localization) evaluation-context))
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false evaluation-context) (or (user-data scene :keymap) keymap/empty) (user-data scene :localization) evaluation-context))
         cm (make-context-menu menu-items)]
     (doto (.getItems cm)
       (refresh-separator-visibility)

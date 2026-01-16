@@ -1158,8 +1158,8 @@
                   (deref lint-promise))
                 (fn process-lint-results-on-ui-thread! [results]
                   (if results
-                    (g/with-auto-evaluation-context evaluation-context
-                      (let [{errors true warnings false}
+                    (let [{errors true warnings false}
+                          (g/with-auto-evaluation-context evaluation-context
                             (->> results
                                  (eduction
                                    (mapcat
@@ -1177,14 +1177,14 @@
                                                      :user-data {:cursor-range (data/sanitize-cursor-range diagnostic-range)}
                                                      :message message})))
                                            diagnostic-ranges)))))
-                                 (group-by #(= :fatal (:severity %))))]
-                        (finish-with-result!
-                          (cond-> project-build-results
-                                  errors
-                                  (update :error (fn [existing-error]
-                                                   (g/map->error {:causes (cond-> errors existing-error (conj existing-error))})))
-                                  warnings
-                                  (assoc :warning (g/map->error {:causes warnings}))))))
+                                 (group-by #(= :fatal (:severity %)))))]
+                      (finish-with-result!
+                        (cond-> project-build-results
+                                errors
+                                (update :error (fn [existing-error]
+                                                 (g/map->error {:causes (cond-> errors existing-error (conj existing-error))})))
+                                warnings
+                                (assoc :warning (g/map->error {:causes warnings})))))
                     (finish-with-result! project-build-results)))))
             (finish-with-result! project-build-results)))
 
