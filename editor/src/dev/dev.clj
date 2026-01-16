@@ -1603,6 +1603,7 @@
          (persistent! batches))))))
 
 (defn clear-enable-all! []
+  (g/forget-logged-evaluation-context-scope-violations!)
   (clear-caches!)
   (handler/enable-disabled-handlers!)
   (ui/enable-stopped-timers!)

@@ -99,10 +99,10 @@
       (cond-> []
 
               load-fn
-              (into (flatten
-                      (if (nil? read-fn)
+              (into coll/flatten-xf
+                    (if (nil? read-fn)
                         (load-fn project resource-node-id resource)
-                        (load-fn project resource-node-id resource source-value))))
+                        (load-fn project resource-node-id resource source-value)))
 
               (and (:auto-connect-save-data? resource-type)
                    (resource/save-tracked? resource))

@@ -16,7 +16,6 @@
   "Main api for graph and node"
   (:refer-clojure :exclude [constantly deftype])
   (:require [clojure.tools.macro :as ctm]
-            [clojure.walk :as walk]
             [cognitect.transit :as transit]
             [internal.cache :as c]
             [internal.graph :as ig]
@@ -118,6 +117,11 @@
 (defonce ^:private logged-evaluation-context-scope-violations-atom
   (when (= :log-once strict-evaluation-context-scopes)
     (atom #{})))
+
+(defn forget-logged-evaluation-context-scope-violations! []
+  (when logged-evaluation-context-scope-violations-atom
+    (reset! logged-evaluation-context-scope-violations-atom #{})
+    nil))
 
 (defn log-evaluation-context-scope-violation-exception! [exception]
   (when (or (nil? logged-evaluation-context-scope-violations-atom)

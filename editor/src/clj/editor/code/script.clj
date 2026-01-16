@@ -297,7 +297,7 @@
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project self)]
+                         project (project/get-project basis self)]
                      (concat
                        (g/disconnect-sources basis self :resource)
                        (g/disconnect-sources basis self :resource-build-targets)
