@@ -63,7 +63,7 @@
                      [org.commonmark/commonmark-ext-gfm-tables "0.25.1"]
                      [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
-                     [org.jsoup/jsoup "1.22.1"]
+                     [org.jsoup/jsoup "1.11.3"]
 
                      [com.cognitect.aws/api "0.8.673"]
                      [com.cognitect.aws/endpoints "1.1.12.478"]
