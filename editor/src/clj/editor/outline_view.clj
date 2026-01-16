@@ -130,33 +130,38 @@
             (let [selection-model (.getSelectionModel tree-view)
                   old-selected-node-id-paths (coll/transfer (.getSelectedItems selection-model) #{}
                                                (keep #(some-> % TreeItem/.getValue :node-id-path)))]
+              (clojure.pprint/pprint (mapv (fn [x] :node-id-path (TreeItem/.getValue x))
+                                           (.getSelectedItems selection-model)))
               (when-not (= old-selected-node-id-paths new-selected-node-id-paths)
                 (let [new-selected-indices (coll/transfer (range (.getExpandedItemCount tree-view)) []
                                              (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
                   (.clearSelection selection-model)
                   (when-not (coll/empty? new-selected-indices)
                     (let [first-index (new-selected-indices 0)
-                          focus-model (.getFocusModel tree-view)
                           skin (.getSkin tree-view)
-                          flow (.getFlow skin)
-                          first-visible (.getFirstVisibleCell flow)
-                          last-visible (.getLastVisibleCell flow)]
+                          flow (.getFlow ^OutlineTreeViewSkin skin)
+                          first-visible-idx (.getIndex (.getFirstVisibleCell flow))
+                          last-visible-idx (.getIndex (.getLastVisibleCell flow))
+                          fixed-cell-size (.getHeight (.getCell flow first-index))]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (when (and first-visible last-visible)
-                        (let [first-visible-idx (.getIndex first-visible)
-                              last-visible-idx (.getIndex last-visible)
-                              fixed-cell-size (.getHeight (.getCell (.getFlow ^OutlineTreeViewSkin skin) first-index))]
-                          (cond
-                            (> first-index last-visible-idx)
-                            (let [cells-to-scroll (- first-index last-visible-idx)]
-                              (.scrollPixels flow (* (inc cells-to-scroll) fixed-cell-size)))
+                      (println "should it scroll?"
+                               (.shouldScrollTo ^OutlineTreeViewSkin skin first-index)
+                               first-index
+                               first-visible-idx last-visible-idx)
+                      (when (.shouldScrollTo ^OutlineTreeViewSkin skin first-index)
+                        (cond
+                          (> first-index last-visible-idx)
+                          (let [cells-to-scroll (- first-index last-visible-idx)]
+                            (.scrollPixels flow (* (inc cells-to-scroll) fixed-cell-size)))
 
-                            (< first-index first-visible-idx)
-                            (let [cells-to-scroll (- first-visible-idx first-index)]
-                              (.scrollPixels flow (- (* cells-to-scroll fixed-cell-size))))
+                          (< first-index first-visible-idx)
+                          (let [cells-to-scroll (- first-visible-idx first-index)]
+                            (.scrollPixels flow (- (* cells-to-scroll fixed-cell-size))))
 
-                            :else nil)))
-                      (ui/run-later (.focus focus-model first-index)))))))))
+                          :else
+                          (println "should not have gotten here")))
+                      (println "===============")
+                      (ui/run-later (.focus (.getFocusModel tree-view) first-index)))))))))
         fx.lifecycle/scalar))))
 
 ;; Iff every item-iterator has the same parent, return that parent, else nil
