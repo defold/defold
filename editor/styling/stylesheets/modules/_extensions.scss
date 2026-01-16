@@ -390,6 +390,20 @@ $ext-line-height: 26px;
                 }
             }
         }
+        &:drag-over {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-defold-green;
+            }
+        }
+        &:drag-over:drag-invalid {
+            & > .ext-resource-picker-field,
+            & > .ext-resource-picker-open-button,
+            & > .ext-resource-picker-browse-button {
+                -fx-border-color: -df-defold-red;
+            }
+        }
     }
     &-combo-box {
         & > .label {

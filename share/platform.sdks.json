@@ -1,6 +1,6 @@
 {
-    "armv7-android": ["android", "ndk25"],
-    "arm64-android": ["android", "ndk25"],
+    "armv7-android": ["android", "ndk25_sdk36"],
+    "arm64-android": ["android", "ndk25_sdk36"],
     "js-web": ["emsdk", "406"],
     "wasm-web": ["emsdk", "406"],
     "wasm_pthread-web": ["emsdk", "406"],

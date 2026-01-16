@@ -426,15 +426,15 @@ platforms:
   android:
     env:
         PROGUARD:                 "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR_35}}"
-        NDK_PATH:                 "{{env.ANDROID_NDK25_PATH}}"
-        SYSROOT:                  "{{env.ANDROID_NDK25_SYSROOT}}"
+        LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR}}"
+        NDK_PATH:                 "{{env.ANDROID_NDK_PATH}}"
+        SYSROOT:                  "{{env.ANDROID_NDK_SYSROOT}}"
         MANIFEST_MERGE_TOOL:      "{{env.MANIFEST_MERGE_TOOL}}"
         PATH:                     "{{env.PATH}}"
-        NDK_LD:                   "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
-        NDK_AR:                   "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
-        ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION_35}}"
-        ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_35}}"
+        NDK_LD:                   "{{env.ANDROID_NDK_BIN_PATH}}/ld.lld"
+        NDK_AR:                   "{{env.ANDROID_NDK_BIN_PATH}}/llvm-ar"
+        ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION}}"
+        ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "decoder_wav", "decoder_ogg"]
@@ -471,8 +471,8 @@ platforms:
 
   armv7-android:
     env:
-        NDK_VERSION:            "{{env.ANDROID_NDK25_API_VERSION}}"
-        NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK25_API_VERSION}}-clang++"
+        NDK_VERSION:            "{{env.ANDROID_NDK_API_VERSION}}"
+        NDK_CXX:                "{{env.ANDROID_NDK_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK_API_VERSION}}-clang++"
     context:
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
@@ -482,8 +482,8 @@ platforms:
 
   arm64-android:
     env:
-        NDK_VERSION:            "{{env.ANDROID_64_NDK25_API_VERSION}}"
-        NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK25_API_VERSION}}-clang++"
+        NDK_VERSION:            "{{env.ANDROID_64_NDK_API_VERSION}}"
+        NDK_CXX:                "{{env.ANDROID_NDK_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK_API_VERSION}}-clang++"
     context:
         libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android"]
         defines:    ["DM_PLATFORM_ANDROID", "__aarch64__"]
