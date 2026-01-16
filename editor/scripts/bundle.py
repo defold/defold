@@ -344,10 +344,10 @@ def get_jdk(platform):
     else:
         return '%s/jdk-%s' % (path, java_version)
 
-def invoke_lein(args, jdk_path=None):
+def invoke_lein(args, jdk_path=None, to_stdout=True):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=to_stdout, stderr=subprocess.STDOUT)
 
 def check_reflections(jdk_path):
     reflection_prefix = 'Reflection warning, ' # final space important
@@ -355,7 +355,7 @@ def check_reflections(jdk_path):
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path)
+    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path, False)
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)

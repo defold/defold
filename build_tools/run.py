@@ -47,6 +47,8 @@ def _exec_command(arg_list, **kwargs):
         # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
         if not 'stdout' in kwargs:
             kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
+        if 'stderr' not in kwargs:
+            kwargs['stderr'] = subprocess.STDOUT
         process = subprocess.Popen(arg_list, **kwargs)
         output = process.communicate()[0]
         if process.returncode != 0:
