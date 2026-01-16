@@ -220,30 +220,31 @@ namespace dmGraphics
         }
     };
 
-    uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t             GetGraphicsTypeDataSize(Type type);
-    void                 InstallAdapterVendor();
-    PipelineState        GetDefaultPipelineState();
-    Type                 GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
-    void                 SetForceFragmentReloadFail(bool should_fail);
-    void                 SetForceVertexReloadFail(bool should_fail);
-    void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    bool                 IsTextureFormatCompressed(TextureFormat format);
-    bool                 IsTextureFormatASTC(TextureFormat format);
-    const char*          TextureFormatToString(TextureFormat format);
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
-    Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
-    bool                 GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
+    uint32_t                   GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t                   GetGraphicsTypeDataSize(Type type);
+    void                       InstallAdapterVendor();
+    PipelineState              GetDefaultPipelineState();
+    Type                       GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
+    void                       SetForceFragmentReloadFail(bool should_fail);
+    void                       SetForceVertexReloadFail(bool should_fail);
+    void                       SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    bool                       IsTextureFormatCompressed(TextureFormat format);
+    bool                       IsTextureFormatASTC(TextureFormat format);
+    const char*                TextureFormatToString(TextureFormat format);
+    ShaderDesc::Language       GetShaderProgramLanguage(HContext context);
+    uint32_t                   GetShaderTypeSize(ShaderDesc::ShaderDataType type);
+    uint32_t                   GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type);
+    Type                       ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+    ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type);
+    bool                       GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
 
-    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
-    void                 DestroyShaderMeta(ShaderMeta& meta);
-    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
-    uint32_t             CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
-    void                 BuildUniforms(Program* program);
-    void                 IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
-    // Uniform buffers
-    void                 UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
+    void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
+    void                       DestroyShaderMeta(ShaderMeta& meta);
+    bool                       GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
+    void                       BuildUniforms(Program* program);
+    void                       IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
+    void                       UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,
         dmArray<ShaderResourceBinding>&       resources,

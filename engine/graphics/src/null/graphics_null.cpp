@@ -384,21 +384,44 @@ namespace dmGraphics
 
     static HUniformBuffer NullNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        return 0;
+        NullUniformBuffer* ubo = new NullUniformBuffer();
+        ubo->m_Layout          = layout;
+        ubo->m_Buffer          = new uint8_t[layout.m_Size];
+        ubo->m_BufferSize      = layout.m_Size;
+        return (HUniformBuffer) ubo;
     }
 
     static void NullSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
+        memcpy(ubo->m_Buffer + offset, data, size);
     }
 
     static void NullDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
+        NullContext* context = (NullContext*)_context;
+        NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
+        if (context->m_UniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+        {
+            context->m_UniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+        }
     }
 
     static void NullEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
+        NullContext* context = (NullContext*)_context;
+        NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
+        ubo->m_BoundBinding = binding;
+        ubo->m_BoundSet     = set;
+
+        if (context->m_UniformBuffers[set][binding])
+        {
+            NullDisableUniformBuffer(context, (HUniformBuffer) context->m_UniformBuffers[set][binding]);
+        }
+
+        context->m_UniformBuffers[set][binding] = ubo;
     }
 
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -670,11 +693,48 @@ namespace dmGraphics
         return ~0;
     }
 
+    static void DrawSetup(NullContext* context)
+    {
+        NullProgram* program = context->m_Program;
+
+        if (!program || program->m_UniformBuffers.Size() == 0)
+            return;
+
+        if (context->m_PerDrawUniformData.Capacity() < program->m_UniformDataSize)
+        {
+            context->m_PerDrawUniformData.SetCapacity(program->m_UniformDataSize);
+            context->m_PerDrawUniformData.SetSize(program->m_UniformDataSize);
+        }
+        memset(context->m_PerDrawUniformData.Begin(), 0, context->m_PerDrawUniformData.Size());
+
+        for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            NullUniformBuffer* pgm_ubo = &program->m_UniformBuffers[i];
+            NullUniformBuffer* bound_ubo = context->m_UniformBuffers[pgm_ubo->m_BoundSet][pgm_ubo->m_BoundBinding];
+
+            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[pgm_ubo->m_BoundSet][pgm_ubo->m_BoundBinding];
+
+            uint8_t* write_to = context->m_PerDrawUniformData.Begin() + pgm_res.m_DataOffset;
+
+            if (bound_ubo)
+            {
+                memcpy(write_to, bound_ubo->m_Buffer, pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+            }
+            else
+            {
+                uint8_t* data_from = program->m_UniformData + pgm_res.m_DataOffset;
+                memcpy(write_to, data_from, pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+            }
+        }
+    }
+
     static void NullDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
         assert(_context);
         assert(index_buffer);
         NullContext* context = (NullContext*) _context;
+
+        DrawSetup(context);
 
         uint32_t binding_index = 0;
 
@@ -707,9 +767,12 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
-    static void NullDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
+    static void NullDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
-        assert(context);
+        assert(_context);
+
+        NullContext* context = (NullContext*) _context;
+        DrawSetup(context);
 
         if (g_Flipped)
         {
@@ -735,6 +798,25 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
+    static void BuildUniformBuffers(NullProgram* program)
+    {
+        uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
+        program->m_UniformBuffers.SetCapacity(num_ubos);
+
+        for (int i = 0; i < num_ubos; ++i)
+        {
+            ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[i];
+            ShaderResourceTypeInfo& res_type = program->m_BaseProgram.m_ShaderMeta.m_TypeInfos[res.m_Type.m_TypeIndex];
+
+            NullUniformBuffer ubo = {};
+            ubo.m_BoundBinding    = res.m_Binding;
+            ubo.m_BoundSet        = res.m_Set;
+            dmGraphics::GetUniformBufferLayout(res.m_Type.m_TypeIndex, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Begin(), program->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Size(), &ubo.m_Layout);
+
+            program->m_UniformBuffers.Push(ubo);
+        }
+    }
+
     static void CreateProgramResourceBindings(NullProgram* program, NullShaderModule* vertex_module, NullShaderModule* fragment_module, NullShaderModule* compute_module)
     {
         ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
@@ -752,6 +834,7 @@ namespace dmGraphics
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
 
         BuildUniforms(&program->m_BaseProgram);
+        BuildUniformBuffers(program);
     }
 
     static NullShaderModule* NewShaderModuleFromDDF(HContext context, ShaderDesc::Shader* ddf)
@@ -888,7 +971,7 @@ namespace dmGraphics
     static void NullEnableProgram(HContext context, HProgram program)
     {
         assert(context);
-        ((NullContext*) context)->m_Program = (void*)program;
+        ((NullContext*) context)->m_Program = (NullProgram*) program;
     }
 
     static void NullDisableProgram(HContext context)
@@ -967,7 +1050,7 @@ namespace dmGraphics
         uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        NullProgram* program            = (NullProgram*) context->m_Program;
+        NullProgram* program            = context->m_Program;
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
         uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
 
@@ -992,7 +1075,7 @@ namespace dmGraphics
         uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        NullProgram* program            = (NullProgram*) context->m_Program;
+        NullProgram* program            = context->m_Program;
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
         uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
 
@@ -1010,7 +1093,7 @@ namespace dmGraphics
         uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        NullProgram* program            = (NullProgram*) context->m_Program;
+        NullProgram* program            = context->m_Program;
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
         uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
 

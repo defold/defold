@@ -135,7 +135,7 @@ static inline dmGraphics::ShaderDesc::ResourceTypeInfo* AddShaderType(dmGraphics
     return type_info;
 }
 
-static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type, int type_index)
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type, int type_index, int offset, int element_count)
 {
     if (type_info->m_Members.m_Data == 0)
     {
@@ -152,6 +152,8 @@ static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics:
 
     member->m_Name = name;
     member->m_NameHash = dmHashString64(name);
+    member->m_Offset = offset;
+    member->m_ElementCount = element_count;
     member->m_Type.m_Type.m_ShaderType = type;
 
     if (type_index != -1)
@@ -161,14 +163,14 @@ static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics:
     }
 }
 
-static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type, int offset, int element_count)
 {
-    AddShaderTypeMember(desc, type_info, name, type, -1);
+    AddShaderTypeMember(desc, type_info, name, type, -1, offset, element_count);
 }
 
-static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, int type_index)
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, int type_index, int offset, int element_count)
 {
-    AddShaderTypeMember(desc, type_info, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index);
+    AddShaderTypeMember(desc, type_info, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, offset, element_count);
 }
 
 static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)

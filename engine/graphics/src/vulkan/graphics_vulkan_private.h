@@ -77,12 +77,10 @@ namespace dmGraphics
 
     struct VulkanUniformBuffer
     {
-        DeviceBuffer        m_DeviceBuffer;
         UniformBufferLayout m_Layout;
-        uint16_t            m_BoundBinding : 8;
-        uint16_t            m_BoundSet     : 6;
-        uint16_t            m_Bound        : 1;
-        uint16_t            m_BoundToSet   : 1;
+        DeviceBuffer        m_DeviceBuffer;
+        uint8_t             m_BoundBinding;
+        uint8_t             m_BoundSet;
     };
 
     struct VulkanTexture
@@ -437,12 +435,10 @@ namespace dmGraphics
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        VulkanUniformBuffer*            m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanProgram*                  m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;
-
-        // Globally bound resources
-        VulkanUniformBuffer*            m_BoundUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;

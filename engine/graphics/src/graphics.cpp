@@ -536,6 +536,41 @@ namespace dmGraphics
         return (Type) 0xffffffff;
     }
 
+    ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type)
+    {
+        switch(graphics_type)
+        {
+            case TYPE_INT:              return ShaderDesc::SHADER_TYPE_INT;
+            case TYPE_UNSIGNED_INT:     return ShaderDesc::SHADER_TYPE_UINT;
+            case TYPE_FLOAT:            return ShaderDesc::SHADER_TYPE_FLOAT;
+            case TYPE_FLOAT_VEC2:       return ShaderDesc::SHADER_TYPE_VEC2;
+            case TYPE_FLOAT_VEC3:       return ShaderDesc::SHADER_TYPE_VEC3;
+            case TYPE_FLOAT_VEC4:       return ShaderDesc::SHADER_TYPE_VEC4;
+            case TYPE_FLOAT_MAT2:       return ShaderDesc::SHADER_TYPE_MAT2;
+            case TYPE_FLOAT_MAT3:       return ShaderDesc::SHADER_TYPE_MAT3;
+            case TYPE_FLOAT_MAT4:       return ShaderDesc::SHADER_TYPE_MAT4;
+            case TYPE_SAMPLER:          return ShaderDesc::SHADER_TYPE_SAMPLER;
+            case TYPE_SAMPLER_CUBE:     return ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+            case TYPE_TEXTURE_CUBE:     return ShaderDesc::SHADER_TYPE_TEXTURE_CUBE;
+            // 2D
+            case TYPE_SAMPLER_2D:       return ShaderDesc::SHADER_TYPE_SAMPLER2D;
+            case TYPE_SAMPLER_2D_ARRAY: return ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY;
+            case TYPE_IMAGE_2D:         return ShaderDesc::SHADER_TYPE_IMAGE2D;
+            case TYPE_TEXTURE_2D:       return ShaderDesc::SHADER_TYPE_TEXTURE2D;
+            case TYPE_TEXTURE_2D_ARRAY: return ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY;
+            // 3D
+            case TYPE_SAMPLER_3D:       return ShaderDesc::SHADER_TYPE_SAMPLER3D;
+            case TYPE_SAMPLER_3D_ARRAY: return ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY;
+            case TYPE_IMAGE_3D:         return ShaderDesc::SHADER_TYPE_IMAGE3D;
+            case TYPE_TEXTURE_3D:       return ShaderDesc::SHADER_TYPE_TEXTURE3D;
+            case TYPE_TEXTURE_3D_ARRAY: return ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY;
+            default: break;
+        }
+
+        // Not supported
+        return (ShaderDesc::ShaderDataType) 0xffffffff;
+    }
+
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
@@ -1407,8 +1442,7 @@ namespace dmGraphics
         }
     }
 
-    // For uniform buffers:
-    static uint32_t GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type)
+    uint32_t GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type)
     {
         switch (type)
         {
@@ -1439,6 +1473,7 @@ namespace dmGraphics
             // Nested struct
             uint32_t struct_size = CalculateStd140StructSize(type_infos, member.m_Type.m_TypeIndex, update_offsets);
 
+            // Structs are always rounded up to 16 in std140
             element_size = DM_ALIGN(struct_size, 16);
         }
         else
@@ -1461,42 +1496,78 @@ namespace dmGraphics
         const ShaderResourceTypeInfo& type_info = type_infos[type_index];
 
         const uint32_t STRUCT_ALIGNMENT = 16;
-        uint32_t offset                 = 0;
-        uint32_t max_alignment          = 16;
+        uint32_t offset        = 0;
+        uint32_t max_alignment = STRUCT_ALIGNMENT;
 
-        for (int i = 0; i < type_info.m_MemberCount; ++i)
+        for (uint32_t i = 0; i < type_info.m_MemberCount; ++i)
         {
             ShaderResourceMember& member = type_info.m_Members[i];
 
             uint32_t alignment = STRUCT_ALIGNMENT;
+
             if (!member.m_Type.m_UseTypeIndex)
             {
                 alignment = GetStd140BaseAlignment(member.m_Type.m_ShaderType);
             }
 
-            // Align the offset for this member
             offset = DM_ALIGN(offset, alignment);
 
             if (update_offsets)
-            {
                 member.m_Offset = offset;
-            }
 
             offset += CalculateStd140MemberSize(type_infos, member, update_offsets);
 
-            if (alignment > max_alignment)
-                max_alignment = alignment;
+            max_alignment = dmMath::Max(max_alignment, alignment);
         }
 
         return DM_ALIGN(offset, max_alignment);
     }
 
-    static uint32_t CalculateShaderTypesSize(const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    static uint32_t CalculateShaderTypesSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
-        uint32_t size = CalculateStd140StructSize(type_infos, 0, false);
+        assert(root_type_index < num_type_infos);
+        uint32_t size = CalculateStd140StructSize(type_infos, root_type_index, false);
 
         // UBO size must always be aligned to 16 bytes
         return DM_ALIGN(size, 16);
+    }
+
+    static void HashTypeRecursive(uint32_t type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, HashState32* hash_state, bool* visited)
+    {
+        assert(type_index < num_types);
+
+        if (visited[type_index])
+            return;
+
+        visited[type_index] = true;
+
+        const ShaderResourceTypeInfo& type = types[type_index];
+
+        for (uint32_t j = 0; j < type.m_MemberCount; ++j)
+        {
+            const auto& member = type.m_Members[j];
+
+            // Hash member layout
+            dmHashUpdateBuffer32(hash_state, &member.m_Offset,       sizeof(member.m_Offset));
+            dmHashUpdateBuffer32(hash_state, &member.m_ElementCount, sizeof(member.m_ElementCount));
+
+            uint8_t use_type_index = member.m_Type.m_UseTypeIndex ? 1 : 0;
+            dmHashUpdateBuffer32(hash_state, &use_type_index, sizeof(use_type_index));
+
+            if (use_type_index)
+            {
+                uint32_t child_type = member.m_Type.m_TypeIndex;
+                dmHashUpdateBuffer32(hash_state, &child_type, sizeof(child_type));
+
+                // Recurse into referenced type
+                HashTypeRecursive(child_type, types, num_types, hash_state, visited);
+            }
+            else
+            {
+                ShaderDesc::ShaderDataType shader_type = member.m_Type.m_ShaderType;
+                dmHashUpdateBuffer32(hash_state, &shader_type, sizeof(shader_type));
+            }
+        }
     }
 
     void UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
@@ -1651,37 +1722,21 @@ namespace dmGraphics
     }
     // This function expects that the offsets are already calculated! I.e, if the types are created manually
     // you can use the UpdateShaderTypesOffsets function (graphics_private.h) first.
-    void GetUniformBufferLayout(const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
+    void GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
     {
         HashState32 hash_state;
         dmHashInit32(&hash_state, false);
+        assert(root_type_index < num_types);
 
-        for (int i = 0; i < num_types; ++i)
-        {
-            const ShaderResourceTypeInfo& type = types[i];
-            for (int j = 0; j < type.m_MemberCount; ++j)
-            {
-                dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_ElementCount, sizeof(type.m_Members[j].m_ElementCount));
-                dmHashUpdateBuffer32(&hash_state, &type.m_Members[j].m_Offset, sizeof(type.m_Members[j].m_Offset));
+        dmArray<bool> visited;
+        visited.SetCapacity(num_types);
+        visited.SetSize(num_types);
+        memset(visited.Begin(), 0, sizeof(bool) * num_types);
 
-                bool use_type_index = type.m_Members[j].m_Type.m_UseTypeIndex;
-                dmHashUpdateBuffer32(&hash_state, &use_type_index, sizeof(use_type_index));
-
-                if (type.m_Members[j].m_Type.m_UseTypeIndex)
-                {
-                    uint32_t type_index = type.m_Members[j].m_Type.m_TypeIndex;
-                    dmHashUpdateBuffer32(&hash_state, &type_index, sizeof(type_index));
-                }
-                else
-                {
-                    ShaderDesc::ShaderDataType shader_type = type.m_Members[j].m_Type.m_ShaderType;
-                    dmHashUpdateBuffer32(&hash_state, &shader_type, sizeof(shader_type));
-                }
-            }
-        }
+        HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited.Begin());
 
         layout_desc->m_Hash = dmHashFinal32(&hash_state);
-        layout_desc->m_Size = CalculateShaderTypesSize(types, num_types);
+        layout_desc->m_Size = CalculateShaderTypesSize(root_type_index, types, num_types);
     }
     ///////////////////////////////////////////////////
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////

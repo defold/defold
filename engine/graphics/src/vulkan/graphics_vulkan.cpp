@@ -1816,11 +1816,11 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
-        ubo->m_Bound      = false;
-        // TODO: Actually, it will still be bound at this time. We need to defer this somehow.
-        ubo->m_BoundToSet = false;
 
-        context->m_BoundUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+        if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+        }
     }
 
     static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1830,14 +1830,13 @@ bail:
 
         ubo->m_BoundBinding = binding;
         ubo->m_BoundSet     = set;
-        ubo->m_Bound        = true;
 
-        if (context->m_BoundUniformBuffers[set][binding])
+        if (context->m_CurrentUniformBuffers[set][binding])
         {
-            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_BoundUniformBuffers[set][binding]);
+            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
         }
 
-        context->m_BoundUniformBuffers[set][binding] = ubo;
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2327,7 +2326,7 @@ bail:
                 } break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    VulkanUniformBuffer* bound_ubo = context->m_BoundUniformBuffers[res->m_Set][res->m_Binding];
+                    VulkanUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
                     if (bound_ubo)
                     {
                         // TODO: We shouldn't have to rebind this UBO every time it has to be used,

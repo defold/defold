@@ -353,7 +353,7 @@ struct ComputeTest : ITest
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&compute_desc, "buf");
-        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
+        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4, 0, 1);
         AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_COMPUTE);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
@@ -463,7 +463,7 @@ struct UniformBufferTest : ITest
         dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
         dmGraphics::UniformBufferLayout ubo_layout;
-        dmGraphics::GetUniformBufferLayout(types, DM_ARRAY_SIZE(types), &ubo_layout);
+        dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types), &ubo_layout);
 
         uint8_t* ubo_data = new uint8_t[ubo_layout.m_Size];
         memset(ubo_data, 0, ubo_layout.m_Size);
@@ -562,8 +562,8 @@ struct UniformBufferTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
+            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
+            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
         }
         else
         {
@@ -572,16 +572,16 @@ struct UniformBufferTest : ITest
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_data = AddShaderType(shader_desc, "LightData");
-        AddShaderTypeMember(shader_desc, type_light_data, "lights", 1);
-        AddShaderTypeMember(shader_desc, type_light_data, "light_count", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT);
+        AddShaderTypeMember(shader_desc, type_light_data, "lights", 1, light_data_members[0].m_Offset, 4);
+        AddShaderTypeMember(shader_desc, type_light_data, "light_count", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_data_members[1].m_Offset, 1);
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_light = AddShaderType(shader_desc, "Light");
-        AddShaderTypeMember(shader_desc, type_light_data, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3);
-        AddShaderTypeMember(shader_desc, type_light_data, "light_color", 2);
+        AddShaderTypeMember(shader_desc, type_light, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_members[0].m_Offset, 1);
+        AddShaderTypeMember(shader_desc, type_light, "light_color", 2, light_members[1].m_Offset, 1);
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_color = AddShaderType(shader_desc, "LightColor");
-        AddShaderTypeMember(shader_desc, type_light_color, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3);
-        AddShaderTypeMember(shader_desc, type_light_color, "intensity", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT);
+        AddShaderTypeMember(shader_desc, type_light_color, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_color_members[0].m_Offset, 1);
+        AddShaderTypeMember(shader_desc, type_light_color, "intensity", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_color_members[1].m_Offset, 1);
 
         AddShaderResource(shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
         AddShaderResource(shader_desc, "LightData", 0, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);

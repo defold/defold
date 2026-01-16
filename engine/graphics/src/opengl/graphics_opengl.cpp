@@ -182,6 +182,7 @@
     PFNGLGENBUFFERSPROC              glGenBuffers              = NULL;
     PFNGLBINDBUFFERPROC              glBindBuffer              = NULL;
     PFNGLUNIFORMBLOCKBINDINGPROC     glUniformBlockBinding     = NULL;
+    PFNGLGETACTIVEUNIFORMNAMEPROC    glGetActiveUniformName    = NULL;
 
     #if !defined(GL_ES_VERSION_2_0)
         PFNGLGETSTRINGIPROC glGetStringi = NULL;
@@ -1062,6 +1063,7 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glGenBuffers, "glGenBuffers", PFNGLGENBUFFERSPROC);
         GET_PROC_ADDRESS(glBindBuffer, "glBindBuffer", PFNGLBINDBUFFERPROC);
         GET_PROC_ADDRESS(glUniformBlockBinding, "glUniformBlockBinding", PFNGLUNIFORMBLOCKBINDINGPROC);
+        GET_PROC_ADDRESS(glGetActiveUniformName, "glGetActiveUniformName", PFNGLGETACTIVEUNIFORMNAMEPROC);
 
     #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
@@ -1736,18 +1738,36 @@ static void LogFrameBufferError(GLenum status)
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+        // glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+        glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
     static void OpenGLDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
+        if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+        }
     }
 
     static void OpenGLEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
+        ubo->m_BoundBinding = binding;
+        ubo->m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            OpenGLDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
+
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2098,15 +2118,24 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLProgram* program = context->m_CurrentProgram;
 
-        if (context->m_IsGles3Version)
-        {
-            for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
-            {
-                OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[i];
+        if (!context->m_IsGles3Version)
+            return;
 
+        for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[i];
+            OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+
+            if (bound_ubo)
+            {
+                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
+                CHECK_GL_ERROR;
+            }
+            else
+            {
                 if (ubo.m_ActiveUniforms > 0)
                 {
-                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, GetGLHandle(context, ubo.m_Id));
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
                     CHECK_GL_ERROR;
 
                     if (ubo.m_Dirty > 0)
@@ -2341,7 +2370,7 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
-    static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         uint32_t ubo_binding = 0;
@@ -2350,68 +2379,67 @@ static void LogFrameBufferError(GLenum status)
 
         memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLUniformBufferLegacy) * num_ubos);
 
-        for (uint32_t i = 0; i < num_shaders; ++i)
+        for (uint32_t j = 0; j < program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
         {
-            for (uint32_t j = 0; j < program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
+            ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
+
+            GLuint program_handle = GetGLHandle(context, program->m_Id);
+            GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
+            CHECK_GL_ERROR;
+
+            if (blockIndex == GL_INVALID_INDEX)
             {
-                ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
-                GLuint program_handle = GetGLHandle(context, program->m_Id);
-
-                GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
-                CHECK_GL_ERROR;
-
-                if (blockIndex == GL_INVALID_INDEX)
-                {
-                    continue;
-                }
-
-                GLint binding;
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_BINDING, &binding);
-                CHECK_GL_ERROR;
-
-                GLint blockSize;
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
-                CHECK_GL_ERROR;
-
-                GLint activeUniforms;
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
-                CHECK_GL_ERROR;
-
-                OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[blockIndex];
-
-                ubo.m_Indices.SetCapacity(activeUniforms);
-                ubo.m_Indices.SetSize(activeUniforms);
-                ubo.m_Offsets.SetCapacity(activeUniforms);
-                ubo.m_Offsets.SetSize(activeUniforms);
-                ubo.m_Binding        = ubo_binding++; // binding;
-                ubo.m_BlockSize      = blockSize;
-                ubo.m_ActiveUniforms = activeUniforms;
-                ubo.m_BlockMemory    = new uint8_t[ubo.m_BlockSize];
-                memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
-
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
-                CHECK_GL_ERROR;
-                glGetActiveUniformsiv(program_handle, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
-                CHECK_GL_ERROR;
-
-                // Create a handle for the UBO and link it to the program
-                GLuint buffer_handle = 0;
-                glGenBuffers(1, &buffer_handle);
-                ubo.m_Id = AddNewGLHandle(context, buffer_handle);
-                CHECK_GL_ERROR;
-                glBindBuffer(GL_UNIFORM_BUFFER, buffer_handle);
-                CHECK_GL_ERROR;
-
-                glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
-                CHECK_GL_ERROR;
-
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, buffer_handle);
-                CHECK_GL_ERROR;
-                glUniformBlockBinding(program_handle, blockIndex, ubo.m_Binding);
-                CHECK_GL_ERROR;
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
-                CHECK_GL_ERROR;
+                continue;
             }
+
+            GLint blockSize;
+            glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+            CHECK_GL_ERROR;
+
+            GLint activeUniforms;
+            glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
+            CHECK_GL_ERROR;
+
+            // Resolve uniform buffer layout based on reflection data
+            UniformBufferLayout layout;
+            GetUniformBufferLayout(res.m_Type.m_TypeIndex, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Begin(), program->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Size(), &layout);
+
+            OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[blockIndex];
+            ubo.m_Indices.SetCapacity(activeUniforms);
+            ubo.m_Indices.SetSize(activeUniforms);
+            ubo.m_Offsets.SetCapacity(activeUniforms);
+            ubo.m_Offsets.SetSize(activeUniforms);
+            ubo.m_Layout          = layout;
+            ubo.m_BindPoint       = ubo_binding++;
+            ubo.m_BlockSize       = blockSize;
+            ubo.m_ActiveUniforms  = activeUniforms;
+            ubo.m_ResourceBinding = res.m_Binding;
+            ubo.m_ResourceSet     = res.m_Set;
+            ubo.m_BlockMemory     = new uint8_t[ubo.m_BlockSize];
+            memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
+
+            glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
+            CHECK_GL_ERROR;
+            glGetActiveUniformsiv(program_handle, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
+            CHECK_GL_ERROR;
+
+            // Create a handle for the UBO and link it to the program
+            GLuint buffer_handle = 0;
+            glGenBuffers(1, &buffer_handle);
+            ubo.m_Id = AddNewGLHandle(context, buffer_handle);
+            CHECK_GL_ERROR;
+            glBindBuffer(GL_UNIFORM_BUFFER, buffer_handle);
+            CHECK_GL_ERROR;
+
+            glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+            CHECK_GL_ERROR;
+
+            glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, buffer_handle);
+            CHECK_GL_ERROR;
+            glUniformBlockBinding(program_handle, blockIndex, ubo.m_BindPoint);
+            CHECK_GL_ERROR;
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+            CHECK_GL_ERROR;
         }
     }
 
@@ -2597,7 +2625,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (context->m_IsGles3Version)
         {
-            BuildUniformBuffers(context, program, shaders, num_shaders);
+            BuildUniformBuffers(context, program);
         }
 
         char uniform_name_buffer[256];
@@ -2686,7 +2714,7 @@ static void LogFrameBufferError(GLenum status)
             uniform.m_Count    = uniform_size;
             uniform.m_Type     = GetGraphicsType(uniform_type);
 
-        #if 0
+        #if 1
             dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
         #endif
 

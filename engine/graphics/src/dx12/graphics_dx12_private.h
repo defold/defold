@@ -75,8 +75,17 @@ namespace dmGraphics
     struct DX12DeviceBuffer
     {
         ID3D12Resource* m_Resource;
+        uint8_t*        m_MappedDataPtr;
         uint32_t        m_DataSize;
         uint32_t        m_Destroyed : 1;
+    };
+
+    struct DX12UniformBuffer
+    {
+        UniformBufferLayout m_Layout;
+        DX12DeviceBuffer    m_DeviceBuffer;
+        uint8_t             m_BoundBinding;
+        uint8_t             m_BoundSet;
     };
 
     struct DX12VertexBuffer
@@ -242,6 +251,7 @@ namespace dmGraphics
         DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
+        DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;
 
         TextureFilter                      m_DefaultTextureMinFilter;
