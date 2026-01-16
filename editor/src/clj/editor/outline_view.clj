@@ -137,15 +137,25 @@
                   (when-not (coll/empty? new-selected-indices)
                     (let [first-index (new-selected-indices 0)
                           focus-model (.getFocusModel tree-view)
-                          skin (.getSkin tree-view)]
+                          skin (.getSkin tree-view)
+                          flow (.getFlow skin)
+                          first-visible (.getFirstVisibleCell flow)
+                          last-visible (.getLastVisibleCell flow)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (when (.shouldScrollTo ^OutlineTreeViewSkin skin first-index)
-                        (let [selected-index (first new-selected-indices)
-                              cell-height (.getHeight (.getCell (.getFlow ^OutlineTreeViewSkin skin) first-index))
-                              visible-count (int (Math/ceil (/ (.getHeight tree-view) cell-height)))
-                              center-offset (quot visible-count 2)
-                              scroll-target (max 0 (- selected-index center-offset))]
-                          (.scrollTo tree-view scroll-target)))
+                      (when (and first-visible last-visible)
+                        (let [first-visible-idx (.getIndex first-visible)
+                              last-visible-idx (.getIndex last-visible)
+                              fixed-cell-size (.getHeight (.getCell (.getFlow ^OutlineTreeViewSkin skin) first-index))]
+                          (cond
+                            (> first-index last-visible-idx)
+                            (let [cells-to-scroll (- first-index last-visible-idx)]
+                              (.scrollPixels flow (* (inc cells-to-scroll) fixed-cell-size)))
+
+                            (< first-index first-visible-idx)
+                            (let [cells-to-scroll (- first-visible-idx first-index)]
+                              (.scrollPixels flow (- (* cells-to-scroll fixed-cell-size))))
+
+                            :else nil)))
                       (ui/run-later (.focus focus-model first-index)))))))))
         fx.lifecycle/scalar))))
 
