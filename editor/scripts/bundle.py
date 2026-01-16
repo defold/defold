@@ -355,7 +355,7 @@ def check_reflections(jdk_path):
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path, False)
+    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path, to_stdout=False)
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
