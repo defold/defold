@@ -35,14 +35,11 @@
                      [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
-                     [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
-                     [org.apache.commons/commons-configuration2   "2.0"]
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
                      [potemkin                                    "0.4.3"]
-                     [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]
                      [com.sun.jersey.contribs/jersey-multipart    "1.19"]
@@ -71,10 +68,6 @@
                      [com.cognitect.aws/endpoints "1.1.12.478"]
                      [com.cognitect.aws/s3 "847.2.1387.0"]
 
-                     ;; bob needs javax.xml.bind, and it's removed in jdk 11
-                     [javax.xml.bind/jaxb-api "2.3.0"]
-                     [com.sun.xml.bind/jaxb-core "2.3.0"]
-                     [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
                      [org.luaj/luaj-jse "3.0.1"]
 
@@ -293,8 +286,7 @@
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [io.github.cljfx/dev "1.10.6.42"]
                                                     [org.clojure/test.check "1.1.1"]
-                                                    [org.clojure/tools.trace "0.7.9"]
-                                                    [org.mockito/mockito-core "1.10.19"]]
+                                                    [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
