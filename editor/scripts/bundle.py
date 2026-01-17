@@ -363,7 +363,7 @@ def check_reflections(jdk_path):
     failures = list(line for line in filtered_reflections if not any((re.match(ignored, line) for ignored in ignored_reflections)))
 
     if failures:
-        log("ERROR: Found %d reflection warning(s):" % len(failures))
+        log("Reflection Check Failed: Found %d reflection warning(s):" % len(failures))
         for failure in failures:
             log(failure)
         exit(1)
