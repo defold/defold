@@ -23,6 +23,11 @@ class ExecException(Exception):
     def __init__(self, retcode):
         self.retcode = retcode
         self.output = ''
+    def __init__(self, retcode, output='', command=''):
+        self.retcode = retcode
+        self.output = output
+        self.command = command
+        super().__init__(f"Command failed with exit code {retcode}: {command}")
 
 def _to_str(x):
     if x is None:
@@ -72,7 +77,7 @@ def _exec_command(arg_list, **kwargs):
                 break
 
     if process.wait() != 0:
-        e = ExecException(process.returncode)
+        e = ExecException(process.returncode, output, arg_str)
         e.output = output
         log('[exec] %s' % arg_str)
         log("Error: %s" % _to_str(output))
