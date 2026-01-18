@@ -159,19 +159,19 @@ public class MacOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Run lipo on supplied architecture binaries.
-        IOSBundler.lipoBinaries(exe, binaries);
+        BundleHelper.lipoBinaries(exe, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if( strip_executable ) {
-            IOSBundler.stripExecutable(platform, exe);
+        if (strip_executable) {
+            BundleHelper.stripExecutable(exe);
         }
 
         // Copy Executable
         File destExecutable = new File(macosDir, exeName);
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
-        logger.info("Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
+        logger.info("Bundle binary: " + BundleHelper.getFileDescription(destExecutable));
 
         if (architectures.size() == 1) {
             File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));

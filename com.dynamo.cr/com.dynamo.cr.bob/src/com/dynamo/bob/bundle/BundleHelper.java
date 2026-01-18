@@ -53,6 +53,7 @@ import org.apache.http.NoHttpResponseException;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.MultipleCompileException.Info;
@@ -63,6 +64,8 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.logging.Logger;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
@@ -1077,7 +1080,7 @@ public class BundleHelper {
                                 File dynamicLib = File.createTempFile(libraryName, "");
                                 FileUtil.deleteOnExit(dynamicLib);
                                 BundleHelper.throwIfCanceled(canceled);
-                                IOSBundler.lipoBinaries(dynamicLib, allLibs);
+                                lipoBinaries(dynamicLib, allLibs);
 
                                 File targetDynamicLib = new File(targetDir, libraryName);
                                 FileUtils.copyFile(dynamicLib, targetDynamicLib);
@@ -1092,4 +1095,74 @@ public class BundleHelper {
         }
     }
 
+    public static void lipoBinaries(File resultFile, List<File> binaries) throws IOException, CompileExceptionError {
+        if (binaries.size() == 1) {
+            FileUtils.copyFile(binaries.get(0), resultFile);
+            return;
+        }
+        if (binaries.isEmpty()) {
+            throw new CompileExceptionError("No binaries provided to lipoBinaries for: " + resultFile.getAbsolutePath());
+        }
+
+        String exe = resultFile.getPath();
+        List<String> lipoArgList = new ArrayList<String>();
+        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
+        lipoArgList.add("-create");
+        for (File bin : binaries) {
+            lipoArgList.add(bin.getAbsolutePath());
+        }
+        lipoArgList.add("-output");
+        lipoArgList.add(exe);
+
+        Result lipoResult = Exec.execResult(lipoArgList.toArray(new String[0]));
+        if (lipoResult.ret == 0) {
+            logger.info("Result of lipo command is a universal binary: " + getFileDescription(resultFile));
+        }
+        else {
+            String errMessage = "Error executing lipo command:\n" + new String(lipoResult.stdOutErr);
+            // logger.severe(errMessage);
+            // this should be thrown but could disrupt users building macOS outside mac
+            throw new CompileExceptionError(errMessage);
+        }
+    }
+
+    public static void stripExecutable(File exe) throws IOException {
+        // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+        // TODO: add "platform" parameter when "strip_darwin.exe" is supported;
+        if (isMacOS(Platform.getHostPlatform())) {
+            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip"), exe.getPath()); // Using the same executable
+            if (stripResult.ret != 0) {
+                String errMessage = "Error executing strip command:\n" + new String(stripResult.stdOutErr);
+                logger.severe(errMessage);
+            }
+        }
+    }
+    
+    public static boolean isMacOS(Platform platform) {
+        return platform == Platform.X86_64MacOS ||
+               platform == Platform.Arm64MacOS;
+    }
+
+    public static String getFileDescription(File file) {
+        if (file == null) {
+            return "null";
+        }
+        try {
+            if (file.isDirectory()) {
+                return file.getAbsolutePath() + " (directory)";
+            }
+
+            long byteSize = file.length();
+
+            if (byteSize > 0) {
+                return file.getAbsolutePath() + " (" + byteSize + " bytes)";
+            }
+
+            return file.getAbsolutePath() + " (unknown size)";
+        }
+        catch (Exception e) {
+            // Ignore.
+        }
+        return file.getPath();
+    }
 }
