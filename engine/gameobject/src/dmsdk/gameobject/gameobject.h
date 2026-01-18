@@ -884,6 +884,7 @@ namespace dmGameObject
 
     /*#
      * Retrieve a property from a component.
+     * @name GetProperty
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -895,6 +896,7 @@ namespace dmGameObject
 
     /*#
      * Sets the value of a property on a component.
+     * @name SetProperty
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
