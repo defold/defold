@@ -5651,13 +5651,13 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
     dmGraphics::UniformBufferLayout layout;
-    dmGraphics::GetUniformBufferLayout(types, DM_ARRAY_SIZE(types), &layout);
+    dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types), &layout);
 
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
 
     dmGraphics::UniformBufferLayout built_layout;
-    dmGraphics::GetUniformBufferLayout(program_meta->m_TypeInfos.Begin(), program_meta->m_TypeInfos.Size(), &built_layout);
+    dmGraphics::GetUniformBufferLayout(0, program_meta->m_TypeInfos.Begin(), program_meta->m_TypeInfos.Size(), &built_layout);
 
     ASSERT_EQ(layout.m_Size, built_layout.m_Size);
     ASSERT_EQ(layout.m_Hash, built_layout.m_Hash);

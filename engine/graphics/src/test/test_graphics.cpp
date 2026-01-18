@@ -473,7 +473,7 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
     ASSERT_EQ(1, null_program->m_UniformBuffers.Size());
 
-    // 1. Create a ubo with the same layout
+    // Create a ubo with the same layout
     {
         dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, null_program->m_UniformBuffers[0].m_Layout);
         dmGraphics::EnableProgram(m_Context, program);
