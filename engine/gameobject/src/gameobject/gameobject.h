@@ -286,29 +286,6 @@ namespace dmGameObject
      */
     bool IsChildOf(HInstance child, HInstance parent);
 
-    /**
-     * Retrieve a property from a component.
-     * @param instance Instance of the game object
-     * @param component_id Id of the component
-     * @param property_id Id of the property
-     * @param out_value Description of the retrieved property value
-     * @return PROPERTY_RESULT_OK if the out-parameters were written
-     */
-    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
-
-    /**
-     * Sets the value of a property.
-     * @param instance Instance of the game object
-     * @param component_id Id of the component
-     * @param property_id Id of the property
-     * @param var Value and type of the property
-     * @param finished If the animation finished or not
-     * @param userdata1 User specified data
-     * @param userdata2 User specified data
-     * @return PROPERTY_RESULT_OK if the value could be set
-     */
-    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
-
     typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2);
 
