@@ -175,7 +175,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
             last = g;
             break;
         }
-        trailing_space_width = trailing_space_width + g.m_Advance;
+        trailing_space_width += g.m_Advance;
     }
     float extent_last = last.m_LeftBearing + last.m_Width;
     float width = last.m_X - row_start_x + extent_last + trailing_space_width;
