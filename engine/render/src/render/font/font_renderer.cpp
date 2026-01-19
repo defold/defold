@@ -224,6 +224,9 @@ namespace dmRender
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
         settings.m_Size = dmRender::GetFontMapSize(font_map);
+        // legacy options for glyph bank fonts
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         TextMetrics metrics;
 
         // TODO: Allow for callers to have their prepared HTextLayout
