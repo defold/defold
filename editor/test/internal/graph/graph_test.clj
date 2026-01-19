@@ -540,6 +540,19 @@
                (is (nil? (cc/lookup ~'system-cache-before-merge ~'cached-endpoint)))
                (is (identical? ~'value (cc/lookup ~'system-cache-after-merge ~'cached-endpoint))))))))
 
+     (testing "Nested let-ec scopes merge independently."
+       (with-clean-system
+         (let [~'outer-node-id (g/make-node! ~'world LetECTestNode :value "outer")
+               ~'inner-node-id (g/make-node! ~'world LetECTestNode :value "inner")]
+           (~let-ec-sym
+             [~'outer-value (g/node-value ~'outer-node-id :cached-value ~'evaluation-context)]
+             (is (= "outer" ~'outer-value))
+             (~let-ec-sym
+               [~'inner-value (g/node-value ~'inner-node-id :cached-value ~'evaluation-context)]
+               (is (= "inner" ~'inner-value)))
+             (is (cc/has? (g/cache) (g/endpoint ~'inner-node-id :cached-value))))
+           (is (cc/has? (g/cache) (g/endpoint ~'outer-node-id :cached-value))))))
+
      (testing "Bindings can use results of prior bindings."
        (with-clean-system
          (let [~'referencing-node-id (g/make-node! ~'world LetECTestNode :value {:referenced-node-id (g/make-node! ~'world LetECTestNode :value "referenced node value")})]
@@ -653,10 +666,24 @@
                (is (= "one-two" ~'one-two))
                (is (= "two-one" ~'two-one))
                (is (= "two-two" ~'two-two))))
-           (testing ":or expressions are evaluated only once."
-             (let [~'or-eval-atom (atom 0)]
-               (~let-ec-sym [{:keys [~'foo], :or {~'foo (swap! ~'or-eval-atom inc)}} {}])
-               (is (= 1 (deref ~'or-eval-atom))))))))))
+           (testing ":or expressions are evaluated once per key."
+             (let [~'or-eval-atom (atom {})
+                   ~'or-eval-fn! (fn ~'or-eval-fn! [~'key]
+                                   (swap! ~'or-eval-atom update ~'key (fnil inc 0)))]
+               (~let-ec-sym [{:keys [~'foo ~'bar]
+                              :or {~'foo (~'or-eval-fn! :foo)
+                                   ~'bar (~'or-eval-fn! :bar)}} {}])
+               (is (= {:foo 1 :bar 1} (deref ~'or-eval-atom)))))
+           (testing "Bindings evaluate in order with :or and :as."
+             (let [~'eval-atom (atom 0)]
+               (~let-ec-sym
+                 [{:keys [~'foo] :or {~'foo (swap! ~'eval-atom inc)} :as ~'map-value} {}
+                  [~'one ~'two :as ~'vec-value] [~'foo (swap! ~'eval-atom inc)]]
+                 (is (= {} ~'map-value))
+                 (is (= [1 2] ~'vec-value))
+                 (is (= 1 ~'one))
+                 (is (= 2 ~'two))
+                 (is (= 2 (deref ~'eval-atom)))))))))))
 
 (defmacro let-ec-strict [bindings & body]
   (apply #'g/let-ec-strict-form bindings body))
