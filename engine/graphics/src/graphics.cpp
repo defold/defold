@@ -52,6 +52,9 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
+    // FWD declarations:
+    static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
+
     static bool SelectAdapterByFamily(AdapterFamily family)
     {
         if (family != ADAPTER_FAMILY_NONE)
