@@ -582,6 +582,10 @@ pane.curve-editor = Редактор Кривых
 pane.build-errors = Ошибки Сборки
 pane.search-results = Результаты Поиска
 
+# Assets
+
+assets.dependencies = Зависимости
+
 # Console
 
 console.button.clear = Очистить

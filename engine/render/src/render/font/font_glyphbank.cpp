@@ -174,16 +174,5 @@ HFont CreateGlyphBankFont(const char* path, dmRenderDDF::GlyphBank* glyph_bank)
 
     font->m_GlyphBank = glyph_bank;
 
-    // Making sure that it's an increasing list of codepoints, as it's required
-    // by the binary search algorithm
-    int32_t c = -1;
-    uint32_t n = glyph_bank->m_Glyphs.m_Count;
-    for (uint32_t i = 0; i < n; ++i)
-    {
-        dmRenderDDF::GlyphBank::Glyph& glyph = glyph_bank->m_Glyphs[i];
-        assert(c < (int)glyph.m_Character);
-        c = glyph.m_Character;
-    }
-
     return (Font*)font;
 }

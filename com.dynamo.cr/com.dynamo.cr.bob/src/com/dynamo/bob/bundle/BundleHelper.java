@@ -31,9 +31,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -51,6 +53,7 @@ import org.apache.http.NoHttpResponseException;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.MultipleCompileException.Info;
@@ -61,6 +64,9 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.logging.Logger;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
@@ -73,6 +79,8 @@ import javax.imageio.ImageIO;
 
 
 public class BundleHelper {
+    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
+
     private Project project;
     private Platform platform;
     private BobProjectProperties projectProperties;
@@ -1002,5 +1010,159 @@ public class BundleHelper {
         }
     }
 
+    public static Stream<Path> collectSharedLibraries(Platform platform, File buildDir) throws IOException {
+        if (buildDir.exists()) {
+            String libPrefix = platform.getLibPrefix();
+            String libSuffix = platform.getLibSuffix();
+            return Files.walk(buildDir.toPath())
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String filename = path.getFileName().toString();
+                        return filename.startsWith(libPrefix) && filename.endsWith(libSuffix);
+                    });
+        }
+        return Stream.of();
+    }
 
+    public static void copySharedLibraries(Platform platform, File buildDir, File targetDir) throws IOException {
+        BundleHelper.copySharedLibraries(platform, buildDir, targetDir, path -> true);
+    }
+
+    public static void copySharedLibraries(Platform platform, File buildDir, File targetDir, Predicate<Path> filter)
+            throws IOException {
+        collectSharedLibraries(platform, buildDir)
+                .filter(filter)
+                .forEach(path -> {
+                    try {
+                        FileUtils.copyFileToDirectory(path.toFile(), targetDir);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+    }
+
+    public static void createFatLibrary(List<Platform> architectures, String projectOutputDir, File targetDir, ICanceled canceled) throws IOException {
+        Set<String> copiedFileNames = new HashSet<>();
+        for (int i = 0; i < architectures.size(); ++i) {
+            Platform arch = architectures.get(i);
+            String archStr = arch.getExtenderPair();
+            int archIndex = i;
+            File binaryDir = new File(FilenameUtils.concat(projectOutputDir, arch.getExtenderPair()));
+            BundleHelper.collectSharedLibraries(arch, binaryDir)
+                    .forEach(path -> {
+                        String libraryName = path.getFileName().toString();
+                        if (copiedFileNames.contains(libraryName)) {
+                            return;
+                        }
+                        List<File> allLibs = new ArrayList<>();
+                        allLibs.add(path.toFile());
+                        for (int j = 0; j < architectures.size(); ++j) {
+                            if (archIndex == j) {
+                                continue;
+                            }
+                            String pathStr = path.toString();
+                            pathStr = pathStr.replace(archStr, architectures.get(j).getExtenderPair());
+                            File lib = new File(pathStr);
+                            try {
+                                // in case if initially we have "fat" library contains all requested archs
+                                // check if file the same or not to avoid call 'lipo'
+                                // Extender returns "fat" library as a part of build result for every arch
+                                if (lib.exists() && !FileUtils.contentEquals(path.toFile(), lib)) {
+                                    allLibs.add(lib);
+                                }
+                            } catch (IOException e) {
+                                logger.warning("Exception happened when comparing content of dynamic libs " + e);
+                            }
+                        }
+                        // Create fat/universal binary
+                        try {
+                            if (allLibs.size() > 1) {
+                                File dynamicLib = File.createTempFile(libraryName, "");
+                                FileUtil.deleteOnExit(dynamicLib);
+                                BundleHelper.throwIfCanceled(canceled);
+                                lipoBinaries(dynamicLib, allLibs);
+
+                                File targetDynamicLib = new File(targetDir, libraryName);
+                                FileUtils.copyFile(dynamicLib, targetDynamicLib);
+                            } else {
+                                FileUtils.copyFileToDirectory(allLibs.get(0), targetDir);
+                            }
+                            copiedFileNames.add(libraryName);
+                        } catch (IOException | CompileExceptionError e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+    }
+
+    public static void lipoBinaries(File resultFile, List<File> binaries) throws IOException, CompileExceptionError {
+        if (binaries.size() == 1) {
+            FileUtils.copyFile(binaries.get(0), resultFile);
+            return;
+        }
+        if (binaries.isEmpty()) {
+            throw new CompileExceptionError("No binaries provided to lipoBinaries for: " + resultFile.getAbsolutePath());
+        }
+
+        String exe = resultFile.getPath();
+        List<String> lipoArgList = new ArrayList<String>();
+        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
+        lipoArgList.add("-create");
+        for (File bin : binaries) {
+            lipoArgList.add(bin.getAbsolutePath());
+        }
+        lipoArgList.add("-output");
+        lipoArgList.add(exe);
+
+        Result lipoResult = Exec.execResult(lipoArgList.toArray(new String[0]));
+        if (lipoResult.ret == 0) {
+            logger.info("Result of lipo command is a universal binary: " + getFileDescription(resultFile));
+        }
+        else {
+            String errMessage = "Error executing lipo command:\n" + new String(lipoResult.stdOutErr);
+            // logger.severe(errMessage);
+            // this should be thrown but could disrupt users building macOS outside mac
+            throw new CompileExceptionError(errMessage);
+        }
+    }
+
+    public static void stripExecutable(File exe) throws IOException {
+        // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+        // TODO: add "platform" parameter when "strip_darwin.exe" is supported;
+        if (isMacOS(Platform.getHostPlatform())) {
+            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip"), exe.getPath()); // Using the same executable
+            if (stripResult.ret != 0) {
+                String errMessage = "Error executing strip command:\n" + new String(stripResult.stdOutErr);
+                logger.severe(errMessage);
+            }
+        }
+    }
+    
+    public static boolean isMacOS(Platform platform) {
+        return platform == Platform.X86_64MacOS ||
+               platform == Platform.Arm64MacOS;
+    }
+
+    public static String getFileDescription(File file) {
+        if (file == null) {
+            return "null";
+        }
+        try {
+            if (file.isDirectory()) {
+                return file.getAbsolutePath() + " (directory)";
+            }
+
+            long byteSize = file.length();
+
+            if (byteSize > 0) {
+                return file.getAbsolutePath() + " (" + byteSize + " bytes)";
+            }
+
+            return file.getAbsolutePath() + " (unknown size)";
+        }
+        catch (Exception e) {
+            // Ignore.
+        }
+        return file.getPath();
+    }
 }

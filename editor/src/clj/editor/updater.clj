@@ -310,7 +310,9 @@
             (log/info :message "New version found" :sha1 update-sha1)
             (log/info :message "No update found"))))
       (catch IOException e
-        (log/warn :message "Update check failed" :exception e)))))
+        ;; Disabled during tests to minimize log spam.
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/warn :message "Update check failed" :exception e))))))
 
 (defn- make-check-for-update-task ^TimerTask [^Timer timer updater update-delay]
   (proxy [TimerTask] []

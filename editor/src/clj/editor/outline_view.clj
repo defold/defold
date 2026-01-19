@@ -310,7 +310,7 @@
 
   (output tree-view TreeView :cached update-tree-view)
   (output tree-selection g/Any :cached (g/fnk [tree-view] (ui/selection tree-view)))
-  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (vec (ui/selection-root-items tree-view (comp :node-id-path item->value) (comp :node-id item->value)))))
+  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (ui/selection-root-items tree-view :node-id)))
   (output succeeding-tree-selection g/Any :cached (g/fnk [tree-view tree-selection-root-its]
                                                     (ui/succeeding-selection tree-view tree-selection-root-its)))
   (output alt-tree-selection g/Any :cached (g/fnk [tree-selection]
