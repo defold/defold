@@ -1801,6 +1801,8 @@ bail:
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_Layout               = layout;
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        ubo->m_BoundSet             = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding         = UNUSED_BINDING_OR_SET;
 
         return (HUniformBuffer) ubo;
     }
@@ -1821,6 +1823,9 @@ bail:
         {
             context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
         }
+
+        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1837,6 +1842,21 @@ bail:
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void VulkanDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+        VulkanDisableUniformBuffer(_context, uniform_buffer);
+
+        if (!ubo->m_DeviceBuffer.m_Destroyed)
+        {
+            DestroyResourceDeferred(context, &ubo->m_DeviceBuffer);
+        }
+
+        delete ubo;
     }
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)

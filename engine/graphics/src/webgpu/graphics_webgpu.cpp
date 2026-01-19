@@ -1157,7 +1157,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_OriginalWidth   = params.m_Width;
     context->m_OriginalHeight  = params.m_Height;
     context->m_PrintDeviceInfo = params.m_PrintDeviceInfo;
-    context->m_CurrentUniforms.m_Allocs.SetCapacity(32);
+    context->m_CurrentScratchUniforms.m_Allocs.SetCapacity(32);
 
     context->m_CurrentPipelineState = GetDefaultPipelineState();
 
@@ -1337,10 +1337,10 @@ static void WebGPUDestroyContext(WebGPUContext* context)
         WebGPUDestroyTexture(context->m_DefaultStorageImage2D);
         context->m_DefaultStorageImage2D = NULL;
     }
-    while (!context->m_CurrentUniforms.m_Allocs.Empty())
+    while (!context->m_CurrentScratchUniforms.m_Allocs.Empty())
     {
-        WebGPUUniformBuffer::Alloc *alloc = context->m_CurrentUniforms.m_Allocs.Back();
-        context->m_CurrentUniforms.m_Allocs.Pop();
+        WebGPUScratchUniformBuffer::Alloc *alloc = context->m_CurrentScratchUniforms.m_Allocs.Back();
+        context->m_CurrentScratchUniforms.m_Allocs.Pop();
         if (alloc->m_Buffer)
         {
             wgpuBufferRelease(alloc->m_Buffer);
@@ -1859,13 +1859,13 @@ static void WebGPUFlip(HContext _context)
             texture->m_Height = 0;
         }
 #endif
-        if (context->m_CurrentUniforms.m_Allocs.Size() > 0)
+        if (context->m_CurrentScratchUniforms.m_Allocs.Size() > 0)
         {
-            for (size_t a = 0; a <= context->m_CurrentUniforms.m_Alloc; ++a)
+            for (size_t a = 0; a <= context->m_CurrentScratchUniforms.m_Alloc; ++a)
             {
-                context->m_CurrentUniforms.m_Allocs[a]->m_Used = 0;
+                context->m_CurrentScratchUniforms.m_Allocs[a]->m_Used = 0;
             }
-            context->m_CurrentUniforms.m_Alloc = 0;
+            context->m_CurrentScratchUniforms.m_Alloc = 0;
         }
     }
     dmPlatform::SwapBuffers(context->m_Window);
@@ -1893,6 +1893,78 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WebGPUSubmitCommandEncoder(context);
     }
     wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+}
+
+static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+
+    WebGPUUniformBuffer* ubo = new WebGPUUniformBuffer();
+    ubo->m_Layout            = layout;
+    ubo->m_BoundSet          = UNUSED_BINDING_OR_SET;
+    ubo->m_BoundBinding      = UNUSED_BINDING_OR_SET;
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+#else
+    WGPUBufferDescriptor desc = {};
+#endif
+
+    desc.size  = layout.m_Size;
+    desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+
+    ubo->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+
+    return (HUniformBuffer) ubo;
+}
+
+static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+
+    wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
+}
+
+static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+{
+    VulkanContext* context = (VulkanContext*)_context;
+    VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+    if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+    {
+        context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+    }
+
+    ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
+    ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
+}
+
+static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+{
+    VulkanContext* context = (VulkanContext*)_context;
+    VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+    ubo->m_BoundBinding = binding;
+    ubo->m_BoundSet     = set;
+
+    if (context->m_CurrentUniformBuffers[set][binding])
+    {
+        VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+    }
+
+    context->m_CurrentUniformBuffers[set][binding] = ubo;
+}
+
+static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+
+    WebGPUDisableUniformBuffer(_context, uniform_buffer);
+
+    wgpuBufferRelease(ubo->m_Buffer);
+    delete ubo;
 }
 
 static HVertexBuffer WebGPUNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2267,42 +2339,52 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
 #else
                     const uint32_t ubo_alignment = context->m_DeviceLimits.limits.minUniformBufferOffsetAlignment;
 #endif
-                    if (context->m_CurrentUniforms.m_Allocs.Size() == 0 ||
-                        context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size <
-                        context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BindingInfo.m_BlockSize)
+                    WebGPUUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[set][binding];
+                    if (bound_ubo)
                     {
-                        if (context->m_CurrentUniforms.m_Allocs.Size() > context->m_CurrentUniforms.m_Alloc + 1)
-                        {
-                            ++context->m_CurrentUniforms.m_Alloc;
-                            assert(context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size >= pgm_res.m_Res->m_BindingInfo.m_BlockSize);
-                        }
-                        else
-                        {
-                            WebGPUUniformBuffer::Alloc* alloc = new WebGPUUniformBuffer::Alloc();
-                            {
-#if defined(DM_GRAPHICS_WEBGPU2)
-                                WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
-#else
-                                WGPUBufferDescriptor desc = {};
-#endif
-                                desc.usage                = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-                                desc.size                 = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize);
-                                alloc->m_Buffer           = wgpuDeviceCreateBuffer(context->m_Device, &desc);
-                                alloc->m_Size             = desc.size;
-                            }
-                            if (context->m_CurrentUniforms.m_Allocs.Full())
-                            {
-                                context->m_CurrentUniforms.m_Allocs.OffsetCapacity(4);
-                            }
-                            context->m_CurrentUniforms.m_Alloc = context->m_CurrentUniforms.m_Allocs.Size();
-                            context->m_CurrentUniforms.m_Allocs.Push(alloc);
-                        }
+                        entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
+                        entries[desc.entryCount].offset = 0;
+                        entries[desc.entryCount].size   = bound_ubo->m_Layout.m_Size;
                     }
-                    entries[desc.entryCount].buffer = context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Buffer;
-                    entries[desc.entryCount].offset = context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used;
-                    entries[desc.entryCount].size   = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                    wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset, entries[desc.entryCount].size);
-                    context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
+                    else
+                    {
+                        if (context->m_CurrentScratchUniforms.m_Allocs.Size() == 0 ||
+                            context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Size <
+                            context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BindingInfo.m_BlockSize)
+                        {
+                            if (context->m_CurrentScratchUniforms.m_Allocs.Size() > context->m_CurrentScratchUniforms.m_Alloc + 1)
+                            {
+                                ++context->m_CurrentScratchUniforms.m_Alloc;
+                                assert(context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Size >= pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+                            }
+                            else
+                            {
+                                WebGPUScratchUniformBuffer::Alloc* alloc = new WebGPUScratchUniformBuffer::Alloc();
+                                {
+#if defined(DM_GRAPHICS_WEBGPU2)
+                                    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+#else
+                                    WGPUBufferDescriptor desc = {};
+#endif
+                                    desc.usage                = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+                                    desc.size                 = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+                                    alloc->m_Buffer           = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+                                    alloc->m_Size             = desc.size;
+                                }
+                                if (context->m_CurrentScratchUniforms.m_Allocs.Full())
+                                {
+                                    context->m_CurrentScratchUniforms.m_Allocs.OffsetCapacity(4);
+                                }
+                                context->m_CurrentScratchUniforms.m_Alloc = context->m_CurrentScratchUniforms.m_Allocs.Size();
+                                context->m_CurrentScratchUniforms.m_Allocs.Push(alloc);
+                            }
+                        }
+                        entries[desc.entryCount].buffer = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Buffer;
+                        entries[desc.entryCount].offset = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used;
+                        entries[desc.entryCount].size   = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
+                        wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset, entries[desc.entryCount].size);
+                        context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
+                    }
                     break;
                 }
                 case BINDING_FAMILY_GENERIC:

@@ -388,6 +388,8 @@ namespace dmGraphics
         ubo->m_Layout          = layout;
         ubo->m_Buffer          = new uint8_t[layout.m_Size];
         ubo->m_BufferSize      = layout.m_Size;
+        ubo->m_BoundSet        = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding    = UNUSED_BINDING_OR_SET;
         return (HUniformBuffer) ubo;
     }
 
@@ -406,6 +408,9 @@ namespace dmGraphics
         {
             context->m_UniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
         }
+
+        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void NullEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -422,6 +427,16 @@ namespace dmGraphics
         }
 
         context->m_UniformBuffers[set][binding] = ubo;
+    }
+
+    static void NullDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        NullContext* context = (NullContext*)_context;
+        NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
+
+        NullDisableUniformBuffer(_context, uniform_buffer);
+        delete[] ubo->m_Buffer;
+        delete ubo;
     }
 
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)

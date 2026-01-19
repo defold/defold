@@ -51,7 +51,7 @@ namespace dmGraphics
         size_t                     m_LastRenderPass = 0;
     };
 
-    struct WebGPUUniformBuffer
+    struct WebGPUScratchUniformBuffer
     {
         struct Alloc
         {
@@ -61,6 +61,14 @@ namespace dmGraphics
         };
         dmArray<Alloc*> m_Allocs;
         size_t          m_Alloc = 0;
+    };
+
+    struct WebGPUUniformBuffer
+    {
+        UniformBufferLayout m_Layout;
+        WGPUBuffer          m_Buffer;
+        uint8_t             m_BoundBinding;
+        uint8_t             m_BoundSet;
     };
 
     struct WebGPUShaderModule
@@ -199,6 +207,7 @@ namespace dmGraphics
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
+        WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         uint64_t                           m_TextureFormatSupport;
 
         TextureFilter                      m_DefaultTextureMinFilter;
@@ -228,12 +237,12 @@ namespace dmGraphics
         uint32_t                           m_LastSubmittedRenderPass;
 
         // Current state
-        PipelineState       m_CurrentPipelineState;
-        WebGPURenderPass    m_CurrentRenderPass;
-        WebGPUComputePass   m_CurrentComputePass;
-        WebGPUUniformBuffer m_CurrentUniforms;
-        WebGPUProgram*      m_CurrentProgram;
-        WebGPURenderTarget* m_CurrentRenderTarget;
+        PipelineState                      m_CurrentPipelineState;
+        WebGPURenderPass                   m_CurrentRenderPass;
+        WebGPUComputePass                  m_CurrentComputePass;
+        WebGPUScratchUniformBuffer         m_CurrentScratchUniforms;
+        WebGPUProgram*                     m_CurrentProgram;
+        WebGPURenderTarget*                m_CurrentRenderTarget;
 
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;

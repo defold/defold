@@ -1717,9 +1717,11 @@ static void LogFrameBufferError(GLenum status)
 
     static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLContext* context   = (OpenGLContext*) _context;
         OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
-        ubo->m_Layout = layout;
+        ubo->m_Layout            = layout;
+        ubo->m_BoundSet          = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding      = UNUSED_BINDING_OR_SET;
 
         GLuint buffer_handle = 0;
         glGenBuffers(1, &buffer_handle);
@@ -1737,6 +1739,7 @@ static void LogFrameBufferError(GLenum status)
 
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
+        // TODO: Offset support
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
         // glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
         glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
@@ -1752,6 +1755,9 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
         }
+
+        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void OpenGLEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1768,6 +1774,15 @@ static void LogFrameBufferError(GLenum status)
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void OpenGLDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
+
+        OpenGLDisableUniformBuffer(_context, uniform_buffer);
+        delete ubo;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)

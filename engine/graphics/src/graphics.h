@@ -448,6 +448,7 @@ namespace dmGraphics
     // Uniform buffers
     void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
+    void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
     void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);

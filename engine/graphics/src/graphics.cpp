@@ -2144,6 +2144,10 @@ namespace dmGraphics
     {
         return g_functions.m_NewUniformBuffer(context, layout);
     }
+    void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
+    {
+        g_functions.m_DeleteUniformBuffer(context, uniform_buffer);
+    }
     void SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         g_functions.m_SetUniformBuffer(context, uniform_buffer, offset, size, data);

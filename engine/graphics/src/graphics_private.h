@@ -28,6 +28,7 @@ namespace dmGraphics
     const static uint8_t MAX_SET_COUNT                 = 4;
     const static uint8_t MAX_STORAGE_BUFFERS           = 4;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
+    const static uint8_t UNUSED_BINDING_OR_SET         = 0xFF;
 
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,

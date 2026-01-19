@@ -1453,9 +1453,11 @@ namespace dmGraphics
 
     static HUniformBuffer DX12NewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        DX12Context* context = (DX12Context*) _context;
+        DX12Context* context   = (DX12Context*) _context;
         DX12UniformBuffer* ubo = new DX12UniformBuffer();
-        ubo->m_Layout = layout;
+        ubo->m_Layout          = layout;
+        ubo->m_BoundSet        = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding    = UNUSED_BINDING_OR_SET;
 
         CreateConstantBuffer(context, &ubo->m_DeviceBuffer, layout.m_Size);
 
@@ -1477,6 +1479,9 @@ namespace dmGraphics
         {
             context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
         }
+
+        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void DX12EnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1493,6 +1498,17 @@ namespace dmGraphics
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void DX12DeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        DX12DisableUniformBuffer(_context, uniform_buffer);
+        DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &ubo->m_DeviceBuffer);
+
+        delete ubo;
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
