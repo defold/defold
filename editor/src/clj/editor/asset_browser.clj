@@ -623,6 +623,7 @@
       (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- asset-group-or-resource->id [asset-group-or-resource]
+  {:post [(some? %)]}
   (if (asset-group? asset-group-or-resource)
     (:message asset-group-or-resource)
     (resource/proj-path asset-group-or-resource)))
@@ -643,8 +644,7 @@
 
 (defn- with-dependencies-subtree [resource-tree]
   (let [children (:children resource-tree)
-        file-resources (filterv resource/file-resource? children)
-        dep-resources (into [] (remove resource/file-resource?) children)]
+        [file-resources dep-resources] (coll/separate-by resource/file-resource? children)]
     (->AssetGroup
       assets-message
       (-> []
