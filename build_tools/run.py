@@ -61,7 +61,7 @@ def _exec_command(arg_list, **kwargs):
         line = process.stdout.readline().decode(errors='replace')
         if line != '':
             output += line
-            if not silent and sys.stdout.isatty():
+            if not silent:
                 log(line.rstrip())
         else:
             break
