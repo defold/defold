@@ -6,7 +6,7 @@
 }
 
 .grid-menu-item-enabled {
-    &:focused, {
+    &:focused {
         -fx-background-color: -df-component-lighter;
         -fx-text-fill: -df-text-selected;
     }

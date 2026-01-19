@@ -1541,12 +1541,9 @@
                           (keep
                             (fn [child]
                               (let [command (:command child)
-                                    user-data (:user-data child)
-                                    child-label (:label child)
-                                    child-icon (:icon child)
-                                    child-style (:style child)]
+                                    user-data (:user-data child)]
                                 (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                                  (let [label (or (handler/label handler-ctx evaluation-context) child-label)
+                                  (let [label (or (handler/label handler-ctx evaluation-context) (:label child))
                                         enabled? (handler/enabled? handler-ctx evaluation-context)]
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
@@ -1560,9 +1557,10 @@
                                      :style-class (into ["grid-menu-item-base"]
                                                         (when enabled?
                                                           (into ["grid-menu-item-enabled"]
-                                                                child-style)))
-                                     :graphic {:fx/type fx.image-view/lifecycle
-                                               :image (icons/get-image child-icon 18)}}))))
+                                                                (:style child))))
+                                     :graphic {:fx/type image-icon
+                                               :path (:icon child)
+                                               :size 16.0}}))))
                             category-items))}))
                    column))}))}}))))
 
