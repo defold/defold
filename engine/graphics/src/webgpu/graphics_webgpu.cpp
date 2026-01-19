@@ -1928,8 +1928,8 @@ static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buf
 
 static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
 {
-    VulkanContext* context = (VulkanContext*)_context;
-    VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
     if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
     {
@@ -1942,15 +1942,15 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
 
 static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
 {
-    VulkanContext* context = (VulkanContext*)_context;
-    VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
     ubo->m_BoundBinding = binding;
     ubo->m_BoundSet     = set;
 
     if (context->m_CurrentUniformBuffers[set][binding])
     {
-        VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        WebGPUDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
     }
 
     context->m_CurrentUniformBuffers[set][binding] = ubo;
