@@ -95,8 +95,7 @@
           (reverse expression))
 
     (symbol? expression)
-    (or (prn expression)
-        (get simple-symbols-by-canonical-symbol expression)
+    (or (get simple-symbols-by-canonical-symbol expression)
         (simplify-symbol expression alias-names-by-namespace-name simple-names-by-gensym-name-atom))
 
     (keyword? expression)

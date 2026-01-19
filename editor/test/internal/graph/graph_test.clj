@@ -652,7 +652,11 @@
                (is (= "one-one" ~'one-one))
                (is (= "one-two" ~'one-two))
                (is (= "two-one" ~'two-one))
-               (is (= "two-two" ~'two-two)))))))))
+               (is (= "two-two" ~'two-two))))
+           (testing ":or expressions are evaluated only once."
+             (let [~'or-eval-atom (atom 0)]
+               (~let-ec-sym [{:keys [~'foo], :or {~'foo (swap! ~'or-eval-atom inc)}} {}])
+               (is (= 1 (deref ~'or-eval-atom))))))))))
 
 (defmacro let-ec-strict [bindings & body]
   (apply #'g/let-ec-strict-form bindings body))
@@ -662,20 +666,21 @@
 
   (testing "Evaluation context is inaccessible outside let bindings."
     (is (= (macro/conform-gensyms
-             `(let [[~'basis [~'node-id ~'resource] ~'save-value ~'dirty]
+             `(let [[~'basis vec# ~'node-id ~'resource ~'node-id+resource ~'save-value ~'dirty]
                     (g/with-auto-evaluation-context ~'evaluation-context
-                      (let [~'basis (:basis ~'evaluation-context)
-                            vec# (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
-                            ~'node-id (nth vec# 0 nil)
-                            ~'resource (nth vec# 1 nil)
-                            ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
-                            ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
-                        [~'basis vec# ~'save-value ~'dirty]))]
+                      (let* [~'basis (:basis ~'evaluation-context)
+                             vec# (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                             ~'node-id (nth vec# 0 nil)
+                             ~'resource (nth vec# 1 nil)
+                             ~'node-id+resource vec#
+                             ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                             ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                        [~'basis vec# ~'node-id ~'resource ~'node-id+resource ~'save-value ~'dirty]))]
                 (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
            (macro/conform-gensyms
              (#'g/let-ec-strict-form
                `[~'basis (:basis ~'evaluation-context)
-                 [~'node-id ~'resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                 [~'node-id ~'resource :as ~'node-id+resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
                  ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
                  ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
                `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))))))
@@ -692,8 +697,8 @@
                `(let [~evaluation-context-sym (g/make-evaluation-context)
                       ~'basis (let [~'evaluation-context ~evaluation-context-sym]
                                 (:basis ~'evaluation-context))
-                      [~'node-id ~'resource] (let [~'evaluation-context ~evaluation-context-sym]
-                                               (g/node-value ~'resource-node :node-id+resource ~'evaluation-context))
+                      [~'node-id ~'resource :as ~'node-id+resource] (let [~'evaluation-context ~evaluation-context-sym]
+                                                                      (g/node-value ~'resource-node :node-id+resource ~'evaluation-context))
                       ~'save-value (let [~'evaluation-context ~evaluation-context-sym]
                                      (g/node-value ~'node-id :save-value ~'evaluation-context))
                       ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
@@ -703,7 +708,7 @@
                (#'g/let-ec-relaxed-form
                  evaluation-context-sym
                  `[~'basis (:basis ~'evaluation-context)
-                   [~'node-id ~'resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                   [~'node-id ~'resource :as ~'node-id+resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
                    ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
                    ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
                  `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty))))))))

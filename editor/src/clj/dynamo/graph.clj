@@ -79,7 +79,7 @@
 ;; profile when running tasks: `lein with-profile +strict-ec-scopes <task>`.
 (def ^:private strict-evaluation-context-scopes
   (let [strict-evaluation-context-scopes-setting (and *assert* (some-> (System/getProperty "defold.graph.strict-evaluation-context-scopes") keyword))]
-    (assert #{nil :log :log-once :throw} strict-evaluation-context-scopes-setting)
+    (assert (contains? #{nil :log :log-once :throw} strict-evaluation-context-scopes-setting))
     strict-evaluation-context-scopes-setting))
 
 (defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
@@ -1095,20 +1095,23 @@
   [bindings & body]
   {:pre [(vector? bindings)
          (even? (count bindings))]}
-  (let [binding-form+init-expr-pairs (partition 2 bindings)
-        binding-forms (mapv first binding-form+init-expr-pairs)
-        private-bindings-per-binding (mapv destructure binding-form+init-expr-pairs)
-        private-bindings (into [] cat private-bindings-per-binding)
-        init-expr-results (mapv first private-bindings-per-binding)]
+  (let [private-bindings-per-binding (coll/transfer bindings []
+                                       (partition-all 2)
+                                       (map destructure))
+        public-symbols (coll/transfer private-bindings-per-binding []
+                         (mapcat #(take-nth 2 %))
+                         (distinct))
+        private-bindings (into [] cat private-bindings-per-binding)]
+    (assert (every? symbol? public-symbols))
     (list*
       `let
-      [binding-forms
+      [public-symbols
        (list
          `with-auto-evaluation-context 'evaluation-context
          (list
-           `let
+           `let*
            private-bindings
-           init-expr-results))]
+           public-symbols))]
       body)))
 
 (defn- form-references-evaluation-context? [form]
