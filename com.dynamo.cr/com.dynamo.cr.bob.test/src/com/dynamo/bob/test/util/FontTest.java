@@ -200,6 +200,27 @@ public class FontTest {
     }
 
     @Test
+    public void testBMFontUnsortedGlyphs() throws Exception {
+
+        InputStream input = getClass().getResourceAsStream("bmfont_unsorted.fnt");
+        BMFont bmfont = new BMFont();
+        bmfont.parse(input);
+
+        assertEquals(96, bmfont.chars);
+        assertEquals(96, bmfont.charArray.size());
+
+        // verify that the characters have been sorted
+        int previousId = -1;
+        for (int i = 0; i < bmfont.chars; i++)
+        {
+            Char c = bmfont.charArray.get(i);
+            assertTrue( (c.id <= 126 && c.id >= 32) || c.id == 9 );
+            assertTrue( c.id > previousId);
+            previousId = c.id;
+        }
+    }
+
+    @Test
     public void testTTF() throws Exception {
 
         // create "font file"
