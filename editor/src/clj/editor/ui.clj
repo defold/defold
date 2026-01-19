@@ -1551,6 +1551,7 @@
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :disable (not enabled?)
+                                     :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
                                      :on-key-pressed (fn [^KeyEvent e]
                                                        (when (= KeyCode/ENTER (.getCode e))
                                                          (.consume e)
