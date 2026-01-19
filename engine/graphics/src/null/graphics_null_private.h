@@ -114,6 +114,7 @@ namespace dmGraphics
         uint32_t            m_BufferSize;
         uint8_t             m_BoundBinding;
         uint8_t             m_BoundSet;
+        uint8_t             m_UsedInDraw : 1;
     };
 
     struct NullProgram

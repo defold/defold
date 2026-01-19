@@ -1751,6 +1751,11 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
+        if (ubo->m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BoundBinding == UNUSED_BINDING_OR_SET)
+        {
+            return;
+        }
+
         if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
         {
             context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
@@ -2138,8 +2143,25 @@ static void LogFrameBufferError(GLenum status)
 
         for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
         {
-            OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[i];
+            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
             OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+
+            if (bound_ubo)
+            {
+                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+                UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+
+                if (bound_ubo->m_Layout.m_Hash != pgm_layout->m_Hash)
+                {
+                    dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                        bound_ubo->m_Layout.m_Hash,
+                        pgm_res.m_Res->m_Name,
+                        pgm_layout->m_Hash);
+
+                    // Fallback to the scratch buffer uniform setup
+                    bound_ubo = 0;
+                }
+            }
 
             if (bound_ubo)
             {
@@ -2392,7 +2414,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLUniformBufferLegacy) * num_ubos);
+        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
         for (uint32_t j = 0; j < program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
         {
@@ -2407,6 +2429,8 @@ static void LogFrameBufferError(GLenum status)
                 continue;
             }
 
+            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
+
             GLint blockSize;
             glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
             CHECK_GL_ERROR;
@@ -2415,16 +2439,12 @@ static void LogFrameBufferError(GLenum status)
             glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
             CHECK_GL_ERROR;
 
-            // Resolve uniform buffer layout based on reflection data
-            UniformBufferLayout layout;
-            GetUniformBufferLayout(res.m_Type.m_TypeIndex, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Begin(), program->m_BaseProgram.m_ShaderMeta.m_TypeInfos.Size(), &layout);
-
-            OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[blockIndex];
+            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
             ubo.m_Indices.SetCapacity(activeUniforms);
             ubo.m_Indices.SetSize(activeUniforms);
             ubo.m_Offsets.SetCapacity(activeUniforms);
             ubo.m_Offsets.SetSize(activeUniforms);
-            ubo.m_Layout          = layout;
+            ubo.m_Layout          = (UniformBufferLayout*) pgm_res.m_BindingUserData;
             ubo.m_BindPoint       = ubo_binding++;
             ubo.m_BlockSize       = blockSize;
             ubo.m_ActiveUniforms  = activeUniforms;
@@ -2697,7 +2717,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (uniform_block_index != -1)
             {
-                OpenGLUniformBufferLegacy& ubo = program->m_UniformBuffers[uniform_block_index];
+                OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[uniform_block_index];
                 uint32_t uniform_member_index = 0;
 
                 for (int j = 0; j < ubo.m_Indices.Size(); ++j)
@@ -3193,7 +3213,7 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLUniformBufferLegacy& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
+            OpenGLScratchUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count);
@@ -3215,7 +3235,7 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLUniformBufferLegacy& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
+            OpenGLScratchUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count * 4);

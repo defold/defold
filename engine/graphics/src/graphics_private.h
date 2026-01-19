@@ -164,12 +164,13 @@ namespace dmGraphics
     {
         ShaderResourceBinding*           m_Res;
         dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
-        uint32_t                         m_DataOffset;
+        void*                            m_BindingUserData;
 
         union
         {
-            uint16_t m_TextureUnit;
-            uint16_t m_StorageBufferUnit;
+            uint32_t m_TextureUnit;
+            uint32_t m_StorageBufferUnit;
+            uint32_t m_UniformBufferOffset; // Offset into scratch space typically
         };
 
         uint8_t m_StageFlags;
@@ -177,11 +178,12 @@ namespace dmGraphics
 
     struct Program
     {
-        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-        ShaderMeta             m_ShaderMeta;
-        dmArray<Uniform>       m_Uniforms;
-        uint8_t                m_MaxSet;
-        uint8_t                m_MaxBinding;
+        ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        ShaderMeta                   m_ShaderMeta;
+        dmArray<Uniform>             m_Uniforms;
+        dmArray<UniformBufferLayout> m_UniformBufferLayouts;
+        uint8_t                      m_MaxSet;
+        uint8_t                      m_MaxBinding;
     };
 
     struct ProgramResourceBindingIterator
@@ -245,6 +247,7 @@ namespace dmGraphics
     uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                       BuildUniforms(Program* program);
     void                       IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
+    UniformBufferLayout*       AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
     void                       UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,

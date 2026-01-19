@@ -110,32 +110,31 @@ namespace dmGraphics
         uint8_t             m_BoundSet;
     };
 
-    struct OpenGLUniformBufferLegacy
+    struct OpenGLScratchUniformBuffer
     {
-        UniformBufferLayout m_Layout;
-        dmArray<GLint>      m_Indices;
-        dmArray<GLint>      m_Offsets;
-        uint8_t*            m_BlockMemory;
-        HOpenglID           m_Id;
-        GLint               m_BindPoint;
-        GLint               m_BlockSize;
-        GLint               m_ActiveUniforms;
-
-        uint8_t             m_ResourceBinding;
-        uint8_t             m_ResourceSet : 7;
-        uint8_t             m_Dirty       : 1;
+        const UniformBufferLayout* m_Layout;
+        dmArray<GLint>             m_Indices;
+        dmArray<GLint>             m_Offsets;
+        uint8_t*                   m_BlockMemory;
+        HOpenglID                  m_Id;
+        GLint                      m_BindPoint;
+        GLint                      m_BlockSize;
+        GLint                      m_ActiveUniforms;
+        uint8_t                    m_ResourceBinding;
+        uint8_t                    m_ResourceSet : 7;
+        uint8_t                    m_Dirty       : 1;
     };
 
     struct OpenGLProgram
     {
-        Program                        m_BaseProgram;
-        OpenGLShader*                  m_VertexShader;
-        OpenGLShader*                  m_FragmentShader;
-        OpenGLShader*                  m_ComputeShader;
-        uint32_t                       m_Id;
-        ShaderDesc::Language           m_Language;
-        dmArray<OpenGLVertexAttribute> m_Attributes;
-        dmArray<OpenGLUniformBufferLegacy> m_UniformBuffers;
+        Program                             m_BaseProgram;
+        OpenGLShader*                       m_VertexShader;
+        OpenGLShader*                       m_FragmentShader;
+        OpenGLShader*                       m_ComputeShader;
+        uint32_t                            m_Id;
+        ShaderDesc::Language                m_Language;
+        dmArray<OpenGLVertexAttribute>      m_Attributes;
+        dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
     };
 
     /*

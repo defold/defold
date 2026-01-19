@@ -1364,6 +1364,18 @@ namespace dmGraphics
         DestroyShaderMeta(program->m_ShaderMeta);
     }
 
+    UniformBufferLayout* AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    {
+        // Create a uniform buffer layout that can be used to check uniform buffer compatability
+        UniformBufferLayout ubo_layout;
+        GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos, &ubo_layout);
+
+        uint32_t layout_count = program->m_UniformBufferLayouts.Size();
+        program->m_UniformBufferLayouts.Push(ubo_layout);
+
+        return program->m_UniformBufferLayouts.Begin() + layout_count;
+    }
+
     void FillProgramResourceBindings(
         Program*                         program,
         dmArray<ShaderResourceBinding>&  resources,
@@ -1406,7 +1418,8 @@ namespace dmGraphics
                     case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
+                        program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                        program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(program, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -1421,7 +1434,7 @@ namespace dmGraphics
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
 
             #if 0
-                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_UniformBufferOffset, program_resource_binding.m_TextureUnit);
             #endif
             }
         }
@@ -1436,6 +1449,8 @@ namespace dmGraphics
     {
         if (program)
         {
+            program->m_UniformBufferLayouts.SetCapacity(program->m_ShaderMeta.m_UniformBuffers.Capacity());
+
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_UniformBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_StorageBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
             FillProgramResourceBindings(program, program->m_ShaderMeta.m_Textures, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);

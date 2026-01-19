@@ -1931,6 +1931,11 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
+    if (ubo->m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BoundBinding == UNUSED_BINDING_OR_SET)
+    {
+        return;
+    }
+
     if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
     {
         context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
@@ -2340,6 +2345,22 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     const uint32_t ubo_alignment = context->m_DeviceLimits.limits.minUniformBufferOffsetAlignment;
 #endif
                     WebGPUUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[set][binding];
+
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+                        if (bound_ubo->m_Layout.m_Hash != pgm_layout->m_Hash)
+                        {
+                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                                bound_ubo->m_Layout.m_Hash,
+                                pgm_res.m_Res->m_Name,
+                                pgm_layout->m_Hash);
+
+                            // Fallback to the scratch buffer uniform setup
+                            bound_ubo = 0;
+                        }
+                    }
+
                     if (bound_ubo)
                     {
                         entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
@@ -2382,7 +2403,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                         entries[desc.entryCount].buffer = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Buffer;
                         entries[desc.entryCount].offset = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used;
                         entries[desc.entryCount].size   = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset, entries[desc.entryCount].size);
+                        wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset, entries[desc.entryCount].size);
                         context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
                     break;
@@ -2653,7 +2674,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     binding.buffer.type          = WGPUBufferBindingType_Uniform;
 
                     assert(res.m_Type.m_UseTypeIndex);
-                    program_resource_binding.m_DataOffset = info.m_UniformDataSize;
+                    program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
 
                     info.m_UniformBufferCount++;
                     info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -2982,7 +3003,7 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
-    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset + buffer_offset;
 
     if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
     {
@@ -3005,7 +3026,7 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
-    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset + buffer_offset;
 
     if (memcmp(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count))
     {

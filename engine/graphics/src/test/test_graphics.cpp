@@ -475,7 +475,11 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
     // Create a ubo with the same layout
     {
-        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, null_program->m_UniformBuffers[0].m_Layout);
+        dmGraphics::UniformBufferLayout& pgm_ubo_0 = null_program->m_BaseProgram.m_UniformBufferLayouts[0];
+
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, pgm_ubo_0);
+        dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
+
         dmGraphics::EnableProgram(m_Context, program);
 
         // Set the initial v4s data
@@ -485,6 +489,7 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         dmGraphics::SetConstantV4(m_Context, &constant, 1, uniform_v4->m_Location);
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_FALSE(null_ubo->m_UsedInDraw); // UBO not bound yet
 
         uint8_t* per_draw_uniforms = m_NullContext->m_PerDrawUniformData.Begin();
         float* written_floats = (float*) (per_draw_uniforms + uniform_v4_buffer_offset);
@@ -504,6 +509,7 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_TRUE(null_ubo->m_UsedInDraw);
 
         ASSERT_NEAR(written_floats[0], 5.0f, EPSILON);
         ASSERT_NEAR(written_floats[1], 6.0f, EPSILON);
@@ -511,8 +517,28 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
-
         dmGraphics::DisableProgram(m_Context);
+        dmGraphics::DeleteUniformBuffer(m_Context, ubo);
+    }
+
+    // Create a ubo that doesn't match
+    {
+        dmGraphics::UniformBufferLayout mismatched_layout = {};
+        mismatched_layout.m_Size = 1337;
+        mismatched_layout.m_Hash = -1;
+
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, mismatched_layout);
+        dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableProgram(m_Context, program);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_FALSE(null_ubo->m_UsedInDraw);
+
+        dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        dmGraphics::DisableProgram(m_Context);
+        dmGraphics::DeleteUniformBuffer(m_Context, ubo);
     }
 }
 
