@@ -2794,6 +2794,17 @@ bail:
      * @examples
      */
 
+    /*# called at the end of the frame for a final update of the script component
+     *
+     * This is a callback-function, which is called by the engine at the end of the frame to update the state of a script
+     * component. Use it to make final adjustments to the game object instance.
+     *
+     * @name late_update
+     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
     /*# called when a message has been sent to the script component
      *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
