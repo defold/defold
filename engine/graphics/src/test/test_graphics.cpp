@@ -540,6 +540,8 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         dmGraphics::DisableProgram(m_Context);
         dmGraphics::DeleteUniformBuffer(m_Context, ubo);
     }
+
+    dmGraphics::DeleteProgram(m_Context, program);
 }
 
 TEST_F(dmGraphicsTest, TestProgram)

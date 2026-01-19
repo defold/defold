@@ -902,8 +902,6 @@ namespace dmRender
             }
         }
 
-        // Set light uniform buffers
-
         // Cleared once per frame
         if (context->m_RenderListRanges.Empty())
         {
@@ -986,7 +984,7 @@ namespace dmRender
                 // continue batch on match, or dispatch
                 if (i < count)
                 {
-                    const RenderListEntry *current_entry = &base[*idx];
+                    const RenderListEntry *current_entry = &base[*idx];                
                     if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
                         continue;
                 }

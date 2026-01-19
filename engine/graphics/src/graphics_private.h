@@ -244,6 +244,7 @@ namespace dmGraphics
     ShaderDesc::Language       GetShaderProgramLanguage(HContext context);
     uint32_t                   GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     uint32_t                   GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type);
+    uint32_t                   CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
     Type                       ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
     ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type);
     bool                       GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);

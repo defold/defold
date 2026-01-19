@@ -266,6 +266,10 @@ namespace dmGraphics
         uint32_t              m_MemberCount;
     };
 
+    // The uniform buffer layout is used to validate a uniform buffer
+    // with a shader resource binding by comparing the hash of
+    // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
+    // If the buffer layout differs from the binding, it cannot be used.
     struct UniformBufferLayout
     {
         uint32_t m_Size;

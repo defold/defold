@@ -182,7 +182,6 @@
     PFNGLGENBUFFERSPROC              glGenBuffers              = NULL;
     PFNGLBINDBUFFERPROC              glBindBuffer              = NULL;
     PFNGLUNIFORMBLOCKBINDINGPROC     glUniformBlockBinding     = NULL;
-    PFNGLGETACTIVEUNIFORMNAMEPROC    glGetActiveUniformName    = NULL;
 
     #if !defined(GL_ES_VERSION_2_0)
         PFNGLGETSTRINGIPROC glGetStringi = NULL;
@@ -1063,7 +1062,6 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glGenBuffers, "glGenBuffers", PFNGLGENBUFFERSPROC);
         GET_PROC_ADDRESS(glBindBuffer, "glBindBuffer", PFNGLBINDBUFFERPROC);
         GET_PROC_ADDRESS(glUniformBlockBinding, "glUniformBlockBinding", PFNGLUNIFORMBLOCKBINDINGPROC);
-        GET_PROC_ADDRESS(glGetActiveUniformName, "glGetActiveUniformName", PFNGLGETACTIVEUNIFORMNAMEPROC);
 
     #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
@@ -1717,7 +1715,14 @@ static void LogFrameBufferError(GLenum status)
 
     static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        OpenGLContext* context   = (OpenGLContext*) _context;
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        if (!context->m_IsGles3Version)
+        {
+            dmLogWarning("Uniform buffers are not supported on this OpenGL version.");
+            return 0;
+        }
+
         OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -1739,9 +1744,11 @@ static void LogFrameBufferError(GLenum status)
 
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
-        // TODO: Offset support
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        // glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+        if (offset != 0)
+        {
+            glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+        }
         glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
@@ -2749,7 +2756,7 @@ static void LogFrameBufferError(GLenum status)
             uniform.m_Count    = uniform_size;
             uniform.m_Type     = GetGraphicsType(uniform_type);
 
-        #if 1
+        #if 0
             dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
         #endif
 

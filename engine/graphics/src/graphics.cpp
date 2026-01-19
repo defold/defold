@@ -52,9 +52,6 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    // FWD declarations:
-    static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
-
     static bool SelectAdapterByFamily(AdapterFamily family)
     {
         if (family != ADAPTER_FAMILY_NONE)
@@ -1370,10 +1367,10 @@ namespace dmGraphics
         UniformBufferLayout ubo_layout;
         GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos, &ubo_layout);
 
-        uint32_t layout_count = program->m_UniformBufferLayouts.Size();
+        uint32_t layout_offset = program->m_UniformBufferLayouts.Size();
         program->m_UniformBufferLayouts.Push(ubo_layout);
 
-        return program->m_UniformBufferLayouts.Begin() + layout_count;
+        return program->m_UniformBufferLayouts.Begin() + layout_offset;
     }
 
     void FillProgramResourceBindings(
