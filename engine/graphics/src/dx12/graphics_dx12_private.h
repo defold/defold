@@ -82,10 +82,8 @@ namespace dmGraphics
 
     struct DX12UniformBuffer
     {
-        UniformBufferLayout m_Layout;
-        DX12DeviceBuffer    m_DeviceBuffer;
-        uint8_t             m_BoundBinding;
-        uint8_t             m_BoundSet;
+        UniformBuffer    m_BaseUniformBuffer;
+        DX12DeviceBuffer m_DeviceBuffer;
     };
 
     struct DX12VertexBuffer

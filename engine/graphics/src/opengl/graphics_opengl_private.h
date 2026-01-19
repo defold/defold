@@ -104,10 +104,8 @@ namespace dmGraphics
 
     struct OpenGLUniformBuffer
     {
-        UniformBufferLayout m_Layout;
-        HOpenglID           m_Id;
-        uint8_t             m_BoundBinding;
-        uint8_t             m_BoundSet;
+        UniformBuffer m_BaseUniformBuffer;
+        HOpenglID     m_Id;
     };
 
     struct OpenGLScratchUniformBuffer

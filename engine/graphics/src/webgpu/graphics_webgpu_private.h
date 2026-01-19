@@ -65,10 +65,8 @@ namespace dmGraphics
 
     struct WebGPUUniformBuffer
     {
-        UniformBufferLayout m_Layout;
-        WGPUBuffer          m_Buffer;
-        uint8_t             m_BoundBinding;
-        uint8_t             m_BoundSet;
+        UniformBuffer m_BaseUniformBuffer;
+        WGPUBuffer    m_Buffer;
     };
 
     struct WebGPUShaderModule

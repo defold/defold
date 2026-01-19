@@ -109,12 +109,10 @@ namespace dmGraphics
 
     struct NullUniformBuffer
     {
-        UniformBufferLayout m_Layout;
-        uint8_t*            m_Buffer;
-        uint32_t            m_BufferSize;
-        uint8_t             m_BoundBinding;
-        uint8_t             m_BoundSet;
-        uint8_t             m_UsedInDraw : 1;
+        UniformBuffer m_BaseUniformBuffer;
+        uint8_t*      m_Buffer;
+        uint32_t      m_BufferSize;
+        uint8_t       m_UsedInDraw : 1;
     };
 
     struct NullProgram

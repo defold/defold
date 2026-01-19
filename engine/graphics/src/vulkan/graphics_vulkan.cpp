@@ -1799,10 +1799,10 @@ bail:
     static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
-        ubo->m_Layout               = layout;
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        ubo->m_BoundSet             = UNUSED_BINDING_OR_SET;
-        ubo->m_BoundBinding         = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
         return (HUniformBuffer) ubo;
     }
@@ -1811,6 +1811,7 @@ bail:
     {
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
         SetDeviceBuffer(context, &ubo->m_DeviceBuffer, size, offset, data);
     }
 
@@ -1819,18 +1820,18 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BoundBinding == UNUSED_BINDING_OR_SET)
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
         {
             return;
         }
 
-        if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
         {
-            context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
         }
 
-        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
-        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1838,8 +1839,8 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
 
-        ubo->m_BoundBinding = binding;
-        ubo->m_BoundSet     = set;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
@@ -2356,10 +2357,10 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
                                 res->m_Name,
                                 pgm_layout->m_Hash);
 
@@ -2380,7 +2381,7 @@ bail:
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
                             0,
-                            bound_ubo->m_Layout.m_Size);
+                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
                     }
                     else

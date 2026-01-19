@@ -176,6 +176,13 @@ namespace dmGraphics
         uint8_t m_StageFlags;
     };
 
+    struct UniformBuffer
+    {
+        UniformBufferLayout m_Layout;
+        uint8_t             m_BoundBinding;
+        uint8_t             m_BoundSet;
+    };
+
     struct Program
     {
         ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
@@ -248,7 +255,6 @@ namespace dmGraphics
     void                       BuildUniforms(Program* program);
     void                       IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
     UniformBufferLayout*       AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
-    void                       UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,
         dmArray<ShaderResourceBinding>&       resources,
@@ -331,13 +337,14 @@ namespace dmGraphics
     }
 
     // Test only functions:
-    void             ResetDrawCount();
-    uint64_t         GetDrawCount();
-    void             GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
-    void             EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
-    void             SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
-    const Uniform*   GetUniform(HProgram prog, dmhash_t name_hash);
-    const ShaderMeta* GetShaderMeta(HProgram prog);
+    void                ResetDrawCount();
+    uint64_t            GetDrawCount();
+    void                GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
+    void                EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
+    void                SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
+    const Uniform*      GetUniform(HProgram prog, dmhash_t name_hash);
+    const ShaderMeta*   GetShaderMeta(HProgram prog);
+    void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

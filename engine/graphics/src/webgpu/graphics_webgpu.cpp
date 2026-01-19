@@ -1900,9 +1900,9 @@ static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBuf
     WebGPUContext* context = (WebGPUContext*)_context;
 
     WebGPUUniformBuffer* ubo = new WebGPUUniformBuffer();
-    ubo->m_Layout            = layout;
-    ubo->m_BoundSet          = UNUSED_BINDING_OR_SET;
-    ubo->m_BoundBinding      = UNUSED_BINDING_OR_SET;
+    ubo->m_BaseUniformBuffer.m_Layout = layout;
+    ubo->m_BaseUniformBuffer.m_BoundSet = UNUSED_BINDING_OR_SET;
+    ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
@@ -1922,7 +1922,7 @@ static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buf
 {
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
-
+    assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
     wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
 }
 
@@ -1931,18 +1931,18 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
-    if (ubo->m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BoundBinding == UNUSED_BINDING_OR_SET)
+    if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
     {
         return;
     }
 
-    if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+    if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
     {
-        context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+        context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
     }
 
-    ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
-    ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
+    ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+    ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 }
 
 static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1950,8 +1950,8 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
-    ubo->m_BoundBinding = binding;
-    ubo->m_BoundSet     = set;
+    ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+    ubo->m_BaseUniformBuffer.m_BoundSet     = set;
 
     if (context->m_CurrentUniformBuffers[set][binding])
     {
@@ -2349,10 +2349,10 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                        if (bound_ubo->m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
                                 pgm_res.m_Res->m_Name,
                                 pgm_layout->m_Hash);
 
@@ -2365,7 +2365,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     {
                         entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
                         entries[desc.entryCount].offset = 0;
-                        entries[desc.entryCount].size   = bound_ubo->m_Layout.m_Size;
+                        entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size;
                     }
                     else
                     {

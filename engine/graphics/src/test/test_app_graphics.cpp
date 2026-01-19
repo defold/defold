@@ -460,6 +460,7 @@ struct UniformBufferTest : ITest
         dmGraphics::ShaderResourceTypeInfo light       = { (char*) "Light", dmHashString64("Light"), light_members, DM_ARRAY_SIZE(light_members) };
         dmGraphics::ShaderResourceTypeInfo light_color = { (char*) "LightColor", dmHashString64("LightColor"), light_color_members, DM_ARRAY_SIZE(light_color_members) };
         dmGraphics::ShaderResourceTypeInfo types[]     = { light_data, light, light_color };
+
         dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
         dmGraphics::UniformBufferLayout ubo_layout;

@@ -77,10 +77,8 @@ namespace dmGraphics
 
     struct VulkanUniformBuffer
     {
-        UniformBufferLayout m_Layout;
-        DeviceBuffer        m_DeviceBuffer;
-        uint8_t             m_BoundBinding;
-        uint8_t             m_BoundSet;
+        UniformBuffer m_BaseUniformBuffer;
+        DeviceBuffer  m_DeviceBuffer;
     };
 
     struct VulkanTexture

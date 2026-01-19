@@ -1453,11 +1453,11 @@ namespace dmGraphics
 
     static HUniformBuffer DX12NewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        DX12Context* context   = (DX12Context*) _context;
+        DX12Context* context = (DX12Context*) _context;
         DX12UniformBuffer* ubo = new DX12UniformBuffer();
-        ubo->m_Layout          = layout;
-        ubo->m_BoundSet        = UNUSED_BINDING_OR_SET;
-        ubo->m_BoundBinding    = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
         CreateConstantBuffer(context, &ubo->m_DeviceBuffer, layout.m_Size);
 
@@ -1467,6 +1467,7 @@ namespace dmGraphics
     static void DX12SetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DX12UniformBuffer* ubo = (DX12UniformBuffer*)uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
         memcpy(ubo->m_DeviceBuffer.m_MappedDataPtr + offset, data, size);
     }
 
@@ -1475,18 +1476,18 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*)_context;
         DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BoundBinding == UNUSED_BINDING_OR_SET)
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
         {
             return;
         }
 
-        if (context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
         {
-            context->m_CurrentUniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
         }
 
-        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
-        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void DX12EnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -1494,8 +1495,8 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
         DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
 
-        ubo->m_BoundBinding = binding;
-        ubo->m_BoundSet     = set;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
@@ -2168,10 +2169,10 @@ namespace dmGraphics
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                        if (bound_ubo->m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
                                 pgm_res.m_Res->m_Name,
                                 pgm_layout->m_Hash);
 

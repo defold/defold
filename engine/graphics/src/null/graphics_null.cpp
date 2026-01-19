@@ -384,18 +384,19 @@ namespace dmGraphics
 
     static HUniformBuffer NullNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
-        NullUniformBuffer* ubo = new NullUniformBuffer();
-        ubo->m_Layout          = layout;
-        ubo->m_Buffer          = new uint8_t[layout.m_Size];
-        ubo->m_BufferSize      = layout.m_Size;
-        ubo->m_BoundSet        = UNUSED_BINDING_OR_SET;
-        ubo->m_BoundBinding    = UNUSED_BINDING_OR_SET;
+        NullUniformBuffer* ubo                  = new NullUniformBuffer();
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_Buffer                           = new uint8_t[layout.m_Size];
+        ubo->m_BufferSize                       = layout.m_Size;
         return (HUniformBuffer) ubo;
     }
 
     static void NullSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
         memcpy(ubo->m_Buffer + offset, data, size);
     }
 
@@ -404,18 +405,18 @@ namespace dmGraphics
         NullContext* context = (NullContext*)_context;
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BoundBinding == UNUSED_BINDING_OR_SET)
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
         {
             return;
         }
 
-        if (context->m_UniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] == ubo)
+        if (context->m_UniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
         {
-            context->m_UniformBuffers[ubo->m_BoundSet][ubo->m_BoundBinding] = 0;
+            context->m_UniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
         }
 
-        ubo->m_BoundSet     = UNUSED_BINDING_OR_SET;
-        ubo->m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
     static void NullEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
@@ -423,8 +424,8 @@ namespace dmGraphics
         NullContext* context = (NullContext*)_context;
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
-        ubo->m_BoundBinding = binding;
-        ubo->m_BoundSet     = set;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
 
         if (context->m_UniformBuffers[set][binding])
         {
@@ -742,8 +743,8 @@ namespace dmGraphics
         for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
         {
             NullUniformBuffer* pgm_ubo = &program->m_UniformBuffers[i];
-            NullUniformBuffer* bound_ubo = context->m_UniformBuffers[pgm_ubo->m_BoundSet][pgm_ubo->m_BoundBinding];
-            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[pgm_ubo->m_BoundSet][pgm_ubo->m_BoundBinding];
+            NullUniformBuffer* bound_ubo = context->m_UniformBuffers[pgm_ubo->m_BaseUniformBuffer.m_BoundSet][pgm_ubo->m_BaseUniformBuffer.m_BoundBinding];
+            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[pgm_ubo->m_BaseUniformBuffer.m_BoundSet][pgm_ubo->m_BaseUniformBuffer.m_BoundBinding];
 
             pgm_ubo->m_UsedInDraw = 0;
 
@@ -752,10 +753,10 @@ namespace dmGraphics
             if (bound_ubo)
             {
                 UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                if (bound_ubo->m_Layout.m_Hash != pgm_layout->m_Hash)
+                if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
                 {
                     dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                        bound_ubo->m_Layout.m_Hash,
+                        bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
                         pgm_res.m_Res->m_Name,
                         pgm_layout->m_Hash);
 
@@ -858,8 +859,8 @@ namespace dmGraphics
             ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[i];
 
             NullUniformBuffer ubo = {};
-            ubo.m_BoundBinding    = res.m_Binding;
-            ubo.m_BoundSet        = res.m_Set;
+            ubo.m_BaseUniformBuffer.m_BoundBinding = res.m_Binding;
+            ubo.m_BaseUniformBuffer.m_BoundSet = res.m_Set;
 
             program->m_UniformBuffers.Push(ubo);
         }

@@ -62,8 +62,10 @@ namespace dmGraphics
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
-    typedef uint64_t HAssetHandle;
-    typedef uint64_t HUniformBuffer;
+    typedef uint64_t       HAssetHandle;
+
+    // Defined in graphics_private.h
+    typedef struct UniformBuffer* HUniformBuffer;
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
