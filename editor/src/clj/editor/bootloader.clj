@@ -61,8 +61,7 @@
 
 (defn load-synchronous [print-to-stdout]
   (load-boot print-to-stdout)
-  (let [[loader _] @load-info]
-    @loader))
+  (deref (first @load-info)))
 
 (defn main
   [args]
