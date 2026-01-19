@@ -43,10 +43,10 @@
            [editor.resource FileResource]
            [java.io File]
            [java.nio.file Path Paths]
-           [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.input DragEvent MouseEvent TransferMode]
            [javafx.scene Node]
            [javafx.scene.control SelectionMode TreeCell TreeItem TreeView]
+           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.input DragEvent MouseEvent TransferMode]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.stage Stage]
            [org.apache.commons.io FilenameUtils]))
