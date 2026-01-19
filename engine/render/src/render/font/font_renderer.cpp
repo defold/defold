@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -224,6 +224,9 @@ namespace dmRender
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
         settings.m_Size = dmRender::GetFontMapSize(font_map);
+        // legacy options for glyph bank fonts
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         TextMetrics metrics;
 
         // TODO: Allow for callers to have their prepared HTextLayout

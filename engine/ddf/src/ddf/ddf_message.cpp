@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -258,6 +258,7 @@ namespace dmDDF
         assert(field->m_MessageDescriptor == 0);
 
         assert(m_Start + field->m_Offset + buffer_size <= m_End);
+
         if (!m_DryRun)
         {
             memcpy(GetBuffer(field->m_Offset), buffer, buffer_size);

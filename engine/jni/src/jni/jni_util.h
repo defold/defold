@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -154,6 +154,28 @@ namespace dmJNI
             if (m_Array && m_JArray)
             {
                 m_Env->ReleaseByteArrayElements(m_JArray, m_Array, JNI_ABORT);
+            }
+        }
+    };
+
+    struct ScopedByteArrayCritical
+    {
+        JNIEnv*    m_Env;
+        jbyte*     m_Array;
+        jsize      m_ArraySize;
+        jbyteArray m_JArray;
+        ScopedByteArrayCritical(JNIEnv* env, jbyteArray arr)
+            : m_Env(env)
+            , m_Array(arr ? (jbyte*)env->GetPrimitiveArrayCritical(arr, 0) : 0)
+            , m_ArraySize(arr ? env->GetArrayLength(arr) : 0)
+            , m_JArray(arr)
+        {
+        }
+        ~ScopedByteArrayCritical()
+        {
+            if (m_Array && m_JArray)
+            {
+                m_Env->ReleasePrimitiveArrayCritical(m_JArray, m_Array, JNI_ABORT);
             }
         }
     };

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -601,7 +601,7 @@
     :else
     (throw (ex-info (str "Unexpected tooltip value: " v) {:tooltip v}))))
 
-(defn resolve-tooltip
+(defn- resolve-tooltip
   "Replace :tooltip prop with prop-delayed-tooltip or prop-immediate-tooltip
 
   Works on any Node, not just Controls
@@ -1247,7 +1247,8 @@
                 (util/provide-defaults
                   :alignment :center
                   :focus-traversable false)
-                resolve-alignment)}))
+                resolve-alignment
+                resolve-tooltip)}))
 
 (defn play-invalid-value-animation! [^Node node]
   (let [properties (.getProperties node)]

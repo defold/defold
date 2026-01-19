@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -738,7 +738,36 @@ namespace dmRender
         // Locate a cache cell candidate
         CacheGlyph* cache_glyph = AcquireFreeGlyphFromCache(font_map);
 
-        if (cache_glyph->m_Glyph && cache_glyph->m_Frame == frame)
+        if (cache_glyph->m_Glyph)
+        {
+            if (cache_glyph->m_Frame == frame)
+            {
+                bool can_resize = CanCacheTextureGrow(font_map);
+                if (can_resize)
+                {
+                    font_map->m_IsCacheSizeDirty = 1;
+                    font_map->m_IsCacheSizeTooSmall = 1;
+                    return;
+                }
+
+                // It means we've filled the entire cache with upload requests
+                // We might then just as well skip the next uploads until the next frame
+                dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u / %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, glyph->m_Codepoint < 255 ? glyph->m_Codepoint : ' ', glyph->m_Codepoint, glyph->m_GlyphIndex  , dmHashReverseSafe64(font_map->m_NameHash));
+                return;
+            }
+        }
+
+        if (cache_glyph->m_Glyph) // It already existed in the cache
+        {
+            // Clear the old data from the cache
+            font_map->m_GlyphCache.Erase(cache_glyph->m_GlyphKey);
+        }
+
+        // If the blit would write outside of the texture, then we try to resize it
+        uint32_t glyph_image_width  = glyph->m_Bitmap.m_Width;
+        uint32_t glyph_image_height = glyph->m_Bitmap.m_Height;
+        if ( (cache_glyph->m_X + glyph_image_width) > font_map->m_CacheWidth ||
+             (cache_glyph->m_Y + glyph_image_height + g_offset_y) > font_map->m_CacheHeight)
         {
             bool can_resize = CanCacheTextureGrow(font_map);
             if (can_resize)
@@ -750,21 +779,15 @@ namespace dmRender
 
             // It means we've filled the entire cache with upload requests
             // We might then just as well skip the next uploads until the next frame
-            dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u / %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, glyph->m_Codepoint < 255 ? glyph->m_Codepoint : ' ', glyph->m_Codepoint, glyph->m_GlyphIndex  , dmHashReverseSafe64(font_map->m_NameHash));
+            dmLogWarning("The font glyph cache (%u x %u) needed resizing to fit glyph bitmap.", font_map->m_CacheWidth, font_map->m_CacheHeight);
             return;
         }
 
-        if (cache_glyph->m_Glyph) // It already existed in the cache
-        {
-            // Clear the old data from the cache
-            font_map->m_GlyphCache.Erase(cache_glyph->m_GlyphKey);
-        }
         cache_glyph->m_Glyph = glyph;
         cache_glyph->m_GlyphKey = glyph_key;
         cache_glyph->m_Frame = frame;
 
         font_map->m_GlyphCache.Put(glyph_key, cache_glyph);
-
 
         UpdateGlyphTexture(font_map, glyph, cache_glyph->m_X, cache_glyph->m_Y, g_offset_y);
     }

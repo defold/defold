@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -249,6 +249,9 @@
   Object (->connection [x] x)
   nil (->connection [x] x))
 
+(defn error [response]
+  (ex-info "HTTP server error" {::response response}))
+
 (defn start!
   "Start a generic HTTP server
 
@@ -314,8 +317,9 @@
                   (catch Throwable e (future/failed e)))
                 (future/catch
                   (fn [e]
-                    (error-reporting/report-exception! e)
-                    internal-server-error))
+                    (or (::response (ex-data e))
+                        (do (error-reporting/report-exception! e)
+                            internal-server-error))))
                 (future/then
                   (fn [response]
                     (future/io

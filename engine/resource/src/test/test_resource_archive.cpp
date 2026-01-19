@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -464,7 +464,7 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 #if !defined(__linux__)
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
@@ -527,7 +527,7 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 #if !defined(__linux__)
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
@@ -540,9 +540,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
     ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 #endif
 
@@ -556,7 +554,7 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 #if !defined(__linux__)
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
-    dmResource::HManifest manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
@@ -569,9 +567,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     ASSERT_EQ(dmResource::RESULT_SIGNATURE_MISMATCH, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 #endif
 

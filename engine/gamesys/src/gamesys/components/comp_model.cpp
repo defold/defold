@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -2690,7 +2690,7 @@ namespace dmGameSystem
 
         dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, 0);
 
-        if (GetMaterialConstant(material, params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompModelGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        if (GetMaterialConstant(material, params.m_PropertyId, params.m_Options.m_Index, out_value, false, CompModelGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }

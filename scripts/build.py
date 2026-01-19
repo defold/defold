@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -783,7 +783,7 @@ class Configuration(object):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
         print("Installing waf")
-        waf_package = "waf-2.0.3"
+        waf_package = "waf-2.1.9"
         waf_path = make_package_path(self.defold_root, 'common', waf_package)
         self._extract_tgz(waf_path, self.ext)
 
@@ -1683,7 +1683,6 @@ class Configuration(object):
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
 # - 'com.dynamo.cr/com.dynamo.cr.test'
-# - 'com.dynamo.cr/com.dynamo.cr.common'
 # Maybe in the future we consider to move it into install_ext
     def get_gradle_wrapper(self):
         if os.name == 'nt':  # Windows
@@ -1695,7 +1694,6 @@ class Configuration(object):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
@@ -1731,8 +1729,9 @@ class Configuration(object):
         host = self.host
 
         # Make sure we build these for the host platform for the toolchain (bob light)
+        host_lib_skip_tests = host != self.target_platform
         for lib in HOST_LIBS:
-            self._build_engine_lib(args, lib, host)
+            self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
@@ -1875,7 +1874,6 @@ class Configuration(object):
 
     def build_bob(self):
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()

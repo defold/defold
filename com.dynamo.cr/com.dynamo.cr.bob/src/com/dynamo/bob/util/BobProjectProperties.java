@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,7 +45,7 @@ import com.dynamo.bob.Bob;
 public class BobProjectProperties {
 
     public final static String PROPERTIES_PROJECT_FILE = "game.properties";
-    public final static String PROPERTIES_EXTENSION_FILE = "ext.properties";
+    public final static String PROPERTIES_FILE = "ext.properties";
     public final static String PROPERTIES_INTERNAL_FILE = "meta.properties";
 
     public enum PropertyType {

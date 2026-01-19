@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -104,8 +104,11 @@
    (let [preview-profile (make-preview-profile texture-profile)]
      (make-texture-image image preview-profile false)))
   (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile flip-y]
-   (let [preview-profile (make-preview-profile texture-profile)]
-     (make-texture-image image preview-profile false flip-y))))
+   (if flip-y
+     ;; TODO: We might be able to pass a flip-y bool arg to TexcLib.CreatePreviewImage and make this work for all
+     (TextureGenerator/generateAtlasPreview image) ;; Fast path
+     (let [preview-profile (make-preview-profile texture-profile)]
+       (make-texture-image image preview-profile false flip-y)))))
 
 (defn make-cubemap-texture-images
   ^TextureGenerator$GenerateResult [images texture-profile compress?]

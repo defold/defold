@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-@BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", isCacheble = true, paramsForSignature = {"texture-compression"})
+@BuilderParams(name = "Texture", inExts = {".png", ".jpg", ".jpeg"}, outExt = ".texturec", isCacheble = true, paramsForSignature = {"texture-compression"})
 public class TextureBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(TextureBuilder.class.getName());

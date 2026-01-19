@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -981,4 +981,17 @@ zip.unpack(
           :description "`\"skip\"`, existing file is preserved"}
          {:name "zip.ON_CONFLICT.OVERWRITE"
           :type :constant
-          :description "`\"skip\"`, existing file is overwritten"}]))))
+          :description "`\"skip\"`, existing file is overwritten"}
+         {:name "zlib"
+          :type :module
+          :description "Module for compressing and decompressing string buffers"}
+         {:name "zlib.deflate"
+          :type :function
+          :parameters [{:name "buf" :types ["string"] :doc "buffer to deflate"}]
+          :returnvalues [{:name "buf" :types ["string"] :doc "deflated buffer"}]
+          :description "Deflate (compress) a buffer"}
+         {:name "zlib.inflate"
+          :type :function
+          :parameters [{:name "buf" :types ["string"] :doc "buffer to inflate"}]
+          :returnvalues [{:name "buf" :types ["string"] :doc "inflated buffer"}]
+          :description "Inflate (decompress) a buffer"}]))))

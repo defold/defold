@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -73,8 +73,8 @@ namespace dmSSLSocket
      * @param socket [type:dmSocket::Socket] The socket to wrap
      * @param host [type:const char*] The name of the host (e.g. "httpbin.org")
      * @param timeout [type:uint64_t] The timeout for the handshake procedure. (microseconds)
-     * @param sslsocket [type:dmSSLSocket::Socket*] Pointer to a secure socket
-     * @return RESULT_OK on succcess
+     * @param sslsocket [type:Socket*] Pointer to a secure socket
+     * @return result [type:Result] RESULT_OK on success
      * @examples
      * ```cpp
      * dmSSLSocket::Result result;
@@ -94,7 +94,7 @@ namespace dmSSLSocket
      * Delete a secure socket. Does not close the underlying socket
      * @name Delete
      * @param socket [type:Socket] Secure socket to close
-     * @return RESULT_OK on success
+     * @return result [type:Result] RESULT_OK on success
      * @examples
      * ```cpp
      * dmSSLSocket::Delete(sslsocket);
@@ -109,7 +109,7 @@ namespace dmSSLSocket
      * @param buffer [type:void*] Buffer to send
      * @param length [type:int] Length of buffer to send
      * @param sent_bytes [type:int*] Number of bytes sent (result)
-     * @return RESULT_OK on success
+     * @return result [type:dmSocket::Result] RESULT_OK on success
      */
     dmSocket::Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);
 
@@ -120,7 +120,7 @@ namespace dmSSLSocket
      * @param buffer [type:void*] Buffer to receive to
      * @param length [type:int] Receive buffer length
      * @param received_bytes [type:int*] Number of received bytes (result)
-     * @return RESULT_OK on success
+     * @return result [type:dmSocket::Result] RESULT_OK on success
      */
     dmSocket::Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
 
@@ -131,7 +131,7 @@ namespace dmSSLSocket
      * @name dmSocket::SetReceiveTimeout
      * @param socket [type:Socket] socket
      * @param timeout [type:uint64_t] timeout in microseconds
-     * @return RESULT_OK on success
+     * @return result [type:dmSocket::Result] RESULT_OK on success
      */
     dmSocket::Result SetReceiveTimeout(Socket socket, uint64_t timeout);
 }

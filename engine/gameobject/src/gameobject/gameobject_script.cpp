@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -2789,6 +2789,17 @@ bail:
      * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
      *
      * @name fixed_update
+     * @param self [type:userdata] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
+    /*# called at the end of the frame for a final update of the script component
+     *
+     * This is a callback-function, which is called by the engine at the end of the frame to update the state of a script
+     * component. Use it to make final adjustments to the game object instance.
+     *
+     * @name late_update
      * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples

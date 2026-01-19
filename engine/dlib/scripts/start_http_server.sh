@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,9 +33,12 @@ CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/*
 CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/logging/*
 CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../build/src/test/http_server
 
+LOGFILE="${TEST_HTTP_SERVER_LOG:-test_http_server.log}"
+
 echo $CLASSPATH
+echo "Logging TestHttpServer output to ${LOGFILE}"
 
 #DEBUG="-DDEBUG=true -Dorg.eclipse.jetty.LEVEL=DEBUG -Djavax.net.debug=ssl,handshake,data"
 
-java -cp $CLASSPATH ${DEBUG} TestHttpServer &
+java -cp $CLASSPATH ${DEBUG} TestHttpServer >> "${LOGFILE}" 2>&1 &
 echo $! > test_http_server.pid

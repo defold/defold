@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,10 +44,6 @@
     (and (= :path (::prefs/error x))
          (= path (:path x)))))
 
-(defspec any-schema-spec 100
-  (prop/for-all [any gen/any]
-    (prefs/valid? {:type :any} any)))
-
 (defspec boolean-schema-valid-spec 100
   (prop/for-all [b gen/boolean]
     (prefs/valid? {:type :boolean} b)))
@@ -81,7 +77,7 @@
     (not (prefs/valid? {:type :keyword} x))))
 
 (defspec integer-schema-valid-spec 100
-  (prop/for-all [x gen/int]
+  (prop/for-all [x gen/small-integer]
     (prefs/valid? {:type :integer} x)))
 
 (defspec integer-schema-invalid-spec 10
@@ -89,12 +85,20 @@
     (not (prefs/valid? {:type :integer} x))))
 
 (defspec number-schema-valid-spec 100
-  (prop/for-all [x (gen/one-of [gen/double gen/int])]
+  (prop/for-all [x (gen/one-of [gen/double gen/small-integer])]
     (prefs/valid? {:type :number} x)))
 
 (defspec number-schema-invalid-spec 10
   (prop/for-all [x (gen/such-that (complement number?) gen/any)]
     (not (prefs/valid? {:type :number} x))))
+
+(defspec one-of-schema-valid-spec 100
+  (prop/for-all [m (gen/one-of [gen/string gen/small-integer])]
+    (prefs/valid? {:type :one-of :schemas [{:type :number} {:type :string}]} m)))
+
+(defspec one-of-schema-invalid-spec 100
+  (prop/for-all [m (gen/such-that #(and (not (string? %)) (not (number? %))) gen/any)]
+    (not (prefs/valid? {:type :one-of :schemas [{:type :number} {:type :string}]} m))))
 
 (defspec array-schema-valid-spec 100
   (prop/for-all [x (gen/vector gen/string)]
@@ -130,7 +134,7 @@
 
 (defspec tuple-schema-valid-spec 100
   (prop/for-all [s gen/string
-                 i gen/int]
+                 i gen/small-integer]
     (prefs/valid? {:type :tuple :items [{:type :string} {:type :integer}]} [s i])))
 
 (defspec tuple-schema-invalid-size-spec 100
@@ -155,13 +159,13 @@
 (deftest prefs-types-test
   (with-schemas {::types {:type :object
                           :properties {:types {:type :object
-                                               :properties {:any {:type :any}
-                                                            :boolean {:type :boolean :default true}
+                                               :properties {:boolean {:type :boolean :default true}
                                                             :string {:type :string}
                                                             :password {:type :password}
                                                             :keyword {:type :keyword :default :none}
                                                             :integer {:type :integer :default -1}
                                                             :number {:type :number :default 0.5}
+                                                            :one-of {:type :one-of :schemas [{:type :number} {:type :string}]}
                                                             :array {:type :array :item {:type :string}}
                                                             :set {:type :set :item {:type :string}}
                                                             :enum {:type :enum :values [:foo :bar]}
@@ -170,13 +174,13 @@
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                         :schemas [::types])]
       ;; ensure defaults are properly typed
-      (is (= {:types {:any nil
-                      :boolean true
+      (is (= {:types {:boolean true
                       :string ""
                       :password ""
                       :keyword :none
                       :integer -1
                       :number 0.5
+                      :one-of 0.0
                       :array []
                       :set #{}
                       :enum :foo
@@ -184,26 +188,26 @@
                       :object-of {}}}
              (prefs/get p [])))
       ;; change values
-      (prefs/set! p [] {:types {:any 'foo/bar
-                                :boolean false
+      (prefs/set! p [] {:types {:boolean false
                                 :string "str"
                                 :password "1337"
                                 :keyword :something
                                 :integer 42
                                 :number 42
+                                :one-of "string"
                                 :array ["heh"]
                                 :set #{"heh"}
                                 :enum :bar
                                 :tuple ["/game.project" :form-view]
                                 :object-of {"foo" "bar"}}})
       ;; ensure updated values are as expected
-      (is (= {:types {:any 'foo/bar
-                      :boolean false
+      (is (= {:types {:boolean false
                       :string "str"
                       :password "1337"
                       :keyword :something
                       :integer 42
                       :number 42
+                      :one-of "string"
                       :array ["heh"]
                       :set #{"heh"}
                       :enum :bar
@@ -226,19 +230,20 @@
          [:types :keyword] "not-a-keyword"
          [:types :integer] "not-an-int"
          [:types :number] "NaN"
+         [:types :one-of] false
          [:types :array] true
          [:types :set] false
          [:types :enum] 12
          [:types :tuple] nil
          [:types :object-of] {:foo :bar}})
       ;; No invalid changes are recorded
-      (is (= {:types {:any 'foo/bar
-                      :boolean false
+      (is (= {:types {:boolean false
                       :string "str"
                       :password "1337"
                       :keyword :something
                       :integer 42
                       :number 42
+                      :one-of "string"
                       :array ["heh"]
                       :set #{"heh"}
                       :enum :bar

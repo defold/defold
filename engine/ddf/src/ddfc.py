@@ -234,14 +234,14 @@ def to_cxx_struct(context, pp, message_type, namespace):
             if oneof_scope == None or oneof_scope != oneof_decl.name:
                 if oneof_scope != None:
                     pp.end(" m_%s", to_camel_case(oneof_scope))
-                    pp.p("uint8_t m_%sOneOfIndex;", to_camel_case(oneof_scope))
+                    pp.p("uint32_t m_%sOneOfIndex;", to_camel_case(oneof_scope))
 
                 oneof_scope = oneof_decl.name
                 pp.begin("union")
         else:
             if oneof_scope != None:
                 pp.end(" m_%s", to_camel_case(oneof_scope))
-                pp.p("uint8_t m_%sOneOfIndex;", to_camel_case(oneof_scope))
+                pp.p("uint32_t m_%sOneOfIndex;", to_camel_case(oneof_scope))
                 oneof_scope = None
 
         if (field_align):
@@ -283,7 +283,7 @@ def to_cxx_struct(context, pp, message_type, namespace):
     if oneof_scope != None:
         pp.end(" m_%s", to_camel_case(oneof_scope))
 
-        pp.p("uint8_t m_%sOneOfIndex;", to_camel_case(oneof_scope))
+        pp.p("uint32_t m_%sOneOfIndex;", to_camel_case(oneof_scope))
         pp.p("")
 
     pp.p('')

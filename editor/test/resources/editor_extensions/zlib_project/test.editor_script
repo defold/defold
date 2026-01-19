@@ -1,0 +1,38 @@
+local M = {}
+
+local function test(message, f, ...) 
+    local success, ret = pcall(f, ...)
+    if success then
+        print(("%s => unexpected success!"):format(message))
+    else
+        print(("%s => %s"):format(message, ret))
+    end
+end
+
+function M.get_commands()
+    return {editor.command({
+        label = "Test",
+        locations = {"Edit"},
+        id = "defold.test",
+        run = function()
+            local zlib_buf = "\120\94\203\72\205\201\201\7\0\6\44\2\21"
+            local gzip_buf = "\31\139\8\0\0\0\0\0\2\255\203\72\205\201\201\7\0\134\166\16\54\5\0\0\0"
+            print(("inflate zlib: %s"):format(zlib.inflate(zlib_buf)))
+            print(("inflate gzip: %s"):format(zlib.inflate(gzip_buf)))
+            local compressed_data = zlib.deflate("hello")
+            local s = ""
+            for c in string.gmatch(compressed_data, ".") do
+                s = s .. '\\' .. string.byte(c)
+            end
+            print(("deflate hello: %s"):format(s))
+            print(("same as expected zlib buf: %s"):format(tostring(compressed_data == zlib_buf)))
+            print(("roundtrip: %s"):format(tostring(zlib.inflate(zlib.deflate("foo")) == "foo")))
+            test("zlib.inflate(false)", zlib.inflate, false)
+            test("zlib.deflate(false)", zlib.deflate, false)
+            test("zlib.inflate('')", zlib.inflate, '')
+            test("zlib.inflate('not-a-buf')", zlib.inflate, 'not-a-buf')
+        end
+    })}
+end
+
+return M

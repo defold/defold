@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -159,7 +159,7 @@ public class ShaderCompilePipelineTest {
                 in mediump vec2 texcoord0;
                 out mediump vec2 var_texcoord0;
                 uniform vs_uniforms { highp mat4 view_proj; };
-                uniform shared_uniforms { vec4 tint; };  
+                uniform shared_uniforms { vec4 tint; };
                 uniform sampler2D shared_texture;
                 void main()
                 {
@@ -251,7 +251,7 @@ public class ShaderCompilePipelineTest {
                 """
                 #version 430
                 out vec4 out_fragColor;
-               
+
                 struct nested
                 {
                     float nested;
@@ -336,14 +336,14 @@ public class ShaderCompilePipelineTest {
                 in vec4 color;
                 out vec2 var_texcoord0;
                 out vec4 var_color;
-                out vec3 var_position;          
+                out vec3 var_position;
                 void main()
                 {
                     var_position = position;
                     var_texcoord0 = texcoord0;
                     var_color = vec4(color.rgb * color.a, color.a);
                     gl_Position = vec4(position.xyz, 1.0);
-                }                    
+                }
                 """;
 
         String fsShader =
