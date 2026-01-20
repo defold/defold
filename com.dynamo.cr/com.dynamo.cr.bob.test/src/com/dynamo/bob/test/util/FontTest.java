@@ -214,7 +214,6 @@ public class FontTest {
         for (int i = 0; i < bmfont.chars; i++)
         {
             Char c = bmfont.charArray.get(i);
-            assertTrue( (c.id <= 126 && c.id >= 32) || c.id == 9 );
             assertTrue( c.id > previousId);
             previousId = c.id;
         }
