@@ -64,7 +64,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Cursor Group Node Parent Scene]
-           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
@@ -1489,6 +1489,15 @@
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
+;; NOTE: This is a workaround for a CustomMenuItem bug where the first menu item
+;; doesn't receive focus when opening a menu via keyboard (vs mouse).
+(defn- focus-first-grid-menu-item [^CustomMenuItem grid-menu]
+  (run-later
+    (let [content ^Node (.getContent grid-menu)]
+      (some-> content
+              (.lookup ".grid-menu-item-enabled")
+              (.requestFocus)))))
+
 (defn- make-grid-menu
   "Create a grid-based menu component with categorized items arranged in columns
 
@@ -1578,41 +1587,31 @@
 (declare make-menu-items)
 
 (defn- make-menu-item [^Scene scene item command-contexts keymap localization evaluation-context]
-  (let [id (:id item)
-        icon (:icon item)
-        style-classes (:style item)
-        item-label (:label item)
-        on-open (:on-submenu-open item)]
-    (if-let [children (:children item)]
-      (make-submenu id
-                    item-label
-                    localization
-                    icon
-                    style-classes
-                    (make-menu-items scene children command-contexts keymap localization evaluation-context)
-                    on-open)
-      (if (= item-label :separator)
-        (SeparatorMenuItem.)
-        (let [command (:command item)
-              user-data (:user-data item)
-              check (:check item)]
-          (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-            (let [label (or (handler/label handler-ctx evaluation-context) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
-                  enabled? (handler/enabled? handler-ctx evaluation-context)
-                  key-combo (first (keymap/shortcuts keymap command))]
-              (if-let [options (handler/options handler-ctx evaluation-context)]
-                (if (and key-combo (not (:expand item)))
-                  (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)
-                  (make-submenu id
-                                label
-                                localization
-                                icon
-                                style-classes
-                                (if (some-> options meta :layout (= :grid))
-                                  [(make-grid-menu scene localization options command-contexts evaluation-context)]
-                                  (make-menu-items scene (localization/sort-if-annotated @localization options) command-contexts keymap localization evaluation-context))
-                                on-open))
-                (make-menu-command scene id label localization icon style-classes key-combo user-data command enabled? check)))))))))
+  (let [{:keys [id icon style children label command user-data check on-submenu-open]} item]
+    (cond
+      (= label :separator)
+      (SeparatorMenuItem.)
+
+      children
+      (let [items (make-menu-items scene children command-contexts keymap localization evaluation-context)]
+        (make-submenu id label localization icon style items on-submenu-open))
+
+      :else
+      (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+        (let [label (or (handler/label handler-ctx evaluation-context) label)
+              enabled? (handler/enabled? handler-ctx evaluation-context)
+              key-combo (first (keymap/shortcuts keymap command))
+              options (handler/options handler-ctx evaluation-context)]
+          (if (or (nil? options)
+                  (and key-combo (not (:expand item))))
+            (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
+            (if (some-> options meta :layout (= :grid))
+              (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
+                (make-submenu id label localization icon style [grid-menu] #(focus-first-grid-menu-item grid-menu)))
+              (make-submenu id label localization icon style
+                            (make-menu-items scene (localization/sort-if-annotated @localization options)
+                                             command-contexts keymap localization evaluation-context)
+                            on-submenu-open))))))))
 
 (defn- make-menu-items [^Scene scene menu command-contexts keymap localization evaluation-context]
   (into []
