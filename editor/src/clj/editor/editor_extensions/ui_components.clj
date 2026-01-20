@@ -59,6 +59,7 @@
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control CheckBox TextField]
+           [javafx.scene.image Image]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [org.luaj.vm2 LuaError LuaValue]))
@@ -310,29 +311,30 @@
                    :fit-height fit-size}]}
       alignment)))
 
+(defn- construct-image [s workspace]
+  (if (string/starts-with? s "/")
+    (when-let [resource (workspace/find-resource workspace s (lifecycle-evaluation-context))]
+      (when (resource/exists? resource)
+        (with-open [is (io/input-stream resource)]
+          (Image. is))))
+    (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
+      (when (.getScheme uri)
+        (Image. s #_background-loading true)))))
+
 (fxui/defc image-view
-  {:compose [{:fx/type fx/ext-get-env :env [:workspace]}]}
-  [{:keys [image alignment width height workspace]
+  {:compose [{:fx/type fx/ext-get-env :env [:workspace]}
+             {:fx/type fxui/ext-memo :fn construct-image :args [(:image props) (:workspace props)] :key :image}]}
+  [{:keys [image alignment width height]
     :or {alignment :top-left}}]
-  (or
-    (when-let [image (if (string/starts-with? image "/")
-                       (when-let [resource (workspace/find-resource workspace image (lifecycle-evaluation-context))]
-                         (when (resource/exists? resource)
-                           {:is (io/input-stream resource)
-                            :background-loading true}))
-                       (when-let [^URI uri (try (URI. image) (catch URISyntaxException _))]
-                         (when (.getScheme uri)
-                           {:url image
-                            :background-loading true})))]
-      (wrap-in-alignment-container
-        (-> {:fx/type fx.stack-pane/lifecycle
-             :children [(cond-> {:fx/type fxui/resizable-image
-                                 :image image})]}
-            (apply-alignment alignment)
-            (cond->
-              width (assoc :min-width width :pref-width width :max-width width)
-              height (assoc :min-height height :pref-height height :max-height height)))
-        alignment))
+  (if image
+    (-> {:fx/type fx.stack-pane/lifecycle
+         :children [(cond-> {:fx/type fxui/resizable-image
+                             :image image})]}
+        (apply-alignment alignment)
+        (cond->
+          width (assoc :min-width width :pref-width width :max-width width)
+          height (assoc :min-height height :pref-height height :max-height height))
+        (wrap-in-alignment-container alignment))
     {:fx/type fx.region/lifecycle}))
 
 ;; endregion
