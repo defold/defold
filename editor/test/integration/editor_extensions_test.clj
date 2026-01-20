@@ -656,6 +656,15 @@
         (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
         (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
 (defn- expect-script-output [expected actual]
   (let [actual (normalize-pprint-output (str actual))]
     (let [output-matches-expectation (= expected actual)]
@@ -888,15 +897,6 @@ nesting:
   \"a\"
 }
 ")
-
-(defn- normalize-pprint-output [output-string]
-  (let [hash->stable-id (volatile! {})]
-    (string/replace
-      output-string
-      #"0x[0-9a-f]+"
-      (fn [s]
-        (or (@hash->stable-id s)
-            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
