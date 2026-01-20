@@ -284,8 +284,8 @@
 
 (g/defnode SetterNode
   (property producer g/NodeID
-    (value (g/fnk [_node-id]
-             (g/node-feeding-into _node-id :value)))
+    (value (g/fnk [^:unsafe _evaluation-context _node-id]
+             (g/node-feeding-into (:basis _evaluation-context) _node-id :value)))
     (set (fn [_evaluation-context self _old-value new-value]
            (g/connect new-value :produces-value self :value))))
   (input value g/Str))

@@ -95,73 +95,6 @@ public class IOSBundler implements IBundler {
         return (temp);
     }
 
-    public static String getFileDescription(File file) {
-        if (file == null) {
-            return "null";
-        }
-
-        try {
-            if (file.isDirectory()) {
-                return file.getAbsolutePath() + " (directory)";
-            }
-
-            long byteSize = file.length();
-
-            if (byteSize > 0) {
-                return file.getAbsolutePath() + " (" + byteSize + " bytes)";
-            }
-
-            return file.getAbsolutePath() + " (unknown size)";
-        }
-        catch (Exception e) {
-            // Ignore.
-        }
-
-        return file.getPath();
-    }
-
-    public static void lipoBinaries(File resultFile, List<File> binaries) throws IOException, CompileExceptionError {
-        if (binaries.size() == 1) {
-            FileUtils.copyFile(binaries.get(0), resultFile);
-            return;
-        }
-
-        String exe = resultFile.getPath();
-        List<String> lipoArgList = new ArrayList<String>();
-        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
-        lipoArgList.add("-create");
-        for (File bin : binaries) {
-            lipoArgList.add(bin.getAbsolutePath());
-        }
-        lipoArgList.add("-output");
-        lipoArgList.add(exe);
-
-        Result lipoResult = Exec.execResult(lipoArgList.toArray(new String[0]));
-        if (lipoResult.ret == 0) {
-            logger.info("Result of lipo command is a universal binary: " + getFileDescription(resultFile));
-        }
-        else {
-            logger.severe("Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
-        }
-    }
-
-    public static boolean isMacOS(Platform platform) {
-        return platform == Platform.X86_64MacOS ||
-               platform == Platform.Arm64MacOS;
-    }
-
-    public static void stripExecutable(Platform platform, File exe) throws IOException {
-        // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
-        if (isMacOS(Platform.getHostPlatform())) {
-            String stripName = isMacOS(platform) ? "strip" : "strip_ios";
-
-            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip"), exe.getPath()); // Using the same executable
-            if (stripResult.ret != 0) {
-                logger.severe("Error executing strip command:\n" + new String(stripResult.stdOutErr));
-            }
-        }
-    }
-
     public static List<File> getBinariesFromArchitectures(Project project, List<Platform> architectures, String variant) throws IOException {
         // Loop over all architectures needed for bundling
         // Pickup each binary, either vanilla or from a extender build.
@@ -176,7 +109,7 @@ public class IOSBundler implements IBundler {
             }
 
             File binary = bins.get(0);
-            logger.info(architecture.getPair() + " exe: " + getFileDescription(binary));
+            logger.info(architecture.getPair() + " exe: " + BundleHelper.getFileDescription(binary));
             binaries.add(binary);
         }
         return binaries;
@@ -221,10 +154,10 @@ public class IOSBundler implements IBundler {
                 dSYMBinaries.add(symbols);
         }
 
-        lipoBinaries(destSymbolsExeTmp, dSYMBinaries);
+        BundleHelper.lipoBinaries(destSymbolsExeTmp, dSYMBinaries);
         destSymbolsExeTmp.renameTo(destSymbolsExe);
 
-        logger.info("Symbols binary: " + getFileDescription(destSymbolsExe));
+        logger.info("Symbols binary: " + BundleHelper.getFileDescription(destSymbolsExe));
     }
 
     private static String MANIFEST_NAME = "Info.plist";
@@ -476,11 +409,11 @@ public class IOSBundler implements IBundler {
         List<File> binaries = getBinariesFromArchitectures(project, architectures, variant);
 
         // Run lipo on supplied architecture binaries.
-        lipoBinaries(exe, binaries);
+        BundleHelper.lipoBinaries(exe, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
         if( strip_executable ) {
-            stripExecutable(platform, exe);
+            BundleHelper.stripExecutable(exe);
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -489,6 +422,14 @@ public class IOSBundler implements IBundler {
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
+
+        // copy dynamic libraries
+        if (architectures.size() == 1) {
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
+            BundleHelper.copySharedLibraries(platform, binaryDir, appDir);
+        } else {
+            BundleHelper.createFatLibrary(architectures, project.getBinaryOutputDirectory(), appDir, canceled);
+        }
 
         // Copy extension frameworks
         for (Platform architecture : architectures) {
@@ -752,8 +693,9 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        logger.info("Finished ipa: " + getFileDescription(zipFile));
+        logger.info("Finished ipa: " + BundleHelper.getFileDescription(zipFile));
 
         BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
+
 }

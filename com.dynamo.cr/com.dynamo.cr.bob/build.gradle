@@ -23,16 +23,13 @@ allprojects {
 
 repositories {
     flatDir {
-        dirs 'lib', "${project.commonDir}/ext", "${project.bobDir}/lib"
+        dirs 'lib', "${project.bobDir}/lib", "${project.bobDir}/lib/aws"
     }
 }
 
 dependencies {
     implementation fileTree(dir: "${project.bobDir}/lib", include: '*.jar')
-    implementation fileTree(dir: "${project.commonDir}/ext", include: [
-            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'aws/*.jar'
-    ])
+    implementation fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar')
 }
 
 task cleanDirs(type: Delete) {
@@ -247,21 +244,9 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from {
-        fileTree(dir: "${project.commonDir}/ext", include: [
-                'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-                'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar',
-                'httpcore-4.1.4.jar'
-        ]).collect { zipTree(it) }
-    }
-    from {
         fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').collect { zipTree(it) }
     }
 
-    inputs.files(fileTree(dir: "${project.commonDir}/ext", include: [
-            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar',
-            'httpcore-4.1.4.jar'
-    ]).files)
     inputs.files(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files)
     outputs.file("${project.bobDir}/tmp/external-libs-light.jar")
 
@@ -323,12 +308,7 @@ task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGen
 
     Set<File> jarFiles = new HashSet<>()
 
-    jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext", include: [
-            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
-            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar'
-    ]).files as Set<File>)
-
-    jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext/aws", include: '*.jar').files as Set<File>)
+    jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar').files as Set<File>)
 
     jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files as Set<File>)
 

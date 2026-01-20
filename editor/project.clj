@@ -35,14 +35,11 @@
                      [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
-                     [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
-                     [org.apache.commons/commons-configuration2   "2.0"]
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
                      [potemkin                                    "0.4.3"]
-                     [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]
                      [com.sun.jersey.contribs/jersey-multipart    "1.19"]
@@ -66,15 +63,12 @@
                      [org.commonmark/commonmark-ext-gfm-tables "0.25.1"]
                      [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
+                     [org.jsoup/jsoup "1.11.3"]
 
                      [com.cognitect.aws/api "0.8.673"]
                      [com.cognitect.aws/endpoints "1.1.12.478"]
                      [com.cognitect.aws/s3 "847.2.1387.0"]
 
-                     ;; bob needs javax.xml.bind, and it's removed in jdk 11
-                     [javax.xml.bind/jaxb-api "2.3.0"]
-                     [com.sun.xml.bind/jaxb-core "2.3.0"]
-                     [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
                      [org.luaj/luaj-jse "3.0.1"]
 
@@ -111,8 +105,7 @@
 
   :resource-paths    ["resources" "generated-resources"]
 
-  :proto-paths       ["../com.dynamo.cr/com.dynamo.cr.common/proto"
-                      "../engine/ddf/src"
+  :proto-paths       ["../engine/ddf/src"
                       "../engine/engine/proto"
                       "../engine/gameobject/proto"
                       "../engine/gamesys/proto"
@@ -247,6 +240,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-ec-scopes {:jvm-opts ["-Ddefold.graph.strict-evaluation-context-scopes=log-once"]}
                       :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
@@ -294,8 +288,7 @@
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [io.github.cljfx/dev "1.10.6.42"]
                                                     [org.clojure/test.check "1.1.1"]
-                                                    [org.clojure/tools.trace "0.7.9"]
-                                                    [org.mockito/mockito-core "1.10.19"]]
+                                                    [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
@@ -305,7 +298,7 @@
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.3.0.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.5.0.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.6.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

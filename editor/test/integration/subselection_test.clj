@@ -132,11 +132,10 @@
 
 (g/defnode MoveManip
   (input selection g/Any)
-  (output position g/Any (g/fnk [selection]
-                                (let [evaluation-context (g/make-evaluation-context)
-                                      positions (->> (for [[nid props] selection
+  (output position g/Any (g/fnk [^:unsafe _evaluation-context selection]
+                                (let [positions (->> (for [[nid props] selection
                                                            [k ids] props]
-                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k evaluation-context)
+                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k _evaluation-context)
                                                                                                       (types/geom-aabbs ids))))
                                                      (reduce into [])
                                                      (map second))

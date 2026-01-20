@@ -2,7 +2,6 @@ def buildToolsDir = file('../../build_tools')
 
 ext {
     bobDir = file('../com.dynamo.cr.bob')
-    commonDir = file('../com.dynamo.cr.common')
     testDir = file('../com.dynamo.cr.bob.test')
     classesDir = file('../com.dynamo.cr.bob/build')
     dynamoHome = System.getenv("DYNAMO_HOME") ?: "../../tmp/dynamo_home"

@@ -1201,21 +1201,22 @@
             (g/operation-sequence op-seq)
             (select-fn [mod-node])))))))
 
-(defn- selection->emitter [selection]
-  (handler/adapt-single selection EmitterNode))
+(defn- selection->emitter [selection evaluation-context]
+  (handler/adapt-single selection EmitterNode evaluation-context))
 
-(defn- selection->particlefx [selection]
-  (handler/adapt-single selection ParticleFXNode))
+(defn- selection->particlefx [selection evaluation-context]
+  (handler/adapt-single selection ParticleFXNode evaluation-context))
 
 (handler/defhandler :edit.add-secondary-embedded-component :workbench
-  (active? [selection] (or (selection->emitter selection)
-                           (selection->particlefx selection)))
+  (active? [selection evaluation-context]
+    (or (selection->emitter selection evaluation-context)
+        (selection->particlefx selection evaluation-context)))
   (label [user-data] (if-not user-data
                        (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx")
                        (->> user-data :modifier-type mod-types :message)))
   (run [selection user-data app-view]
-    (let [parent-id (or (selection->particlefx selection)
-                        (selection->emitter selection))]
+    (g/let-ec [parent-id (or (selection->particlefx selection evaluation-context)
+                             (selection->emitter selection evaluation-context))]
       (add-modifier-handler parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (when (not user-data)
@@ -1286,21 +1287,22 @@
           (make-emitter self (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (active? [selection] (selection->particlefx selection))
+  (active? [selection evaluation-context] (selection->particlefx selection evaluation-context))
   (label [user-data]
     (if-not user-data
       (localization/message "command.edit.add-embedded-component.variant.particlefx")
       (->> user-data :emitter-type (get emitter-types) :label)))
-  (run [selection user-data app-view] (let [pfx (selection->particlefx selection)]
-                                        (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
+  (run [selection user-data app-view]
+    (g/let-ec [pfx (selection->particlefx selection evaluation-context)]
+      (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
-           (when (not user-data)
-             (mapv (fn [[type data]]
-                     {:label (:label data)
-                      :icon emitter-icon
-                      :command :edit.add-embedded-component
-                      :user-data {:emitter-type type}})
-                   emitter-types))))
+    (when (not user-data)
+      (mapv (fn [[type data]]
+              {:label (:label data)
+               :icon emitter-icon
+               :command :edit.add-embedded-component
+               :user-data {:emitter-type type}})
+            emitter-types))))
 
 
 ;;--------------------------------------------------------------------

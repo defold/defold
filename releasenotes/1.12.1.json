@@ -1,0 +1,1136 @@
+{
+    "issues": [
+        {
+            "author": "AGulev",
+            "body": "This update resolves performance issues on arm64 platforms with JIT enabled, such as `arm64-mac`, `arm64-android`, and `arm64-linux`.",
+            "closed_issues": [
+                11526
+            ],
+            "duplicate": false,
+            "issue_number": 11526,
+            "labels": [],
+            "mergecommit": "029fb9ec5594f7c79e066d988a1b8650321c8ec0",
+            "pr_number": 11526,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update LuaJIT",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11526"
+        },
+        {
+            "author": "AGulev",
+            "body": "These improvements reduced the total atlas build time in Bob.jar from ~2850ms down to ~1100ms for a tested atlas (8192x4096, 4818 images on MBP M1 Max), including a drop in layout calculation time from ~1300ms down to ~490ms. With the reduced algorithmic complexity, adding more images will affect performance far less than before.",
+            "closed_issues": [
+                11541
+            ],
+            "duplicate": false,
+            "issue_number": 11541,
+            "labels": [
+                "bob",
+                "atlas",
+                "performance"
+            ],
+            "mergecommit": "8fd1b71ed13b39b396535f2a93e84587d9e4b4a3",
+            "pr_number": 11541,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Performance optimisations for atlas creation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11541"
+        },
+        {
+            "author": "AGulev",
+            "body": "Load the native libraries used for shader, model and texture building in advance during Bob\u2019s initialisation stage, and do it in parallel. This can save up to 2 seconds during a rebuild when all three libraries are needed. While that might not be a big deal for a full build, for sequential builds (builds without `clean`) it can be a noticeable improvement (for example, 4s -> 2s).",
+            "closed_issues": [
+                11547
+            ],
+            "duplicate": false,
+            "issue_number": 11547,
+            "labels": [
+                "bob",
+                "performance"
+            ],
+            "mergecommit": "a498fd2cf547e002fc55726e6d5c240c2a96248d",
+            "pr_number": 11547,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Bob performance optimizations for sequential builds",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11547"
+        },
+        {
+            "author": "britzl",
+            "body": "The delete key was not correctly identified in HTML5 builds.",
+            "closed_issues": [
+                11517
+            ],
+            "duplicate": false,
+            "issue_number": 11517,
+            "labels": [
+                "bug",
+                "engine",
+                "input",
+                "html5"
+            ],
+            "mergecommit": "2a1eb603f2c7656a094e56ddb82f8a6f750e75b0",
+            "pr_number": 11555,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed missing delete key binding on HTML5",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11555"
+        },
+        {
+            "author": "matgis",
+            "body": "Texture resources shared across multiple Model Scenes (`.gltf` files) will now properly share VRAM resources.",
+            "closed_issues": [
+                9702,
+                9401
+            ],
+            "duplicate": false,
+            "issue_number": 9702,
+            "labels": [
+                "bug",
+                "editor",
+                "model",
+                "performance"
+            ],
+            "mergecommit": "4b6edcf34aff32cf83c974684a142833a79ff847",
+            "pr_number": 11559,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues around textures shared between Model Scenes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11559"
+        },
+        {
+            "author": "matgis",
+            "body": "Texture resources shared across multiple Model Scenes (`.gltf` files) will now properly share VRAM resources.",
+            "closed_issues": [
+                9401
+            ],
+            "duplicate": true,
+            "issue_number": 9401,
+            "labels": [
+                "task",
+                "editor",
+                "3d",
+                "performance"
+            ],
+            "mergecommit": "4b6edcf34aff32cf83c974684a142833a79ff847",
+            "pr_number": 11559,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues around textures shared between Model Scenes",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11559"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We have now refreshed the Properties view.\r\n\r\nhttps://github.com/user-attachments/assets/7a215758-fe39-4b9b-991f-4cf46db9f833\r\n\r\nIt looks better than it was before; it shows the updates immediately, and its styling is now more consistent with the rest of the editor, particularly with the editor scripts UI.",
+            "closed_issues": [
+                11568
+            ],
+            "duplicate": false,
+            "issue_number": 11568,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "20ffda7ea00f182be59968b94741bb186abb8f90",
+            "pr_number": 11568,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Revamp the Properties view",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11568"
+        },
+        {
+            "author": "AGulev",
+            "body": "Build toolchain updated with:  \r\n- XCode 26.2\r\n- macOS SDK 26.2\r\n- iOS SDK 26.2\r\n\r\n\u26a0\ufe0f The `MinimumOSVersion` for iOS has been updated to 15.0 (it was 11.0 previously)\r\n\u26a0\ufe0f The `LSMinimumSystemVersion` for macOS has been updated to 11.5 (it was 10.15 previously)\r\n\u26a0\ufe0f `info.plist` notice: if your project uses a custom `info.plist` file, ensure it includes the latest changes from the default version",
+            "closed_issues": [
+                11553
+            ],
+            "duplicate": false,
+            "issue_number": 11553,
+            "labels": [
+                "task",
+                "extender",
+                "ios",
+                "macos"
+            ],
+            "mergecommit": "0880b8a4b92a5f3b7f16077d45b17d86a769ab8a",
+            "pr_number": 11563,
+            "referencecommits": [
+                "438f55418070a69284b4de283a90ff5cbc7b32c0"
+            ],
+            "repository": "defold",
+            "title": "Update XCode to 26.2, MacOS SDK to 26.2, iOS SDK to 26.2",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11563"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                11556
+            ],
+            "duplicate": false,
+            "issue_number": 11556,
+            "labels": [
+                "bug",
+                "editor",
+                "scene editor"
+            ],
+            "mergecommit": "a0cfd1995449f664c6907c6313bfed77cc34352e",
+            "pr_number": 11569,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed an issue where the camera component icon would disappear after copy-pasting a camera component",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11569"
+        },
+        {
+            "author": "vlaaad",
+            "body": "A project now opens approximately 15% faster (as measured on a large project with thousands of assets: time to open reduced from 3m36s to 3m02s on my machine).",
+            "closed_issues": [
+                11570
+            ],
+            "duplicate": false,
+            "issue_number": 11570,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "28764a77ce7b399721495f4a54b13f1bcc8b775b",
+            "pr_number": 11570,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve project open performance in large projects",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11570"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                11528
+            ],
+            "duplicate": false,
+            "issue_number": 11528,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?"
+            ],
+            "mergecommit": "5265b7c6bce3918b46ce2308684140cf5181fbd6",
+            "pr_number": 11571,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added 'Help' to the list of permitted locations for editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11571"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Breapoints Tab has been added to the Tool's Panel which allows the user to manage all breakpoints in their project. Breakpoints also received an enhancement with the ability to toggle their enabled state, allowing users to temporarily disable them without deleting them. Breakpoints also now persistent across sessions so you don't lose them when you close the project.\r\n\r\n<img width=\"528\" height=\"229\" alt=\"image\" src=\"https://github.com/user-attachments/assets/d0849419-d734-4744-b287-73836c04fde3\" />\r\n\r\n<img width=\"1328\" height=\"358\" alt=\"image\" src=\"https://github.com/user-attachments/assets/2bd727a4-e3b5-4c2e-b227-7d996b68cd6c\" />\r\n\r\nFeatures include:\r\n\r\n- Enable/Disable/Toggle/Remove All or selected with right-click context menu actions\r\n- Toggle breakpoint enabled state checkbox\r\n- Add/Edit/Remove conditions\r\n- Go to line or show asset in the browser\r\n- Keyboard shortcuts!",
+            "closed_issues": [
+                7047
+            ],
+            "duplicate": false,
+            "issue_number": 7047,
+            "labels": [
+                "feature request",
+                "editor",
+                "debugger",
+                "ux"
+            ],
+            "mergecommit": "fbbf972fdc633a7c3fc169822bf7053d2331d7ed",
+            "pr_number": 11441,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Breakpoints tab view",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11441"
+        },
+        {
+            "author": "AGulev",
+            "body": "Android SDK updated to the latest stable version 36.1.0",
+            "closed_issues": [
+                11554
+            ],
+            "duplicate": false,
+            "issue_number": 11554,
+            "labels": [
+                "task",
+                "extender",
+                "android"
+            ],
+            "mergecommit": "16a0e34a081f313138c72b886e637fb4ef6d5007",
+            "pr_number": 11612,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update Android SDK to version 36.1.0 and targetSdkVersion to 36",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11612"
+        },
+        {
+            "author": "britzl",
+            "body": "HTTP requests can now specify a proxy server to use when connecting to the destination server. When a proxy is used the connection to the destination server is established using an a HTTP tunnel through the proxy. The HTTP tunnel is established using the [CONNECT HTTP method](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods/CONNECT).\r\n\r\n```lua\r\n\t-- connect to www.defold.com via localhost proxy on port 8888\r\n\tlocal url = \"https://www.defold.com:443\"\r\n\tlocal method = \"GET\"\r\n\tlocal headers = {}\r\n\tlocal post_data = nil\r\n\tlocal options = {\r\n\t\tproxy = \"https://127.0.0.1:8888\"\r\n\t}\r\n\thttp.request(url, method, function(self, id, response)\r\n\t\tpprint(response)\r\n\tend, headers, post_data, options)\r\n```",
+            "closed_issues": [
+                11447
+            ],
+            "duplicate": false,
+            "issue_number": 11447,
+            "labels": [
+                "feature request",
+                "engine",
+                "extension",
+                "network"
+            ],
+            "mergecommit": "ed02d2a94106b0f014c8823e7882830c3a2cc12a",
+            "pr_number": 11540,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add support for http proxy connections",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11540"
+        },
+        {
+            "author": "matgis",
+            "body": "Skipping some graph traversal in the `update-overrides` step that concludes transactions is now around 14.7 times faster. In the large project we were testing with the `update-overrides` step during the initial project loading went from taking 1:43 to 6.8 seconds, resulting in a 27% project load time improvement.",
+            "closed_issues": [
+                11600
+            ],
+            "duplicate": false,
+            "issue_number": 11600,
+            "labels": [
+                "task",
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "b4e081550648ac240aae2bd7ef6f10caaf827ea1",
+            "pr_number": 11600,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Skip unnecessary traversal in update-overrides",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11600"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This performance optimization improves project load performance on big projects. As measured on a large project, the load time decreased from 3:01 to 2:25, a 19% improvement.",
+            "closed_issues": [
+                11601
+            ],
+            "duplicate": false,
+            "issue_number": 11601,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "7f572097477214cc713d6c5b197bf225252f71c0",
+            "pr_number": 11601,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve project load performance by 19%",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11601"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This change defines resource types for common file formats (binary and text) to avoid binary/text detection during project load.",
+            "closed_issues": [
+                11604
+            ],
+            "duplicate": false,
+            "issue_number": 11604,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "5210a7ff79f47eaf35225de7cf0a8b2d99af2053",
+            "pr_number": 11604,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve project loading performance of large projects by 4%",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11604"
+        },
+        {
+            "author": "AGulev",
+            "body": "Extensions that define `library.defold_min_version` are now validated against the current Defold version.\r\nIf the extension requires a newer version than the one being used, the build will fail with an error message.",
+            "closed_issues": [
+                11276
+            ],
+            "duplicate": false,
+            "issue_number": 11276,
+            "labels": [
+                "task",
+                "editor",
+                "bob",
+                "extension"
+            ],
+            "mergecommit": "b617266f44cbc26c2ea9e803f073d3a8905554dc",
+            "pr_number": 11595,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added an ability to specify `library.defold_min_version` for extensions to prevent using incompatible extensions ",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11595"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                11609
+            ],
+            "duplicate": false,
+            "issue_number": 11609,
+            "labels": [],
+            "mergecommit": "625039be3908d5be9c3218d296074b4eaf10f901",
+            "pr_number": 11609,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improved atlas texture creation speed in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11609"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes an issue where the main thread locked for an extender period of time when loading and initialising a collection while at the same time doing a texture upload on Vulkan.",
+            "closed_issues": [
+                11613
+            ],
+            "duplicate": false,
+            "issue_number": 11613,
+            "labels": [
+                "bug",
+                "engine",
+                "vulkan"
+            ],
+            "mergecommit": "cb49125f350ce4c6de65fd2c79349c7e113c1d3a",
+            "pr_number": 11614,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Unblock main thread while loading a collection and a texture at the same time",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11614"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Working with Atlases now have better performance characteristics. Changes to image and animation properties that do not affect the atlas texture are now near instant, and changes to Atlas properties that do require recalculation perform faster. Finally, an error is now shown in the Scene View when texture page count exceeds 8 pages, since that is the maximum supported amount.",
+            "closed_issues": [
+                10688
+            ],
+            "duplicate": false,
+            "issue_number": 10688,
+            "labels": [
+                "bug",
+                "editor",
+                "atlas",
+                "sprite",
+                "performance"
+            ],
+            "mergecommit": "d74052c3e5f376eac3ad61a38d42c590e9325d05",
+            "pr_number": 11593,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Optimize atlas preview generation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11593"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The time it takes to generate a new atlas preview after changing its properties was reduced significantly. It should now be around 6x faster on slower machines. As well, dragging/dropping images or moving them up/down in the Outline view of an Atlas when working with Animations will no longer trigger a recalculation.",
+            "closed_issues": [
+                8463
+            ],
+            "duplicate": false,
+            "issue_number": 8463,
+            "labels": [
+                "bug",
+                "editor",
+                "performance",
+                "engine",
+                "bob",
+                "atlas"
+            ],
+            "mergecommit": "989138a8c16f8a63ef8cd408a7f9d1169e374b27",
+            "pr_number": 11617,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Optimize Atlas Preview Image Generation for faster iterations",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11617"
+        },
+        {
+            "author": "matgis",
+            "body": "Refactored the data structures we use to represent atomic changes to the editor graph. This yields a small improvement to peak memory usage when loading the project.\r\n\r\nFor comparison, in our large test project, the transaction steps needed to load the project went from `1.02 GB` to `695 MB`. In practice, the improvement will not be directly reflected as a corresponding decrease in peak memory usage, but the change puts less pressure on the garbage collector and enables further optimizations.",
+            "closed_issues": [
+                11630
+            ],
+            "duplicate": false,
+            "issue_number": 11630,
+            "labels": [
+                "task",
+                "editor",
+                "memory"
+            ],
+            "mergecommit": "7b1e5211827c4586d8549162974c7f31fec8f815",
+            "pr_number": 11630,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Decrease editor memory pressure from transaction steps",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11630"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                11624
+            ],
+            "duplicate": false,
+            "issue_number": 11624,
+            "labels": [],
+            "mergecommit": "faa0d003e0d432502ad1633c34452ddba065c7b8",
+            "pr_number": 11624,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Various leak fixes: SSL socket, physics, script table, game system, engine",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11624"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Defold now has an OS window title while starting up, showing the welcome screen, and during the project loading window.",
+            "closed_issues": [
+                11607
+            ],
+            "duplicate": false,
+            "issue_number": 11607,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "9b9eece2ccd0ce547da03def0a4350ddc770b036",
+            "pr_number": 11642,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add a window title to splash, welcome, and project loading",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11642"
+        },
+        {
+            "author": "matgis",
+            "body": "Accessing the Context Menu for a deleted image file referenced from an Atlas no longer throws an exception.",
+            "closed_issues": [
+                11619
+            ],
+            "duplicate": false,
+            "issue_number": 11619,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "99c3955573f18f4fef503747396e8011d85ad60e",
+            "pr_number": 11652,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Fix exception when showing Context Menu for a missing resource",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11652"
+        },
+        {
+            "author": "matgis",
+            "body": "When applying property overrides to Gui nodes, filter out entries that have no significance. This significantly shrinks the list of affected nodes and properties that will need to be applied when loading, which saves around 82 MB of memory and a few seconds of load time in the large project we're testing with.",
+            "closed_issues": [
+                11655
+            ],
+            "duplicate": false,
+            "issue_number": 11655,
+            "labels": [
+                "editor",
+                "gui",
+                "memory"
+            ],
+            "mergecommit": "2b2b6c302c9645d1ad28f95a6cd1be41324dda7c",
+            "pr_number": 11655,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Exclude insignificant entries when applying gui property overrides in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11655"
+        },
+        {
+            "author": "AGulev",
+            "body": "`ALooper_pollAll` has been deprecated due to [a potential race condition](https://github.com/android/ndk-samples/issues/999). It has been replaced with `ALooper_pollOnce` in the engine code.",
+            "closed_issues": [
+                9505
+            ],
+            "duplicate": false,
+            "issue_number": 9505,
+            "labels": [
+                "task",
+                "engine",
+                "android"
+            ],
+            "mergecommit": "9d323c236183013c867eef873a76595b29212fa0",
+            "pr_number": 11664,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Replaced the deprecated `ALooper_pollAll` call with `ALooper_pollOnce`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11664"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue when setting a buffer via the \"vertices\" property, and the vertex buffer wasn't updated.",
+            "closed_issues": [
+                11678
+            ],
+            "duplicate": false,
+            "issue_number": 11678,
+            "labels": [
+                "mesh"
+            ],
+            "mergecommit": "fa1b662bcab64a3100feab8becc21bb9df421d68",
+            "pr_number": 11678,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make sure the mesh component buffer's version is taken into account when updating the vertex buffer",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11678"
+        },
+        {
+            "author": "JCash",
+            "body": "The issue presented itself when running with diagnostics, but could lead to odd behaviors at runtime.\r\nThe fixes:\r\n* an image size was occasionally miscalculated, which could result in a read out-of-bounds\r\n* the graphics async state was written to twice, in a non thread safe manner",
+            "closed_issues": [
+                11679
+            ],
+            "duplicate": false,
+            "issue_number": 11679,
+            "labels": [
+                "engine",
+                "graphics",
+                "vulkan"
+            ],
+            "mergecommit": "683930b96814b3cb1880ffc9ffd7e7c080eb0da1",
+            "pr_number": 11679,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixes in the Vulkan graphics backend",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11679"
+        },
+        {
+            "author": "AGulev",
+            "body": "When a raw sound component is added to a GameObject, it is automatically wrapped and converted into an embedded sound component.",
+            "closed_issues": [
+                4959
+            ],
+            "duplicate": false,
+            "issue_number": 4959,
+            "labels": [
+                "bug",
+                "editor",
+                "sound",
+                "quick win?"
+            ],
+            "mergecommit": "e052fafa8f647eaf22650d2c0074912b32287534",
+            "pr_number": 11693,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add an embedded sound component instead of using a raw sound",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11693"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Allow dragging and dropping of assets from the Asset Browser pane into a Resource Picker in the Properties pane.",
+            "closed_issues": [
+                11406
+            ],
+            "duplicate": false,
+            "issue_number": 11406,
+            "labels": [
+                "feature request",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "6fff58dd1a39a4027c99ce337092afe62a62882b",
+            "pr_number": 11696,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Add drag and drop from Assets to Properties Resource Picker",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11696"
+        },
+        {
+            "author": "AGulev",
+            "body": "In some forms, it\u2019s not immediately clear that menu selections reveal additional options. To improve this, those options are selected by default.\r\n\r\nHere\u2019s an example showing how the same file looks to the user immediately after opening it, before and after the changes:\r\n<img width=\"1448\" height=\"762\" alt=\"image\" src=\"https://github.com/user-attachments/assets/b799cfa4-b1f8-459d-a6b6-096cb182c1ec\" />",
+            "closed_issues": [
+                8442
+            ],
+            "duplicate": false,
+            "issue_number": 8442,
+            "labels": [
+                "bug",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "1a0b9bb4ea7edd8ba2f95ac219ccbac53145c92d",
+            "pr_number": 11700,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Select the first element by default in forms where choosing an option reveals additional settings",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11700"
+        },
+        {
+            "author": "vlaaad",
+            "body": "In projects with many dependencies, having them all in the main folder can be disruptive. To improve this, all dependencies are moved into a separate Dependencies folder at the same root level as the project.\r\n\r\n<img width=\"562\" height=\"902\" alt=\"1234\" src=\"https://github.com/user-attachments/assets/1b7a9084-080d-463f-b3b0-4a1bf8631fe0\" />",
+            "closed_issues": [
+                4156
+            ],
+            "duplicate": false,
+            "issue_number": 4156,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "5cbf75384be0b5f125d2df76a1e0242e3c5c0029",
+            "pr_number": 11748,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Move project dependencies into their own separate category in the Assets panel",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11748"
+        },
+        {
+            "author": "AGulev",
+            "body": "It wasn\u2019t obvious how to close the animation preview in the atlas, so a Close button was added along with a tooltip reminding users of the shortcut:\r\n\r\n<img width=\"422\" height=\"198\" alt=\"1\" src=\"https://github.com/user-attachments/assets/5d38c15f-9dfc-41bb-91df-037a7711d2f8\" />",
+            "closed_issues": [
+                8960
+            ],
+            "duplicate": false,
+            "issue_number": 8960,
+            "labels": [
+                "feature request",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "4c24b34a8d1f69ce11e64fcca6a7d9fa6d00ae76",
+            "pr_number": 11704,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added \"Close\" button to the animation preview in atlas",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11704"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixed an issue where using `go.animate` to animate material constants would cause model hashes to not be updated. This would cause model instancing to behave incorrectly.",
+            "closed_issues": [
+                10571
+            ],
+            "duplicate": false,
+            "issue_number": 10571,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "render"
+            ],
+            "mergecommit": "cae0535bf86149da0ddf4a9274c619ee1de15381",
+            "pr_number": 11706,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Dont use valueptr for models in GetProperty for material constants",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11706"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, the editor scripts' Lua runtime has `zlib` module \u2014 with the same semantics as the engine's `zlib` module.",
+            "closed_issues": [
+                11676
+            ],
+            "duplicate": false,
+            "issue_number": 11676,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?"
+            ],
+            "mergecommit": "fe4fa652256577b0cea0beb7d6643014f3800364",
+            "pr_number": 11708,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `zlib` module to editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11708"
+        },
+        {
+            "author": "AGulev",
+            "body": "Safe Area support for Android and iOS phones is now available in the engine out of the box.\r\nYou can control how the GUI respects the safe area using `gui.safe_area_mode = none|long|short|both` in `game.project`, with the option to override this per GUI scene at runtime via `gui.gui.set_safe_area_mode(gui.SAFE_AREA_*)`.\r\n\r\n<img width=\"408\" height=\"233\" alt=\"CleanShot 2026-01-08 at 11 48 20@2x\" src=\"https://github.com/user-attachments/assets/3b0c7a82-b9ff-4ec7-98ff-0dc30d7f3f9a\" />\r\n\r\nThis allows UI elements to stay within safe zones on devices with notches, while still using the full screen when no cutout is present (On platforms without cutouts, the inset values are returned as 0).\r\nThe new `window.get_safe_area()` API provides the current safe area rectangle along with inset values, making it possible to use this data in custom layout and positioning logic.\r\n\r\n<img width=\"1000\" height=\"648\" alt=\"example\" src=\"https://github.com/user-attachments/assets/f4d12bec-5b3c-4088-94db-2b624859fb9b\" />",
+            "closed_issues": [
+                11627
+            ],
+            "duplicate": false,
+            "issue_number": 11627,
+            "labels": [
+                "bug",
+                "engine",
+                "android"
+            ],
+            "mergecommit": "427d3116c266755d31e82c65f69ab0514f5951ca",
+            "pr_number": 11709,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added Safe Area related functionality",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11709"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                11396
+            ],
+            "duplicate": false,
+            "issue_number": 11396,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "b349111cd14ff38a8e4f8b39818a082dfcf467b7",
+            "pr_number": 11715,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Do not rename items on double-click in the outline (keep only F2 for renaming)",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11715"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fix an inconsistency where the Editor scans `ext.properties` in all folders, while `bob.jar` only scans extension folders.",
+            "closed_issues": [
+                11689
+            ],
+            "duplicate": false,
+            "issue_number": 11689,
+            "labels": [
+                "bug",
+                "bob"
+            ],
+            "mergecommit": "794d7cf78c07eaeffc6bd736e49a9fa557c730da",
+            "pr_number": 11718,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "`bob.jar` now scans for `ext.properties` in all folders, not just extension folders",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11718"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes a regression and discrepancy between how fonts are viewed in the editor and rendered in the engine. Monospace font padding were not properly respected and trailing spaces had an incorrect length.",
+            "closed_issues": [
+                11736
+            ],
+            "duplicate": false,
+            "issue_number": 11736,
+            "labels": [],
+            "mergecommit": "c3c9b8b5ec928bd763e4c1db062771abe11df822",
+            "pr_number": 11741,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix text layout regression",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11741"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "When mixing old and new shader pipelines, we currently show a warning but don't tell the users which shaders is causing it. Instead, we now show which shader resources that are causing this to happen.",
+            "closed_issues": [
+                11739
+            ],
+            "duplicate": false,
+            "issue_number": 11739,
+            "labels": [
+                "feature request",
+                "bob",
+                "pipeline",
+                "task"
+            ],
+            "mergecommit": "2c1c24f95d054f1082110624fceb6f598fc56596",
+            "pr_number": 11740,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Report old and new shader combinations",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11740"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fixed issue when bundle resources doesn't detected as valid Android resources because of additional .DS_Store files",
+            "closed_issues": [
+                11746
+            ],
+            "duplicate": false,
+            "issue_number": 11746,
+            "labels": [],
+            "mergecommit": "286a791971a673b304f00966d96609f915c47021",
+            "pr_number": 11746,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix Android resource detection",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11746"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "",
+            "closed_issues": [
+                11104
+            ],
+            "duplicate": false,
+            "issue_number": 11104,
+            "labels": [
+                "bug",
+                "bob"
+            ],
+            "mergecommit": "920b6705b2f9121005769ffab7d797ef77b0625c",
+            "pr_number": 11175,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Copy dynamic libs into result bundle",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11175"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, editor dialogs are limited in height. Users are encouraged to use the `editor.ui.scroll()` container for dialogs that may display a lot of content.",
+            "closed_issues": [
+                11532
+            ],
+            "duplicate": false,
+            "issue_number": 11532,
+            "labels": [
+                "bug",
+                "editor",
+                "editor scripts",
+                "ux"
+            ],
+            "mergecommit": "d12c3e646c36957930eb8b250d466f8b7cbc470e",
+            "pr_number": 11753,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Limit max height of editor script dialogs",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11753"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows for the option to use the profiler in a release build.",
+            "closed_issues": [
+                11429
+            ],
+            "duplicate": false,
+            "issue_number": 11429,
+            "labels": [
+                "task"
+            ],
+            "mergecommit": "9cdd449dcecdc7611aec3a8c265afc64c97e06c0",
+            "pr_number": 11436,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added editor option to select when to build with the profiler",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11436"
+        },
+        {
+            "author": "britzl",
+            "body": "It is now possible to mount a live update archive located inside the assets folder of an Android bundle by using a specific prefix to the archive path:\r\n\r\n```lua\r\nliveupdate.add_mount(\"my_mount\", \"zip:/android_asset/myassets.zip\", priority, callback)\r\n```\r\n\r\nThe archive can be added to the Android bundle using the bundle resources option or as an install-time Play Asset Delivery pack.",
+            "closed_issues": [
+                11577
+            ],
+            "duplicate": false,
+            "issue_number": 11577,
+            "labels": [
+                "feature request",
+                "engine",
+                "live update"
+            ],
+            "mergecommit": "58d212a82be27393a8ea076ca8d76ca8f917cc51",
+            "pr_number": 11584,
+            "referencecommits": [
+                "8faf4d725d6f57572b7acb1c8b086f11f19cc146"
+            ],
+            "repository": "defold",
+            "title": "Add support for mounting live update archives from Android assets",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11584"
+        },
+        {
+            "author": "deurell",
+            "body": "Handle recovery of lost sound device on Windows.",
+            "closed_issues": [
+                11349
+            ],
+            "duplicate": false,
+            "issue_number": 11349,
+            "labels": [],
+            "mergecommit": "c4d18feaa39d5be7d0a327512a000d274e0863d6",
+            "pr_number": 11349,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add logic to recover lost sound device on Windows",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11349"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "",
+            "closed_issues": [
+                11558
+            ],
+            "duplicate": false,
+            "issue_number": 11558,
+            "labels": [
+                "task",
+                "bob",
+                "linux"
+            ],
+            "mergecommit": "ca27cbd190ff0a66e6330167a345de33254a70c1",
+            "pr_number": 11626,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix regex for linux shared libraries",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11626"
+        },
+        {
+            "author": "AGulev",
+            "body": "The expensive part of window termination on android was moved from the looper thread to the engine thread to prevent potential ANRs when terminating a window.",
+            "closed_issues": [
+                11663
+            ],
+            "duplicate": false,
+            "issue_number": 11663,
+            "labels": [
+                "android"
+            ],
+            "mergecommit": "178741a598500d556edcec49c59d5fc4ff2aeebb",
+            "pr_number": 11663,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix a rare potential ANR issue on Android",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11663"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                11673
+            ],
+            "duplicate": false,
+            "issue_number": 11673,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "7a9e11249c5fac9c241df4339e5e1c3b16934c2a",
+            "pr_number": 11674,
+            "referencecommits": [
+                "390f82ec4db2e92644cffae221082f71246178a9"
+            ],
+            "repository": "defold",
+            "title": "Fixed missing tracking when doing layout of glyphs",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11674"
+        },
+        {
+            "author": "JCash",
+            "body": "Previously, models could only refer to .jpg or .png files.",
+            "closed_issues": [
+                11685
+            ],
+            "duplicate": false,
+            "issue_number": 11685,
+            "labels": [],
+            "mergecommit": "1ca1021008576b1eac059b61d7186aab6887cd7d",
+            "pr_number": 11685,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added support for `.jpeg` files for models",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11685"
+        },
+        {
+            "author": "britzl",
+            "body": "This change makes sure that the resource system doesn't lock the main thread when loading many large textures (or other large resources).",
+            "closed_issues": [
+                11164
+            ],
+            "duplicate": false,
+            "issue_number": 11164,
+            "labels": [
+                "task",
+                "engine",
+                "performance"
+            ],
+            "mergecommit": "f676b1e3fb259019c9bc3b3bc7bbcb8447901917",
+            "pr_number": 11629,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Removed unnecessary lock of main thread when loading many large textures",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11629"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, the editor's HTTP server allows querying and modifying the preferences using its `/prefs/...` endpoints.\r\n\r\nUse a `GET` request for reading all preferences:\r\n```sh\r\n$ curl http://localhost:$(cat .internal/editor.port)/prefs | jq\r\n{\r\n  ...big JSON blob...\r\n}\r\n```\r\n\r\nOr a group of settings:\r\n```sh\r\n$ curl http://localhost:$(cat .internal/editor.port)/prefs/build | jq\r\n{\r\n  \"lint-code\": true,\r\n  \"texture-compression\": true,\r\n  \"open-html5-build\": true\r\n}\r\n```\r\nOr a single setting:\r\n```\r\n$ curl http://localhost:$(cat .internal/editor.port)/prefs/build/texture-compression | jq\r\ntrue\r\n```\r\n\r\nUse a `POST` request for writing:\r\n```sh\r\n$ curl http://localhost:$(cat .internal/editor.port)/prefs/build/texture-compression -X POST -d 'false'\r\n```",
+            "closed_issues": [
+                11690
+            ],
+            "duplicate": false,
+            "issue_number": 11690,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "3c763db82061a1a030f42e2822189ae506450312",
+            "pr_number": 11690,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `/prefs/...` editor HTTP server enpoints",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11690"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue where blitting an image outside of the texture size is throwing errors on OpenGL backend.",
+            "closed_issues": [
+                11683
+            ],
+            "duplicate": false,
+            "issue_number": 11683,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "bf19091046a27fb10bbd6b50eb399a4c855625cf",
+            "pr_number": 11720,
+            "referencecommits": [
+                "0d37f2eaf3c1ff34f7692c0259a5e553878abf0d"
+            ],
+            "repository": "defold",
+            "title": "Added check if font glyph bitmap will fit into the font glyph texture before uploading",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11720"
+        }
+    ],
+    "timestamp": 1768828691.729012,
+    "version": "1.12.1"
+}

@@ -41,6 +41,7 @@
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
@@ -190,8 +191,8 @@
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
                                       (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
-            (dynamic read-only? (g/fnk [_node-id]
-                                  (g/override? _node-id))))
+            (dynamic read-only? (g/fnk [_this]
+                                  (some? (gt/original _this)))))
   (property url g/Str ; Just for presentation.
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
@@ -296,9 +297,10 @@
                    (concat
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source))
-                     (let [new-resource (:resource new-value)
+                     (let [basis (:basis evaluation-context)
+                           new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
-                           project (project/get-project self)
+                           project (project/get-project basis self)
 
                            [comp-node tx-data]
                            (if (resource/overridable-resource-type? resource-type)
@@ -531,14 +533,16 @@
         (add-embedded-sound-component! go-id resource select-fn)
         (add-referenced-component! go-id resource select-fn)))))
 
-(defn- selection->game-object [selection]
-  (g/override-root (handler/adapt-single selection GameObjectNode)))
+(defn- selection->game-object [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection GameObjectNode evaluation-context))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.game-object")
-  (active? [selection] (selection->game-object selection))
+  (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [workspace project selection app-view]
-       (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
+    (g/let-ec [game-object-node (selection->game-object selection evaluation-context)]
+      (add-component-handler workspace project game-object-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- connect-embedded-resource [node-type resource-node comp-node]
   (gu/connect-existing-outputs node-type resource-node comp-node
@@ -614,10 +618,10 @@
       (localization/message "command.edit.add-embedded-component.variant.game-object")
       (let [rt (:resource-type user-data)]
         (or (:label rt) (:ext rt)))))
-  (active? [selection] (selection->game-object selection))
+  (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data evaluation-context]
-    (let [self (selection->game-object selection)
+    (let [self (selection->game-object selection evaluation-context)
           workspace (:workspace (g/node-value self :resource evaluation-context))]
       (add-embedded-component-options self workspace user-data evaluation-context))))
 

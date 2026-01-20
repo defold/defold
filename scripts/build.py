@@ -1683,7 +1683,6 @@ class Configuration(object):
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
 # - 'com.dynamo.cr/com.dynamo.cr.test'
-# - 'com.dynamo.cr/com.dynamo.cr.common'
 # Maybe in the future we consider to move it into install_ext
     def get_gradle_wrapper(self):
         if os.name == 'nt':  # Windows
@@ -1695,7 +1694,6 @@ class Configuration(object):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
@@ -1876,7 +1874,6 @@ class Configuration(object):
 
     def build_bob(self):
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()

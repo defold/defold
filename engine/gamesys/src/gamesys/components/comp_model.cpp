@@ -118,9 +118,11 @@ namespace dmGameSystem
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
-        uint32_t                    m_Enabled                     : 1;
-        uint32_t                    m_AttributeRenderDataIndex    : 16;
-        uint32_t                    m_PerInstanceCustomAttributes : 1;
+        uint16_t                    m_AttributeRenderDataIndex;
+        uint16_t                    m_DynamicVertexAttributeIndex;
+        uint8_t                     m_PerInstanceCustomAttributes  : 1;
+        uint8_t                     m_DynamicVertexAttributesDirty : 1;
+        uint8_t                     m_Enabled                      : 1;
     };
 
     struct ModelComponent
@@ -167,6 +169,7 @@ namespace dmGameSystem
     {
         dmObjectPool<ModelComponent*>    m_Components;
         dmArray<dmRender::RenderObject>  m_RenderObjects;
+        DynamicAttributePool             m_DynamicVertexAttributePool;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexDeclaration   m_VertexDeclarationSkinned;
         dmGraphics::HVertexDeclaration   m_InstanceVertexDeclaration;
@@ -284,6 +287,8 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration_vertex);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration_instance);
 
+        InitializeMaterialAttributeInfos(world->m_DynamicVertexAttributePool, 8);
+
         *params.m_World = world;
 
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
@@ -324,6 +329,8 @@ namespace dmGameSystem
             free(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer);
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTexture)
             dmGraphics::DeleteTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+
+        DestroyMaterialAttributeInfos(world->m_DynamicVertexAttributePool);
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
@@ -547,7 +554,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
     }
 
-    static void HashRenderItem(HashState32* state, ModelComponent* component, const MeshRenderItem& item)
+    static void HashRenderItem(HashState32* state, ModelWorld* world, ModelComponent* component, const MeshRenderItem& item)
     {
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
         dmRender::HMaterial material = material_res->m_Material;
@@ -556,9 +563,6 @@ namespace dmGameSystem
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
-
-        dmRenderDDF::MaterialDesc::PbrParameters pbr_parameters;
-        dmRender::GetMaterialPBRParameters(material, &pbr_parameters);
 
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
@@ -576,7 +580,8 @@ namespace dmGameSystem
             FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos, GetRenderMaterialCoordinateSpace(material));
 
             dmGraphics::VertexAttributeInfos attribute_infos;
-            FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
+            FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                        item.m_DynamicVertexAttributeIndex,
                         material_info->m_Attributes,
                         material_info->m_AttributeCount,
                         &material_infos,
@@ -588,7 +593,9 @@ namespace dmGameSystem
                 // We can skip hashing instance attribute values since the data can be shared
                 // between all meshes in a regular draw call.
                 if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                {
                     continue;
+                }
                 uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr.m_DataType);
                 dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
             }
@@ -599,7 +606,7 @@ namespace dmGameSystem
         }
     }
 
-    static void ReHash(ModelComponent* component)
+    static void ReHash(ModelWorld* world, ModelComponent* component)
     {
         // material, textures and render constants
         HashState32 state;
@@ -624,7 +631,7 @@ namespace dmGameSystem
         {
             HashState32 state_clone;
             dmHashClone32(&state_clone, &state, false);
-            HashRenderItem(&state_clone, component, component->m_RenderItems[i]);
+            HashRenderItem(&state_clone, world, component, component->m_RenderItems[i]);
             component->m_RenderItems[i].m_InstanceRenderHash = dmHashFinal32(&state_clone);
         }
 
@@ -777,7 +784,110 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
     }
 
-    static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
+    static uint8_t* WriteMeshAttributes(dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
+    {
+        dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
+
+    #define UNPACK_ATTRIBUTE_PTR(name) \
+        (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
+
+        const float* world_matrix_channels[]  = { (float*) &render_item->m_World };
+        const float* normal_matrix_channels[] = { (float*) &normal_matrix };
+        const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
+        const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
+        const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
+        const float* normal_channels[]        = { UNPACK_ATTRIBUTE_PTR(m_Normals) };
+        const float* tangent_channels[]       = { UNPACK_ATTRIBUTE_PTR(m_Tangents) };
+    #undef UNPACK_ATTRIBUTE_PTR
+
+        uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
+
+        dmGraphics::WriteAttributeParams params = {};
+        dmRig::SetMeshWriteAttributeParams(&params,
+            attribute_infos,
+            step_function,
+            world_matrix_channels,
+            normal_matrix_channels,
+            0, // World space positions are not supported by local space materials
+            position_channels,
+            normal_channels,
+            tangent_channels,
+            color_channels,
+            uv_channels,
+            uv_channels_count);
+
+        return dmGraphics::WriteAttributes(write_ptr, 0, vertex_count, params);
+    }
+
+    static void SetMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, const dmGraphics::VertexAttributeInfos* material_infos, const dmGraphics::VertexAttributeInfos* attribute_infos, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
+    {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        // Build a custom scratch vertex that contains potential custom vertex attribute data
+        dmGraphics::VertexAttributeInfos non_default_attribute;
+        non_default_attribute.m_VertexStride = 0;
+        non_default_attribute.m_NumInfos     = 0;
+
+        for (int i = 0; i < material_infos->m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& attr_material = material_infos->m_Infos[i];
+            const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos->m_Infos[i];
+
+            if (attr_material.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
+                continue;
+
+            // We should only include the custom vertex attributes here
+            if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType, attr_material.m_StepFunction))
+            {
+                uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr_model.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr_model.m_DataType);
+                uint32_t attribute_index = non_default_attribute.m_NumInfos++;
+                non_default_attribute.m_Infos[attribute_index]              = attr_model;
+                non_default_attribute.m_Infos[attribute_index].m_VectorType = attr_material.m_VectorType;
+                non_default_attribute.m_VertexStride                       += value_byte_size;
+            }
+        }
+
+        uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
+        uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
+        void* attribute_data      = malloc(vertex_data_size);
+        uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
+
+        vertex_write_ptr = WriteMeshAttributes(render_context, render_item, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &non_default_attribute, vertex_write_ptr, vertex_count);
+
+        if (rd->m_VertexBuffer)
+        {
+            dmGraphics::SetVertexBufferData(rd->m_VertexBuffer, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        }
+        else
+        {
+            rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        }
+
+        free(attribute_data);
+
+        render_item->m_DynamicVertexAttributesDirty = 0;
+    }
+
+    static void SetMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
+    {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+
+        dmGraphics::VertexAttributeInfos material_infos;
+        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos, GetRenderMaterialCoordinateSpace(material));
+
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                    render_item->m_DynamicVertexAttributeIndex,
+                    model_attributes,
+                    model_attribute_count,
+                    &material_infos,
+                    &attribute_infos);
+
+        SetMeshAttributeRenderData(world, component, render_context, &material_infos, &attribute_infos, render_item, model_attributes, model_attribute_count, rd);
+    }
+
+    static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
         assert(!rd->m_VertexBuffer);
         assert(!rd->m_VertexDeclaration);
@@ -790,7 +900,8 @@ namespace dmGameSystem
         FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos, GetRenderMaterialCoordinateSpace(material));
 
         dmGraphics::VertexAttributeInfos attribute_infos;
-        FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
+        FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                    render_item->m_DynamicVertexAttributeIndex,
                     model_attributes,
                     model_attribute_count,
                     &material_infos,
@@ -807,71 +918,7 @@ namespace dmGameSystem
         {
             CreateCustomVertexDeclaration(graphics_context, vx_decl_vert, material_infos, attribute_infos, render_item->m_Buffers->m_VertexCount, &rd->m_VertexDeclaration, &rd->m_VertexBuffer, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
 
-            // Build a custom scratch vertex that contains potential custom vertex attribute data
-            dmGraphics::VertexAttributeInfos non_default_attribute;
-            non_default_attribute.m_VertexStride = 0;
-            non_default_attribute.m_NumInfos     = 0;
-
-            for (int i = 0; i < material_infos.m_NumInfos; ++i)
-            {
-                const dmGraphics::VertexAttributeInfo& attr_material = material_infos.m_Infos[i];
-                const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos.m_Infos[i];;
-
-                if (attr_material.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
-                    continue;
-
-                // We should only include the custom vertex attributes here
-                if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType, attr_material.m_StepFunction))
-                {
-                    uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr_model.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr_model.m_DataType);
-                    uint32_t attribute_index = non_default_attribute.m_NumInfos++;
-                    non_default_attribute.m_Infos[attribute_index]              = attr_model;
-                    non_default_attribute.m_Infos[attribute_index].m_VectorType = attr_material.m_VectorType;
-                    non_default_attribute.m_VertexStride                       += value_byte_size;
-                }
-            }
-
-            uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
-            uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
-            void* attribute_data      = malloc(vertex_data_size);
-            memset(attribute_data, 0, vertex_data_size);
-            uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
-
-            dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-
-        #define UNPACK_ATTRIBUTE_PTR(name) \
-            (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
-
-            const float* world_matrix_channels[]  = { (float*) &render_item->m_World };
-            const float* normal_matrix_channels[] = { (float*) &normal_matrix };
-            const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
-            const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
-            const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
-            const float* normal_channels[]        = { UNPACK_ATTRIBUTE_PTR(m_Normals) };
-            const float* tangent_channels[]       = { UNPACK_ATTRIBUTE_PTR(m_Tangents) };
-
-            uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
-
-            dmGraphics::WriteAttributeParams params = {};
-            dmRig::SetMeshWriteAttributeParams(&params,
-                &non_default_attribute,
-                dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
-                world_matrix_channels,
-                normal_matrix_channels,
-                0, // World space positions are not supported by local space materials
-                position_channels,
-                normal_channels,
-                tangent_channels,
-                color_channels,
-                uv_channels,
-                uv_channels_count);
-
-        #undef UNPACK_ATTRIBUTE_PTR
-
-            vertex_write_ptr = dmGraphics::WriteAttributes(vertex_write_ptr, 0, vertex_count, params);
-            rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-
-            free(attribute_data);
+            SetMeshAttributeRenderData(world, component, render_context, &material_infos, &attribute_infos, render_item, model_attributes, model_attribute_count, rd);
         }
 
         rd->m_Initialized = true;
@@ -927,6 +974,7 @@ namespace dmGameSystem
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
             item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
+            item.m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
             item.m_InstanceRenderHash = 0;
 
             // This model is a child under a bone, but isn't actually skinned
@@ -1107,6 +1155,8 @@ namespace dmGameSystem
             {
                 dmGameSystem::DestroyRenderConstants(component->m_RenderItems[i].m_RenderConstants);
             }
+
+            FreeMaterialAttribute(world->m_DynamicVertexAttributePool, component->m_RenderItems[i].m_DynamicVertexAttributeIndex);
         }
 
         delete component;
@@ -1524,8 +1574,8 @@ namespace dmGameSystem
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            const MeshRenderItem* instance_render_item = (MeshRenderItem*) buf[*i].m_UserData;
-            ModelComponent* instance_component         = instance_render_item->m_Component;
+            MeshRenderItem* instance_render_item = (MeshRenderItem*) buf[*i].m_UserData;
+            ModelComponent* instance_component   = instance_render_item->m_Component;
 
             if (render_context_material_custom_attributes || instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
             {
@@ -1543,8 +1593,29 @@ namespace dmGameSystem
 
                 if (!attribute_rd->m_Initialized)
                 {
-                    SetupMeshAttributeRenderData(render_context,
+                    SetupMeshAttributeRenderData(world, component,
+                        render_context,
                         render_material,
+                        instance_render_item,
+                        instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                        instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        attribute_rd);
+                }
+
+                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos, GetRenderMaterialCoordinateSpace(render_material));
+                FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                            instance_render_item->m_DynamicVertexAttributeIndex,
+                            instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                            instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                            &material_infos,
+                            &attribute_infos);
+                
+                if (instance_render_item->m_DynamicVertexAttributesDirty)
+                {
+                    SetMeshAttributeRenderData(world, component,
+                        render_context,
+                        &material_infos,
+                        &attribute_infos,
                         instance_render_item,
                         instance_component->m_Resource->m_Materials[material_index].m_Attributes,
                         instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
@@ -1565,44 +1636,7 @@ namespace dmGameSystem
                     ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
                 }
 
-                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos, GetRenderMaterialCoordinateSpace(render_material));
-                FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
-                            instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                            instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                            &material_infos,
-                            &attribute_infos);
-
-                dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, instance_render_item->m_World);
-
-            #define UNPACK_ATTRIBUTE_PTR(name) \
-                (instance_render_item->m_Mesh->name.m_Count ? instance_render_item->m_Mesh->name.m_Data : 0)
-
-                const float* world_matrix_channels[]  = { (float*) &instance_render_item->m_World };
-                const float* normal_matrix_channels[] = { (float*) &normal_matrix };
-                const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
-                const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
-                const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
-                const float* normal_channels[]        = { UNPACK_ATTRIBUTE_PTR(m_Normals) };
-                const float* tangent_channels[]       = { UNPACK_ATTRIBUTE_PTR(m_Tangents) };
-
-                uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
-
-                dmGraphics::WriteAttributeParams params = {};
-                dmRig::SetMeshWriteAttributeParams(&params,
-                    &attribute_infos,
-                    dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
-                    world_matrix_channels,
-                    normal_matrix_channels,
-                    0, // World space positions are not supported by local space materials
-                    position_channels,
-                    normal_channels,
-                    tangent_channels,
-                    color_channels,
-                    uv_channels, uv_channels_count);
-
-            #undef UNPACK_ATTRIBUTE_PTR
-
-                instance_write_ptr = dmGraphics::WriteAttributes(instance_write_ptr, 0, 1, params);
+                instance_write_ptr = WriteMeshAttributes(render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, &attribute_infos, instance_write_ptr, 1);
             }
             else if (IsRenderItemSkinned(instance_component, render_item))
             {
@@ -1744,7 +1778,19 @@ namespace dmGameSystem
 
                 if (!attribute_rd->m_Initialized)
                 {
-                    SetupMeshAttributeRenderData(render_context,
+                    SetupMeshAttributeRenderData(world, component,
+                        render_context,
+                        render_material,
+                        render_item,
+                        component->m_Resource->m_Materials[material_index].m_Attributes,
+                        component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        attribute_rd);
+                }
+                
+                if (render_item->m_DynamicVertexAttributesDirty)
+                {
+                    SetMeshAttributeRenderData(world, component,
+                        render_context,
                         render_material,
                         render_item,
                         component->m_Resource->m_Materials[material_index].m_Attributes,
@@ -1937,7 +1983,8 @@ namespace dmGameSystem
         if (has_custom_attributes)
         {
             dmGraphics::VertexAttributeInfos attribute_infos;
-            FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Not supported yet
+            FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                render_item->m_DynamicVertexAttributeIndex,
                 c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
                 c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
                 material_infos,
@@ -2023,9 +2070,7 @@ namespace dmGameSystem
                 dmVMath::Matrix4 world_matrix     = c->m_World * model_matrix;
                 dmVMath::Matrix4 normal_matrix    = dmRender::GetNormalMatrix(render_context, world_matrix);
                 bool has_custom_vertex_attributes = vx_decl != world->m_VertexDeclaration;
-
-                uint32_t material_index = render_item->m_MaterialIndex;
-                vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, &material_infos_vertex, vertex_stride, material_index, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
+                vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, &material_infos_vertex, vertex_stride, render_item->m_MaterialIndex, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
             }
         }
 
@@ -2245,7 +2290,7 @@ namespace dmGameSystem
 
             if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
             {
-                ReHash(&component);
+                ReHash(world, &component);
             }
 
             if (component.m_RequiresBindPoseCaching)
@@ -2577,6 +2622,32 @@ namespace dmGameSystem
         (void)OnResourceReloaded(world, component, index);
     }
 
+    static inline MeshRenderItem* GetMeshRenderItem(ModelComponent* component, uint32_t render_item_index)
+    {
+        if (render_item_index >= component->m_RenderItems.Size())
+            return 0;
+        return &component->m_RenderItems[render_item_index];
+    }
+
+    static bool CompModelGetMaterialAttributeCallback(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute)
+    {
+        ModelComponent* component = (ModelComponent*) user_data;
+
+        // TODO: Support for multiple materials
+        MaterialInfo* material_info = &component->m_Resource->m_Materials[0];
+
+        const dmGraphics::VertexAttribute* resource_attributes = material_info->m_Attributes;
+        const uint32_t resource_attribute_count                = material_info->m_AttributeCount;
+
+        int attribute_index = FindAttributeIndex(resource_attributes, resource_attribute_count, name_hash);
+        if (attribute_index >= 0)
+        {
+            *attribute = &resource_attributes[attribute_index];
+            return true;
+        }
+        return false;
+    }
+
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -2612,7 +2683,20 @@ namespace dmGameSystem
                 return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, 0, i), out_value);
             }
         }
-        return GetMaterialConstant(GetComponentMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Options.m_Index, out_value, false, CompModelGetConstantCallback, component);
+
+        dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, 0);
+
+        if (GetMaterialConstant(material, params.m_PropertyId, params.m_Options.m_Index, out_value, false, CompModelGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+
+        // TODO: This will use the dynamic vertex attribute index for the first render item only.
+        //       We need a way to address sub-components to support custom attributes for sub-models
+        MeshRenderItem* render_item = GetMeshRenderItem(component, 0);
+        uint16_t dynamic_attribute_index = render_item ? render_item->m_DynamicVertexAttributeIndex : INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+
+        return GetMaterialAttribute(world->m_DynamicVertexAttributePool, dynamic_attribute_index, material, params.m_PropertyId, out_value, CompModelGetMaterialAttributeCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -2674,7 +2758,30 @@ namespace dmGameSystem
                 return res;
             }
         }
-        return SetMaterialConstant(GetComponentMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompModelSetConstantCallback, component);
+
+        dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, 0);
+        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompModelSetConstantCallback, component);
+
+        // Only check attributes if the constant property was not found
+        if (res == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
+        {
+            const dmGraphics::VertexAttribute* attribute = 0;
+            MeshRenderItem* render_item = GetMeshRenderItem(component, 0);
+            uint16_t* dynamic_attribute_index_ptr = render_item ? &render_item->m_DynamicVertexAttributeIndex : 0;
+
+            res = SetMaterialAttribute(world->m_DynamicVertexAttributePool, dynamic_attribute_index_ptr, material, params.m_PropertyId, params.m_Value, CompModelGetMaterialAttributeCallback, component, &attribute);
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+            {
+                // Mark the render item as dirty if the overridden attribute is not an instanced attribute
+                // For instanced attributes, we will copy the data anyway so this just makes sure we don't
+                // copy the base vertex data when we don't need to.
+                if (attribute->m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE && render_item)
+                {
+                    render_item->m_DynamicVertexAttributesDirty = 1;
+                }
+            }
+        }
+        return res;
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
@@ -2899,5 +3006,23 @@ namespace dmGameSystem
         }
 
         *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
+    }
+
+    // For tests
+    void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl)
+    {
+        ModelComponent* component = (ModelComponent*) model_component;
+        if (render_item_ix < 0 || render_item_ix >= component->m_RenderItems.Size())
+        {
+            *vx_buffer = 0x0;
+            return;
+        }
+
+        MeshRenderItem& item = component->m_RenderItems[render_item_ix];
+        MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[item.m_AttributeRenderDataIndex];
+
+        *vx_buffer = rd.m_VertexBuffer;
+        *vx_decl = rd.m_VertexDeclaration;
+        *inst_decl = rd.m_InstanceVertexDeclaration;
     }
 }
