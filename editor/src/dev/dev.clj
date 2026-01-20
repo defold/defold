@@ -60,6 +60,7 @@
             [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [macro]
             [potemkin.namespaces :as namespaces]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
@@ -90,7 +91,8 @@
 
 (namespaces/import-vars
   [util.debug-util stack-trace]
-  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info])
+  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info]
+  [macro pprint-code pprint-macroexpanded simplify-expression])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -230,7 +232,7 @@
   (prefs/project (workspace/project-directory (workspace))))
 
 (defn localization []
-  (some #(-> % :env :localization) (ui/contexts (ui/main-scene))))
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene) true)))
 
 (declare ^:private exclude-keys-deep-helper)
 
@@ -326,7 +328,8 @@
    (when-some [focused-control (focused-control)]
      (command-contexts focused-control)))
   ([^Node control]
-   (ui/node-contexts control true)))
+   (g/with-auto-evaluation-context evaluation-context
+     (ui/node-contexts control true evaluation-context))))
 
 (defn command-env
   ([command]
@@ -627,113 +630,6 @@
                   (vals (:nodes graph))))
         (map (comp :k g/node-type))
         graphs))))
-
-(defn- ns->namespace-name
-  ^String [ns]
-  (name (ns-name ns)))
-
-(defn- class->canonical-symbol [^Class class]
-  (symbol (.getName class)))
-
-(defn- make-alias-names-by-namespace-name [ns]
-  (into {(ns->namespace-name 'clojure.core) nil
-         (ns->namespace-name ns) nil}
-        (map (fn [[alias-symbol referenced-ns]]
-               (pair (ns->namespace-name referenced-ns)
-                     (name alias-symbol))))
-        (ns-aliases ns)))
-
-(defn- make-simple-symbols-by-canonical-symbol [ns]
-  (into {}
-        (map (fn [[alias-symbol imported-class]]
-               (pair (class->canonical-symbol imported-class)
-                     alias-symbol)))
-        (ns-imports ns)))
-
-(defn- simplify-namespace-name [namespace-name alias-names-by-namespace-name]
-  {:pre [(or (nil? namespace-name) (string? namespace-name))
-         (map? alias-names-by-namespace-name)]}
-  (let [alias-name (get alias-names-by-namespace-name namespace-name ::not-found)]
-    (case alias-name
-      ::not-found namespace-name
-      alias-name)))
-
-(defn- simplify-symbol-name [symbol-name]
-  (string/replace symbol-name
-                  #"__(\d+)__auto__$"
-                  "#"))
-
-(defn- simplify-symbol [expression alias-names-by-namespace-name]
-  (-> expression
-      (namespace)
-      (simplify-namespace-name alias-names-by-namespace-name)
-      (symbol (-> expression name simplify-symbol-name))
-      (with-meta (meta expression))))
-
-(defn- simplify-keyword [expression alias-names-by-namespace-name]
-  (-> expression
-      (namespace)
-      (simplify-namespace-name alias-names-by-namespace-name)
-      (keyword (name expression))))
-
-(defn- simplify-expression-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol]
-  (cond
-    (record? expression)
-    expression
-
-    (map? expression)
-    (into (coll/empty-with-meta expression)
-          (map (fn [[key value]]
-                 (pair (simplify-expression-impl key alias-names-by-namespace-name simple-symbols-by-canonical-symbol)
-                       (simplify-expression-impl value alias-names-by-namespace-name simple-symbols-by-canonical-symbol))))
-          expression)
-
-    (or (vector? expression)
-        (set? expression))
-    (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
-          expression)
-
-    (coll/list-or-cons? expression)
-    (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
-          (reverse expression))
-
-    (symbol? expression)
-    (or (get simple-symbols-by-canonical-symbol expression)
-        (simplify-symbol expression alias-names-by-namespace-name))
-
-    (keyword? expression)
-    (simplify-keyword expression alias-names-by-namespace-name)
-
-    :else
-    expression))
-
-(defmacro simplify-expression
-  ([expression]
-   `(simplify-expression *ns* ~expression))
-  ([ns expression]
-   `(let [ns# ~ns]
-      (#'simplify-expression-impl
-        ~expression
-        (#'make-alias-names-by-namespace-name ns#)
-        (#'make-simple-symbols-by-canonical-symbol ns#)))))
-
-(defn- pprint-code-impl [expression]
-  (binding [pprint/*print-suppress-namespaces* false
-            pprint/*print-right-margin* 100
-            pprint/*print-miser-width* 60]
-    (pprint/with-pprint-dispatch
-      pprint/code-dispatch
-      (pprint/pprint expression))))
-
-(defmacro pprint-code
-  "Pretty-print the supplied code expression while attempting to retain readable
-  formatting. Useful when developing macros."
-  ([expression]
-   `(#'pprint-code-impl (simplify-expression ~expression)))
-  ([ns expression]
-   `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
 
 (defn println-err
   [& more]
@@ -1707,6 +1603,7 @@
          (persistent! batches))))))
 
 (defn clear-enable-all! []
+  (g/forget-logged-evaluation-context-scope-violations!)
   (clear-caches!)
   (handler/enable-disabled-handlers!)
   (ui/enable-stopped-timers!)

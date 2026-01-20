@@ -108,6 +108,22 @@ embedded_instances {
   "  }\n"
   "}\n"
   ""
+  "components {\n"
+  "  id: \"dynamic_vertex_attributes\"\n"
+  "  component: \"/model/dynamic_vertex_attributes.model\"\n"
+  "  position {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "    w: 1.0\n"
+  "  }\n"
+  "}\n"
+  ""
   position {
     x: 0.0
     y: 0.0

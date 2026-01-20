@@ -110,7 +110,7 @@
         (case (.getScheme resolved-url)
           "defold"
           (when-some [{:keys [command user-data]} (url->command resolved-url)]
-            (ui/execute-command (ui/contexts (ui/main-scene)) command user-data))
+            (ui/execute-command (ui/contexts (ui/main-scene) true) command user-data))
 
           "file"
           (if-let [resource (g/with-auto-evaluation-context evaluation-context
@@ -118,7 +118,7 @@
                                     workspace (project/workspace project evaluation-context)]
                                 (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                                   (workspace/find-resource workspace proj-path))))]
-            (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
+            (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)
             (ui/open-url resolved-url))
 
           (if (or scheme (.getAuthority resolved-url))
@@ -127,7 +127,7 @@
               (when base-resource
                 (let [resource (workspace/resolve-resource base-resource path)]
                   (when (resource/exists? resource)
-                    (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource))))
+                    (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource))))
               (when-let [fragment (coll/not-empty (.getFragment resolved-url))]
                 (let [^ScrollPane scroll-pane (ui/closest-node-of-type ScrollPane (.getTarget event))
                       content (.getContent scroll-pane)]

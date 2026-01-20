@@ -223,8 +223,9 @@
 (handler/defhandler :edit.cut :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
-    (let [next (-> (handler/succeeding-selection selection-provider)
-                   (handler/adapt-single resource/Resource))
+    (let [next (g/with-auto-evaluation-context evaluation-context
+                 (-> (handler/succeeding-selection selection-provider evaluation-context)
+                     (handler/adapt-single resource/Resource evaluation-context)))
           cut-files-directory (fs/create-temp-directory! "asset-cut")
           resources (roots (filterv deletable-resource? selection))]
       (copy (mapv #(temp-resource-file! cut-files-directory %) resources))
@@ -468,8 +469,9 @@
 (handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider localization]
-    (let [next (-> (handler/succeeding-selection selection-provider)
-                   (handler/adapt-single resource/Resource))
+    (let [next (g/with-auto-evaluation-context evaluation-context
+                 (-> (handler/succeeding-selection selection-provider evaluation-context)
+                     (handler/adapt-single resource/Resource evaluation-context)))
           resources (roots (filterv deletable-resource? selection))]
       (when (if (= 1 (count resources))
               (dialogs/make-confirmation-dialog
@@ -519,19 +521,20 @@
       (localization/message "command.file.new")
       (let [rt (:resource-type user-data)]
         (or (:label rt) (:ext rt)))))
-  (active? [selection selection-context]
+  (active? [selection selection-context evaluation-context]
     (or (= :global selection-context)
         (and (= :asset-browser selection-context)
              (= (count selection) 1)
-             (some? (some-> (handler/adapt-single selection resource/Resource)
+             (some? (some-> (handler/adapt-single selection resource/Resource evaluation-context)
                       resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
-          base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
-                                first
-                                resource/abs-path
-                                (File.))
+          base-folder (-> (or (some-> (g/with-auto-evaluation-context evaluation-context
+                                        (handler/adapt-every selection resource/Resource evaluation-context))
+                                      first
+                                      resource/abs-path
+                                      (File.))
                               project-directory)
                           fs/to-folder)
           rt (:resource-type user-data)
@@ -555,7 +558,7 @@
                 new-resource-path (resource/file->proj-path project-directory new-file)
                 resource (resource-map new-resource-path)]
             (when (resource/loaded? resource)
-              (app-view/open-resource app-view prefs localization workspace project resource))
+              (app-view/open-resource! app-view prefs localization project resource))
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data evaluation-context]
     (when (not user-data)
@@ -608,17 +611,18 @@
               (select-resource! asset-browser (workspace/file-resource workspace folder))))))))
 
 (defn- selected-or-active-resource
-  [selection active-resource]
-  (or (handler/adapt-single selection resource/Resource)
+  [selection active-resource evaluation-context]
+  (or (handler/adapt-single selection resource/Resource evaluation-context)
       active-resource))
 
 (handler/defhandler :file.show-in-assets :global
-  (active? [active-resource selection] (selected-or-active-resource selection active-resource))
-  (enabled? [active-resource selection]
-            (when-let [r (selected-or-active-resource selection active-resource)]
-              (resource/exists? r)))
+  (active? [active-resource selection evaluation-context] (selected-or-active-resource selection active-resource evaluation-context))
+  (enabled? [active-resource selection evaluation-context]
+    (when-let [r (selected-or-active-resource selection active-resource evaluation-context)]
+      (resource/exists? r)))
   (run [active-resource asset-browser selection main-stage]
-    (when-let [r (selected-or-active-resource selection active-resource)]
+    (when-let [r (g/with-auto-evaluation-context evaluation-context
+                   (selected-or-active-resource selection active-resource evaluation-context))]
       (app-view/show-asset-browser! (.getScene ^Stage main-stage))
       (select-resource! asset-browser r {:scroll? true}))))
 
@@ -843,13 +847,13 @@
 
 (defonce/record SelectionProvider [asset-browser]
   handler/SelectionProvider
-  (selection [this]
-    (ui/selection (g/node-value asset-browser :tree-view)))
-  (succeeding-selection [this]
-    (let [tree-view (g/node-value asset-browser :tree-view)]
+  (selection [_this evaluation-context]
+    (ui/selection (g/node-value asset-browser :tree-view evaluation-context)))
+  (succeeding-selection [_this evaluation-context]
+    (let [tree-view (g/node-value asset-browser :tree-view evaluation-context)]
       (->> (ui/selection-root-items tree-view asset-group-or-resource->id)
            (ui/succeeding-selection tree-view))))
-  (alt-selection [this] []))
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- describe-tree-cell [localization-state on-drag-dropped item]
   (cond
@@ -883,7 +887,7 @@
 (defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view localization]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
-        detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
+        detected-handler (ui/event-handler e (drag-detected e (g/with-auto-evaluation-context evaluation-context (handler/selection selection-provider evaluation-context))))
         original-dispatcher (.getEventDispatcher tree-view)]
     (fx/create-component
       {:fx/type asset-tree-view

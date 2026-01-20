@@ -59,10 +59,98 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(defn now
-  "The basis at the current point in time"
+;; If a new Basis or evaluation-context is created from inside an auto
+;; evaluation-context scope, it typically suggests you're bypassing the active
+;; evaluation-context. This could lead to values produced in the
+;; evaluation-context not being committed to the system cache, or multiple
+;; identical values being produced and then ending up referenced from different
+;; cache entries.
+;;
+;; When the strict-evaluation-context-scopes setting is :log or :log-once, we
+;; will log whenever g/now or g/make-evaluation-context is called from within an
+;; auto evaluation-context scope. You can also set it to :throw to throw an
+;; exception instead.
+;;
+;; We're still in the process of fixing all the various places where this rule
+;; is violated. When complete, we should enable strict evaluation-context scope
+;; checks by default.
+;;
+;; Until that day, you can turn on these checks using the :strict-ec-scopes lein
+;; profile when running tasks: `lein with-profile +strict-ec-scopes <task>`.
+(def ^:private strict-evaluation-context-scopes
+  (let [strict-evaluation-context-scopes-setting (and *assert* (some-> (System/getProperty "defold.graph.strict-evaluation-context-scopes") keyword))]
+    (assert (contains? #{nil :log :log-once :throw} strict-evaluation-context-scopes-setting))
+    strict-evaluation-context-scopes-setting))
+
+(defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
+  "Returns a new evaluation-context from the current state of *the-system*. Will
+  assert if called inside an auto evaluation-context scope when strict
+  evaluation-context scope checks are enabled."
+  ([] (is/default-evaluation-context @*the-system*))
+  ([options] (is/custom-evaluation-context @*the-system* options)))
+
+(defn ^{:dynamic strict-evaluation-context-scopes} now
+  "Returns the basis at the current point in time. Will assert if called inside
+  an auto evaluation-context scope when strict evaluation-context scope checks
+  are enabled."
   []
   (is/basis @*the-system*))
+
+(defn unsafe-basis
+  "Returns the basis at the current point in time. Bypasses strict
+  evaluation-context scope checks. Use with caution!"
+  []
+  (is/basis @*the-system*))
+
+(defn- comparable-exception-data [^Throwable exception]
+  (let [cause (.getCause exception)]
+    (cond-> {:class (.getName (.getClass exception))
+             :stacktrace (mapv (fn [^StackTraceElement ste]
+                                 (pair (.getFileName ste)
+                                       (.getLineNumber ste)))
+                               (.getStackTrace exception))}
+            cause (assoc :cause (comparable-exception-data cause)))))
+
+(defmacro make-evaluation-context-scope-violation-exception [fn-sym]
+  `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
+
+(defonce ^:private logged-evaluation-context-scope-violations-atom
+  (when (= :log-once strict-evaluation-context-scopes)
+    (atom #{})))
+
+(defn forget-logged-evaluation-context-scope-violations! []
+  (when logged-evaluation-context-scope-violations-atom
+    (reset! logged-evaluation-context-scope-violations-atom #{})
+    nil))
+
+(defn log-evaluation-context-scope-violation-exception! [exception]
+  (when (or (nil? logged-evaluation-context-scope-violations-atom)
+            (let [[old new] (swap-vals! logged-evaluation-context-scope-violations-atom conj (comparable-exception-data exception))]
+              (not= (count old)
+                    (count new))))
+    (log/warn :message "evaluation-context scope violation" :exception exception)))
+
+(defmacro strict-evaluation-context-scope-reporting-variant [fn-sym]
+  (let [rebound-fn-sym (symbol (str "rebound-" (name fn-sym)))]
+    (case strict-evaluation-context-scopes
+      (:log :log-once)
+      `(let [~'original-fn ~fn-sym]
+         (fn ~rebound-fn-sym [& ~'args]
+           (log-evaluation-context-scope-violation-exception!
+             (make-evaluation-context-scope-violation-exception ~fn-sym))
+           (apply ~'original-fn ~'args)))
+
+      (:throw)
+      `(fn ~rebound-fn-sym [& ~'_]
+         (throw
+           (make-evaluation-context-scope-violation-exception ~fn-sym))))))
+
+(defmacro do-strict-evaluation-context-scope-body [& body]
+  (if strict-evaluation-context-scopes
+    `(binding [now (strict-evaluation-context-scope-reporting-variant now)
+               make-evaluation-context (strict-evaluation-context-scope-reporting-variant make-evaluation-context)]
+       ~@body)
+    `(do ~@body)))
 
 (defn clone-system
   ([] (clone-system @*the-system*))
@@ -195,6 +283,12 @@
         (aset-long tps-counts 0 0)))
     tps-counts))
 
+(defn eager-tx-data
+  "Return a vector of flattened transaction steps from a sequence of possibly
+  nested sequences of transaction steps."
+  [txs]
+  (into [] coll/flatten-xf txs))
+
 (defn make-transaction-context [opts]
   (let [system (deref *the-system*)
         basis (is/basis system)
@@ -230,8 +324,19 @@
   ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
-   (let [transaction-context (make-transaction-context opts)
-         tx-result (it/transact* transaction-context txs)]
+   ;; When strict evaluation-context scope checks are enabled, we also want to
+   ;; verify that, for example, g/node-value isn't being used to evaluate an
+   ;; out-of-transaction value from something like a property setter or override
+   ;; :traverse-fn. However, it is perfectly valid to evaluate on the
+   ;; out-of-transaction basis to generate the transaction steps themselves.
+   ;; Since we use a lot of lazy sequences in functions that return transaction
+   ;; steps, we flatten and realize the lazy sequence outside the
+   ;; do-strict-evaluation-context-scope-body block to avoid false positives
+   ;; when strict evaluation-context scope checks are enabled.
+   (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
+         transaction-context (make-transaction-context opts)
+         tx-result (do-strict-evaluation-context-scope-body
+                     (it/transact* transaction-context txs))]
      (commit-tx-result! tx-result opts)
      tx-result)))
 
@@ -965,9 +1070,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn make-evaluation-context
-  ([] (is/default-evaluation-context @*the-system*))
-  ([options] (is/custom-evaluation-context @*the-system* options)))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -985,16 +1087,95 @@
 
 (defmacro with-auto-evaluation-context [ec & body]
   `(let [~ec (make-evaluation-context)
-         result# (do ~@body)]
+         result# (do-strict-evaluation-context-scope-body ~@body)]
      (update-cache-from-evaluation-context! ~ec)
      result#))
+
+(defn- let-ec-strict-form
+  [bindings & body]
+  {:pre [(vector? bindings)
+         (even? (count bindings))]}
+  (let [private-bindings-per-binding (coll/transfer bindings []
+                                       (partition-all 2)
+                                       (map destructure))
+        public-symbols (coll/transfer private-bindings-per-binding []
+                         (mapcat #(take-nth 2 %))
+                         (distinct))
+        private-bindings (into [] cat private-bindings-per-binding)]
+    (assert (every? symbol? public-symbols))
+    (list*
+      `let
+      [public-symbols
+       (list
+         `with-auto-evaluation-context 'evaluation-context
+         (list
+           `let*
+           private-bindings
+           public-symbols))]
+      body)))
+
+(defn- form-references-evaluation-context? [form]
+  (coll/some
+    true?
+    (coll/search
+      form
+      (fn [sub-form]
+        (when (= 'evaluation-context sub-form)
+          true)))))
+
+(defn- let-ec-relaxed-form
+  [evaluation-context-sym bindings & body]
+  {:pre [(symbol? evaluation-context-sym)
+         (vector? bindings)
+         (even? (count bindings))]}
+  (list*
+    `let
+    (coll/transfer bindings
+      [evaluation-context-sym `(make-evaluation-context)]
+      (partition-all 2)
+      (mapcat (fn [[binding-form init-expr]]
+                ;; Using a generated symbol ensures the evaluation-context
+                ;; cannot be referenced from the body after it has been closed.
+                (pair binding-form
+                      (if (form-references-evaluation-context? init-expr)
+                        `(let [~'evaluation-context ~evaluation-context-sym]
+                           ~init-expr)
+                        init-expr)))))
+    `(update-cache-from-evaluation-context! ~evaluation-context-sym)
+    body))
+
+(defmacro let-ec
+  "binding => binding-form init-expr
+  binding-form => name, or destructuring-form
+  destructuring-form => map-destructure-form, or seq-destructure-form
+
+  Emit the supplied bindings in a let expression after creating a new
+  evaluation-context from the current state of *the-system*. The
+  evaluation-context is available for use inside the binding-forms, but is
+  closed and merged back into the system cache before executing the body.
+
+  Example:
+  (g/let-ec [{:keys [view-id view-type]}
+             (g/node-value app-view :active-view-info evaluation-context)
+
+             camera-matrix
+             (when (= :scene (:id view-type))
+               (let [camera-id (g/node-value view-id :camera evaluation-context)]
+                 (camera/matrix camera-id evaluation-context)))]
+
+    (some-> camera-matrix
+            math/invert))"
+  [bindings & body]
+  (if strict-evaluation-context-scopes
+    (apply let-ec-strict-form bindings body)
+    (apply let-ec-relaxed-form (gensym "evaluation-context__") bindings body)))
 
 (def fake-system (is/make-system {:cache-size 0}))
 
 (defmacro with-auto-or-fake-evaluation-context [ec & body]
   `(let [real-system# @*the-system*
          ~ec (is/default-evaluation-context (or real-system# fake-system))
-         result# (do ~@body)]
+         result# (do-strict-evaluation-context-scope-body ~@body)]
      (when (some? real-system#)
        (update-cache-from-evaluation-context! ~ec))
      result#))

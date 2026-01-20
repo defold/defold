@@ -31,8 +31,8 @@
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
-            [util.defonce :as defonce]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
@@ -608,6 +608,8 @@
                     tab)))
               (.getTabs ^TabPane tab-pane))))))
 
+(declare selected-tab)
+
 (defn focus-owner
   "Returns the Node that owns focus in the specified Scene, or nil if no node
   has input focus. This function works around a bug in JavaFX related to nodes
@@ -618,7 +620,7 @@
   ^Node [^Scene scene]
   (when-some [focus-owner (.getFocusOwner scene)]
     (if-some [owning-tab (owning-tab focus-owner)]
-      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selection-model .getSelectedItem)]
+      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selected-tab)]
         (when (identical? owning-tab selected-tab-in-owning-tab-pane)
           focus-owner))
       focus-owner)))
@@ -1280,9 +1282,9 @@
 
 (defn ->selection-provider [view]
   (reify handler/SelectionProvider
-    (selection [this] (selection view))
-    (succeeding-selection [this] [])
-    (alt-selection [this] [])))
+    (selection [_this _evaluation-context] (selection view))
+    (succeeding-selection [_this _evaluation-context] [])
+    (alt-selection [_this _evaluation-context] [])))
 
 (defn context!
   ([^Node node name env selection-provider]
@@ -1308,20 +1310,21 @@
     (user-data node ::context)))
 
 (defn node-contexts
-  [^Node initial-node all-selections?]
+  [^Node initial-node all-selections? evaluation-context]
   (loop [^Node node initial-node
          ctxs []]
     (if-not node
-      (handler/eval-contexts ctxs all-selections?)
+      (handler/eval-contexts ctxs all-selections? evaluation-context)
       (if-let [ctx (context node)]
         (recur (.getParent node) (conj ctxs ctx))
         (recur (.getParent node) ctxs)))))
 
 (defn contexts
-  ([^Scene scene]
-   (contexts scene true))
   ([^Scene scene all-selections?]
-   (node-contexts (or (focus-owner scene) (.getRoot scene)) all-selections?)))
+   (g/with-auto-evaluation-context evaluation-context
+     (contexts scene all-selections? evaluation-context)))
+  ([^Scene scene all-selections? evaluation-context]
+   (node-contexts (or (focus-owner scene) (.getRoot scene)) all-selections? evaluation-context)))
 
 (defn resolve-handler-ctx [command-contexts command user-data]
   (let [handler-ctx (handler/active command command-contexts user-data)]
@@ -1400,7 +1403,7 @@
   ;; stage is changed during the event dispatch. This happens for
   ;; example when we have a shortcut triggering the opening of a
   ;; dialog.
-  (run-later (let [command-contexts (contexts (main-scene))]
+  (run-later (let [command-contexts (contexts (main-scene) true)]
                (reduce
                  (fn [acc command]
                    (let [ret (invoke-handler command-contexts command)]
@@ -1439,7 +1442,7 @@
 
       ActionEvent/ACTION
       (try
-        (when-not suppress? (invoke-handler (contexts scene) command user-data))
+        (when-not suppress? (invoke-handler (contexts scene true) command user-data))
         (finally
           (set! suppress? false))))))
 
@@ -1477,7 +1480,7 @@
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
-      (.setOnAction menu-item (event-handler event (invoke-handler (contexts scene) command user-data))))
+      (.setOnAction menu-item (event-handler event (invoke-handler (contexts scene true) command user-data))))
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
@@ -1541,7 +1544,7 @@
 
 (defn init-context-menu! ^ContextMenu [menu-location ^Scene scene]
   (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :keymap) keymap/empty) (user-data scene :localization) evaluation-context))
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false evaluation-context) (or (user-data scene :keymap) keymap/empty) (user-data scene :localization) evaluation-context))
         cm (make-context-menu menu-items)]
     (doto (.getItems cm)
       (refresh-separator-visibility)
@@ -1634,8 +1637,8 @@
   ([^Node node command user-data]
    (run-command node command user-data true nil))
   ([^Node node command user-data all-selections? success-fn]
-   (let [user-data (or user-data {})
-         command-contexts (node-contexts node all-selections?)]
+   (g/let-ec [user-data (or user-data {})
+              command-contexts (node-contexts node all-selections? evaluation-context)]
      (let [ret (execute-command command-contexts command user-data)]
        (when (and (not= ::not-active ret)
                   (not= ::not-enabled ret))
@@ -1650,15 +1653,14 @@
    (user-data! node ::bound-action {:command command :user-data user-data})
    (on-action! node (fn [^Event e] (run-command node command user-data true (fn [] (.consume e)))))))
 
-(defn refresh-bound-action-enabled!
-  [^Node node]
+(defn bound-action-enabled?
+  [^Node node evaluation-context]
   (let [{:keys [command user-data]
          :or {user-data {}}} (user-data node ::bound-action)
-        command-contexts (node-contexts node true)
-        handler-ctx (handler/active command command-contexts user-data)
-        enabled (and handler-ctx
-                     (handler/enabled? handler-ctx))] ; TODO: This really should supply the same evaluation-context we use to refresh the menus and so on.
-    (disable! node (not enabled))))
+        command-contexts (node-contexts node true evaluation-context)
+        handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+    (and handler-ctx
+         (handler/enabled? handler-ctx evaluation-context))))
 
 (defn bind-double-click!
   ([^Node node command]
@@ -1935,7 +1937,7 @@
         (.setAll (.getItems cb) ^Collection opts)
         (observe (.valueProperty cb) (fn [_this _old new]
                                        (when (and new (not *programmatic-selection*))
-                                         (let [command-contexts (contexts scene)]
+                                         (let [command-contexts (contexts scene true)]
                                            (execute-command command-contexts (:command new) (:user-data new))))))
         (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
         (.add (.getChildren hbox) cb)
@@ -1960,7 +1962,7 @@
 
         (when-let [command (:command menu-item)]
           (on-action! button (fn [_event]
-                               (execute-command (contexts scene) command (:user-data menu-item)))))
+                               (execute-command (contexts scene true) command (:user-data menu-item)))))
 
         (if more
           (let [{:keys [id command]} more
@@ -1971,7 +1973,7 @@
                               (.setGraphic icon)
                               (add-style! "more-button")
                               (on-action! (fn [_event]
-                                            (execute-command (contexts scene) command (:user-data menu-item)))))]
+                                            (execute-command (contexts scene true) command (:user-data menu-item)))))]
             (.add (.getChildren group) button)
             (.add (.getChildren group) more-button)
             (when id (.setId more-button (name id)))
@@ -2061,20 +2063,20 @@
             (tree-seq window-parents window-parents leaf-window))
     [leaf]))
 
-(defn- visible-command-contexts [^Scene scene]
+(defn- visible-command-contexts [^Scene scene evaluation-context]
   (let [parent-scenes (rest (scene-chain scene))]
-    (apply concat (contexts scene)
+    (apply concat (contexts scene true evaluation-context)
            (map (fn [parent-scene]
-                  (filter #(= :global (:name %)) (contexts parent-scene)))
+                  (filter #(= :global (:name %)) (contexts parent-scene true evaluation-context)))
                 parent-scenes))))
 
-(defn- current-command-contexts [^Scene scene]
-  (contexts scene))
+(defn- current-command-contexts [^Scene scene evaluation-context]
+  (contexts scene true evaluation-context))
 
 (defn- refresh-menus!
   [^Scene scene keymap localization evaluation-context]
-  (let [visible-command-contexts (visible-command-contexts scene)
-        current-command-contexts (current-command-contexts scene)
+  (let [visible-command-contexts (visible-command-contexts scene evaluation-context)
+        current-command-contexts (current-command-contexts scene evaluation-context)
         root (.getRoot scene)]
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
@@ -2092,8 +2094,8 @@
 
 (defn- refresh-toolbars!
   [^Scene scene localization evaluation-context]
-  (let [visible-command-contexts (visible-command-contexts scene)
-        current-command-contexts (current-command-contexts scene)
+  (let [visible-command-contexts (visible-command-contexts scene evaluation-context)
+        current-command-contexts (current-command-contexts scene evaluation-context)
         root (.getRoot scene)
         app-view (-> current-command-contexts first :env :app-view)
         active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
@@ -2345,8 +2347,8 @@
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
 
 (defn parent-tab-pane
-  "Returns the closest TabPane above the Node in the scene hierarchy, or nil if
-  the Node is not under a TabPane."
+  "Returns the closest TabPane at or above the Node in the scene hierarchy, or
+  nil if the Node is not a TabPane or under a TabPane."
   ^TabPane [^Node node]
   (closest-node-of-type TabPane node))
 
@@ -2359,6 +2361,11 @@
 (defn selected-tab
   ^Tab [^TabPane tab-pane]
   (.. tab-pane getSelectionModel getSelectedItem))
+
+(defn select-tab! [^Tab tab]
+  (let [tab-pane (.getTabPane tab)
+        selection-model (.getSelectionModel tab-pane)]
+    (.select selection-model tab)))
 
 (defn inside-hidden-tab? [^Node node]
   (let [tab-content-area (closest-node-with-style "tab-content-area" node)]

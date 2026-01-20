@@ -48,7 +48,6 @@ ordinary paths."
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
            [java.net URI]
-           [java.util List]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -63,7 +62,7 @@ ordinary paths."
 (defn project-directory
   "Returns a File representing the canonical path of the project directory."
   (^File [workspace]
-   (resource/project-directory (g/now) workspace))
+   (resource/project-directory (g/unsafe-basis) workspace))
   (^File [basis workspace]
    (resource/project-directory basis workspace)))
 
@@ -375,9 +374,9 @@ ordinary paths."
 
 (defn get-resource-type-map
   ([workspace]
-   (resource/resource-types-by-type-ext (g/now) workspace :editable))
+   (resource/resource-types-by-type-ext (g/unsafe-basis) workspace :editable))
   ([workspace editability]
-   (resource/resource-types-by-type-ext (g/now) workspace editability)))
+   (resource/resource-types-by-type-ext (g/unsafe-basis) workspace editability)))
 
 (defn get-resource-type
   ([workspace ext]
@@ -487,15 +486,20 @@ ordinary paths."
      rel-path
      (str base "/" rel-path))))
 
-(defn resolve-resource [base-resource path]
-  (when-not (empty? path)
-    (let [workspace (:workspace base-resource)
-          path  (if (absolute-path path)
-                  path
-                  (resource/file->proj-path (project-directory workspace)
-                                            (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
-                                                                        path))))]
-      (resolve-workspace-resource workspace path))))
+(defn resolve-resource
+  ([base-resource path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-resource base-resource path evaluation-context)))
+  ([base-resource path evaluation-context]
+   (when-not (empty? path)
+     (let [basis (:basis evaluation-context)
+           workspace (:workspace base-resource)
+           path  (if (absolute-path path)
+                   path
+                   (resource/file->proj-path (project-directory basis workspace)
+                                             (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
+                                                                         path))))]
+       (resolve-workspace-resource workspace path evaluation-context)))))
 
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
@@ -565,7 +569,7 @@ ordinary paths."
                      "current" (str current)})
          :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                     :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene))
+                                  (ui/contexts (ui/main-scene) true)
                                   :file.open
                                   "/game.project")}]})
       (notifications/close! notifications ::dependencies-min-version))
@@ -579,7 +583,7 @@ ordinary paths."
                     {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
          :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                     :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene))
+                                  (ui/contexts (ui/main-scene) true)
                                   :project.fetch-libraries
                                   nil)}]})
       (notifications/close! notifications ::dependencies-missing))
@@ -594,7 +598,7 @@ ordinary paths."
                       {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet other-errors))})
            :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                       :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene))
+                                    (ui/contexts (ui/main-scene) true)
                                     :file.open
                                     "/game.project")}]})
         (notifications/close! notifications ::dependencies-error)))))
@@ -669,19 +673,20 @@ ordinary paths."
   [resource]
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
-(defn- find-parent [resource]
+(defn- find-parent [resource evaluation-context]
   (let [parent-path (resource/parent-proj-path (resource/proj-path resource))]
-    (find-resource (resource/workspace resource) (str parent-path))))
+    (find-resource (resource/workspace resource) (str parent-path) evaluation-context)))
 
-(defn- is-extension-file? [resource]
+(defn- is-extension-file? [resource evaluation-context]
   (or (extension-root? resource)
-      (some-> (find-parent resource) recur)))
+      (some-> (find-parent resource evaluation-context)
+              (recur evaluation-context))))
 
-(defn- is-plugin-file? [resource]
+(defn- is-plugin-file? [resource evaluation-context]
   (and
     (= :file (resource/source-type resource))
     (string/includes? (resource/proj-path resource) "/plugins/")
-    (is-extension-file? resource)))
+    (is-extension-file? resource evaluation-context)))
 
 (defn- shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
@@ -776,18 +781,21 @@ ordinary paths."
 (defn unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
-  (let [{plugin-zips true resources false} (->> changed
-                                                (filter is-plugin-file?)
-                                                (group-by plugin-zip?))]
-    (->> plugin-zips
-         (into []
-               (comp
-                 (map find-parent)
-                 (distinct)
-                 (mapcat resource/children)
-                 (filter plugin-zip?)))
-         (sort-by plugin-zip-priority)
-         (run! #(unpack-plugin-zip! workspace %)))
+  (g/let-ec [[plugin-zips resources]
+             (->> changed
+                  (filter #(is-plugin-file? % evaluation-context))
+                  (coll/separate-by plugin-zip?))
+
+             plugin-zips
+             (->> plugin-zips
+                  (into []
+                        (comp
+                          (map #(find-parent % evaluation-context))
+                          (distinct)
+                          (mapcat resource/children)
+                          (filter plugin-zip?)))
+                  (sort-by plugin-zip-priority))]
+    (run! #(unpack-plugin-zip! workspace %) plugin-zips)
     (run! #(unpack-resource! workspace %) resources)))
 
 (defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
@@ -965,14 +973,16 @@ ordinary paths."
   (g/update-property
     workspace :resource-kind-extensions
     (fn [extensions-by-resource-kind]
-      (if-some [^List extensions (extensions-by-resource-kind resource-kind)]
-        (if (neg? (.indexOf extensions extension))
+      (if-some [extensions (extensions-by-resource-kind resource-kind)]
+        (if (neg? (coll/index-of extensions extension))
           (assoc extensions-by-resource-kind resource-kind (conj extensions extension))
           extensions-by-resource-kind) ; Already registered, return unaltered.
         (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind)))))))
 
-(defn resource-kind-extensions [workspace resource-kind]
-  (let [extensions-by-resource-kind (g/node-value workspace :resource-kind-extensions)]
+(defn resource-kind-extensions [workspace resource-kind evaluation-context]
+  ;; TODO: This is often abused inside production functions, but this data
+  ;; should really be passed through graph connections.
+  (let [extensions-by-resource-kind (g/node-value workspace :resource-kind-extensions evaluation-context)]
     (or (extensions-by-resource-kind resource-kind)
         (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind))))))
 
