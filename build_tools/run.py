@@ -83,7 +83,8 @@ def command(args, **kwargs):
     try:
         return _exec_command(args, **kwargs)
     except ExecException as e:
-        log("Error: %s" % _to_str(output))
+        log("Error: %s" % _to_str(e.command))
+        log("Output: %s" % _to_str(e.output))
         sys.exit(e.retcode)
 
 def shell_command(args, **kwargs):
@@ -91,7 +92,8 @@ def shell_command(args, **kwargs):
     try:
         return _exec_command(args, shell = True, **kwargs)
     except ExecException as e:
-        log("Error: %s" % _to_str(output))
+        log("Error: %s" % _to_str(e.command))
+        log("Output: %s" % _to_str(e.output))
         sys.exit(e.retcode)
 
 
