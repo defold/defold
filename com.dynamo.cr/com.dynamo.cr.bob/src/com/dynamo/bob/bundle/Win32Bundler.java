@@ -83,7 +83,6 @@ public class Win32Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         String title = projectProperties.getStringValue("project", "title", "htmlUnnamed");
-
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title);
 
@@ -107,13 +106,14 @@ public class Win32Bundler implements IBundler {
         FileUtils.copyFile(bundleExe, exeOut);
 
         // Copy debug symbols if they were generated
-        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+        File zipDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
         File bundlePdb = new File(zipDir, "dmengine.pdb");
         if (bundlePdb.exists()) {
             File pdbOut = new File(appDir, "dmengine.pdb");
             FileUtils.copyFile(bundlePdb, pdbOut);
         }
 
+        BundleHelper.copySharedLibraries(platform, zipDir, appDir);
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into bundle directory
