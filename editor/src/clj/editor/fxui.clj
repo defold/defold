@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.composite :as fx.composite]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
@@ -23,6 +24,7 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-button :as fx.menu-button]
@@ -55,14 +57,14 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang MultiFn]
-           [com.defold.control ButtonWithCappedMinWidth ListCell]
+           [com.defold.control ButtonWithCappedMinWidth ListCell ResizableImageView]
            [java.util Collection]
            [javafx.animation Animation KeyFrame KeyValue SequentialTransition Timeline TranslateTransition]
            [javafx.application Platform]
-           [javafx.beans InvalidationListener Observable]
+           [javafx.beans Observable]
            [javafx.beans.binding Bindings]
            [javafx.beans.value ChangeListener ObservableValue]
-           [javafx.collections MapChangeListener MapChangeListener$Change ObservableList ObservableMap]
+           [javafx.collections ObservableList]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
@@ -1703,3 +1705,11 @@
                 child-instance-meta))))))
     (delete [_ component opts]
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
+(def resizable-image
+  (fx.composite/describe
+    ResizableImageView
+    :ctor []
+    ;; ResizableImageView uses fitToWidth and fitToHeight internally during
+    ;; resize, ignoring externally set values
+    :props (dissoc fx.image-view/props :fit-to-width :fit-to-height)))

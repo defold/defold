@@ -389,9 +389,6 @@
          :hgap 4
          :children views}))))
 
-(def ^:private ext-with-image-view-props
-  (fx/make-ext-with-props fx.image-view/props))
-
 (defn- image-view [^Element node ctx]
   (or
     (let [src (coll/not-empty (.attr node "src"))]
@@ -404,10 +401,9 @@
                                (when (resource/exists? resource)
                                  {:is (io/input-stream resource)
                                   :background-loading true}))))]
-          {:fx/type ext-with-image-view-props
-           :desc {:fx/type fx/ext-instance-factory
-                  :create ResizableImageView/new}
-           :props {:image image}})))
+          {:fx/type fx.h-box/lifecycle
+           :children [{:fx/type fxui/resizable-image
+                       :image image}]})))
     {:fx/type fx.region/lifecycle}))
 
 (defn- kbd-view [^Element node ctx]
