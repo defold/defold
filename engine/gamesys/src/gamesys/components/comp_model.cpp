@@ -118,11 +118,11 @@ namespace dmGameSystem
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
-        uint32_t                    m_Enabled                      : 1;
-        uint32_t                    m_AttributeRenderDataIndex     : 16;
-        uint32_t                    m_PerInstanceCustomAttributes  : 1;
-        uint32_t                    m_DynamicVertexAttributesDirty : 1;
+        uint16_t                    m_AttributeRenderDataIndex;
         uint16_t                    m_DynamicVertexAttributeIndex;
+        uint8_t                     m_PerInstanceCustomAttributes  : 1;
+        uint8_t                     m_DynamicVertexAttributesDirty : 1;
+        uint8_t                     m_Enabled                      : 1;
     };
 
     struct ModelComponent
@@ -564,9 +564,6 @@ namespace dmGameSystem
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
 
-        dmRenderDDF::MaterialDesc::PbrParameters pbr_parameters;
-        dmRender::GetMaterialPBRParameters(material, &pbr_parameters);
-
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
@@ -596,7 +593,9 @@ namespace dmGameSystem
                 // We can skip hashing instance attribute values since the data can be shared
                 // between all meshes in a regular draw call.
                 if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                {
                     continue;
+                }
                 uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr.m_DataType);
                 dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
             }
@@ -851,7 +850,6 @@ namespace dmGameSystem
         uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
         uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
         void* attribute_data      = malloc(vertex_data_size);
-        memset(attribute_data, 0, vertex_data_size);
         uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
 
         vertex_write_ptr = WriteMeshAttributes(render_context, render_item, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &non_default_attribute, vertex_write_ptr, vertex_count);
@@ -2072,9 +2070,7 @@ namespace dmGameSystem
                 dmVMath::Matrix4 world_matrix     = c->m_World * model_matrix;
                 dmVMath::Matrix4 normal_matrix    = dmRender::GetNormalMatrix(render_context, world_matrix);
                 bool has_custom_vertex_attributes = vx_decl != world->m_VertexDeclaration;
-
-                uint32_t material_index = render_item->m_MaterialIndex;
-                vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, &material_infos_vertex, vertex_stride, material_index, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
+                vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, &material_infos_vertex, vertex_stride, render_item->m_MaterialIndex, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
             }
         }
 
@@ -2781,8 +2777,6 @@ namespace dmGameSystem
                 // copy the base vertex data when we don't need to.
                 if (attribute->m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE && render_item)
                 {
-                    // TODO: This will mark only the first render item as dirty.
-                    //       We need a way to address sub-components to support custom attributes for sub-models
                     render_item->m_DynamicVertexAttributesDirty = 1;
                 }
             }
