@@ -785,19 +785,20 @@
           (g/operation-sequence op-seq)
           (select-fn [shape-node]))))))
 
-(defn- selection->collision-object [selection]
-  (handler/adapt-single selection CollisionObjectNode))
+(defn- selection->collision-object [selection evaluation-context]
+  (handler/adapt-single selection CollisionObjectNode evaluation-context))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
-         (if-not user-data
-           (localization/message "command.edit.add-embedded-component.variant.collision-object")
-           (shape-type-message (:shape-type user-data))))
-  (active? [selection] (selection->collision-object selection))
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.collision-object")
+      (shape-type-message (:shape-type user-data))))
+  (active? [selection evaluation-context] (selection->collision-object selection evaluation-context))
   (run [selection user-data app-view]
-    (add-shape-handler (selection->collision-object selection) (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids))))
-  (options [selection user-data]
-    (let [self (selection->collision-object selection)]
+    (g/let-ec [self (selection->collision-object selection evaluation-context)]
+      (add-shape-handler self (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
+  (options [selection user-data evaluation-context]
+    (let [self (selection->collision-object selection evaluation-context)]
       (when-not user-data
         (->> shape-type-ui
              (reduce-kv

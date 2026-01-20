@@ -428,7 +428,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -970,9 +970,9 @@
   (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
-  (-> app-view
-    app-view/->selection-provider
-    handler/selection))
+  (let [selection-provider (app-view/->selection-provider app-view)]
+    (g/with-auto-evaluation-context evaluation-context
+      (handler/selection selection-provider evaluation-context))))
 
 ;; Extension library server
 
@@ -1003,20 +1003,34 @@
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
+(defn handler-enabled? [command command-contexts user-data]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/enabled? handler+command-context evaluation-context)))))
+
 (defn handler-run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/run)))
+  (g/let-ec [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+             handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+    (when handler+command-context
+      (handler/run handler+command-context))))
 
 (defn handler-options [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/options)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (when handler+command-context
+        (handler/options handler+command-context evaluation-context)))))
 
 (defn handler-state [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/state)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/state handler+command-context evaluation-context)))))
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]

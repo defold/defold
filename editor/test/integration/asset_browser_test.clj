@@ -198,7 +198,7 @@
           [read-only-file-resource] false
           [writable-dir-resource] true
           [writable-file-resource] true
-          [writable-file-resource read-only-dir-resource] false
+          [writable-file-resource read-only-dir-resource] true
           [writable-file-resource writable-dir-resource] true
           [fixed-file-resource] false
           [fs-builtins-resource] true))))) ; this should never appear in the asset browser, but if we decide it should - it will be deletable

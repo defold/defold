@@ -583,6 +583,9 @@ namespace dmGameSystem
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
         settings.m_Tracking = component->m_Tracking;
+        // legacy options for glyph bank fonts
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
         dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
     }

@@ -260,9 +260,9 @@
                               {:workspace workspace
                                :changes-view workspace}
                               (reify handler/SelectionProvider
-                                (selection [_])
-                                (succeeding-selection [_])
-                                (alt-selection [_]))))
+                                (selection [_this _evaluation-context])
+                                (succeeding-selection [_this _evaluation-context])
+                                (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
           console (g/make-node! view-graph console/ConsoleNode)
           console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]

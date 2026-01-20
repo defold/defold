@@ -1428,17 +1428,11 @@
 
 ;; handlers/menu
 
-(defn- selection->tile-map [selection]
-  (handler/adapt-single selection TileMapNode))
+(defn- selection->tile-map [selection evaluation-context]
+  (handler/adapt-single selection TileMapNode evaluation-context))
 
-(defn- selection->layer [selection]
-  (handler/adapt-single selection LayerNode))
-
-(defn tile-map-node
-  [selection]
-  (or (selection->tile-map selection)
-      (some-> (selection->layer selection)
-        core/scope)))
+(defn- selection->layer [selection evaluation-context]
+  (handler/adapt-single selection LayerNode evaluation-context))
 
 (defn- make-new-layer
   [id]
@@ -1446,25 +1440,27 @@
     :id id
     :z protobuf/float-zero))
 
-(defn- add-layer-handler
-  [tile-map-node]
-  (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
-    (g/transact
-     (concat
+(defn- add-layer!
+  [tile-map-node layer-id]
+  (g/transact
+    (concat
       (g/operation-label (localization/message "operation.tile-map.add-layer"))
-      (make-layer-node tile-map-node (make-new-layer layer-id))))))
+      (make-layer-node tile-map-node (make-new-layer layer-id)))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data] (localization/message "command.edit.add-embedded-component.variant.tile-map"))
-  (active? [selection] (selection->tile-map selection))
-  (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
+  (active? [selection evaluation-context] (selection->tile-map selection evaluation-context))
+  (run [selection user-data]
+    (g/let-ec [tile-map-node (selection->tile-map selection evaluation-context)
+               layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids evaluation-context))]
+      (add-layer! tile-map-node layer-id))))
 
 (defn- erase-tool-handler [tool-controller]
   (g/set-property! tool-controller :brush empty-brush))
 
 (defn- active-tile-map [app-view evaluation-context]
   (when-let [resource-node (g/node-value app-view :active-resource-node evaluation-context)]
-    (when (g/node-instance? TileMapNode resource-node)
+    (when (g/node-instance? (:basis evaluation-context) TileMapNode resource-node)
       resource-node)))
 
 (defn- active-scene-view
@@ -1486,7 +1482,7 @@
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
+    (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (erase-tool-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
@@ -1499,7 +1495,7 @@
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection)
+            (and (selection->layer selection evaluation-context)
                  (let [active-tile (active-tile-map app-view evaluation-context)]
                    (and (g/node-value active-tile :tile-source-resource evaluation-context)
                         (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
@@ -1515,7 +1511,7 @@
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
+    (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-horizontally)))
@@ -1525,7 +1521,7 @@
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-            (and (selection->layer selection)
+            (and (selection->layer selection evaluation-context)
                  (-> (active-tile-map app-view evaluation-context)
                      (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
@@ -1535,7 +1531,7 @@
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
+    (and (selection->layer selection evaluation-context)
          (-> (active-tile-map app-view evaluation-context)
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view rotate-brush-90-degrees)))

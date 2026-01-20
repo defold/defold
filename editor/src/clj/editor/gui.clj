@@ -721,12 +721,12 @@
 
 (def base-display-order [:id :generated-id scene/SceneNode])
 
-(defn- validate-layer [emit-warnings? node-id layer-names layer]
+(defn- validate-layer [basis emit-warnings? node-id layer-names layer]
   (when-not (empty? layer)
     ;; Layers are not brought in from template sources. The brought in nodes act
     ;; as if they belong to no layer if the layer does not exist in the scene,
     ;; but a warning is emitted.
-    (if (g/property-value-origin? node-id :layer)
+    (if (g/property-value-origin? basis node-id :layer)
       (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-names layer)
       (when emit-warnings?
         (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
@@ -1116,9 +1116,10 @@
                                  (let [layer->index (:layer->index basic-gui-scene-info)
                                        layer-names (:layer-names basic-gui-scene-info)]
                                    (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))))
-            (dynamic error (g/fnk [_node-id layer basic-gui-scene-info]
-                             (let [layer-names (:layer-names basic-gui-scene-info)]
-                               (validate-layer true _node-id layer-names layer))))
+            (dynamic error (g/fnk [^:unsafe _evaluation-context _node-id layer basic-gui-scene-info]
+                             (let [basis (:basis _evaluation-context)
+                                   layer-names (:layer-names basic-gui-scene-info)]
+                               (validate-layer basis true _node-id layer-names layer))))
             (dynamic label (properties/label-dynamic :gui :layer))
             (dynamic tooltip (properties/tooltip-dynamic :gui :layer))
             (value (layout-property-getter layer))
@@ -1328,12 +1329,13 @@
                                   prop-kw->prop-info))))))))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any
-          (g/fnk [_node-id basic-gui-scene-info id id-counts layer]
-            (let [layer-names (:layer-names basic-gui-scene-info)]
+          (g/fnk [^:unsafe _evaluation-context _node-id basic-gui-scene-info id id-counts layer]
+            (let [basis (:basis _evaluation-context)
+                  layer-names (:layer-names basic-gui-scene-info)]
               (g/package-errors
                 _node-id
                 (prop-unique-id-error _node-id :id id id-counts "Id")
-                (validate-layer false _node-id layer-names layer)))))
+                (validate-layer basis false _node-id layer-names layer)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-gui-node))
   (output build-errors g/Any (g/fnk [_node-id own-build-errors child-build-errors]
                                (g/package-errors _node-id
@@ -2477,9 +2479,13 @@
                              (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic label (properties/label-dynamic :gui :texture))
             (dynamic tooltip (properties/tooltip-dynamic :gui :texture))
-            (dynamic edit-type (g/fnk [_node-id]
-                                 {:type resource/Resource
-                                  :ext (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)})))
+            (dynamic edit-type (g/fnk [^:unsafe _evaluation-context _node-id]
+                                 (let [basis (:basis _evaluation-context)
+                                       project (project/get-project basis _node-id)
+                                       workspace (project/workspace project _evaluation-context)
+                                       exts (workspace/resource-kind-extensions workspace :atlas _evaluation-context)]
+                                   {:type resource/Resource
+                                    :ext exts}))))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
@@ -2825,9 +2831,12 @@
                 (attach-texture scene textures-node node)))
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
-  (query-and-add-resources!
-   "Textures" (workspace/resource-kind-extensions (project/workspace project) :atlas) (g/node-value parent :name-counts) project select-fn
-   (partial add-texture scene parent)))
+  (g/let-ec [workspace (project/workspace project evaluation-context)
+             resource-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
+             name-counts (g/node-value parent :name-counts evaluation-context)]
+    (query-and-add-resources!
+      "Textures" resource-exts name-counts project select-fn
+      (partial add-texture scene parent))))
 
 (g/defnode TexturesNode
   (inherits core/Scope)
@@ -3820,10 +3829,10 @@
           (g/node-value scene :unused-display-profiles evaluation-context))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (active? [selection evaluation-context] (not-empty (some-> (handler/selection->node-id selection) (add-handler-options evaluation-context))))
+  (active? [selection evaluation-context] (not-empty (some-> (handler/selection->node-id selection evaluation-context) (add-handler-options evaluation-context))))
   (run [project user-data app-view] (when user-data ((:handler-fn user-data) project user-data (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data evaluation-context]
-    (let [node-id (handler/selection->node-id selection)]
+    (let [node-id (handler/selection->node-id selection evaluation-context)]
       (if (not user-data)
         (add-handler-options node-id evaluation-context)
         (when (:layout user-data)
@@ -4196,26 +4205,36 @@
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material fn/or default-material-proj-path))))
 
+(defn- drop-target-node-id+unique-name [gui-scene-node-id target-node-id-label base-name evaluation-context]
+  (let [target-node-id (g/node-value gui-scene-node-id target-node-id-label evaluation-context)
+        name-counts (g/node-value target-node-id :name-counts evaluation-context)
+        unique-name (id/gen base-name name-counts)]
+    (pair target-node-id unique-name)))
+
 (defn- add-dropped-resource
-  [scene workspace resource]
+  [gui-scene workspace resource]
   (let [ext (resource/type-ext resource)
-        base-name (resource/base-name resource)
-        gen-name #(id/gen base-name (g/node-value (g/node-value scene %) :name-counts))]
-    (cond
-      (= ext "particlefx")
-      (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))
+        base-name (resource/base-name resource)]
 
-      (= ext "font")
-      (add-font scene (g/node-value scene :fonts-node) resource (gen-name :fonts-node))
+    (case ext
+      "particlefx"
+      (g/let-ec [[target-node name] (drop-target-node-id+unique-name gui-scene :particlefx-resources-node base-name evaluation-context)]
+        (add-particlefx-resource gui-scene target-node resource name))
 
-      (some #{ext} (workspace/resource-kind-extensions workspace :atlas))
-      (add-texture scene (g/node-value scene :textures-node) resource (gen-name :textures-node))
+      "font"
+      (g/let-ec [[target-node name] (drop-target-node-id+unique-name gui-scene :fonts-node base-name evaluation-context)]
+        (add-font gui-scene target-node resource name))
 
-      (= ext "material")
-      (add-material scene (g/node-value scene :materials-node) resource (gen-name :materials-node))
+      "material"
+      (g/let-ec [[target-node name] (drop-target-node-id+unique-name gui-scene :materials-node base-name evaluation-context)]
+        (add-material gui-scene target-node resource name))
 
-      :else
-      nil)))
+      ;; else
+      (g/let-ec [atlas-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
+                 target-node+name (when-not (neg? (coll/index-of atlas-exts ext))
+                                    (drop-target-node-id+unique-name gui-scene :textures-node base-name evaluation-context))]
+        (when-some [[target-node name] target-node+name]
+          (add-texture gui-scene target-node resource name))))))
 
 (defn- handle-drop
   [root-id _selection workspace _world-pos resources]
@@ -4400,42 +4419,55 @@
             (g/set-property node-id :child-index neighbour-node-index)
             (g/set-property neighbour-node-id :child-index node-index)))))))
 
-(defn- selection->gui-node [selection]
-  (g/override-root (handler/adapt-single selection GuiNode)))
+(defn- selection->gui-node [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection GuiNode evaluation-context))))
 
-(defn- selection->layer-node [selection]
-  (g/override-root (handler/adapt-single selection LayerNode)))
+(defn- selection->layer-node [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection LayerNode evaluation-context))))
 
 (handler/defhandler :edit.reorder-up :workbench
-  (active? [selection] (or (selection->gui-node selection)
-                           (selection->layer-node selection)))
-  (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              parent (core/scope selected-node-id)
-                              node-child-index (g/node-value selected-node-id :child-index)
-                              first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices))]
-                          (< first-index node-child-index)))
-  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
-                     (move-child-node! selected -1))))
+  (active? [selection evaluation-context]
+    (or (selection->gui-node selection evaluation-context)
+        (selection->layer-node selection evaluation-context)))
+  (enabled? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)
+          selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))
+          parent (core/scope basis selected-node-id)
+          node-child-index (g/node-value selected-node-id :child-index evaluation-context)
+          first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices evaluation-context))]
+      (< first-index node-child-index)))
+  (run [selection]
+    (g/let-ec [basis (:basis evaluation-context)
+               selected (g/override-root basis (handler/selection->node-id selection evaluation-context))]
+      (move-child-node! selected -1))))
 
 (handler/defhandler :edit.reorder-down :workbench
-  (active? [selection] (or (selection->gui-node selection)
-                           (selection->layer-node selection)))
-  (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              parent (core/scope selected-node-id)
-                              node-child-index (g/node-value selected-node-id :child-index)
-                              last-index (transduce (map second) max 0 (g/node-value parent :child-indices))]
-                          (< node-child-index last-index)))
-  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
-                     (move-child-node! selected 1))))
+  (active? [selection evaluation-context]
+    (or (selection->gui-node selection evaluation-context)
+        (selection->layer-node selection evaluation-context)))
+  (enabled? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)
+          selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))
+          parent (core/scope basis selected-node-id)
+          node-child-index (g/node-value selected-node-id :child-index evaluation-context)
+          last-index (transduce (map second) max 0 (g/node-value parent :child-indices evaluation-context))]
+      (< node-child-index last-index)))
+  (run [selection]
+    (g/let-ec [basis (:basis evaluation-context)
+               selected (g/override-root basis (handler/selection->node-id selection evaluation-context))]
+      (move-child-node! selected 1))))
 
 (defn- resource->gui-scene
   ([project resource]
    (g/with-auto-evaluation-context evaluation-context
      (resource->gui-scene project resource evaluation-context)))
   ([project resource evaluation-context]
-   (let [res-node (when resource
+   (let [basis (:basis evaluation-context)
+         res-node (when resource
                     (project/get-resource-node project resource evaluation-context))]
-     (when (and res-node (g/node-instance? GuiSceneNode res-node))
+     (when (and res-node (g/node-instance? basis GuiSceneNode res-node))
        res-node))))
 
 (handler/defhandler :scene.set-gui-layout :workbench

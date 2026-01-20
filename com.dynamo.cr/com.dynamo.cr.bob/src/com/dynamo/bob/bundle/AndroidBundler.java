@@ -556,6 +556,31 @@ public class AndroidBundler implements IBundler {
                 }
             }
 
+            // copy shared libraries (third-party from extensions)
+            for (Platform platformArchitecture : getArchitectures(project)) {
+                String architectureLibName = platformToLibMap.get(platformArchitecture);
+                File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(),
+                        platformArchitecture.getExtenderPair()));
+                File destDir = new File(libDir, architectureLibName);
+
+                BundleHelper.copySharedLibraries(platformArchitecture, binaryDir, destDir, path -> {
+                    String filename = path.getFileName().toString();
+                    String pathStr = path.toString();
+
+                    if (filename.equals("libdmengine.so")) {
+                        return false;
+                    }
+
+                    // Skip JNI files (handled separately above)
+                    if (pathStr.contains("/jni/") || pathStr.contains("\\jni\\")) {
+                        return false;
+                    }
+
+                    return true;
+                });
+                BundleHelper.throwIfCanceled(canceled);
+            }
+
             // create base.zip
             File baseZip = new File(aabDir, "base.zip");
             logger.info("Zipping " + baseDir + " to " + baseZip);

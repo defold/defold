@@ -261,9 +261,9 @@
 
 (deftype StaticSelection [selection]
   handler/SelectionProvider
-  (selection [_] selection)
-  (succeeding-selection [_] [])
-  (alt-selection [_] []))
+  (selection [_this _evaluation-context] selection)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- make-reload-resources-fn [workspace]
   (let [resource-sync (bound-fn* workspace/resource-sync!)]
@@ -304,15 +304,19 @@
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
 
+(defn- eval-handler-contexts [context-name selection]
+  (let [selection-provider (->StaticSelection selection)
+        command-context (handler/->context context-name {} selection-provider)]
+    (g/with-auto-evaluation-context evaluation-context
+      (handler/eval-contexts [command-context] false evaluation-context))))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (reload-editor-scripts! project)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
-                              (handler/eval-contexts
-                                [(handler/->context :outline {} (->StaticSelection [sprite-outline]))]
-                                false)
+                              (eval-handler-contexts :outline [sprite-outline])
                               {})]
         (is (= [0.0 0.0 0.0] (test-util/prop sprite-outline :position)))
         (is (= 1.0 (test-util/prop sprite-outline :playback-rate)))
@@ -326,11 +330,9 @@
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate))))
       (let [handler+context (handler/active
-                             (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                             (handler/eval-contexts
-                               [(handler/->context :global {} (->StaticSelection [sprite-outline]))]
-                               false)
-                             {})]
+                              (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
+                              (eval-handler-contexts :global [sprite-outline])
+                              {})]
         (is (= [1.0 1.0 1.0] (test-util/prop sprite-outline :scale)))
         (is (some? handler+context))
         (is (handler/enabled? handler+context))
@@ -347,9 +349,7 @@
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :asset-browser {} (->StaticSelection [(test-util/resource-node project "/test.txt")]))]
-                              false)
+                            (eval-handler-contexts :asset-browser [(test-util/resource-node project "/test.txt")])
                             {})]
       @(handler/run handler+context)
       ;; see test.editor_script:
@@ -364,9 +364,7 @@
 (defn- run-edit-menu-test-command! []
   (let [handler+context (handler/active
                           (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                          (handler/eval-contexts
-                            [(handler/->context :global {} (->StaticSelection []))]
-                            false)
+                          (eval-handler-contexts :global [])
                           {})]
     (assert handler+context "Test bug: undefined test command")
     @(handler/run handler+context)))
@@ -394,9 +392,7 @@
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :outline {} (->StaticSelection [node]))]
-                              false)
+                            (eval-handler-contexts :outline [node])
                             {})
           test-initial-state! (fn test-initial-state! []
                                 (is (= "properties" (test-util/prop node :id)))
@@ -434,9 +430,7 @@
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :asset-browser {} (->StaticSelection []))]
-                              false)
+                            (eval-handler-contexts :asset-browser [])
                             {})]
       @(handler/run handler+context)
       ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
