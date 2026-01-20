@@ -35,6 +35,15 @@ and add the "BETA" tag to the headline
 
 * Note: The release notes script requires a github access token to work correctly (https://github.com/settings/tokens). If the token is incorrect, you will likely get an error saying 'Unable to find GitHub project for version x.x.x'. Create a "classic" github token and add permissions to read projects. If the script still fails, you might need more permissions.
 
+1. Bump version on `dev`:
+
+        $ git checkout dev
+        $ ./scripts/build.py bump
+        $ git diff
+        $ git add VERSION
+        $ git commit -m "Bumped version to X.Y.Z"
+        $ git push
+
 ### Update private repos
 
 1. Also update the beta for the console platforms
@@ -86,14 +95,6 @@ and add the "BETA" tag to the headline
         $ git checkout dev
         $ git pull
         $ git merge editor-dev -m "Merged editor-dev into dev"
-
-1. Bump version:
-
-        $ ./scripts/build.py bump
-        $ git diff
-        $ git add VERSION
-        $ git commit -m "Bumped version to X.Y.Z"
-        $ git push
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline
 

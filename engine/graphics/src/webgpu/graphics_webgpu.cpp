@@ -503,6 +503,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
         {
             wgpuTextureRelease(texture->m_Texture);
             texture->m_Texture = NULL;
+            wgpuTextureViewRelease(texture->m_TextureView);
+            texture->m_TextureView = NULL;
         }
     }
     {
