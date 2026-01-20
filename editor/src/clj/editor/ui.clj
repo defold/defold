@@ -1598,6 +1598,7 @@
 
       :else
       (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+        ;; NOTE: This label is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
         (let [label (or (handler/label handler-ctx evaluation-context) label)
               enabled? (handler/enabled? handler-ctx evaluation-context)
               key-combo (first (keymap/shortcuts keymap command))
