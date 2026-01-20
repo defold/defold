@@ -555,7 +555,7 @@
            TreeView
            ;; Only count double-clicks on selected tree items. Ignore disclosure arrow clicks.
            (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
-             (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell clicked-node)]
+             (when-some [^javafx.scene.control.TreeCell tree-cell (closest-node-of-type javafx.scene.control.TreeCell clicked-node)]
                (when (and (.isSelected tree-cell)
                           (not (.isEmpty tree-cell)))
                  (if-some [disclosure-node (.getDisclosureNode tree-cell)]
@@ -1098,24 +1098,35 @@
     ;; of implementing this, it's only being used for the selection stuff in breakpoints-view
     nil))
 
-(defn selection-root-items [^TreeView tree-view path-fn id-fn]
-  (let [selection (.getSelectedItems (.getSelectionModel tree-view))]
-    (let [items (->> selection
-                     (e/remove nil?)
-                     (e/filter id-fn)
-                     (coll/pair-map-by path-fn))
-          roots (loop [paths (keys items)
-                       roots []]
-                  (if-let [path (first paths)]
-                    (let [ancestors (filter #(util/seq-starts-with? path %) roots)
-                          roots (if (empty? ancestors)
-                                  (conj roots path)
-                                  roots)]
-                      (recur (rest paths) roots))
-                    roots))]
-      (coll/transfer roots []
-        (map items)
-        (util/distinct-by id-fn)))))
+(defn selection-root-items
+  "Make a vector of TreeItems that correspond to selection roots
+
+  Args:
+    tree-view    TreeView instance
+    id-fn        function of TreeItem's value that returns its id; multiple
+                 TreeItems may share an id, in this case, only one of them will
+                 be returned; if id is falsey, the TreeItem is excluded"
+  [^TreeView tree-view id-fn]
+  (let [tree-item-id-fn (comp id-fn TreeItem/.getValue)
+        path->tree-item (->> tree-view
+                             .getSelectionModel
+                             .getSelectedItems
+                             (e/filter #(and % (tree-item-id-fn %)))
+                             (coll/pair-map-by
+                               (fn path-fn [^TreeItem item]
+                                 (vec (rseq (coll/transfer (iterate TreeItem/.getParent item) []
+                                              (take-while some?)
+                                              (map tree-item-id-fn)))))))
+        root-paths (reduce-kv
+                     (fn [root-paths path _]
+                       (if (coll/any? #(util/seq-starts-with? path %) root-paths)
+                         root-paths
+                         (conj root-paths path)))
+                     []
+                     path->tree-item)]
+    (coll/transfer root-paths []
+      (map path->tree-item)
+      (util/distinct-by tree-item-id-fn))))
 
 ;; Returns the items that should be selected if the specified root items were deleted.
 (defn succeeding-selection [^TreeView tree-view root-items]

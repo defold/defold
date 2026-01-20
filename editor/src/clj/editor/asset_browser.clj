@@ -13,7 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.asset-browser
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.tree-cell :as fx.tree-cell]
+            [cljfx.fx.tree-view :as fx.tree-view]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -21,6 +24,7 @@
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
@@ -32,59 +36,50 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e])
-  (:import [com.defold.control TreeCell]
+            [util.defonce :as defonce]
+            [util.eduction :as e]
+            [util.fn :as fn])
+  (:import [com.defold.control LazyTreeItem]
            [editor.resource FileResource]
            [java.io File]
            [java.nio.file Path Paths]
-           [javafx.collections FXCollections ObservableList]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.input DragEvent MouseEvent TransferMode]
            [javafx.scene Node]
-           [javafx.scene.control SelectionMode TreeItem TreeView]
+           [javafx.scene.control SelectionMode TreeCell TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.stage Stage]
            [org.apache.commons.io FilenameUtils]))
 
-(set! *warn-on-reflection* true)
+;; Implementation note: tree item values are either:
+;; - AssetGroup instances: grouping folders that are not implied to be resources
+;; - Resource instances: resources
+;; This means the selection is not guaranteed to only contain resources.
 
-(declare tree-item)
+(set! *warn-on-reflection* true)
 
 (def ^:private empty-string-array (into-array String []))
 
 (defn- ->path [s]
   (Paths/get s empty-string-array))
 
-; TreeItem creator
-(defn- list-children
-  ^ObservableList [parent]
-  (let [tree-items
-        (->> (:children parent)
-             (keep (fn [resource]
-                     (when (and (resource/loaded? resource)
-                                (not (resource/internal? resource)))
-                       (tree-item resource))))
-             (into-array TreeItem))]
-    (if (coll/empty? tree-items)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" tree-items)))))
+(defonce/record AssetGroup [message children])
 
-; NOTE: Without caching stack-overflow... WHY?
+(defn- asset-group? [x]
+  (instance? AssetGroup x))
+
+(defn- list-children [asset-group-or-resource]
+  (e/filter
+    #(or (asset-group? %)
+         (and (resource/loaded? %)
+              (not (resource/internal? %))))
+    (if (asset-group? asset-group-or-resource)
+      (:children asset-group-or-resource)
+      (resource/children asset-group-or-resource))))
+
 (defn tree-item
-  ^TreeItem [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-      (isLeaf []
-        (or (not= :folder (resource/source-type (.getValue ^TreeItem this)))
-            (coll/empty? (:children (.getValue ^TreeItem this)))))
-      (getChildren []
-        (let [this ^TreeItem this
-              ^ObservableList children (proxy-super getChildren)]
-          (when-not @cached
-            (reset! cached true)
-            (.setAll children (list-children (.getValue this))))
-          children)))))
+  ^TreeItem [asset-group-or-resource]
+  (LazyTreeItem. asset-group-or-resource list-children))
 
 (handler/register-menu! ::resource-menu
   [menu-items/open-selected
@@ -137,14 +132,16 @@
 
 (def fixed-resource-paths #{"/" "/game.project"})
 
-(defn deletable-resource? [x] (and (resource/resource? x)
-                                   (resource/editable? x)
-                                   (not (resource/read-only? x))
-                                   (not (fixed-resource-paths (resource/proj-path x)))))
+(defn deletable-resource? [x]
+  (and (resource/resource? x)
+       (resource/editable? x)
+       (not (resource/read-only? x))
+       (not (fixed-resource-paths (resource/proj-path x)))))
 
 (defn- roots [resources]
-  (let [resources (into {} (map (fn [resource] [(->path (resource/proj-path resource)) resource]) resources))
-        roots (loop [paths (keys resources)
+  {:pre [(coll/every? resource/resource? resources)]}
+  (let [path->resource (coll/pair-map-by (comp ->path resource/proj-path) resources)
+        roots (loop [paths (keys path->resource)
                      roots []]
                 (if-let [^Path path (first paths)]
                   (let [roots (if (empty? (filter (fn [^Path p] (.startsWith path p)) roots))
@@ -152,7 +149,7 @@
                                 roots)]
                     (recur (rest paths) roots))
                   roots))]
-    (mapv #(resources %) roots)))
+    (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
   (let [target (File. dir (resource/resource-name resource))]
@@ -189,9 +186,10 @@
     (.setContent cb content)))
 
 (handler/defhandler :edit.copy :asset-browser
-  (enabled? [selection] (not (empty? selection)))
+  (enabled? [selection]
+    (coll/any? resource/resource? selection))
   (run [selection]
-       (copy (-> selection roots fileify-resources!))))
+    (copy (fileify-resources! (roots (filterv resource/resource? selection))))))
 
 (defn- select-resource!
   ([asset-browser resource]
@@ -206,26 +204,31 @@
    (let [^TreeView tree-view (g/node-value asset-browser :tree-view)
          tree-items (ui/tree-item-seq (.getRoot tree-view))
          path (resource/resource->proj-path resource)]
-     (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= path (resource/resource->proj-path (.getValue tree-item))) tree-item)) tree-items)]
+     (when-let [tree-item (coll/first-where
+                            (fn [^TreeItem tree-item]
+                              (let [item (.getValue tree-item)]
+                                (and (resource/resource? item)
+                                     (= path (resource/proj-path item)))))
+                            tree-items)]
        (doto (.getSelectionModel tree-view)
          (.clearSelection)
          (.select tree-item))
        (when scroll?
          (ui/scroll-to-item! tree-view tree-item))))))
 
-(defn delete? [resources]
+(defn delete? [selection]
   (and (disk-availability/available?)
-       (seq resources)
-       (every? deletable-resource? resources)))
+       (coll/any? deletable-resource? selection)))
 
 (handler/defhandler :edit.cut :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))
-          cut-files-directory (fs/create-temp-directory! "asset-cut")]
-      (copy (mapv #(temp-resource-file! cut-files-directory %) (roots selection)))
-      (delete selection)
+          cut-files-directory (fs/create-temp-directory! "asset-cut")
+          resources (roots (filterv deletable-resource? selection))]
+      (copy (mapv #(temp-resource-file! cut-files-directory %) resources))
+      (delete resources)
       (when next
         (select-resource! asset-browser next)))))
 
@@ -313,13 +316,14 @@
          (and (nil? descendant)
               (nil? (some (partial reserved-project-file project-directory) possibly-reserved-tgt-files))))))
 
-(defn paste? [files-on-clipboard? target-resources]
+(defn paste? [files-on-clipboard? selection]
   (and files-on-clipboard?
        (disk-availability/available?)
-       (= 1 (count target-resources))
-       (let [target-resource (first target-resources)]
-         (and (resource/editable? target-resource)
-              (not (resource/read-only? target-resource))))))
+       (= 1 (count selection))
+       (let [selected-item (first selection)]
+         (and (resource/resource? selected-item)
+              (resource/editable? selected-item)
+              (not (resource/read-only? selected-item))))))
 
 (defn paste! [workspace target-resource src-files select-files! localization]
   (let [^File tgt-dir (reduce (fn [^File tgt ^File src]
@@ -379,19 +383,21 @@
               [f dest-file]))
           files)))
 
-(defn rename? [resources]
+(defn rename? [selection]
   (and (disk-availability/available?)
-       (pos? (count resources))
-       (every? (fn [resource]
-                 (and (resource/editable? resource)
-                      (not (resource/read-only? resource))
-                      (not (fixed-resource-paths (resource/resource->proj-path resource)))))
-               resources)
-       (case (into #{} (map resource/source-type) resources)
-         #{:folder} (= 1 (count resources))
+       (pos? (count selection))
+       (coll/every?
+         (fn [selected-item]
+           (and (resource/resource? selected-item)
+                (resource/editable? selected-item)
+                (not (resource/read-only? selected-item))
+                (not (fixed-resource-paths (resource/proj-path selected-item)))))
+         selection)
+       (case (into #{} (map resource/source-type) selection)
+         #{:folder} (= 1 (count selection))
          #{:file} (and
-                    (= 1 (count (into #{} (map resource/base-name) resources)))
-                    (= (count resources) (count (into #{} (map resource/ext) resources))))
+                    (= 1 (count (into #{} (map resource/base-name) selection)))
+                    (= (count selection) (count (into #{} (map resource/ext) selection))))
          false)))
 
 (defn rename [resources new-base-name localization]
@@ -463,14 +469,15 @@
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider localization]
     (let [next (-> (handler/succeeding-selection selection-provider)
-                   (handler/adapt-single resource/Resource))]
-      (when (if (= 1 (count selection))
+                   (handler/adapt-single resource/Resource))
+          resources (roots (filterv deletable-resource? selection))]
+      (when (if (= 1 (count resources))
               (dialogs/make-confirmation-dialog
                 localization
                 {:title (localization/message "dialog.asset-delete-single.title")
                  :icon :icon/circle-question
                  :header (localization/message "dialog.asset-delete-single.header"
-                                               {"name" (resource/resource-name (first selection))})
+                                               {"name" (resource/resource-name (first resources))})
                  :buttons [{:text (localization/message "dialog.button.cancel")
                             :cancel-button true
                             :default-button true
@@ -485,7 +492,7 @@
                  :header (localization/message "dialog.asset-delete-multiple.header")
                  :content {:text (localization/message
                                    "dialog.asset-delete-multiple.content"
-                                   {"items" (->> selection
+                                   {"items" (->> resources
                                                  (e/map
                                                    #(localization
                                                       (localization/message "dialog.asset-delete-multiple.content.item"
@@ -498,7 +505,7 @@
                            {:text (localization/message "dialog.button.delete")
                             :variant :danger
                             :result true}]}))
-        (when (and (delete selection) next)
+        (when (and (delete resources) next)
           (select-resource! asset-browser next))))))
 
 (defn- create-template-file! [^String template ^File new-file]
@@ -507,14 +514,17 @@
     (spit new-file contents)))
 
 (handler/defhandler :file.new :global
-  (label [user-data] (if-not user-data
-                       (localization/message "command.file.new")
-                       (let [rt (:resource-type user-data)]
-                         (or (:label rt) (:ext rt)))))
-  (active? [selection selection-context] (or (= :global selection-context) (and (= :asset-browser selection-context)
-                                                                                (= (count selection) 1)
-                                                                                (not= nil (some-> (handler/adapt-single selection resource/Resource)
-                                                                                            resource/abs-path)))))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.file.new")
+      (let [rt (:resource-type user-data)]
+        (or (:label rt) (:ext rt)))))
+  (active? [selection selection-context]
+    (or (= :global selection-context)
+        (and (= :asset-browser selection-context)
+             (= (count selection) 1)
+             (some? (some-> (handler/adapt-single selection resource/Resource)
+                      resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
@@ -572,13 +582,14 @@
     (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
       (format "The name %s is reserved" new-name))))
 
-(defn new-folder? [resources]
+(defn new-folder? [selection]
   (and (disk-availability/available?)
-       (= (count resources) 1)
-       (let [resource (first resources)]
-         (and (resource/editable? resource)
-              (not (resource/read-only? resource))
-              (some? (resource/abs-path resource))))))
+       (= (count selection) 1)
+       (let [selected-item (first selection)]
+         (and (resource/resource? selected-item)
+              (resource/editable? selected-item)
+              (not (resource/read-only? selected-item))
+              (some? (resource/abs-path selected-item))))))
 
 (handler/defhandler :file.new-folder :asset-browser
   (enabled? [selection] (new-folder? selection))
@@ -611,64 +622,89 @@
       (app-view/show-asset-browser! (.getScene ^Stage main-stage))
       (select-resource! asset-browser r {:scroll? true}))))
 
-(defn- item->path [^TreeItem item]
-  (-> item (.getValue) (resource/proj-path)))
+(defn- asset-group-or-resource->id [asset-group-or-resource]
+  {:post [(some? %)]}
+  (if (asset-group? asset-group-or-resource)
+    (:message asset-group-or-resource)
+    (resource/proj-path asset-group-or-resource)))
+
+(defn- tree-item->id [^TreeItem tree-item]
+  (-> tree-item .getValue asset-group-or-resource->id))
 
 (defn- sync-tree! [old-root new-root]
-  (let [item-seq (ui/tree-item-seq old-root)
-        expanded (zipmap (map item->path item-seq)
-                         (map #(.isExpanded ^TreeItem %) item-seq))]
+  (let [expanded (->> old-root
+                      ui/tree-item-seq
+                      (coll/pair-map-by tree-item->id TreeItem/.isExpanded))]
     (doseq [^TreeItem item (ui/tree-item-seq new-root)]
-      (when (get expanded (item->path item))
-        (.setExpanded item true))))
-  new-root)
+      (when (get expanded (tree-item->id item))
+        (.setExpanded item true)))))
+
+(def ^:private assets-message (localization/message "pane.assets"))
+(def ^:private dependencies-message (localization/message "assets.dependencies"))
+
+(defn- with-dependencies-subtree [resource-tree]
+  (let [children (:children resource-tree)
+        [file-resources dep-resources] (coll/separate-by resource/file-resource? children)]
+    (->AssetGroup
+      assets-message
+      (-> []
+          (cond->
+            (not (coll/empty? dep-resources))
+            (conj (->AssetGroup dependencies-message dep-resources)))
+          (conj (assoc resource-tree :children file-resources))))))
+
+(defn- apply-default-expansion! [^TreeItem root]
+  (run!
+    (fn [^TreeItem child]
+      (when (resource/resource? (.getValue child))
+        (.setExpanded child true)))
+    (.getChildren root)))
 
 (g/defnk produce-tree-root
   [^TreeView raw-tree-view resource-tree]
   (let [old-root (.getRoot raw-tree-view)
-        new-root (tree-item resource-tree)]
-    (when new-root
-      (sync-tree! old-root new-root)
-      (.setExpanded new-root true)
-      new-root)))
+        new-root (tree-item (with-dependencies-subtree resource-tree))]
+    (sync-tree! old-root new-root)
+    (when-not old-root (apply-default-expansion! new-root))
+    new-root))
 
-(defn- auto-expand [items selected-paths]
+(defn- auto-expand [items selected-ids]
   (not-every? false?
               (map (fn [^TreeItem item]
-                     (let [path (item->path item)
-                           selected (boolean (selected-paths path))
-                           expanded (auto-expand (.getChildren item) selected-paths)]
+                     (let [id (tree-item->id item)
+                           selected (boolean (selected-ids id))
+                           expanded (auto-expand (.getChildren item) selected-ids)]
                        (when expanded (.setExpanded item expanded))
                        (or selected expanded)))
                    items)))
 
 (defn- sync-selection!
-  [^TreeView tree-view selected-paths old-tree-view-paths]
+  [^TreeView tree-view selected-ids old-tree-view-ids]
   (let [root (.getRoot tree-view)
         selection-model (.getSelectionModel tree-view)]
     (.clearSelection selection-model)
-    (when (and root (seq selected-paths))
-      (let [selected-paths (set selected-paths)]
-        (auto-expand (.getChildren root) selected-paths)
+    (when (and root (seq selected-ids))
+      (let [selected-ids (set selected-ids)]
+        (auto-expand (.getChildren root) selected-ids)
         (let [count (.getExpandedItemCount tree-view)
-              selected-indices (filter #(selected-paths (item->path (.getTreeItem tree-view %))) (range count))]
+              selected-indices (filterv #(selected-ids (tree-item->id (.getTreeItem tree-view %))) (range count))]
           (when (not (empty? selected-indices))
             (ui/select-indices! tree-view selected-indices))
-          (when-not (= old-tree-view-paths selected-paths)
+          (when-not (= old-tree-view-ids selected-ids)
             (when-some [first-item (first (.getSelectedItems selection-model))]
               (ui/scroll-to-item! tree-view first-item))))))))
 
 (defn- update-tree-view-selection!
-  [^TreeView tree-view selected-paths old-tree-view-paths]
-  (sync-selection! tree-view selected-paths old-tree-view-paths)
+  [^TreeView tree-view selected-ids old-tree-view-ids]
+  (sync-selection! tree-view selected-ids old-tree-view-ids)
   tree-view)
 
 (defn- update-tree-view-root!
-  [^TreeView tree-view ^TreeItem root selected-paths old-tree-view-paths]
+  [^TreeView tree-view ^TreeItem root selected-ids old-tree-view-ids]
   (when root
     (.setExpanded root true)
     (.setRoot tree-view root))
-  (sync-selection! tree-view selected-paths old-tree-view-paths)
+  (sync-selection! tree-view selected-ids old-tree-view-ids)
   tree-view)
 
 (defn track-active-tab? [prefs]
@@ -676,30 +712,30 @@
 
 (g/defnk produce-tree-view
   [^TreeView raw-tree-view ^TreeItem root active-resource prefs]
-  (let [old-tree-view-paths (into #{}
-                                  (comp
-                                    (remove nil?)
-                                    (map item->path))
-                                  (.getSelectedItems (.getSelectionModel raw-tree-view)))
-        selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
-                           (when (and (track-active-tab? prefs) active-resource)
-                             [(resource/proj-path active-resource)])
-                           (mapv resource/proj-path (ui/selection raw-tree-view)))]
+  (let [old-tree-view-ids (into #{}
+                                (comp
+                                  (remove nil?)
+                                  (map tree-item->id))
+                                (.getSelectedItems (.getSelectionModel raw-tree-view)))
+        selected-ids (or (ui/user-data raw-tree-view ::pending-selection)
+                         (when (and (track-active-tab? prefs) active-resource)
+                           [(asset-group-or-resource->id active-resource)])
+                         (mapv asset-group-or-resource->id (ui/selection raw-tree-view)))]
     (ui/user-data! raw-tree-view ::pending-selection nil)
     (cond
       ;; different roots?
       (not (identical? (.getRoot raw-tree-view) root))
-      (update-tree-view-root! raw-tree-view root selected-paths old-tree-view-paths)
+      (update-tree-view-root! raw-tree-view root selected-ids old-tree-view-ids)
 
       ;; same root, different selection?
-      (not (= (set selected-paths) (set (map resource/proj-path (ui/selection raw-tree-view)))))
-      (update-tree-view-selection! raw-tree-view selected-paths old-tree-view-paths)
+      (not (= (set selected-ids) (into #{} (map asset-group-or-resource->id) (ui/selection raw-tree-view))))
+      (update-tree-view-selection! raw-tree-view selected-ids old-tree-view-ids)
 
       :else
       raw-tree-view)))
 
 (defn- drag-detected [^MouseEvent e selection]
-  (let [resources (roots selection)
+  (let [resources (roots (filterv resource/resource? selection))
         files (fileify-resources! resources)
         paths (->> resources
                    (mapv resource/proj-path)
@@ -723,10 +759,11 @@
 (defn- drag-entered [^DragEvent e]
   (let [^TreeCell cell (target (.getTarget e))]
     (when (and cell (not (.isEmpty cell)))
-      (let [resource (.getValue (.getTreeItem cell))]
-        (when (and (= :folder (resource/source-type resource))
-                   (resource/editable? resource)
-                   (not (resource/read-only? resource)))
+      (let [item (.getValue (.getTreeItem cell))]
+        (when (and (resource/resource? item)
+                   (= :folder (resource/source-type item))
+                   (resource/editable? item)
+                   (not (resource/read-only? item)))
           (ui/add-style! cell "drop-target"))))))
 
 (defn- drag-exited [^DragEvent e]
@@ -804,27 +841,57 @@
   (.setDropCompleted e true)
   (.consume e))
 
-(defrecord SelectionProvider [asset-browser]
+(defonce/record SelectionProvider [asset-browser]
   handler/SelectionProvider
   (selection [this]
     (ui/selection (g/node-value asset-browser :tree-view)))
   (succeeding-selection [this]
-    (let [tree-view (g/node-value asset-browser :tree-view)
-          path-fn (comp #(string/split % #"/") item->path)]
-      (->> (ui/selection-root-items tree-view path-fn item->path)
-        (ui/succeeding-selection tree-view))))
+    (let [tree-view (g/node-value asset-browser :tree-view)]
+      (->> (ui/selection-root-items tree-view asset-group-or-resource->id)
+           (ui/succeeding-selection tree-view))))
   (alt-selection [this] []))
+
+(defn- describe-tree-cell [localization-state on-drag-dropped item]
+  (cond
+    (nil? item)
+    {}
+
+    (asset-group? item)
+    {:text (localization-state (:message item))
+     :graphic {:fx/type ui/image-icon :path "icons/32/Icons_03-Builtins.png" :size 16.0}}
+
+    :else
+    {:text (resource/resource-name item)
+     :style-class (into ["cell" "indexed-cell" "tree-cell"] (resource/style-classes item))
+     :on-drag-over drag-over
+     :on-drag-entered drag-entered
+     :on-drag-exited drag-exited
+     :on-drag-dropped on-drag-dropped
+     :graphic {:fx/type ui/image-icon :path (workspace/resource-icon item) :size 16.0}}))
+
+(def ^:private ext-with-tree-view-props
+  (fx/make-ext-with-props fx.tree-view/props))
+
+(fxui/defc asset-tree-view
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [tree-view localization-state on-drag-dropped]}]
+  {:fx/type ext-with-tree-view-props
+   :desc {:fx/type fxui/ext-value :value tree-view}
+   :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                          :describe (fn/partial #'describe-tree-cell localization-state on-drag-dropped)}}})
 
 (defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view localization]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
-        over-handler (ui/event-handler e (drag-over e))
-        dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e localization)))
         detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
-        entered-handler (ui/event-handler e (drag-entered e))
-        exited-handler (ui/event-handler e (drag-exited e))
         original-dispatcher (.getEventDispatcher tree-view)]
+    (fx/create-component
+      {:fx/type asset-tree-view
+       :tree-view tree-view
+       :localization localization
+       :on-drag-dropped #(error-reporting/catch-all! (drag-dropped % localization))})
     (doto tree-view
+      (.setShowRoot false)
       (ui/customize-tree-view! {:double-click-expand? true})
       (ui/bind-double-click! :file.open-selected)
       (ui/bind-key-commands! {"Enter" :file.open-selected})
@@ -843,16 +910,6 @@
                  (.dispatchEvent original-dispatcher event tail)))
              (.dispatchEvent original-dispatcher event tail))))
       (.setOnDragDetected detected-handler)
-      (ui/cell-factory! (fn [resource]
-                          (if (nil? resource)
-                            {}
-                            {:text (resource/resource-name resource)
-                             :icon (workspace/resource-icon resource)
-                             :style (resource/style-classes resource)
-                             :over-handler over-handler
-                             :dropped-handler dropped-handler
-                             :entered-handler entered-handler
-                             :exited-handler exited-handler})))
       (ui/register-context-menu ::resource-menu)
       (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser :localization localization} selection-provider))))
 
