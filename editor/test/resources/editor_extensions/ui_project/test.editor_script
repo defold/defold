@@ -1,5 +1,14 @@
 local M = {}
 
+local function expect_error(msg, fn, ...)
+    local success, error = pcall(fn, ...)
+    if success then
+        print(("%s => unexpected success!"):format(msg))
+    else
+        print(("%s => %s"):format(msg, error))
+    end
+end
+
 function M.get_commands()
     return {
         {
@@ -250,6 +259,11 @@ function M.get_commands()
                         })
                     }
                 })
+
+                expect_error("editor.ui.image({})", editor.ui.image, {})
+                expect_error("editor.ui.image({image = false})", editor.ui.image, {image = false})
+                expect_error("editor.ui.image({image = 'foo', width = false})", editor.ui.image, {image = 'foo', width = false})
+                expect_error("editor.ui.image({image = 'foo', width = -1})", editor.ui.image, {image = 'foo', width = -1})
 
                 -- editor.ui.show_dialog(dialog)
             end

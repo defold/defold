@@ -328,8 +328,7 @@
     :or {alignment :top-left}}]
   (if image
     (-> {:fx/type fx.stack-pane/lifecycle
-         :children [(cond-> {:fx/type fxui/resizable-image
-                             :image image})]}
+         :children [{:fx/type fxui/resizable-image :image image}]}
         (apply-alignment alignment)
         (cond->
           width (assoc :min-width width :pref-width width :max-width width)
