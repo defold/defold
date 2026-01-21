@@ -35,7 +35,7 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.profiler :as profiler])
-  (:import [com.defold.control DefoldStringConverter ListCell LongField OutlineTreeViewSkin TreeCell]
+  (:import [com.defold.control DefoldStringConverter ExtendedTreeViewSkin ListCell LongField TreeCell]
            [com.sun.javafx.event DirectEvent]
            [com.sun.javafx.scene NodeHelper]
            [java.awt Desktop Desktop$Action]
@@ -1156,8 +1156,8 @@
   ([^TreeView tree-view first-index last-index]
    (scroll-to-encompass-items! tree-view first-index last-index 2))
   ([^TreeView tree-view first-index last-index scroll-padding-cells]
-   (let [skin (.getSkin tree-view)
-         flow (.getFlow ^OutlineTreeViewSkin skin)
+   (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
+         flow (.getVirtualFlowInstance skin)
          last-visible-idx (.getIndex (.getLastVisibleCell flow))]
      (when (.shouldScrollTo skin first-index)
        (if (> last-index last-visible-idx)

@@ -39,7 +39,7 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [com.defold.control LazyTreeItem]
+  (:import [com.defold.control LazyTreeItem ExtendedTreeViewSkin]
            [editor.resource FileResource]
            [java.io File]
            [java.nio.file Path Paths]
@@ -695,8 +695,7 @@
           (when (not (empty? selected-indices))
             (ui/select-indices! tree-view selected-indices))
           (when-not (= old-tree-view-ids selected-ids)
-            (when-some [first-item (first (.getSelectedItems selection-model))]
-              (ui/scroll-to-item! tree-view first-item))))))))
+            (ui/scroll-to-encompass-items! tree-view (first selected-indices) (peek selected-indices))))))))
 
 (defn- update-tree-view-selection!
   [^TreeView tree-view selected-ids old-tree-view-ids]
@@ -896,6 +895,7 @@
        :on-drag-dropped #(error-reporting/catch-all! (drag-dropped % localization))})
     (doto tree-view
       (.setShowRoot false)
+      (.setSkin (ExtendedTreeViewSkin. tree-view))
       (ui/customize-tree-view! {:double-click-expand? true})
       (ui/bind-double-click! :file.open-selected)
       (ui/bind-key-commands! {"Enter" :file.open-selected})
