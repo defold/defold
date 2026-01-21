@@ -286,6 +286,28 @@ namespace dmGameObject
      */
     bool IsChildOf(HInstance child, HInstance parent);
 
+    /**
+     * Retrieve a property from a component.
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param options [type:PropertyOptions] Additional options when getting value
+     * @param out_value [type:PropertyDesc] Description of the retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameters were written
+     */
+    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
+
+    /**
+     * Sets the value of a property on a component.
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param options [type:PropertyOptions] Additional options when setting value
+     * @param value [type:PropertyVar] Value and type of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
+
     typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2);
 
