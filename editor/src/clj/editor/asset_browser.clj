@@ -38,7 +38,8 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.eduction :as e]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.path :as path])
   (:import [com.defold.control LazyTreeItem]
            [editor.resource FileResource]
            [java.io File]
@@ -423,7 +424,7 @@
       ;; plain case change causes irrelevant conflict on case-insensitive file systems
       ;; fs/move! handles this, no need to resolve
       (let [{case-changes true possible-conflicts false}
-            (group-by #(fs/same-file? (key %) (val %)) rename-pairs)]
+            (group-by #(path/same? (key %) (val %)) rename-pairs)]
         (when-let [resolved-conflicts (resolve-any-conflicts localization possible-conflicts)]
           (let [resolved-rename-pairs (into resolved-conflicts case-changes)]
             (when (seq resolved-rename-pairs)
