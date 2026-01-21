@@ -35,9 +35,7 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.profiler :as profiler])
-  (:import [com.defold.control ListCell]
-           [com.defold.control LongField]
-           [com.defold.control DefoldStringConverter TreeCell]
+  (:import [com.defold.control DefoldStringConverter ListCell LongField OutlineTreeViewSkin TreeCell]
            [com.sun.javafx.event DirectEvent]
            [com.sun.javafx.scene NodeHelper]
            [java.awt Desktop Desktop$Action]
@@ -1151,6 +1149,22 @@
   (let [row (.getRow tree-view tree-item)]
     (when-not (= -1 row)
       (.scrollTo tree-view row))))
+
+(defn scroll-to-encompass-items!
+  "Scrolls tree-view to show all items between first-index and last-index,
+  with optional padding cells above and below."
+  ([^TreeView tree-view first-index last-index]
+   (scroll-to-encompass-items! tree-view first-index last-index 2))
+  ([^TreeView tree-view first-index last-index scroll-padding-cells]
+   (let [skin (.getSkin tree-view)
+         flow (.getFlow ^OutlineTreeViewSkin skin)
+         last-visible-idx (.getIndex (.getLastVisibleCell flow))]
+     (when (.shouldScrollTo skin first-index)
+       (if (> last-index last-visible-idx)
+         (let [fixed-cell-size (.getHeight (.getCell flow first-index))
+               cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
+           (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
+         (.scrollTo tree-view (dec first-index)))))))
 
 (defn- custom-tree-view-key-pressed! [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does

@@ -136,19 +136,9 @@
                                              (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
                   (.clearSelection selection-model)
                   (when-not (coll/empty? new-selected-indices)
-                    (let [first-index (new-selected-indices 0)
-                          skin (.getSkin tree-view)
-                          flow (.getFlow ^OutlineTreeViewSkin skin)
-                          last-visible-idx (.getIndex (.getLastVisibleCell flow))
-                          fixed-cell-size (.getHeight (.getCell flow first-index))]
+                    (let [first-index (new-selected-indices 0)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (when (.shouldScrollTo ^OutlineTreeViewSkin skin first-index)
-                        (let [last-index (peek new-selected-indices)
-                              scroll-padding-cells 2]
-                          (if (> last-index last-visible-idx)
-                            (let [cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
-                              (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
-                            (.scrollTo tree-view (dec first-index)))))
+                      (ui/scroll-to-encompass-items! tree-view first-index (peek new-selected-indices))
                       (ui/run-later (.focus (.getFocusModel tree-view) first-index)))))))))
         fx.lifecycle/scalar))))
 
