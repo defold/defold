@@ -1166,8 +1166,9 @@
   (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)]
     (when (.shouldScrollTo skin index)
       (let [flow (.getVirtualFlowInstance skin)
-            cell-height (.getHeight (.getCell flow index))
-            visible-count (int (Math/ceil (/ (.getHeight tree-view) cell-height)))
+            first-visible (.getIndex (.getFirstVisibleCell flow))
+            last-visible (.getIndex (.getLastVisibleCell flow))
+            visible-count (- last-visible first-visible)
             center-offset (quot visible-count 2)
             scroll-target (max 0 (- index center-offset))]
         (.scrollTo tree-view scroll-target)))))
