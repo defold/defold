@@ -45,9 +45,7 @@
            [java.nio.file Path Paths]
            [javafx.scene Node]
            [javafx.scene.control SelectionMode TreeCell TreeItem TreeView]
-           [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.input DragEvent MouseEvent TransferMode]
-           [javafx.scene.input KeyCode KeyEvent MouseEvent]
+           [javafx.scene.input Clipboard ClipboardContent DragEvent KeyCode KeyEvent MouseEvent MouseEvent TransferMode]
            [javafx.stage Stage]
            [org.apache.commons.io FilenameUtils]))
 
