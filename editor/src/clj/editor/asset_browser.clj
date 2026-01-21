@@ -691,9 +691,9 @@
         (let [count (.getExpandedItemCount tree-view)
               selected-indices (filterv #(selected-ids (tree-item->id (.getTreeItem tree-view %))) (range count))]
           (when (not (coll/empty? selected-indices))
-            (ui/select-indices! tree-view selected-indices))
-          (when-not (= old-tree-view-ids selected-ids)
-            (ui/scroll-tree-view-to-encompass-items! tree-view (first selected-indices) (peek selected-indices))))))))
+            (ui/select-indices! tree-view selected-indices)
+            (when-not (= old-tree-view-ids selected-ids)
+              (ui/scroll-tree-view-to-encompass-selection! tree-view selected-indices))))))))
 
 (defn- update-tree-view-selection!
   [^TreeView tree-view selected-ids old-tree-view-ids]

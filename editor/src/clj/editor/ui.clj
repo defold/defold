@@ -1144,17 +1144,19 @@
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
 
-(defn scroll-tree-view-to-encompass-items!
+(defn scroll-tree-view-to-encompass-selection!
   "Scrolls tree-view to show all items between first-index and last-index,
   with optional padding cells above and below."
-  ([^TreeView tree-view first-index last-index]
-   (scroll-tree-view-to-encompass-items! tree-view first-index last-index 2))
-  ([^TreeView tree-view first-index last-index scroll-padding-cells]
+  ([^TreeView tree-view selected-indices]
+   (scroll-tree-view-to-encompass-selection! tree-view selected-indices 2))
+  ([^TreeView tree-view selected-indices scroll-padding-cells]
    {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
-   (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
+   (let [first-index (first selected-indices)
+         last-index (peek selected-indices)
+         skin ^ExtendedTreeViewSkin (.getSkin tree-view)
          flow (.getVirtualFlowInstance skin)
          last-visible-idx (.getIndex (.getLastVisibleCell flow))]
-     (when (.shouldScrollTo skin first-index)
+     (when (and (>= last-index first-index 0) (.shouldScrollTo skin first-index))
        (if (> last-index last-visible-idx)
          (let [fixed-cell-size (.getHeight (.getCell flow first-index))
                cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
