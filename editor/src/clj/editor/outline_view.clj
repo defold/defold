@@ -40,7 +40,6 @@
             [util.eduction :as e])
   (:import [com.defold.control ExtendedTreeViewSkin TreeCell]
            [java.awt Toolkit]
-           [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
            [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
@@ -138,7 +137,7 @@
                   (when-not (coll/empty? new-selected-indices)
                     (let [first-index (new-selected-indices 0)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (ui/scroll-to-encompass-items! tree-view first-index (peek new-selected-indices))
+                      (ui/scroll-tree-view-to-encompass-items! tree-view first-index (peek new-selected-indices))
                       (ui/run-later (.focus (.getFocusModel tree-view) first-index)))))))))
         fx.lifecycle/scalar))))
 
@@ -782,7 +781,7 @@
       (ui/register-context-menu ::outline-menu)
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
-      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-scroll-on-drag tree-view e)))
+      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
 

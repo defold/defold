@@ -1144,11 +1144,11 @@
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
 
-(defn scroll-to-encompass-items!
+(defn scroll-tree-view-to-encompass-items!
   "Scrolls tree-view to show all items between first-index and last-index,
   with optional padding cells above and below."
   ([^TreeView tree-view first-index last-index]
-   (scroll-to-encompass-items! tree-view first-index last-index 2))
+   (scroll-tree-view-to-encompass-items! tree-view first-index last-index 2))
   ([^TreeView tree-view first-index last-index scroll-padding-cells]
    {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
    (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
@@ -1161,9 +1161,7 @@
            (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
          (.scrollTo tree-view (dec first-index)))))))
 
-(defn scroll-to-center-item!
-  "Scrolls tree-view to center the item at the given index."
-  [^TreeView tree-view index]
+(defn scroll-tree-view-to-center-item! [^TreeView tree-view index]
   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
   (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)]
     (when (.shouldScrollTo skin index)
@@ -1174,30 +1172,24 @@
             scroll-target (max 0 (- index center-offset))]
         (.scrollTo tree-view scroll-target)))))
 
-(defn scroll-tree-view-by-cells!
-  "Scrolls tree-view by the specified number of cells (positive or negative)."
-  [^TreeView tree-view cells]
+(defn- scroll-tree-view-by-pixels! [^TreeView tree-view pixels]
   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
   (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
-        flow (.getVirtualFlowInstance skin)
-        first-cell (.getFirstVisibleCell flow)]
-    (when first-cell
-      (let [cell-height (.getHeight first-cell)
-            pixels (* cells cell-height)]
-        (.scrollPixels flow pixels)))))
+        flow (.getVirtualFlowInstance skin)]
+    (.scrollPixels flow pixels)))
 
-(defn handle-scroll-on-drag [^TreeView tree-view ^DragEvent e]
+(defn handle-tree-view-scroll-on-drag! [^TreeView tree-view ^DragEvent e]
   (let [view-y (.getY (.sceneToLocal tree-view (.getSceneX e) (.getSceneY e)))
         height (.getHeight (.getBoundsInLocal tree-view))
         scroll-zone 40
-        max-speed 0.8]
+        max-speed 16]
     (cond
       (< view-y scroll-zone)
       (let [speed (* max-speed (- 1 (/ view-y scroll-zone)))]
-        (scroll-tree-view-by-cells! tree-view (- speed)))
+        (scroll-tree-view-by-pixels! tree-view (- speed)))
       (> view-y (- height scroll-zone))
       (let [speed (* max-speed (/ (- view-y (- height scroll-zone)) scroll-zone))]
-        (scroll-tree-view-by-cells! tree-view speed)))))
+        (scroll-tree-view-by-pixels! tree-view speed)))))
 
 (defn- custom-tree-view-key-pressed! [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does

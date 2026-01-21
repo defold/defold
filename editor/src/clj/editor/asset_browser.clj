@@ -214,7 +214,7 @@
          (.clearSelection)
          (.select tree-item))
        (when scroll?
-         (ui/scroll-to-center-item! tree-view (.getRow tree-view tree-item)))))))
+         (ui/scroll-tree-view-to-center-item! tree-view (.getRow tree-view tree-item)))))))
 
 (defn delete? [selection]
   (and (disk-availability/available?)
@@ -692,10 +692,10 @@
         (auto-expand (.getChildren root) selected-ids)
         (let [count (.getExpandedItemCount tree-view)
               selected-indices (filterv #(selected-ids (tree-item->id (.getTreeItem tree-view %))) (range count))]
-          (when (not (empty? selected-indices))
+          (when (not (coll/empty? selected-indices))
             (ui/select-indices! tree-view selected-indices))
           (when-not (= old-tree-view-ids selected-ids)
-            (ui/scroll-to-encompass-items! tree-view (first selected-indices) (peek selected-indices))))))))
+            (ui/scroll-tree-view-to-encompass-items! tree-view (first selected-indices) (peek selected-indices))))))))
 
 (defn- update-tree-view-selection!
   [^TreeView tree-view selected-ids old-tree-view-ids]
@@ -891,7 +891,7 @@
       (ui/customize-tree-view! {:double-click-expand? true})
       (ui/bind-double-click! :file.open-selected)
       (ui/bind-key-commands! {"Enter" :file.open-selected})
-      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-scroll-on-drag tree-view e)))
+      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
       (.setEventDispatcher
         (ui/event-dispatcher event tail
            ;; by default, TreeView handles F2 as an edit operation. We override
