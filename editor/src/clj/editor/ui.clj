@@ -1144,18 +1144,13 @@
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
 
-(defn scroll-to-item!
-  [^TreeView tree-view ^TreeItem tree-item]
-  (let [row (.getRow tree-view tree-item)]
-    (when-not (= -1 row)
-      (.scrollTo tree-view row))))
-
 (defn scroll-to-encompass-items!
   "Scrolls tree-view to show all items between first-index and last-index,
   with optional padding cells above and below."
   ([^TreeView tree-view first-index last-index]
    (scroll-to-encompass-items! tree-view first-index last-index 2))
   ([^TreeView tree-view first-index last-index scroll-padding-cells]
+   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
    (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
          flow (.getVirtualFlowInstance skin)
          last-visible-idx (.getIndex (.getLastVisibleCell flow))]
@@ -1165,6 +1160,19 @@
                cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
            (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
          (.scrollTo tree-view (dec first-index)))))))
+
+(defn scroll-to-center-item!
+  "Scrolls tree-view to center the item at the given index."
+  [^TreeView tree-view index]
+  {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
+  (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)]
+    (when (.shouldScrollTo skin index)
+      (let [flow (.getVirtualFlowInstance skin)
+            cell-height (.getHeight (.getCell flow index))
+            visible-count (int (Math/ceil (/ (.getHeight tree-view) cell-height)))
+            center-offset (quot visible-count 2)
+            scroll-target (max 0 (- index center-offset))]
+        (.scrollTo tree-view scroll-target)))))
 
 (defn- custom-tree-view-key-pressed! [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does

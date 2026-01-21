@@ -214,7 +214,7 @@
          (.clearSelection)
          (.select tree-item))
        (when scroll?
-         (ui/scroll-to-item! tree-view tree-item))))))
+         (ui/scroll-to-center-item! tree-view (.getRow tree-view tree-item)))))))
 
 (defn delete? [selection]
   (and (disk-availability/available?)
