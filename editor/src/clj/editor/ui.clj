@@ -1184,8 +1184,20 @@
     (when first-cell
       (let [cell-height (.getHeight first-cell)
             pixels (* cells cell-height)]
-        ;; (println pixels)
         (.scrollPixels flow pixels)))))
+
+(defn handle-scroll-on-drag [^TreeView tree-view ^DragEvent e]
+  (let [view-y (.getY (.sceneToLocal tree-view (.getSceneX e) (.getSceneY e)))
+        height (.getHeight (.getBoundsInLocal tree-view))
+        scroll-zone 40
+        max-speed 0.8]
+    (cond
+      (< view-y scroll-zone)
+      (let [speed (* max-speed (- 1 (/ view-y scroll-zone)))]
+        (scroll-tree-view-by-cells! tree-view (- speed)))
+      (> view-y (- height scroll-zone))
+      (let [speed (* max-speed (/ (- view-y (- height scroll-zone)) scroll-zone))]
+        (scroll-tree-view-by-cells! tree-view speed)))))
 
 (defn- custom-tree-view-key-pressed! [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does

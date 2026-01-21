@@ -484,33 +484,28 @@
       node
       (target (.getParent node)))))
 
+(defn- find-tree-cell-ancestor [^Node node]
+  (when node
+    (if (instance? TreeCell node)
+      node
+      (recur (.getParent node)))))
+
 (defn- drag-over [project outline-view ^DragEvent e]
-  (if (not (instance? TreeCell (.getTarget e)))
-    (when-let [parent (.getParent ^Node (.getTarget e))]
-      (Event/fireEvent parent (.copyFor e (.getSource e) parent)))
-    (let [^TreeCell cell (.getTarget e)]
-      ;; Auto scrolling
-      (let [view (.getTreeView cell)
-            view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
-            height (.getHeight (.getBoundsInLocal view))]
-        (when (< view-y 15)
-          (.scrollTo view (dec (.getIndex cell))))
-        (when (> view-y (- height 15))
-          (.scrollTo view (inc (.getIndex cell)))))
-      (let [db (.getDragboard e)]
-        (when (and (instance? TreeCell cell)
-                   (not (.isEmpty cell))
-                   (.hasContent db (data-format-fn)))
-          (let [item-iterators (if (ui/drag-internal? e)
-                                 (root-iterators outline-view)
-                                 [])]
-            (when (outline/drop? project item-iterators (.getTreeItem cell)
-                                 (.getContent db (data-format-fn)))
-              (let [modes (if (ui/drag-internal? e)
-                            [TransferMode/MOVE]
-                            [TransferMode/COPY])]
-                (.acceptTransferModes e (into-array TransferMode modes)))
-              (.consume e))))))))
+  (when-let [^TreeCell cell (find-tree-cell-ancestor (.getTarget e))]
+    (let [db (.getDragboard e)]
+      (when (and (instance? TreeCell cell)
+                 (not (.isEmpty cell))
+                 (.hasContent db (data-format-fn)))
+        (let [item-iterators (if (ui/drag-internal? e)
+                               (root-iterators outline-view)
+                               [])]
+          (when (outline/drop? project item-iterators (.getTreeItem cell)
+                               (.getContent db (data-format-fn)))
+            (let [modes (if (ui/drag-internal? e)
+                          [TransferMode/MOVE]
+                          [TransferMode/COPY])]
+              (.acceptTransferModes e (into-array TransferMode modes)))
+            (.consume e)))))))
 
 (defn- drag-dropped [project app-view outline-view ^DragEvent e]
   (let [^TreeCell cell (target (.getTarget e))
@@ -787,6 +782,7 @@
       (ui/register-context-menu ::outline-menu)
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
+      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-scroll-on-drag tree-view e)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
 

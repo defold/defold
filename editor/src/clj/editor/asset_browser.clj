@@ -773,34 +773,11 @@
   (when-let [cell (target (.getTarget e))]
     (ui/remove-style! cell "drop-target")))
 
-(defn- handle-scroll-on-drag [^TreeView tree-view ^DragEvent e]
-  (let [view-y (.getY (.sceneToLocal tree-view (.getSceneX e) (.getSceneY e)))
-        height (.getHeight (.getBoundsInLocal tree-view))
-        scroll-zone 30
-        max-speed 2.0]
-    (cond
-      (< view-y scroll-zone)
-      (let [speed (* max-speed (- 1 (/ view-y scroll-zone)))]
-        (ui/scroll-tree-view-by-cells! tree-view (- speed)))
-      (> view-y (- height scroll-zone))
-      (let [speed (* max-speed (/ (- view-y (- height scroll-zone)) scroll-zone))]
-        (ui/scroll-tree-view-by-cells! tree-view speed)))))
-
 (defn- drag-over [^DragEvent e]
   (let [db (.getDragboard e)]
     (when-let [^TreeCell cell (target (.getTarget e))]
       (when (and (not (.isEmpty cell))
                  (.hasFiles db))
-       ;; Auto scrolling
-       (let [view (.getTreeView cell)
-             view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
-             height (.getHeight (.getBoundsInLocal view))
-             scroll-speed 0.5
-             scroll-zone-height 30]
-         (when (< view-y scroll-zone-height)
-           #_(ui/scroll-tree-view-by-cells! view (- scroll-speed)))
-         (when (> view-y (- height scroll-zone-height))
-           #_(ui/scroll-tree-view-by-cells! view scroll-speed)))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
          (when (allow-resource-move? tgt-resource (.getFiles db))
            ;; Allow move only if the drag source was also the tree view.
@@ -914,8 +891,7 @@
       (ui/customize-tree-view! {:double-click-expand? true})
       (ui/bind-double-click! :file.open-selected)
       (ui/bind-key-commands! {"Enter" :file.open-selected})
-      (.addEventFilter DragEvent/DRAG_OVER
-        (ui/event-handler e (handle-scroll-on-drag tree-view e)))
+      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-scroll-on-drag tree-view e)))
       (.setEventDispatcher
         (ui/event-dispatcher event tail
            ;; by default, TreeView handles F2 as an edit operation. We override
