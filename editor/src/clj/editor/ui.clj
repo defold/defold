@@ -1174,6 +1174,19 @@
             scroll-target (max 0 (- index center-offset))]
         (.scrollTo tree-view scroll-target)))))
 
+(defn scroll-tree-view-by-cells!
+  "Scrolls tree-view by the specified number of cells (positive or negative)."
+  [^TreeView tree-view cells]
+  {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
+  (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
+        flow (.getVirtualFlowInstance skin)
+        first-cell (.getFirstVisibleCell flow)]
+    (when first-cell
+      (let [cell-height (.getHeight first-cell)
+            pixels (* cells cell-height)]
+        ;; (println pixels)
+        (.scrollPixels flow pixels)))))
+
 (defn- custom-tree-view-key-pressed! [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does
   ;; something weird and undesirable to the selection. Instead, we consume and
