@@ -251,6 +251,8 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
         TextGlyph g = {0};
         g.m_Font = font;
         g.m_Codepoint = c;
+        // make sure to always set the position of the glyph, regardless
+        // if FontGetGlyph was successful or not (see #11766)
         g.m_X = x;
         g.m_Y = y;
 
