@@ -15,89 +15,24 @@
 (ns editor.fs
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [clojure.lang IReduceInit]
            [java.awt Desktop Desktop$Action]
-           [java.io BufferedInputStream BufferedOutputStream File FileNotFoundException IOException RandomAccessFile]
+           [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.net URI URL URLDecoder]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.charset Charset StandardCharsets]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileSystems FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
-           [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
+           [java.nio.charset StandardCharsets]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileSystems FileVisitResult Files LinkOption NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.file.attribute BasicFileAttributes FileAttribute]
            [java.util Map UUID]))
 
 (set! *warn-on-reflection* true)
 
 ;; util
 
-(defonce empty-link-option-array (make-array LinkOption 0))
-(defonce ^:private empty-string-array (make-array String 0))
-(defonce ^:private ^"[Ljava.nio.file.OpenOption;" append-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/APPEND]))
-(defonce ^:private ^"[Ljava.nio.file.OpenOption;" overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
-
-(defprotocol PathCoercions
-  "Convert to Path objects."
-  (^Path as-path [this] "Coerce argument to a Path."))
-
-(extend-protocol PathCoercions
-  nil
-  (as-path [_this] nil)
-
-  File
-  (as-path [this] (.toPath this))
-
-  Path
-  (as-path [this] this)
-
-  URI
-  (as-path [this] (Path/of this))
-
-  URL
-  (as-path [this] (as-path (.toURI this)))
-
-  String
-  (as-path [this] (Path/of this empty-string-array)))
-
-(extend-protocol io/IOFactory
-  Path
-  (make-reader [x opts]
-    (Files/newBufferedReader x (or (some-> (:encoding opts) Charset/forName)
-                                   StandardCharsets/UTF_8)))
-  (make-writer [x opts]
-    (Files/newBufferedWriter
-      x
-      (or (some-> (:encoding opts) Charset/forName)
-          StandardCharsets/UTF_8)
-      (if (:append opts)
-        append-open-options
-        overwrite-open-options)))
-  (make-input-stream [x _]
-    (BufferedInputStream.
-      (Files/newInputStream x empty-link-option-array)))
-  (make-output-stream [x opts]
-    (BufferedOutputStream.
-      (Files/newOutputStream
-        x
-        (if (:append opts)
-          append-open-options
-          overwrite-open-options)))))
-
-(defn path
-  (^Path [x]
-   (as-path x))
-  (^Path [parent child]
-   (let [child-path ^Path (as-path child)]
-     (if (.isAbsolute child-path)
-       (throw (IllegalArgumentException. (str child " is not a relative path")))
-       (.resolve ^Path (as-path parent) child-path))))
-  (^Path [parent child & children]
-   (reduce path (path parent child) children)))
-
-(defn real-path
-  "Returns the canonical, real path to an existing file system entry. Throws an
-  IOException if there was no matching entry in the file system."
-  ^Path [p & ps]
-  (.toRealPath ^Path (apply path p ps) empty-link-option-array))
+(defonce ^:private ^String/1 empty-string-array (make-array String 0))
+(defonce ^:private ^OpenOption/1 overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
 
 (defn with-leading-slash
   ^String [^String path]
@@ -113,14 +48,6 @@
 
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
-
-(defn- same-path? [^Path src ^Path tgt]
-  (try (Files/isSameFile src tgt)
-       (catch NoSuchFileException _
-         false)))
-
-(defn same-file? [^File file1 ^File file2]
-  (same-path? (.toPath file1) (.toPath file2)))
 
 (defn set-executable! [^File target executable]
   (.setExecutable target executable))
@@ -334,26 +261,21 @@
 
 ;; create directories, files
 
-(defn create-path-directories!
-  "Creates the directory path up to and including directory. Returns the directory as Path."
-  ^Path [^Path path]
-  (Files/createDirectories path empty-file-attrs))
-
 (defn create-directories!
   "Creates the directory path up to and including directory. Returns the directory as File."
-  ^File [^File directory]
-  (.toFile (create-path-directories! (.toPath directory))))
+  ^File [directory]
+  (.toFile (path/create-directories! directory)))
 
 (defn create-parent-directories!
-  "Creates the directory path (if any) up to the parent directory of file. Returns the parent directory."
-  ^File [^File file]
-  (when-let [parent (.getParentFile file)]
-    (create-directories! parent)))
+  "Creates the directory path (if any) up to the parent directory of file. Returns nil."
+  [file]
+  (path/create-parent-directories! file)
+  nil)
 
 (defn create-directory!
   "Creates a directory assuming all parent directories are in place. Returns the directory."
-  ^File [^File directory]
-  (.toFile (Files/createDirectory (.toPath directory) empty-file-attrs)))
+  ^File [directory]
+  (.toFile (path/create-directory! directory)))
 
 (def ^:private ^"[Ljava.nio.file.LinkOption;" no-follow-link-options (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
 
@@ -396,7 +318,7 @@
   (let [lower-file (io/file (io/file fs-temp-dir "casetest"))
         upper-file (io/file (io/file fs-temp-dir "CASETEST"))]
     (touch-file! lower-file)
-    (not (same-path? (.toPath lower-file) (.toPath upper-file)))))
+    (not (path/same? lower-file upper-file))))
 
 (defn- comparable-path
   ^String [entry]
@@ -472,7 +394,7 @@
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)
         copy-options (if (= target :replace) replace-move-options keep-move-options)]
-    (if-not (same-path? src-path tgt-path)
+    (if-not (path/same? src-path tgt-path)
       (do (when-not (= target :keep)
             (delete! tgt))
           (create-parent-directories! tgt)
@@ -525,7 +447,7 @@
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)
         copy-options (if (= target :replace) replace-copy-options keep-copy-options)]
-    (if (same-path? src-path tgt-path)
+    (if (path/same? src-path tgt-path)
       [[src src]] ; nop - NB [src src] because no case-change is performed on a fs that determines (same-path? src tgt)
       (do (when-not (= target :keep)
             (delete! tgt))
@@ -570,13 +492,13 @@
       FileVisitResult/CONTINUE)))
 
 (defn- copy-tree! [^Path source-path ^Path target-path]
-  (create-parent-directories! (.toFile target-path))
+  (path/create-parent-directories! target-path)
   (Files/walkFileTree source-path (make-tree-copier source-path target-path)))
 
 (defn- do-copy-directory! [^File src ^File tgt {:keys [target]}]
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)]
-    (if (same-path? src-path tgt-path)
+    (if (path/same? src-path tgt-path)
       [[src src]]
       (do
         (case target
@@ -665,48 +587,6 @@
   ^bytes [^File src]
   (Files/readAllBytes (.toPath src)))
 
-(defn path-walker
-  "Given a directory Path, returns a reducible that walks over all file Paths in
-  the dir, recursively. The optional dir-path-pred should take a directory Path,
-  and return true if the walk should recurse into the directory."
-  ([^Path dir-path]
-   (path-walker dir-path nil))
-  ([^Path dir-path dir-path-pred]
-   {:pre [(instance? Path dir-path)
-          (or (nil? dir-path-pred) (ifn? dir-path-pred))]}
-   (reify IReduceInit
-     (reduce [_ f init]
-       (let [acc-vol (volatile! init)]
-         (Files/walkFileTree
-           dir-path
-           (reify FileVisitor
-             (preVisitDirectory [_ path _]
-               (cond
-                 (nil? dir-path-pred)
-                 FileVisitResult/CONTINUE
-
-                 (dir-path-pred path)
-                 FileVisitResult/CONTINUE
-
-                 :else
-                 FileVisitResult/SKIP_SUBTREE))
-
-             (visitFile [_ path _]
-               (let [acc (vswap! acc-vol f path)]
-                 (if (reduced? acc)
-                   FileVisitResult/TERMINATE
-                   FileVisitResult/CONTINUE)))
-
-             (visitFileFailed [_ _ exception]
-               (throw exception))
-
-             (postVisitDirectory [_ _ exception]
-               (if exception
-                 (throw exception)
-                 FileVisitResult/CONTINUE))))
-
-         (unreduced @acc-vol))))))
-
 (defn class-path-walker [^ClassLoader class-loader dir-path]
   (reify IReduceInit
     (reduce [_ f init]
@@ -717,13 +597,13 @@
                   url-str (str url)
                   acc (cond
                         (.startsWith url-str "file:")
-                        (reduce (coll/preserving-reduced f) acc (path-walker (path url)))
+                        (reduce (coll/preserving-reduced f) acc (path/tree-walker url))
 
                         (.startsWith url-str "jar:")
                         (let [[file-uri-str entry-path] (string/split (URLDecoder/decode (.getPath url) StandardCharsets/UTF_8) #"!" 2)
                               [file-scheme file-path] (string/split file-uri-str #":" 2)]
-                          (with-open [fs (^[Path Map] FileSystems/newFileSystem (path (URI. file-scheme nil file-path nil)) {})]
-                            (reduce (coll/preserving-reduced f) acc (path-walker (.getPath fs entry-path empty-string-array)))))
+                          (with-open [fs (^[Path Map] FileSystems/newFileSystem (path/of (URI. file-scheme nil file-path nil)) {})]
+                            (reduce (coll/preserving-reduced f) acc (path/tree-walker (.getPath fs entry-path empty-string-array)))))
 
                         :else
                         (throw (IllegalArgumentException. (str "Unsupported URL scheme: " url))))]
@@ -733,60 +613,22 @@
             acc))))))
 
 (defn file-walker
-  "Given a directory File, returns a reducible that walks over all Files in
-  the dir, recursively."
-  ([^File dir-file include-hidden]
-   (file-walker dir-file include-hidden nil))
-  ([^File dir-file include-hidden ignored-dirnames]
-   {:pre [(instance? File dir-file)
-          (every? string? ignored-dirnames)]}
+  "Given a value that can be coerced into a directory path, returns a reducible
+  that walks over all java.io.Files in the directory, recursively."
+  ([root-dir include-hidden]
+   (file-walker root-dir include-hidden nil))
+  ([root-dir include-hidden ignored-dirnames]
+   {:pre [(every? string? ignored-dirnames)]}
    (->Eduction
-     (cond->> (map #(.toFile ^Path %))
+     (cond->> (map path/to-file)
               (not include-hidden)
-              (comp (remove #(Files/isHidden %))))
+              (comp (remove path/hidden?)))
      (if (and include-hidden
               (coll/empty? ignored-dirnames))
-       (path-walker (.toPath dir-file))
-       (path-walker (.toPath dir-file)
-                    (fn dir-path-pred [^Path dir-path]
-                      (and (not-any? (fn [^String ignored-dirname]
-                                       (.endsWith dir-path ignored-dirname))
-                                     ignored-dirnames)
-                           (or include-hidden
-                               (not (Files/isHidden dir-path))))))))))
-
-(defn path-exists? [path]
-  (Files/exists path empty-link-option-array))
-
-(defn path-is-directory? [path]
-  (Files/isDirectory path empty-link-option-array))
-
-(defn path-attributes
-  ^BasicFileAttributes [path]
-  (Files/readAttributes ^Path path BasicFileAttributes ^"[Ljava.nio.file.LinkOption;" empty-link-option-array))
-
-(defn path? [x]
-  (instance? Path x))
-
-(defn create-path-parent-directories! [^Path path]
-  (when-let [p (.getParent path)]
-    (create-path-directories! p)))
-
-(defn path-last-modified-time
-  ^long [p]
-  (.toMillis (Files/getLastModifiedTime p empty-link-option-array)))
-
-(defn set-path-last-modified-time!
-  [p ^long mtime]
-  (Files/setLastModifiedTime p (FileTime/fromMillis mtime)))
-
-(defn path-size
-  ^long [p]
-  (Files/size p))
-
-(defn make-path-parents [^Path p]
-  (when-let [parent (.getParent p)]
-    (Files/createDirectories parent empty-file-attrs)))
-
-(defn delete-path-file! [p]
-  (Files/delete p))
+       (path/tree-walker root-dir)
+       (path/tree-walker root-dir
+                         (fn dir-path-pred [^Path dir-path]
+                           (and (not-any? #(path/ends-with? dir-path %)
+                                          ignored-dirnames)
+                                (or include-hidden
+                                    (not (path/hidden? dir-path))))))))))

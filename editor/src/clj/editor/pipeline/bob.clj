@@ -20,7 +20,6 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -32,7 +31,8 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.fn :as fn]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress IProgress$Task TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
@@ -295,7 +295,6 @@
                                           (.resolve ^String path-str)
                                           (.normalize))]
                     (if (and (.startsWith resource-path output-path)
-                             (fs/path-exists? resource-path)
-                             (not (fs/path-is-directory? resource-path)))
+                             (path/file? resource-path))
                       (http-server/response 200 resource-path)
                       http-server/not-found)))))}}))

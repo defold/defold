@@ -24,7 +24,6 @@
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -40,9 +39,9 @@
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
             [util.diff :as diff]
-            [util.http-server :as http-server])
-  (:import [java.nio.file Files]
-           [java.nio.file.attribute PosixFilePermission]
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -1087,15 +1086,15 @@ build/nested/game.project exists: true
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
-                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/of root path-str)))]
                            (loop [acc (transient #{})]
                              (if-let [e (.getNextZipEntry zis)]
                                (recur (conj! acc (.getName e)))
                                (persistent! acc)))))
           size (fn size [path-str]
-                 (fs/path-size (fs/path root path-str)))
+                 (path/byte-size (path/of root path-str)))
           list-methods (fn list-methods [path-str]
-                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/of root path-str)))]
                            (loop [acc (transient {})]
                              (if-let [e (.getNextZipEntry zis)]
                                (recur (assoc! acc (.getName e) (condp = (.getMethod e)
@@ -1144,7 +1143,7 @@ build/nested/game.project exists: true
              (list-methods "mixed.zip")))
       (when-not (os/is-win32?)
         (is (contains?
-              (Files/getPosixFilePermissions (fs/path root "build" "script.sh") fs/empty-link-option-array)
+              (path/posix-file-permissions (path/of root "build" "script.sh"))
               PosixFilePermission/OWNER_EXECUTE))))))
 
 (def expected-zlib-test-output

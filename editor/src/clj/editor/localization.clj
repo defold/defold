@@ -26,7 +26,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.path :as path])
   (:import [clojure.lang AFn Agent IFn IRef]
            [com.defold.editor.localization MessagePattern]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
@@ -382,14 +383,14 @@
                      ;; the zip file), but the actual reading is done later,
                      ;; during reload. Converting path to a URL allows reading
                      ;; from the zip file later.
-                     (let [url (.toURL (.toUri (fs/path path)))]
+                     (let [url (.toURL (.toUri (path/of path)))]
                        #(io/reader url))))))]
     (let [resource-dir "localization"
           localization (make prefs ::editor (get-bundle resource-dir))]
       (when (system/defold-dev?)
         (let [url (io/resource resource-dir)]
           (when (.startsWith (str url) "file:")
-            (let [resource-path (fs/path url)
+            (let [resource-path (path/of url)
                   watch-service (.newWatchService (.getFileSystem resource-path))]
               (.register resource-path watch-service (into-array WatchEvent$Kind [StandardWatchEventKinds/ENTRY_CREATE
                                                                                   StandardWatchEventKinds/ENTRY_DELETE

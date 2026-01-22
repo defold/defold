@@ -25,6 +25,7 @@
             [util.digest :as digest]
             [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.path :as path]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
@@ -310,11 +311,14 @@
   io/Coercions
   (as-file [this] (File. abs-path))
 
+  path/Coercions
+  (as-path [_this] (path/as-path abs-path))
+
   http-server/ContentType
   (content-type [resource] (content-type resource))
 
   http-server/->Data
-  (->data [_] (fs/path abs-path)))
+  (->data [_] (path/as-path abs-path)))
 
 (defn make-file-resource [workspace ^String root-path ^File file children editable-proj-path? unloaded-proj-path?]
   {:pre [(g/node-id? workspace)
@@ -442,6 +446,9 @@
 
   io/Coercions
   (as-file [this] (io/as-file zip-uri))
+
+  path/Coercions
+  (as-path [_this] (path/as-path zip-uri))
 
   http-server/ContentType
   (content-type [resource] (content-type resource))
