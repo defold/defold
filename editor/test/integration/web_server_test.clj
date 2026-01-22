@@ -78,7 +78,7 @@
   ;; file->path
   (is (= {:status 200
           :headers {"content-type" "text/plain"}
-          :body (path/path "project.clj")}
+          :body (path/of "project.clj")}
          (http-server/response 200 (io/file "project.clj"))))
   ;; resource: jar file url
   (is (= {:status 200
@@ -94,7 +94,7 @@
     ;; editor resources: file->path
     (is (= {:status 200
             :headers {"content-type" "text/plain"}
-            :body (path/path (workspace/project-directory workspace) "game.project")}
+            :body (path/of (workspace/project-directory workspace) "game.project")}
            (http-server/response 200 (workspace/find-resource workspace "/game.project"))))
     ;; editor resources: zip as is
     (is (= {:status 200

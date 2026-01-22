@@ -110,7 +110,7 @@
                  (coll/transfer (fs/class-path-walker java/class-loader "localization") :eduction
                    (filter #(.endsWith (str %) ".editor_localization"))
                    (mapcat (fn [path]
-                             (e/map #(-> {:path (str (.getFileName (path/path path))) :key (key %) :string (val %)})
+                             (e/map #(-> {:path (str (.getFileName (path/of path))) :key (key %) :string (val %)})
                                     (java-properties/parse (io/reader path)))))
                    (filter #(string/includes? (:string %) "..."))))]
     (is (empty? errors)

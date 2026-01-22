@@ -1086,15 +1086,15 @@ build/nested/game.project exists: true
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
-                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/path root path-str)))]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/of root path-str)))]
                            (loop [acc (transient #{})]
                              (if-let [e (.getNextZipEntry zis)]
                                (recur (conj! acc (.getName e)))
                                (persistent! acc)))))
           size (fn size [path-str]
-                 (path/byte-size (path/path root path-str)))
+                 (path/byte-size (path/of root path-str)))
           list-methods (fn list-methods [path-str]
-                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/path root path-str)))]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/of root path-str)))]
                            (loop [acc (transient {})]
                              (if-let [e (.getNextZipEntry zis)]
                                (recur (assoc! acc (.getName e) (condp = (.getMethod e)
@@ -1143,7 +1143,7 @@ build/nested/game.project exists: true
              (list-methods "mixed.zip")))
       (when-not (os/is-win32?)
         (is (contains?
-              (path/posix-file-permissions (path/path root "build" "script.sh"))
+              (path/posix-file-permissions (path/of root "build" "script.sh"))
               PosixFilePermission/OWNER_EXECUTE))))))
 
 (def expected-zlib-test-output

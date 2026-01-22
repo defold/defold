@@ -120,7 +120,7 @@
              (let [output-path (.normalize (.resolve project-path archive-path))]
                (cond
                  (not (path/exists? output-path)) (path/create-parent-directories! output-path)
-                 (path/existing-directory? output-path) (throw (LuaError. (str "Output path is a directory: " archive-path)))
+                 (path/directory? output-path) (throw (LuaError. (str "Output path is a directory: " archive-path)))
                  :else (path/delete! output-path))
                (with-open [zos (ZipArchiveOutputStream. (.toFile output-path))]
                  (run!
@@ -129,12 +129,12 @@
                            source-str ^String (get entry 1)
                            source (doto (.resolve project-path source-str) validate-entry-source-path!)
                            target-str (get entry 2 source-str)
-                           target (doto (path/normalized-path target-str) validate-entry-target-path!)
+                           target (doto (path/normalized target-str) validate-entry-target-path!)
                            method (method-enum->value (:method entry) default-method)
                            level (:level entry default-level)]
                        (.setMethod zos method)
                        (.setLevel zos level)
-                       (if (path/existing-directory? source)
+                       (if (path/directory? source)
                          (run! (fn pack-file [^Path file-path]
                                  (write-file! zos file-path (.resolve target (.relativize source file-path))))
                                (path/tree-walker source))
@@ -152,7 +152,7 @@
                            #(pos? (count %)) "at least one option is required")
                 :paths :? (coerce/vector-of
                             (-> coerce/string
-                                (coerce/wrap-transform path/normalized-path)
+                                (coerce/wrap-transform path/normalized)
                                 (coerce/wrap-with-pred #(not (.startsWith ^Path % "..")) "is above root")
                                 (coerce/wrap-with-pred #(not (absolute-path? %)) "is absolute")
                                 (coerce/wrap-transform #(FilenameUtils/separatorsToUnix (str %)))
@@ -172,7 +172,7 @@
                                       (.getParent archive-path))]
               (cond
                 (not (path/exists? archive-path)) (throw (LuaError. (str "Archive path does not exist: " archive-path)))
-                (path/existing-directory? archive-path) (throw (LuaError. (str "Archive path is a directory: " archive-path))))
+                (path/directory? archive-path) (throw (LuaError. (str "Archive path is a directory: " archive-path))))
               (with-open [zip (ZipFile. (.toFile archive-path))]
                 (let [entries (.getEntries zip)]
                   (while (.hasMoreElements entries)
@@ -186,7 +186,7 @@
                                                           (= \/ (.charAt entry-path-str (.length s)))
                                                           (.startsWith entry-path-str s))))
                                                paths))
-                            (let [target-relative-path (path/normalized-path entry-path-str)]
+                            (let [target-relative-path (path/normalized entry-path-str)]
                               (when-not paths
                                 ;; when we have paths, we only allow the valid
                                 ;; ones already; if we don't have paths, we need
@@ -196,7 +196,7 @@
                                 (when (or (not (path/exists? target))
                                           (case (:on_conflict opts)
                                             :skip false
-                                            :overwrite (if (path/existing-directory? target)
+                                            :overwrite (if (path/directory? target)
                                                          (throw (LuaError. (str "Can't overwrite directory: " target)))
                                                          true)
                                             :error (throw (LuaError. (str "Path already exists: " target)))))

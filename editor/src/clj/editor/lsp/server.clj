@@ -268,7 +268,7 @@
                :diagnostics {:globals (-> lua/defined-globals
                                           (into (lua/extract-globals-from-completions completions))
                                           (into (lua/extract-globals-from-completions lua/editor-completions)))}
-               :workspace {:library [(str (path/path root ".internal" "lua-annotations"))]}})
+               :workspace {:library [(str (path/of root ".internal" "lua-annotations"))]}})
 
             "files.associations"
             (let [workspace (g/node-value project :workspace evaluation-context)

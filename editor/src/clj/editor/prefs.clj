@@ -705,7 +705,7 @@
     :parent     a parent preferences map, defines initial scopes and schemas"
   [& {:keys [scopes schemas parent]}]
   {:post [(s/assert ::preferences %)]}
-  (let [scopes (coll/pair-map-by key #(-> % val path/absolute-path (doto ensure-loaded!)) scopes)
+  (let [scopes (coll/pair-map-by key #(-> % val path/absolute (doto ensure-loaded!)) scopes)
         scopes (cond->> (or scopes {}) parent (conj (:scopes parent)))
         schemas (into [] (comp cat (distinct)) [(:schemas parent) schemas])]
     {:scopes scopes
@@ -791,7 +791,7 @@
 
   Any attempt to get project-scoped values will return defaults"
   ([]
-   (global (path/path
+   (global (path/of
              (case (os/os)
                :macos (fs/evaluate-path "~/Library/Preferences")
                :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
@@ -810,9 +810,9 @@
   ([project-path]
    (project project-path (global)))
   ([project-path parent-prefs]
-   (let [real-path (path/real-path project-path)]
+   (let [real-path (path/real project-path)]
      (make :parent parent-prefs
-           :scopes {:project (path/path real-path ".editor_settings")}
+           :scopes {:project (path/of real-path ".editor_settings")}
            :schemas [real-path]))))
 
 (defn register-project-schema!
@@ -820,7 +820,7 @@
 
   Uses real path of the project root of the project root as a schema id"
   [project-path schema]
-  (register-schema! (path/real-path project-path) schema))
+  (register-schema! (path/real project-path) schema))
 
 (defn sync!
   "Immediately write all unsaved preference changes into files"

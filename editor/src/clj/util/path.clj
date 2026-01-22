@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.path
+  (:refer-clojure :exclude [compare resolve])
   (:require [clojure.java.io :as io]
             [util.defonce :as defonce])
   (:import [clojure.lang IReduceInit]
@@ -91,7 +92,7 @@
   [value]
   (instance? Path value))
 
-(defn path
+(defn of
   "Returns a java.nio.file.Path, passing each argument to as-path. When called
   with multiple arguments, the first argument is treated as the parent and
   later arguments as children relative to the parent."
@@ -103,33 +104,33 @@
        (throw (IllegalArgumentException. (str child " is not a relative path")))
        (.resolve ^Path (as-path parent) child-path))))
   (^Path [parent child & children]
-   (reduce path (path parent child) children)))
+   (reduce of (of parent child) children)))
 
-(defn normalized-path
+(defn normalized
   "Returns a normalized java.nio.file.Path, passing each argument to as-path.
   When called with multiple arguments, the first argument is treated as the
   parent and later arguments as children relative to the parent."
   (^Path [x]
    (.normalize (as-path x)))
   (^Path [x & xs]
-   (.normalize ^Path (apply path x xs))))
+   (.normalize ^Path (apply of x xs))))
 
-(defn absolute-path
+(defn absolute
   "Returns an absolute java.nio.file.Path, passing each argument to as-path.
   When called with multiple arguments, the first argument is treated as the
   parent and later arguments as children relative to the parent."
   (^Path [x]
    (.toAbsolutePath (as-path x)))
   (^Path [x & xs]
-   (.toAbsolutePath ^Path (apply path x xs))))
+   (.toAbsolutePath ^Path (apply of x xs))))
 
-(defn real-path
+(defn real
   "Returns the canonical, real path to an existing file system entry. Throws an
   IOException if there was no matching entry in the file system."
   (^Path [x]
    (.toRealPath (as-path x) empty-link-option-array))
   (^Path [x & xs]
-   (.toRealPath ^Path (apply path x xs) empty-link-option-array)))
+   (.toRealPath ^Path (apply of x xs) empty-link-option-array)))
 
 (defn to-file
   "Converts the supplied java.nio.file.Path to a java.io.File. Does not coerce
@@ -230,13 +231,13 @@
   [x]
   (Files/exists (as-path x) empty-link-option-array))
 
-(defn existing-directory?
+(defn directory?
   "Coerces the argument to a java.nio.file.Path and returns true if a
   corresponding file system entry exists and is a directory."
   [x]
   (Files/isDirectory (as-path x) empty-link-option-array))
 
-(defn existing-file?
+(defn file?
   "Coerces the argument to a java.nio.file.Path and returns true if a
   corresponding file system entry exists and is a regular file."
   [x]

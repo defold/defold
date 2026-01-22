@@ -35,7 +35,7 @@
 
 (g/defnk produce-sync-hash [_node-id root script-annotations]
   (try
-    (let [root-path (path/path root ".internal" "lua-annotations")
+    (let [root-path (path/of root ".internal" "lua-annotations")
           path->mtime+lines (coll/pair-map-by
                               #(.normalize (.resolve root-path (fs/without-leading-slash (resource/proj-path (:resource %)))))
                               (coll/pair-fn #(path/last-modified-ms (:resource %))

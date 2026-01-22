@@ -295,6 +295,6 @@
                                           (.resolve ^String path-str)
                                           (.normalize))]
                     (if (and (.startsWith resource-path output-path)
-                             (path/existing-file? resource-path))
+                             (path/file? resource-path))
                       (http-server/response 200 resource-path)
                       http-server/not-found)))))}}))

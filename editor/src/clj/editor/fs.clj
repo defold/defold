@@ -602,7 +602,7 @@
                         (.startsWith url-str "jar:")
                         (let [[file-uri-str entry-path] (string/split (URLDecoder/decode (.getPath url) StandardCharsets/UTF_8) #"!" 2)
                               [file-scheme file-path] (string/split file-uri-str #":" 2)]
-                          (with-open [fs (^[Path Map] FileSystems/newFileSystem (path/path (URI. file-scheme nil file-path nil)) {})]
+                          (with-open [fs (^[Path Map] FileSystems/newFileSystem (path/of (URI. file-scheme nil file-path nil)) {})]
                             (reduce (coll/preserving-reduced f) acc (path/tree-walker (.getPath fs entry-path empty-string-array)))))
 
                         :else

@@ -51,9 +51,9 @@
     {"/build/{*path}"
      {"GET" (bound-fn [{:keys [path-params headers]}]
               (let [^String path (:path path-params)
-                    full-path (path/normalized-path (path/resolve build-path path))]
+                    full-path (path/normalized (path/resolve build-path path))]
                 (if (and (path/starts-with? full-path build-path) ;; Avoid going outside the build path with '..'
-                         (path/existing-file? full-path))
+                         (path/file? full-path))
                   (let [etag (workspace/etag workspace (str "/" path))
                         remote-etag (get headers "if-none-match")]
                     (if (and remote-etag (= etag remote-etag))

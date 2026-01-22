@@ -383,14 +383,14 @@
                      ;; the zip file), but the actual reading is done later,
                      ;; during reload. Converting path to a URL allows reading
                      ;; from the zip file later.
-                     (let [url (.toURL (.toUri (path/path path)))]
+                     (let [url (.toURL (.toUri (path/of path)))]
                        #(io/reader url))))))]
     (let [resource-dir "localization"
           localization (make prefs ::editor (get-bundle resource-dir))]
       (when (system/defold-dev?)
         (let [url (io/resource resource-dir)]
           (when (.startsWith (str url) "file:")
-            (let [resource-path (path/path url)
+            (let [resource-path (path/of url)
                   watch-service (.newWatchService (.getFileSystem resource-path))]
               (.register resource-path watch-service (into-array WatchEvent$Kind [StandardWatchEventKinds/ENTRY_CREATE
                                                                                   StandardWatchEventKinds/ENTRY_DELETE

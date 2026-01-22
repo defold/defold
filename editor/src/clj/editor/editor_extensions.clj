@@ -186,13 +186,13 @@
                                (fn type-ext->template [ext]
                                  (or (workspace/template workspace (get resource-types ext) evaluation-context) "")))]
       (-> (future/io
-            (let [root-path (path/real-path project-dir)
+            (let [root-path (path/real project-dir)
                   path+contents (mapv (fn [{proj-path 1 content 2}]
-                                        (let [file-path (path/normalized-path (str root-path proj-path))]
+                                        (let [file-path (path/normalized (str root-path proj-path))]
                                           (when-not (.startsWith file-path root-path)
                                             (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))
                                           (when (path/exists? file-path)
-                                            (if (path/existing-directory? file-path)
+                                            (if (path/directory? file-path)
                                               (throw (LuaError. (str "Directory already exists in place of file: " proj-path)))
                                               (throw (LuaError. (str "Resource already exists: " proj-path)))))
                                           (let [content (or content
@@ -221,9 +221,9 @@
       (let [basis (:basis evaluation-context)
             workspace (project/workspace project evaluation-context)
             root-path (-> (workspace/project-directory basis workspace)
-                          (path/real-path))
+                          (path/real))
             dir-path (-> (str root-path proj-path)
-                         (path/normalized-path))]
+                         (path/normalized))]
         (if (.startsWith dir-path root-path)
           (try
             (path/create-directories! dir-path)
@@ -240,9 +240,9 @@
           proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
           workspace (project/workspace project evaluation-context)
           root-path (-> (workspace/project-directory basis workspace)
-                        (path/real-path))
+                        (path/real))
           dir-path (-> (str root-path proj-path)
-                       (path/normalized-path))
+                       (path/normalized))
           protected-paths (mapv #(.resolve root-path ^String %)
                                 [".git"
                                  ".internal"])
@@ -275,7 +275,7 @@
       (future/io
         (if (path/exists? path)
           (let [attrs (path/attributes path)]
-            {:path (str (path/real-path path))
+            {:path (str (path/real path))
              :exists true
              :is_file (.isRegularFile attrs)
              :is_directory (.isDirectory attrs)})

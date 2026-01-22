@@ -863,11 +863,11 @@
            initial-path (.normalize (.resolve project-path path))
            [^Path initial-directory-path initial-file-name]
            (if (path/exists? initial-path)
-             (if (path/existing-directory? initial-path)
+             (if (path/directory? initial-path)
                [initial-path nil]
                [(.getParent initial-path) (str (.getFileName initial-path))])
              (let [parent-path (.getParent initial-path)]
-               (if (path/existing-directory? parent-path)
+               (if (path/directory? parent-path)
                  [parent-path (str (.getFileName initial-path))]
                  [project-path nil])))
            dialog (doto (FileChooser.)
@@ -916,7 +916,7 @@
            resolved-path (.normalize (.resolve project-path path))
            ^Path initial-path (cond
                                 (not (path/exists? resolved-path)) project-path
-                                (path/existing-directory? resolved-path) resolved-path
+                                (path/directory? resolved-path) resolved-path
                                 :else (.getParent resolved-path))
            dialog (doto (DirectoryChooser.)
                     (.setTitle (localization title))
