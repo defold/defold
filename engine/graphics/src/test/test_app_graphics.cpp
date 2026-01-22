@@ -345,16 +345,16 @@ struct ComputeTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
+            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
         }
         else
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
+            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&compute_desc, "buf");
-        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
-        AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER);
+        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4, 0, 1);
+        AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_COMPUTE);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
 
@@ -372,6 +372,243 @@ struct ComputeTest : ITest
 
         dmGraphics::DispatchCompute(engine->m_GraphicsContext, 1, 1, 1);
         dmGraphics::DisableProgram(engine->m_GraphicsContext);
+    }
+};
+
+struct UniformBufferTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HUniformBuffer     m_UBO;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        /*
+        // GLSL code:
+        struct LightColor
+        {
+            vec3  color;
+            float intensity;
+        };
+        struct Light
+        {
+            vec3       position;
+            LightColor light_color;
+        };
+        uniform LightData
+        {
+            Light lights[4];
+            float light_count;
+        };
+        */
+        dmGraphics::ShaderResourceMember light_color_members[2];
+
+        // m_Color
+        light_color_members[0].m_Name        = (char*)"color";
+        light_color_members[0].m_NameHash    = dmHashString64("color");
+        light_color_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+        light_color_members[0].m_Type.m_UseTypeIndex = 0;
+        light_color_members[0].m_ElementCount = 1;
+        light_color_members[0].m_Offset       = 0;
+
+        // m_Intensity
+        light_color_members[1].m_Name        = (char*)"intensity";
+        light_color_members[1].m_NameHash    = dmHashString64("intensity");
+        light_color_members[1].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+        light_color_members[1].m_Type.m_UseTypeIndex = 0;
+        light_color_members[1].m_ElementCount = 1;
+        light_color_members[1].m_Offset       = 0;
+
+        dmGraphics::ShaderResourceMember light_members[2];
+
+        // m_Position
+        light_members[0].m_Name        = (char*)"position";
+        light_members[0].m_NameHash    = dmHashString64("position");
+        light_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+        light_members[0].m_Type.m_UseTypeIndex = 0;
+        light_members[0].m_ElementCount = 1;
+        light_members[0].m_Offset       = 0;
+
+        // m_Color (type index)
+        light_members[1].m_Name        = (char*)"light_color";
+        light_members[1].m_NameHash    = dmHashString64("light_color");
+        light_members[1].m_Type.m_TypeIndex    = 2;
+        light_members[1].m_Type.m_UseTypeIndex = 1;
+        light_members[1].m_ElementCount = 1;
+        light_members[1].m_Offset       = 0;
+
+        dmGraphics::ShaderResourceMember light_data_members[2];
+
+        // m_Lights
+        light_data_members[0].m_Name        = (char*)"lights";
+        light_data_members[0].m_NameHash    = dmHashString64("lights");
+        light_data_members[0].m_Type.m_TypeIndex    = 1;
+        light_data_members[0].m_Type.m_UseTypeIndex = 1;
+        light_data_members[0].m_ElementCount = 4;
+        light_data_members[0].m_Offset       = 0;
+
+        // m_LightCount
+        light_data_members[1].m_Name        = (char*)"light_count";
+        light_data_members[1].m_NameHash    = dmHashString64("light_count");
+        light_data_members[1].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+        light_data_members[1].m_Type.m_UseTypeIndex = 0;
+        light_data_members[1].m_ElementCount = 1;
+        light_data_members[1].m_Offset       = 0;
+
+        dmGraphics::ShaderResourceTypeInfo light_data  = { (char*) "LightData", dmHashString64("LightData"), light_data_members, DM_ARRAY_SIZE(light_data_members) };
+        dmGraphics::ShaderResourceTypeInfo light       = { (char*) "Light", dmHashString64("Light"), light_members, DM_ARRAY_SIZE(light_members) };
+        dmGraphics::ShaderResourceTypeInfo light_color = { (char*) "LightColor", dmHashString64("LightColor"), light_color_members, DM_ARRAY_SIZE(light_color_members) };
+        dmGraphics::ShaderResourceTypeInfo types[]     = { light_data, light, light_color };
+
+        dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+        dmGraphics::UniformBufferLayout ubo_layout;
+        dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types), &ubo_layout);
+
+        uint8_t* ubo_data = new uint8_t[ubo_layout.m_Size];
+        memset(ubo_data, 0, ubo_layout.m_Size);
+
+        // Write test data
+        uint32_t lights_offset = light_data_members[0].m_Offset;
+        uint32_t light_stride  = 32;
+
+        // Light 0
+        {
+            uint32_t light0_offset   = lights_offset + 0 * light_stride;
+            uint32_t light0_position = light0_offset + light_members[0].m_Offset;
+            float pos[] = { 1.0f, 2.0f, 3.0f };
+            WriteFloats(ubo_data, light0_position, pos, 3);
+
+            uint32_t light0_color = light0_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 0.0f, 1.0f, 0.0f };
+            WriteFloats(ubo_data, light0_color, color, 3);
+
+            uint32_t light0_intensity = light0_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.5f;
+            WriteFloats(ubo_data, light0_intensity, &intensity, 1);
+        }
+
+        // Light 1
+        {
+            uint32_t light1_offset   = lights_offset + 1 * light_stride;
+            uint32_t light1_position = light1_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 4.0f, 5.0f, 6.0f };
+            WriteFloats(ubo_data, light1_position, tmp_v3, 3);
+
+            uint32_t light1_color = light1_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 0.0f, 0.0f, 1.0f };
+            WriteFloats(ubo_data, light1_color, color, 3);
+
+            uint32_t light1_intensity = light1_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.25f;
+            WriteFloats(ubo_data, light1_intensity, &intensity, 1);
+        }
+
+        // Light 2
+        {
+            uint32_t light2_offset   = lights_offset + 2 * light_stride;
+            uint32_t light2_position = light2_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 7.0f, 8.0f, 9.0f };
+            WriteFloats(ubo_data, light2_position, tmp_v3, 3);
+
+            uint32_t light2_color = light2_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 1.0f, 0.0f, 0.0f };
+            WriteFloats(ubo_data, light2_color, color, 3);
+
+            uint32_t light2_intensity = light2_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.15f;
+            WriteFloats(ubo_data, light2_intensity, &intensity, 1);
+        }
+
+        // Light 3
+        {
+            uint32_t light3_offset   = lights_offset + 3 * light_stride;
+            uint32_t light3_position = light3_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 10.0f, 11.0f, 12.0f };
+            WriteFloats(ubo_data, light3_position, tmp_v3, 3);
+
+            uint32_t light3_color = light3_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 1.0f, 1.0f, 1.0f };
+            WriteFloats(ubo_data, light3_color, color, 3);
+
+            uint32_t light3_intensity = light3_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.05f;
+            WriteFloats(ubo_data, light3_intensity, &intensity, 1);
+        }
+
+        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout);
+        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_layout.m_Size, (const void*) ubo_data);
+
+        // Bound once, should be bound to all shaders that use set=1, binding=0
+        dmGraphics::EnableUniformBuffer(engine->m_GraphicsContext, m_UBO, 1, 0);
+
+        // Create render resources
+        const float vertex_data_no_index[] = {
+            -0.5f, -0.5f,
+             0.5f, -0.5f,
+            -0.5f,  0.5f,
+             0.5f, -0.5f,
+             0.5f,  0.5f,
+            -0.5f,  0.5f,
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::ShaderDesc* shader_desc = new dmGraphics::ShaderDesc;
+        memset(shader_desc, 0, sizeof(dmGraphics::ShaderDesc));
+
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
+            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
+        }
+        else
+        {
+            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
+            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::spirv_fragment_program_ubo, sizeof(graphics_assets::spirv_fragment_program_ubo));
+        }
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_data = AddShaderType(shader_desc, "LightData");
+        AddShaderTypeMember(shader_desc, type_light_data, "lights", 1, light_data_members[0].m_Offset, 4);
+        AddShaderTypeMember(shader_desc, type_light_data, "light_count", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_data_members[1].m_Offset, 1);
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light = AddShaderType(shader_desc, "Light");
+        AddShaderTypeMember(shader_desc, type_light, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_members[0].m_Offset, 1);
+        AddShaderTypeMember(shader_desc, type_light, "light_color", 2, light_members[1].m_Offset, 1);
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_color = AddShaderType(shader_desc, "LightColor");
+        AddShaderTypeMember(shader_desc, type_light_color, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_color_members[0].m_Offset, 1);
+        AddShaderTypeMember(shader_desc, type_light_color, "intensity", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_color_members[1].m_Offset, 1);
+
+        AddShaderResource(shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(shader_desc, "LightData", 0, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, shader_desc, 0, 0);
+
+        DeleteShaderDesc(shader_desc);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+
+    void WriteFloats(uint8_t* buffer, uint32_t offset, float* data, uint32_t num_floats)
+    {
+        float* ptr = (float*) (buffer + offset);
+        memcpy(ptr, data, sizeof(float) * num_floats);
     }
 };
 
@@ -512,8 +749,9 @@ static void* EngineCreate(int argc, char** argv)
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-    engine->m_Test = new AsyncTextureUploadTest();
-    // engine->m_Test = new ClearBackbufferTest();
+    //engine->m_Test = new AsyncTextureUploadTest();
+    //engine->m_Test = new ClearBackbufferTest();
+    engine->m_Test = new UniformBufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;

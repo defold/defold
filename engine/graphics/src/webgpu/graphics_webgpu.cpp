@@ -1159,7 +1159,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_OriginalWidth   = params.m_Width;
     context->m_OriginalHeight  = params.m_Height;
     context->m_PrintDeviceInfo = params.m_PrintDeviceInfo;
-    context->m_CurrentUniforms.m_Allocs.SetCapacity(32);
+    context->m_CurrentScratchUniforms.m_Allocs.SetCapacity(32);
 
     context->m_CurrentPipelineState = GetDefaultPipelineState();
 
@@ -1339,10 +1339,10 @@ static void WebGPUDestroyContext(WebGPUContext* context)
         WebGPUDestroyTexture(context->m_DefaultStorageImage2D);
         context->m_DefaultStorageImage2D = NULL;
     }
-    while (!context->m_CurrentUniforms.m_Allocs.Empty())
+    while (!context->m_CurrentScratchUniforms.m_Allocs.Empty())
     {
-        WebGPUUniformBuffer::Alloc *alloc = context->m_CurrentUniforms.m_Allocs.Back();
-        context->m_CurrentUniforms.m_Allocs.Pop();
+        WebGPUScratchUniformBuffer::Alloc *alloc = context->m_CurrentScratchUniforms.m_Allocs.Back();
+        context->m_CurrentScratchUniforms.m_Allocs.Pop();
         if (alloc->m_Buffer)
         {
             wgpuBufferRelease(alloc->m_Buffer);
@@ -1861,13 +1861,13 @@ static void WebGPUFlip(HContext _context)
             texture->m_Height = 0;
         }
 #endif
-        if (context->m_CurrentUniforms.m_Allocs.Size() > 0)
+        if (context->m_CurrentScratchUniforms.m_Allocs.Size() > 0)
         {
-            for (size_t a = 0; a <= context->m_CurrentUniforms.m_Alloc; ++a)
+            for (size_t a = 0; a <= context->m_CurrentScratchUniforms.m_Alloc; ++a)
             {
-                context->m_CurrentUniforms.m_Allocs[a]->m_Used = 0;
+                context->m_CurrentScratchUniforms.m_Allocs[a]->m_Used = 0;
             }
-            context->m_CurrentUniforms.m_Alloc = 0;
+            context->m_CurrentScratchUniforms.m_Alloc = 0;
         }
     }
     dmPlatform::SwapBuffers(context->m_Window);
@@ -1895,6 +1895,83 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WebGPUSubmitCommandEncoder(context);
     }
     wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+}
+
+static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+
+    WebGPUUniformBuffer* ubo = new WebGPUUniformBuffer();
+    ubo->m_BaseUniformBuffer.m_Layout = layout;
+    ubo->m_BaseUniformBuffer.m_BoundSet = UNUSED_BINDING_OR_SET;
+    ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+#else
+    WGPUBufferDescriptor desc = {};
+#endif
+
+    desc.size  = layout.m_Size;
+    desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+
+    ubo->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+
+    return (HUniformBuffer) ubo;
+}
+
+static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+    assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+    wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
+}
+
+static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+
+    if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+    {
+        return;
+    }
+
+    if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+    {
+        context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+    }
+
+    ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+    ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+}
+
+static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+
+    ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+    ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+    if (context->m_CurrentUniformBuffers[set][binding])
+    {
+        WebGPUDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+    }
+
+    context->m_CurrentUniformBuffers[set][binding] = ubo;
+}
+
+static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+
+    WebGPUDisableUniformBuffer(_context, uniform_buffer);
+
+    wgpuBufferRelease(ubo->m_Buffer);
+    delete ubo;
 }
 
 static HVertexBuffer WebGPUNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2215,7 +2292,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
             entries[desc.entryCount].binding = pgm_res.m_Res->m_Binding;
             switch (pgm_res.m_Res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE: {
+                case BINDING_FAMILY_TEXTURE: {
                     WebGPUTexture* texture = context->m_CurrentTextureUnits[pgm_res.m_TextureUnit];
                     if (!texture)
                     {
@@ -2258,56 +2335,83 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     }
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
+                case BINDING_FAMILY_STORAGE_BUFFER: {
                     // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
                     assert(false);
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
+                case BINDING_FAMILY_UNIFORM_BUFFER: {
 #if defined(DM_GRAPHICS_WEBGPU2)
                     const uint32_t ubo_alignment = context->m_DeviceLimits.minUniformBufferOffsetAlignment;
 #else
                     const uint32_t ubo_alignment = context->m_DeviceLimits.limits.minUniformBufferOffsetAlignment;
 #endif
-                    if (context->m_CurrentUniforms.m_Allocs.Size() == 0 ||
-                        context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size <
-                        context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BindingInfo.m_BlockSize)
+                    WebGPUUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[set][binding];
+
+                    if (bound_ubo)
                     {
-                        if (context->m_CurrentUniforms.m_Allocs.Size() > context->m_CurrentUniforms.m_Alloc + 1)
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
                         {
-                            ++context->m_CurrentUniforms.m_Alloc;
-                            assert(context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size >= pgm_res.m_Res->m_BindingInfo.m_BlockSize);
-                        }
-                        else
-                        {
-                            WebGPUUniformBuffer::Alloc* alloc = new WebGPUUniformBuffer::Alloc();
-                            {
-#if defined(DM_GRAPHICS_WEBGPU2)
-                                WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
-#else
-                                WGPUBufferDescriptor desc = {};
-#endif
-                                desc.usage                = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-                                desc.size                 = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize);
-                                alloc->m_Buffer           = wgpuDeviceCreateBuffer(context->m_Device, &desc);
-                                alloc->m_Size             = desc.size;
-                            }
-                            if (context->m_CurrentUniforms.m_Allocs.Full())
-                            {
-                                context->m_CurrentUniforms.m_Allocs.OffsetCapacity(4);
-                            }
-                            context->m_CurrentUniforms.m_Alloc = context->m_CurrentUniforms.m_Allocs.Size();
-                            context->m_CurrentUniforms.m_Allocs.Push(alloc);
+                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                pgm_res.m_Res->m_Name,
+                                pgm_layout->m_Hash);
+
+                            // Fallback to the scratch buffer uniform setup
+                            bound_ubo = 0;
                         }
                     }
-                    entries[desc.entryCount].buffer = context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Buffer;
-                    entries[desc.entryCount].offset = context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used;
-                    entries[desc.entryCount].size   = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                    wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset, entries[desc.entryCount].size);
-                    context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
+
+                    if (bound_ubo)
+                    {
+                        entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
+                        entries[desc.entryCount].offset = 0;
+                        entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size;
+                    }
+                    else
+                    {
+                        // TODO: We can clean this up a little bit, we do a lot of lookups for no good reason here.
+                        if (context->m_CurrentScratchUniforms.m_Allocs.Size() == 0 ||
+                            context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Size <
+                            context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BindingInfo.m_BlockSize)
+                        {
+                            if (context->m_CurrentScratchUniforms.m_Allocs.Size() > context->m_CurrentScratchUniforms.m_Alloc + 1)
+                            {
+                                ++context->m_CurrentScratchUniforms.m_Alloc;
+                                assert(context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Size >= pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+                            }
+                            else
+                            {
+                                WebGPUScratchUniformBuffer::Alloc* alloc = new WebGPUScratchUniformBuffer::Alloc();
+                                {
+#if defined(DM_GRAPHICS_WEBGPU2)
+                                    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+#else
+                                    WGPUBufferDescriptor desc = {};
+#endif
+                                    desc.usage                = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+                                    desc.size                 = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize);
+                                    alloc->m_Buffer           = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+                                    alloc->m_Size             = desc.size;
+                                }
+                                if (context->m_CurrentScratchUniforms.m_Allocs.Full())
+                                {
+                                    context->m_CurrentScratchUniforms.m_Allocs.OffsetCapacity(4);
+                                }
+                                context->m_CurrentScratchUniforms.m_Alloc = context->m_CurrentScratchUniforms.m_Allocs.Size();
+                                context->m_CurrentScratchUniforms.m_Allocs.Push(alloc);
+                            }
+                        }
+                        entries[desc.entryCount].buffer = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Buffer;
+                        entries[desc.entryCount].offset = context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used;
+                        entries[desc.entryCount].size   = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
+                        wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset, context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset, entries[desc.entryCount].size);
+                        context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
+                    }
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                     assert(false);
                     break;
             }
@@ -2516,7 +2620,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 
             switch (res.m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                     switch (res.m_Type.m_ShaderType)
                     {
                         case ShaderDesc::SHADER_TYPE_SAMPLER:
@@ -2555,7 +2659,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     program_resource_binding.m_TextureUnit = info.m_TextureCount;
                     info.m_TextureCount++;
                     break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
+                case BINDING_FAMILY_STORAGE_BUFFER: {
                     assert(false);
                     // const uint32_t ssbo_alignment = context->m_DeviceLimits.minStorageBufferOffsetAlignment;
                     binding.buffer.type = WGPUBufferBindingType_Storage;
@@ -2564,7 +2668,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     info.m_StorageBufferCount++;
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
+                case BINDING_FAMILY_UNIFORM_BUFFER: {
 #if defined(DM_GRAPHICS_WEBGPU2)
                     const uint32_t ubo_alignment = context->m_DeviceLimits.minUniformBufferOffsetAlignment;
 #else
@@ -2573,14 +2677,14 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     binding.buffer.type          = WGPUBufferBindingType_Uniform;
 
                     assert(res.m_Type.m_UseTypeIndex);
-                    program_resource_binding.m_DataOffset = info.m_UniformDataSize;
+                    program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
 
                     info.m_UniformBufferCount++;
                     info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                     info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     break;
                 }
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                     break;
             }
 
@@ -2902,7 +3006,7 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
-    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset + buffer_offset;
 
     if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
     {
@@ -2925,7 +3029,7 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
-    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset + buffer_offset;
 
     if (memcmp(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count))
     {

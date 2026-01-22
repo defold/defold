@@ -41,17 +41,7 @@ protected:
 
     virtual void SetUp() override
     {
-        char buffer[512];
-        const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/vera_mo_bd.ttf");
-
-        m_Font = FontLoadFromPath(path);
-        ASSERT_NE((HFont)0, m_Font);
-
-        const char* font_path = FontGetPath(m_Font);
-        ASSERT_STREQ(path, font_path);
-
-        uint32_t path_hash = dmHashString32(path);
-        ASSERT_EQ(path_hash, FontGetPathHash(m_Font));
+        LoadFont("src/test/vera_mo_bd.ttf", &m_Font);
 
         m_FontCollection = FontCollectionCreate();
         FontResult r = FontCollectionAddFont(m_FontCollection, m_Font);
@@ -62,6 +52,23 @@ protected:
     {
         FontCollectionDestroy(m_FontCollection);
         FontDestroy(m_Font);
+    }
+
+    void LoadFont(const char* path, HFont* out)
+    {
+        char buffer[512];
+        const char* host_path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), path);
+        
+        HFont font = FontLoadFromPath(host_path);
+        ASSERT_NE((HFont)0, font);
+
+        const char* font_path = FontGetPath(font);
+        ASSERT_STREQ(path, font_path);
+
+        uint32_t path_hash = dmHashString32(path);
+        ASSERT_EQ(path_hash, FontGetPathHash(font));
+
+        *out = font;
     }
 };
 
@@ -180,6 +187,37 @@ TEST_F(FontTest, LayoutSingleLine)
     ASSERT_EQ(1u, layout->m_Lines.Size());
 
     TextLayoutFree(layout);
+}
+
+// See https://github.com/defold/defold/issues/11766
+TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
+{
+    HFont font;
+    LoadFont("src/test/vera_mo_bd_atoz.ttf", &font);
+    
+    HFontCollection fontCollection = FontCollectionCreate();
+    FontResult fr = FontCollectionAddFont(fontCollection, font);
+    ASSERT_EQ(FONT_RESULT_OK, fr);
+
+    dmArray<uint32_t> codepoints;
+
+    const char* original_text = "HELLO WORLD!";
+    TextToCodePoints(original_text, codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0;
+    settings.m_Size = 28.0f;
+
+    HTextLayout layout = 0;
+    TextResult tr = TestLayout(fontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, tr);
+    TextLine& line = layout->m_Lines[0];
+    ASSERT_NE(0.0, line.m_Width);
+
+    FontCollectionDestroy(fontCollection);
+    TextLayoutFree(layout);
+    FontDestroy(font);
 }
 
 TEST_F(FontTest, LayoutEmptyString)
@@ -745,11 +783,12 @@ TEST_F(FontTest, Layout)
 #if defined(FONT_USE_SKRIBIDI)
 TEST_F(FontTest, TextArabic)
 {
-    char buffer[512];
-    const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/NotoSansArabic-Regular.ttf");
+    HFont font;
+    LoadFont("src/test/NotoSansArabic-Regular.ttf", &font);
 
-    HFont font = FontLoadFromPath(path);
-    ASSERT_NE((HFont)0, font);
+    HFontCollection fontCollection = FontCollectionCreate();
+    FontResult fr = FontCollectionAddFont(fontCollection, font);
+    ASSERT_EQ(FONT_RESULT_OK, fr);
 
     dmArray<uint32_t> codepoints;
     TextToCodePoints(g_TextArabic, codepoints);
@@ -761,8 +800,8 @@ TEST_F(FontTest, TextArabic)
 
     HTextLayout layout = 0;
 
-    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
-    ASSERT_EQ(TEXT_RESULT_OK, r);
+    TextResult tr = TestLayout(fontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, tr);
     ASSERT_NE((TextLayout*)0, layout);
     DebugPrintLayout(layout);
     ASSERT_EQ(1u, layout->m_Lines.Size());
@@ -781,6 +820,7 @@ TEST_F(FontTest, TextArabic)
 
     DebugPrintLayout(layout);
 
+    FontCollectionDestroy(fontCollection);
     TextLayoutFree(layout);
     FontDestroy(font);
 }

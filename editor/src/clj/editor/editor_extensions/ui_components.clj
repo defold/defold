@@ -49,7 +49,8 @@
             [editor.workspace :as workspace]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.path :as path])
   (:import [com.defold.editor.luart DefoldLuaFn]
            [java.net URI URISyntaxException]
            [java.nio.file Path]
@@ -861,12 +862,12 @@
             :or {title default-select-external-file-dialog-title-message path "."}} opts
            initial-path (.normalize (.resolve project-path path))
            [^Path initial-directory-path initial-file-name]
-           (if (fs/path-exists? initial-path)
-             (if (fs/path-is-directory? initial-path)
+           (if (path/exists? initial-path)
+             (if (path/directory? initial-path)
                [initial-path nil]
                [(.getParent initial-path) (str (.getFileName initial-path))])
              (let [parent-path (.getParent initial-path)]
-               (if (fs/path-is-directory? parent-path)
+               (if (path/directory? parent-path)
                  [parent-path (str (.getFileName initial-path))]
                  [project-path nil])))
            dialog (doto (FileChooser.)
@@ -914,8 +915,8 @@
             :or {title default-select-external-directory-dialog-title-message path "."}} opts
            resolved-path (.normalize (.resolve project-path path))
            ^Path initial-path (cond
-                                (not (fs/path-exists? resolved-path)) project-path
-                                (fs/path-is-directory? resolved-path) resolved-path
+                                (not (path/exists? resolved-path)) project-path
+                                (path/directory? resolved-path) resolved-path
                                 :else (.getParent resolved-path))
            dialog (doto (DirectoryChooser.)
                     (.setTitle (localization title))
