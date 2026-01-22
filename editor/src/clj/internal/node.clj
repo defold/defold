@@ -1319,7 +1319,8 @@
                     argument
                     (condp = argument
                       label `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
-                      (fnk-argument-form description label argument node-sym node-id-sym evaluation-context-sym)))))
+                      (let [argument-annotations (get annotations argument)]
+                        (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym))))))
               arguments)
         checked-arguments (annotations->checked-arguments annotations)
         arguments-sym 'arguments]
@@ -1350,20 +1351,8 @@
                                                                            `(var ~(dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
 
-(defn- desc-raw-argument? [description output argument]
-  {:pre [(keyword? output) (keyword? argument)]}
-  (boolean (-> description :output output :annotations argument :raw)))
-
-(defn- desc-try-argument? [description output argument]
-  {:pre [(keyword? output) (keyword? argument)]}
-  (boolean (-> description :output output :annotations argument :try)))
-
-(defn- desc-unsafe-argument? [description output argument]
-  {:pre [(keyword? output) (keyword? argument)]}
-  (boolean (-> description :output output :annotations argument :unsafe)))
-
 (defn- fnk-argument-form
-  [description output argument node-sym node-id-sym evaluation-context-sym]
+  [description output argument argument-annotations node-sym node-id-sym evaluation-context-sym]
   (cond
     (= :_node-id argument)
     node-id-sym
@@ -1372,11 +1361,11 @@
     node-sym
 
     (= :_evaluation-context argument)
-    (if (desc-unsafe-argument? description output argument)
+    (if (:unsafe argument-annotations)
       evaluation-context-sym
       (assert false (str "A production function for " (:name description) " " output " uses argument " argument ", which must be tagged as ^:unsafe")))
 
-    (desc-raw-argument? description output argument)
+    (:raw argument-annotations)
     (if (desc-has-property? description argument)
       (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
       (assert false (str "A production function for " (:name description) " " output " tags argument " argument " as ^:raw, but there is no property called " (pr-str argument))))
@@ -1398,7 +1387,7 @@
     (desc-has-multivalued-input? description argument)
     (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
       (if (= ::no-sub sub)
-        (if (desc-try-argument? description output argument)
+        (if (:try argument-annotations)
           (input-value-form node-sym argument evaluation-context-sym)
           `(error-checked-array-input-value ~node-id-sym ~argument ~(input-value-form node-sym argument evaluation-context-sym)))
         `(error-substituted-array-input-value ~(input-value-form node-sym argument evaluation-context-sym) ~sub)))
@@ -1406,7 +1395,7 @@
     (desc-has-singlevalued-input? description argument)
     (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
       (if (= ::no-sub sub)
-        (if (desc-try-argument? description output argument)
+        (if (:try argument-annotations)
           (first-input-value-form node-sym argument evaluation-context-sym)
           `(error-checked-input-value ~node-id-sym ~argument ~(first-input-value-form node-sym argument evaluation-context-sym)))
         `(error-substituted-input-value ~(first-input-value-form node-sym argument evaluation-context-sym) ~sub)))
@@ -1508,8 +1497,14 @@
          ~forms))))
 
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym forms]
-  (let [arg-names (get-in description [:output label :arguments])
-        argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))]
+  (let [{:keys [arguments annotations]} (get-in description [:output label])
+
+        argument-forms
+        (coll/transfer arguments {}
+          (map (fn [argument]
+                 (let [argument-annotations (get annotations argument)
+                       form (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym)]
+                   (pair argument form)))))]
     (list `let
           [arguments-sym argument-forms]
           forms)))

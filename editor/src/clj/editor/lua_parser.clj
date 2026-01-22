@@ -26,7 +26,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn lua-info [workspace valid-resource-kind? code]
+(defn lua-info [workspace valid-resource-kind? code evaluation-context]
   (let [^LuaScanner$Result result (if (string? code)
                                     (^[String boolean Predicate] LuaScanner/parse code true valid-resource-kind?)
                                     (^[Reader boolean Predicate] LuaScanner/parse (io/reader code) true valid-resource-kind?))]
@@ -66,7 +66,7 @@
 
                        (some? value)
                        (assoc :value (if (and is-resource value)
-                                       (workspace/resolve-workspace-resource workspace value)
+                                       (workspace/resolve-workspace-resource workspace value evaluation-context)
                                        (condp instance? value
                                          Vector3d (math/vecmath->clj value)
                                          Vector4d (math/vecmath->clj value)

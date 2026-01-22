@@ -23,6 +23,7 @@
                  dev/run-with-progress [[:inner 0]]
                  dev/run-with-terminal-progress [[:inner 0]]
                  dynamo.graph/construct [[:inner 0]]
+                 dynamo.graph/let-ec [[:inner 0]]
                  dynamo.graph/make-nodes [[:inner 0]]
                  dynamo.graph/fnk [[:block 1]]
                  dynamo.graph/override [[:inner 0]]

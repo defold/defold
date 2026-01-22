@@ -18,7 +18,6 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stack-pane :as fx.stack-pane]
@@ -44,9 +43,9 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.defold.control ResizableImageView]
-           [java.net URI URISyntaxException URLDecoder]
+  (:import [java.net URI URISyntaxException URLDecoder]
            [javafx.scene.control ContextMenu MenuItem ScrollPane]
+           [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
            [org.commonmark.ext.autolink AutolinkExtension]
            [org.commonmark.ext.front.matter YamlFrontMatterExtension]
@@ -110,7 +109,7 @@
         (case (.getScheme resolved-url)
           "defold"
           (when-some [{:keys [command user-data]} (url->command resolved-url)]
-            (ui/execute-command (ui/contexts (ui/main-scene)) command user-data))
+            (ui/execute-command (ui/contexts (ui/main-scene) true) command user-data))
 
           "file"
           (if-let [resource (g/with-auto-evaluation-context evaluation-context
@@ -118,7 +117,7 @@
                                     workspace (project/workspace project evaluation-context)]
                                 (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                                   (workspace/find-resource workspace proj-path))))]
-            (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
+            (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)
             (ui/open-url resolved-url))
 
           (if (or scheme (.getAuthority resolved-url))
@@ -127,7 +126,7 @@
               (when base-resource
                 (let [resource (workspace/resolve-resource base-resource path)]
                   (when (resource/exists? resource)
-                    (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource))))
+                    (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource))))
               (when-let [fragment (coll/not-empty (.getFragment resolved-url))]
                 (let [^ScrollPane scroll-pane (ui/closest-node-of-type ScrollPane (.getTarget event))
                       content (.getContent scroll-pane)]
@@ -389,26 +388,31 @@
          :hgap 4
          :children views}))))
 
-(def ^:private ext-with-image-view-props
-  (fx/make-ext-with-props fx.image-view/props))
+(defn- construct-image [src base-resource]
+  (when-not (coll/empty? src)
+    (when-let [^URI uri (try (URI. src) (catch URISyntaxException _))]
+      (if (or (.getAuthority uri) (.getScheme uri))
+        (Image. src #_background-loading true)
+        (when-let [base-resource base-resource]
+          (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
+            (when (resource/exists? resource)
+              (with-open [is (io/input-stream resource)]
+                (Image. is)))))))))
+
+(fxui/defc image-view-impl
+  {:compose [{:fx/type fxui/ext-memo
+              :fn construct-image
+              :args [(:src props) (:base-resource props)]
+              :key :image}]}
+  [{:keys [image]}]
+  (if image
+    {:fx/type fx.h-box/lifecycle :children [{:fx/type fxui/resizable-image :image image}]}
+    {:fx/type fx.region/lifecycle}))
 
 (defn- image-view [^Element node ctx]
-  (or
-    (let [src (coll/not-empty (.attr node "src"))]
-      (when-let [^URI uri (when src
-                            (try (URI. src) (catch URISyntaxException _)))]
-        (when-let [image (if (or (.getAuthority uri) (.getScheme uri))
-                           {:url src :background-loading true}
-                           (when-let [base-resource (:base-resource ctx)]
-                             (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
-                               (when (resource/exists? resource)
-                                 {:is (io/input-stream resource)
-                                  :background-loading true}))))]
-          {:fx/type ext-with-image-view-props
-           :desc {:fx/type fx/ext-instance-factory
-                  :create ResizableImageView/new}
-           :props {:image image}})))
-    {:fx/type fx.region/lifecycle}))
+  {:fx/type image-view-impl
+   :src (.attr node "src")
+   :base-resource (:base-resource ctx)})
 
 (defn- kbd-view [^Element node ctx]
   (when-let [view (children-section-view node (-> ctx (style "code")))]

@@ -656,25 +656,25 @@
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
     (when (or clear (seq entries))
-      (g/with-auto-evaluation-context evaluation-context
-        (let [resource-map (g/node-value workspace :resource-map evaluation-context)
-              ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
-              prev-lines (g/node-value view-node :lines evaluation-context)
-              prev-regions (g/node-value view-node :regions evaluation-context)
-              prev-document-width (if clear 0.0 (.document-width prev-layout))
-              appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
-              document-width (max prev-document-width ^double appended-width)
-              was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
-              resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
-              props (append-entries {:lines (if clear [""] prev-lines)
-                                     :regions (if clear [] prev-regions)}
-                                    entries resource-map resource-suffix-map-delay on-region-click!)]
-          (view/set-properties! view-node nil
-                                (cond-> (assoc props :document-width document-width)
-                                        was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                        clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                                        clear (assoc :invalidated-row 0)
-                                        clear (data/frame-cursor prev-layout)))))))
+      (g/let-ec [resource-map (g/node-value workspace :resource-map evaluation-context)
+                 ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
+                 prev-lines (g/node-value view-node :lines evaluation-context)
+                 prev-regions (g/node-value view-node :regions evaluation-context)
+                 prev-document-width (if clear 0.0 (.document-width prev-layout))
+                 appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
+                 document-width (max prev-document-width ^double appended-width)
+                 was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
+                 resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
+                 props (append-entries {:lines (if clear [""] prev-lines)
+                                        :regions (if clear [] prev-regions)}
+                                       entries resource-map resource-suffix-map-delay on-region-click!)]
+        (view/set-properties!
+          view-node nil
+          (cond-> (assoc props :document-width document-width)
+                  was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                  clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                  clear (assoc :invalidated-row 0)
+                  clear (data/frame-cursor prev-layout))))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar

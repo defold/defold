@@ -527,7 +527,7 @@
         },
         {
             "author": "ekharkunov",
-            "body": "\u26a0\ufe0f \u26a0\ufe0f \u26a0\ufe0f **Possible breaking change** \u26a0\ufe0f \u26a0\ufe0f \u26a0\ufe0f\r\n* `FixedUpdate` moved before regular `Update`. It means that all transform's changes introduced by physics components will be applied before execution of regular component's `Update`.\r\n* Order of lua callbacks `update(self)` and `fixed_update(self)` stays the same as it was before.",
+            "body": "\u26a0\ufe0f \u26a0\ufe0f \u26a0\ufe0f **Possible breaking change** \u26a0\ufe0f \u26a0\ufe0f \u26a0\ufe0f\r\nOur Lua script update order has changed, and fixed_update() is now called _before_ update().\r\nWe've also added `late_update()` which happens last in the engine frame, just before the render script is called.\r\n\r\nFor each engine update, you will now get:\r\n\r\n    * fixed_update(fixed_dt) -- zero or more times *\r\n    * update(dt)             -- one time\r\n    * late_update(dt)        -- one time\r\n\r\nIn terms of how components are updated in relation to those functions.\r\nBetween each of these steps, we also flush any posted messages, it's just left out here to make the description more compact:\r\n\r\n* Engine Component Fixed Update (zero or more steps)\r\n    * Lua fixed_update(fixed_dt)\r\n        * Lua Flush Messages\r\n    * ...\r\n    * Physics Fixed Update(fixed_dt) *\r\n    * ...\r\n* Engine Component Update\r\n    * Lua update(dt)\r\n        * Lua Flush Messages\r\n    * ...\r\n    * Physics Update(dt) *\r\n    * ...\r\n* Engine Component Late Update\r\n    * Lua late_update(dt)\r\n        * Lua Flush Messages\r\n    * ...\r\n\r\n*) Note that fixed_update() is only called if you've enabled it in project settings \"Use fixed timestep\"\r\n\r\nFor further information regarding life cycle, and component update order, we'll refer to the [documentation](https://defold.com/manuals/application-lifecycle/)",
             "closed_issues": [
                 11491
             ],
@@ -712,8 +712,113 @@
             "title": "Added Microsoft Xbox Series S|X Controller for Linux",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/11419"
+        },
+        {
+            "author": "AGulev",
+            "body": "Speed up the ASTC encoder using a few threads per image (in addition to encoding a few images at the same time)",
+            "closed_issues": [
+                11537
+            ],
+            "duplicate": false,
+            "issue_number": 11537,
+            "labels": [
+                "bob",
+                "texture compression",
+                "performance"
+            ],
+            "mergecommit": "a1a542a80af7c59353a469d9a2307b49e3aa032b",
+            "pr_number": 11537,
+            "referencecommits": [
+                "540b40115e37021861fab4c7f6e3ef0316713807"
+            ],
+            "repository": "defold",
+            "title": "Add multithreaded encoding for ASTC encoder",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11537"
+        },
+        {
+            "author": "britzl",
+            "body": "This change fixes an issue with `resource.get_text_metrics()` calculation where the width of the last character of a string of text is incorrect. This leads to problems when placing words one by one or align other objects next to words.",
+            "closed_issues": [
+                11632
+            ],
+            "duplicate": false,
+            "issue_number": 11632,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "6607c5bd880c310617b3cfa9c5290968c1ee0adf",
+            "pr_number": 11633,
+            "referencecommits": [
+                "0a9e93135218897b06b6e087d77a805074643f64"
+            ],
+            "repository": "defold",
+            "title": "Fix text metrics width calculation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11633"
+        },
+        {
+            "author": "paweljarosz",
+            "body": "",
+            "closed_issues": [
+                590
+            ],
+            "duplicate": false,
+            "issue_number": 590,
+            "labels": [],
+            "mergecommit": "ea1b17c1a2c280b603a12ba2f72d5cd5713c789b",
+            "pr_number": 590,
+            "referencecommits": [],
+            "repository": "doc",
+            "title": "Updated Application Lifecycle for Defold 1.12.0+ and added new diagrams.",
+            "type": "FIX",
+            "url": "https://github.com/defold/doc/pull/590"
+        },
+        {
+            "author": "meehaul",
+            "body": "Fixed a memory leak on every frame with Emscripten builds, resulting in significant heap fragmentation and usage.",
+            "closed_issues": [
+                11728
+            ],
+            "duplicate": false,
+            "issue_number": 11728,
+            "labels": [],
+            "mergecommit": "bc4c779cfc04964869b661d7f5b9e139e04d75f1",
+            "pr_number": 11728,
+            "referencecommits": [
+                "58fc81eea4289c04d275ec2f6c0de21e69771f4c"
+            ],
+            "repository": "defold",
+            "title": "Fix memory leak / fragmentation in PreStepEmscripten",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11728"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes a crash when using fonts in the BMFont format when the glyphs of the font are not sorted in increasing order.",
+            "closed_issues": [
+                11743
+            ],
+            "duplicate": false,
+            "issue_number": 11743,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "a25d1629fb657563e810c2da11e5bae0c0c644ee",
+            "pr_number": 11762,
+            "referencecommits": [
+                "f337208396b6a70b2e1022680449b36bbf4143b1"
+            ],
+            "repository": "defold",
+            "title": "Remove validation of glyph order",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11762"
         }
     ],
-    "timestamp": 1763734425.199709,
+    "timestamp": 1768897810.7720919,
     "version": "1.12.0"
 }

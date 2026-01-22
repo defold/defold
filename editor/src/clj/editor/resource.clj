@@ -263,7 +263,7 @@
   Resource
   (children [this] children)
   (ext [this] ext)
-  (resource-type [this] (lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] source-type)
   (exists? [this]
     (try
@@ -362,7 +362,7 @@
   Resource
   (children [this] nil)
   (ext [this] ext)
-  (resource-type [this] (lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
@@ -416,7 +416,7 @@
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
-  (resource-type [this] (lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)

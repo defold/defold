@@ -240,6 +240,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-ec-scopes {:jvm-opts ["-Ddefold.graph.strict-evaluation-context-scopes=log-once"]}
                       :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
@@ -297,7 +298,7 @@
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.3.0.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.5.0.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.6.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

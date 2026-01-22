@@ -137,7 +137,7 @@
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id resource packed-image-generator texture-set texture-profile build-settings]
-  (let [workspace (project/workspace (project/get-project _node-id))
+  (let [workspace (resource/workspace resource)
         compress? (:compress-textures? build-settings false)
         texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
     [(bt/with-content-hash
@@ -1070,11 +1070,11 @@
     (g/transact
       (make-collision-group-node self project select-fn id))))
 
-(defn- selection->tile-source [selection]
-  (handler/adapt-single selection TileSourceNode))
+(defn- selection->tile-source [selection evaluation-context]
+  (handler/adapt-single selection TileSourceNode evaluation-context))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (active? [selection] (selection->tile-source selection))
+  (active? [selection evaluation-context] (selection->tile-source selection evaluation-context))
   (label [selection user-data]
          (if-not user-data
            (localization/message "command.edit.add-embedded-component.variant.tile-source")
@@ -1092,7 +1092,8 @@
                :user-data {:action add-collision-group-node!
                            :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
   (run [selection user-data app-view]
-    ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
+    (g/let-ec [tile-source-node (selection->tile-source selection evaluation-context)]
+      ((:action user-data) tile-source-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn register-resource-types [workspace]
   (concat

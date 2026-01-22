@@ -36,6 +36,7 @@
             [editor.ui :as ui]
             [internal.util :as util]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [com.defold.control OutlineTreeViewSkin TreeCell]
            [java.awt Toolkit]
@@ -392,21 +393,29 @@
    (g/node-value outline-view :tree-selection-root-its evaluation-context)))
 
 (handler/defhandler :edit.delete :workbench
-  (active? [selection] (handler/selection->node-ids selection))
+  (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
             (and (< 0 (count selection))
                  (-> (root-iterators outline-view evaluation-context)
                    outline/delete?)))
   (run [app-view selection selection-provider outline-view]
-       (let [next (-> (handler/succeeding-selection selection-provider)
-                    handler/selection->node-ids)]
-         (g/transact
-           (concat
-             (g/operation-label (localization/message "operation.delete"))
-             (for [node-id (handler/selection->node-ids selection)]
-               (g/delete-node (g/override-root node-id)))
-             (when (seq next)
-               (app-view/select app-view next)))))))
+    (g/let-ec [basis (:basis evaluation-context)
+               old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
+
+               deleted-node-ids
+               (coll/transfer old-selected-node-ids []
+                 (map #(g/override-root basis %))
+                 (distinct))
+
+               new-selected-node-ids
+               (-> (handler/succeeding-selection selection-provider evaluation-context)
+                   (handler/selection->node-ids evaluation-context))]
+      (g/transact
+        (concat
+          (g/operation-label (localization/message "operation.delete"))
+          (map g/delete-node deleted-node-ids)
+          (when (seq new-selected-node-ids)
+            (app-view/select app-view new-selected-node-ids)))))))
 
 (def data-format-fn (fn []
                       (let [json "application/json"]
@@ -414,7 +423,7 @@
                             (DataFormat. (into-array String [json]))))))
 
 (handler/defhandler :edit.copy :workbench
-  (active? [selection] (handler/selection->node-ids selection))
+  (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view project]
        (let [root-its (root-iterators outline-view)
@@ -430,7 +439,7 @@
       (first item-iterators))))
 
 (handler/defhandler :edit.paste :workbench
-  (active? [selection] (handler/selection->node-ids selection))
+  (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [project selection outline-view evaluation-context]
             (let [cb (Clipboard/getSystemClipboard)
                   target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
@@ -446,7 +455,7 @@
       (set-paste-parent! (root-iterators outline-view)))))
 
 (handler/defhandler :edit.cut :workbench
-  (active? [selection] (handler/selection->node-ids selection))
+  (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
             (let [item-iterators (root-iterators outline-view evaluation-context)]
               (and (< 0 (count item-iterators))
@@ -455,8 +464,9 @@
        (let [item-iterators (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
              data-format (data-format-fn)
-             next (-> (handler/succeeding-selection selection-provider)
-                    handler/selection->node-ids)]
+             next (g/with-auto-evaluation-context evaluation-context
+                    (-> (handler/succeeding-selection selection-provider evaluation-context)
+                        (handler/selection->node-ids evaluation-context)))]
          (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
 
 (defn- drag-detected [project outline-view ^MouseEvent e]
@@ -732,14 +742,14 @@
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
 
-(defrecord SelectionProvider [outline-view]
+(defonce/record SelectionProvider [outline-view]
   handler/SelectionProvider
-  (selection [this]
-    (g/node-value outline-view :tree-selection))
-  (succeeding-selection [this]
-    (g/node-value outline-view :succeeding-tree-selection))
-  (alt-selection [this]
-    (g/node-value outline-view :alt-tree-selection)))
+  (selection [_this evaluation-context]
+    (g/node-value outline-view :tree-selection evaluation-context))
+  (succeeding-selection [_this evaluation-context]
+    (g/node-value outline-view :succeeding-tree-selection evaluation-context))
+  (alt-selection [_this evaluation-context]
+    (g/node-value outline-view :alt-tree-selection evaluation-context)))
 
 (defn key-pressed-handler!
   [app-view ^TreeView tree-view ^KeyEvent event]
