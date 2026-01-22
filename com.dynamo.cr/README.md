@@ -44,6 +44,7 @@ First of all, follow the engine setup instructions and build the engine at least
 10. Change language level to `21 - Record patterns, pattern matching for switch` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
 
 11. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.bob/lib` and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
+12. If you see missing AWS SDK classes (e.g. `com.amazonaws.services.s3`), add `com.dynamo.cr/com.dynamo.cr.bob/lib/aws` as a dependency too. IntelliJ does not always pick up nested jar folders.
 
 If you got `Unknown command-line option '-b'` error, then:
 <img width="2480" height="1482" alt="image" src="https://github.com/user-attachments/assets/48dfe9a6-0b20-4594-a87c-63ac9d4d63ca" />
