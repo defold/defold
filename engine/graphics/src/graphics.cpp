@@ -21,6 +21,8 @@
 #endif
 #include <string.h>
 #include <assert.h>
+
+#include <dlib/dalloca.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
@@ -1457,7 +1459,7 @@ namespace dmGraphics
         }
     }
 
-    uint32_t GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type)
+    static uint32_t GetStd140BaseAlignment(dmGraphics::ShaderDesc::ShaderDataType type)
     {
         switch (type)
         {
@@ -1743,12 +1745,10 @@ namespace dmGraphics
         dmHashInit32(&hash_state, false);
         assert(root_type_index < num_types);
 
-        dmArray<bool> visited;
-        visited.SetCapacity(num_types);
-        visited.SetSize(num_types);
-        memset(visited.Begin(), 0, sizeof(bool) * num_types);
+        bool* visited = (bool*)dmAlloca(sizeof(bool) * num_types);
+        memset(visited, 0, sizeof(bool) * num_types);
 
-        HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited.Begin());
+        HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited);
 
         layout_desc->m_Hash = dmHashFinal32(&hash_state);
         layout_desc->m_Size = CalculateShaderTypesSize(root_type_index, types, num_types);

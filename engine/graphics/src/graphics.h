@@ -239,33 +239,6 @@ namespace dmGraphics
         uint32_t         m_Count;
     };
 
-    struct ShaderResourceType
-    {
-        union
-        {
-            ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                   m_TypeIndex;
-        };
-        uint8_t m_UseTypeIndex : 1;
-    };
-
-    struct ShaderResourceMember
-    {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint32_t                    m_Offset;
-    };
-
-    struct ShaderResourceTypeInfo
-    {
-        char*                 m_Name;
-        dmhash_t              m_NameHash;
-        ShaderResourceMember* m_Members;
-        uint32_t              m_MemberCount;
-    };
-
     // The uniform buffer layout is used to validate a uniform buffer
     // with a shader resource binding by comparing the hash of
     // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
@@ -452,7 +425,6 @@ namespace dmGraphics
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
 
     // Uniform buffers
-    void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);

@@ -5628,26 +5628,82 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    dmGraphics::ShaderResourceMember light_color_members[] = {
-        { "color", dmHashString64("color"), { dmGraphics::ShaderDesc::SHADER_TYPE_VEC3, 0 }, 1, 0},
-        { "intensity", dmHashString64("intensity"), { dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT, 0 }, 1, 0},
-    };
+    dmGraphics::ShaderResourceMember light_color_members[2];
 
-    dmGraphics::ShaderResourceMember light_members[] = {
-        { "position", dmHashString64("position"), { dmGraphics::ShaderDesc::SHADER_TYPE_VEC3, 0 }, 1, 0},
-        { "color_intensity", dmHashString64("color_intensity"), { (dmGraphics::ShaderDesc::ShaderDataType) 2, 1 }, 1, 0},
-    };
+    // color : vec3
+    light_color_members[0].m_Name                 = (char*)"color";
+    light_color_members[0].m_NameHash             = dmHashString64("color");
+    light_color_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+    light_color_members[0].m_Type.m_UseTypeIndex  = 0;
+    light_color_members[0].m_ElementCount         = 1;
+    light_color_members[0].m_Offset               = 0;
 
-    dmGraphics::ShaderResourceMember light_data_members[] = {
-        {"lights", dmHashString64("lights"), { (dmGraphics::ShaderDesc::ShaderDataType) 1, 1 }, 4, 0},
-        {"light_count", dmHashString64("light_count"), { dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT, 0 }, 1, 0}
-    };
+    // intensity : float
+    light_color_members[1].m_Name                 = (char*)"intensity";
+    light_color_members[1].m_NameHash             = dmHashString64("intensity");
+    light_color_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+    light_color_members[1].m_Type.m_UseTypeIndex  = 0;
+    light_color_members[1].m_ElementCount         = 1;
+    light_color_members[1].m_Offset               = 0;
 
-    dmGraphics::ShaderResourceTypeInfo types[] = {
-        { "LightData", dmHashString64("LightData"), light_data_members, DM_ARRAY_SIZE(light_data_members) },
-        { "Light", dmHashString64("Light"), light_members, DM_ARRAY_SIZE(light_members) },
-        { "LightColor", dmHashString64("LightColor"), light_color_members, DM_ARRAY_SIZE(light_color_members) },
-    };
+    dmGraphics::ShaderResourceMember light_members[2];
+
+    // position : vec3
+    light_members[0].m_Name                 = (char*)"position";
+    light_members[0].m_NameHash             = dmHashString64("position");
+    light_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+    light_members[0].m_Type.m_UseTypeIndex  = 0;
+    light_members[0].m_ElementCount         = 1;
+    light_members[0].m_Offset               = 0;
+
+    // color_intensity : LightColor
+    light_members[1].m_Name                 = (char*)"color_intensity";
+    light_members[1].m_NameHash             = dmHashString64("color_intensity");
+    light_members[1].m_Type.m_TypeIndex     = 2;   // index into ShaderResourceTypeInfo[]
+    light_members[1].m_Type.m_UseTypeIndex  = 1;
+    light_members[1].m_ElementCount         = 1;
+    light_members[1].m_Offset               = 0;
+
+
+    dmGraphics::ShaderResourceMember light_data_members[2];
+
+    // lights : Light[4]
+    light_data_members[0].m_Name                 = (char*)"lights";
+    light_data_members[0].m_NameHash             = dmHashString64("lights");
+    light_data_members[0].m_Type.m_TypeIndex     = 1;   // Light
+    light_data_members[0].m_Type.m_UseTypeIndex  = 1;
+    light_data_members[0].m_ElementCount         = 4;
+    light_data_members[0].m_Offset               = 0;
+
+    // light_count : float
+    light_data_members[1].m_Name                 = (char*)"light_count";
+    light_data_members[1].m_NameHash             = dmHashString64("light_count");
+    light_data_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+    light_data_members[1].m_Type.m_UseTypeIndex  = 0;
+    light_data_members[1].m_ElementCount         = 1;
+    light_data_members[1].m_Offset               = 0;
+
+
+    dmGraphics::ShaderResourceTypeInfo types[3];
+
+    // LightData (index 0)
+    types[0].m_Name        = (char*)"LightData";
+    types[0].m_NameHash    = dmHashString64("LightData");
+    types[0].m_Members     = light_data_members;
+    types[0].m_MemberCount = 2;
+
+    // Light (index 1)
+    types[1].m_Name        = (char*)"Light";
+    types[1].m_NameHash    = dmHashString64("Light");
+    types[1].m_Members     = light_members;
+    types[1].m_MemberCount = 2;
+
+    // LightColor (index 2)
+    types[2].m_Name        = (char*)"LightColor";
+    types[2].m_NameHash    = dmHashString64("LightColor");
+    types[2].m_Members     = light_color_members;
+    types[2].m_MemberCount = 2;
+
     dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
     dmGraphics::UniformBufferLayout layout;

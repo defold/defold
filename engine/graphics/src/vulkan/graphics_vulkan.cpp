@@ -2735,22 +2735,6 @@ bail:
         return true;
     }
 
-    static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
-    {
-        if (BINDING_FAMILY_GENERIC)
-            return (VkDescriptorType) -1;
-
-        if (res.m_BindingFamily == BINDING_FAMILY_TEXTURE)
-        {
-            return TextureTypeToDescriptorType(res.m_Type.m_ShaderType);
-        }
-        else if (res.m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
-        {
-            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        }
-        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    }
-
     static void CreatePipelineLayout(VulkanContext* context, VulkanProgram* program, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t max_sets)
     {
         program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
@@ -2846,7 +2830,6 @@ bail:
             if (binding.descriptorCount == 0)
             {
                 binding.binding            = res.m_Binding;
-                binding.descriptorType     = GetDescriptorType(res);
                 binding.descriptorCount    = 1;
                 binding.pImmutableSamplers = 0;
 
@@ -2856,6 +2839,8 @@ bail:
                 switch(res.m_BindingFamily)
                 {
                     case BINDING_FAMILY_TEXTURE:
+                        binding.descriptorType = TextureTypeToDescriptorType(res.m_Type.m_ShaderType);
+
                         if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
                             // Texture unit will be resolved in a second pass after.
@@ -2874,6 +2859,7 @@ bail:
                     #endif
                         break;
                     case BINDING_FAMILY_STORAGE_BUFFER:
+                        binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
                     #if 0
@@ -2883,6 +2869,7 @@ bail:
                     case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
+                        binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                         program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
                         program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 

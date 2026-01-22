@@ -2369,6 +2369,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     }
                     else
                     {
+                        // TODO: We can clean this up a little bit, we do a lot of lookups for no good reason here.
                         if (context->m_CurrentScratchUniforms.m_Allocs.Size() == 0 ||
                             context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Size <
                             context->m_CurrentScratchUniforms.m_Allocs[context->m_CurrentScratchUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BindingInfo.m_BlockSize)
