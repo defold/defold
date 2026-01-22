@@ -1161,6 +1161,8 @@
          (let [fixed-cell-size (.getHeight (.getCell flow first-index))
                cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
            (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
+         ;; NOTE: We don't have to do any bounds checking because JavaFX clamps if we are out
+         ;; of bounds and will scroll to the min/max values
          (.scrollTo tree-view (dec first-index)))))))
 
 (defn scroll-tree-view-to-center-item! [^TreeView tree-view index]
