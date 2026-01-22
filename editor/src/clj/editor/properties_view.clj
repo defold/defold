@@ -517,8 +517,8 @@
 (defn- single-drag-resource [^DragEvent e valid-extensions workspace]
   {:pre [(set? valid-extensions)]}
   (let [files (.getFiles (.getDragboard e))]
-    (when-some [file (and (= 1 (count files))
-                          (first files))]
+    (when-some [file (when (= 1 (count files))
+                       (first files))]
       (when-some [proj-path (workspace/as-proj-path workspace file)]
         (let [resource (workspace/resolve-workspace-resource workspace proj-path)
               resource-ext (resource/type-ext resource)]
@@ -529,7 +529,7 @@
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
         {:keys [ext dialog-accept-fn]} (:edit-type property)
-        ext-set (set ext)
+        ext-set (if (string? ext) #{ext} (set ext))
         dialog-opts (cond-> {}
                             ext (assoc :ext ext)
                             dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
