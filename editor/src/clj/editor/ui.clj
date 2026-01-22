@@ -1173,7 +1173,7 @@
   (when (= MouseButton/PRIMARY (.getButton event))
     (let [target (.getTarget event)]
       ;; Did the user click on a tree cell?
-      (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell target)]
+      (when-some [^TreeCell tree-cell (closest-node-of-type javafx.scene.control.TreeCell target)]
         (when-some [disclosure-node (.getDisclosureNode tree-cell)]
           ;; Did the user click on the disclosure node?
           (when (nodes-along-path? target disclosure-node tree-cell)
