@@ -1571,11 +1571,11 @@
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :disable (not enabled?)
-                                     :on-action (fn [_] (invoke-handler (contexts scene) command user-data))
+                                     :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
                                      :on-key-pressed (fn [^KeyEvent e]
                                                        (when (= KeyCode/ENTER (.getCode e))
                                                          (.consume e)
-                                                         (invoke-handler (contexts scene) command user-data)))
+                                                         (invoke-handler (contexts scene false) command user-data)))
                                      :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
                                      :style-class (into ["grid-menu-item-base"]
                                                         (when enabled?
