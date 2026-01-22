@@ -137,7 +137,7 @@
                   (when-not (coll/empty? new-selected-indices)
                     (let [first-index (new-selected-indices 0)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (ui/scroll-tree-view-to-encompass-selection! tree-view new-selected-indices)
+                      (ui/scroll-tree-view-to-encompass-selection! tree-view)
                       (ui/run-later (.focus (.getFocusModel tree-view) first-index)))))))))
         fx.lifecycle/scalar))))
 

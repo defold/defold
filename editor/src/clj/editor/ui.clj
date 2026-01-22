@@ -1147,25 +1147,27 @@
 (defn scroll-tree-view-to-encompass-selection!
   "Scrolls tree-view to show all items between first-index and last-index,
   with optional padding cells above and below."
-  ([^TreeView tree-view selected-indices]
-   (scroll-tree-view-to-encompass-selection! tree-view selected-indices 2))
-  ([^TreeView tree-view selected-indices scroll-padding-cells]
+  ([^TreeView tree-view]
+   (scroll-tree-view-to-encompass-selection! tree-view 2))
+  ([^TreeView tree-view ^long scroll-padding-cells]
    {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
-   (let [first-index (first selected-indices)
-         last-index (peek selected-indices)
+   (let [selected-indices (.getSelectedIndices (.getSelectionModel tree-view))
+         first-index (int (first selected-indices))
+         last-index (int (last selected-indices))
          skin ^ExtendedTreeViewSkin (.getSkin tree-view)
          flow (.getVirtualFlowInstance skin)
-         last-visible-idx (.getIndex (.getLastVisibleCell flow))]
+         last-visible-idx (int (.getIndex (.getLastVisibleCell flow)))]
      (when (and (>= last-index first-index 0) (.shouldScrollTo skin first-index))
-       (if (> last-index last-visible-idx)
-         (let [fixed-cell-size (.getHeight (.getCell flow first-index))
-               cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
-           (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
-         ;; NOTE: We don't have to do any bounds checking because JavaFX clamps if we are out
-         ;; of bounds and will scroll to the min/max values
-         (.scrollTo tree-view (dec first-index)))))))
+       (run-later
+         (if (> last-index last-visible-idx)
+           (let [fixed-cell-size (.getHeight (.getCell flow first-index))
+                 cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
+             (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
+           ;; NOTE: We don't have to do any bounds checking because JavaFX clamps if we are out
+           ;; of bounds and will scroll to the min/max values
+           (.scrollTo tree-view (dec first-index))))))))
 
-(defn scroll-tree-view-to-center-item! [^TreeView tree-view index]
+(defn scroll-tree-view-to-center-item! [^TreeView tree-view ^long index]
   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
   (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)]
     (when (.shouldScrollTo skin index)

@@ -46,7 +46,7 @@
            [java.nio.file Path Paths]
            [javafx.scene Node]
            [javafx.scene.control SelectionMode TreeCell TreeItem TreeView]
-           [javafx.scene.input Clipboard ClipboardContent DragEvent KeyCode KeyEvent MouseEvent MouseEvent TransferMode]
+           [javafx.scene.input Clipboard ClipboardContent DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.stage Stage]
            [org.apache.commons.io FilenameUtils]))
 
@@ -694,7 +694,7 @@
           (when (not (coll/empty? selected-indices))
             (ui/select-indices! tree-view selected-indices)
             (when-not (= old-tree-view-ids selected-ids)
-              (ui/scroll-tree-view-to-encompass-selection! tree-view selected-indices))))))))
+              (ui/scroll-tree-view-to-encompass-selection! tree-view))))))))
 
 (defn- update-tree-view-selection!
   [^TreeView tree-view selected-ids old-tree-view-ids]
