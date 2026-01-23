@@ -882,8 +882,9 @@ namespace dmGameObject
      */
     void AddDynamicResourceHash(HCollection collection, dmhash_t path_hash);
 
-    /**
+    /*#
      * Retrieve a hash property from a component.
+     * @name GetPropertyAsHash
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -892,8 +893,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value);
 
-    /**
+    /*#
      * Retrieve a float property from a component.
+     * @name GetPropertyAsFloat
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -902,8 +904,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float* out_value);
 
-    /**
+    /*#
      * Retrieve a vector3 property from a component.
+     * @name GetPropertyAsVector3
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -912,8 +915,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value);
 
-    /**
+    /*#
      * Retrieve a vector4 property from a component.
+     * @name GetPropertyAsVector4
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -922,8 +926,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value);
 
-    /**
+    /*#
      * Retrieve a quaternion property from a component.
+     * @name GetPropertyAsQuat
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -932,8 +937,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value);
 
-    /**
+    /*#
      * Retrieve a boolean property from a component.
+     * @name GetPropertyAsBool
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -942,8 +948,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool* out_value);
 
-    /**
+    /*#
      * Retrieve a url property from a component.
+     * @name GetPropertyAsURL
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -952,8 +959,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value);
 
-    /**
+    /*#
      * Retrieve a matrix4 property from a component.
+     * @name GetPropertyAsMatrix
      * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -962,8 +970,9 @@ namespace dmGameObject
      */
     PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value);
 
-    /**
+    /*#
      * Sets the value of a hash property on a component.
+     * @name SetPropertyFromHash
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -972,8 +981,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value);
 
-    /**
+    /*#
      * Sets the value of a float property on a component.
+     * @name SetPropertyFromHash
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -982,8 +992,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float value);
 
-    /**
+    /*#
      * Sets the value of a vector3 property on a component.
+     * @name SetPropertyFromVector3
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -992,8 +1003,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value);
 
-    /**
+    /*#
      * Sets the value of a vector4 property on a component.
+     * @name SetPropertyFromVector4
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -1002,8 +1014,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value);
 
-    /**
+    /*#
      * Sets the value of a quaternion property on a component.
+     * @name SetPropertyFromQuat
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -1012,8 +1025,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value);
 
-    /**
+    /*#
      * Sets the value of a boolean property on a component.
+     * @name SetPropertyFromBool
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -1022,8 +1036,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool value);
 
-    /**
+    /*#
      * Sets the value of a URL property on a component.
+     * @name SetPropertyFromURL
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
@@ -1032,8 +1047,9 @@ namespace dmGameObject
      */
     PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value);
 
-    /**
+    /*#
      * Sets the value of a matrix4 property on a component.
+     * @name SetPropertyFromMatrix4
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
