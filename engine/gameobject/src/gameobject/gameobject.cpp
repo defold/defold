@@ -3993,7 +3993,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
-    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4 value)
+    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4& value)
     {
         PropertyOptions options;
         PropertyVar prop_value(value);
