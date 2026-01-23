@@ -1,0 +1,15 @@
+default_animation: "referenced"
+material: "/linked_directory/referenced.material"
+attributes {
+  name: "tint"
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+}
+textures {
+  sampler: "texture_sampler"
+  texture: "/linked_directory/referenced.atlas"
+}

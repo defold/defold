@@ -141,9 +141,6 @@
         (when (and read-fn
                    (not lazy-loaded))
           (try
-            ;; TODO(save-value-cleanup): This shouldn't be able to happen anymore. Remove this check after some time in the wild.
-            (assert (and (not= :folder (resource/source-type resource))
-                         (resource/exists? resource)))
             (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
               (resource/read-source-value+sha256-hex resource read-fn))
             (catch Exception exception

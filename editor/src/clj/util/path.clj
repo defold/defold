@@ -20,16 +20,19 @@
            [java.io BufferedInputStream BufferedOutputStream File]
            [java.net URI URL]
            [java.nio.charset Charset StandardCharsets]
-           [java.nio.file FileVisitResult FileVisitor Files LinkOption NoSuchFileException OpenOption Path StandardOpenOption]
+           [java.nio.file CopyOption FileVisitOption FileVisitResult FileVisitor Files LinkOption NoSuchFileException OpenOption Path StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
-           [java.util Set]))
+           [java.util Comparator Set]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defonce ^:private ^CopyOption/1 empty-copy-option-array (make-array CopyOption 0))
 (defonce ^:private ^FileAttribute/1 empty-file-attribute-array (make-array FileAttribute 0))
+(defonce ^:private ^FileVisitOption/1 empty-file-visit-option-array (make-array FileVisitOption 0))
 (defonce ^:private ^LinkOption/1 empty-link-option-array (make-array LinkOption 0))
 (defonce ^:private ^String/1 empty-string-array (make-array String 0))
+
 (defonce ^:private ^OpenOption/1 append-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/APPEND]))
 (defonce ^:private ^OpenOption/1 overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
 
@@ -126,7 +129,8 @@
 
 (defn real
   "Returns the canonical, real path to an existing file system entry. Throws an
-  IOException if there was no matching entry in the file system."
+  IOException if there was no matching entry in the file system. Follows
+  symbolic links and queries their target."
   (^Path [x]
    (.toRealPath (as-path x) empty-link-option-array))
   (^Path [x & xs]
@@ -172,6 +176,14 @@
   ^Path [this other]
   (.resolveSibling (as-path this) (as-path other)))
 
+(defn reroot
+  "Coerces all arguments to java.nio.file.Path, then replace the start of the
+  path specified by this-root with the other-root in this path."
+  ^Path [this this-root other-root]
+  (->> (relativize this-root this)
+       (.resolve (as-path other-root))
+       (.normalize)))
+
 (defn root
   "Coerces the argument to a java.nio.file.Path and returns its root component
   as a Path, or nil if the path does not have a root component."
@@ -200,7 +212,7 @@
 (defn last-modified-ms
   "Coerces the argument to a java.nio.file.Path and returns the last modified
   time of the corresponding file system entry in milliseconds since the UNIX
-  epoch."
+  epoch. Follows symbolic links and queries their target."
   ^long [x]
   (.toMillis (Files/getLastModifiedTime (as-path x) empty-link-option-array)))
 
@@ -214,34 +226,44 @@
 (defn attributes
   "Coerces the argument to a java.nio.file.Path and reads the attributes of the
   denoted file system entry as a bulk operation. Returns an instance of the
-  java.nio.file.attribute.BasicFileAttributes interface."
+  java.nio.file.attribute.BasicFileAttributes interface. Follows symbolic links
+  and queries their target."
   ^BasicFileAttributes [x]
   (^[Path Class LinkOption/1] Files/readAttributes (as-path x) BasicFileAttributes empty-link-option-array))
 
 (defn posix-file-permissions
   "Coerces the argument to a java.nio.file.Path and returns its POSIX file
   permissions as a set of java.nio.file.attribute.PosixFilePermission enum
-  values."
+  values. Follows symbolic links and queries their target."
   ^Set [x]
   (Files/getPosixFilePermissions (as-path x) empty-link-option-array))
 
 (defn exists?
   "Coerces the argument to a java.nio.file.Path and returns true if a
-  corresponding file system entry exists."
+  corresponding file system entry exists. Follows symbolic links and queries
+  their target."
   [x]
   (Files/exists (as-path x) empty-link-option-array))
 
 (defn directory?
   "Coerces the argument to a java.nio.file.Path and returns true if a
-  corresponding file system entry exists and is a directory."
+  corresponding file system entry exists and is a directory. Follows symbolic
+  links and queries their target."
   [x]
   (Files/isDirectory (as-path x) empty-link-option-array))
 
 (defn file?
   "Coerces the argument to a java.nio.file.Path and returns true if a
-  corresponding file system entry exists and is a regular file."
+  corresponding file system entry exists and is a regular file. Follows symbolic
+  links and queries their target."
   [x]
   (Files/isRegularFile (as-path x) empty-link-option-array))
+
+(defn symbolic-link?
+  "Coerces the argument to a java.nio.file.Path and returns true if a
+  corresponding file system entry exists and is a symbolic link."
+  [x]
+  (Files/isSymbolicLink (as-path x)))
 
 (defn absolute?
   "Coerces the argument to a java.nio.file.Path and returns true if the path is
@@ -257,8 +279,8 @@
 
 (defn same?
   "Coerces both arguments to java.nio.file.Path and returns true if both paths
-  refer to the same file system entry. Returns false when one or more of the
-  paths do not exist."
+  locate the same file system entry. Returns false when one or more of the paths
+  do not exist. Follows symbolic links and compares their targets."
   [x y]
   (let [a (as-path x)
         b (as-path y)]
@@ -285,6 +307,16 @@
   [this suffix]
   (.endsWith (as-path this) (as-path suffix)))
 
+(defn move!
+  "Coerces both arguments to java.nio.file.Path and moves this file to the
+  new path specified as the destination. If this path is a symlink, the symlink
+  itself will be moved. Can be used to move a non-empty directory to a new
+  destination on the same FileStore. However, if the FileStore differs, and it
+  is determined that the operation requires copying the directory contents, this
+  function will throw an IOException. Returns the destination Path."
+  [this destination]
+  (Files/move (as-path this) (as-path destination) empty-copy-option-array))
+
 (defn delete!
   "Coerces the argument to a java.nio.file.Path and deletes the corresponding
   entry from the file system. If the entry is a symbolic link, then the symbolic
@@ -292,6 +324,19 @@
   to a directory, then the directory must be empty. Returns nil."
   [x]
   (Files/delete (as-path x)))
+
+(defn delete-tree!
+  "Coerces the argument to a java.nio.file.Path and deletes all the entries in
+  the corresponding directory tree from the file system. If the path refers to a
+  symbolic link, then the symbolic link itself, not the final target of the
+  link, is deleted. If the path refers to a regular file, it will be deleted. If
+  the path refers to a directory, the directory and all files within it will be
+  deleted. Returns nil."
+  [x]
+  (-> (as-path x)
+      (Files/walk empty-file-visit-option-array)
+      (.sorted (Comparator/reverseOrder))
+      (.forEach Files/delete)))
 
 (defn create-directory!
   "Coerces the argument to a java.nio.file.Path and creates a directory
@@ -314,18 +359,17 @@
   the argument was coerced into."
   ^Path [x]
   (let [path (as-path x)]
-    (when-let [parent (.getParent (as-path x))]
+    (when-let [parent (.getParent path)]
       (create-directories! parent))
     path))
 
 (defn create-symbolic-link!
   "Coerces both arguments to java.nio.file.Path and creates a symbolic link in
   the file system at the path denoted by the link argument referring to the path
-  denoted by the target argument."
+  denoted by the target argument. Returns the Path to the symbolic link."
   ^Path [link target]
   (let [link-path (as-path link)
         target-path (as-path target)]
-    (create-parent-directories! link-path)
     (Files/createSymbolicLink link-path target-path empty-file-attribute-array)))
 
 (defn tree-walker
