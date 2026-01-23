@@ -581,6 +581,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("hash"), &geth);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(seth, geth);
+    // check that it verifies property type
+    r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("vec3"), &geth);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     float getf;
     float setf = -123;
@@ -592,6 +595,8 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("number"), &getf);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(setf, getf);
+    r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("vec3"), &getf);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Vector3 getvec3;
     dmVMath::Vector3 setvec3 = dmVMath::Vector3(-10, -1, 9);
@@ -603,6 +608,8 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("vec3"), &getvec3);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector3(setvec3, getvec3), 0.0001f);
+    r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("url"), &getvec3);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Vector4 getvec4;
     dmVMath::Vector4 setvec4 = dmVMath::Vector4(-10, -1, 9, 500);
@@ -614,6 +621,8 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("vec4"), &getvec4);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector4(setvec4, getvec4), 0.0001f);
+    r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("number"), &getvec4);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Quat getquat;
     dmVMath::Quat setquat = dmVMath::Quat(-10, -1, 9, 500);
@@ -625,6 +634,8 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("quat"), &getquat);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffQuat(setquat, getquat), 0.0001f);
+    r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("number"), &getquat);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     bool getb;
     bool setb = 1;
@@ -636,6 +647,8 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("bool"), &getb);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(setb, getb);
+    r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("vec3"), &getb);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmMessage::URL geturl;
     dmMessage::URL seturl;
@@ -652,6 +665,8 @@ TEST_F(PropsTest, PropsGetSetAs)
     ASSERT_EQ(seturl.m_Socket, geturl.m_Socket);
     ASSERT_EQ(seturl.m_Path, geturl.m_Path);
     ASSERT_EQ(seturl.m_Fragment, geturl.m_Fragment);
+    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("vec3"), &geturl);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmGameObject::Delete(m_Collection, instance, false);
 }
