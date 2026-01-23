@@ -1056,7 +1056,7 @@ namespace dmGameObject
      * @param value [type:dmVMath::Matrix4] Value of the property
      * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4& value);
+    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value);
 
     // These functions are used for profiling functionality
 
