@@ -582,7 +582,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(seth, geth);
     // check that it verifies property type
-    r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("vec3"), &geth);
+    r = dmGameObject::GetPropertyAsHash(instance, 0, hash("rotation"), &geth);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromHash(instance, 0, hash("rotation"), seth);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     float getf;
@@ -595,7 +597,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("number"), &getf);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(setf, getf);
-    r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("vec3"), &getf);
+    r = dmGameObject::GetPropertyAsFloat(instance, 0, hash("rotation"), &getf);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromFloat(instance, 0, hash("rotation"), setf);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Vector3 getvec3;
@@ -608,7 +612,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("vec3"), &getvec3);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector3(setvec3, getvec3), 0.0001f);
-    r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("url"), &getvec3);
+    r = dmGameObject::GetPropertyAsVector3(instance, 0, hash("rotation"), &getvec3);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromVector3(instance, 0, hash("rotation"), setvec3);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Vector4 getvec4;
@@ -621,7 +627,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("vec4"), &getvec4);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffVector4(setvec4, getvec4), 0.0001f);
-    r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("number"), &getvec4);
+    r = dmGameObject::GetPropertyAsVector4(instance, 0, hash("rotation"), &getvec4);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromVector4(instance, 0, hash("rotation"), setvec4);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmVMath::Quat getquat;
@@ -634,7 +642,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("quat"), &getquat);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_LT(DiffQuat(setquat, getquat), 0.0001f);
-    r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("number"), &getquat);
+    r = dmGameObject::GetPropertyAsQuat(instance, 0, hash("position"), &getquat);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromQuat(instance, 0, hash("position"), setquat);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     bool getb;
@@ -647,7 +657,9 @@ TEST_F(PropsTest, PropsGetSetAs)
     r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("bool"), &getb);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     ASSERT_EQ(setb, getb);
-    r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("vec3"), &getb);
+    r = dmGameObject::GetPropertyAsBool(instance, 0, hash("rotation"), &getb);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromBool(instance, 0, hash("position"), setb);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmMessage::URL geturl;
@@ -666,6 +678,10 @@ TEST_F(PropsTest, PropsGetSetAs)
     ASSERT_EQ(seturl.m_Path, geturl.m_Path);
     ASSERT_EQ(seturl.m_Fragment, geturl.m_Fragment);
     r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("vec3"), &geturl);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsURL(instance, 0, hash("rotation"), &geturl);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromURL(instance, 0, hash("position"), seturl);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
 
     dmGameObject::Delete(m_Collection, instance, false);
