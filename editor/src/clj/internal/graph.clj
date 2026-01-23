@@ -848,7 +848,7 @@
                  result')
           (persistent! result'))))))
 
-(defn- update-successors
+(defn- update-graph-successors
   ^Successors [^Successors successors changes]
   ;; changes = {node-id #{outputs}|nil}
   ;; when changes value is nil, it means that every output was invalidated
@@ -1243,7 +1243,7 @@
   ;; changes = {node-id #{outputs}|nil}
   (reduce (fn [basis [graph-id changes]]
             (if (contains? (:graphs basis) graph-id)
-              (update-in basis [:graphs graph-id :successors] update-successors changes)
+              (update-in basis [:graphs graph-id :successors] update-graph-successors changes)
               basis))
           basis
           (util/group-into {} {} (comp gt/node-id->graph-id first) changes)))
