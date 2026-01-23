@@ -24,25 +24,41 @@
   (:require [leiningen.core.eval :as eval]
             [leiningen.core.main :as main]
             [bultitude.core :as b]
+            [clojure.tools.namespace.find :as ns.find]
             [clojure.java.io :as io]))
 
-(defn check-and-exit
-  "Check syntax, warn on reflection and then run Platform/exit."
-  ([project]
-   (try
-     (binding [eval/*pump-in* false]
-       (eval/eval-in-project project
-                             `(let [failures# (atom 0)]
-                                (try
-                                  (binding [*warn-on-reflection* true]
-                                    (require 'editor.bootloader)
-                                    (eval '(editor.bootloader/load-synchronous true)))
-                                  (catch ExceptionInInitializerError e#
-                                    (swap! failures# inc)
-                                    (.printStackTrace e#)))
-                                (javafx.application.Platform/exit)
-                                (shutdown-agents)
-                                (if-not (zero? @failures#)
-                                  (System/exit @failures#)))))
-     (catch clojure.lang.ExceptionInfo e
-       (main/abort "Failed.")))))
+(defn check-and-exit [project]
+  (let [project-root (:root project)
+        proj-ns-set (into #{} (map str (ns.find/find-namespaces-in-dir (io/file project-root "src" "clj"))))]
+    (try
+      (binding [eval/*pump-in* false]
+        (eval/eval-in-project
+          project
+          `(let [stderr-output# (java.io.StringWriter.)
+                 proj-ns-set# ~proj-ns-set]
+             (try
+               (binding [*err* (java.io.PrintWriter. stderr-output#)
+                         *warn-on-reflection* true]
+                 (require 'editor.bootloader)
+                 (eval '(editor.bootloader/load-synchronous true)))
+               (catch ExceptionInInitializerError e#
+                 (.printStackTrace e#)))
+             (let [reflection-count#
+                   (->> (str stderr-output#)
+                        (clojure.string/split-lines)
+                        (filter #(.startsWith % "Reflection warning, "))
+                        (keep (fn [warning#]
+                                (when-let [[_# file-path#] (re-find #"Reflection warning, ([^:]+):" warning#)]
+                                  (try
+                                    (let [full-path# (clojure.java.io/file ~project-root "src" "clj" file-path#)
+                                          content# (slurp full-path#)
+                                          [_# ns-name#] (re-find #"\(ns\s+([^\s)]+)" content#)]
+                                      (when (proj-ns-set# ns-name#)
+                                        warning#))
+                                    (catch Exception _# nil))))))]
+               (when (seq reflection-count#)
+                 (println (str "Reflection Check Failed: Found " (count reflection-count#) " reflection warning(s):")))
+               (doseq [line# reflection-count#] (println line#))
+               (System/exit (count reflection-count#))))))
+      (catch clojure.lang.ExceptionInfo e
+        (main/abort "Failed.")))))
