@@ -972,7 +972,7 @@
    (assert (g/has-output? (g/node-type* basis node-id) output-label) "Only outputs have successors.")
    (let [graph-id (g/node-id->graph-id node-id)]
      (into (sorted-set)
-           (get-in basis [:graphs graph-id :successors node-id output-label])))))
+           (#'internal.graph/query-successors (get-in basis [:graphs graph-id :successors]) basis node-id output-label)))))
 
 (defn- dependent-internal-output-endpoints
   ([node-id label]
