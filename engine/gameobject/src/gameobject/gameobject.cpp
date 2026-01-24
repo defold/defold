@@ -3569,6 +3569,168 @@ namespace dmGameObject
         }
     }
 
+    PropertyResult GetPropertyAsHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_HASH == out_prop.m_Variant.m_Type)
+            {
+                *out_value = out_prop.m_Variant.m_Hash;
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_NUMBER == out_prop.m_Variant.m_Type)
+            {
+                *out_value = out_prop.m_Variant.m_Number;
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_VECTOR3 == out_prop.m_Variant.m_Type)
+            {
+                out_value->setX(out_prop.m_Variant.m_V4[0]);
+                out_value->setY(out_prop.m_Variant.m_V4[1]);
+                out_value->setZ(out_prop.m_Variant.m_V4[2]);
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_VECTOR4 == out_prop.m_Variant.m_Type)
+            {
+                out_value->setX(out_prop.m_Variant.m_V4[0]);
+                out_value->setY(out_prop.m_Variant.m_V4[1]);
+                out_value->setZ(out_prop.m_Variant.m_V4[2]);
+                out_value->setW(out_prop.m_Variant.m_V4[3]);
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_QUAT == out_prop.m_Variant.m_Type)
+            {
+                out_value->setX(out_prop.m_Variant.m_V4[0]);
+                out_value->setY(out_prop.m_Variant.m_V4[1]);
+                out_value->setZ(out_prop.m_Variant.m_V4[2]);
+                out_value->setW(out_prop.m_Variant.m_V4[3]);
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_BOOLEAN == out_prop.m_Variant.m_Type)
+            {
+                *out_value = out_prop.m_Variant.m_Bool;
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_URL == out_prop.m_Variant.m_Type)
+            {
+                dmMessage::URL* url = (dmMessage::URL*) out_prop.m_Variant.m_URL;
+                out_value->m_Socket = url->m_Socket;
+                out_value->_reserved = url->_reserved;
+                out_value->m_Path = url->m_Path;
+                out_value->m_Fragment = url->m_Fragment;
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+    PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
+    {
+        PropertyOptions options;
+        PropertyDesc out_prop;
+        PropertyResult result = GetProperty(instance, component_id, property_id, options, out_prop);
+        if (result == PROPERTY_RESULT_OK)
+        {
+            if (PROPERTY_TYPE_MATRIX4 == out_prop.m_Variant.m_Type)
+            {
+                out_value->setCol0(dmVMath::Vector4(out_prop.m_Variant.m_M4[0],  out_prop.m_Variant.m_M4[1],  out_prop.m_Variant.m_M4[2],  out_prop.m_Variant.m_M4[3]));
+                out_value->setCol1(dmVMath::Vector4(out_prop.m_Variant.m_M4[4],  out_prop.m_Variant.m_M4[5],  out_prop.m_Variant.m_M4[6],  out_prop.m_Variant.m_M4[7]));
+                out_value->setCol2(dmVMath::Vector4(out_prop.m_Variant.m_M4[8],  out_prop.m_Variant.m_M4[9],  out_prop.m_Variant.m_M4[10], out_prop.m_Variant.m_M4[11]));
+                out_value->setCol3(dmVMath::Vector4(out_prop.m_Variant.m_M4[12], out_prop.m_Variant.m_M4[13], out_prop.m_Variant.m_M4[14], out_prop.m_Variant.m_M4[15]));
+            }
+            else
+            {
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        return result;
+    }
+
+
+
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value)
     {
         if (instance == 0)
@@ -3780,6 +3942,63 @@ namespace dmGameObject
             }
         }
         return PROPERTY_RESULT_OK;
+    }
+
+    PropertyResult SetPropertyFromHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
+    }
+    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value)
+    {
+        PropertyOptions options;
+        PropertyVar prop_value(value);
+        PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
+        return r;
     }
 
     // Recreate the instance at the given index with a new prototype.

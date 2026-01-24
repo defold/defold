@@ -31,7 +31,8 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.path :as path])
   (:import [editor.code.data Cursor CursorRange]
            [java.io File InputStream]
            [java.lang ProcessBuilder$Redirect ProcessHandle]
@@ -267,7 +268,7 @@
                :diagnostics {:globals (-> lua/defined-globals
                                           (into (lua/extract-globals-from-completions completions))
                                           (into (lua/extract-globals-from-completions lua/editor-completions)))}
-               :workspace {:library [(str (fs/path root ".internal" "lua-annotations"))]}})
+               :workspace {:library [(str (path/of root ".internal" "lua-annotations"))]}})
 
             "files.associations"
             (let [workspace (g/node-value project :workspace evaluation-context)

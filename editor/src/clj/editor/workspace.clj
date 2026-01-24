@@ -41,7 +41,8 @@ ordinary paths."
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.eduction :as e]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.path :as path])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [com.dynamo.bob Platform]
@@ -140,7 +141,10 @@ ordinary paths."
   (make-writer [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (as-file [this] (File. (resource/abs-path this))))
+  (as-file [this] (File. (resource/abs-path this)))
+
+  path/Coercions
+  (as-path [this] (path/as-path (resource/abs-path this))))
 
 (defmethod print-method BuildResource [build-resource ^java.io.Writer w]
   ;; Avoid evaluating resource-type, since it requires a live system. As a

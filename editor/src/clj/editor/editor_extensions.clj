@@ -57,7 +57,8 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.http-client :as http]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [clojure.lang IDeref]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
@@ -185,13 +186,13 @@
                                (fn type-ext->template [ext]
                                  (or (workspace/template workspace (get resource-types ext) evaluation-context) "")))]
       (-> (future/io
-            (let [root-path (fs/real-path project-dir)
+            (let [root-path (path/real project-dir)
                   path+contents (mapv (fn [{proj-path 1 content 2}]
-                                        (let [file-path (.normalize (fs/path (str root-path proj-path)))]
+                                        (let [file-path (path/normalized (str root-path proj-path))]
                                           (when-not (.startsWith file-path root-path)
                                             (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))
-                                          (when (fs/path-exists? file-path)
-                                            (if (fs/path-is-directory? file-path)
+                                          (when (path/exists? file-path)
+                                            (if (path/directory? file-path)
                                               (throw (LuaError. (str "Directory already exists in place of file: " proj-path)))
                                               (throw (LuaError. (str "Resource already exists: " proj-path)))))
                                           (let [content (or content
@@ -208,7 +209,7 @@
                            (when (< 1 frequency)
                              (throw (LuaError. (str "Resource repeated more than once: /" (string/replace (str (.relativize root-path path)) \\ \/))))))))
               (run! (fn [[file-path content]]
-                      (fs/create-path-parent-directories! file-path)
+                      (path/create-parent-directories! file-path)
                       (spit file-path content))
                     path+contents)))
           (future/then (fn [_] (reload-resources!)))
@@ -220,13 +221,12 @@
       (let [basis (:basis evaluation-context)
             workspace (project/workspace project evaluation-context)
             root-path (-> (workspace/project-directory basis workspace)
-                          (fs/real-path))
+                          (path/real))
             dir-path (-> (str root-path proj-path)
-                         (fs/as-path)
-                         (.normalize))]
+                         (path/normalized))]
         (if (.startsWith dir-path root-path)
           (try
-            (fs/create-path-directories! dir-path)
+            (path/create-directories! dir-path)
             (future/then (reload-resources!) rt/and-refresh-context)
             (catch FileAlreadyExistsException e
               (throw (LuaError. (str "File already exists: " (.getMessage e)))))
@@ -240,10 +240,9 @@
           proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
           workspace (project/workspace project evaluation-context)
           root-path (-> (workspace/project-directory basis workspace)
-                        (fs/real-path))
+                        (path/real))
           dir-path (-> (str root-path proj-path)
-                       (fs/as-path)
-                       (.normalize))
+                       (path/normalized))
           protected-paths (mapv #(.resolve root-path ^String %)
                                 [".git"
                                  ".internal"])
@@ -274,9 +273,9 @@
     (let [^String path-str (rt/->clj rt coerce/string lua-path)
           path (.normalize (.resolve project-path path-str))]
       (future/io
-        (if (fs/path-exists? path)
-          (let [attrs (fs/path-attributes path)]
-            {:path (str (.toRealPath path fs/empty-link-option-array))
+        (if (path/exists? path)
+          (let [attrs (path/attributes path)]
+            {:path (str (path/real path))
              :exists true
              :is_file (.isRegularFile attrs)
              :is_directory (.isDirectory attrs)})
@@ -385,7 +384,7 @@
   (rt/suspendable-lua-fn ext-remove-file [{:keys [rt]} lua-file-name]
     (let [file-name (rt/->clj rt coerce/string lua-file-name)
           file-path (ensure-file-path-in-project-directory project-path file-name)]
-      (when-not (Files/exists file-path fs/empty-link-option-array)
+      (when-not (path/exists? file-path)
         (throw (LuaError. (str "No such file or directory: " file-name))))
       (Files/delete file-path)
       (future/then (reload-resources!) rt/and-refresh-context))))

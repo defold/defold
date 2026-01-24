@@ -251,6 +251,10 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
         TextGlyph g = {0};
         g.m_Font = font;
         g.m_Codepoint = c;
+        // make sure to always set the position of the glyph, regardless
+        // if FontGetGlyph was successful or not (see #11766)
+        g.m_X = x;
+        g.m_Y = y;
 
         uint32_t whitespace = dmUtf8::IsWhiteSpace(c);
         num_whitespaces += whitespace;
@@ -262,8 +266,6 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
                 g.m_Codepoint = font_glyph.m_Codepoint;   // may be the correct one, or the fallback one
             }
             g.m_GlyphIndex = font_glyph.m_GlyphIndex;
-            g.m_X = x;
-            g.m_Y = y;
             g.m_Width = font_glyph.m_Width * scale;
             g.m_Height = font_glyph.m_Height * scale;
             g.m_Advance = font_glyph.m_Advance * scale;

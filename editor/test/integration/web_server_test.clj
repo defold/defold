@@ -37,7 +37,8 @@
             [util.coll :as coll]
             [util.eduction :as e]
             [util.http-client :as http]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
@@ -77,7 +78,7 @@
   ;; file->path
   (is (= {:status 200
           :headers {"content-type" "text/plain"}
-          :body (fs/path "project.clj")}
+          :body (path/of "project.clj")}
          (http-server/response 200 (io/file "project.clj"))))
   ;; resource: jar file url
   (is (= {:status 200
@@ -93,7 +94,7 @@
     ;; editor resources: file->path
     (is (= {:status 200
             :headers {"content-type" "text/plain"}
-            :body (fs/path (workspace/project-directory workspace) "game.project")}
+            :body (path/of (workspace/project-directory workspace) "game.project")}
            (http-server/response 200 (workspace/find-resource workspace "/game.project"))))
     ;; editor resources: zip as is
     (is (= {:status 200
@@ -113,7 +114,7 @@
 
 (deftest response-write-test
   ;; file
-  (let [project-clj-size (fs/path-size (fs/path "project.clj"))]
+  (let [project-clj-size (path/byte-size "project.clj")]
     (is (= {:status 200
             :headers {"content-length" (str project-clj-size)
                       "content-type" "text/plain"}

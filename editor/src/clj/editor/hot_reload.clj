@@ -14,9 +14,9 @@
 
 (ns editor.hot-reload
   (:require [clojure.string :as string]
-            [editor.fs :as fs]
             [editor.workspace :as workspace]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [java.net URI URISyntaxException]))
 
 (set! *warn-on-reflection* true)
@@ -51,10 +51,9 @@
     {"/build/{*path}"
      {"GET" (bound-fn [{:keys [path-params headers]}]
               (let [^String path (:path path-params)
-                    full-path (.normalize (.resolve build-path path))]
-                (if (and (.startsWith full-path build-path) ;; Avoid going outside the build path with '..'
-                         (fs/path-exists? full-path)
-                         (not (fs/path-is-directory? full-path)))
+                    full-path (path/normalized (path/resolve build-path path))]
+                (if (and (path/starts-with? full-path build-path) ;; Avoid going outside the build path with '..'
+                         (path/file? full-path))
                   (let [etag (workspace/etag workspace (str "/" path))
                         remote-etag (get headers "if-none-match")]
                     (if (and remote-etag (= etag remote-etag))

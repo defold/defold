@@ -62,7 +62,10 @@ namespace dmGraphics
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
-    typedef uint64_t HAssetHandle;
+    typedef uint64_t       HAssetHandle;
+
+    // Defined in graphics_private.h
+    typedef struct UniformBuffer* HUniformBuffer;
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
@@ -234,6 +237,16 @@ namespace dmGraphics
         HUniformLocation m_Location;
         Type             m_Type;
         uint32_t         m_Count;
+    };
+
+    // The uniform buffer layout is used to validate a uniform buffer
+    // with a shader resource binding by comparing the hash of
+    // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
+    // If the buffer layout differs from the binding, it cannot be used.
+    struct UniformBufferLayout
+    {
+        uint32_t m_Size;
+        uint32_t m_Hash;
     };
 
     /** Creates a graphics context
@@ -410,6 +423,13 @@ namespace dmGraphics
     // Uniforms
     uint32_t         GetUniformCount(HProgram prog);
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
+
+    // Uniform buffers
+    HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
+    void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
+    void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
+    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

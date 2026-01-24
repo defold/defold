@@ -400,6 +400,150 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+TEST_F(dmGraphicsTest, TestUniformBuffers)
+{
+    const char* vertex_data = ""
+        "void main()\n"
+        "{\n"
+        "    gl_Position = vec4(1.0);\n"
+        "}\n";
+
+    const char* fragment_data = ""
+        "uniform buf\n"
+        "{\n"
+        "    float f;\n"
+        "    vec2 v2;\n"
+        "    vec3 v3;\n"
+        "    vec4 v4;\n"
+        "};\n"
+
+        "void main()\n"
+        "{\n"
+        "    gl_FragColor = vec4(1.0);\n"
+        "}\n";
+
+    struct ubo_data_t
+    {
+        float f;
+        float v2[2];
+        float v3[3];
+        float v4[4];
+    } ubo_data;
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
+
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
+    uint32_t offset = 0;
+
+    dmGraphics::ShaderDesc::ResourceMember buf_members[4] = {};
+    buf_members[0].m_Name                     = "f";
+    buf_members[0].m_NameHash                 = dmHashString64(buf_members[0].m_Name);
+    buf_members[0].m_Offset                   = offset;
+    buf_members[0].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+    offset += sizeof(float);
+
+    buf_members[1].m_Name                     = "v2";
+    buf_members[1].m_NameHash                 = dmHashString64(buf_members[1].m_Name);
+    buf_members[1].m_Offset                   = offset;
+    buf_members[1].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC2;
+    offset += sizeof(float) * 2;
+
+    buf_members[2].m_Name                     = "v3";
+    buf_members[2].m_NameHash                 = dmHashString64(buf_members[2].m_Name);
+    buf_members[2].m_Offset                   = offset;
+    buf_members[2].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+    offset += sizeof(float) * 3;
+
+    buf_members[3].m_Name                     = "v4";
+    buf_members[3].m_NameHash                 = dmHashString64(buf_members[3].m_Name);
+    buf_members[3].m_Offset                   = offset;
+    buf_members[3].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+    offset += sizeof(float) * 4;
+
+    shader_desc_builder.AddTypeMemberWithMembers("buf", buf_members, DM_ARRAY_SIZE(buf_members));
+    shader_desc_builder.AddUniformBuffer("buf", 0, 0, offset);
+
+    dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader, 0, 0);
+    const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    ASSERT_EQ(1, null_program->m_UniformBuffers.Size());
+
+    // Create a ubo with the same layout
+    {
+        dmGraphics::UniformBufferLayout& pgm_ubo_0 = null_program->m_BaseProgram.m_UniformBufferLayouts[0];
+
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, pgm_ubo_0);
+        dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
+
+        dmGraphics::EnableProgram(m_Context, program);
+
+        // Set the initial v4s data
+        Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
+        const dmGraphics::Uniform* uniform_v4 = dmGraphics::GetUniform(program, dmHashString64("v4"));
+        uint32_t uniform_v4_buffer_offset = UNIFORM_LOCATION_GET_OP2(uniform_v4->m_Location);
+        dmGraphics::SetConstantV4(m_Context, &constant, 1, uniform_v4->m_Location);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_FALSE(null_ubo->m_UsedInDraw); // UBO not bound yet
+
+        uint8_t* per_draw_uniforms = m_NullContext->m_PerDrawUniformData.Begin();
+        float* written_floats = (float*) (per_draw_uniforms + uniform_v4_buffer_offset);
+
+        ASSERT_NEAR(written_floats[0], 1.0f, EPSILON);
+        ASSERT_NEAR(written_floats[1], 2.0f, EPSILON);
+        ASSERT_NEAR(written_floats[2], 3.0f, EPSILON);
+        ASSERT_NEAR(written_floats[3], 4.0f, EPSILON);
+
+        // Bind a UBO and draw again, it should take values from the UBO instead.
+        ubo_data.v4[0] = 5.0f;
+        ubo_data.v4[1] = 6.0f;
+        ubo_data.v4[2] = 7.0f;
+        ubo_data.v4[3] = 8.0f;
+
+        dmGraphics::SetUniformBuffer(m_Context, ubo, 0, sizeof(ubo_data), &ubo_data);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_TRUE(null_ubo->m_UsedInDraw);
+
+        ASSERT_NEAR(written_floats[0], 5.0f, EPSILON);
+        ASSERT_NEAR(written_floats[1], 6.0f, EPSILON);
+        ASSERT_NEAR(written_floats[2], 7.0f, EPSILON);
+        ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
+
+        dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        dmGraphics::DisableProgram(m_Context);
+        dmGraphics::DeleteUniformBuffer(m_Context, ubo);
+    }
+
+    // Create a ubo that doesn't match
+    {
+        dmGraphics::UniformBufferLayout mismatched_layout = {};
+        mismatched_layout.m_Size = 1337;
+        mismatched_layout.m_Hash = -1;
+
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, mismatched_layout);
+        dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableProgram(m_Context, program);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_FALSE(null_ubo->m_UsedInDraw);
+
+        dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        dmGraphics::DisableProgram(m_Context);
+        dmGraphics::DeleteUniformBuffer(m_Context, ubo);
+    }
+
+    dmGraphics::DeleteProgram(m_Context, program);
+}
+
 TEST_F(dmGraphicsTest, TestProgram)
 {
     const char* vertex_data = ""

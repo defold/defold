@@ -38,9 +38,8 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e])
-  (:import [com.defold.control OutlineTreeViewSkin TreeCell]
+  (:import [com.defold.control ExtendedTreeViewSkin TreeCell]
            [java.awt Toolkit]
-           [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
            [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
@@ -136,12 +135,10 @@
                                              (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
                   (.clearSelection selection-model)
                   (when-not (coll/empty? new-selected-indices)
-                    (let [first-index (new-selected-indices 0)
-                          focus-model (.getFocusModel tree-view)]
+                    (let [first-index (new-selected-indices 0)]
                       (.selectIndices selection-model (peek new-selected-indices) (into-array Integer/TYPE (pop new-selected-indices)))
-                      (when (.shouldScrollTo ^OutlineTreeViewSkin (.getSkin tree-view) first-index)
-                        (.scrollTo tree-view first-index))
-                      (ui/run-later (.focus focus-model first-index)))))))))
+                      (ui/scroll-tree-view-to-encompass-selection! tree-view)
+                      (ui/run-later (.focus (.getFocusModel tree-view) first-index)))))))))
         fx.lifecycle/scalar))))
 
 ;; Iff every item-iterator has the same parent, return that parent, else nil
@@ -486,33 +483,28 @@
       node
       (target (.getParent node)))))
 
+(defn- find-tree-cell-ancestor [^Node node]
+  (when node
+    (if (instance? TreeCell node)
+      node
+      (recur (.getParent node)))))
+
 (defn- drag-over [project outline-view ^DragEvent e]
-  (if (not (instance? TreeCell (.getTarget e)))
-    (when-let [parent (.getParent ^Node (.getTarget e))]
-      (Event/fireEvent parent (.copyFor e (.getSource e) parent)))
-    (let [^TreeCell cell (.getTarget e)]
-      ;; Auto scrolling
-      (let [view (.getTreeView cell)
-            view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
-            height (.getHeight (.getBoundsInLocal view))]
-        (when (< view-y 15)
-          (.scrollTo view (dec (.getIndex cell))))
-        (when (> view-y (- height 15))
-          (.scrollTo view (inc (.getIndex cell)))))
-      (let [db (.getDragboard e)]
-        (when (and (instance? TreeCell cell)
-                   (not (.isEmpty cell))
-                   (.hasContent db (data-format-fn)))
-          (let [item-iterators (if (ui/drag-internal? e)
-                                 (root-iterators outline-view)
-                                 [])]
-            (when (outline/drop? project item-iterators (.getTreeItem cell)
-                                 (.getContent db (data-format-fn)))
-              (let [modes (if (ui/drag-internal? e)
-                            [TransferMode/MOVE]
-                            [TransferMode/COPY])]
-                (.acceptTransferModes e (into-array TransferMode modes)))
-              (.consume e))))))))
+  (when-let [^TreeCell cell (find-tree-cell-ancestor (.getTarget e))]
+    (let [db (.getDragboard e)]
+      (when (and (instance? TreeCell cell)
+                 (not (.isEmpty cell))
+                 (.hasContent db (data-format-fn)))
+        (let [item-iterators (if (ui/drag-internal? e)
+                               (root-iterators outline-view)
+                               [])]
+          (when (outline/drop? project item-iterators (.getTreeItem cell)
+                               (.getContent db (data-format-fn)))
+            (let [modes (if (ui/drag-internal? e)
+                          [TransferMode/MOVE]
+                          [TransferMode/COPY])]
+              (.acceptTransferModes e (into-array TransferMode modes)))
+            (.consume e)))))))
 
 (defn- drag-dropped [project app-view outline-view ^DragEvent e]
   (let [^TreeCell cell (target (.getTarget e))
@@ -777,7 +769,7 @@
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
-      (.setSkin (OutlineTreeViewSkin. tree-view))
+      (.setSkin (ExtendedTreeViewSkin. tree-view))
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e 
@@ -789,6 +781,7 @@
       (ui/register-context-menu ::outline-menu)
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
+      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
 

@@ -1398,11 +1398,10 @@ namespace dmGraphics
 
         upload_heap->SetName(L"Vertex Buffer Upload Resource Heap");
 
-        // store vertex buffer in upload heap
-        D3D12_SUBRESOURCE_DATA vx_data = {};
-        vx_data.pData      = data; // pointer to our vertex array
-        vx_data.RowPitch   = data_size; // size of all our vertex data
-        vx_data.SlicePitch = data_size; // also the size of our vertex data
+        D3D12_SUBRESOURCE_DATA res_data = {};
+        res_data.pData      = data;
+        res_data.RowPitch   = data_size;
+        res_data.SlicePitch = data_size;
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
 
@@ -1413,7 +1412,7 @@ namespace dmGraphics
             cmd_list = one_time_cmd_list.m_CommandList;
         }
 
-        UpdateSubresources(cmd_list, device_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
+        UpdateSubresources(cmd_list, device_buffer->m_Resource, upload_heap, 0, 0, 1, &res_data);
 
         // transition the vertex buffer data from copy destination state to vertex buffer state
         cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
@@ -1433,6 +1432,89 @@ namespace dmGraphics
 
         // TODO: Release the heap buffer deferred(?)
         // DeviceBuffer wrapped_heap_buffer();
+    }
+
+    static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
+    {
+        uint32_t aligned_size = DM_ALIGN(size, 256);
+
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(aligned_size),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            NULL,
+            IID_PPV_ARGS(&buffer->m_Resource));
+        CHECK_HR_ERROR(hr);
+
+        buffer->m_Resource->Map(0, NULL, (void**)&buffer->m_MappedDataPtr);
+        buffer->m_DataSize = aligned_size;
+    }
+
+    static HUniformBuffer DX12NewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = new DX12UniformBuffer();
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        CreateConstantBuffer(context, &ubo->m_DeviceBuffer, layout.m_Size);
+
+        return (HUniformBuffer) ubo;
+    }
+
+    static void DX12SetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*)uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        memcpy(ubo->m_DeviceBuffer.m_MappedDataPtr + offset, data, size);
+    }
+
+    static void DX12DisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        DX12Context* context = (DX12Context*)_context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        {
+            return;
+        }
+
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+        }
+
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+    }
+
+    static void DX12EnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            DX12DisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
+
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void DX12DeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
+
+        DX12DisableUniformBuffer(_context, uniform_buffer);
+        DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &ubo->m_DeviceBuffer);
+
+        delete ubo;
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2052,7 +2134,7 @@ namespace dmGraphics
 
             switch(pgm_res.m_Res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                 {
                     DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
 
@@ -2076,17 +2158,50 @@ namespace dmGraphics
                         }
                     }
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                case BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     assert(0);
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                    void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
-                    memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
+                    DX12UniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[dx12_res.m_Set][dx12_res.m_Binding];
+
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        {
+                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                pgm_res.m_Res->m_Name,
+                                pgm_layout->m_Hash);
+
+                            // Fallback to the scratch buffer uniform setup
+                            bound_ubo = 0;
+                        }
+                    }
+
+                    if (bound_ubo)
+                    {
+                        D3D12_GPU_VIRTUAL_ADDRESS gpu_addr = bound_ubo->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+
+                        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+                        {
+                            context->m_CommandList->SetGraphicsRootConstantBufferView(i, gpu_addr);
+                        }
+                        else
+                        {
+                            context->m_CommandList->SetComputeRootConstantBufferView(i, gpu_addr);
+                        }
+                    }
+                    else
+                    {
+                        const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
+                        memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_UniformBufferOffset], uniform_size_nonalign);
+                    }
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                 default: continue;
             }
         }
@@ -2146,7 +2261,7 @@ namespace dmGraphics
             uint32_t data[] = { group_count_x, group_count_y, group_count_z };
             DX12ResourceBinding& workgroup_res = context->m_CurrentProgram->m_RootSignatureResources[context->m_CurrentProgram->m_NumWorkGroupsResourceIndex];
             ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[workgroup_res.m_Set][workgroup_res.m_Binding];
-            WriteConstantData(pgm_res.m_DataOffset, context->m_CurrentProgram->m_UniformData, (uint8_t*) data, sizeof(data));
+            WriteConstantData(pgm_res.m_UniformBufferOffset, context->m_CurrentProgram->m_UniformData, (uint8_t*) data, sizeof(data));
         }
 
         CommitUniforms(context, frame_resources, PIPELINE_TYPE_COMPUTE);
@@ -2226,7 +2341,7 @@ namespace dmGraphics
         for (int i = 0; i < texture_resources.Size(); ++i)
         {
             const ShaderResourceBinding& shader_res = texture_resources[i];
-            assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+            assert(shader_res.m_BindingFamily == BINDING_FAMILY_TEXTURE);
 
             ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
 
@@ -2569,7 +2684,7 @@ namespace dmGraphics
 
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -2587,7 +2702,7 @@ namespace dmGraphics
 
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
      }
 

@@ -35,9 +35,7 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.profiler :as profiler])
-  (:import [com.defold.control ListCell]
-           [com.defold.control LongField]
-           [com.defold.control DefoldStringConverter TreeCell]
+  (:import [com.defold.control DefoldStringConverter ExtendedTreeViewSkin ListCell LongField TreeCell]
            [com.sun.javafx.event DirectEvent]
            [com.sun.javafx.scene NodeHelper]
            [java.awt Desktop Desktop$Action]
@@ -1146,11 +1144,59 @@
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
 
-(defn scroll-to-item!
-  [^TreeView tree-view ^TreeItem tree-item]
-  (let [row (.getRow tree-view tree-item)]
-    (when-not (= -1 row)
-      (.scrollTo tree-view row))))
+(defn scroll-tree-view-to-encompass-selection!
+  "Scrolls tree-view to show all items between first-index and last-index,
+  with optional padding cells above and below."
+  ([^TreeView tree-view]
+   (scroll-tree-view-to-encompass-selection! tree-view 2))
+  ([^TreeView tree-view ^long scroll-padding-cells]
+   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
+   (let [selected-indices (.getSelectedIndices (.getSelectionModel tree-view))
+         first-index (int (first selected-indices))
+         last-index (int (last selected-indices))
+         skin ^ExtendedTreeViewSkin (.getSkin tree-view)
+         flow (.getVirtualFlowInstance skin)
+         last-visible-idx (int (.getIndex (.getLastVisibleCell flow)))]
+     (when (and (>= last-index first-index 0) (.shouldScrollTo skin first-index))
+       (run-later
+         (if (> last-index last-visible-idx)
+           (let [fixed-cell-size (.getHeight (.getCell flow first-index))
+                 cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
+             (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
+           ;; NOTE: We don't have to do any bounds checking because JavaFX clamps if we are out
+           ;; of bounds and will scroll to the min/max values
+           (.scrollTo tree-view (dec first-index))))))))
+
+(defn scroll-tree-view-to-center-item! [^TreeView tree-view ^long index]
+  {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
+  (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)]
+    (when (.shouldScrollTo skin index)
+      (let [flow (.getVirtualFlowInstance skin)
+            first-visible (.getIndex (.getFirstVisibleCell flow))
+            last-visible (.getIndex (.getLastVisibleCell flow))
+            visible-count (- last-visible first-visible)
+            center-offset (quot visible-count 2)
+            scroll-target (max 0 (- index center-offset))]
+        (.scrollTo tree-view scroll-target)))))
+
+(defn- scroll-tree-view-by-pixels! [^TreeView tree-view pixels]
+  {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
+  (let [skin ^ExtendedTreeViewSkin (.getSkin tree-view)
+        flow (.getVirtualFlowInstance skin)]
+    (.scrollPixels flow pixels)))
+
+(defn handle-tree-view-scroll-on-drag! [^TreeView tree-view ^DragEvent e]
+  (let [view-y (.getY (.sceneToLocal tree-view (.getSceneX e) (.getSceneY e)))
+        height (.getHeight (.getBoundsInLocal tree-view))
+        scroll-zone 40
+        max-speed 16]
+    (cond
+      (< view-y scroll-zone)
+      (let [speed (* max-speed (- 1 (/ view-y scroll-zone)))]
+        (scroll-tree-view-by-pixels! tree-view (- speed)))
+      (> view-y (- height scroll-zone))
+      (let [speed (* max-speed (/ (- view-y (- height scroll-zone)) scroll-zone))]
+        (scroll-tree-view-by-pixels! tree-view speed)))))
 
 (defn- custom-tree-view-key-pressed! [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does
@@ -1173,7 +1219,7 @@
   (when (= MouseButton/PRIMARY (.getButton event))
     (let [target (.getTarget event)]
       ;; Did the user click on a tree cell?
-      (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell target)]
+      (when-some [^javafx.scene.control.TreeCell tree-cell (closest-node-of-type javafx.scene.control.TreeCell target)]
         (when-some [disclosure-node (.getDisclosureNode tree-cell)]
           ;; Did the user click on the disclosure node?
           (when (nodes-along-path? target disclosure-node tree-cell)

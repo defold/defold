@@ -21,7 +21,8 @@
             [editor.future :as future]
             [editor.util :as util]
             [reitit.core :as reitit]
-            [service.log :as log])
+            [service.log :as log]
+            [util.path :as path])
   (:import [com.sun.net.httpserver Headers HttpHandler HttpServer]
            [java.io Closeable File IOException]
            [java.net InetSocketAddress URI URL]
@@ -217,7 +218,7 @@
     (format "http://%s:%d" (.getHostString address) (.getPort address))))
 
 (extend-protocol ConnectionContentLength
-  Path (connection-content-length [path] (fs/path-size path))
+  Path (connection-content-length [path] (path/byte-size path))
   Object (connection-content-length [_])
   nil (connection-content-length [_]))
 

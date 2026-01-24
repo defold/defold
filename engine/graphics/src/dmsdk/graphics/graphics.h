@@ -50,7 +50,7 @@ namespace dmGraphics
      * @typedef
      * @name HRenderTarget
      */
-    typedef uint64_t HRenderTarget; // Where is this currently used?
+    typedef uint64_t HRenderTarget;
 
     /*#
      * Program handle

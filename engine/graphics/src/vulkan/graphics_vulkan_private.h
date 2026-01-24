@@ -75,6 +75,12 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct VulkanUniformBuffer
+    {
+        UniformBuffer m_BaseUniformBuffer;
+        DeviceBuffer  m_DeviceBuffer;
+    };
+
     struct VulkanTexture
     {
         struct VulkanHandle
@@ -427,6 +433,7 @@ namespace dmGraphics
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        VulkanUniformBuffer*            m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanProgram*                  m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;
