@@ -31,7 +31,9 @@
   "Transfer the sequence supplied as the first argument into the destination
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
-  as the destination returns an eduction instead. See also: transform."
+  as the destination returns an eduction instead.
+
+  See also: transform, transmute, transmute-kv, transpire!."
   ([from to]
    (case to
      :eduction `(->Eduction identity ~from)
@@ -49,6 +51,93 @@
      `(into ~to
             (comp ~xform ~@xforms)
             ~from))))
+
+(defmacro transpire!
+  "Runs (via reduce) the side-effecting item-fn! supplied as the last argument,
+  on successive items in the collection supplied as the first argument. Any
+  additional arguments supplied between the first and last arguments will be
+  composed into a transducer. Returns nil.
+
+  See also: transfer, transform, transmute, transmute-kv."
+  [coll item-fn! & more]
+  (case (count more)
+    0 `(run! ~item-fn! ~coll)
+    1 (let [xform item-fn!
+            item-fn! (first more)]
+        `(run! ~item-fn!
+               (->Eduction ~xform ~coll)))
+    (let [first-xform item-fn!
+          more-xforms (butlast more)
+          item-fn! (last more)]
+      `(run! ~item-fn!
+             (->Eduction (comp ~first-xform ~@more-xforms)
+                         ~coll)))))
+
+(defmacro transmute
+  "Similar to core.transduce or core.reduce, but takes the input sequence as the
+  first argument, followed by a mandatory init value, and the acc-fn as the last
+  argument. Any additional arguments specified between the init value and the
+  acc-fn will be composed into a transducer. The acc-fn is assumed to take
+  two arguments and will be used with reduce when no additional transducers are
+  supplied. When transducers are supplied, we will wrap the acc-fn in a
+  multi-arity function suitable for use with core.transduce.
+
+  See also: transfer, transform, transmute-kv, transpire!."
+  [coll init acc-fn & more]
+  (case (count more)
+    0 `(reduce ~acc-fn ~init ~coll)
+    1 (let [xform acc-fn
+            acc-fn (first more)]
+        `(transduce ~xform
+                    (let [~'acc-fn ~acc-fn]
+                      (fn
+                        ([~'acc] ~'acc)
+                        ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
+                    ~init
+                    ~coll))
+    (let [first-xform acc-fn
+          more-xforms (butlast more)
+          acc-fn (last more)]
+      `(transduce (comp ~first-xform ~@more-xforms)
+                  (let [~'acc-fn ~acc-fn]
+                    (fn
+                      ([~'acc] ~'acc)
+                      ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
+                  ~init
+                  ~coll))))
+
+(defmacro transmute-kv
+  "Similar to core.reduce-kv, but takes the input sequence as the first
+  argument, followed by a mandatory init value, and the acc-fn as the last
+  argument. Any additional arguments specified between the init value and the
+  acc-fn will be composed into a transducer. The acc-fn is assumed to take three
+  arguments and will be used with reduce-kv when no additional transducers are
+  supplied. When transducers are supplied, we will wrap the acc-fn in a
+  multi-arity function suitable for use with core.transduce.
+
+  See also: transfer, transform, transmute, transpire!."
+  [coll init acc-fn & more]
+  (case (count more)
+    0 `(reduce-kv ~acc-fn ~init ~coll)
+    1 (let [xform acc-fn
+            acc-fn (first more)]
+        `(transduce ~xform
+                    (let [~'acc-fn ~acc-fn]
+                      (fn
+                        ([~'acc] ~'acc)
+                        ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
+                    ~init
+                    ~coll))
+    (let [first-xform acc-fn
+          more-xforms (butlast more)
+          acc-fn (last more)]
+      `(transduce (comp ~first-xform ~@more-xforms)
+                  (let [~'acc-fn ~acc-fn]
+                    (fn
+                      ([~'acc] ~'acc)
+                      ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
+                  ~init
+                  ~coll))))
 
 (defn comparable-value?
   "Returns true if the value is compatible with the default comparator used with
@@ -240,7 +329,9 @@
   "Transform the collection supplied as the first argument into a new collection
   of the same type, using a transducer composed of the remaining arguments.
   Preserves metadata. Returns coll unaltered if empty or if no transducers are
-  supplied. See also: transfer."
+  supplied.
+
+  See also: transfer, transmute, transmute-kv, transpire!."
   ([coll] coll)
   ([coll xform]
    (cond

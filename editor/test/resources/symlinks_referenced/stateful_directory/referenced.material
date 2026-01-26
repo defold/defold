@@ -1,7 +1,7 @@
 name: "sprite"
 tags: "tile"
-vertex_program: "/linked_directory/referenced.vp"
-fragment_program: "/linked_directory/referenced.fp"
+vertex_program: "/stateful_directory/referenced.vp"
+fragment_program: "/stateful_directory/referenced.fp"
 vertex_constants {
   name: "view_proj"
   type: CONSTANT_TYPE_VIEWPROJ

@@ -1,5 +1,5 @@
 default_animation: "referenced"
-material: "/linked_files/referenced.material"
+material: "/stateful_files/referenced.material"
 attributes {
   name: "tint"
   double_values {
@@ -11,5 +11,5 @@ attributes {
 }
 textures {
   sampler: "texture_sampler"
-  texture: "/linked_files/referenced.atlas"
+  texture: "/stateful_files/referenced.atlas"
 }

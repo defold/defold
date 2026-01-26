@@ -103,6 +103,9 @@
           <entry key="util.coll/assoc-in-ex" value="-1" />
           <entry key="util.coll/transfer" value="-1" />
           <entry key="util.coll/transform" value="-1" />
+          <entry key="util.coll/transmute" value="-1" />
+          <entry key="util.coll/transmute-kv" value="-1" />
+          <entry key="util.coll/transpire!" value="-1" />
           <entry key="util.debug-util/log-time" value="-1" />
           <entry key="util.debug-util/log-time-and-memory" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
