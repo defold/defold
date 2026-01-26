@@ -1794,8 +1794,6 @@ namespace dmGameObject
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
 
         dmGameObject::PropertyOptions opt;
-        //opt.m_Index = 0;
-
         dmGameObject::PropertyResult res = dmGameObject::CancelAnimations(collection, target_instance, target.m_Fragment, property_id);
 
         switch (res)

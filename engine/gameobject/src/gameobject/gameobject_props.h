@@ -76,9 +76,6 @@ namespace dmGameObject
         uint8_t        m_OptionsCount;
     };
 
-    // dmhash_t paths[] = { ... };
-    // PropertyResult SetPropertyByHashes(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* hashes, uint32_t num_hashes, const PropertyVar& value);
-
     bool AddPropertyOptionsKey(PropertyOptions* options, dmhash_t key);
     bool AddPropertyOptionsIndex(PropertyOptions* options, int32_t index);
     bool AddPropertyOption(PropertyOptions* options, PropertyOption option);
