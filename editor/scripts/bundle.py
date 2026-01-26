@@ -683,14 +683,8 @@ def build(options):
         if options.skip_tests:
             log("Skipping tests.")
         else:
+            check_reflections(jdk)
             invoke_lein(['test'], jdk_path=jdk)
-        if options.skip_checks:
-            log("Skipping checks.")
-        else:
-            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-        if options.skip_docs:
-            log("Skipping docs.")
-        else:
             # test that docs can be successfully produced
             write_docs('target/docs', jdk_path=jdk)
         invoke_lein(['prerelease'], jdk_path=jdk)
@@ -734,15 +728,12 @@ Commands:
 
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
+                      default = False,
                       help = 'Skip tests when building')
-    parser.add_option('--skip-checks', dest='skip_checks',
-                      action = 'store_true',
-                      help = 'Skip lein checks when building')
-    parser.add_option('--skip-docs', dest='skip_docs',
-                      action = 'store_true',
-                      help = 'Skip checking whether documentation builds')
+
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
+                      default = False,
                       help = 'Skip code signing when bundling')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
