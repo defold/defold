@@ -594,7 +594,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
-            throw new CompileExceptionError("Failed creating AAB base.zip", e);
+            throw new CompileExceptionError("Failed creating AAB base.zip. Cause: " + String.valueOf(e.getMessage()), e);
         }
     }
 
