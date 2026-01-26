@@ -644,7 +644,12 @@ public class LuaScanner {
                 }
             }
             if (type == LuaParser.INT || type == LuaParser.HEX || type == LuaParser.FLOAT || type == LuaParser.HEX_FLOAT) {
-                return new Success(expCtx, PropertyType.PROPERTY_TYPE_NUMBER, Double.parseDouble(expCtx.getText()));
+                try {
+                    return new Success(expCtx, PropertyType.PROPERTY_TYPE_NUMBER, Double.parseDouble(expCtx.getText()));
+                }
+                catch (NumberFormatException e) {
+                    return new InvalidValue("wrong number format: '" + expCtx.getText() +"'");
+                }
             } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
                 return new Success(expCtx, PropertyType.PROPERTY_TYPE_BOOLEAN, Boolean.parseBoolean(initialToken.getText()));
             } else if (type == LuaParser.NAME) {

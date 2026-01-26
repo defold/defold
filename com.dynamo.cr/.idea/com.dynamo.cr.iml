@@ -35,15 +35,6 @@
         <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/lib" recursive="false" />
       </library>
     </orderEntry>
-    <orderEntry type="module-library">
-      <library>
-        <CLASSES />
-        <JAVADOC />
-        <NATIVE>
-          <root url="file://$MODULE_DIR$/com.dynamo.cr.bob/lib/arm64-macos" />
-        </NATIVE>
-        <SOURCES />
-      </library>
-    </orderEntry>
+    <orderEntry type="library" name="aws" level="project" />
   </component>
 </module>
