@@ -850,22 +850,24 @@
 
 (defn- invalidate-graph-successors
   ^Successors [^Successors successors changes]
-  ;; changes = {node-id #{output-label ...}|nil}
-  ;; when changes value is nil, it means that every output was invalidated
+  ;; changes = vector of pairs: node-id + #{output-label ...}|nil
+  ;; when changes val is nil, it means that every output was invalidated
   (let [current-state @(.-cache successors)]
     (make-successors
       (persistent!
-        (reduce-kv
-          (fn [acc node-id outputs]
-            (let [output->endpoints (acc node-id ::not-found)]
+        (reduce
+          (fn [acc e]
+            (let [node-id (key e)
+                  output->endpoints (acc node-id ::not-found)]
               (if (identical? ::not-found output->endpoints)
                 acc
-                (if (nil? outputs)
-                  (dissoc! acc node-id)
-                  (let [output->endpoints (reduce dissoc! (transient output->endpoints) outputs)]
-                    (if (zero? (count output->endpoints))
-                      (dissoc! acc node-id)
-                      (assoc! acc node-id (persistent! output->endpoints))))))))
+                (let [outputs (val e)]
+                  (if (nil? outputs)
+                    (dissoc! acc node-id)
+                    (let [output->endpoints (reduce dissoc! (transient output->endpoints) outputs)]
+                      (if (zero? (count output->endpoints))
+                        (dissoc! acc node-id)
+                        (assoc! acc node-id (persistent! output->endpoints)))))))))
           (transient current-state)
           changes)))))
 
@@ -1253,8 +1255,9 @@
   ;; changes = {node-id #{output-label ...}|nil}
   ;; when changes value is nil, it means that every output was invalidated
   (reduce (fn [basis [graph-id changes]]
+            ;; now, changes are a vector of tuples!
             (if (contains? (:graphs basis) graph-id)
               (update-in basis [:graphs graph-id :successors] invalidate-graph-successors changes)
               basis))
           basis
-          (util/group-into {} {} (comp gt/node-id->graph-id first) changes)))
+          (util/group-into (comp gt/node-id->graph-id first) changes)))
