@@ -229,9 +229,7 @@
            :root endpoint})))))
 
 (defn- endpoint-successors [basis endpoint]
-  (let [node-id (g/endpoint-node-id endpoint)
-        graph-id (g/node-id->graph-id node-id)]
-    (get-in basis [:graphs graph-id :successors node-id (g/endpoint-label endpoint)])))
+  (g/successors basis (g/endpoint-node-id endpoint) (g/endpoint-label endpoint)))
 
 (r/defaction ::defold:successors [x ann]
   (when-some [endpoint (as-endpoint x ann)]

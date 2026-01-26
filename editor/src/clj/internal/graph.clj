@@ -383,7 +383,7 @@
 
 (defn- make-successors
   ^Successors ([] (make-successors {}))
-  ^Successors ([m] (->Successors (atom m))))
+  ^Successors ([m] {:pre [(map? m)]} (->Successors (atom m))))
 
 (defn empty-graph
   []
@@ -848,9 +848,9 @@
                  result')
           (persistent! result'))))))
 
-(defn- update-graph-successors
+(defn- invalidate-graph-successors
   ^Successors [^Successors successors changes]
-  ;; changes = {node-id #{outputs}|nil}
+  ;; changes = {node-id #{output-label ...}|nil}
   ;; when changes value is nil, it means that every output was invalidated
   (let [current-state @(.-cache successors)]
     (make-successors
@@ -869,7 +869,8 @@
           (transient current-state)
           changes)))))
 
-(defn- input-deps [basis node-id] (some-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies))
+(defn- input-deps [basis node-id]
+  (some-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies))
 
 (def ^:private empty-endpoints-array (array/empty-of-type Endpoint))
 
@@ -916,6 +917,15 @@
                      empty-endpoints-array)]
         (swap! cache update node-id assoc label result)
         result))))
+
+(defn successors
+  "Public only for tests and introspection tooling. Implementation detail."
+  [basis node-id label]
+  (query-successors
+    (-> basis :graphs (get (gt/node-id->graph-id node-id)) :successors)
+    basis
+    node-id
+    label))
 
 (def ^:private ^Cache basis-dependencies-cache
   (-> (Caffeine/newBuilder)
@@ -1240,10 +1250,11 @@
 
 (defn update-successors
   [basis changes]
-  ;; changes = {node-id #{outputs}|nil}
+  ;; changes = {node-id #{output-label ...}|nil}
+  ;; when changes value is nil, it means that every output was invalidated
   (reduce (fn [basis [graph-id changes]]
             (if (contains? (:graphs basis) graph-id)
-              (update-in basis [:graphs graph-id :successors] update-graph-successors changes)
+              (update-in basis [:graphs graph-id :successors] invalidate-graph-successors changes)
               basis))
           basis
           (util/group-into {} {} (comp gt/node-id->graph-id first) changes)))
