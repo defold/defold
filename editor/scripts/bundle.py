@@ -683,7 +683,7 @@ def build(options):
         if options.skip_tests:
             log("Skipping tests.")
         else:
-            check_reflections(jdk)
+            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
             invoke_lein(['test'], jdk_path=jdk)
             # test that docs can be successfully produced
             write_docs('target/docs', jdk_path=jdk)
