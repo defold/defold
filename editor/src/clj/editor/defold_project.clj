@@ -57,7 +57,7 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
-  (:import [java.io File]
+  (:import [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
 
@@ -128,21 +128,32 @@
         load-fn (:load-fn embedded-resource-type)]
     (load-fn project embedded-resource-node-id embedded-resource source-value)))
 
+(defn- make-file-not-found-error [node-id resource]
+  (resource-io/file-not-found-error node-id nil :fatal resource))
+
 (defn- make-file-not-found-node-load-info [node-id resource]
   {:node-id node-id
    :resource resource
-   :read-error (resource-io/file-not-found-error node-id nil :fatal resource)})
+   :read-error (make-file-not-found-error node-id resource)})
 
 (defn read-node-load-info [node-id resource resource-metrics]
   {:pre [(g/node-id? node-id)]}
   (let [{:keys [lazy-loaded read-fn] :as resource-type} (resource/resource-type resource)
 
+        ;; Seeing as how we're operating on a list of resources that we got from
+        ;; the file system itself, you might assume that every resource will
+        ;; exist on disk. However, our resource might have been created from a
+        ;; symbolic link, in which case we still need to check if the target it
+        ;; is pointing to exists. Although unlikely, it is also possible the
+        ;; resource was deleted in the time that passed since we got the list.
         read-result
-        (when (and read-fn
-                   (not lazy-loaded))
+        (if (and read-fn
+                 (not lazy-loaded))
           (try
             (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
               (resource/read-source-value+sha256-hex resource read-fn))
+            (catch FileNotFoundException _
+              (make-file-not-found-error node-id resource))
             (catch Exception exception
               (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
               (resource-io/invalid-content-error node-id nil :fatal resource exception))
@@ -151,7 +162,14 @@
                 (throw (ex-info (format "Error when reading resource '%s'" proj-path)
                                 {:node-type (:node-type resource-type)
                                  :proj-path proj-path}
-                                throwable))))))
+                                throwable)))))
+
+          ;; Since we won't read the file at this time, we can't rely on the
+          ;; FileNotFoundException being thrown by the read attempt. Instead, we
+          ;; explicitly check that the file exists, which will follow symlinks.
+          (when (and (resource/stateful-resource-type? resource-type)
+                     (not (resource/exists? resource)))
+            (make-file-not-found-error node-id resource)))
 
         [source-value disk-sha256 read-error]
         (if (g/error-value? read-result)
@@ -1358,7 +1376,8 @@
       (let [basis (g/now)]
         (g/transact transact-opts
           (for [node-id (:mark-deleted plan)]
-            (let [flaw (resource-io/file-not-found-error node-id nil :fatal (resource-node/resource basis node-id))]
+            (let [resource (resource-node/resource basis node-id)
+                  flaw (make-file-not-found-error node-id resource)]
               (g/mark-defective node-id flaw))))))
 
     ;; invalidate outputs.
