@@ -936,7 +936,7 @@ public class Project {
         File buildDir = new File(FilenameUtils.concat(getRootDirectory(), "build"));
         Path bundlePath = bundleDir.getCanonicalFile().toPath();
         Path buildPath = buildDir.getCanonicalFile().toPath();
-        if (bundlePath.startsWith(buildPath)) {
+        if (bundlePath.startsWith(buildPath) && !bundlePath.toString().contains(getBuildDirectory())) {
             throw new CompileExceptionError("Folder '" + buildDir + "' in the project folder can't be used for bundling as this folder is reserved for Defold build system.");
         }
     }
