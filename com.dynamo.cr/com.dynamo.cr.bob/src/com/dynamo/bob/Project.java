@@ -728,6 +728,9 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
+            if (isBundleCommandRequested(commands)) {
+                getBundleOutputDirectory();
+            }
             TimeProfiler.start("loadProjectFile");
             loadProjectFile(true);
             TimeProfiler.stop();
@@ -753,6 +756,18 @@ public class Project {
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
+    }
+
+    private boolean isBundleCommandRequested(String... commands) {
+        if (commands == null) {
+            return false;
+        }
+        for (String command : commands) {
+            if ("bundle".equals(command)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -917,15 +932,25 @@ public class Project {
         m.done();
     }
 
-    private File getBundleOutputDirectory() {
+    private File getBundleOutputDirectory() throws IOException, CompileExceptionError {
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
         if (bundleOutput != null) {
             bundleDir = new File(bundleOutput);
         } else {
-            bundleDir = new File(getRootDirectory(), getBuildDirectory());
+            bundleDir = new File(FilenameUtils.concat(getRootDirectory(), getBuildDirectory()));
         }
+        validateBundleOutputDirectory(bundleDir);
         return bundleDir;
+    }
+
+    private void validateBundleOutputDirectory(File bundleDir) throws IOException, CompileExceptionError {
+        File buildDir = new File(FilenameUtils.concat(getRootDirectory(), "build"));
+        Path bundlePath = bundleDir.getCanonicalFile().toPath();
+        Path buildPath = buildDir.getCanonicalFile().toPath();
+        if (bundlePath.startsWith(buildPath)) {
+            throw new CompileExceptionError("Build folder '" + bundlePath + "' in the project folder can't be used for bundling as this folder is reserved for Defold build system.");
+        }
     }
 
     public void registerTextureCompressors() {
