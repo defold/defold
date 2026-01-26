@@ -305,6 +305,10 @@ namespace dmHttpClient
         {
             memcpy(&client->m_ProxyURI, proxyURI, sizeof(*proxyURI));
         }
+        else
+        {
+            memset(&client->m_ProxyURI, 0, sizeof(client->m_ProxyURI));
+        }
 
         return client;
     }
