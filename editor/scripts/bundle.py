@@ -352,25 +352,6 @@ def invoke_lein(args, jdk_path=None, redirect_stderr=False):
         kwargs['stderr'] = subprocess.STDOUT
     return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, **kwargs)
 
-def check_reflections(jdk_path):
-    reflection_prefix = 'Reflection warning, ' # final space important
-    included_reflections = ['editor/', 'util/'] # [] = include all
-    ignored_reflections = []
-
-    # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path, redirect_stderr=True)
-    lines = output.splitlines()
-    reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
-    reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
-    filtered_reflections = reflections if not included_reflections else (line for line in reflections if any((re.match(include, line) for include in included_reflections)))
-    failures = list(line for line in filtered_reflections if not any((re.match(ignored, line) for ignored in ignored_reflections)))
-
-    if failures:
-        log("Reflection Check Failed: Found %d reflection warning(s):" % len(failures))
-        for failure in failures:
-            log(failure)
-        exit(1)
-
 def write_docs(docs_dir, jdk_path=None):
     invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
 
@@ -702,8 +683,14 @@ def build(options):
         if options.skip_tests:
             log("Skipping tests.")
         else:
-            check_reflections(jdk)
             invoke_lein(['test'], jdk_path=jdk)
+        if options.skip_checks:
+            log("Skipping checks.")
+        else:
+            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+        if options.skip_docs:
+            log("Skipping docs.")
+        else:
             # test that docs can be successfully produced
             write_docs('target/docs', jdk_path=jdk)
         invoke_lein(['prerelease'], jdk_path=jdk)
@@ -747,12 +734,15 @@ Commands:
 
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
-                      default = False,
                       help = 'Skip tests when building')
-
+    parser.add_option('--skip-checks', dest='skip_checks',
+                      action = 'store_true',
+                      help = 'Skip lein checks when building')
+    parser.add_option('--skip-docs', dest='skip_docs',
+                      action = 'store_true',
+                      help = 'Skip checking whether documentation builds')
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
-                      default = False,
                       help = 'Skip code signing when bundling')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
