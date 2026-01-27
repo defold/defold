@@ -55,10 +55,11 @@
                                           [_# ns-name#] (re-find #"\(ns\s+([^\s)]+)" content#)]
                                       (when (proj-ns-set# ns-name#)
                                         warning#))
-                                    (catch Exception _# nil))))))]
+                                    (catch Exception e#
+                                      (println "Warning: Exception when checking " file-path# "\n" (.getMessage e#))))))))]
                (when (seq reflection-count#)
                  (println (str "Reflection Check Failed: Found " (count reflection-count#) " reflection warning(s):")))
                (doseq [line# reflection-count#] (println line#))
-               (System/exit (count reflection-count#))))))
+               (System/exit (min (count reflection-count#) 125))))))
       (catch clojure.lang.ExceptionInfo e
-        (main/abort "Failed.")))))
+        (System/exit (or (some-> e ex-data :exit-code) -1))))))
