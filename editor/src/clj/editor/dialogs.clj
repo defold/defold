@@ -63,6 +63,9 @@
 (def clipping-container
   (fx.composite/describe ClippingContainer :ctor [] :props fx.stack-pane/props))
 
+(def ^:private dialogs-css-delay
+  (delay (str (io/resource "dialogs.css"))))
+
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
@@ -86,7 +89,7 @@
       (dissoc :size :header :content :footer :root-props)
       (assoc :fx/type fxui/dialog-stage
              :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets [(str (io/resource "dialogs.css"))]
+                     :stylesheets [@dialogs-css-delay]
                      :root (-> root-props
                                (fxui/add-style-classes
                                  "dialog-body"
