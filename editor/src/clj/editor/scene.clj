@@ -1529,38 +1529,43 @@
       (for [node-id scene-node-ids]
         (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
-(declare selection->movable)
+(defn- selection->movable
+  ([selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (selection->movable selection evaluation-context)))
+  ([selection evaluation-context]
+   (handler/selection->node-ids selection scene-tools/manip-movable? evaluation-context)))
 
 (handler/defhandler :scene.move-up :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
 
 (handler/defhandler :scene.move-down :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
 
 (handler/defhandler :scene.move-left :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-up-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
 
 (handler/defhandler :scene.move-down-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
 
 (handler/defhandler :scene.move-left-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
 (defn- handle-key-pressed! [^KeyEvent event]
@@ -1987,6 +1992,3 @@
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))
-
-(defn selection->movable [selection evaluation-context]
-  (handler/selection->node-ids selection scene-tools/manip-movable? evaluation-context))
