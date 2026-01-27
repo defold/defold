@@ -870,7 +870,6 @@ namespace dmGameSystem
 
     static void SetMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
 
         dmGraphics::VertexAttributeInfos material_infos;
@@ -2684,9 +2683,11 @@ namespace dmGameSystem
             }
         }
 
-        dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, 0);
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
 
-        if (GetMaterialConstant(material, params.m_PropertyId, params.m_Options.m_Index, out_value, false, CompModelGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, 0);
+        if (GetMaterialConstant(material, params.m_PropertyId, value_index, out_value, false, CompModelGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
@@ -2759,8 +2760,11 @@ namespace dmGameSystem
             }
         }
 
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+
         dmRender::HMaterial material = GetComponentMaterial(component, component->m_Resource, 0);
-        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompModelSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, value_index, CompModelSetConstantCallback, component);
 
         // Only check attributes if the constant property was not found
         if (res == dmGameObject::PROPERTY_RESULT_NOT_FOUND)

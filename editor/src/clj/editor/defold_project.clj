@@ -1784,26 +1784,26 @@
               (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
                 (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
         project-id
-    (second
-          (g/tx-nodes-added
-            (g/transact
-              (g/make-nodes graph
-                  [script-intelligence si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id]
-                   script-annotations script-annotations/ScriptAnnotations
-                   editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
-                (g/connect workspace-id :root script-annotations :root)
-                (g/connect script-annotations :_node-id project :script-annotations)
-                (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
-                (g/connect extensions :_node-id project :editor-extensions)
-                (g/connect script-intelligence :_node-id project :script-intelligence)
-                (g/connect workspace-id :build-settings project :build-settings)
-                (g/connect workspace-id :dependencies project :dependencies)
-                (g/connect workspace-id :resource-list project :resources)
-                (g/connect workspace-id :resource-map project :resource-map)
-                (g/set-graph-value graph :project-id project)
-                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
-                (g/set-graph-value graph :code-transpilers transpilers-id)))))]
+        (second
+              (g/tx-nodes-added
+                (g/transact
+                  (g/make-nodes graph
+                      [script-intelligence si/ScriptIntelligenceNode
+                       project [Project :workspace workspace-id]
+                       script-annotations script-annotations/ScriptAnnotations
+                       editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
+                    (g/connect workspace-id :root script-annotations :root)
+                    (g/connect script-annotations :_node-id project :script-annotations)
+                    (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
+                    (g/connect extensions :_node-id project :editor-extensions)
+                    (g/connect script-intelligence :_node-id project :script-intelligence)
+                    (g/connect workspace-id :build-settings project :build-settings)
+                    (g/connect workspace-id :dependencies project :dependencies)
+                    (g/connect workspace-id :resource-list project :resources)
+                    (g/connect workspace-id :resource-map project :resource-map)
+                    (g/set-graph-value graph :project-id project)
+                    (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
+                    (g/set-graph-value graph :code-transpilers transpilers-id)))))]
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     (g/reset-undo! graph)

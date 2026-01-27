@@ -1109,8 +1109,7 @@
   ([source-id+source-label target-id+target-label]
    (has-successor? (g/now) source-id+source-label target-id+target-label))
   ([basis [source-id source-label] [target-id target-label]]
-   (let [graph-id (g/node-id->graph-id source-id)
-         successor-endpoint-array (get-in basis [:graphs graph-id :successors source-id source-label])
+   (let [successor-endpoint-array (g/successors basis source-id source-label)
          length (count successor-endpoint-array)
          target-endpoint (g/endpoint target-id target-label)]
      (loop [index 0]

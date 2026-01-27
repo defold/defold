@@ -2293,10 +2293,11 @@ namespace dmGameSystem
         {
             TextureSetResource* texture_set = 0;
 
-            if (params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK)
             {
                 out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-                texture_set = GetTextureSetByHash(component, params.m_Options.m_Key);
+                texture_set = GetTextureSetByHash(component, key);
             }
             if (!texture_set)
             {
@@ -2326,8 +2327,10 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
         dmRender::HMaterial material = GetComponentMaterial(component);
-        if (GetMaterialConstant(material, get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        if (GetMaterialConstant(material, get_property, value_index, out_value, false, CompSpriteGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
@@ -2391,7 +2394,9 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_IMAGE)
         {
-            dmhash_t sampler_name_hash = params.m_Options.m_HasKey ? params.m_Options.m_Key : 0;
+            dmhash_t sampler_name_hash = 0;
+            GetPropertyOptionsKey(params.m_Options, 0, &sampler_name_hash);
+
             dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
@@ -2447,8 +2452,11 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
 
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+
         dmRender::HMaterial material = GetComponentMaterial(component);
-        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, value_index, CompSpriteSetConstantCallback, component);
 
         // Only check attributes if the constant property was not found
         if (res == dmGameObject::PROPERTY_RESULT_NOT_FOUND)

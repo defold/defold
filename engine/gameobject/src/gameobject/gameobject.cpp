@@ -30,9 +30,9 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
+#include "gameobject_props.h"
 #include "gameobject_props_lua.h"
 #include "gameobject_props_ddf.h"
-#include "gameobject_props.h"
 
 #include "gameobject/gameobject_ddf.h"
 
@@ -107,8 +107,9 @@ namespace dmGameObject
     }
 
     PropertyOptions::PropertyOptions()
-    : m_Index(0)
-    , m_HasKey(0) {}
+    {
+        memset(this, 0, sizeof(*this));
+    }
 
     PropertyVar::PropertyVar()
     {
@@ -3547,7 +3548,7 @@ namespace dmGameObject
                     p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
-                    p.m_Options = options;
+                    p.m_Options = &options;
                     p.m_UserData = user_data;
                     PropertyDesc prop_desc;
                     PropertyResult result = type->m_GetPropertyFunction(p, prop_desc);
@@ -3928,7 +3929,7 @@ namespace dmGameObject
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;
                     p.m_Value = value;
-                    p.m_Options = options;
+                    p.m_Options = &options;
                     return type->m_SetPropertyFunction(p);
                 }
                 else
@@ -3944,6 +3945,79 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
+    static inline PropertyOption* NextPropertyOption(PropertyOptions* options)
+    {
+        if (options->m_OptionsCount >= MAX_PROPERTY_OPTIONS_COUNT)
+            return 0;
+        return &options->m_Options[options->m_OptionsCount++];
+    }
+
+    bool AddPropertyOptionsKey(PropertyOptions* options, dmhash_t key)
+    {
+        PropertyOption* option = NextPropertyOption(options);
+        if (!option)
+            return false;
+        option->m_Key = key;
+        option->m_HasKey = 1;
+        return true;
+    }
+
+    bool AddPropertyOptionsIndex(PropertyOptions* options, int32_t index)
+    {
+        PropertyOption* option = NextPropertyOption(options);
+        if (!option)
+            return false;
+        option->m_Index = index;
+        option->m_HasKey = 0;
+        return true;
+    }
+
+    bool AddPropertyOption(PropertyOptions* options, PropertyOption option)
+    {
+        PropertyOption* opt = NextPropertyOption(options);
+        if (!opt)
+            return false;
+        *opt = option;
+        return true;
+    }
+
+    bool SetPropertyOptionsByIndex(PropertyOptions* options, uint32_t index, int32_t value)
+    {
+        if (index >= options->m_OptionsCount)
+            return false;
+        PropertyOption* option = &options->m_Options[index];
+        option->m_Index = value;
+        option->m_HasKey = 0;
+        return true;
+    }
+
+    uint32_t GetPropertyOptionsCount(HPropertyOptions options)
+    {
+        if (!options)
+            return 0;
+        return options->m_OptionsCount;
+    }
+
+    PropertyResult GetPropertyOptionsIndex(HPropertyOptions options, uint32_t index, int32_t* result)
+    {
+        if (!options || index >= options->m_OptionsCount)
+            return PROPERTY_RESULT_INVALID_INDEX;
+        if (options->m_Options[index].m_HasKey)
+            return PROPERTY_RESULT_TYPE_MISMATCH;
+        *result = options->m_Options[index].m_Index;
+        return PROPERTY_RESULT_OK;
+    }
+
+    PropertyResult GetPropertyOptionsKey(HPropertyOptions options, uint32_t index, dmhash_t* result)
+    {
+        if (!options || index >= options->m_OptionsCount)
+            return PROPERTY_RESULT_INVALID_INDEX;
+        if (!options->m_Options[index].m_HasKey)
+            return PROPERTY_RESULT_TYPE_MISMATCH;
+        *result = options->m_Options[index].m_Key;
+        return PROPERTY_RESULT_OK;
+    }
+
     PropertyResult SetPropertyFromHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value)
     {
         PropertyOptions options;
@@ -3951,6 +4025,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float value)
     {
         PropertyOptions options;
@@ -3958,6 +4033,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value)
     {
         PropertyOptions options;
@@ -3965,6 +4041,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value)
     {
         PropertyOptions options;
@@ -3972,6 +4049,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value)
     {
         PropertyOptions options;
@@ -3979,6 +4057,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool value)
     {
         PropertyOptions options;
@@ -3986,6 +4065,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value)
     {
         PropertyOptions options;
@@ -3993,6 +4073,7 @@ namespace dmGameObject
         PropertyResult r = SetProperty(instance, component_id, property_id, options, prop_value);
         return r;
     }
+
     PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value)
     {
         PropertyOptions options;

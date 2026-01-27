@@ -694,9 +694,8 @@
                                identity
                                (fn [endpoint]
                                  (let [node-id (gt/endpoint-node-id endpoint)
-                                       label (gt/endpoint-label endpoint)
-                                       graph-id (gt/node-id->graph-id node-id)]
-                                   (cond->> (get-in basis [:graphs graph-id :successors node-id label])
+                                       label (gt/endpoint-label endpoint)]
+                                   (cond->> (g/successors basis node-id label)
                                             successor-filter
                                             (into [] (filter #(successor-filter [endpoint %])))))))))
                          endpoints)]

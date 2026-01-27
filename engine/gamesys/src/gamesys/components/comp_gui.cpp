@@ -236,7 +236,9 @@ namespace dmGameSystem
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index         = options ? options->m_Index : 0;
+
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex((dmGameObject::HPropertyOptions) options, 0, &value_index);
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
@@ -306,7 +308,8 @@ namespace dmGameSystem
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index         = options ? options->m_Index : 0;
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex((dmGameObject::HPropertyOptions) options, 0, &value_index);
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
@@ -2930,31 +2933,34 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIALS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
 
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_FONTS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_TEXTURES)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, key), out_value);
         }
 
         CompGuiPropertyGetterFn* getter_fn = g_CompGuiPropertyGetters.Get(set_property);
@@ -2975,7 +2981,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_FONTS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -2984,10 +2991,10 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font_resource);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font_resource, params.m_Value.m_Hash);
+                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, key, (void*)font_resource, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
+                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(key), gui_component->m_Resource->m_Path);
                     dmResource::Release(factory, font_resource);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
@@ -3000,7 +3007,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_TEXTURES)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -3009,12 +3017,12 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
                                                             texture_source->m_Texture->m_OriginalWidth,
                                                             texture_source->m_Texture->m_OriginalHeight);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
+                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(key),  r);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
                 if(gui_component->m_ResourcePropertyPointers.Full())
@@ -3027,7 +3035,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIALS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -3038,11 +3047,11 @@ namespace dmGameSystem
 
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, params.m_Options.m_Key, material_res);
+                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, key, material_res);
 
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key), r);
+                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(key), r);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
 

@@ -970,9 +970,8 @@
    (successor-output-endpoints (g/now) node-id output-label))
   ([basis node-id output-label]
    (assert (g/has-output? (g/node-type* basis node-id) output-label) "Only outputs have successors.")
-   (let [graph-id (g/node-id->graph-id node-id)]
-     (into (sorted-set)
-           (get-in basis [:graphs graph-id :successors node-id output-label])))))
+   (into (sorted-set)
+         (g/successors basis node-id output-label))))
 
 (defn- dependent-internal-output-endpoints
   ([node-id label]
