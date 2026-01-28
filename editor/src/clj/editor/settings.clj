@@ -188,7 +188,9 @@
                                      (str uri) (str required) (str current))}))))
         dependencies))
 
-(g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
+(g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
+  ;; we use evaluation context to resolve a resource; we only need the resource
+  ;; for its path, so it's safe to use it here
   (let [meta-settings (:settings meta-info)
         meta-settings-map (settings-core/make-meta-settings-map meta-settings)
         sanitized-settings (->> raw-settings
@@ -204,7 +206,7 @@
                                     ;; ResourceSettingNode in the graph.
                                     (cond-> setting
                                             (and (string? value) (= :resource (:type (meta-settings-map path))))
-                                            (assoc :value (workspace/resolve-resource owner-resource value))))))
+                                            (assoc :value (workspace/resolve-resource owner-resource value _evaluation-context))))))
         non-defaulted-setting-paths (into #{}
                                           (comp
                                             (filter :value)
