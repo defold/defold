@@ -44,6 +44,7 @@
             [editor.util :as util]
             [service.log :as log]
             [util.coll :as coll]
+            [util.path :as path]
             [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [com.defold.control ClippingContainer]
@@ -1098,20 +1099,30 @@
 
 (defn ^:dynamic make-resolve-file-conflicts-dialog
   [src-dest-pairs localization]
-  (make-confirmation-dialog
-    localization
-    {:icon :icon/circle-question
-     :size :large
-     :title (localization/message "dialog.name-conflict.title")
-     :header (localization/message "dialog.name-conflict.header" {"count" (count src-dest-pairs)})
-     :buttons [{:text (localization/message "dialog.button.cancel")
-                :cancel-button true
-                :default-button true}
-               {:text (localization/message "dialog.name-conflict.button.name-differently")
-                :result :rename}
-               {:text (localization/message "dialog.name-conflict.button.overwrite-files")
-                :variant :danger
-                :result :overwrite}]}))
+  ;; We do not allow the user to choose the :overwrite action if we're about to
+  ;; overwrite a broken symlink.
+  (let [any-dest-is-broken-symlink
+        (coll/any? (fn [[_ ^File dest]]
+                     (and (not (.exists dest))
+                          (path/symlink? dest)))
+                   src-dest-pairs)]
+
+    (make-confirmation-dialog
+      localization
+      {:icon :icon/circle-question
+       :size :large
+       :title (localization/message "dialog.name-conflict.title")
+       :header (localization/message "dialog.name-conflict.header" {"count" (count src-dest-pairs)})
+       :buttons (cond-> [{:text (localization/message "dialog.button.cancel")
+                          :cancel-button true
+                          :default-button true}
+                         {:text (localization/message "dialog.name-conflict.button.name-differently")
+                          :result :rename}]
+
+                        (not any-dest-is-broken-symlink)
+                        (conj {:text (localization/message "dialog.name-conflict.button.overwrite-files")
+                               :variant :danger
+                               :result :overwrite}))})))
 
 (def ext-with-selection-props
   (fx/make-ext-with-props

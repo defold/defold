@@ -119,6 +119,7 @@ ordinary paths."
   (resource-type [this] (resource/resource-type resource))
   (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
+  (symlink? [this] false)
   (path [this] (let [ext (resource/ext this)
                      ext (if (not-empty ext) (str "." ext) "")]
                  (if-let [path (resource/path resource)]
@@ -414,15 +415,24 @@ ordinary paths."
    (make-build-resource (make-placeholder-resource workspace editability ext))))
 
 (defn resource-icon [resource]
-  (when resource
-    (if (and (resource/read-only? resource)
-             (= (resource/path resource) (resource/resource-name resource)))
-      "icons/32/Icons_03-Builtins.png"
-      (condp = (resource/source-type resource)
-        :file
-        (or (:icon (resource/resource-type resource)) "icons/32/Icons_29-AT-Unknown.png")
-        :folder
-        "icons/32/Icons_01-Folder-closed.png"))))
+  (cond
+    (nil? resource)
+    nil
+
+    (and (resource/symlink? resource)
+         (not (resource/exists? resource)))
+    "icons/32/Icons_E_02_error.png"
+
+    (and (resource/read-only? resource)
+         (= (resource/path resource)
+            (resource/resource-name resource)))
+    "icons/32/Icons_03-Builtins.png"
+
+    :else
+    (case (resource/source-type resource)
+      :folder "icons/32/Icons_01-Folder-closed.png"
+      :file (or (:icon (resource/resource-type resource))
+                "icons/32/Icons_29-AT-Unknown.png"))))
 
 (defn file-resource
   ([workspace path-or-file]

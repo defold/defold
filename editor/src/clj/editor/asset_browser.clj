@@ -245,13 +245,23 @@
           (recur (File. new-path)))
         f))))
 
+(defn- taken-file-system-entry?
+  [^File file]
+  ;; This function is used to resolve conflicts when new files or folders are
+  ;; introduced to the project. When a file is a symlink, the .exists method
+  ;; will return false if the symlink target cannot be located. However, in this
+  ;; case we also want to prevent the user from overwriting the symlink itself
+  ;; if it refers to a non-existing path.
+  (or (.exists file)
+      (path/symlink? file)))
+
 (defn- ensure-unique-dest-files
   [name-fn src-dest-pairs]
   (loop [[[src dest :as pair] & rest] src-dest-pairs
          new-names #{}
          ret []]
     (if pair
-      (let [new-dest (unique dest #(or (.exists ^File %) (new-names %)) name-fn)]
+      (let [new-dest (unique dest #(or (taken-file-system-entry? %) (new-names %)) name-fn)]
         (recur rest (conj new-names new-dest) (conj ret [src new-dest])))
       ret)))
 
@@ -274,13 +284,16 @@
 
 (defn- resolve-any-conflicts
   [localization src-dest-pairs]
-  (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
+  (let [files-by-existence (group-by (fn [[_src ^File dest]]
+                                       (taken-file-system-entry? dest))
+                                     src-dest-pairs)
         conflicts (get files-by-existence true)
         non-conflicts (get files-by-existence false [])]
-    (if (seq conflicts)
+
+    (if (coll/empty? conflicts)
+      non-conflicts
       (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts localization)]
-        (into non-conflicts (resolve-conflicts strategy conflicts)))
-      non-conflicts)))
+        (into non-conflicts (resolve-conflicts strategy conflicts))))))
 
 (defn- select-files! [workspace tree-view files]
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-directory workspace)) files)]
@@ -331,21 +344,26 @@
                                   (.getParentFile ^File tgt)
                                   tgt))
                               (fs/to-folder (File. (resource/abs-path target-resource))) src-files)
-        prospect-pairs (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) src-files)
+        prospect-pairs (coll/transfer src-files []
+                         (filter File/.exists) ; Files may have been put on clipboard, then deleted. This also filters out broken symlinks.
+                         (map (fn [^File src-file]
+                                (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
+                                  (pair src-file tgt-file)))))
         project-directory (workspace/project-directory workspace)]
-    (if-let [illegal (illegal-copy-move-pairs project-directory prospect-pairs)]
-      (dialogs/make-info-dialog
-        localization
-        {:title (localization/message "dialog.asset-paste-reserved.title")
-         :icon :icon/triangle-error
-         :header (localization/message "dialog.asset-paste-reserved.header")
-         :content (localization/message "dialog.asset-paste-reserved.content"
-                                        {"directories" (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal))})})
-      (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
-        (doseq [[^File src-file ^File tgt-file] pairs]
-          (fs/copy! src-file tgt-file {:target :merge}))
-        (select-files! (mapv second pairs))
-        (workspace/resource-sync! workspace)))))
+    (when-not (coll/empty? prospect-pairs)
+      (if-let [illegal (illegal-copy-move-pairs project-directory prospect-pairs)]
+        (dialogs/make-info-dialog
+          localization
+          {:title (localization/message "dialog.asset-paste-reserved.title")
+           :icon :icon/triangle-error
+           :header (localization/message "dialog.asset-paste-reserved.header")
+           :content (localization/message "dialog.asset-paste-reserved.content"
+                                          {"directories" (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal))})})
+        (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
+          (doseq [[^File src-file ^File tgt-file] pairs]
+            (fs/copy! src-file tgt-file {:target :merge}))
+          (select-files! (mapv second pairs))
+          (workspace/resource-sync! workspace))))))
 
 (handler/defhandler :edit.paste :asset-browser
   (enabled? [selection] (paste? (.hasFiles (Clipboard/getSystemClipboard)) selection))
@@ -591,8 +609,9 @@
           (localization/natural-sort-by-label @localization all-items)
           {:layout :grid :columns columns})))))
 
-(defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
-  (.toFile (.resolve (.toPath base-folder) new-folder-name)))
+(defn- resolve-sub-folder
+  ^File [base-folder new-folder-name]
+  (.toFile (path/resolve base-folder new-folder-name)))
 
 (defn validate-new-folder-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
@@ -619,10 +638,11 @@
           options {:validate (partial validate-new-folder-name project-directory parent-path)
                    :localization localization}]
       (when-let [new-folder-name (dialogs/make-new-folder-dialog options)]
-        (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
-          (do (fs/create-directories! folder)
-              (workspace/resource-sync! workspace)
-              (select-resource! asset-browser (workspace/file-resource workspace folder))))))))
+        (let [desired-folder (resolve-sub-folder base-folder new-folder-name)]
+          (when-let [[[_ new-folder]] (resolve-any-conflicts localization [[nil desired-folder]])]
+            (fs/create-directories! new-folder)
+            (workspace/resource-sync! workspace)
+            (select-resource! asset-browser (workspace/file-resource workspace new-folder))))))))
 
 (defn- selected-or-active-resource
   [selection active-resource evaluation-context]
