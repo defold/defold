@@ -559,22 +559,37 @@
             (when (resource/loaded? resource)
               (app-view/open-resource! app-view prefs localization project resource))
             (select-resource! asset-browser resource))))))
-  (options [workspace selection user-data evaluation-context]
+  (options [workspace user-data localization evaluation-context]
     (when (not user-data)
-      (localization/annotate-as-sorted
-        localization/natural-sort-by-label
-        (into [{:label (localization/message "command.file.new.option.any-file")
-                :icon "icons/64/Icons_29-AT-Unknown.png"
-                :command :file.new
-                :user-data {:any-file true}}]
-              (keep (fn [[_ext resource-type]]
-                      (when (workspace/has-template? workspace resource-type evaluation-context)
-                        {:label (or (:label resource-type) (:ext resource-type))
-                         :icon (:icon resource-type)
-                         :style (resource/type-style-classes resource-type)
-                         :command :file.new
-                         :user-data {:resource-type resource-type}})))
-              (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))))
+      (let [base-columns
+            (mapv #(mapv localization/message %)
+                  [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
+                   ["resource.category.components"]
+                   ["resource.category.resources"]
+                   ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]])
+            predefined-categories (into #{} cat base-columns)
+            all-items (coll/transfer
+                        (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+                        []
+                        (keep (fn [[_ext resource-type]]
+                                (when (workspace/has-template? workspace resource-type evaluation-context)
+                                  {:label (or (:label resource-type) (:ext resource-type))
+                                   :icon (:icon resource-type)
+                                   :category (or (:category resource-type)
+                                                 (localization/message "resource.category.other"))
+                                   :style (resource/type-style-classes resource-type)
+                                   :command :file.new
+                                   :user-data {:resource-type resource-type}}))))
+            unlisted-categories (coll/transfer all-items []
+                                  (map :category)
+                                  (distinct)
+                                  (remove predefined-categories))
+            columns (cond-> base-columns
+                      (not (coll/empty? unlisted-categories))
+                      (conj unlisted-categories))]
+        (with-meta
+          (localization/natural-sort-by-label @localization all-items)
+          {:layout :grid :columns columns})))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))

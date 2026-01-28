@@ -1581,6 +1581,7 @@
       :sanitize-fn sanitize-tile-map
       :icon tile-map-icon
       :icon-class :design
+      :category (localization/message "resource.category.components")
       :view-types [:scene :text]
       :view-opts {:scene {:grid TileMapGrid
                           :tool-controller TileMapController}}

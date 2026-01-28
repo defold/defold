@@ -91,9 +91,6 @@
 
 (defn- load-resource-node [project resource-node-id resource source-value transpiler-tx-data-fn]
   (try
-    ;; TODO(save-value-cleanup): This shouldn't be able to happen anymore. Remove this check after some time in the wild.
-    (assert (and (not= :folder (resource/source-type resource))
-                 (resource/exists? resource)))
     (let [{:keys [read-fn load-fn] :as resource-type} (resource/resource-type resource)
           transpiler-tx-data (transpiler-tx-data-fn resource-node-id resource)]
       (cond-> []
@@ -1784,7 +1781,7 @@
               (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
                 (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
         project-id
-    (second
+        (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph

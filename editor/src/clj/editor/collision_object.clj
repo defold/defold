@@ -751,6 +751,7 @@
       :sanitize-fn sanitize-collision-object
       :icon collision-object-icon
       :icon-class :design
+      :category (localization/message "resource.category.components")
       :view-types [:scene :text]
       :view-opts {:scene {:grid true}}
       :tags #{:component}

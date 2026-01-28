@@ -656,6 +656,7 @@
 (defn natural-sort-by-label
   "Localization-aware function that sorts the items on their :label vals"
   [localization-state items]
+  {:pre [(localization-state? localization-state)]}
   (->> items
        (mapv #(coll/pair (localization-state (:label %)) %))
        (sort-by key eutil/natural-order)

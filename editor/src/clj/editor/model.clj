@@ -592,6 +592,7 @@
     :sanitize-fn sanitize-model
     :icon model-icon
     :icon-class :design
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))

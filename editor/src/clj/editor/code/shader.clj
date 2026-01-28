@@ -82,6 +82,7 @@
                    :label (localization/message "resource.type.vp")
                    :icon "icons/32/Icons_32-Vertex-shader.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.shaders")
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
@@ -89,6 +90,7 @@
                    :label (localization/message "resource.type.fp")
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.shaders")
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "cp"
@@ -96,12 +98,14 @@
                    :label (localization/message "resource.type.cp")
                    :icon "icons/64/Icons_29-AT-Unknown.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.shaders")
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "glsl"
                    :label (localization/message "resource.type.glsl")
                    :icon "icons/64/Icons_29-AT-Unknown.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.shaders")
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 

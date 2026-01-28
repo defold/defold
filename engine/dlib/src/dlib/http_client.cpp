@@ -196,6 +196,11 @@ namespace dmHttpClient
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
+
+        Client()
+        {
+            memset(this, 0, sizeof(*this));
+        }
     };
 
     Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled)
@@ -294,7 +299,6 @@ namespace dmHttpClient
         client->m_MaxGetRetries = params->m_MaxGetRetries;
         client->m_RequestTimeout = params->m_RequestTimeout;
         client->m_RequestStart = 0;
-        memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = (strcmp(hostURI->m_Scheme, "https") == 0) || (strcmp(hostURI->m_Scheme, "wss") == 0);
         client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;

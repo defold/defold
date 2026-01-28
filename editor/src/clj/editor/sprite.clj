@@ -681,6 +681,7 @@
     :sanitize-fn sanitize-sprite
     :icon sprite-icon
     :icon-class :design
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}

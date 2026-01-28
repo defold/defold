@@ -1457,6 +1457,16 @@ resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Zig Object Notation
 
+resource.category.objects = Objects
+resource.category.scripts = Scripts
+resource.category.shaders = Shaders
+resource.category.components = Components
+resource.category.resources = Resources
+resource.category.editor = Editor
+resource.category.render = Render
+resource.category.project_settings = Project Settings
+resource.category.other = Other
+
 # Forms
 
 form.filter = Filter

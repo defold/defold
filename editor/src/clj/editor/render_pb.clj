@@ -193,5 +193,6 @@
     :sanitize-fn sanitize-render
     :icon "icons/32/Icons_30-Render.png"
     :icon-class :property
+    :category (localization/message "resource.category.project_settings")
     :view-types [:cljfx-form-view :text]
     :label (localization/message "resource.type.render")))

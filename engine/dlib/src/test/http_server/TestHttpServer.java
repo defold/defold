@@ -83,6 +83,8 @@ public class TestHttpServer extends AbstractHandler
     // Max number of retries when starting the server.
     static int maxRetries = 3;
 
+    boolean proxyConnectMode = false;
+
     Pattern m_AddPattern = Pattern.compile("/add/(\\d+)/(\\d+)");
     Pattern m_ArbPattern = Pattern.compile("/arb/(\\d+)");
     Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
@@ -284,6 +286,38 @@ public class TestHttpServer extends AbstractHandler
         Matcher echom = m_EchoPattern.matcher(target);
         Matcher closem = m_ClosePattern.matcher(target);
         Matcher sleepm = m_SleepPattern.matcher(target);
+
+        // for HTTP proxy connections using CONNECT method
+        // this toggles the server to proxy connect mode by
+        // responding with a 200 OK with no content
+        if (request.getMethod().equals("CONNECT")) {
+            boolean ok = (proxyConnectMode == false) && target.equals("/");
+            response.setStatus(ok ? HttpServletResponse.SC_OK : HttpServletResponse.SC_BAD_REQUEST);
+            baseRequest.setHandled(true);
+            proxyConnectMode = true;
+            return;
+        }
+
+        if (target.equals("/proxy/to/www.google.com")) {
+            // only accept a request to this target if we are in proxy connect mode
+            // the host header is www.google.com and the request method is a GET
+            String host = request.getHeader("Host");
+            boolean ok = (proxyConnectMode == true)
+                && "www.google.com".equals(host)
+                && request.getMethod().equals("GET");
+            response.setStatus(ok ? HttpServletResponse.SC_OK : HttpServletResponse.SC_BAD_REQUEST);
+            baseRequest.setHandled(true);
+            proxyConnectMode = false;
+            return;
+        }
+        else if (proxyConnectMode) {
+            // requesting some other target while in proxy connect mode
+            // should fail
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            baseRequest.setHandled(true);
+            proxyConnectMode = false;
+            return;
+        }
 
         if (target.equals("/"))
         {

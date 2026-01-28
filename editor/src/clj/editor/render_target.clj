@@ -184,6 +184,7 @@
     :sanitize-fn sanitize-render-target
     :icon texture-icon
     :icon-class :design
+    :category (localization/message "resource.category.resources")
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :label (localization/message "resource.type.render-target")))

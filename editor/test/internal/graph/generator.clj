@@ -151,6 +151,6 @@
   (= (builder) (builder))
   ;; => true
 
-  (= ((make-random-graph-builder)) ((make-random-graph-builder)))
+  (= ((make-random-graph-builder)) ((make-random-graph-builder))))
   ;; => false
-)
+

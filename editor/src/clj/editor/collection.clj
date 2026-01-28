@@ -1009,6 +1009,7 @@
       :string-encode-fn (partial string-encode-collection workspace)
       :icon collection-common/collection-icon
       :icon-class :design
+      :category (localization/message "resource.category.objects")
       :view-types [:scene :text]
       :view-opts {:scene {:grid true
                           :drop-fn handle-drop}})))

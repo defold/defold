@@ -468,7 +468,7 @@ namespace dmGameObject
      * @member m_Instance [type: HInstance] Game object instance
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_Options [type: PropertyOptions] Options for getting the property
+     * @member m_Options [type: HPropertyOptions] Options for getting the property
      */
     struct ComponentGetPropertyParams
     {
@@ -477,7 +477,7 @@ namespace dmGameObject
         HInstance m_Instance;
         dmhash_t m_PropertyId;
         uintptr_t* m_UserData;
-        PropertyOptions m_Options;
+        HPropertyOptions m_Options;
     };
 
     /*#
@@ -500,7 +500,7 @@ namespace dmGameObject
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      * @member m_Value [type: PropertyVar] New value of the property
-     * @member m_Options [type: PropertyOptions] Options for setting the property
+     * @member m_Options [type: HPropertyOptions] Options for setting the property
      */
     struct ComponentSetPropertyParams
     {
@@ -510,7 +510,7 @@ namespace dmGameObject
         dmhash_t m_PropertyId;
         uintptr_t* m_UserData;
         PropertyVar m_Value;
-        PropertyOptions m_Options;
+        HPropertyOptions m_Options;
     };
 
     /*#
