@@ -70,10 +70,10 @@
   (let [screens (Screen/getScreens)
         n (.size screens)]
     (loop [i 0
-           min-height Double/MAX_VALUE]
+           max-height 0.0]
       (if (= i n)
-        min-height
-        (recur (unchecked-inc i) (min min-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
+        max-height
+        (recur (unchecked-inc i) (max max-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
