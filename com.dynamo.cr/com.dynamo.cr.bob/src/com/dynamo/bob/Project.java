@@ -934,9 +934,11 @@ public class Project {
 
     private void validateBundleOutputDirectory(File bundleDir) throws IOException, CompileExceptionError {
         File buildDir = new File(FilenameUtils.concat(getRootDirectory(), "build"));
+        File buildOutputDir = new File(FilenameUtils.concat(getRootDirectory(), getBuildDirectory()));
         Path bundlePath = bundleDir.getCanonicalFile().toPath();
         Path buildPath = buildDir.getCanonicalFile().toPath();
-        if (bundlePath.startsWith(buildPath) && !bundlePath.toString().contains(getBuildDirectory())) {
+        Path buildOutputPath = buildOutputDir.getCanonicalFile().toPath();
+        if (bundlePath.startsWith(buildPath) && !bundlePath.startsWith(buildOutputPath)) {
             throw new CompileExceptionError("Folder '" + buildDir + "' in the project folder can't be used for bundling as this folder is reserved for Defold build system.");
         }
     }
