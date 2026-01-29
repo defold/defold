@@ -297,9 +297,12 @@
   by the symbolic link at this path. Returns nil if the argument does not refer
   to a file system entry that is a symbolic link."
   ^Path [x]
-  (let [path (to-path x)]
-    (when (Files/isSymbolicLink path)
-      (Files/readSymbolicLink path))))
+  (let [symlink-path (to-path x)]
+    (when (Files/isSymbolicLink symlink-path)
+      (let [target-path (Files/readSymbolicLink symlink-path)]
+        (-> symlink-path
+            (.resolveSibling target-path)
+            (.normalize))))))
 
 (defn absolute?
   "Coerces the argument to a java.nio.file.Path and returns true if the path is

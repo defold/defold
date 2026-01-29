@@ -344,8 +344,12 @@
                                   (.getParentFile ^File tgt)
                                   tgt))
                               (fs/to-folder (File. (resource/abs-path target-resource))) src-files)
+        ;; We call File/.exists on each source file because they might have been
+        ;; put on the clipboard and then deleted. We also rely on this to stop
+        ;; ourselves from trying to read the target file from a broken symlink.
+        ;; TODO: Maybe we should make a copy of the broken symlink instead?
         prospect-pairs (coll/transfer src-files []
-                         (filter File/.exists) ; Files may have been put on clipboard, then deleted. This also filters out broken symlinks.
+                         (filter File/.exists)
                          (map (fn [^File src-file]
                                 (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
                                   (pair src-file tgt-file)))))
