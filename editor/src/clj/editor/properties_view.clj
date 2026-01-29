@@ -351,7 +351,7 @@
                              {:fx/type fx.column-constraints/lifecycle
                               :percent-width (* 100 (double (/ 1 (count labels))))}))
      :children
-     (coll/transfer labels []
+     (coll/into-> labels []
        (map-indexed
          (fn [i label]
            {:fx/type fxui/horizontal
@@ -728,7 +728,7 @@
                                              :hgrow :always}]
                        :spacing :small
                        :children
-                       (coll/transfer properties []
+                       (coll/into-> properties []
                          (coll/mapcat-indexed
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]

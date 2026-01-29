@@ -1054,7 +1054,7 @@
                 (not= :all source-prop-kws)
                 (select-keys source-prop-kws))]
     (coll/not-empty
-      (coll/transfer source-prop-infos-by-prop-kw {}
+      (coll/into-> source-prop-infos-by-prop-kw {}
         (filter (fn [[_prop-kw prop-info]]
                   ;; Note that properties that have validation errors may be
                   ;; included in the transfer.
@@ -1130,10 +1130,10 @@
          (vector? target-infos)
          (not (coll/empty? target-infos))]}
   (let [property-transfers
-        (coll/transfer source-prop-infos-by-prop-kw []
+        (coll/into-> source-prop-infos-by-prop-kw []
           (map (fn [[source-prop-kw source-prop-info]]
                  (let [property-transfer-targets
-                       (coll/transfer target-infos []
+                       (coll/into-> target-infos []
                          (map (fn [{:keys [target-aspect target-node-id target-prop-infos-by-prop-kw] :as target-info}]
                                 {:pre [(or (nil? target-aspect) (property-transfer-target-aspect? target-aspect))
                                        (g/node-id? target-node-id)
@@ -1199,7 +1199,7 @@
    (update
      transfer-overrides-plan :property-transfers
      (fn [property-transfers]
-       (coll/transfer property-transfers (coll/empty-with-meta property-transfers)
+       (coll/into-> property-transfers (coll/empty-with-meta property-transfers)
          (map (fn [{:keys [source-node-id] :as property-transfer}]
                 {:pre [(g/node-id? source-node-id)]}
                 (as-> property-transfer property-transfer
@@ -1209,7 +1209,7 @@
                              property-transfer)
                       (update property-transfer :targets
                               (fn [property-transfer-targets]
-                                (coll/transfer property-transfer-targets (coll/empty-with-meta property-transfer-targets)
+                                (coll/into-> property-transfer-targets (coll/empty-with-meta property-transfer-targets)
                                   (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
                                          {:pre [(g/node-id? target-node-id)
                                                 (g/node-id? target-prop-node-id)]}
@@ -1265,14 +1265,14 @@
   {:pre [(transfer-overrides-plan? transfer-overrides-plan)]
    :post [(localization/message-pattern? %)]}
   (let [{:keys [property-transfers override-transfer-type]} transfer-overrides-plan
-        property-transfer-targets (coll/transfer property-transfers []
+        property-transfer-targets (coll/into-> property-transfers []
                                     (mapcat :targets))
-        target-node-ids (coll/transfer property-transfer-targets #{}
+        target-node-ids (coll/into-> property-transfer-targets #{}
                           (keep :target-node-id))
-        target-aspects (coll/transfer property-transfer-targets #{}
+        target-aspects (coll/into-> property-transfer-targets #{}
                          (keep :target-aspect))
         target-aspect-count (count target-aspects)
-        target-proj-paths (coll/transfer property-transfer-targets #{}
+        target-proj-paths (coll/into-> property-transfer-targets #{}
                             (keep :target-owner-resource)
                             (map resource/proj-path))]
     (-> (case override-transfer-type
@@ -1331,7 +1331,7 @@
   (let [property-transfers (get transfer-overrides-plan :property-transfers ::not-found)]
     (assert (not= ::not-found property-transfers))
     (coll/not-empty
-      (coll/transfer property-transfers []
+      (coll/into-> property-transfers []
         (mapcat #(property-transfer-tx-data % evaluation-context))))))
 
 (defn transfer-overrides!
@@ -1348,7 +1348,7 @@
   [override-transfer-type source-prop-infos-by-prop-kw target-node-ids {:keys [basis] :as evaluation-context}]
   {:pre [(not (coll/empty? target-node-ids))]}
   (let [target-infos
-        (coll/transfer target-node-ids []
+        (coll/into-> target-node-ids []
           (map (fn [target-node-id]
                  (let [target-prop-infos-by-prop-kw (:properties (g/node-value target-node-id :_properties evaluation-context))]
                    {:target-node-id target-node-id
@@ -1368,7 +1368,7 @@
   [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
   (when-let [original-node-id (g/override-original basis source-node-id)]
     (let [original-node-ids (iterate #(g/override-original basis %) original-node-id)]
-      (coll/transfer
+      (coll/into->
         original-node-ids []
         (take-while some?)
         (map (fn [original-node-id]

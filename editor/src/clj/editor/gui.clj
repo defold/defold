@@ -663,7 +663,7 @@
                                (get gui-resource-type)
                                (contains? old-name))))))
                 owner-gui-scene)]
-          (coll/transfer gui-scenes []
+          (coll/into-> gui-scenes []
             (mapcat #(g/valid-node-value % :node-ids evaluation-context))
             (map val)
             (keep (fn [gui-node]
@@ -873,7 +873,7 @@
   [layout-name node-id changes]
   {:pre [(string? layout-name)]}
   (if (str/blank? layout-name)
-    (coll/transfer changes []
+    (coll/into-> changes []
       (mapcat (fn [[prop-kw value]]
                 (if (nil? value)
                   (g/clear-property node-id prop-kw)
@@ -982,7 +982,7 @@
             prop->value-delay (delay (prop->value-for-specific-layout node-id layout-name evaluation-context))
 
             changes
-            (coll/transfer prop-kws-and-values {}
+            (coll/into-> prop-kws-and-values {}
               (partition-all 2)
               (mapcat (fn [[prop-kw new-value]]
                         (if-let [changes-fn (:changes-fn (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
@@ -1370,7 +1370,7 @@
     ;; target node. Otherwise, we would have to create the layout in the target
     ;; gui scene, which might be confusing?
     (when (not= ::not-found prop-kw->value)
-      (coll/transfer prop-kw->prop-info {}
+      (coll/into-> prop-kw->prop-info {}
         (map (fn [[prop-kw prop-info]]
                (let [value (get prop-kw->value prop-kw)
                      edit-type (:edit-type prop-info)
@@ -1390,7 +1390,7 @@
   {:pre [(not (coll/empty? target-node-id+layout-names))]}
   (when-let [target-infos
              (coll/not-empty
-               (coll/transfer target-node-id+layout-names []
+               (coll/into-> target-node-id+layout-names []
                  (keep (fn [[target-node-id target-layout-name]]
                          (when-let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id target-layout-name evaluation-context)]
                            (cond-> {:target-node-id target-node-id
@@ -1422,7 +1422,7 @@
             [pull-up-overrides-to-default-layout-plan]
             [])]
 
-      (coll/transfer
+      (coll/into->
         original-node-ids source-node-layout-transfer-overrides-plans
         (take-while some?)
         (keep (fn [original-node-id]
@@ -2985,7 +2985,7 @@
 
   (output layer->index NameIndices :cached
           (g/fnk [ordered-layer-names]
-            (coll/transfer ordered-layer-names {}
+            (coll/into-> ordered-layer-names {}
               (map-indexed coll/flipped-pair))))
   (input child-indices NodeIndex :array)
   (output node-outline outline/OutlineData :cached
@@ -3126,7 +3126,7 @@
 (defn- make-layout-desc [layout-name decorated-node-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
     :name layout-name
-    :nodes (coll/transfer decorated-node-msgs []
+    :nodes (coll/into-> decorated-node-msgs []
              (keep
                (fn [{:keys [layout->prop->override] :as decorated-node-msg}]
                  {:pre [(map? layout->prop->override)]}
@@ -3178,7 +3178,7 @@
               layout-names)
 
         node-descs
-        (coll/transfer node-msgs []
+        (coll/into-> node-msgs []
           (map #(dissoc % :layout->prop->override :layout->prop->value))
           (map (fn [node-desc]
                  (if (:template-node-child node-desc)
@@ -3306,7 +3306,7 @@
   {:pre [(map? id->node-desc-for-default-layout)]}
   (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
     :name layout-name
-    :nodes (coll/transfer decorated-node-msgs []
+    :nodes (coll/into-> decorated-node-msgs []
              (keep
                (fn [{:keys [layout->prop->value] :as decorated-node-msg}]
                  {:pre [(map? layout->prop->value)]}
@@ -3342,7 +3342,7 @@
       (let [template-build-targets (flatten template-build-targets)
 
             rt-node-descs
-            (coll/transfer node-msgs []
+            (coll/into-> node-msgs []
               (keep
                 (fn [decorated-node-msg]
                   (-> decorated-node-msg
@@ -3369,7 +3369,7 @@
 
             ;; TODO: Can we replace all this with pipeline/make-protobuf-build-target?
             deps-by-source
-            (coll/transfer dep-build-targets {}
+            (coll/into-> dep-build-targets {}
               (map (fn [dep-build-target]
                      (let [build-resource (:resource dep-build-target)
                            source-resource (:resource build-resource)
@@ -3377,7 +3377,7 @@
                        (pair source-proj-path build-resource)))))
 
             dep-resources
-            (coll/transfer (:resource-fields pb-def) []
+            (coll/into-> (:resource-fields pb-def) []
               (mapcat (fn [field]
                         (if (vector? field)
                           (e/map (fn [index]
@@ -3621,7 +3621,7 @@
   (output aux-gui-resource-type-names GuiResourceTypeNames :cached
           (g/fnk [aux-basic-gui-scene-info]
             (let [material-names
-                  (coll/transfer (:material-infos aux-basic-gui-scene-info) (sorted-set)
+                  (coll/into-> (:material-infos aux-basic-gui-scene-info) (sorted-set)
                     (map key)
                     (remove coll/empty?))]
               {:font (:font-names aux-basic-gui-scene-info)
@@ -3670,7 +3670,7 @@
                         h (get project-settings ["display" "height"] 0)]
                     {:width w :height h})))))
   (output unused-display-profiles g/Any (g/fnk [layout-names display-profiles]
-                                          (coll/transfer display-profiles []
+                                          (coll/into-> display-profiles []
                                             (map :name)
                                             (remove layout-names))))
 
@@ -3938,7 +3938,7 @@
         tmpl-children      (group-by (comp :template second) tmpl-node-descs)
 
         template-data
-        (coll/transfer tmpl-children {}
+        (coll/into-> tmpl-children {}
           (map first)
           (remove tmpl-node-descs)
           (keep (fn [importing-id]

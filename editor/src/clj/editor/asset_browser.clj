@@ -348,7 +348,7 @@
         ;; put on the clipboard and then deleted. We also rely on this to stop
         ;; ourselves from trying to read the target file from a broken symlink.
         ;; TODO: Maybe we should make a copy of the broken symlink instead?
-        prospect-pairs (coll/transfer src-files []
+        prospect-pairs (coll/into-> src-files []
                          (filter File/.exists)
                          (map (fn [^File src-file]
                                 (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
@@ -590,7 +590,7 @@
                    ["resource.category.resources"]
                    ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]])
             predefined-categories (into #{} cat base-columns)
-            all-items (coll/transfer
+            all-items (coll/into->
                         (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
                         []
                         (keep (fn [[_ext resource-type]]
@@ -602,13 +602,13 @@
                                    :style (resource/type-style-classes resource-type)
                                    :command :file.new
                                    :user-data {:resource-type resource-type}}))))
-            unlisted-categories (coll/transfer all-items []
+            unlisted-categories (coll/into-> all-items []
                                   (map :category)
                                   (distinct)
                                   (remove predefined-categories))
             columns (cond-> base-columns
-                      (not (coll/empty? unlisted-categories))
-                      (conj unlisted-categories))]
+                            (not (coll/empty? unlisted-categories))
+                            (conj unlisted-categories))]
         (with-meta
           (localization/natural-sort-by-label @localization all-items)
           {:layout :grid :columns columns})))))

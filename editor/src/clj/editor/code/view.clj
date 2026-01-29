@@ -3699,7 +3699,7 @@
             source-line-count (count lines)
             indicator-offset 3.0
             indicator-diameter (- line-height indicator-offset indicator-offset)
-            breakpoint-row->condition (coll/transfer regions {}
+            breakpoint-row->condition (coll/into-> regions {}
                                         (filter data/breakpoint-region?)
                                         (map (juxt data/breakpoint-row
                                                    #(-> {:condition (:condition % true)

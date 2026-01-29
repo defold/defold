@@ -174,7 +174,7 @@
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
 
         attribute-reflection-infos
-        (coll/transfer (.getInputs spirv-reflector) []
+        (coll/into-> (.getInputs spirv-reflector) []
           (filter vertex-shader-resource?)
           (map make-attribute-reflection-info))]
 
@@ -200,12 +200,12 @@
                             {:augmented-shader-infos augmented-shader-infos})))
 
         shader-type+source-pairs
-        (coll/transfer augmented-shader-infos []
+        (coll/into-> augmented-shader-infos []
           (map (fn [{:keys [shader-type transpiled-shader-source]}]
                  (pair shader-type transpiled-shader-source))))
 
         array-sampler-name->slice-sampler-names
-        (coll/transfer augmented-shader-infos {}
+        (coll/into-> augmented-shader-infos {}
           (mapcat :array-sampler-names)
           (distinct)
           (map (fn [array-sampler-name]
@@ -216,7 +216,7 @@
 
         strip-resource-binding-namespace-regex-str
         (resource-binding-namespaces->regex-str
-          (coll/transfer augmented-shader-infos (sorted-set)
+          (coll/into-> augmented-shader-infos (sorted-set)
             (mapcat :resource-binding-namespaces)))
 
         attribute-reflection-infos

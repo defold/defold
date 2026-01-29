@@ -475,7 +475,7 @@
         model-transform (math/clj->mat4 translation rotation scale)
 
         renderable-meshes
-        (coll/transfer (:meshes model) []
+        (coll/into-> (:meshes model) []
           (map-indexed
             (fn [mesh-index mesh]
               (let [mesh-request-id (assoc model-request-id :mesh-index mesh-index)]

@@ -328,7 +328,7 @@
             (render-generate-tx-data-progress! (update progress :message localization/set-message-key "progress.processing-resource"))
             (node-load-info-tx-data node-load-info project transpiler-tx-data-fn)))]
 
-    (coll/transfer node-load-infos :eduction
+    (coll/into-> node-load-infos :eduction
       (coll/mapcat-indexed
         (fn [^long node-index node-load-info]
           (let [resource (:resource node-load-info)
@@ -443,7 +443,7 @@
                        (workspace/localization workspace evaluation-context))
 
         unsafe-references-report-lines
-        (coll/transfer (sort-by key unsafe-dependency-proj-paths-by-referencing-proj-path) []
+        (coll/into-> (sort-by key unsafe-dependency-proj-paths-by-referencing-proj-path) []
           (map (fn [[referencing-proj-path unsafe-dependency-proj-paths]]
                  (e/cons
                    (localization
@@ -728,11 +728,11 @@
                 (read-node-load-infos principal-node-id+resource-pairs (count principal-node-id+resource-pairs) render-progress! resource-metrics)
 
                 principal-proj-paths
-                (coll/transfer principal-node-id+resource-pairs #{}
+                (coll/into-> principal-node-id+resource-pairs #{}
                   (map node-id+resource-pair->proj-path))
 
                 principal-dependency-proj-paths
-                (coll/transfer principal-node-load-infos #{}
+                (coll/into-> principal-node-load-infos #{}
                   (mapcat :dependency-proj-paths))
 
                 [loaded-proj-paths loaded-node-load-infos]
@@ -741,7 +741,7 @@
                        required-dependency-proj-paths principal-dependency-proj-paths]
                   (let [supplemental-node-id+resource-pairs
                         (sort
-                          (coll/transfer required-dependency-proj-paths []
+                          (coll/into-> required-dependency-proj-paths []
                             (remove loaded-proj-paths)
                             (remove safe-dependency-proj-path?)
                             (keep (fn [required-dependency-proj-path]
@@ -781,7 +781,7 @@
                             (e/concat loaded-node-load-infos supplemental-node-load-infos)
 
                             required-dependency-proj-paths
-                            (coll/transfer supplemental-node-load-infos #{}
+                            (coll/into-> supplemental-node-load-infos #{}
                               (mapcat :dependency-proj-paths))]
 
                         (recur loaded-proj-paths
@@ -790,7 +790,7 @@
 
             ;; Write a report of any unsafe references to unloaded resources.
             (let [desired-proj-paths
-                  (coll/transfer new-node-id+resource-pairs-by-proj-path #{}
+                  (coll/into-> new-node-id+resource-pairs-by-proj-path #{}
                     (map key)
                     (remove unloaded-proj-path?))
 
@@ -798,20 +798,20 @@
                   (set/difference loaded-proj-paths desired-proj-paths)
 
                   desired-node-load-infos-by-proj-path
-                  (coll/transfer loaded-node-load-infos {}
+                  (coll/into-> loaded-node-load-infos {}
                     (keep (fn [{:keys [resource] :as loaded-node-load-info}]
                             (let [proj-path (resource/proj-path resource)]
                               (when (contains? desired-proj-paths proj-path)
                                 (pair proj-path loaded-node-load-info))))))
 
                   unsafe-dependency-proj-paths-by-referencing-proj-path
-                  (coll/transfer desired-proj-paths {}
+                  (coll/into-> desired-proj-paths {}
                     (keep (fn [referencing-proj-path]
                             (let [node-load-info
                                   (desired-node-load-infos-by-proj-path referencing-proj-path)
 
                                   unsafe-dependency-proj-paths
-                                  (coll/transfer (:dependency-proj-paths node-load-info) #{}
+                                  (coll/into-> (:dependency-proj-paths node-load-info) #{}
                                     (remove safe-dependency-proj-path?))]
 
                               (when-not (coll/empty? unsafe-dependency-proj-paths)

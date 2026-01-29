@@ -340,7 +340,7 @@
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+      (coll/into-> (g/explicit-arcs-by-target basis node :nodes) []
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 

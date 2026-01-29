@@ -243,7 +243,7 @@
          (vector? attribute-locations)
          (= (count attributes) (count attribute-locations))]}
   (let [expanded-attributes
-        (coll/transfer attributes (empty attributes)
+        (coll/into-> attributes (empty attributes)
           (mapcat
             (fn [attribute]
               (if-let [row-column-count (attribute-info->row-column-count attribute)]
@@ -251,7 +251,7 @@
                 [attribute]))))
 
         expanded-attribute-locations
-        (coll/transfer attribute-locations (empty attribute-locations)
+        (coll/into-> attribute-locations (empty attribute-locations)
           (coll/mapcat-indexed
             (fn [^long attribute-index ^long base-location]
               (let [attribute (attributes attribute-index)

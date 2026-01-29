@@ -75,7 +75,7 @@
                          (not (excluded-ext? (:ext resource-type))))))
 
                 loadable-resource-types-by-proj-paths
-                (coll/transfer loadable-resource-type-colls-by-editability (sorted-map)
+                (coll/into-> loadable-resource-type-colls-by-editability (sorted-map)
                   (mapcat val)
                   (map (juxt resource-type->proj-path identity)))
 
@@ -420,7 +420,7 @@
                     (call-logged-transact!
                       (-> (project/get-resource-node project "/loaded_referencing_unloaded_go.collection")
                           (test-util/referenced-game-objects)
-                          (coll/transfer []
+                          (coll/into-> []
                             (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.go")})))))]
 
                 (is (= []
@@ -440,7 +440,7 @@
                     (call-logged-transact!
                       (-> (project/get-resource-node project "/first_loaded_referencing_unloaded_tilemap.go")
                           (test-util/referenced-components)
-                          (coll/transfer []
+                          (coll/into-> []
                             (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
 
                 (is (= ["/unloaded/unloaded.tilemap"
@@ -462,7 +462,7 @@
                       (call-logged-transact!
                         (-> (project/get-resource-node project "/second_loaded_referencing_unloaded_tilemap.go")
                             (test-util/referenced-components)
-                            (coll/transfer []
+                            (coll/into-> []
                               (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
 
                   (is (= []

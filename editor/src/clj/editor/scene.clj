@@ -114,7 +114,7 @@
   (let [max-error-count 15 ; We limit the number of errors since traversing deep trees is slow.
 
         distinct-errors
-        (coll/transfer error-values []
+        (coll/into-> error-values []
           (mapcat #(tree-seq :causes :causes %))
           (filter :message)
           (remove :causes)
@@ -123,7 +123,7 @@
           (take (inc max-error-count))) ; Produce one more error than we'll use so we'll know if we're over the limit.
 
         error-message-lines
-        (coll/transfer distinct-errors ["RENDER ERROR:" ""]
+        (coll/into-> distinct-errors ["RENDER ERROR:" ""]
           (take max-error-count)
           (map (fn [{:keys [_node-id message]}]
                  (let [resource-name (get-resource-name _node-id)]
@@ -324,7 +324,7 @@
                             :picking-rect :select-batch-key})
 
 (defn- make-aabb-renderables [renderables]
-  (coll/transfer renderables []
+  (coll/into-> renderables []
     (keep :aabb)
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
@@ -959,7 +959,7 @@
             (:renderables scene-render-data))
 
           sorted-renderables-by-pass
-          (coll/transfer all-renderables-by-pass {}
+          (coll/into-> all-renderables-by-pass {}
             (map (fn [[pass renderables]]
                    (pair pass
                          (vec (render-sort renderables))))))]
@@ -1918,7 +1918,7 @@
     num))
 
 (defn non-zeroify-scale [scale]
-  (coll/transform scale
+  (coll/transform-> scale
     (map non-zeroify-component)))
 
 (g/defnode SceneNode

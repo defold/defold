@@ -27,13 +27,13 @@
 (def empty-set #{})
 (def empty-sorted-set (sorted-set))
 
-(defmacro transfer
+(defmacro into->
   "Transfer the sequence supplied as the first argument into the destination
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
   as the destination returns an eduction instead.
 
-  See also: transform, transmute, transmute-kv, transpire!."
+  See also: transform->, reduce->, reduce-kv->, run!->."
   ([from to]
    (case to
      :eduction `(->Eduction identity ~from)
@@ -58,7 +58,7 @@
   additional arguments supplied between the first and last arguments will be
   composed into a transducer. Returns nil.
 
-  See also: transfer, transform, transmute, transmute-kv."
+  See also: into->, transform->, reduce->, reduce-kv->."
   [coll second-arg & more]
   (case (count more)
     0 `(run! ~second-arg ~coll)
@@ -82,7 +82,7 @@
   supplied. When transducers are supplied, we will wrap the acc-fn in a
   multi-arity function suitable for use with core.transduce.
 
-  See also: transfer, transform, transmute-kv, transpire!."
+  See also: into->, transform->, reduce-kv->, run!->."
   [coll second-arg third-arg & more]
   (case (count more)
     0 `(reduce ~third-arg ~second-arg ~coll)
@@ -115,7 +115,7 @@
   supplied. When transducers are supplied, we will wrap the acc-fn in a
   multi-arity function suitable for use with core.transduce.
 
-  See also: transfer, transform, transmute, transpire!."
+  See also: into->, transform->, reduce->, run!->."
   [coll second-arg third-arg & more]
   (case (count more)
     0 `(reduce-kv ~third-arg ~second-arg ~coll)
@@ -325,13 +325,13 @@
 
 (defonce into-vector (fnil into []))
 
-(defn transform
+(defn transform->
   "Transform the collection supplied as the first argument into a new collection
   of the same type, using a transducer composed of the remaining arguments.
   Preserves metadata. Returns coll unaltered if empty or if no transducers are
   supplied.
 
-  See also: transfer, transmute, transmute-kv, transpire!."
+  See also: into->, reduce->, reduce-kv->, run!->."
   ([coll] coll)
   ([coll xform]
    (cond
@@ -353,7 +353,7 @@
   ([coll xform & xforms]
    (if (empty? coll)
      coll
-     (transform coll (apply comp xform xforms)))))
+     (transform-> coll (apply comp xform xforms)))))
 
 (defn update-vals
   "Like core.update-vals, but retains the type of the input map or record. Also
@@ -849,7 +849,7 @@
   values."
   [nested-map]
   {:pre [(map? nested-map)]}
-  (transform nested-map xform-nested-map->path-map))
+  (transform-> nested-map xform-nested-map->path-map))
 
 (defn path-map->nested-map
   "Takes a flat map of vector paths to values and returns a nested map to the

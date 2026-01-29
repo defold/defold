@@ -173,7 +173,7 @@
   contents of something like a `.defignore` file."
   [lines]
   (let [patterns (when lines
-                   (coll/transfer lines []
+                   (coll/into-> lines []
                      (filter #(string/starts-with? % "/"))
                      (map #(string/replace % #"/*$" ""))
                      (distinct)))]
