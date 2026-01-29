@@ -292,7 +292,7 @@
                    (fn [^double delta]
                      (let [new-doubles (vswap!
                                          doubles-vol
-                                         coll/mapv>
+                                         coll/mapv->
                                          #(cond-> (+ ^double % (* delta precision))
                                                   min-value (max (double min-value))
                                                   max-value (min (double max-value))))

@@ -52,28 +52,28 @@
             (comp ~xform ~@xforms)
             ~from))))
 
-(defmacro transpire!
+(defmacro ^{:arglists '([coll ...xforms item-fn!])} run!->
   "Runs (via reduce) the side-effecting item-fn! supplied as the last argument,
   on successive items in the collection supplied as the first argument. Any
   additional arguments supplied between the first and last arguments will be
   composed into a transducer. Returns nil.
 
   See also: transfer, transform, transmute, transmute-kv."
-  [coll item-fn! & more]
+  [coll second-arg & more]
   (case (count more)
-    0 `(run! ~item-fn! ~coll)
-    1 (let [xform item-fn!
+    0 `(run! ~second-arg ~coll)
+    1 (let [xform second-arg
             item-fn! (first more)]
         `(run! ~item-fn!
                (->Eduction ~xform ~coll)))
-    (let [first-xform item-fn!
+    (let [first-xform second-arg
           more-xforms (butlast more)
           item-fn! (last more)]
       `(run! ~item-fn!
              (->Eduction (comp ~first-xform ~@more-xforms)
                          ~coll)))))
 
-(defmacro transmute
+(defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce->
   "Similar to core.transduce or core.reduce, but takes the input sequence as the
   first argument, followed by a mandatory init value, and the acc-fn as the last
   argument. Any additional arguments specified between the init value and the
@@ -83,19 +83,19 @@
   multi-arity function suitable for use with core.transduce.
 
   See also: transfer, transform, transmute-kv, transpire!."
-  [coll init acc-fn & more]
+  [coll second-arg third-arg & more]
   (case (count more)
-    0 `(reduce ~acc-fn ~init ~coll)
-    1 (let [xform acc-fn
+    0 `(reduce ~third-arg ~second-arg ~coll)
+    1 (let [xform third-arg
             acc-fn (first more)]
         `(transduce ~xform
                     (let [~'acc-fn ~acc-fn]
                       (fn
                         ([~'acc] ~'acc)
                         ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
-                    ~init
+                    ~second-arg
                     ~coll))
-    (let [first-xform acc-fn
+    (let [first-xform third-arg
           more-xforms (butlast more)
           acc-fn (last more)]
       `(transduce (comp ~first-xform ~@more-xforms)
@@ -103,10 +103,10 @@
                     (fn
                       ([~'acc] ~'acc)
                       ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
-                  ~init
+                  ~second-arg
                   ~coll))))
 
-(defmacro transmute-kv
+(defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce-kv->
   "Similar to core.reduce-kv, but takes the input sequence as the first
   argument, followed by a mandatory init value, and the acc-fn as the last
   argument. Any additional arguments specified between the init value and the
@@ -116,19 +116,19 @@
   multi-arity function suitable for use with core.transduce.
 
   See also: transfer, transform, transmute, transpire!."
-  [coll init acc-fn & more]
+  [coll second-arg third-arg & more]
   (case (count more)
-    0 `(reduce-kv ~acc-fn ~init ~coll)
-    1 (let [xform acc-fn
+    0 `(reduce-kv ~third-arg ~second-arg ~coll)
+    1 (let [xform third-arg
             acc-fn (first more)]
         `(transduce ~xform
                     (let [~'acc-fn ~acc-fn]
                       (fn
                         ([~'acc] ~'acc)
                         ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
-                    ~init
+                    ~second-arg
                     ~coll))
-    (let [first-xform acc-fn
+    (let [first-xform third-arg
           more-xforms (butlast more)
           acc-fn (last more)]
       `(transduce (comp ~first-xform ~@more-xforms)
@@ -136,7 +136,7 @@
                     (fn
                       ([~'acc] ~'acc)
                       ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
-                  ~init
+                  ~second-arg
                   ~coll))))
 
 (defn comparable-value?
@@ -1026,7 +1026,7 @@
     (let [array-manager-id (System/identityHashCode (.am coll))]
       (primitive-types-by-array-manager-id array-manager-id))))
 
-(defn mapv>
+(defn mapv->
   "Like core.mapv, but takes the input sequence as the first argument and
   supplies any arguments following the transform function to it after the item
   argument. Useful with various core functions such as update."

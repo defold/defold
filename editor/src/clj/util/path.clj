@@ -32,8 +32,10 @@
 (defonce ^:private ^CopyOption/1 empty-copy-option-array (make-array CopyOption 0))
 (defonce ^:private ^FileAttribute/1 empty-file-attribute-array (make-array FileAttribute 0))
 (defonce ^:private ^FileVisitOption/1 empty-file-visit-option-array (make-array FileVisitOption 0))
-(defonce ^:private ^LinkOption/1 empty-link-option-array (make-array LinkOption 0))
 (defonce ^:private ^String/1 empty-string-array (make-array String 0))
+
+(defonce ^:private ^LinkOption/1 follow-links-link-options (make-array LinkOption 0))
+(defonce ^:private ^LinkOption/1 no-follow-links-link-options (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
 
 (defonce ^:private ^OpenOption/1 append-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/APPEND]))
 (defonce ^:private ^OpenOption/1 overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
@@ -85,7 +87,7 @@
         overwrite-open-options)))
   (make-input-stream [this _opts]
     (BufferedInputStream.
-      (Files/newInputStream this empty-link-option-array)))
+      (Files/newInputStream this follow-links-link-options)))
   (make-output-stream [this opts]
     (BufferedOutputStream.
       (Files/newOutputStream
@@ -139,14 +141,24 @@
   (^Path [x & xs]
    (.toAbsolutePath ^Path (apply of x xs))))
 
+(defn actual-cased
+  "Returns an absolute java.nio.file.Path whose casing matches an existing file
+  system entry. Throws an IOException if there was no matching entry in the file
+  system. Contrary to the `real` function, `actual-cased` does not resolve
+  symbolic links in the returned Path."
+  (^Path [x]
+   (.toRealPath (to-path x) no-follow-links-link-options))
+  (^Path [x & xs]
+   (.toRealPath ^Path (apply of x xs) no-follow-links-link-options)))
+
 (defn real
   "Returns the canonical, real path to an existing file system entry. Throws an
   IOException if there was no matching entry in the file system. Follows
   symbolic links and queries their target."
   (^Path [x]
-   (.toRealPath (to-path x) empty-link-option-array))
+   (.toRealPath (to-path x) follow-links-link-options))
   (^Path [x & xs]
-   (.toRealPath ^Path (apply of x xs) empty-link-option-array)))
+   (.toRealPath ^Path (apply of x xs) follow-links-link-options)))
 
 (defn relativize
   "Coerces both arguments to java.nio.file.Path and returns a relative Path
@@ -241,7 +253,7 @@
   time of the corresponding file system entry in milliseconds since the UNIX
   epoch. Follows symbolic links and queries their target."
   ^long [x]
-  (.toMillis (Files/getLastModifiedTime (to-path x) empty-link-option-array)))
+  (.toMillis (Files/getLastModifiedTime (to-path x) follow-links-link-options)))
 
 (defn set-last-modified-ms!
   "Coerces the argument to a java.nio.file.Path and sets the last modified
@@ -256,35 +268,35 @@
   java.nio.file.attribute.BasicFileAttributes interface. Follows symbolic links
   and queries their target."
   ^BasicFileAttributes [x]
-  (^[Path Class LinkOption/1] Files/readAttributes (to-path x) BasicFileAttributes empty-link-option-array))
+  (^[Path Class LinkOption/1] Files/readAttributes (to-path x) BasicFileAttributes follow-links-link-options))
 
 (defn posix-file-permissions
   "Coerces the argument to a java.nio.file.Path and returns its POSIX file
   permissions as a set of java.nio.file.attribute.PosixFilePermission enum
   values. Follows symbolic links and queries their target."
   ^Set [x]
-  (Files/getPosixFilePermissions (to-path x) empty-link-option-array))
+  (Files/getPosixFilePermissions (to-path x) follow-links-link-options))
 
 (defn exists?
   "Coerces the argument to a java.nio.file.Path and returns true if a
   corresponding file system entry exists. Follows symbolic links and queries
   their target."
   [x]
-  (Files/exists (to-path x) empty-link-option-array))
+  (Files/exists (to-path x) follow-links-link-options))
 
 (defn directory?
   "Coerces the argument to a java.nio.file.Path and returns true if a
   corresponding file system entry exists and is a directory. Follows symbolic
   links and queries their target."
   [x]
-  (Files/isDirectory (to-path x) empty-link-option-array))
+  (Files/isDirectory (to-path x) follow-links-link-options))
 
 (defn file?
   "Coerces the argument to a java.nio.file.Path and returns true if a
   corresponding file system entry exists and is a regular file. Follows symbolic
   links and queries their target."
   [x]
-  (Files/isRegularFile (to-path x) empty-link-option-array))
+  (Files/isRegularFile (to-path x) follow-links-link-options))
 
 (defn symlink?
   "Coerces the argument to a java.nio.file.Path and returns true if a
@@ -363,19 +375,6 @@
   to a directory, then the directory must be empty. Returns nil."
   [x]
   (Files/delete (to-path x)))
-
-(defn delete-tree!
-  "Coerces the argument to a java.nio.file.Path and deletes all the entries in
-  the corresponding directory tree from the file system. If the path refers to a
-  symbolic link, then the symbolic link itself, not the final target of the
-  link, is deleted. If the path refers to a regular file, it will be deleted. If
-  the path refers to a directory, the directory and all files within it will be
-  deleted. Returns nil."
-  [x]
-  (-> (to-path x)
-      (Files/walk empty-file-visit-option-array)
-      (.sorted (Comparator/reverseOrder))
-      (.forEach Files/delete)))
 
 (defn create-directory!
   "Coerces the argument to a java.nio.file.Path and creates a directory

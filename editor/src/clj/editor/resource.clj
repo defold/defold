@@ -279,7 +279,7 @@
       (let [file (io/file this)]
         (and (.exists file)
              (not (ignored-project-path? (io/file root) project-path))
-             (string/ends-with? (->unix-seps (.getCanonicalPath file)) project-path)))
+             (string/ends-with? (->unix-seps (str (path/actual-cased file))) project-path)))
       (catch IOException _
         false)
       (catch SecurityException _
@@ -289,7 +289,7 @@
       (not (.canWrite (io/file this)))
       (catch SecurityException _
         true)))
-  (symlink? [this] (path/symlink? (path/to-path this)))
+  (symlink? [this] (path/symlink? this))
   (path [this] (if (= "" project-path) "" (subs project-path 1)))
   (abs-path [this] abs-path)
   (proj-path [this] project-path)

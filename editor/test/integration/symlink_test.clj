@@ -249,7 +249,7 @@
 
       (let [referencing-directory (path/of referencing-project-path "stateless_files")
             referenced-directory (path/of referenced-project-path "stateless_files")]
-        (coll/transpire! (path/tree-walker referenced-directory)
+        (coll/run!-> (path/tree-walker referenced-directory)
           (remove path/hidden?)
           (fn [referenced-file]
             (let [referencing-file (path/reroot referenced-file referenced-directory referencing-directory)]
@@ -276,7 +276,7 @@
             referenced-directory (path/of referenced-project-path "stateless_files")
 
             referencing-file->referenced-file
-            (coll/transmute (path/tree-walker referenced-directory) {}
+            (coll/reduce-> (path/tree-walker referenced-directory) {}
               (remove path/hidden?)
               (fn [referencing-file->referenced-file referenced-file]
                 (let [referencing-file (path/reroot referenced-file referenced-directory referencing-directory)]
@@ -285,7 +285,7 @@
                   (assoc referencing-file->referenced-file referencing-file referenced-file))))
 
             referenced-file->renamed-file
-            (coll/transmute-kv referencing-file->referenced-file {}
+            (coll/reduce-kv-> referencing-file->referenced-file {}
               (fn [referenced-file->renamed-file _referencing-file referenced-file]
                 (let [renamed-filename (str "renamed_" (path/leaf referenced-file))
                       renamed-file (path/resolve-sibling referenced-file renamed-filename)]
@@ -317,7 +317,7 @@
               (is (not (g/error? (g/node-value main-collection :node-outline)))))
 
             (testing "Fixing broken symlinks."
-              (coll/transpire! referenced-file->renamed-file
+              (coll/run!-> referenced-file->renamed-file
                 (fn [[referenced-file renamed-file]]
                   (path/move! renamed-file referenced-file)))
 
@@ -334,7 +334,7 @@
 
       (let [referencing-directory (path/of referencing-project-path "stateful_files")
             referenced-directory (path/of referenced-project-path "stateful_files")]
-        (coll/transpire! (path/tree-walker referenced-directory)
+        (coll/run!-> (path/tree-walker referenced-directory)
           (remove path/hidden?)
           (fn [referenced-file]
             (let [referencing-file (path/reroot referenced-file referenced-directory referencing-directory)]
@@ -361,7 +361,7 @@
             referenced-directory (path/of referenced-project-path "stateful_files")
 
             referencing-file->referenced-file
-            (coll/transmute (path/tree-walker referenced-directory) {}
+            (coll/reduce-> (path/tree-walker referenced-directory) {}
               (remove path/hidden?)
               (fn [referencing-file->referenced-file referenced-file]
                 (let [referencing-file (path/reroot referenced-file referenced-directory referencing-directory)]
@@ -370,7 +370,7 @@
                   (assoc referencing-file->referenced-file referencing-file referenced-file))))
 
             referenced-file->renamed-file
-            (coll/transmute-kv referencing-file->referenced-file {}
+            (coll/reduce-kv-> referencing-file->referenced-file {}
               (fn [referenced-file->renamed-file _referencing-file referenced-file]
                 (let [renamed-filename (str "renamed_" (path/leaf referenced-file))
                       renamed-file (path/resolve-sibling referenced-file renamed-filename)]
@@ -402,7 +402,7 @@
               (is (not (g/error? (g/node-value main-collection :node-outline)))))
 
             (testing "Fixing broken symlinks."
-              (coll/transpire! referenced-file->renamed-file
+              (coll/run!-> referenced-file->renamed-file
                 (fn [[referenced-file renamed-file]]
                   (path/move! renamed-file referenced-file)))
 
