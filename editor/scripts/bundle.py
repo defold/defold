@@ -344,12 +344,9 @@ def get_jdk(platform):
     else:
         return '%s/jdk-%s' % (path, java_version)
 
-def invoke_lein(args, jdk_path=None, redirect_stderr=False):
+def invoke_lein(args, jdk_path=None, **kwargs):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    kwargs = {}
-    if redirect_stderr:
-        kwargs['stderr'] = subprocess.STDOUT
     return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, **kwargs)
 
 def write_docs(docs_dir, jdk_path=None):
@@ -357,7 +354,6 @@ def write_docs(docs_dir, jdk_path=None):
 
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
-
 
 def remove_platform_files_from_archive(platform, jar):
     zin = zipfile.ZipFile(jar, 'r')
