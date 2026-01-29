@@ -347,7 +347,7 @@ def get_jdk(platform):
 def invoke_lein(args, jdk_path=None, **kwargs):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, **kwargs)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True, **kwargs)
 
 def write_docs(docs_dir, jdk_path=None):
     invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
