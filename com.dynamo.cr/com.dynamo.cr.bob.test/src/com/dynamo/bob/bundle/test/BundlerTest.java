@@ -41,6 +41,7 @@ import java.util.zip.ZipInputStream;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 
 import javax.imageio.ImageIO;
@@ -427,6 +428,28 @@ public class BundlerTest {
         createFile(contentRoot, "test.icns", "test_icon");
         build();
         verifyArchive();
+    }
+
+    @Test
+    public void testBundleOutputInsideBuildDirectoryRejected() throws IOException, ConfigurationException, MultipleCompileException {
+        createDefaultFiles(contentRoot);
+        outputDir = new File(contentRoot, "build").getAbsolutePath();
+
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
+
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        setProjectProperties(project);
+
+        try {
+            project.build(new NullProgress(), "bundle");
+            fail("Expected bundle output under build directory to be rejected.");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains(outputDir));
+        }
     }
 
     private String createFile(String root, String name, String content) throws IOException {

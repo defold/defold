@@ -23,7 +23,8 @@
             [editor.settings-core :as settings-core]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.eduction :as e]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -187,16 +188,32 @@
                                      (str uri) (str required) (str current))}))))
         dependencies))
 
-(g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
+(g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
+  ;; we use evaluation context to resolve a resource; we only need the resource
+  ;; for its path, so it's safe to use it here
   (let [meta-settings (:settings meta-info)
-        sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
+        meta-settings-map (settings-core/make-meta-settings-map meta-settings)
+        sanitized-settings (->> raw-settings
+                                (settings-core/settings-with-value)
+                                (settings-core/sanitize-settings meta-settings)
+                                (mapv
+                                  (fn [{:keys [path value] :as setting}]
+                                    ;; We resolve raw string values to resources
+                                    ;; so the form gets typed values; this may
+                                    ;; happen when a :resource setting is
+                                    ;; defined via, e.g., game.properties,
+                                    ;; without a corresponding
+                                    ;; ResourceSettingNode in the graph.
+                                    (cond-> setting
+                                            (and (string? value) (= :resource (:type (meta-settings-map path))))
+                                            (assoc :value (workspace/resolve-resource owner-resource value _evaluation-context))))))
         non-defaulted-setting-paths (into #{}
                                           (comp
                                             (filter :value)
                                             (map :path))
                                           sanitized-settings)
-        non-default-resource-settings (filter (comp non-defaulted-setting-paths :path) resource-settings)
-        all-settings (concat sanitized-settings non-default-resource-settings)]
+        non-default-resource-settings (filterv (comp non-defaulted-setting-paths :path) resource-settings)
+        all-settings (e/concat sanitized-settings non-default-resource-settings)]
     (make-form-data
       {:user-data {:node-id _node-id
                    :project project
@@ -222,12 +239,21 @@
   (input meta-infos g/Any)
   (input project-dependencies g/Any)
 
+  (output resource-setting-references g/Any :cached
+          (g/fnk [resource-setting-references meta-info]
+            (let [meta-settings (:settings meta-info)
+                  meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
+              ;; We filter out nodes for settings that were resource, but stopped
+              ;; being them; which may happen when we define a resource setting
+              ;; using, e.g., game.properties file, then set the property, and
+              ;; then we change the type to be a string
+              (filterv #(= :resource (:type (meta-settings-map (:path %)))) resource-setting-references))))
   (output resource-setting-nodes g/Any :cached
           (g/fnk [resource-setting-references]
-                 (into {} (map (juxt :path :node-id) resource-setting-references))))
+            (into {} (map (juxt :path :node-id) resource-setting-references))))
   (output resource-settings g/Any :cached
           (g/fnk [resource-setting-references]
-                 (map #(select-keys % [:path :value]) resource-setting-references)))
+            (mapv #(select-keys % [:path :value]) resource-setting-references)))
 
   (output merged-raw-settings g/Any :cached
           (g/fnk [raw-settings meta-info resource-settings]
