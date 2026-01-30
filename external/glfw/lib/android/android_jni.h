@@ -22,7 +22,7 @@ extern struct android_app* g_AndroidApp;
 
 JNIEnv* JNIAttachCurrentThread();
 void JNIDetachCurrentThread();
-JNIEnv* JNIAttachCurrentThreadIfNeeded(int* did_attach);
+void JNIAttachCurrentThreadIfNeeded(int* did_attach);
 void JNIDetachCurrentThreadIfNeeded(int did_attach);
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature);
 
