@@ -35,6 +35,38 @@ void JNIDetachCurrentThread()
     (*vm)->DetachCurrentThread(vm);
 }
 
+JNIEnv* JNIAttachCurrentThreadIfNeeded(int* did_attach)
+{
+    JavaVM* vm = g_AndroidApp->activity->vm;
+    JNIEnv* env = 0;
+    if (did_attach)
+        *did_attach = 0;
+
+    jint res = (*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6);
+    if (res == JNI_EDETACHED)
+    {
+        JavaVMAttachArgs lJavaVMAttachArgs;
+        lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+        lJavaVMAttachArgs.name = "NativeThread";
+        lJavaVMAttachArgs.group = NULL;
+
+        if ((*vm)->AttachCurrentThread(vm, &env, &lJavaVMAttachArgs) == JNI_OK && did_attach)
+        {
+            *did_attach = 1;
+        }
+    }
+    return env;
+}
+
+void JNIDetachCurrentThreadIfNeeded(int did_attach)
+{
+    if (did_attach)
+    {
+        JavaVM* vm = g_AndroidApp->activity->vm;
+        (*vm)->DetachCurrentThread(vm);
+    }
+}
+
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature)
 {
     if (instance == 0) return 0;
