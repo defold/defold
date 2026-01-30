@@ -36,13 +36,10 @@
           project
           `(let [stderr-output# (java.io.StringWriter.)
                  proj-ns-set# ~proj-ns-set]
-             (try
-               (binding [*err* (java.io.PrintWriter. stderr-output#)
-                         *warn-on-reflection* true]
-                 (require 'editor.bootloader)
-                 (eval '(editor.bootloader/load-synchronous true)))
-               (catch ExceptionInInitializerError e#
-                 (.printStackTrace e#)))
+             (binding [*err* (java.io.PrintWriter. stderr-output#)
+                       *warn-on-reflection* true]
+               (require 'editor.bootloader)
+               (eval '(editor.bootloader/load-synchronous true)))
              (do
                (require 'clojure.tools.namespace.parse)
                (let [read-ns-decl# (resolve 'clojure.tools.namespace.parse/read-ns-decl)
