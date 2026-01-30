@@ -666,6 +666,10 @@ namespace dmPlatform
     {
     }
 
+    void HideWindow(HWindow window)
+    {
+    }
+
     void PollEvents(HWindow window)
     {
         // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on

@@ -314,7 +314,11 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
-            FocusWindowNative(window);
+            if (!params.m_Hidden)
+            {
+                FocusWindowNative(window);
+            }
+
             SetWindowsIconNative(window);
 
         #ifdef __MACH__
@@ -384,6 +388,11 @@ namespace dmPlatform
     void ShowWindow(HWindow window)
     {
         glfwShowWindow(window->m_Window);
+    }
+
+    void HideWindow(HWindow window)
+    {
+        glfwHideWindow(window->m_Window);
     }
 
     void SwapBuffers(HWindow window)

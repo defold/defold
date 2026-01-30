@@ -147,6 +147,9 @@ namespace dmPlatform
         // OpenGL specific settings
         uint8_t                 m_OpenGLVersionHint        : 7; // I.e: 33, 40-46, 0 (use highest available)
         uint8_t                 m_OpenGLUseCoreProfileHint : 1;
+        //
+        uint8_t                 m_Hidden : 1;   // Should the window be hidden by default? Only works on platforms that support it (e.g. desktop)
+        uint8_t                 : 7;
     };
 
     struct TouchData
@@ -213,6 +216,7 @@ namespace dmPlatform
     void           SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data);
 
     void           ShowWindow(HWindow window);
+    void           HideWindow(HWindow window);
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
     void           SwapBuffers(HWindow window);
