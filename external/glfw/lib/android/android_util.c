@@ -308,10 +308,10 @@ void create_gl_surface(_GLFWwin_android* win)
         EGLSurface surface = win->surface;
         if (surface == EGL_NO_SURFACE)
         {
-            ANativeWindow* window = (win && win->app) ? win->app->window : NULL;
+            ANativeWindow* window = win->app->window;
             if (!window)
             {
-                LOGE("Failed to create window surface because window is NULL. Trying again later.");
+                LOGV("Window not ready, deferring surface creation.");
                 win->surface = EGL_NO_SURFACE;
                 return;
             }
