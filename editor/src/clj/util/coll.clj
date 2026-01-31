@@ -1026,6 +1026,15 @@
     (let [array-manager-id (System/identityHashCode (.am coll))]
       (primitive-types-by-array-manager-id array-manager-id))))
 
+(defn filterv->
+  "Like core.filterv, but takes the input sequence as the first argument and
+  supplies any arguments following the predicate function to it after the item
+  argument. Useful with various core functions such as update."
+  ([coll pred]
+   (filterv pred coll))
+  ([coll pred & args]
+   (filterv #(apply pred % args) coll)))
+
 (defn mapv->
   "Like core.mapv, but takes the input sequence as the first argument and
   supplies any arguments following the transform function to it after the item

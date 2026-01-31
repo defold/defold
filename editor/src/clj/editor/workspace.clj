@@ -872,7 +872,7 @@ ordinary paths."
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
-       (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
+       (let [changes (coll/update-vals changes coll/filterv-> #(= :file (resource/source-type %)))
              move-source-paths (map first moved-proj-paths)
              move-target-paths (map second moved-proj-paths)
              chain-moved-paths (set/intersection (set move-source-paths) (set move-target-paths))
