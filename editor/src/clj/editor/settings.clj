@@ -45,9 +45,27 @@
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
 
-(g/defnk produce-settings-map [meta-info raw-settings resource-settings]
+(defn- resolve-resource-settings-from-raw [raw-settings meta-settings owner-resource evaluation-context]
+  ;; evaluation context is an `^:unsafe` part of the output: can be used only
+  ;; for resource resolution (that are then only needed for paths)
+  (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
+    (->> raw-settings
+         (settings-core/settings-with-value)
+         (settings-core/sanitize-settings meta-settings)
+         (mapv (fn [{:keys [path value] :as setting}]
+                 ;; We resolve raw string values to resources so the form gets
+                 ;; typed values; this may happen when a :resource setting is
+                 ;; defined via, e.g., game.properties, without a corresponding
+                 ;; ResourceSettingNode in the graph.
+                 (cond-> setting
+                         (and (string? value) (= :resource (:type (meta-settings-map path))))
+                         (assoc :value (workspace/resolve-resource owner-resource value evaluation-context))))))))
+
+(g/defnk produce-settings-map [^:unsafe _evaluation-context owner-resource meta-info raw-settings resource-settings]
+  ;; we use evaluation context to resolve a resource; we only need the resource
+  ;; for its path, so it's safe to use it here
   (let [meta-settings (:settings meta-info)
-        sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
+        sanitized-settings (resolve-resource-settings-from-raw raw-settings meta-settings owner-resource _evaluation-context)
         all-settings (concat (settings-core/make-default-settings meta-settings) sanitized-settings resource-settings)
         settings-map (settings-core/make-settings-map all-settings)]
     settings-map))
@@ -192,21 +210,7 @@
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
   (let [meta-settings (:settings meta-info)
-        meta-settings-map (settings-core/make-meta-settings-map meta-settings)
-        sanitized-settings (->> raw-settings
-                                (settings-core/settings-with-value)
-                                (settings-core/sanitize-settings meta-settings)
-                                (mapv
-                                  (fn [{:keys [path value] :as setting}]
-                                    ;; We resolve raw string values to resources
-                                    ;; so the form gets typed values; this may
-                                    ;; happen when a :resource setting is
-                                    ;; defined via, e.g., game.properties,
-                                    ;; without a corresponding
-                                    ;; ResourceSettingNode in the graph.
-                                    (cond-> setting
-                                            (and (string? value) (= :resource (:type (meta-settings-map path))))
-                                            (assoc :value (workspace/resolve-resource owner-resource value _evaluation-context))))))
+        sanitized-settings (resolve-resource-settings-from-raw raw-settings meta-settings owner-resource _evaluation-context)
         non-defaulted-setting-paths (into #{}
                                           (comp
                                             (filter :value)
