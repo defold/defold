@@ -245,7 +245,11 @@
               :schemas [:default]))
 
 (def localization
-  (localization/make (make-test-prefs) ::test {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}))
+  (localization/make
+    (make-test-prefs)
+    ::test
+    {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}
+    ^[] Throwable/.printStackTrace))
 
 (declare resolve-prop)
 

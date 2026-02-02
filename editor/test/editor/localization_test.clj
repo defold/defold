@@ -30,7 +30,8 @@
    (localization/make
      (test-util/make-test-prefs)
      :test
-     (bundle locale->content))))
+     (bundle locale->content)
+     ^[] Throwable/.printStackTrace)))
 
 
 (deftest pattern-test

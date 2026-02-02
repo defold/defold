@@ -125,7 +125,7 @@
 (defonce start-allocated-bytes (du/allocated-bytes runtime))
 (defonce start-time-nanos (System/nanoTime))
 (defonce prefs (prefs/project project-path))
-(defonce localization (localization/make prefs ::load-project {}))
+(defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
 (defonce workspace-graph-id (g/last-graph-added))
