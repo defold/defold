@@ -340,16 +340,22 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
     const float sdf_edge_value = 0.75f;
+    const float kMinSdfScreenScale = 0.5f;
+    const float kMinSdfScale = 1e-6f;
     float sdf_scale = sdf_screen_scale;
-    if (sdf_scale <= 0.0f)
+    if (sdf_scale > 0.0f)
+    {
+        sdf_scale = fmaxf(sdf_scale, kMinSdfScreenScale);
+    }
+    else
     {
         // Fallback to local scale when screen scale is invalid.
         const Vector4 r0 = te.m_Transform.getRow(0);
         sdf_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
     }
-    if (sdf_scale < 1e-6f)
+    if (sdf_scale < kMinSdfScale)
     {
-        sdf_scale = 1e-6f;
+        sdf_scale = kMinSdfScale;
     }
     float sdf_outline = font_map->m_SdfOutline;
     float sdf_shadow  = font_map->m_SdfShadow;
