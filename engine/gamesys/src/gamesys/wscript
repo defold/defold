@@ -29,7 +29,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../../proto',
         source = proto_sources,
-        target = 'gamesys_proto') # not
+        target = 'gamesys_proto')
 
     sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp'])
     sources = remove_from_node_list(sources, 'comp_model.cpp')

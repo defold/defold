@@ -2226,11 +2226,6 @@ def detect(conf):
     if Options.options.generate_compile_commands:
         conf.load('clang_compilation_database')
 
-    conf.load('waf_csharp')
-
-    if Options.options.generate_compile_commands:
-        conf.load('clang_compilation_database')
-
 
 def configure(conf):
     detect(conf)
