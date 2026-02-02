@@ -867,8 +867,8 @@ ordinary paths."
                                       [src-path tgt-path])))
                                 moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
-         old-map      (resource-watch/make-resource-map old-snapshot)
-         changes      (resource-watch/diff old-snapshot new-snapshot)]
+         old-map (resource-watch/make-resource-map old-snapshot)
+         changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
