@@ -1086,14 +1086,14 @@
                                                  previous-location)))
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result
-                                       (-> (io/file (:location state) (sanitize-file-name ext (:name state)))
-                                           ;; Canonical path turns Windows path
-                                           ;; into the correct case. We need
-                                           ;; this to be able to match internal
-                                           ;; resource maps, which are case
-                                           ;; sensitive unlike the NTFS file
-                                           ;; system.
-                                           (.getCanonicalFile)))))
+                                             ;; We need to the actual case of
+                                             ;; the path in the file system for
+                                             ;; an exact match in the internal
+                                             ;; resource maps, which are
+                                             ;; case-sensitive unlike the NTFS
+                                             ;; file system.
+                                             (-> (path/actual-cased (:location state))
+                                                 (io/file (sanitize-file-name ext (:name state)))))))
     :description {:fx/type new-file-dialog
                   :localization localization}))
 
