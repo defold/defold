@@ -416,7 +416,7 @@
                            :error (or
                                     (when should-be-deleted
                                       (g/->error _node-id :textures :warning texture
-                                                 (format "'%s' is not defined in the material. Clear the field to delete it. If the sampler is necessary for the shader, add a missing sampler in the material"
+                                                 (format "'%s' is not defined in the material. Use the \"Clear Override\" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the material"
                                                          sampler)))
                                     (validation/prop-error :info _node-id :textures validation/prop-nil? texture property-name)
                                     (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture property-name)
