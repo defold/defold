@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if defined(_WIN32)
-
 #include "../file_descriptor.h"
 #include <winsock2.h>
 #include <assert.h>
@@ -49,5 +47,3 @@ namespace dmFileDescriptor
         return r;
     }
 }
-
-#endif

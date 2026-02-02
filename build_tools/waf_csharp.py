@@ -31,7 +31,7 @@ Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} 
 @before('process_source')
 def compile_csharp_lib(self):
     if not self.env['DOTNET']:
-        print("Skipping %s, as C# is not supported on this platform", self.name)
+        print("Skipping %s, as C# is not supported on this platform" % self.name)
         return
 
     project = self.path.find_resource(self.project)

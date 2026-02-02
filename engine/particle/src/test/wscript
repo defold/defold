@@ -8,7 +8,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    cmd = '${PROTOC} --encode=%s -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension(ext)(create)
 create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='c cxx')

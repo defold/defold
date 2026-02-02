@@ -12,15 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if defined(_WIN32)
-
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
 
 #include "../socket.h"
 #include "../socket_private.h"
 
+#include <stdlib.h> // wcstombs
 #include <stdio.h>
+#include <malloc.h> // malloc/free
 
 namespace dmSocket
 {
@@ -114,5 +114,3 @@ namespace dmSocket
         return RESULT_OK;
     }
 }
-
-#endif

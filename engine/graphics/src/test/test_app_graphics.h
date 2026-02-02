@@ -29,14 +29,7 @@ enum BindingType
 
 static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, dmGraphics::ShaderDesc::ShaderType shader_type, uint8_t* source, int source_size)
 {
-    if (desc->m_Shaders.m_Data == 0)
-    {
-        desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) malloc(sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
-    }
-    else
-    {
-        desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
-    }
+    desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
 
     dmGraphics::ShaderDesc::Shader* shader = desc->m_Shaders.m_Data + desc->m_Shaders.m_Count;
     memset(shader, 0, sizeof(dmGraphics::ShaderDesc::Shader));
@@ -77,14 +70,7 @@ static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* n
         break;
     }
 
-    if (*count == 0)
-    {
-        *data = (dmGraphics::ShaderDesc::ResourceBinding*) malloc(sizeof(dmGraphics::ShaderDesc::ResourceBinding));
-    }
-    else
-    {
-        *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
-    }
+    *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(*data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
 
     dmGraphics::ShaderDesc::ResourceBinding* res = *data + *count;
     memset(res, 0, sizeof(dmGraphics::ShaderDesc::ResourceBinding));

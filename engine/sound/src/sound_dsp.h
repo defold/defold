@@ -21,6 +21,11 @@
 
 #include <dlib/log.h>
 
+#if defined(_GAMING_XBOX)
+    // wip
+    #define DM_SOUND_DSP_IMPL Fallback
+#endif
+
 #if defined(DM_SIMD_WASM)
     #define DM_SOUND_DSP_WASM
 #elif defined(DM_SIMD_SSE2)

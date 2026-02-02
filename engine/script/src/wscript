@@ -36,7 +36,7 @@ def build(bld):
         script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'unix.c'))
 
         script.cflags = ['-DLUASOCKET_API=']
-        if 'win32' in bld.env.PLATFORM:
+        if bld.env.PLATFORM in ['win32', 'x86_64-win32', 'x86_64-xbone']:
             script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'usocket.c'))
         else:
             script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'wsocket.c'))
