@@ -451,4 +451,5 @@ message ShaderDesc
 
     repeated Shader shaders              = 1;
     optional ShaderReflection reflection = 2;
+    optional bytes hlsl_root_signature   = 3;
 }
