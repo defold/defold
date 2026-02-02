@@ -31,7 +31,7 @@
      (test-util/make-test-prefs)
      :test
      (bundle locale->content)
-     ^[] Throwable/.printStackTrace)))
+     #(throw %))))
 
 
 (deftest pattern-test

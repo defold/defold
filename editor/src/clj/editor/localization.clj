@@ -358,7 +358,8 @@
     initial-bundle         initial bundle map, a map from localization file
                            paths to 0-arg functions that produce
                            a java.io.Reader for java properties file
-    error-handler          1-arg fn used for reporting errors
+    error-handler          1-arg fn used for reporting errors, receives an
+                           instance of a Throwable
 
   Returns a localization system agent"
   [prefs initial-bundle-key initial-bundle error-handler]
