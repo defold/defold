@@ -306,6 +306,18 @@
   (let [wrapped-value-fn (deep-keep-kv-wrapped-value-fn value-fn)]
     (util/deep-keep-kv deep-keep-finalize-coll-value-fn wrapped-value-fn value)))
 
+(defn nodes-of-type
+  ([node-type]
+   (nodes-of-type (g/now) node-type))
+  ([basis node-type]
+   (sequence
+     (comp (map val)
+           (mapcat :nodes)
+           (map val)
+           (filter #(g/node-instance*? node-type %))
+           (map gt/node-id))
+     (:graphs basis))))
+
 (defn views-of-type [node-type]
   (keep (fn [node-id]
           (when (g/node-instance? node-type node-id)
