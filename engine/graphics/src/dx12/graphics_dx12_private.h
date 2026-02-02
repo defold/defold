@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GRAPHICS_GRAPHICS_DX12_PRIVATE_H
-#define DM_GRAPHICS_GRAPHICS_DX12_PRIVATE_H
+#ifndef DM_GRAPHICS_DX12_PRIVATE_H
+#define DM_GRAPHICS_DX12_PRIVATE_H
 
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
@@ -113,20 +113,12 @@ namespace dmGraphics
 
     struct DX12ShaderModule
     {
-//         void*           m_Data;
-//         uint32_t        m_DataSize;
-//         DX12ShaderBlob* m_ShaderBlob;
-//         ShaderMeta      m_ShaderMeta;
-//         uint64_t        m_Hash;
-//#if !defined(DM_PLATFORM_VENDOR)
-        ID3DBlob* m_ShaderBlob;
-        ID3DBlob* m_RootSignatureBlob;
-//#else
+        ID3DBlob*            m_ShaderBlob;
+        ID3DBlob*            m_RootSignatureBlob;
         ID3D12RootSignature* m_RootSignature;
-//#endif
-        void*       m_Data;     // owned by this struct if m_ShaderBlob == 0
-        uint32_t    m_DataSize;
-        uint64_t    m_Hash;
+        void*                m_Data;     // owned by this struct if m_ShaderBlob == 0
+        uint32_t             m_DataSize;
+        uint64_t             m_Hash;
     };
 
     struct DX12Viewport
@@ -346,4 +338,4 @@ namespace dmGraphics
 
 }
 
-#endif // DM_GRAPHICS_GRAPHICS_DX12_PRIVATE_H
+#endif // DM_GRAPHICS_DX12_PRIVATE_H

@@ -496,11 +496,8 @@ public class ShaderCompilePipeline {
     }
 
     public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) {
-
         assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
-
         Shaderc.ShaderCompileResult[] shaders_array = shaders.toArray(new Shaderc.ShaderCompileResult[0]);
-
         Shaderc.HLSLRootSignature result = ShadercJni.HLSLMergeRootSignatures(shaders_array);
         return result;
     }

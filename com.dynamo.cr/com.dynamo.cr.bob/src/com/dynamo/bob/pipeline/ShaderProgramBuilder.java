@@ -623,9 +623,7 @@ public class ShaderProgramBuilder extends Builder {
 
             try {
                 ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
-
                 ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
-
                 shaderDescResult.shaderDesc.writeTo(os);
 
             } catch (Exception e) {
