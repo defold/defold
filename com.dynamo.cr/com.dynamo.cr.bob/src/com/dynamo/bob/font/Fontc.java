@@ -767,7 +767,6 @@ public class Fontc {
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
                 .setCharacter(glyph.c)
                 .setWidth(width)
-                .setImageWidth(width)
                 .setAdvance(glyph.advance)
                 .setLeftBearing(glyph.leftBearing)
                 .setAscent(glyph.ascent + padding)

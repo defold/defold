@@ -365,6 +365,7 @@ namespace dmGameSystem
         params->m_SdfSpread          = ddf->m_SdfSpread;
         params->m_SdfOutline         = ddf->m_SdfOutline;
         params->m_SdfShadow          = ddf->m_SdfShadow;
+        params->m_IsDynamic          = 0;
     }
 
     static void GetMaxCellSize(HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
@@ -407,6 +408,7 @@ namespace dmGameSystem
 
         params->m_SdfSpread     = padding;
         params->m_SdfOutline    = CalcSdfValue(padding, outline_padding);
+        params->m_IsDynamic     = 1;
 
         float sdf_shadow = 1.0f;
         if (shadow_padding)
