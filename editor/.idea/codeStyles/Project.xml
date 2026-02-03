@@ -99,7 +99,7 @@
           <entry key="integration.test-util/write-file-resource!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
-          <entry key="util.bit-set/transfer" value="-1" />
+          <entry key="util.bit-set/into-&gt;" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
           <entry key="util.coll/into-&gt;" value="-1" />
           <entry key="util.coll/reduce-&gt;" value="-1" />
