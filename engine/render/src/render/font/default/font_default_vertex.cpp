@@ -19,6 +19,7 @@
 #include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/vmath.h>                     // for Vector4
 #include <dlib/time.h>                      // for dmTime::GetMonotonicTime()
+#include <dlib/math.h>                      // for fmaxf
 
 #include <graphics/graphics.h>              // for AddVertexStream etc
 #include <graphics/graphics_util.h>         // for UnpackRGBA
@@ -340,22 +341,19 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
     const float sdf_edge_value = 0.75f;
-    const float kMinSdfScreenScale = 0.5f;
-    const float kMinSdfScale = 1e-6f;
+    const float min_sdf_screen_scale = 0.5f;
+    const float min_sdf_scale = 1e-6f;
     float sdf_scale = sdf_screen_scale;
     if (sdf_scale > 0.0f)
     {
-        sdf_scale = fmaxf(sdf_scale, kMinSdfScreenScale);
+        sdf_scale = dmMath::Max(sdf_scale, min_sdf_screen_scale);
     }
     else
     {
         // Fallback to local scale when screen scale is invalid.
         const Vector4 r0 = te.m_Transform.getRow(0);
         sdf_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-    }
-    if (sdf_scale < kMinSdfScale)
-    {
-        sdf_scale = kMinSdfScale;
+        sdf_scale = dmMath::Max(sdf_scale, min_sdf_scale);
     }
     float sdf_outline = font_map->m_SdfOutline;
     float sdf_shadow  = font_map->m_SdfShadow;
