@@ -21,9 +21,9 @@
            [java.io BufferedInputStream BufferedOutputStream File]
            [java.net URI URL]
            [java.nio.charset Charset StandardCharsets]
-           [java.nio.file CopyOption FileVisitOption FileVisitResult FileVisitor Files LinkOption NoSuchFileException OpenOption Path StandardOpenOption]
+           [java.nio.file CopyOption FileVisitResult FileVisitor Files LinkOption NoSuchFileException OpenOption Path StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
-           [java.util Comparator Set]
+           [java.util Set]
            [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
@@ -31,7 +31,6 @@
 
 (defonce ^:private ^CopyOption/1 empty-copy-option-array (make-array CopyOption 0))
 (defonce ^:private ^FileAttribute/1 empty-file-attribute-array (make-array FileAttribute 0))
-(defonce ^:private ^FileVisitOption/1 empty-file-visit-option-array (make-array FileVisitOption 0))
 (defonce ^:private ^String/1 empty-string-array (make-array String 0))
 
 (defonce ^:private ^LinkOption/1 follow-links-link-options (make-array LinkOption 0))
@@ -203,8 +202,8 @@
                                  absolute-unix-pathname)]
     (case File/separatorChar
       \/ (.resolve this-path relative-unix-pathname)
-      (let [elements (.split relative-unix-pathname unix-separator-pattern)]
-        (iterate ^[String] Path/.resolve elements)))))
+      (let [elements (.split unix-separator-pattern relative-unix-pathname)]
+        (reduce ^[String] Path/.resolve this-path elements)))))
 
 (defn reroot
   "Coerces all arguments to java.nio.file.Path, then replace the start of the

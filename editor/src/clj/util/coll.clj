@@ -110,10 +110,11 @@
   "Similar to core.reduce-kv, but takes the input sequence as the first
   argument, followed by a mandatory init value, and the acc-fn as the last
   argument. Any additional arguments specified between the init value and the
-  acc-fn will be composed into a transducer. The acc-fn is assumed to take three
-  arguments and will be used with reduce-kv when no additional transducers are
-  supplied. When transducers are supplied, we will wrap the acc-fn in a
-  multi-arity function suitable for use with core.transduce.
+  acc-fn will be composed into a transducer, which is expected to return a
+  sequence of pairs. The acc-fn is assumed to take three arguments and will be
+  used with reduce-kv when no additional transducers are supplied. When
+  transducers are supplied, we will wrap the acc-fn in a multi-arity function
+  suitable for use with core.transduce.
 
   See also: into->, transform->, reduce->, run!->."
   [coll second-arg third-arg & more]
