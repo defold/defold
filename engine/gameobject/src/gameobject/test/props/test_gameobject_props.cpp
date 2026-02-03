@@ -307,7 +307,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
@@ -316,7 +315,6 @@ static dmhash_t hash(const char* s)
 #define ASSERT_SET_PROP_NUM(go, prop, v0, epsilon)\
     {\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         dmGameObject::PropertyVar var(v0);\
         dmGameObject::SetProperty(go, 0, hash(prop), opt, var);\
         dmGameObject::PropertyDesc desc;\
@@ -329,7 +327,6 @@ static dmhash_t hash(const char* s)
         dmGameObject::SetScale(go, v0);\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
@@ -338,7 +335,6 @@ static dmhash_t hash(const char* s)
 #define ASSERT_SET_PROP_V1(go, prop, v0, epsilon)\
     {\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         dmGameObject::PropertyVar var(v0);\
         dmGameObject::SetProperty(go, 0, hash(prop), opt, var);\
         dmGameObject::PropertyDesc desc;\
@@ -350,7 +346,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
@@ -378,7 +373,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
@@ -412,7 +406,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_VECTOR4 == desc.m_Variant.m_Type || dmGameObject::PROPERTY_TYPE_QUAT == desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
@@ -446,7 +439,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\

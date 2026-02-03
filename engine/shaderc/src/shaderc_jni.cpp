@@ -22,11 +22,6 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 
-namespace dmShaderc
-{
-
-}
-
 static jobject GetReflection(JNIEnv* env, jclass cls, jlong context)
 {
     dmShaderc::jni::ScopedContext jni_scope(env);
@@ -199,6 +194,32 @@ JNIEXPORT void JNICALL Java_ShadercJni_SetResourceStageFlags(JNIEnv* env, jclass
     DM_JNI_GUARD_SCOPE_END();
 }
 
+static jobject HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray shader_results)
+{
+    dmShaderc::jni::ScopedContext jni_scope(env);
+    dmShaderc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
+
+    uint32_t results_count = 0;
+    dmShaderc::ShaderCompileResult* results = dmShaderc::jni::J2C_CreateShaderCompileResultArray(env, types, shader_results, &results_count);
+    if (!results)
+        return 0;
+
+    dmShaderc::HLSLRootSignature* root_signature = dmShaderc::HLSLMergeRootSignatures(results, results_count);
+
+    return C2J_CreateHLSLRootSignature(env, types, root_signature);
+}
+
+JNIEXPORT jobject JNICALL Java_ShadercJni_HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray shader_results)
+{
+    jobject reflection;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        reflection = HLSLMergeRootSignatures(env, cls, shader_results);
+    }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return reflection;
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->");
@@ -232,6 +253,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         { (char*) "SetResourceLocation", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceLocation)},
         { (char*) "SetResourceBinding", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceBinding)},
         { (char*) "SetResourceSet", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceSet)},
+        { (char*) "HLSLMergeRootSignatures", (char*) "([L" CLASS_NAME "$ShaderCompileResult;)L" CLASS_NAME "$HLSLRootSignature;", reinterpret_cast<void*>(Java_ShadercJni_HLSLMergeRootSignatures)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     env->DeleteLocalRef(c);

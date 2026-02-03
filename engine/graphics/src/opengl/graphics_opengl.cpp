@@ -1371,7 +1371,7 @@ static void LogFrameBufferError(GLenum status)
                     if (isPagedASTCSupported)
                         context->m_ASTCArrayTextureSupport = 1;
                 }
-                else 
+                else
                 {
                     switch (pCompressedFormats[i])
                     {

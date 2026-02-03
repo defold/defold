@@ -12,17 +12,30 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMGRAPHICS_GRAPHICS_DEVICE_DX12_H
-#define DMGRAPHICS_GRAPHICS_DEVICE_DX12_H
+#ifndef DM_GRAPHICS_DX12_PRIVATE_H
+#define DM_GRAPHICS_DX12_PRIVATE_H
 
+#include <dlib/hashtable.h>
+#include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
-#include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
-
 #include <platform/platform_window.h>
+
+
+#if defined(DM_PLATFORM_VENDOR)
+    #include "graphics_dx12_vendor.h"
+#else
+    #include <d3d12.h>
+    #include <d3dx12.h>
+    #include <dxgi1_6.h>
+    #include <D3DCompiler.h>
+
+    #define DM_IID_PPV_ARGS IID_PPV_ARGS
+#endif
+
+#include "../graphics_private.h"
 
 namespace dmGraphics
 {
@@ -100,9 +113,12 @@ namespace dmGraphics
 
     struct DX12ShaderModule
     {
-        ID3DBlob* m_ShaderBlob;
-        ID3DBlob* m_RootSignatureBlob;
-        uint64_t  m_Hash;
+        ID3DBlob*            m_ShaderBlob;
+        ID3DBlob*            m_RootSignatureBlob;
+        ID3D12RootSignature* m_RootSignature;
+        void*                m_Data;     // owned by this struct if m_ShaderBlob == 0
+        uint32_t             m_DataSize;
+        uint64_t             m_Hash;
     };
 
     struct DX12Viewport
@@ -141,6 +157,7 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
+        ID3D12Resource*       m_Resource;
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
         ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
 
@@ -218,15 +235,18 @@ namespace dmGraphics
 
     struct DX12Context
     {
-        DX12Context(const ContextParams& params);
-
         ID3D12Device*                      m_Device;
+
+#if defined(DM_PLATFORM_VENDOR)
+        DX12VendorContext                  m_VendorContext;
+#else
         IDXGISwapChain3*                   m_SwapChain;
+        ID3D12Debug*                       m_DebugInterface;
+#endif
         ID3D12CommandQueue*                m_CommandQueue;
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
         ID3D12DescriptorHeap*              m_DsvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
-        ID3D12Debug*                       m_DebugInterface;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
@@ -269,6 +289,53 @@ namespace dmGraphics
         uint32_t                           m_PrintDeviceInfo      : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
+
+    bool            CommonInitialize(DX12Context* context);
+    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+    void            FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
+    void            SyncronizeFrame(DX12Context* context);; // wait for gpu to finish
+    void            SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc);
+    HRESULT         CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader);
+
+    bool            DX12IsSupported();
+    DXGI_FORMAT     DX12GetBackBufferFormat();
+
+    DX12Context*    DX12NativeCreate(const struct ContextParams& params);
+    bool            DX12NativeInitialize(DX12Context* context);
+    void            DX12NativeDestroy(DX12Context* context);
+    void            DX12NativeBeginFrame(DX12Context* context);
+    void            DX12NativeEndFrame(DX12Context* context);
+
+    void            DebugPrintRootSignature(const void* blob_ptr, size_t blob_size);
+
+    #define CHECK_HR_ERROR(result) \
+    { \
+        if(g_DX12Context->m_VerifyGraphicsCalls && FAILED(result)) { \
+            char msg[256]; \
+            char buffer[1024]; \
+            dmLog::HResultToString(result, msg, sizeof(msg)); \
+            dmSnPrintf(buffer, sizeof(buffer), "DX Error (%s:%s:%d) hr: 0x%08x code: %d : '%s'\n", __FILE__, __FUNCTION__, __LINE__, result, HRESULT_CODE(result), msg); \
+            dmLogError(buffer); \
+            OutputDebugStringA(buffer); \
+            if (result == 0x887a0005 && g_DX12Context->m_Device) { \
+                HRESULT reason = g_DX12Context->m_Device->GetDeviceRemovedReason(); \
+                dmLog::HResultToString(reason, msg, sizeof(msg)); \
+                dmSnPrintf(buffer, sizeof(buffer), "  Reason: hr: 0x%08x code: %d : '%s'\n", reason, HRESULT_CODE(reason), msg); \
+                dmLogError(buffer); \
+                OutputDebugStringA(buffer); \
+            } \
+            __debugbreak(); \
+            assert(0); \
+        } \
+    }
+
+    #define OUTPUT_HRESULT(result) \
+    { \
+        char msg[256]; \
+        dmLog::HResultToString(result, msg, sizeof(msg)); \
+        dmLogError("%s:%s:%d: hr: 0x%08x code: %d : %s", __FILE__, __FUNCTION__, __LINE__, result, HRESULT_CODE(result), msg); \
+    }
+
 }
 
-#endif // DMGRAPHICS_GRAPHICS_DEVICE_DX12_H
+#endif // DM_GRAPHICS_DX12_PRIVATE_H

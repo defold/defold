@@ -13,11 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph
-  (:require [clojure.core.reducers :as r]
-            [clojure.data.int-map :as int-map]
+  (:require [clojure.data.int-map :as int-map]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
+            [util.array :as array]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce])
   (:import [clojure.lang IPersistentSet Indexed]
@@ -374,11 +374,22 @@
   (and (p (.source-id arc) (.source-label arc))
        (p (.target-id arc) (.target-label arc))))
 
+;; Referentially transparent cache that supports explicit invalidation
+;; and on-demand computation.
+;; `cache` is an atom for the "current generation" of successors: when
+;; invalidated, a new atom + new Successors instance is created.
+;; `cache` value is a map: {node-id {output Endpoint/1}}
+(defonce/type Successors [cache])
+
+(defn- make-successors
+  ^Successors ([] (make-successors {}))
+  ^Successors ([m] {:pre [(map? m)]} (->Successors (atom m))))
+
 (defn empty-graph
   []
   {:nodes (int-map/int-map)
    :sarcs {}
-   :successors {}
+   :successors (make-successors)
    :tarcs {}
    :tx-id 0})
 
@@ -837,6 +848,87 @@
                  result')
           (persistent! result'))))))
 
+(defn- invalidate-graph-successors
+  ^Successors [^Successors successors changes]
+  ;; changes = vector of pairs: node-id + #{output-label ...}|nil
+  ;; when changes val is nil, it means that every output was invalidated
+  (let [current-state @(.-cache successors)]
+    (make-successors
+      (persistent!
+        (reduce
+          (fn [acc e]
+            (let [node-id (key e)
+                  output->endpoints (acc node-id ::not-found)]
+              (if (identical? ::not-found output->endpoints)
+                acc
+                (let [outputs (val e)]
+                  (if (nil? outputs)
+                    (dissoc! acc node-id)
+                    (let [output->endpoints (reduce dissoc! (transient output->endpoints) outputs)]
+                      (if (zero? (count output->endpoints))
+                        (dissoc! acc node-id)
+                        (assoc! acc node-id (persistent! output->endpoints)))))))))
+          (transient current-state)
+          changes)))))
+
+(defn- input-deps [basis node-id]
+  (some-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies))
+
+(def ^:private empty-endpoints-array (array/empty-of-type Endpoint))
+
+(defn- query-successors
+  "The purpose of this fn is to return an array of endpoints that can be reached
+  from the incoming changes (node-id + output)
+   For a specific node-id-a + output-x, add:
+     the internal input-dependencies, i.e. outputs consuming the given output
+     the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
+     all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
+  [^Successors successors basis node-id label]
+  (let [cache (.-cache successors)]
+    (if-let [cached-value (-> @cache (get node-id) (get label))]
+      cached-value
+      (let [graph (node-id->graph basis node-id)
+            result (if-let [node (node-id->node graph node-id)]
+                     (let [node-type (gt/node-type node)
+                           overrides (get (:node->overrides graph) node-id)
+                           deps-by-label (in/input-dependencies node-type)
+                           dep-labels (get deps-by-label label)
+                           outgoing-arcs (gt/arcs-by-source basis node-id label)
+                           deps (ArrayList. (int (+ (count dep-labels)
+                                                    (count overrides)
+                                                    (* (long 10) (count outgoing-arcs)))))]
+
+                       ;; The internal dependent outputs.
+                       (doseq [dep-label dep-labels]
+                         (.add deps (gt/endpoint node-id dep-label)))
+
+                       ;; The closest overrides.
+                       (doseq [override-node-id overrides]
+                         (.add deps (gt/endpoint override-node-id label)))
+
+                       ;; The connected nodes and their outputs.
+                       (doseq [^Arc outgoing-arc outgoing-arcs
+                               :let [target-id (.target-id outgoing-arc)
+                                     target-label (.target-label outgoing-arc)]
+                               dep-label (get (input-deps basis target-id) target-label)]
+                         (.add deps (gt/endpoint target-id dep-label)))
+
+                       (if (.isEmpty deps)
+                         empty-endpoints-array
+                         (.toArray deps ^Endpoint/1 empty-endpoints-array)))
+                     empty-endpoints-array)]
+        (swap! cache update node-id assoc label result)
+        result))))
+
+(defn successors
+  "Public only for tests and introspection tooling. Implementation detail."
+  [basis node-id label]
+  (query-successors
+    (-> basis :graphs (get (gt/node-id->graph-id node-id)) :successors)
+    basis
+    node-id
+    label))
+
 (def ^:private ^Cache basis-dependencies-cache
   (-> (Caffeine/newBuilder)
       (.expireAfterAccess 10 TimeUnit/SECONDS)
@@ -847,7 +939,7 @@
   (assert (every? gt/endpoint? endpoints))
   (if (coll/empty? endpoints)
     #{}
-    (let [graph-id->node-successor-map
+    (let [graph-id->node-successors
           (persistent!
             (reduce-kv
               (fn [acc graph-id graph]
@@ -856,7 +948,7 @@
               (:graphs basis)))
           cache-key (into [endpoints]
                           (map #(System/identityHashCode (val %)))
-                          graph-id->node-successor-map)]
+                          graph-id->node-successors)]
       (.get basis-dependencies-cache
             cache-key
             (fn [_]
@@ -872,9 +964,8 @@
                                                      output (gt/endpoint-label endpoint)]
                                                  (-> node-id
                                                      gt/node-id->graph-id
-                                                     graph-id->node-successor-map
-                                                     (get node-id)
-                                                     (get output))))))
+                                                     graph-id->node-successors
+                                                     (query-successors basis node-id output))))))
                                          endpoints)))
                     endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
                     future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
@@ -1159,89 +1250,14 @@
     {:basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs new-sarcs))
      :outputs-to-refresh outputs-to-refresh}))
 
-(defn- input-deps [basis node-id]
-  (some-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies))
-
-(defn- update-graph-successors
-  "The purpose of this fn is to build a data structure that reflects which set of endpoints that can be reached from the incoming changes (map of node-id + outputs)
-   For a specific node-id-a + output-x, add:
-     the internal input-dependencies, i.e. outputs consuming the given output
-     the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
-     all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
-  [old-successors basis graph changes]
-  (let [node-id->overrides (or (:node->overrides graph) (constantly nil))
-        changes+old-node-successors (mapv (fn [[node-id labels]]
-                                            [node-id labels (old-successors node-id)])
-                                          changes)
-        [new-successors removed-successor-entries]
-        (r/fold
-          (fn combinef
-            ([]
-             (pair {} []))
-            ([[new-successors-1 removed-successor-entries-1] [new-successors-2 removed-successor-entries-2]]
-             (pair (into new-successors-1 new-successors-2) (into removed-successor-entries-1 removed-successor-entries-2))))
-          (fn reducef
-            ([]
-             (pair {} []))
-            ([[new-acc remove-acc] [node-id labels old-node-successors]]
-             (let [new-node-successors
-                   (when-some [node (gt/node-by-id-at basis node-id)]
-                     (let [deps (ArrayList.)
-                           node-type (gt/node-type node)
-                           deps-by-label (in/input-dependencies node-type)
-                           overrides (node-id->overrides node-id)
-                           labels (or labels (in/output-labels node-type))
-                           arcs-by-source (if (> (count labels) 1)
-                                            (let [arcs (gt/arcs-by-source basis node-id)
-                                                  arcs-by-source-label (util/group-into #(.source-label ^Arc %) arcs)]
-                                              (fn get-arcs-by-source-label [_ _ label]
-                                                (arcs-by-source-label label)))
-                                            gt/arcs-by-source)]
-                       (reduce (fn reduce-labels [new-node-successors label]
-                                 (let [dep-labels (get deps-by-label label)
-                                       outgoing-arcs (arcs-by-source basis node-id label)]
-                                   (.clear deps)
-                                   (.ensureCapacity deps (+ (count dep-labels)
-                                                            (count overrides)
-                                                            (* (long 10) (count outgoing-arcs))))
-
-                                   ;; The internal dependent outputs.
-                                   (doseq [dep-label dep-labels]
-                                     (.add deps (gt/endpoint node-id dep-label)))
-
-                                   ;; The closest overrides.
-                                   (doseq [override-node-id overrides]
-                                     (.add deps (gt/endpoint override-node-id label)))
-
-                                   ;; The connected nodes and their outputs.
-                                   (doseq [^Arc outgoing-arc outgoing-arcs
-                                           :let [target-id (.target-id outgoing-arc)
-                                                 target-label (.target-label outgoing-arc)]
-                                           dep-label (get (input-deps basis target-id) target-label)]
-                                     (.add deps (gt/endpoint target-id dep-label)))
-
-                                   (if (.isEmpty deps)
-                                     (dissoc new-node-successors label)
-                                     (let [^"[Linternal.graph.types.Endpoint;" storage (make-array Endpoint (.size deps))
-                                           endpoint-array (.toArray deps storage)] ; Use a typed array to aid memory profilers.
-                                       (assoc new-node-successors label endpoint-array)))))
-                               old-node-successors
-                               labels)))]
-               (if (pos? (count new-node-successors))
-                 (pair (assoc new-acc node-id new-node-successors) remove-acc)
-                 (pair new-acc (conj remove-acc node-id))))))
-          changes+old-node-successors)]
-    (persistent!
-      (reduce dissoc!
-              (transient (into old-successors new-successors))
-              removed-successor-entries))))
-
 (defn update-successors
   [basis changes]
-  ;; changes = {node-id #{outputs}}
+  ;; changes = {node-id #{output-label ...}|nil}
+  ;; when changes value is nil, it means that every output was invalidated
   (reduce (fn [basis [graph-id changes]]
-            (if-let [graph (get (:graphs basis) graph-id)]
-              (update-in basis [:graphs graph-id :successors] update-graph-successors basis graph changes)
+            ;; now, changes are a vector of tuples!
+            (if (contains? (:graphs basis) graph-id)
+              (update-in basis [:graphs graph-id :successors] invalidate-graph-successors changes)
               basis))
           basis
           (util/group-into (comp gt/node-id->graph-id first) changes)))

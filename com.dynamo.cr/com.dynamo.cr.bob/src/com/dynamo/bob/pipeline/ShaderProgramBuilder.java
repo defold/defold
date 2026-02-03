@@ -68,6 +68,7 @@ public class ShaderProgramBuilder extends Builder {
     static public class ShaderCompileResult {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
         public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
+        public byte[]                       hlslRootSignature;
     }
 
     ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
@@ -206,6 +207,9 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
+        if (shaderCompileresult.hlslRootSignature != null) {
+            shaderDescBuilder.setHlslRootSignature(ByteString.copyFrom(shaderCompileresult.hlslRootSignature));
+        }
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
@@ -474,7 +478,7 @@ public class ShaderProgramBuilder extends Builder {
         } else if (path.endsWith(".cp")) {
             return ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
         }
-        throw new CompileExceptionError("Unknown shader type.%n for path" + path);
+        throw new CompileExceptionError("Unknown shader type for path" + path);
     }
 
     static public ShaderCompilePipeline newShaderPipeline(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderDescs, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
@@ -616,9 +620,16 @@ public class ShaderProgramBuilder extends Builder {
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_PSSL);
             }
 
-            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
-            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
-            shaderDescResult.shaderDesc.writeTo(os);
+
+            try {
+                ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
+                ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
+                shaderDescResult.shaderDesc.writeTo(os);
+
+            } catch (Exception e) {
+                System.err.printf("Error: %s\n", e.getMessage());
+                throw e;
+            }
         }
     }
 }

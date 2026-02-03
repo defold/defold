@@ -29,6 +29,7 @@ __pycache__
 *.apidoc_
 engine/.clang_complete
 /.vscode
+/.vs
 /.idea
 .npm
 /**/.project

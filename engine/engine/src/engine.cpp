@@ -254,7 +254,10 @@ namespace dmEngine
             dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
 
-        UpdateGuiSafeAreaAdjust(engine, width, height);
+        if (engine->m_GraphicsContext)
+        {
+            UpdateGuiSafeAreaAdjust(engine, width, height);
+        }
 
         dmGameSystem::OnWindowResized(width, height);
     }

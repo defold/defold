@@ -245,7 +245,11 @@
               :schemas [:default]))
 
 (def localization
-  (localization/make (make-test-prefs) ::test {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}))
+  (localization/make
+    (make-test-prefs)
+    ::test
+    {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}
+    ^[] Throwable/.printStackTrace))
 
 (declare resolve-prop)
 
@@ -432,6 +436,7 @@
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
+  (symlink? [this] false)
   (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))

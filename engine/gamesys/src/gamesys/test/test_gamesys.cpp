@@ -44,6 +44,8 @@
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/lua_ddf.h>
 #include <gameobject/script.h>
+#include <gameobject/gameobject_props.h>
+
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
@@ -922,8 +924,6 @@ TEST_P(ComponentFailTest, Test)
 static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
     dmGameObject::PropertyDesc desc;
     dmGameObject::PropertyOptions opt;
-    opt.m_Index = 0;
-
     dmGameObject::PropertyResult r = dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc);
 
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
@@ -935,7 +935,6 @@ static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_
 static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t in_val) {
     dmGameObject::PropertyVar prop_var(in_val);
     dmGameObject::PropertyOptions opt;
-    opt.m_Index = 0;
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
 }
 
@@ -1390,7 +1389,6 @@ static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id,
 {
     dmGameObject::PropertyDesc property_desc;
     dmGameObject::PropertyOptions property_opt;
-    property_opt.m_Index = 0;
     dmGameObject::GetProperty(go, component_id, property_id, property_opt, property_desc);
     return property_desc.m_Variant.m_Number;
 }
@@ -6181,21 +6179,23 @@ static dmHashTable64<dmhash_t> g_MockPerPropertyValues;
 
 static dmGameObject::PropertyResult MockSpineSceneSetProperty(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params)
 {
-    if (!params.m_Options.m_HasKey)
+    dmhash_t key;
+    if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
     {
         return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
     }
-    g_MockPerPropertyValues.Put(params.m_Options.m_Key, params.m_Value.m_Hash);
+    g_MockPerPropertyValues.Put(key, params.m_Value.m_Hash);
     return dmGameObject::PROPERTY_RESULT_OK;
 }
 
 static dmGameObject::PropertyResult MockSpineSceneGetProperty(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
 {
-    if (!params.m_Options.m_HasKey)
+    dmhash_t key;
+    if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
     {
         return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
     }
-    dmhash_t* value = g_MockPerPropertyValues.Get(params.m_Options.m_Key);
+    dmhash_t* value = g_MockPerPropertyValues.Get(key);
     if (!value)
     {
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
@@ -6222,8 +6222,7 @@ TEST_F(GuiTest, PerPropertyRegistration)
     
     // Test setting per-property with key
     dmGameObject::PropertyOptions options;
-    options.m_HasKey = 1;
-    options.m_Key = dmHashString64("test_node");
+    dmGameObject::AddPropertyOptionsKey(&options, dmHashString64("test_node"));
     
     dmGameObject::PropertyVar value(dmHashString64("test_spine_scene"));
     dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, value);
@@ -6278,8 +6277,7 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_NE((void*)0x0, go);
     
     dmGameObject::PropertyOptions options;
-    options.m_HasKey = 1;
-    options.m_Key = dmHashString64("test_node");
+    dmGameObject::AddPropertyOptionsKey(&options, dmHashString64("test_node"));
     
     // Test that per-property handler is called (not extension handlers)
     dmGameObject::PropertyVar value(dmHashString64("per_property_value"));

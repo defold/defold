@@ -344,35 +344,16 @@ def get_jdk(platform):
     else:
         return '%s/jdk-%s' % (path, java_version)
 
-def invoke_lein(args, jdk_path=None):
+def invoke_lein(args, jdk_path=None, **kwargs):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True)
-
-def check_reflections(jdk_path):
-    reflection_prefix = 'Reflection warning, ' # final space important
-    included_reflections = ['editor/', 'util/'] # [] = include all
-    ignored_reflections = []
-
-    # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path)
-    lines = output.splitlines()
-    reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
-    reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
-    filtered_reflections = reflections if not included_reflections else (line for line in reflections if any((re.match(include, line) for include in included_reflections)))
-    failures = list(line for line in filtered_reflections if not any((re.match(ignored, line) for ignored in ignored_reflections)))
-
-    if failures:
-        for failure in failures:
-            log(failure)
-        exit(1)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True, **kwargs)
 
 def write_docs(docs_dir, jdk_path=None):
     invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
 
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
-
 
 def remove_platform_files_from_archive(platform, jar):
     zin = zipfile.ZipFile(jar, 'r')
@@ -698,7 +679,7 @@ def build(options):
         if options.skip_tests:
             log("Skipping tests.")
         else:
-            check_reflections(jdk)
+            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
             invoke_lein(['test'], jdk_path=jdk)
             # test that docs can be successfully produced
             write_docs('target/docs', jdk_path=jdk)

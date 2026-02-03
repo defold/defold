@@ -728,6 +728,10 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
+            if (Arrays.asList(commands).contains("bundle")) {
+                File bundleDir = getBundleOutputDirectory();
+                validateBundleOutputDirectory(bundleDir);
+            }
             TimeProfiler.start("loadProjectFile");
             loadProjectFile(true);
             TimeProfiler.stop();
@@ -917,15 +921,28 @@ public class Project {
         m.done();
     }
 
-    private File getBundleOutputDirectory() {
+    private File getBundleOutputDirectory() throws CompileExceptionError {
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
         if (bundleOutput != null) {
             bundleDir = new File(bundleOutput);
         } else {
-            bundleDir = new File(getRootDirectory(), getBuildDirectory());
+            bundleDir = new File(FilenameUtils.concat(getRootDirectory(), getBuildDirectory()));
         }
         return bundleDir;
+    }
+
+    private void validateBundleOutputDirectory(File bundleDir) throws IOException, CompileExceptionError {
+        File buildDir = new File(FilenameUtils.concat(getRootDirectory(), "build"));
+        File buildOutputDir = new File(FilenameUtils.concat(getRootDirectory(), getBuildDirectory()));
+        Path bundlePath = bundleDir.getCanonicalFile().toPath();
+        Path buildPath = buildDir.getCanonicalFile().toPath();
+        Path buildOutputPath = buildOutputDir.getCanonicalFile().toPath();
+        // We prohibit to bundle into `project/build` folder but allow to do it into `project/build/default*` folder
+        // as this folder used by default and for HTML5 bundle in the editor
+        if (bundlePath.startsWith(buildPath) && !bundlePath.startsWith(buildOutputPath)) {
+            throw new CompileExceptionError("Folder '" + buildDir + "' in the project folder can't be used for bundling as this folder is reserved for Defold build system.");
+        }
     }
 
     public void registerTextureCompressors() {

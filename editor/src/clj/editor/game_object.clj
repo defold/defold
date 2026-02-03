@@ -766,6 +766,7 @@
       :string-encode-fn (partial string-encode-game-object workspace)
       :icon game-object-common/game-object-icon
       :icon-class :design
+      :category (localization/message "resource.category.objects")
       :view-types [:scene :text]
       :view-opts {:scene {:grid true
                           :drop-fn handle-drop}})))

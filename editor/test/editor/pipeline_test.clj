@@ -211,6 +211,7 @@
   (source-type [_] :file)
   (exists? [_] true)
   (read-only? [_] true)
+  (symlink? [_] false)
   (path [_] (subs proj-path 1))
   (abs-path [_] proj-path)
   (proj-path [_] proj-path)

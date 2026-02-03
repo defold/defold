@@ -37,6 +37,9 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (!enabled)
             return false;
 
+        if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
+            return false;
+
         String path = fontDesc.getFont().toLowerCase();
         return path.endsWith(".ttf");
     }

@@ -114,7 +114,7 @@
   (let [max-error-count 15 ; We limit the number of errors since traversing deep trees is slow.
 
         distinct-errors
-        (coll/transfer error-values []
+        (coll/into-> error-values []
           (mapcat #(tree-seq :causes :causes %))
           (filter :message)
           (remove :causes)
@@ -123,7 +123,7 @@
           (take (inc max-error-count))) ; Produce one more error than we'll use so we'll know if we're over the limit.
 
         error-message-lines
-        (coll/transfer distinct-errors ["RENDER ERROR:" ""]
+        (coll/into-> distinct-errors ["RENDER ERROR:" ""]
           (take max-error-count)
           (map (fn [{:keys [_node-id message]}]
                  (let [resource-name (get-resource-name _node-id)]
@@ -324,7 +324,7 @@
                             :picking-rect :select-batch-key})
 
 (defn- make-aabb-renderables [renderables]
-  (coll/transfer renderables []
+  (coll/into-> renderables []
     (keep :aabb)
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
@@ -959,7 +959,7 @@
             (:renderables scene-render-data))
 
           sorted-renderables-by-pass
-          (coll/transfer all-renderables-by-pass {}
+          (coll/into-> all-renderables-by-pass {}
             (map (fn [[pass renderables]]
                    (pair pass
                          (vec (render-sort renderables))))))]
@@ -1529,38 +1529,43 @@
       (for [node-id scene-node-ids]
         (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
-(declare selection->movable)
+(defn- selection->movable
+  ([selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (selection->movable selection evaluation-context)))
+  ([selection evaluation-context]
+   (handler/selection->node-ids selection scene-tools/manip-movable? evaluation-context)))
 
 (handler/defhandler :scene.move-up :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
 
 (handler/defhandler :scene.move-down :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
 
 (handler/defhandler :scene.move-left :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-up-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
 
 (handler/defhandler :scene.move-down-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
 
 (handler/defhandler :scene.move-left-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
 (defn- handle-key-pressed! [^KeyEvent event]
@@ -1913,7 +1918,7 @@
     num))
 
 (defn non-zeroify-scale [scale]
-  (coll/transform scale
+  (coll/transform-> scale
     (map non-zeroify-component)))
 
 (g/defnode SceneNode
@@ -1987,6 +1992,3 @@
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))
-
-(defn selection->movable [selection evaluation-context]
-  (handler/selection->node-ids selection scene-tools/manip-movable? evaluation-context))

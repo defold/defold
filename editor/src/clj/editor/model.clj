@@ -306,6 +306,7 @@
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
+    (symlink? [_] false)
     (path [_] "")
     (abs-path [_] "")
     (proj-path [_] "")
@@ -346,7 +347,7 @@
                                                           :error (or
                                                                    (when should-be-deleted
                                                                      (g/->error material-binding-node-id :materials :warning material
-                                                                                (format "'%s' is not defined in the mesh. Clear the field to delete it."
+                                                                                (format "'%s' is not defined in the mesh. Use the \"Clear Override\" command from the label's context menu to remove the property."
                                                                                         name)))
                                                                    (prop-resource-error :fatal material-binding-node-id :materials material "Material"))
                                                           :prop-kw :material
@@ -372,7 +373,7 @@
                                                                                      :prop-kw :texture
                                                                                      :error (when texture-binding-should-be-deleted
                                                                                               (g/->error _node-id :texture :warning texture
-                                                                                                         (format "'%s' is not defined in the material. Clear the field to delete it."
+                                                                                                         (format "'%s' is not defined in the material. Use the \"Clear Override\" command from the label's context menu to remove the property."
                                                                                                                  sampler)))
                                                                                      :edit-type {:type resource/Resource
                                                                                                  :ext supported-image-exts
@@ -592,6 +593,7 @@
     :sanitize-fn sanitize-model
     :icon model-icon
     :icon-class :design
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))

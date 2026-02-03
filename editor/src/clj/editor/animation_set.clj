@@ -187,6 +187,7 @@
     :ext "animationset"
     :icon animation-set-icon
     :icon-class :property
+    :category (localization/message "resource.category.resources")
     :label (localization/message "resource.type.animationset")
     :load-fn load-animation-set
     :sanitize-fn sanitize-animation-set

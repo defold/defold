@@ -157,6 +157,7 @@
       :load-fn (partial load-factory :game-object)
       :icon (get-in factory-types [:game-object :icon])
       :icon-class :property
+      :category (localization/message "resource.category.components")
       :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}
@@ -170,6 +171,7 @@
       :load-fn (partial load-factory :collection)
       :icon (get-in factory-types [:collection :icon])
       :icon-class :property
+      :category (localization/message "resource.category.components")
       :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}

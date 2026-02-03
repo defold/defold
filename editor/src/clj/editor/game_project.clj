@@ -52,7 +52,7 @@
   (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
         settings (into []
                        (comp (keep (fn [[path value]]
-                                     (if (:unknown-setting? (settings-core/get-meta-setting meta-settings path))
+                                     (if (:unknown-setting (settings-core/get-meta-setting meta-settings path))
                                        {:path path :value value}
                                        (when (and (some? value) (not= "" value))
                                          {:path path :value value}))))
@@ -83,6 +83,7 @@
   (source-type [this] (resource/source-type resource))
   (exists? [this] (resource/exists? resource))
   (read-only? [this] (resource/read-only? resource))
+  (symlink? [this] (resource/symlink? resource))
   (path [this] (resource/path resource))
   (abs-path [this] (resource/abs-path resource))
   (proj-path [this] (resource/proj-path resource))

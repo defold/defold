@@ -14,6 +14,7 @@
 
 (ns editor.resource-watch
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.library :as library]
@@ -235,16 +236,36 @@
         new-map (make-resource-map new-snapshot)
         old-paths (set (keys old-map))
         new-paths (set (keys new-map))
-        common-paths (clojure.set/intersection new-paths old-paths)
-        added-paths (clojure.set/difference new-paths old-paths)
-        removed-paths (clojure.set/difference old-paths new-paths)
-        changed-paths (filter #(not= (resource-status old-snapshot %) (resource-status new-snapshot %)) common-paths)
-        added (map new-map added-paths)
-        removed (map old-map removed-paths)
-        changed (map new-map changed-paths)]
-    (assert (empty? (clojure.set/intersection (set added) (set removed))))
-    (assert (empty? (clojure.set/intersection (set added) (set changed))))
-    (assert (empty? (clojure.set/intersection (set removed) (set changed))))
+        common-paths (set/intersection new-paths old-paths)
+        changed-paths (filterv #(not= (resource-status old-snapshot %)
+                                      (resource-status new-snapshot %))
+                               common-paths)
+
+        {changed-from-folder-to-file :file
+         changed-from-file-to-folder :folder}
+        (coll/reduce->
+          changed-paths
+          {:file (sorted-set-by coll/descending-order)
+           :folder (sorted-set-by coll/descending-order)}
+          (fn [acc path]
+            (let [old-source-type (resource/source-type (get old-map path))
+                  new-source-type (resource/source-type (get new-map path))]
+              (cond-> acc
+                      (not= old-source-type new-source-type)
+                      (update new-source-type conj path)))))
+
+        added-paths (into changed-from-folder-to-file (set/difference new-paths old-paths))
+        removed-paths (into changed-from-file-to-folder (set/difference old-paths new-paths))
+        changed-paths (coll/into-> changed-paths (sorted-set-by coll/descending-order)
+                        (remove changed-from-folder-to-file)
+                        (remove changed-from-file-to-folder))
+        added (mapv new-map added-paths)
+        removed (mapv old-map removed-paths)
+        changed (mapv new-map changed-paths)]
+
+    (assert (empty? (set/intersection (set added) (set removed))))
+    (assert (empty? (set/intersection (set added) (set changed))))
+    (assert (empty? (set/intersection (set removed) (set changed))))
     {:added added
      :removed removed
      :changed changed}))

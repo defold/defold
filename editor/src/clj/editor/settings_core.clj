@@ -16,8 +16,8 @@
   (:require [clojure.string :as string]
             [editor.system :as system]
             [editor.url :as url]
-            [internal.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [clojure.lang MultiFn]))
@@ -230,7 +230,7 @@
                    {:path setting-path
                     :type :string
                     :help (label (last setting-path))
-                    :unknown-setting? true})))
+                    :unknown-setting true})))
           settings)))
 
 (defn add-meta-info-for-unknown-settings [meta-info settings]
@@ -249,7 +249,26 @@
    (coll/merge-with-kv
      (fn [k a b]
        (case k
-         :settings (into [] (comp cat (util/distinct-by :path)) [a b])
+         :settings (->> (e/concat a b)
+                        (reduce
+                          (fn [e setting]
+                            (let [path->index (key e)
+                                  settings (val e)]
+                              (if-let [index (path->index (:path setting))]
+                                (if (and (:unknown-setting (settings index))
+                                         (not (:unknown-setting setting)))
+                                  (coll/pair
+                                    path->index
+                                    (assoc! settings index setting))
+                                  e)
+                                (coll/pair
+                                  (assoc! path->index (:path setting) (count settings))
+                                  (conj! settings setting)))))
+                          (coll/pair
+                            #_path->index (transient {})
+                            #_settings (transient [])))
+                        val
+                        persistent!)
          :group-order (into [] (comp cat (distinct)) [a b])
          :categories (coll/merge-with coll/merge a b)
          b))

@@ -36,7 +36,7 @@ def build(bld):
                             source = source_null,
                             target = 'profilerext_null')
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         profiler = bld.stlib(features = 'c cxx',
                                 includes = '.',
                                 source = 'remotery/profiler_remotery.cpp remotery/lib/Remotery.c',

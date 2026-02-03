@@ -188,6 +188,7 @@ namespace dmRender
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
+        font_map->m_IsDynamic = params.m_IsDynamic;
         font_map->m_Padding = params.m_Padding;
 
         font_map->m_OnGlyphCacheMiss = params.m_OnGlyphCacheMiss;

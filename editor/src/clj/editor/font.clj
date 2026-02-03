@@ -913,6 +913,7 @@
       :sanitize-fn sanitize-font
       :icon font-icon
       :icon-class :design
+      :category (localization/message "resource.category.resources")
       :view-types [:scene :text])
     (workspace/register-resource-type workspace
       :ext "glyph_bank")

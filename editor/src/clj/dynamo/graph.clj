@@ -43,7 +43,7 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
 
-(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
@@ -827,7 +827,7 @@
   Example:
   `(transact (set-properties node-id :name \"item\" :opacity 0.5))`"
   [node-id & kvs]
-  (coll/transfer kvs []
+  (coll/into-> kvs []
     (partition-all 2)
     (mapcat (fn [[property-label new-value]]
               (it/set-property node-id property-label new-value)))))
@@ -1095,10 +1095,10 @@
   [bindings & body]
   {:pre [(vector? bindings)
          (even? (count bindings))]}
-  (let [private-bindings-per-binding (coll/transfer bindings []
+  (let [private-bindings-per-binding (coll/into-> bindings []
                                        (partition-all 2)
                                        (map destructure))
-        public-symbols (coll/transfer private-bindings-per-binding []
+        public-symbols (coll/into-> private-bindings-per-binding []
                          (mapcat #(take-nth 2 %))
                          (distinct))
         private-bindings (into [] cat private-bindings-per-binding)]
@@ -1130,7 +1130,7 @@
          (even? (count bindings))]}
   (list*
     `let
-    (coll/transfer bindings
+    (coll/into-> bindings
       [evaluation-context-sym `(make-evaluation-context)]
       (partition-all 2)
       (mapcat (fn [[binding-form init-expr]]
@@ -1836,12 +1836,12 @@
          dynamic-fnk (-> property-def (get :dynamics) (get dynamic-label))]
      (if dynamic-fnk
        (let [dynamic-fn (:fn dynamic-fnk)
-             dynamic-args (coll/transfer (:arguments dynamic-fnk) {}
+             dynamic-args (coll/into-> (:arguments dynamic-fnk) {}
                             (map (fn [arg-label]
-                                     (let [arg-value (case arg-label
-                                                       :_this node
-                                                       (in/node-value node arg-label evaluation-context))]
-                                       (pair arg-label arg-value)))))]
+                                   (let [arg-value (case arg-label
+                                                     :_this node
+                                                     (in/node-value node arg-label evaluation-context))]
+                                     (pair arg-label arg-value)))))]
          (dynamic-fn dynamic-args))
        not-found))))
 

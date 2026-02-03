@@ -44,6 +44,7 @@
             [editor.util :as util]
             [service.log :as log]
             [util.coll :as coll]
+            [util.path :as path]
             [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [com.defold.control ClippingContainer]
@@ -55,13 +56,25 @@
            [javafx.event Event]
            [javafx.scene.control ListView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Screen Stage Window]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
 (def clipping-container
   (fx.composite/describe ClippingContainer :ctor [] :props fx.stack-pane/props))
+
+(def ^:private dialogs-css-delay
+  (delay (str (io/resource "dialogs.css"))))
+
+(defn max-dialog-stage-height []
+  (let [screens (Screen/getScreens)
+        n (.size screens)]
+    (loop [i 0
+           max-height 0.0]
+      (if (= i n)
+        max-height
+        (recur (unchecked-inc i) (max max-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
@@ -85,8 +98,9 @@
   (-> props
       (dissoc :size :header :content :footer :root-props)
       (assoc :fx/type fxui/dialog-stage
+             :max-height (max-dialog-stage-height)
              :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets [(str (io/resource "dialogs.css"))]
+                     :stylesheets [@dialogs-css-delay]
                      :root (-> root-props
                                (fxui/add-style-classes
                                  "dialog-body"
@@ -1072,33 +1086,43 @@
                                                  previous-location)))
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result
-                                       (-> (io/file (:location state) (sanitize-file-name ext (:name state)))
-                                           ;; Canonical path turns Windows path
-                                           ;; into the correct case. We need
-                                           ;; this to be able to match internal
-                                           ;; resource maps, which are case
-                                           ;; sensitive unlike the NTFS file
-                                           ;; system.
-                                           (.getCanonicalFile)))))
+                                             ;; We need to the actual case of
+                                             ;; the path in the file system for
+                                             ;; an exact match in the internal
+                                             ;; resource maps, which are
+                                             ;; case-sensitive unlike the NTFS
+                                             ;; file system.
+                                             (-> (path/actual-cased (:location state))
+                                                 (io/file (sanitize-file-name ext (:name state)))))))
     :description {:fx/type new-file-dialog
                   :localization localization}))
 
 (defn ^:dynamic make-resolve-file-conflicts-dialog
   [src-dest-pairs localization]
-  (make-confirmation-dialog
-    localization
-    {:icon :icon/circle-question
-     :size :large
-     :title (localization/message "dialog.name-conflict.title")
-     :header (localization/message "dialog.name-conflict.header" {"count" (count src-dest-pairs)})
-     :buttons [{:text (localization/message "dialog.button.cancel")
-                :cancel-button true
-                :default-button true}
-               {:text (localization/message "dialog.name-conflict.button.name-differently")
-                :result :rename}
-               {:text (localization/message "dialog.name-conflict.button.overwrite-files")
-                :variant :danger
-                :result :overwrite}]}))
+  ;; We do not allow the user to choose the :overwrite action if we're about to
+  ;; overwrite a broken symlink.
+  (let [any-dest-is-broken-symlink
+        (coll/any? (fn [[_ ^File dest]]
+                     (and (not (.exists dest))
+                          (path/symlink? dest)))
+                   src-dest-pairs)]
+
+    (make-confirmation-dialog
+      localization
+      {:icon :icon/circle-question
+       :size :large
+       :title (localization/message "dialog.name-conflict.title")
+       :header (localization/message "dialog.name-conflict.header" {"count" (count src-dest-pairs)})
+       :buttons (cond-> [{:text (localization/message "dialog.button.cancel")
+                          :cancel-button true
+                          :default-button true}
+                         {:text (localization/message "dialog.name-conflict.button.name-differently")
+                          :result :rename}]
+
+                        (not any-dest-is-broken-symlink)
+                        (conj {:text (localization/message "dialog.name-conflict.button.overwrite-files")
+                               :variant :danger
+                               :result :overwrite}))})))
 
 (def ext-with-selection-props
   (fx/make-ext-with-props

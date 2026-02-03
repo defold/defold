@@ -39,14 +39,26 @@ def build(bld):
         platform_source_dirs.append('dlib/nx64/**/*.cpp')
     elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         platform_source_dirs.append('dlib/ps4/**/*.cpp')
+    elif bld.env.PLATFORM in ['x86_64-xbone']:
+        platform_source_dirs.append('dlib/win32/**/*.cpp')
+        platform_source_dirs.append('dlib/xbox/**/*.cpp')
 
-    extra_defines = ['ZLIB_CONST']
+    zlib_conf_defines = []
+    if 'ZLIB_CONF_H' in bld.env:
+        zlib_conf_defines = bld.env['ZLIB_CONF_H']
+    else:
+        zlib_conf_defines = ['ZLIB_CONST']
+        if 'win32' not in bld.env.PLATFORM:
+            zlib_conf_defines.append('Z_HAVE_UNISTD_H')
+            zlib_conf_defines.append('HAVE_HIDDEN')
+
+    extra_defines = []
+    extra_defines.extend(zlib_conf_defines)
+
     extra_defines +=['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
     extra_defines +=['MINIZ_USE_ANSI', 'ZIP_NO_DEFLATE', 'ZIP_NO_DISC_IO']   # defold defines
 
     if 'win32' not in bld.env.PLATFORM:
-        extra_defines.append('Z_HAVE_UNISTD_H')
-        extra_defines.append('HAVE_HIDDEN')
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
     else:
         pass
@@ -96,14 +108,16 @@ def build(bld):
                                                     'thread_posix.cpp',
                                                     'sys_posix.cpp'])
 
-    if 'win32' in bld.env.PLATFORM:
+    if bld.env.PLATFORM in ('x86_64-win32', 'win32', 'x86_64-xbone'):
         source_files = remove_files(source_files, ['time_posix.cpp'])
         source_files = remove_files(source_files, ['thread_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_empty.cpp'])
+        source_files = remove_files(source_files, ['sys_posix.cpp'])
     else:
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
+        source_files = remove_files(source_files, ['sys_win32.cpp'])
         if bld.env.PLATFORM in ('wasm-web', 'js-web'):
             source_files = remove_files(source_files, ['mutex_posix.cpp'])
         else:
@@ -430,7 +444,6 @@ def build(bld):
     if is_platform_private(bld.env.PLATFORM):
         bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
         bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
-        bld.install_files('${PREFIX}/include/dlib', 'dlib/alloca_vendor.h')
 
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p

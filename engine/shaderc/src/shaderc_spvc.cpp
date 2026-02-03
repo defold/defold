@@ -540,6 +540,12 @@ namespace dmShaderc
         {
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL, options.m_Version);
 
+            // Force modern HLSL output
+            if (options.m_Version >= 60)
+            {
+                spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ENABLE_420PACK_EXTENSION, 1);
+            }
+
             if (context->m_Stage == SHADER_STAGE_COMPUTE)
             {
                 spvc_variable_id num_workgroups_id = spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler);

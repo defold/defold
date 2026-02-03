@@ -1500,7 +1500,7 @@
   (let [{:keys [arguments annotations]} (get-in description [:output label])
 
         argument-forms
-        (coll/transfer arguments {}
+        (coll/into-> arguments {}
           (map (fn [argument]
                  (let [argument-annotations (get annotations argument)
                        form (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym)]

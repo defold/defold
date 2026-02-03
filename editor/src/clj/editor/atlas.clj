@@ -1239,6 +1239,7 @@
       :load-fn load-atlas
       :icon atlas-icon
       :icon-class :design
+      :category (localization/message "resource.category.resources")
       :view-types [:scene :text]
       :view-opts {:scene {:drop-fn handle-drop
                           :tool-controller AtlasToolController}})))

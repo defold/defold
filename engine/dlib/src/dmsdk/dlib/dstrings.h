@@ -16,6 +16,7 @@
 #define DMSDK_DSTRINGS_H
 
 #include <stdio.h>
+#include <string.h>
 
 /*# String functions.
  *

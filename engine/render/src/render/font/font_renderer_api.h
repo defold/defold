@@ -77,13 +77,14 @@ namespace dmRender
      * @param font_map [type: HFontMap] the fon
      * @param frame [type: uint32_t] the current frame. Used when caching new glyphs.t
      * @param text [type: const char*] the text
+     * @param sdf_screen_scale [type: float] screen space scale (pixels per local unit). Pass 0 to fallback to world scale.
      * @param recip_w [type: float] 1/texture_width
      * @param recip_h [type: float] 1/texture_height
      * @param vertices [type: uint8_t*] the vertex buffer
      * @param num_vertices [type: uint32_t] the number of vertices that will fit into the vertex buffer
      * @return num_vertices [type: uint32_t] Returns number of vertices consumed from the vertex buffer
      */
-    uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
+    uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_screen_scale, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
 }
 
 #endif // DM_FONT_RENDERER_API_H

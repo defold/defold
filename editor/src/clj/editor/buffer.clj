@@ -119,6 +119,7 @@
     :ext "buffer"
     :label (localization/message "resource.type.buffer")
     :icon buffer-icon
+    :category (localization/message "resource.category.resources")
     :view-types [:code :default]
     :view-opts {:code {:grammar json/grammar}}
     :node-type BufferNode

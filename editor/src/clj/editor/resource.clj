@@ -48,6 +48,7 @@
   (source-type [this])
   (exists? [this])
   (read-only? [this])
+  (symlink? [this])
   (path [this])
   (abs-path ^String [this])
   (proj-path ^String [this])
@@ -172,7 +173,7 @@
   contents of something like a `.defignore` file."
   [lines]
   (let [patterns (when lines
-                   (coll/transfer lines []
+                   (coll/into-> lines []
                      (filter #(string/starts-with? % "/"))
                      (map #(string/replace % #"/*$" ""))
                      (distinct)))]
@@ -278,7 +279,7 @@
       (let [file (io/file this)]
         (and (.exists file)
              (not (ignored-project-path? (io/file root) project-path))
-             (string/ends-with? (->unix-seps (.getCanonicalPath file)) project-path)))
+             (string/ends-with? (->unix-seps (str (path/actual-cased file))) project-path)))
       (catch IOException _
         false)
       (catch SecurityException _
@@ -288,6 +289,7 @@
       (not (.canWrite (io/file this)))
       (catch SecurityException _
         true)))
+  (symlink? [this] (path/symlink? this))
   (path [this] (if (= "" project-path) "" (subs project-path 1)))
   (abs-path [this] abs-path)
   (proj-path [this] project-path)
@@ -370,6 +372,7 @@
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
+  (symlink? [this] false)
   (path [this] nil)
   (abs-path [this] nil)
   (proj-path [this] nil)
@@ -424,6 +427,7 @@
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
+  (symlink? [this] false) ; Note: Zip archives can contain symlinks. The ZipFile class doesn't support them, but the zip FileSystem implementation does.
   (path [this] path)
   (abs-path [this] nil)
   (proj-path [this] (.concat "/" path))

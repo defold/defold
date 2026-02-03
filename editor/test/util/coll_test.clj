@@ -56,20 +56,20 @@
       (testing "No transducer."
         (doseq [coll colls]
           (testing (or (some-> coll class .getSimpleName) "nil")
-            (let [transformed-coll (coll/transform coll)]
+            (let [transformed-coll (coll/transform-> coll)]
               (is (identical? coll transformed-coll))))))
 
       (testing "Single transducer."
         (doseq [coll colls]
           (testing (or (some-> coll class .getSimpleName) "nil")
-            (let [transformed-coll (coll/transform coll
+            (let [transformed-coll (coll/transform-> coll
                                      (take 1))]
               (is (identical? coll transformed-coll))))))
 
       (testing "Multiple transducers."
         (doseq [coll colls]
           (testing (or (some-> coll class .getSimpleName) "nil")
-            (let [transformed-coll (coll/transform coll
+            (let [transformed-coll (coll/transform-> coll
                                      (take 1)
                                      (mapcat (juxt identity identity identity))
                                      (drop 2))]
@@ -86,13 +86,13 @@
       (testing "No transducer."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (let [transformed-coll (coll/transform coll)]
+            (let [transformed-coll (coll/transform-> coll)]
               (is (identical? coll transformed-coll))))))
 
       (testing "Single transducer."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (let [transformed-coll (coll/transform coll
+            (let [transformed-coll (coll/transform-> coll
                                      (take 1))]
               (is (= (class coll) (class transformed-coll)))
               (is (= 1 (bounded-count 2 transformed-coll)))
@@ -102,7 +102,7 @@
       (testing "Multiple transducers."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (let [transformed-coll (coll/transform coll
+            (let [transformed-coll (coll/transform-> coll
                                      (take 1)
                                      (mapcat (juxt identity identity identity))
                                      (drop 2))]
@@ -119,13 +119,13 @@
       (testing "No transducer."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (let [transformed-coll (coll/transform coll)]
+            (let [transformed-coll (coll/transform-> coll)]
               (is (identical? coll transformed-coll))))))
 
       (testing "Single transducer."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (let [transformed-coll (coll/transform coll
+            (let [transformed-coll (coll/transform-> coll
                                      (map (fn [entry]
                                             [(key entry)
                                              (inc (long (val entry)))])))]
@@ -136,7 +136,7 @@
       (testing "Multiple transducers."
         (doseq [coll colls]
           (testing (.getSimpleName (class coll))
-            (let [transformed-coll (coll/transform coll
+            (let [transformed-coll (coll/transform-> coll
                                      (take 1)
                                      (mapcat (juxt identity identity identity))
                                      (map (fn [entry]
