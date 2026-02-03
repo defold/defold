@@ -271,10 +271,10 @@ int init_gl(_GLFWwin_android* win)
 void final_gl(_GLFWwin_android* win)
 {
     LOGV("final_gl");
+    int did_attach = 0;
+    JNIAttachCurrentThreadIfNeeded(&did_attach);
     if (win->display != EGL_NO_DISPLAY)
     {
-        int did_attach = 0;
-        JNIAttachCurrentThreadIfNeeded(&did_attach);
         if (win->aux_context != EGL_NO_CONTEXT)
         {
             eglDestroySurface(win->display, win->aux_surface);
@@ -291,18 +291,20 @@ void final_gl(_GLFWwin_android* win)
         eglTerminate(win->display);
         CHECK_EGL_ERROR
         win->display = EGL_NO_DISPLAY;
-        JNIDetachCurrentThreadIfNeeded(did_attach);
     }
     if (win->native_window)
     {
         ANativeWindow_release(win->native_window);
         win->native_window = NULL;
     }
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 void create_gl_surface(_GLFWwin_android* win)
 {
     LOGV("create_gl_surface");
+    int did_attach = 0;
+    JNIAttachCurrentThreadIfNeeded(&did_attach);
     if (win->display != EGL_NO_DISPLAY)
     {
         EGLSurface surface = win->surface;
@@ -319,9 +321,9 @@ void create_gl_surface(_GLFWwin_android* win)
             // Hold a ref to the native window for the lifetime of the EGL surface.
             if (win->native_window != window)
             {
+                ANativeWindow_acquire(window);
                 if (win->native_window)
                     ANativeWindow_release(win->native_window);
-                ANativeWindow_acquire(window);
                 win->native_window = window;
             }
 
@@ -342,6 +344,7 @@ void create_gl_surface(_GLFWwin_android* win)
         }
         win->surface = surface;
     }
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 void make_current(_GLFWwin_android* win)
