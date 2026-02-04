@@ -43,7 +43,7 @@ public class BuilderUtil {
 
     public static IResource checkResource(Project project, IResource owner, String field, String path) throws CompileExceptionError {
         if (path.isEmpty()) {
-            String message = BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, field);
+            String message = BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, field, owner.getPath());
             throw new CompileExceptionError(owner, 0, message);
         }
         IResource resource = project.getResource(path);
