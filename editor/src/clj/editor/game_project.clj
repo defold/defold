@@ -83,6 +83,7 @@
   (source-type [this] (resource/source-type resource))
   (exists? [this] (resource/exists? resource))
   (read-only? [this] (resource/read-only? resource))
+  (symlink? [this] (resource/symlink? resource))
   (path [this] (resource/path resource))
   (abs-path [this] (resource/abs-path resource))
   (proj-path [this] (resource/proj-path resource))

@@ -19,6 +19,7 @@
 #include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/vmath.h>                     // for Vector4
 #include <dlib/time.h>                      // for dmTime::GetMonotonicTime()
+#include <dlib/math.h>                      // for fmaxf
 
 #include <graphics/graphics.h>              // for AddVertexStream etc
 #include <graphics/graphics_util.h>         // for UnpackRGBA
@@ -108,6 +109,7 @@ static void OutputGlyph(FontGlyph* glyph,
                         float sdf_shadow,
                         float shadow_x,
                         float shadow_y,
+                        bool is_metrics_ttf,
                         GlyphVertex* vertices)
 {
     float f_width;
@@ -118,7 +120,15 @@ static void OutputGlyph(FontGlyph* glyph,
     if (glyph)
     {
         assert(glyph->m_Bitmap.m_Width != 0);
-        f_width        = glyph->m_Bitmap.m_Width;
+
+        // We have two cases:
+        //  1) Legacy code path where the width of a glyph is determined by its visual bounds
+        //  2) Runtime code path where the width of a glyph comes from the ttf metrics.
+        //
+        // In 1) the f_size_diff should be 0.
+        // In 2) the f_size_diff should be whatever the difference in size is.
+        // While we want to fix this discrepancy, let's make this awkward if statement here in the meantime.
+        f_width        = is_metrics_ttf ? glyph->m_Bitmap.m_Width : glyph->m_Width;
         f_descent      = glyph->m_Descent;
         f_ascent       = glyph->m_Ascent;
         f_left_bearing = glyph->m_LeftBearing;
@@ -340,21 +350,27 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
     const float sdf_edge_value = 0.75f;
+    const float min_sdf_screen_scale = 0.5f;
+    const float min_sdf_scale = 1e-6f;
     float sdf_scale = sdf_screen_scale;
-    if (sdf_scale <= 0.0f)
+    if (sdf_scale > 0.0f)
+    {
+        sdf_scale = dmMath::Max(sdf_scale, min_sdf_screen_scale);
+    }
+    else
     {
         // Fallback to local scale when screen scale is invalid.
         const Vector4 r0 = te.m_Transform.getRow(0);
         sdf_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-    }
-    if (sdf_scale < 1e-6f)
-    {
-        sdf_scale = 1e-6f;
+        sdf_scale = dmMath::Max(sdf_scale, min_sdf_scale);
     }
     float sdf_outline = font_map->m_SdfOutline;
     float sdf_shadow  = font_map->m_SdfShadow;
     // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
     float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
+    // if it's generated at runtime, the glyph width is measured using the metrics from the glyphs in the font
+    // and not generated from the visual bounds (see Fontc.java)
+    bool is_metrics_ttf = font_map->m_IsDynamic;
 
     HFontCollection font_collection = font_map->m_FontCollection;
 
@@ -523,6 +539,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
                         sdf_shadow,
                         shadow_x,
                         shadow_y,
+                        is_metrics_ttf,
                         vertices);
 
             vertexindex += vertices_per_quad;

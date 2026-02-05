@@ -70,7 +70,7 @@ if 'waf_dynamo_vendor' not in sys.modules:
 
 
 def is_platform_private(platform):
-    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
 
 def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
@@ -164,6 +164,10 @@ def platform_graphics_libs_and_symbols(platform):
     if platform in ('x86_64-ps5'):
         graphics_libs = ['GRAPHICS']
         graphics_lib_symbols = ['GraphicsAdapterPS5']
+
+    if platform in ['x86_64-xbone']:
+        graphics_lib = 'GRAPHICS'
+        graphics_lib_symbols = ['GraphicsAdapterDX12']
 
     return graphics_libs, graphics_lib_symbols
 
@@ -424,17 +428,19 @@ def default_flags(self):
     target_os = build_util.get_target_os()
     target_arch = build_util.get_target_architecture()
 
+    use_cl_exe = target_os in [TargetOS.WINDOWS, TargetOS.XBONE]
+
     opt_level = Options.options.opt_level
     if opt_level == "2" and TargetOS.WEB == target_os:
         opt_level = "3" # emscripten highest opt level
-    elif opt_level == "0" and TargetOS.WINDOWS in target_os:
+    elif opt_level == "0" and use_cl_exe:
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
     if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
         opt_level = 1
 
-    FLAG_ST = '/%s' if TargetOS.WINDOWS == target_os else '-%s'
+    FLAG_ST = '/%s' if use_cl_exe else '-%s'
 
     # Common for all platforms
     flags = []
@@ -454,18 +460,18 @@ def default_flags(self):
         flags += [self.env.DEFINES_ST % 'NDEBUG']
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+        if use_cl_exe and f == 'LINKFLAGS':
+            continue # There is no such option for link.exe
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
-        if TargetOS.WINDOWS == target_os:
+        if use_cl_exe:
             flags += ['/showIncludes']
         else:
             flags += ['-H']
 
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
-
-    use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
 
     if not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
@@ -770,7 +776,7 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-        if use_crash and name in 'LINKFLAGS':
+        if use_crash and name == 'LINKFLAGS':
             for i, v in enumerate(arr):
                 if v.startswith('EXPORTED_FUNCTIONS'):
                     arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
@@ -1775,6 +1781,8 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    conf.find_program('protoc', var='PROTOC', mandatory = True, path_list = [os.path.join(dynamo_home, "ext", "bin", host_platform)])
+
     # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
     sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, host_platform)
@@ -1922,36 +1930,38 @@ def detect(conf):
 
     platform_setup_tools(conf, build_util)
 
-    # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
-    if TargetOS.WINDOWS == target_os:
-        includes = sdkinfo['includes']['path']
-        libdirs = sdkinfo['lib_paths']['path']
-        bindirs = sdkinfo['bin_paths']['path']
+    if not is_platform_private(platform):
+        # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
+        if TargetOS.WINDOWS == target_os:
+            includes = sdkinfo['includes']['path']
+            libdirs = sdkinfo['lib_paths']['path']
+            bindirs = sdkinfo['bin_paths']['path']
 
-        bindirs.append(build_util.get_binary_path())
-        bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
+            bindirs.append(build_util.get_binary_path())
+            bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
 
-        # The JDK dir doesn't get added since we use no_autodetect
-        bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
+            # The JDK dir doesn't get added since we use no_autodetect
+            bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
 
-        # there's no lib prefix anymore so we need to set our our lib dir first so we don't
-        # pick up the wrong hid.lib from the windows sdk
-        libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
-        if build_util.get_target_platform() == 'win32':
-            libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
+            # there's no lib prefix anymore so we need to set our our lib dir first so we don't
+            # pick up the wrong hid.lib from the windows sdk
+            libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
+            if build_util.get_target_platform() == 'win32':
+                libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
 
-        conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
-        conf.env['INCLUDES'] = includes
-        conf.env['LIBPATH']  = libdirs
-        conf.load('msvc', funs='no_autodetect')
+            conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
+            conf.env['INCLUDES'] = includes
+            conf.env['LIBPATH']  = libdirs
+            conf.load('msvc', funs='no_autodetect')
 
-        if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
-    else:
-        conf.options.check_c_compiler = 'clang gcc'
-        conf.options.check_cxx_compiler = 'clang++ g++'
-        conf.load('compiler_c')
-        conf.load('compiler_cxx')
+            if not Options.options.skip_codesign:
+                conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
+        else:
+            conf.options.check_c_compiler = 'clang gcc'
+            conf.options.check_cxx_compiler = 'clang++ g++'
+
+            conf.load('compiler_c')
+            conf.load('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)

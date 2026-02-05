@@ -398,7 +398,7 @@
                 :type-unsigned-short num/normalized->ushort-double
                 :type-int num/normalized->int-double
                 :type-unsigned-int num/normalized->uint-double))]
-        (update new-attribute :values coll/transform (map coerce-fn)))
+        (update new-attribute :values coll/transform-> (map coerce-fn)))
 
       ;; If the vector type changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the

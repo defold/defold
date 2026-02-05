@@ -17,7 +17,6 @@ def build(bld):
             'camera/*',
             'collection_factory/*',
             'collection_proxy/*',
-            'collision_object/*',
             'convex_shape/*',
             'display_profiles/*',
             'emitter/*',
@@ -106,7 +105,6 @@ def build(bld):
                                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                                 content_root='../test',
                                 source=bld.path.ant_glob('test_gamesys_physics.cpp') + bld.path.ant_glob('collision_object/*'),
-                                embed_source = embed_source,
                                 target='test_gamesys_physics')
 
     if not 'web' in bld.env['PLATFORM']:

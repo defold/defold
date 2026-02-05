@@ -82,20 +82,20 @@
                       result)))))
     :array (if (vector? json)
              (let [{:keys [item]} schema]
-               (coll/transfer json []
+               (coll/into-> json []
                  (map #(parse-json % item))
                  (halt-when json-parse-error?)))
              (->JsonParseError json "is not an array"))
     :set (if (vector? json)
            (let [{:keys [item]} schema]
-             (coll/transfer json #{}
+             (coll/into-> json #{}
                (map #(parse-json % item))
                (halt-when json-parse-error?)))
            ;; sets should be represented as arrays in JSON
            (->JsonParseError json "is not an array"))
     :object (if (map? json)
               (let [{:keys [properties]} schema]
-                (coll/transfer json {}
+                (coll/into-> json {}
                   (map (fn [[k v]]
                          (let [kw (keyword k)]
                            (if-let [property-schema (kw properties)]
@@ -108,7 +108,7 @@
               (->JsonParseError json "is not an object"))
     :object-of (if (map? json)
                  (let [{:keys [key val]} schema]
-                   (coll/transfer json {}
+                   (coll/into-> json {}
                      (map (fn [[k v]]
                             (let [k-result (parse-json k key)]
                               (if (json-parse-error? k-result)
@@ -132,7 +132,7 @@
              (let [{:keys [items]} schema
                    n (count items)]
                (if (= n (count json))
-                 (coll/transfer (range n) []
+                 (coll/into-> (range n) []
                    (map #(parse-json (json %) (items %)))
                    (halt-when json-parse-error?))
                  (->JsonParseError json (format "should have %s elements" n))))

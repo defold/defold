@@ -242,7 +242,7 @@
     (exclude-keys-deep-helper excluded-map-entry? value)
 
     (coll? value)
-    (coll/transform value
+    (coll/transform-> value
       (map (partial exclude-keys-deep-value-helper excluded-map-entry?)))
 
     :else
@@ -305,6 +305,18 @@
 (defn deep-keep-kv [value-fn value]
   (let [wrapped-value-fn (deep-keep-kv-wrapped-value-fn value-fn)]
     (util/deep-keep-kv deep-keep-finalize-coll-value-fn wrapped-value-fn value)))
+
+(defn nodes-of-type
+  ([node-type]
+   (nodes-of-type (g/now) node-type))
+  ([basis node-type]
+   (sequence
+     (comp (map val)
+           (mapcat :nodes)
+           (map val)
+           (filter #(g/node-instance*? node-type %))
+           (map gt/node-id))
+     (:graphs basis))))
 
 (defn views-of-type [node-type]
   (keep (fn [node-id]
@@ -670,7 +682,7 @@
                            (let [node-id (gt/endpoint-node-id endpoint)
                                  label (gt/endpoint-label endpoint)
                                  immediate-predecessors (set (immediate-predecessor-endpoints basis node-id label))]
-                             (coll/transfer immediate-predecessors immediate-predecessors
+                             (coll/into-> immediate-predecessors immediate-predecessors
                                (mapcat (comp deref endpoint->predecessors-ref)))))
                   predecessors-ref)))]
       (let [endpoint (gt/endpoint node-id label)]
@@ -1135,7 +1147,7 @@
                                                       :number
                                                       :string)]
                                         (col-txt printer element num-str)))
-                            data (coll/transfer row-col-strs [:align]
+                            data (coll/into-> row-col-strs [:align]
                                    (map (fn [col-strs]
                                           (interpose " " (map fmt-col col-strs))))
                                    (interpose :break))]

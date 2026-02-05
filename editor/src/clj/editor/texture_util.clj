@@ -102,7 +102,7 @@
     ;; This is a sequence of content-generators. In this situation, we expect
     ;; each content-generator to return a single BufferedImage or an ErrorValue.
     (let [texture-request-datas
-          (coll/transfer content-generatable []
+          (coll/into-> content-generatable []
             (map (fn [content-generator]
                    {:pre [(content-generator? content-generator)]}
                    (let [content (call-generator content-generator)]
@@ -142,7 +142,7 @@
 
         (sequential? content)
         (g/precluding-errors content
-          (coll/transfer content []
+          (coll/into-> content []
             (map-indexed
               (fn [^long image-index ^BufferedImage buffered-image]
                 {:pre [(instance? BufferedImage buffered-image)]}

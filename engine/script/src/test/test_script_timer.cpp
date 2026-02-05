@@ -179,7 +179,7 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
     ASSERT_EQ(2u, killCount);
 
     killCount = dmScript::CancelTimer(timer_world, handles[4]);
-    ASSERT_EQ(true, killCount);
+    ASSERT_EQ(1u, killCount);
 
     killCount = dmScript::KillTimers(timer_world, owner[0]);
     ASSERT_EQ(0u, killCount);

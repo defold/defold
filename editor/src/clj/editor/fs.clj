@@ -620,7 +620,7 @@
   ([root-dir include-hidden ignored-dirnames]
    {:pre [(every? string? ignored-dirnames)]}
    (->Eduction
-     (cond->> (map path/to-file)
+     (cond->> (map io/as-file)
               (not include-hidden)
               (comp (remove path/hidden?)))
      (if (and include-hidden

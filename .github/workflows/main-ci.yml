@@ -296,10 +296,39 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
+
+  bld-eng-xbox:
+    strategy:
+      matrix:
+        platform: [x86_64-xbone]
+    runs-on: windows-latest
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Build engine',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        shell: bash,
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
+      },
+      { name: 'Stop Gradle Daemon', run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
+      {
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+      }]
+
   # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps, bld-eng-xbox]
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps: [
@@ -333,7 +362,7 @@ jobs:
       }]
 
   build-sdk:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps, bld-eng-xbox]
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps: [

@@ -119,6 +119,7 @@ ordinary paths."
   (resource-type [this] (resource/resource-type resource))
   (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
+  (symlink? [this] false)
   (path [this] (let [ext (resource/ext this)
                      ext (if (not-empty ext) (str "." ext) "")]
                  (if-let [path (resource/path resource)]
@@ -414,15 +415,24 @@ ordinary paths."
    (make-build-resource (make-placeholder-resource workspace editability ext))))
 
 (defn resource-icon [resource]
-  (when resource
-    (if (and (resource/read-only? resource)
-             (= (resource/path resource) (resource/resource-name resource)))
-      "icons/32/Icons_03-Builtins.png"
-      (condp = (resource/source-type resource)
-        :file
-        (or (:icon (resource/resource-type resource)) "icons/32/Icons_29-AT-Unknown.png")
-        :folder
-        "icons/32/Icons_01-Folder-closed.png"))))
+  (cond
+    (nil? resource)
+    nil
+
+    (and (resource/symlink? resource)
+         (not (resource/exists? resource)))
+    "icons/32/Icons_E_02_error.png"
+
+    (and (resource/read-only? resource)
+         (= (resource/path resource)
+            (resource/resource-name resource)))
+    "icons/32/Icons_03-Builtins.png"
+
+    :else
+    (case (resource/source-type resource)
+      :folder "icons/32/Icons_01-Folder-closed.png"
+      :file (or (:icon (resource/resource-type resource))
+                "icons/32/Icons_29-AT-Unknown.png"))))
 
 (defn file-resource
   ([workspace path-or-file]
@@ -857,12 +867,12 @@ ordinary paths."
                                       [src-path tgt-path])))
                                 moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
-         old-map      (resource-watch/make-resource-map old-snapshot)
-         changes      (resource-watch/diff old-snapshot new-snapshot)]
+         old-map (resource-watch/make-resource-map old-snapshot)
+         changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
-       (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
+       (let [changes (coll/update-vals changes coll/filterv-> #(= :file (resource/source-type %)))
              move-source-paths (map first moved-proj-paths)
              move-target-paths (map second moved-proj-paths)
              chain-moved-paths (set/intersection (set move-source-paths) (set move-target-paths))

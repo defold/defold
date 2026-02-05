@@ -99,11 +99,12 @@
                :child-error (or (:child-error outline) (:outline-error? outline))
                :child-overridden (or (:child-overridden outline) (:outline-overridden? outline))}))]
     (let [outline (:outline (decorate outline [] [] (:outline-reference? outline)))
-          node-id->node-id-paths (util/group-into {} [] key val
-                                                  (coll/transfer [outline] :eduction
-                                                    (coll/tree-xf :children :children)
-                                                    (map (coll/pair-fn :node-id :node-id-path))))
-          default-selection (coll/transfer selection {}
+          node-id->node-id-paths (util/group-into
+                                   {} [] key val
+                                   (coll/into-> [outline] :eduction
+                                     (coll/tree-xf :children :children)
+                                     (map (coll/pair-fn :node-id :node-id-path))))
+          default-selection (coll/into-> selection {}
                               (keep #(when-let [node-id-paths (node-id->node-id-paths %)]
                                        (coll/pair % #{(first node-id-paths)}))))
           full-expanded (->> node-id->node-id-paths
@@ -128,10 +129,10 @@
         (fx.mutator/setter
           (fn set-selected-node-id-paths [^TreeView tree-view [new-selected-node-id-paths _key]]
             (let [selection-model (.getSelectionModel tree-view)
-                  old-selected-node-id-paths (coll/transfer (.getSelectedItems selection-model) #{}
+                  old-selected-node-id-paths (coll/into-> (.getSelectedItems selection-model) #{}
                                                (keep #(some-> % TreeItem/.getValue :node-id-path)))]
               (when-not (= old-selected-node-id-paths new-selected-node-id-paths)
-                (let [new-selected-indices (coll/transfer (range (.getExpandedItemCount tree-view)) []
+                (let [new-selected-indices (coll/into-> (range (.getExpandedItemCount tree-view)) []
                                              (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
                   (.clearSelection selection-model)
                   (when-not (coll/empty? new-selected-indices)
@@ -159,7 +160,7 @@
               (->> tree-items
                    (e/keep #(-> ^TreeItem % .getValue))
                    (util/group-into {} #{} :node-id :node-id-path)))
-  (app-view/select! app-view (coll/transfer tree-items []
+  (app-view/select! app-view (coll/into-> tree-items []
                                (keep #(-> ^TreeItem % .getValue :node-id))
                                (distinct))))
 
@@ -250,7 +251,7 @@
      {:fx/type ext-with-tree-view-props
       :props {:root root
               :selected-node-id-paths (coll/pair
-                                        (coll/transfer selected-node-id->node-id-paths #{}
+                                        (coll/into-> selected-node-id->node-id-paths #{}
                                           (mapcat val))
                                         ;; we use tree as a key, so that changes to the
                                         ;; tree without changes to selection (like
@@ -400,7 +401,7 @@
                old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
 
                deleted-node-ids
-               (coll/transfer old-selected-node-ids []
+               (coll/into-> old-selected-node-ids []
                  (map #(g/override-root basis %))
                  (distinct))
 

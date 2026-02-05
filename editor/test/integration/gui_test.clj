@@ -1003,11 +1003,11 @@
         (let [scene (project/get-resource-node project proj-path)
 
               scene-output-permutations
-              (coll/transfer ["" "Landscape" "Portrait"] []
+              (coll/into-> ["" "Landscape" "Portrait"] []
                 (map (fn [layout]
                        (with-visible-layout! scene layout
                          (g/with-auto-evaluation-context evaluation-context
-                           (coll/transfer [:build-targets :save-value] {}
+                           (coll/into-> [:build-targets :save-value] {}
                              (map (fn [output-label]
                                     (let [output-value (g/valid-node-value scene output-label evaluation-context)]
                                       (assert (some? output-value))
@@ -1026,12 +1026,12 @@
          (ifn? data-fn)]}
   (let [layout-names (cons "" (g/node-value gui-scene-node-id :layout-names))
         gui-node-name->node-id (g/node-value gui-scene-node-id :node-ids)]
-    (coll/transfer layout-names (sorted-map)
+    (coll/into-> layout-names (sorted-map)
       (map (fn [layout-name]
              (with-visible-layout! gui-scene-node-id layout-name
                (g/with-auto-evaluation-context evaluation-context
                  (pair (if (str/blank? layout-name) "Default" layout-name)
-                       (coll/transfer gui-node-name->node-id (sorted-map)
+                       (coll/into-> gui-node-name->node-id (sorted-map)
                          (keep (fn [[gui-node-name gui-node-id]]
                                  (let [data (data-fn gui-node-id evaluation-context)]
                                    (when (coll/not-empty data)
@@ -1060,7 +1060,7 @@
       (let [node-type (g/node-type* (:basis evaluation-context) gui-node-id)
             prop-labels (g/declared-property-labels node-type)
             prop->default (in/defaults node-type)]
-        (coll/transfer prop-labels (sorted-map)
+        (coll/into-> prop-labels (sorted-map)
           (remove #{:child-index :custom-type :generated-id :id :layout->prop->override :template :type})
           (keep (fn [prop-label]
                   (let [default-value (prop->default prop-label)
@@ -1069,13 +1069,13 @@
                       (pair prop-label prop-value))))))))))
 
 (defn- make-node->field->value [node-descs override-node-desc? node-desc-fn]
-  (coll/transfer node-descs (sorted-map)
+  (coll/into-> node-descs (sorted-map)
     (keep (fn [node-desc]
             (when-some [field->value (node-desc-fn node-desc (override-node-desc? node-desc))]
               (pair (:id node-desc) field->value))))))
 
 (defn- make-layout->node->field->value [scene-desc node-desc-fn]
-  (coll/transfer
+  (coll/into->
     (:layouts scene-desc)
     (sorted-map "Default" (make-node->field->value (:nodes scene-desc) override-node-desc? node-desc-fn))
     (map (fn [layout-desc]

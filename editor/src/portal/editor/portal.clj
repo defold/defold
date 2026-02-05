@@ -172,7 +172,7 @@
                    :else (throw (IllegalArgumentException. "first-section must be a map with Named keys")))]
     ;; Prefix the keys in each section with an increasing number of zero-width
     ;; spaces so that the keys from later sections are ordered after prior ones.
-    (coll/transfer more-sections first-section
+    (coll/into-> more-sections first-section
       (coll/mapcat-indexed
         (fn [^long section-index section]
           (let [prefix-length (inc section-index)
@@ -242,7 +242,7 @@
                 {'properties
                  (-> node
                      (g/own-property-values)
-                     (coll/transfer empty-navigable-node-label-map)
+                     (coll/into-> empty-navigable-node-label-map)
                      (map-viewer evaluation-context))}
 
                 {'inputs
@@ -346,7 +346,7 @@
   (as-> coll coll
 
         ;; Apply the viewer to the values.
-        (coll/transfer coll (coll/empty-with-meta coll)
+        (coll/into-> coll (coll/empty-with-meta coll)
           (map #(viewer % evaluation-context)))
 
         ;; Support navigation in case the coll contains navigable values.

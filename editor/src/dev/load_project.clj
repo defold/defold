@@ -185,7 +185,7 @@
           (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
                 (project/node-load-infos->stored-disk-state node-load-infos)]
             (resource-node/merge-source-values! node-id+source-value-pairs)
-            (coll/transfer
+            (coll/into->
               (e/concat
                 (project/make-resource-nodes-tx-data project node-id+resource-pairs)
                 (project/setup-game-project-tx-data project game-project-node-id)
@@ -282,7 +282,7 @@
                (sort-by key))
 
           proj-path-count (count proj-paths+node-ids)]
-      (coll/transfer proj-paths+node-ids {}
+      (coll/into-> proj-paths+node-ids {}
         (map-indexed
           (fn [proj-path-index [proj-path node-id]]
             (let [message (localization/message nil [] proj-path)

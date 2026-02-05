@@ -16,6 +16,13 @@ def build(bld):
         sources = bld.path.ant_glob(platform_source)
 
         if not sources:
+            target_os = build_util.get_target_os()
+            if target_os in ['xbone']:
+                target_os = 'xbox'
+            platform_source = ['%s/platform_window_%s.cpp' % (target_os, target_os)]
+            sources = bld.path.ant_glob(platform_source)
+
+        if not sources:
             print("Source doesn't exist for private platform:", platform_source)
             print("Fallback to null implementation")
             sources = bld.path.ant_glob(['platform_window_null.cpp'])

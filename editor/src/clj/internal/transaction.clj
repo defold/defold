@@ -349,7 +349,7 @@
                                  prev-traverse-result
                                  (when-let [source-node-ids
                                             (some-> (traverse-fn basis node-id) ; Immediate relevant source nodes connected to a :cascade-delete input.
-                                                    (coll/transfer []
+                                                    (coll/into-> []
                                                       (remove
                                                         (fn already-traversed? [immediate-node-id]
                                                           (coll/some

@@ -17,6 +17,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <testmain/testmain.h>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -28,6 +30,10 @@
 #include <dmsdk/graphics/graphics_vulkan.h>
 
 #include "test_app_graphics_assets.h"
+
+#if defined(DM_PLATFORM_VENDOR)
+    #include "test_app_graphics_assets_vendor.h"
+#endif
 
 // From engine_private.h
 
@@ -131,9 +137,6 @@ struct AppCtx
 
 static void AppCreate(void* _ctx)
 {
-    dmLog::LogParams params;
-    dmLog::LogInitialize(&params);
-
     AppCtx* ctx = (AppCtx*)_ctx;
     ctx->m_Created++;
 }
@@ -184,12 +187,90 @@ struct ClearBackbufferTest : ITest
         static uint8_t color_b = 140;
         static uint8_t color_a = 255;
 
+        color_r += 1;
+        color_g += 2;
+        color_b += 3;
+
         dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                     (float)color_r,
                                     (float)color_g,
                                     (float)color_b,
                                     (float)color_a,
                                     1.0f, 0);
+    }
+};
+
+struct DrawTriangleTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        const float vertex_data_no_index[] = {
+            // Position            // UV Coordinates
+            -0.5f, -0.5f,          0.0f, 0.0f,    // Bottom-left
+             0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
+            -0.5f,  0.5f,          0.0f, 1.0f,    // Top-left
+
+             0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
+             0.5f,  0.5f,          1.0f, 1.0f,    // Top-right
+            -0.5f,  0.5f,          0.0f, 1.0f,    // Top-left
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+
+        dmGraphics::ShaderDesc* shader_desc = new dmGraphics::ShaderDesc();
+
+    #if defined(DM_PLATFORM_VENDOR)
+        AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
+        AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
+    #else
+        assert(0); // TODO
+    #endif
+
+        AddShaderResource(shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(shader_desc, "texcoord", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 1, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        // TODO: Test resources
+        // AddShaderResource(&shader_desc, "Test", dmGraphics::ShaderDesc::SHADER_TYPE_UNIFORM_BUFFER, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, 0);
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, shader_desc, 0, 0);
+
+        DeleteShaderDesc(shader_desc);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        static uint8_t color_r = 0;
+        static uint8_t color_g = 80;
+        static uint8_t color_b = 140;
+        static uint8_t color_a = 255;
+
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+                                    (float) color_r,
+                                    (float) color_g,
+                                    (float) color_b,
+                                    (float) color_a,
+                                    1.0f, 0);
+
+        uint32_t w = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+        uint32_t h = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+
+        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, w, h);
+
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+
+        // TODO: Bind resources here
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     }
 };
 
@@ -727,7 +808,13 @@ static void* EngineCreate(int argc, char** argv)
         window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
     }
 
-    dmPlatform::OpenWindow(engine->m_Window, window_params);
+    dmPlatform::PlatformResult pr = dmPlatform::OpenWindow(engine->m_Window, window_params);
+    if (dmPlatform::PLATFORM_RESULT_OK != pr)
+    {
+        dmLogError("Failed to open window: %d", pr);
+        return 0;
+    }
+
     dmPlatform::ShowWindow(engine->m_Window);
 
     dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
@@ -864,7 +951,13 @@ extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+    dmHashEnableReverseHash(true);
+
     dmExportedSymbols();
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     InstallAdapter(argc, argv);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
