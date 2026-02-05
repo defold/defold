@@ -161,9 +161,7 @@
   [render-args font-data text-entries]
   (if (and (= :distance-field (:type font-data))
            (some? render-args))
-    (let [camera (:camera render-args)
-          ^Matrix4d view-proj (or (when camera (camera/camera-view-proj-matrix camera))
-                                  (:view-proj render-args))
+    (let [^Matrix4d view-proj (:view-proj render-args)
           ^Region viewport (:viewport render-args)]
       (if (and view-proj viewport)
         (mapv (fn [entry]
