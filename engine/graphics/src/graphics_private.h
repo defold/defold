@@ -96,33 +96,6 @@ namespace dmGraphics
         uint8_t            m_StreamCount;
     };
 
-    struct ShaderResourceType
-    {
-        union
-        {
-            ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                   m_TypeIndex;
-        };
-        uint8_t m_UseTypeIndex : 1;
-    };
-
-    struct ShaderResourceMember
-    {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint32_t                    m_Offset;
-    };
-
-    struct ShaderResourceTypeInfo
-    {
-        char*                 m_Name;
-        dmhash_t              m_NameHash;
-        ShaderResourceMember* m_Members;
-        uint32_t              m_MemberCount;
-    };
-
     struct ShaderResourceBinding
     {
         union BindingInfo
@@ -280,7 +253,6 @@ namespace dmGraphics
     uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                       BuildUniforms(Program* program);
     void                       IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
-    void                       GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     UniformBufferLayout*       AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,
@@ -371,7 +343,6 @@ namespace dmGraphics
     void                SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
     const Uniform*      GetUniform(HProgram prog, dmhash_t name_hash);
     const ShaderMeta*   GetShaderMeta(HProgram prog);
-    void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

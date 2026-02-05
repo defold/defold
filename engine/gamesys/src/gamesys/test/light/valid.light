@@ -1,14 +1,37 @@
-id: "light"
-type: SPOT
-intensity: 20.0
-color {
-  x: 1.0
-  y: 1.0
-  z: 1.0
-  d: 0.0
+# LightDesc (protobuf text format)
+# data = dmStructDDF.Struct (map of field name -> Value)
+# type: "directional" | "point" | "spot" | "area"
+# color: [R, G, B, A]
+# intensity, range, direction, inner_cone_angle, outer_cone_angle, shape, size
+#
+# Example: spot light with all applicable fields
+data {
+  fields {
+    key: "type"
+    value { string_value: "spot" }
+  }
+  fields {
+    key: "color"
+    value { list_value { values { number_value: 1.0 } values { number_value: 0.9 } values { number_value: 0.8 } values { number_value: 1.0 } } }
+  }
+  fields {
+    key: "intensity"
+    value { number_value: 20.0 }
+  }
+  fields {
+    key: "range"
+    value { number_value: 50.0 }
+  }
+  fields {
+    key: "direction"
+    value { list_value { values { number_value: 0.0 } values { number_value: -1.0 } values { number_value: 0.0 } } }
+  }
+  fields {
+    key: "inner_cone_angle"
+    value { number_value: 0.5 }
+  }
+  fields {
+    key: "outer_cone_angle"
+    value { number_value: 1.0 }
+  }
 }
-range: 50.0
-decay: 0.9
-cone_angle: 50.0
-penumbra_angle: 15.0
-drop_off: 0.5

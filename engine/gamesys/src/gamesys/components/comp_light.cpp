@@ -33,10 +33,11 @@ namespace dmGameSystem
 
     struct LightComponent
     {
-        dmGameObject::HInstance m_Instance;
-        LightResource*          m_LightResource;
-        uint16_t                m_AddedToUpdate : 1;
-        uint16_t                m_Padding : 15;
+        dmGameObject::HInstance  m_Instance;
+        LightResource*           m_LightResource;
+        dmRender::HLightInstance m_LightInstance;
+        uint16_t                 m_AddedToUpdate : 1;
+        uint16_t                 m_Padding : 15;
     };
 
     struct LightWorld
@@ -46,10 +47,10 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        LightContext* light_context = (LightContext*) params.m_Context;
+        LightContext* context = (LightContext*) params.m_Context;
         LightWorld* world = new LightWorld;
 
-        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, light_context->m_MaxLightCount);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxLightCount);
         world->m_Components.SetCapacity(comp_count);
 
         *params.m_World = world;
@@ -59,14 +60,15 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLightDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        LightWorld* light_world = (LightWorld*) params.m_World;
-        delete light_world;
+        LightWorld* world = (LightWorld*) params.m_World;
+        delete world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompLightCreate(const dmGameObject::ComponentCreateParams& params)
     {
         LightWorld* world = (LightWorld*) params.m_World;
+        LightContext* context = (LightContext*)params.m_Context;
 
         if (world->m_Components.Full())
         {
@@ -79,6 +81,7 @@ namespace dmGameSystem
 
         light->m_Instance      = params.m_Instance;
         light->m_LightResource = (LightResource*) params.m_Resource;
+        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, light->m_LightResource->m_Light);
 
         world->m_Components.Push(light);
         *params.m_UserData = (uintptr_t) light;
@@ -93,14 +96,18 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLightDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
+        LightWorld* world = (LightWorld*) params.m_World;
+        LightContext* context = (LightContext*)params.m_Context;
         LightComponent* light = (LightComponent*) *params.m_UserData;
-        LightWorld* light_world = (LightWorld*) params.m_World;
 
-        for (uint32_t i = 0; i < light_world->m_Components.Size(); ++i)
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
         {
-            if (light_world->m_Components[i] == light)
+            if (world->m_Components[i] == light)
             {
-                light_world->m_Components.EraseSwap(i);
+                world->m_Components.EraseSwap(i);
+
+                dmRender::DeleteLightInstance(context->m_RenderContext, light->m_LightInstance);
+
                 delete light;
                 return dmGameObject::CREATE_RESULT_OK;
             }
@@ -117,44 +124,23 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLightLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-        LightWorld* light_world = (LightWorld*) params.m_World;
-        uint32_t num_components = light_world->m_Components.Size();
+        LightWorld* world = (LightWorld*) params.m_World;
+        LightContext* context = (LightContext*)params.m_Context;
 
+        uint32_t num_components = world->m_Components.Size();
         for (uint32_t i = 0; i < num_components; ++i)
         {
-            LightComponent* light = light_world->m_Components[i];
+            LightComponent* light = world->m_Components[i];
             if (!light->m_AddedToUpdate)
             {
                 continue;
             }
-        }
 
-        /*
-        for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)
-        {
-            Light* light = light_world->m_Lights[i];
-            if (!light->m_AddedToUpdate) {
-                continue;
-            }
             Point3 position = dmGameObject::GetPosition(light->m_Instance);
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 
-            dmGameSystemDDF::LightDesc* light_desc = *light->m_LightResource;
-            dmSnPrintf(buf + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light_desc->m_Id));
-            set_light->m_Light.m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
-            set_light->m_Light.m_Type = light_desc->m_Type;
-            set_light->m_Light.m_Intensity = light_desc->m_Intensity;
-            set_light->m_Light.m_Color = light_desc->m_Color;
-            set_light->m_Light.m_Range = light_desc->m_Range;
-            set_light->m_Light.m_Decay = light_desc->m_Decay;
-            set_light->m_Light.m_ConeAngle = light_desc->m_ConeAngle;
-            set_light->m_Light.m_PenumbraAngle = light_desc->m_PenumbraAngle;
-            set_light->m_Light.m_DropOff = light_desc->m_DropOff;
-            set_light->m_Position = position;
-            set_light->m_Rotation = rotation;
+            dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation);
         }
-        */
-
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -143,6 +143,7 @@ namespace dmEngine
         dmGameSystem::FactoryContext                m_FactoryContext;
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::ModelContext                  m_ModelContext;
+        dmGameSystem::LightContext                  m_LightContext;
         dmGameSystem::LabelContext                  m_LabelContext;
         dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameObject::ModuleContext                 m_ModuleContext;

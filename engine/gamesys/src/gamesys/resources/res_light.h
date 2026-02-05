@@ -18,11 +18,13 @@
 #include <dmsdk/resource/resource.h>
 
 #include <gamesys/gamesys_ddf.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
     struct LightResource
     {
+        dmRender::HLight            m_Light;
         dmGameSystemDDF::LightDesc* m_DDF;
     };
 

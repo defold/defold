@@ -268,6 +268,40 @@ namespace dmRender
         uint8_t          m_Enabled    : 1;
     };
 
+    struct Light
+    {
+        LightType        m_Type;
+        dmVMath::Vector4 m_Color;
+        float            m_Intensity;
+    };
+
+    struct DirectionalLight
+    {
+        Light            m_BaseLight;
+        dmVMath::Vector3 m_Direction;
+    };
+
+    struct PointLight
+    {
+        Light m_BaseLight;
+        float m_Range;
+    };
+
+    struct SpotLight
+    {
+        Light m_BaseLight;
+        float m_Range;
+        float m_InnerConeAngle;
+        float m_OuterConeAngle;
+    };
+
+    struct LightInstance
+    {
+        dmVMath::Point3 m_Position;
+        dmVMath::Quat   m_Rotation;
+        const Light*    m_LightPrototype;
+    };
+
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -289,8 +323,9 @@ namespace dmRender
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
-        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
-        HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
+        dmOpaqueHandleContainer<LightInstance> m_RenderLights;
+        dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
+        HRenderCamera                          m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;

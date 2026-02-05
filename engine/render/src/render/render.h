@@ -58,6 +58,8 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
+    typedef struct Light*                   HLight;
+    typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
@@ -118,6 +120,22 @@ namespace dmRender
         SORT_NONE          = 3
     };
 
+    enum LightType
+    {
+        LIGHT_TYPE_DIRECTIONAL = 0,
+        LIGHT_TYPE_POINT       = 1,
+        LIGHT_TYPE_SPOT        = 2,
+    };
+
+    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
+    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
+    enum OrthoZoomMode
+    {
+        ORTHO_MODE_FIXED        = 0,
+        ORTHO_MODE_AUTO_FIT     = 1,
+        ORTHO_MODE_AUTO_COVER   = 2,
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -163,15 +181,6 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
-    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
-    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
-    enum OrthoZoomMode
-    {
-        ORTHO_MODE_FIXED        = 0,
-        ORTHO_MODE_AUTO_FIT     = 1,
-        ORTHO_MODE_AUTO_COVER   = 2,
-    };
-
     struct RenderCameraData
     {
         dmVMath::Vector4 m_Viewport;
@@ -193,6 +202,19 @@ namespace dmRender
         const uint8_t*                     m_ValuePtr;
         dmhash_t                           m_ElementIds[4];
         uint32_t                           m_ElementIndex;
+    };
+
+    struct LightParams
+    {
+        LightParams();
+
+        LightType        m_Type;
+        dmVMath::Vector4 m_Color;
+        dmVMath::Vector3 m_Direction;
+        float            m_Intensity;
+        float            m_Range;
+        float            m_InnerConeAngle;
+        float            m_OuterConeAngle;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -434,6 +456,16 @@ namespace dmRender
     void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
     float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
+
+    /** Lights
+     * TODO: Description
+     */
+    HLight         NewLight(HRenderContext render_context, const LightParams& params);
+    void           DeleteLight(HRenderContext render_context, HLight light);
+
+    HLightInstance NewLightInstance(HRenderContext render_context, HLight light_prototype);
+    void           DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
+    void           SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {
