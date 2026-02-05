@@ -163,7 +163,7 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
-        InitializeLightBuffer(context);
+        InitializeLightBuffer(context, params.m_MaxLightCount);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
@@ -1182,6 +1182,8 @@ namespace dmRender
                     }
                 }
             }
+
+            ApplyMaterialProgramLightBuffers(render_context, material);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 

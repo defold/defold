@@ -18,11 +18,12 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
-#include <dlib/opaque_handle_container.h>
 
+#include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
 #include <dlib/message.h>
 #include <dlib/hashtable.h>
+#include <dlib/index_pool.h>
 
 #include "render.h"
 
@@ -272,27 +273,11 @@ namespace dmRender
     {
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
-        float            m_Intensity;
-    };
-
-    struct DirectionalLight
-    {
-        Light            m_BaseLight;
         dmVMath::Vector3 m_Direction;
-    };
-
-    struct PointLight
-    {
-        Light m_BaseLight;
-        float m_Range;
-    };
-
-    struct SpotLight
-    {
-        Light m_BaseLight;
-        float m_Range;
-        float m_InnerConeAngle;
-        float m_OuterConeAngle;
+        float            m_Intensity;
+        float            m_Range;
+        float            m_InnerConeAngle;
+        float            m_OuterConeAngle;
     };
 
     struct LightInstance
@@ -300,6 +285,7 @@ namespace dmRender
         dmVMath::Point3 m_Position;
         dmVMath::Quat   m_Rotation;
         const Light*    m_LightPrototype;
+        uint16_t        m_LightBufferIndex;
     };
 
     struct RenderContext
@@ -324,6 +310,9 @@ namespace dmRender
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<LightInstance> m_RenderLights;
+        dmIndexPool16                          m_RenderLightsIndices;
+        dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+
         dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
         HRenderCamera                          m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
@@ -335,11 +324,13 @@ namespace dmRender
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
+        uint32_t                    m_MaxLightCount;
         uint32_t                    m_OutOfResources                : 1;
         uint32_t                    m_StencilBufferCleared          : 1;
         uint32_t                    m_MultiBufferingRequired        : 1;
         uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint32_t                    m_IsRenderPaused                : 1;
+        uint32_t                    m_LightBufferDirty              : 1;
     };
 
     struct BufferedRenderBuffer
@@ -390,6 +381,10 @@ namespace dmRender
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
+
+    // Lights
+    void InitializeLightBuffer(HRenderContext render_context, uint32_t max_light_count);
+    void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

@@ -15,8 +15,25 @@
 #include "render.h"
 #include "render_private.h"
 
+// Access internal graphics program/binding information
+#include "../../../graphics/src/graphics_private.h"
+
 namespace dmRender
 {
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static struct
+    {
+        dmGraphics::ShaderResourceMember   m_LightBufferMembers[2];
+        dmGraphics::ShaderResourceMember   m_LightMembers[4];
+        dmGraphics::ShaderResourceTypeInfo m_LightTypes[2];
+        dmGraphics::UniformBufferLayout    m_LightBufferLayout;
+        bool                               m_Initialized;
+    } g_LightBufferContext;
+
+    ////////////////////////////////
+    // Light prototype
+    ////////////////////////////////
+
     LightParams::LightParams()
     : m_Type(LIGHT_TYPE_POINT)
     , m_Color(1.0f, 1.0f, 1.0f, 1.0f)
@@ -28,137 +45,38 @@ namespace dmRender
     {
     }
 
-    static void GenerateDefaultUniformBufferLayout(int max_lights, UniformBufferLayout* out)
-    {
-        /*
-        struct Light
-        {
-            int   type;            // 0 directional, 1 point, 2 spot (matches dmRender::LightType)
-            vec4  color;           // RGBA (matches LightParams order)
-            vec3  direction;       // normalized; directional/spot (4-byte padding in std140)
-            float intensity;
-            float range;
-            float innerConeAngle;  // radians, spot only
-            float outerConeAngle; // radians, spot only
-        };
-        uniform LightBuffer
-        {
-            Light lights[MAX_LIGHTS];
-            int   lights_count;
-        };
-        */
-
-        dmGraphics::ShaderResourceMember light_members[7] = {};
-        // int type
-        light_members[0].m_Name                 = (char*)"type";
-        light_members[0].m_NameHash             = dmHashString64("type"); // TODO: Store statically outside of function
-        light_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_INT;
-        light_members[0].m_ElementCount         = 1;
-        // vec4 color
-        light_members[1].m_Name                 = (char*)"color";
-        light_members[1].m_NameHash             = dmHashString64("color");
-        light_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        light_members[1].m_ElementCount         = 1;
-        // vec3 direction
-        light_members[2].m_Name                 = (char*)"direction";
-        light_members[2].m_NameHash             = dmHashString64("direction");
-        light_members[2].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
-        light_members[2].m_ElementCount         = 1;
-        // float intensity
-        light_members[3].m_Name                 = (char*)"intensity";
-        light_members[3].m_NameHash             = dmHashString64("intensity");
-        light_members[3].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_members[3].m_ElementCount         = 1;
-        // float range
-        light_members[4].m_Name                 = (char*)"range";
-        light_members[4].m_NameHash             = dmHashString64("range");
-        light_members[4].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_members[4].m_ElementCount         = 1;
-        // float innerConeAngle
-        light_members[5].m_Name                 = (char*)"innerConeAngle";
-        light_members[5].m_NameHash             = dmHashString64("innerConeAngle");
-        light_members[5].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_members[5].m_ElementCount         = 1;
-        // float outerConeAngle
-        light_members[6].m_Name                 = (char*)"outerConeAngle";
-        light_members[6].m_NameHash             = dmHashString64("outerConeAngle");
-        light_members[6].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_members[6].m_ElementCount         = 1;
-
-        dmGraphics::ShaderResourceMember light_buffer_members[2] = {};
-        // lights
-        light_buffer_members[0].m_Name                 = (char*)"lights";
-        light_buffer_members[0].m_NameHash             = dmHashString64("lights");
-        light_buffer_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_buffer_members[0].m_ElementCount         = max_lights;
-        light_buffer_members[0].m_Type.m_TypeIndex     = 0; // index into ShaderResourceTypeInfo[]
-        light_buffer_members[0].m_Type.m_UseTypeIndex  = 1;
-        // lights_count
-        light_buffer_members[1].m_Name                 = (char*)"lights_count";
-        light_buffer_members[1].m_NameHash             = dmHashString64("lights_count");
-        light_buffer_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_INT;
-        light_buffer_members[1].m_ElementCount         = 1
-
-        dmGraphics::ShaderResourceTypeInfo light_types[2];
-        // Light (index 0)
-        types[0].m_Name        = (char*)"Light";
-        types[0].m_NameHash    = dmHashString64("Light");
-        types[0].m_Members     = light_members;
-        types[0].m_MemberCount = DM_ARRAY_SIZE(light_members);
-        // LightBuffer (index 1)
-        types[1].m_Name        = (char*)"LightBuffer";
-        types[1].m_NameHash    = dmHashString64("LightBuffer");
-        types[1].m_Members     = light_buffer_members;
-        types[1].m_MemberCount = DM_ARRAY_SIZE(light_buffer_members);
-
-        dmGraphics::UpdateShaderTypesOffsets(light_types, DM_ARRAY_SIZE(light_types));
-        dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types), out);
-    }
-
-    void InitializeLightBuffer(HRenderContext render_context)
-    {
-        UniformBufferLayout tmp_layout;
-        GenerateDefaultUniformBufferLayout(8, &tmp_layout);
-
-        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, tmp_layout);
-    }
-
     HLight NewLight(HRenderContext render_context, const LightParams& params)
     {
+        Light* l = new Light;
+        memset(l, 0, sizeof(Light));
+
         switch(params.m_Type)
         {
         case LIGHT_TYPE_DIRECTIONAL:
             {
-                DirectionalLight* dr = new DirectionalLight;
-                dr->m_BaseLight.m_Type = params.m_Type;
-                dr->m_BaseLight.m_Color = params.m_Color;
-                dr->m_BaseLight.m_Intensity = params.m_Intensity;
-                dr->m_Direction = params.m_Direction;
-                return (HLight) dr;
+                l->m_Type = params.m_Type;
+                l->m_Color = params.m_Color;
+                l->m_Intensity = params.m_Intensity;
+                l->m_Direction = params.m_Direction;
             } break;
         case LIGHT_TYPE_POINT:
             {
-                PointLight* pl = new PointLight;
-                pl->m_BaseLight.m_Type = params.m_Type;
-                pl->m_BaseLight.m_Color = params.m_Color;
-                pl->m_BaseLight.m_Intensity = params.m_Intensity;
-                pl->m_Range = params.m_Range;
-                return (HLight) pl;
+                l->m_Type = params.m_Type;
+                l->m_Color = params.m_Color;
+                l->m_Intensity = params.m_Intensity;
+                l->m_Range = params.m_Range;
             } break;
         case LIGHT_TYPE_SPOT:
             {
-                SpotLight* sl = new SpotLight;
-                sl->m_BaseLight.m_Type = params.m_Type;
-                sl->m_BaseLight.m_Color = params.m_Color;
-                sl->m_BaseLight.m_Intensity = params.m_Intensity;
-                sl->m_Range = params.m_Range;
-                sl->m_InnerConeAngle = params.m_InnerConeAngle;
-                sl->m_OuterConeAngle = params.m_OuterConeAngle;
-                return (HLight) sl;
+                l->m_Type = params.m_Type;
+                l->m_Color = params.m_Color;
+                l->m_Intensity = params.m_Intensity;
+                l->m_Range = params.m_Range;
+                l->m_InnerConeAngle = params.m_InnerConeAngle;
+                l->m_OuterConeAngle = params.m_OuterConeAngle;
             } break;
         }
-
-        return 0;
+        return l;
     }
 
     void DeleteLight(HRenderContext render_context, HLight light)
@@ -166,16 +84,63 @@ namespace dmRender
         delete light;
     }
 
+    ////////////////////////////////
+    // Light instance
+    ////////////////////////////////
+
+    struct LightSTD140
+    {
+        dmVMath::Vector4 m_Position;
+        dmVMath::Vector4 m_Color;
+        dmVMath::Vector4 m_DirectionRange;
+        dmVMath::Vector4 m_Params;
+    };
+
+    static void CommitLightInstance(HRenderContext render_context, LightInstance* light_instance)
+    {
+        LightSTD140 light_std140;
+        light_std140.m_Position = dmVMath::Vector4(light_instance->m_Position);
+        light_std140.m_Color = light_instance->m_LightPrototype->m_Color;
+        light_std140.m_DirectionRange = dmVMath::Vector4(
+            light_instance->m_LightPrototype->m_Direction,
+            light_instance->m_LightPrototype->m_Range);
+        light_std140.m_Params = dmVMath::Vector4(
+            light_instance->m_LightPrototype->m_Type,
+            light_instance->m_LightPrototype->m_Intensity,
+            light_instance->m_LightPrototype->m_InnerConeAngle,
+            light_instance->m_LightPrototype->m_OuterConeAngle);
+
+        uint32_t write_offset = sizeof(LightSTD140) * light_instance->m_LightBufferIndex;
+        dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, write_offset, sizeof(LightSTD140), &light_std140);
+    }
+
+    static void CommitLightCount(HRenderContext render_context)
+    {
+        float count = render_context->m_RenderLightsIndices.Size();
+        uint32_t write_offset = g_LightBufferContext.m_LightBufferMembers[1].m_Offset;
+        dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, write_offset, sizeof(float), &count);
+    }
+
     HLightInstance NewLightInstance(HRenderContext render_context, HLight light_prototype)
     {
+        if (render_context->m_RenderLightsIndices.Remaining() == 0)
+        {
+            dmLogError("Max lights reached.");
+            return 0;
+        }
+
         if (render_context->m_RenderLights.Full())
         {
             render_context->m_RenderLights.Allocate(4);
         }
 
-        LightInstance* light_instance    = new LightInstance;
-        light_instance->m_Position       = dmVMath::Point3();
-        light_instance->m_LightPrototype = light_prototype;
+        LightInstance* light_instance      = new LightInstance;
+        light_instance->m_Position         = dmVMath::Point3();
+        light_instance->m_LightPrototype   = light_prototype;
+        light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
+
+        CommitLightInstance(render_context, light_instance);
+        CommitLightCount(render_context);
 
         return render_context->m_RenderLights.Put(light_instance);
     }
@@ -185,8 +150,10 @@ namespace dmRender
         LightInstance* light_instance = render_context->m_RenderLights.Get(instance);
         if (light_instance)
         {
-            delete light_instance;
+            render_context->m_RenderLightsIndices.Push(light_instance->m_LightBufferIndex);
             render_context->m_RenderLights.Release(instance);
+            delete light_instance;
+            CommitLightCount(render_context);
         }
     }
 
@@ -197,5 +164,161 @@ namespace dmRender
             return;
         light_instance->m_Position = position;
         light_instance->m_Rotation = rotation;
+
+        CommitLightInstance(render_context, light_instance);
+
+        /*
+        dmVMath::Vector3 light_dir = dmVMath::Rotate(rotation, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        */
+    }
+
+    ////////////////////////////////
+    // Light utility
+    ////////////////////////////////
+
+    static void GenerateDefaultUniformBufferLayout(int max_lights)
+    {
+        /*
+        struct Light
+        {
+            vec4 position;        // xyz: position, w: unused
+            vec4 color;           // RGBA (matches LightParams order)
+            vec4 direction_range; // xyz: normalized direction; w: range
+            vec4 params;          // x: type (0 dir, 1 point, 2 spot; matches dmRender::LightType)
+                                  // y: intensity
+                                  // z: innerConeAngle (radians, spot only)
+                                  // w: outerConeAngle (radians, spot only)
+        };
+        uniform LightBuffer
+        {
+            Light lights[MAX_LIGHTS];
+            vec4  lights_count;   // x: number of active lights
+        };
+        */
+
+        if (g_LightBufferContext.m_Initialized)
+        {
+            return;
+        }
+
+        // lights
+        g_LightBufferContext.m_LightBufferMembers[0].m_Name                 = (char*)"lights";
+        g_LightBufferContext.m_LightBufferMembers[0].m_NameHash             = dmHashString64("lights");
+        g_LightBufferContext.m_LightBufferMembers[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+        g_LightBufferContext.m_LightBufferMembers[0].m_ElementCount         = max_lights;
+        g_LightBufferContext.m_LightBufferMembers[0].m_Type.m_TypeIndex     = 1; // index into ShaderResourceTypeInfo[]
+        g_LightBufferContext.m_LightBufferMembers[0].m_Type.m_UseTypeIndex  = 1;
+        // lights_count (vec4)
+        g_LightBufferContext.m_LightBufferMembers[1].m_Name                 = (char*)"lights_count";
+        g_LightBufferContext.m_LightBufferMembers[1].m_NameHash             = dmHashString64("lights_count");
+        g_LightBufferContext.m_LightBufferMembers[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        g_LightBufferContext.m_LightBufferMembers[1].m_ElementCount         = 1;
+
+        // vec4 position
+        g_LightBufferContext.m_LightMembers[0].m_Name                 = (char*)"position";
+        g_LightBufferContext.m_LightMembers[0].m_NameHash             = dmHashString64("position");
+        g_LightBufferContext.m_LightMembers[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        g_LightBufferContext.m_LightMembers[0].m_ElementCount         = 1;
+        // vec4 color
+        g_LightBufferContext.m_LightMembers[1].m_Name                 = (char*)"color";
+        g_LightBufferContext.m_LightMembers[1].m_NameHash             = dmHashString64("color");
+        g_LightBufferContext.m_LightMembers[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        g_LightBufferContext.m_LightMembers[1].m_ElementCount         = 1;
+        // vec4 direction (xyz: direction, w: range)
+        g_LightBufferContext.m_LightMembers[2].m_Name                 = (char*)"direction_range";
+        g_LightBufferContext.m_LightMembers[2].m_NameHash             = dmHashString64("direction_range");
+        g_LightBufferContext.m_LightMembers[2].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        g_LightBufferContext.m_LightMembers[2].m_ElementCount         = 1;
+        // vec4 params (x: type, y: intensity, z: innerConeAngle, w: outerConeAngle)
+        g_LightBufferContext.m_LightMembers[3].m_Name                 = (char*)"params";
+        g_LightBufferContext.m_LightMembers[3].m_NameHash             = dmHashString64("params");
+        g_LightBufferContext.m_LightMembers[3].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        g_LightBufferContext.m_LightMembers[3].m_ElementCount         = 1;
+
+        // LightBuffer (index 1)
+        g_LightBufferContext.m_LightTypes[0].m_Name        = (char*)"LightBuffer";
+        g_LightBufferContext.m_LightTypes[0].m_NameHash    = dmHashString64("LightBuffer");
+        g_LightBufferContext.m_LightTypes[0].m_Members     = g_LightBufferContext.m_LightBufferMembers;
+        g_LightBufferContext.m_LightTypes[0].m_MemberCount = DM_ARRAY_SIZE(g_LightBufferContext.m_LightBufferMembers);
+        // Light (index 0)
+        g_LightBufferContext.m_LightTypes[1].m_Name        = (char*)"Light";
+        g_LightBufferContext.m_LightTypes[1].m_NameHash    = dmHashString64("Light");
+        g_LightBufferContext.m_LightTypes[1].m_Members     = g_LightBufferContext.m_LightMembers;
+        g_LightBufferContext.m_LightTypes[1].m_MemberCount = DM_ARRAY_SIZE(g_LightBufferContext.m_LightMembers);
+
+        dmGraphics::UpdateShaderTypesOffsets(g_LightBufferContext.m_LightTypes, DM_ARRAY_SIZE(g_LightBufferContext.m_LightTypes));
+        // Root type for the uniform buffer is "LightBuffer" (index 0)
+        dmGraphics::GetUniformBufferLayout(0, g_LightBufferContext.m_LightTypes, DM_ARRAY_SIZE(g_LightBufferContext.m_LightTypes), &g_LightBufferContext.m_LightBufferLayout);
+
+        g_LightBufferContext.m_Initialized = true;
+    }
+
+    // TODO: Rename
+    void InitializeLightBuffer(HRenderContext render_context, uint32_t max_light_count)
+    {
+        GenerateDefaultUniformBufferLayout(max_light_count);
+
+        render_context->m_MaxLightCount = max_light_count;
+        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, g_LightBufferContext.m_LightBufferLayout);
+        render_context->m_RenderLightsIndices.SetCapacity(max_light_count);
+    }
+
+    // TODO: We should be able to cache this in the material itself
+    void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material)
+    {
+        if (!render_context || !material || !material->m_Program || !render_context->m_LightUniformBuffer)
+            return;
+
+        dmGraphics::Program* program = (dmGraphics::Program*) material->m_Program;
+        dmGraphics::ProgramResourceBindingIterator it(program);
+
+        const dmGraphics::ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            if (!binding->m_Res)
+            {
+                continue;
+            }
+
+            // We only care about uniform buffer bindings.
+            if (binding->m_Res->m_BindingFamily != dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER)
+            {
+                continue;
+            }
+
+            // Fetch the root type for this uniform buffer and check that it is a LightBuffer.
+            const dmArray<dmGraphics::ShaderResourceTypeInfo>& type_infos = *binding->m_TypeInfos;
+            uint32_t root_type_index = binding->m_Res->m_Type.m_TypeIndex;
+            if (root_type_index >= type_infos.Size())
+            {
+                continue;
+            }
+
+            const dmGraphics::ShaderResourceTypeInfo& root_type = type_infos[root_type_index];
+            if (root_type.m_NameHash != LIGHT_BUFFER_TYPE)
+            {
+                continue;
+            }
+
+            // The binding user data for uniform buffers is a UniformBufferLayout*
+            const dmGraphics::UniformBufferLayout* binding_layout = (const dmGraphics::UniformBufferLayout*) binding->m_BindingUserData;
+            if (!binding_layout)
+            {
+                continue;
+            }
+
+            // Only bind if the layouts match (size + hash).
+            if (binding_layout->m_Size != g_LightBufferContext.m_LightBufferLayout.m_Size ||
+                binding_layout->m_Hash != g_LightBufferContext.m_LightBufferLayout.m_Hash)
+            {
+                continue;
+            }
+
+            // Layout and type match – bind the shared light uniform buffer for this set/binding.
+            dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
+                                            render_context->m_LightUniformBuffer,
+                                            binding->m_Res->m_Set,
+                                            binding->m_Res->m_Binding);
+        }
     }
 }

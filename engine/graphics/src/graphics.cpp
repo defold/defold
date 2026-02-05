@@ -1558,6 +1558,8 @@ namespace dmGraphics
 
         visited[type_index] = true;
 
+        dmLogInfo("Hashing type %s", types[type_index].m_Name);
+
         const ShaderResourceTypeInfo& type = types[type_index];
 
         for (uint32_t j = 0; j < type.m_MemberCount; ++j)
@@ -1574,7 +1576,10 @@ namespace dmGraphics
             if (use_type_index)
             {
                 uint32_t child_type = member.m_Type.m_TypeIndex;
-                dmHashUpdateBuffer32(hash_state, &child_type, sizeof(child_type));
+                // Hash the type's name so the layout hash is independent of type array order
+                // (shader reflection may order types differently than manually built layouts).
+                dmhash_t child_name_hash = types[child_type].m_NameHash;
+                dmHashUpdateBuffer32(hash_state, &child_name_hash, sizeof(child_name_hash));
 
                 // Recurse into referenced type
                 HashTypeRecursive(child_type, types, num_types, hash_state, visited);
@@ -1584,6 +1589,8 @@ namespace dmGraphics
                 ShaderDesc::ShaderDataType shader_type = member.m_Type.m_ShaderType;
                 dmHashUpdateBuffer32(hash_state, &shader_type, sizeof(shader_type));
             }
+
+            dmLogInfo("  %s: hash=%d, offset=%d, element_count=%d, type=%d", type.m_Name, hash_state->m_Hash, member.m_Offset, member.m_ElementCount, member.m_Type.m_ShaderType);
         }
     }
 
