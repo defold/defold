@@ -1087,7 +1087,6 @@
 (defn- clamp [value min-val max-val]
   (max min-val (min max-val value)))
 
-(defn- update-camera-view! [image-view current-input node-id dt])
 (defn- update-camera-view! [_image-view current-input node-id dt]
   (let [camera-node (view->camera node-id)
         current-camera (g/node-value camera-node :local-camera)
@@ -1176,66 +1175,6 @@
            :world-dir world-dir)))
 
 (def current-input-state (atom {}))
-(defn register-event-handler-new! [^Parent parent view-id]
-  (let [process-events? (atom true)
-        current-input (atom {:pressed-keys #{} :mouse-buttons #{} :modifiers #{} :cursor-pos [0.0 0.0]
-                             :cursor-lock-pos nil
-                             :robot (Robot.)})
-        _ (reset! current-input-state current-input)
-        event-handler (ui/event-handler e
-                        (when @process-events?
-                          (let [action (augment-action view-id (i/action-from-jfx e))
-                                screen-x (:screen-x action)
-                                screen-y (:screen-y action)]
-                            (swap! current-input assoc :cursor-pos [screen-x screen-y])
-                            ;; (ui/user-data! parent ::last-mouse-action action)
-                            (when (= :mouse-pressed (:type action))
-                              (when (= :secondary (:button action))
-                                (ui/set-cursor parent (cursor :none))
-                                (reset! ui/*disable-handlers* true)
-                                (swap! current-input assoc :cursor-lock-pos [screen-x screen-y]))
-                              (swap! current-input update :mouse-buttons conj (:button action))
-                              (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                         (filter action)
-                                                                         set))
-                              ;; Request focus and consume event to prevent someone else from stealing focus
-                              (.requestFocus parent)
-                              (.consume e))
-                            (when (= :mouse-released (:type action))
-                              (when (= :secondary (:button action))
-                                (ui/set-cursor parent (cursor nil))
-                                (reset! ui/*disable-handlers* false)
-                                (swap! current-input assoc :cursor-lock-pos nil))
-                              (swap! current-input update :mouse-buttons disj (:button action))
-                              (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                         (filter action)
-                                                                         set))))))]
-    (.setOnMousePressed parent event-handler)
-    (.setOnMouseReleased parent event-handler)
-    (.setOnMouseMoved parent event-handler)
-    (.setOnMouseDragged parent event-handler)
-    (.setOnKeyReleased parent
-      (ui/event-handler e
-        (when @process-events?
-          (let [code (.getCode e)
-                action (i/action-from-jfx e)]
-            (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
-                                                         (filter action)
-                                                         set))
-            (when (or (.isLetterKey code)
-                      (.isDigitKey code))
-              (swap! current-input update :pressed-keys disj code))))))
-    (.setOnKeyPressed parent
-      (ui/event-handler e
-        (when @process-events?
-          (let [code (.getCode e)
-                action (i/action-from-jfx e)]
-            (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
-                                                       (filter action)
-                                                       set))
-            (when (or (.isLetterKey code)
-                      (.isDigitKey code))
-              (swap! current-input update :pressed-keys conj code))))))))
 
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
@@ -1248,7 +1187,7 @@
                    (some? async-copy-state-atom))
           (update-image-view! image-view drawable async-copy-state-atom dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
-            (ui/set-cursor current-input-state image-view (cursor cursor-type)))
+            (ui/set-cursor image-view (cursor cursor-type)))
           (when (contains? (:mouse-buttons @@current-input-state) :secondary)
            (update-camera-view! image-view @current-input-state node-id dt))
           #_(when-let [keys (g/maybe-node-value node-id :pressed-keys)]
@@ -1745,18 +1684,29 @@
                   ::unhandled)))
     (.consume event)))
 
-(defn register-event-handler! [^Parent parent view-id]
+(defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
+        current-input (atom {:pressed-keys #{} :mouse-buttons #{} :modifiers #{} :cursor-pos [0.0 0.0]
+                             :cursor-lock-pos nil
+                             :robot (Robot.)})
+        _ (reset! current-input-state current-input)
         event-handler (ui/event-handler e
                         (when @process-events?
                           (try
                             (profiler/profile "input-event" -1
-                              (let [action (augment-action view-id (i/action-from-jfx e))
-                                    x (:x action)
-                                    y (:y action)
+                              (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                                     pos [x y 0.0]
                                     picking-rect (selection/calc-picking-rect pos pos)]
+                                (swap! current-input assoc :cursor-pos [screen-x screen-y])
                                 (when (= :mouse-pressed (:type action))
+                                  (when (= :secondary (:button action))
+                                    (ui/set-cursor parent (cursor :none))
+                                    (reset! ui/*disable-handlers* true)
+                                    (swap! current-input assoc :cursor-lock-pos [screen-x screen-y]))
+                                  (swap! current-input update :mouse-buttons conj (:button action))
+                                  (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                                                             (filter action)
+                                                                             set))
                                   ;; Request focus and consume event to prevent someone else from stealing focus
                                   (.requestFocus parent)
                                   (.consume e))
@@ -1764,6 +1714,15 @@
                                 ;; and a `MOUSE_CLICKED` event as well. We only care about pressed/released
                                 (when (not= :mouse-clicked (:type action))
                                   (ui/user-data! parent ::last-mouse-action action))
+                                (when (= :mouse-released (:type action))
+                                  (when (= :secondary (:button action))
+                                    (ui/set-cursor parent (cursor nil))
+                                    (reset! ui/*disable-handlers* false)
+                                    (swap! current-input assoc :cursor-lock-pos nil))
+                                  (swap! current-input update :mouse-buttons disj (:button action))
+                                  (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                                                             (filter action)
+                                                                             set)))
                                 (g/transact
                                   (concat
                                     (g/set-property view-id :cursor-pos [x y])
@@ -1780,8 +1739,7 @@
                                                                       :shift (.isShiftDown e)
                                                                       :meta (.isMetaDown e)
                                                                       :control (.isControlDown e))]
-                                                 (g/update-property! view-id :input-action-queue conj updated-action)))))
-        camera-keycodes #{KeyCode/W KeyCode/A KeyCode/S KeyCode/D KeyCode/SHIFT KeyCode/ALT KeyCode/Q KeyCode/E}]
+                                                 (g/update-property! view-id :input-action-queue conj updated-action)))))]
     (ui/on-mouse! parent (fn [type e] (cond
                                         (= type :exit)
                                         (g/set-property! view-id :cursor-pos nil))))
@@ -1796,18 +1754,25 @@
     (.setOnKeyReleased parent
       (ui/event-handler e
         (when @process-events?
-          (simulate-mouse-on-modifier-keys! e)
-          (let [code (.getCode e)]
-            (when (camera-keycodes code)
-              (g/update-property! view-id :pressed-keys disj code))))))
+          (let [code (.getCode e)
+                action (i/action-from-jfx e)]
+            (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                                         (filter action)
+                                                         set))
+            (when (or (.isLetterKey code)
+                      (.isDigitKey code))
+              (swap! current-input update :pressed-keys disj code))))))
     (.setOnKeyPressed parent
       (ui/event-handler e
         (when @process-events?
-          (handle-key-pressed! e)
-          (simulate-mouse-on-modifier-keys! e)
-          (let [code (.getCode e)]
-            (when (camera-keycodes code)
-              (g/update-property! view-id :pressed-keys conj code))))))))
+          (let [code (.getCode e)
+                action (i/action-from-jfx e)]
+            (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                                       (filter action)
+                                                       set))
+            (when (or (.isLetterKey code)
+                      (.isDigitKey code))
+              (swap! current-input update :pressed-keys conj code))))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
@@ -1836,8 +1801,7 @@
                            (let [drawable (gl/offscreen-drawable width height)
                                  picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)]
                              (ui/user-data! image-view ::view-id view-id)
-                             (register-event-handler! this view-id)
-                             (register-event-handler-new! this view-id)
+                             (register-event-handler! this image-view view-id)
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
