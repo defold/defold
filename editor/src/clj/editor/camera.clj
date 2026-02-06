@@ -660,7 +660,7 @@
 
 (defn significant-drag?
   [current-position previous-position]
-  (let [threshold 3]
+  (let [threshold 2]
     (->> (map (comp abs -) current-position previous-position)
          (apply max)
          (< threshold))))
@@ -676,10 +676,11 @@
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement ui-state))
         camera (g/node-value self :camera)
-        is-significant-drag (or (not= (:button action) :secondary)
-                                (and initial-x
-                                     initial-y
-                                     (significant-drag? [x y] [initial-x initial-y])))
+        ;; TODO: This is using current mouse position but this doesn't work now that we use the robot to reset.
+        ;; we need to calculate the distance traveled, probably by accumulating in some state
+        is-significant-drag (and initial-x
+                                 initial-y
+                                 (significant-drag? [x y] [initial-x initial-y]))
         is-mode-2d (mode-2d? camera)
         filter-fn (:filter-fn camera)
         camera (cond-> camera
@@ -698,7 +699,7 @@
                    (= :dolly movement)
                    (dolly (* -0.002 (- y last-y)))
                    (and (= :track movement)
-                        is-significant-drag)
+                        #_is-significant-drag)
                    (track viewport last-x last-y x y)
                    (= :tumble movement)
                    (tumble (- last-x x) (- last-y y))
@@ -717,30 +718,31 @@
                                           :initial-x x
                                           :initial-y y
                                           :movement movement)
-                       (if (or (= movement :idle) is-secondary)
-                         action
-                         (do (when is-significant-drag
-                               (g/set-property! self :cursor-type
-                                                (if is-mode-2d :pan :none)))
-                             nil)))
-      :mouse-released (do
+                       (when (= movement :idle)
+                         action))
+      :mouse-released (let [dragging (:is-dragging (g/user-data self ::ui-state))]
                         (g/user-data-swap! self ::ui-state assoc
                                            :last-x nil
                                            :last-y nil
                                            :initial-x nil
                                            :initial-y nil
+                                           :is-dragging false
                                            :movement :idle)
                         (g/set-property! self :cursor-type :default)
                         (if (or (= movement :idle)
-                                (and is-secondary (not is-significant-drag)))
+                                (and is-secondary
+                                     (not dragging)
+                                     (not is-significant-drag)))
                           action
                           nil))
       :mouse-moved (if (not (= :idle movement))
-                     (do (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
-                         (when is-significant-drag
-                           (g/set-property! self :cursor-type
-                                            (if is-mode-2d :pan :none)))
-                         (if is-secondary action nil))
+                     (let [dragging (:is-dragging (g/user-data self ::ui-state))]
+                       (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :is-dragging (or dragging
+                                                                                                     is-significant-drag))
+                       (when is-significant-drag
+                         (g/set-property! self :cursor-type
+                                          (if is-mode-2d :pan :none)))
+                       (if is-secondary action nil))
                      action)
       action)))
 
