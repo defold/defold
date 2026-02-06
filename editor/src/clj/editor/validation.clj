@@ -114,7 +114,7 @@
 
 (defn prop-anim-missing-in? [animation anim-data in]
   (when-not (contains? anim-data animation)
-    (format "'%s' could not be found in '%s'" animation in)))
+    (localization/message "error.animation-not-found" {"animation" animation "property" in})))
 
 (defn prop-outside-range? [[min max] v name]
   (let [tmpl (if (integer? min)

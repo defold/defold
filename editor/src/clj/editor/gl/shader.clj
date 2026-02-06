@@ -105,6 +105,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [editor.gl :as gl]
             [editor.gl.types :as gl.types]
             [editor.graphics.types :as graphics.types]
+            [editor.localization :as localization]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.scene-cache :as scene-cache]
             [internal.util :as util]
@@ -762,14 +763,14 @@ These forms should be quoted, as if they came from a macro."
       (cond
         (and is-paged-material
              (zero? texture-page-count))
-        (str "The Material expects a paged Atlas, but the selected " image-property-message " is not paged")
+        (localization/message "error.material-expects-paged-atlas" {"property" image-property-message})
 
         (and (not is-paged-material)
              (pos? texture-page-count))
-        (str "The Material does not support paged Atlases, but the selected " image-property-message " is paged")
+        (localization/message "error.material-does-not-support-paged-atlases" {"property" image-property-message})
 
         (< material-max-page-count texture-page-count)
-        (str "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected " image-property-message)))))
+        (localization/message "error.material-max-page-count-insufficient" {"property" image-property-message})))))
 
 (def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))
 
