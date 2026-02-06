@@ -2182,3 +2182,7 @@ error.material-does-not-support-paged-atlases = Материал не подде
 error.material-max-page-count-insufficient = Значение «Макс. страницы атласа» в материале недостаточно для количества страниц в выбранном свойстве {property}
 error.animation-not-found = В значении свойства «{property}» не найдена анимация «{animation}»
 error.at-line = Строка {line}: {error}
+error.render.title = ОШИБКА ОТРИСОВКИ:
+error.render.item = - {resource}: {error}
+error.render.unknown-resource = неизвестно
+error.render.and-more = ...и ещё
