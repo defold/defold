@@ -159,6 +159,8 @@
                       ;; used in editor.scene$read_to_buffered_image
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
                       "--enable-native-access=ALL-UNNAMED"
+                      "-XX:+IgnoreUnrecognizedVMOptions"
+                      "--sun-misc-unsafe-memory-access=allow"
                       "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
 
