@@ -202,17 +202,6 @@ namespace dmRender
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
         render_context->m_FrustumHash = 0xFFFFFFFF; // trigger a first recalculation each frame
-
-        if (render_context->m_LightBufferDirty)
-        {
-            /*
-            HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
-            void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
-            void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-            void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
-            void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
-            */
-        }
     }
 
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)

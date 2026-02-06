@@ -101,6 +101,10 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::PbrParameters m_PbrParameters;
         uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+        uint16_t                                m_LightBufferLightsCount;
+        uint8_t                                 m_LightBufferSet;
+        uint8_t                                 m_LightBufferBinding;
+        uint8_t                                 m_HasLightBuffer : 1;
         uint8_t                                 m_InstancingSupported : 1;
         uint8_t                                 m_HasSkinnedAttributes : 1;
         uint8_t                                 m_HasSkinnedMatrixCache : 1;
@@ -282,10 +286,19 @@ namespace dmRender
 
     struct LightInstance
     {
-        dmVMath::Point3 m_Position;
-        dmVMath::Quat   m_Rotation;
-        const Light*    m_LightPrototype;
-        uint16_t        m_LightBufferIndex;
+        dmVMath::Point3  m_Position;
+        dmVMath::Vector3 m_Direction;
+        const Light*     m_LightPrototype;
+        uint16_t         m_LightBufferIndex;
+    };
+
+    // CPU-mapped representation of a light in STD140 layout
+    struct LightSTD140
+    {
+        dmVMath::Vector4 m_Position;
+        dmVMath::Vector4 m_Color;
+        dmVMath::Vector4 m_DirectionRange;
+        dmVMath::Vector4 m_Params;
     };
 
     struct RenderContext
@@ -311,6 +324,7 @@ namespace dmRender
 
         dmOpaqueHandleContainer<LightInstance> m_RenderLights;
         dmIndexPool16                          m_RenderLightsIndices;
+        dmArray<LightSTD140>                   m_LightBufferScratch;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
 
         dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
@@ -324,13 +338,17 @@ namespace dmRender
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
-        uint32_t                    m_MaxLightCount;
+
+        uint16_t                    m_MaxLightCount;
+        uint16_t                    m_LightBufferDirtyStart;
+        uint16_t                    m_LightBufferDirtyEnd;
+
         uint32_t                    m_OutOfResources                : 1;
         uint32_t                    m_StencilBufferCleared          : 1;
         uint32_t                    m_MultiBufferingRequired        : 1;
         uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint32_t                    m_IsRenderPaused                : 1;
-        uint32_t                    m_LightBufferDirty              : 1;
+        uint32_t                    m_LightBufferDirtyCount         : 1;
     };
 
     struct BufferedRenderBuffer

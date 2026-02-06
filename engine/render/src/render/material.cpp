@@ -25,9 +25,15 @@
 #include "render.h"
 #include "render_private.h"
 
+// TODO: Should we move the internals into an api or move to graphics.h instead?
+#include "../../../graphics/src/graphics_private.h"
+
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
 
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
@@ -281,6 +287,56 @@ namespace dmRender
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
     }
 
+    static void GetLightBufferConfiguration(dmGraphics::HContext graphics_context, Material* material)
+    {
+        dmGraphics::Program* program = (dmGraphics::Program*) material->m_Program;
+        dmGraphics::ProgramResourceBindingIterator it(program);
+
+        const dmGraphics::ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            if (!binding->m_Res)
+            {
+                continue;
+            }
+
+            // We only care about uniform buffer bindings.
+            if (binding->m_Res->m_BindingFamily != dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER)
+            {
+                continue;
+            }
+
+            // Fetch the root type for this uniform buffer and check that it is a LightBuffer.
+            const dmArray<dmGraphics::ShaderResourceTypeInfo>& type_infos = *binding->m_TypeInfos;
+            uint32_t root_type_index = binding->m_Res->m_Type.m_TypeIndex;
+            if (root_type_index >= type_infos.Size())
+            {
+                continue;
+            }
+
+            const dmGraphics::ShaderResourceTypeInfo& root_type = type_infos[root_type_index];
+            if (root_type.m_NameHash != LIGHT_BUFFER_TYPE)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < root_type.m_MemberCount; ++i)
+            {
+                if (root_type.m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
+                {
+                    material->m_LightBufferLightsCount = root_type.m_Members[i].m_ElementCount;
+                    break;
+                }
+            }
+
+            // Only one light buffer binding is currently supported.
+            material->m_HasLightBuffer     = true;
+            material->m_LightBufferSet     = binding->m_Res->m_Set;
+            material->m_LightBufferBinding = binding->m_Res->m_Binding;
+            return;
+        }
+    }
+
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -300,6 +356,8 @@ namespace dmRender
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
+
+        GetLightBufferConfiguration(graphics_context, m);
 
         return (HMaterial)m;
     }
