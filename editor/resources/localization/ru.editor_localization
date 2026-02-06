@@ -2171,6 +2171,8 @@ quick-help.build-and-run-project = Собрать и запустить прое
 quick-help.start-or-attach-debugger = Запустить отладчик
 
 # Error Messages
+error.assigned-image-has-internal-errors = Назначенное изображение содержит внутренние ошибки
+error.sampler-not-defined-in-material = «{sampler}» не определён в материале. Используйте команду «Сбросить переопределение» в контекстном меню имени свойства, чтобы удалить свойство. Если этот сэмплер необходим для шейдера, добавьте отсутствующий сэмплер в материал.
 error.unknown-source = Неизвестный источник
 error.unspecified-property = Свойство «{property}» должно быть указано
 error.property-resource-not-found = Ресурс «{resource}» свойства {property} не найден

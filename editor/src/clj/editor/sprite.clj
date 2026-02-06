@@ -419,13 +419,11 @@
                            :prop-kw :texture
                            :error (or
                                     (when should-be-deleted
-                                      (g/->error _node-id :textures :warning texture
-                                                 (format "'%s' is not defined in the material. Use the \"Clear Override\" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the material"
-                                                         sampler)))
+                                      (g/->error _node-id :textures :warning texture (localization/message "error.sampler-not-defined-in-material" {"sampler" sampler})))
                                     (validation/prop-error :info _node-id :textures validation/prop-nil? texture label)
                                     (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label)
                                     (when (nil? texture-page-count)  ; nil from :try producing error-value
-                                      (g/->error _node-id :textures :fatal texture "the assigned Image has internal errors"))
+                                      (g/->error _node-id :textures :fatal texture (localization/message "error.assigned-image-has-internal-errors")))
                                     (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
                                     (when-not (coll/empty? default-animation)
                                       (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label)))

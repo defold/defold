@@ -2197,6 +2197,8 @@ quick-help.build-and-run-project = Build and Run Project
 quick-help.start-or-attach-debugger = Start or Attach Debugger
 
 # Error Messages
+error.assigned-image-has-internal-errors = The assigned Image has internal errors
+error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
 error.unknown-source = Unknown source
 error.unspecified-property = "{property}" must be specified
 error.property-resource-not-found = {property} "{resource}" could not be found
