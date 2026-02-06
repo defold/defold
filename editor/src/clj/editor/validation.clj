@@ -15,6 +15,7 @@
 (ns editor.validation
   (:require [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.util :as util]
@@ -69,18 +70,23 @@
 
 (defn prop-nil? [v name]
   (when (nil? v)
-    (format "'%s' must be specified" name)))
+    (localization/message "error.unspecified-property" {"property" name})))
 
 (defn prop-empty? [v name]
   (when (empty? v)
-    (format "'%s' must be specified" name)))
+    (localization/message "error.unspecified-property" {"property" name})))
 
 (defn prop-resource-not-exists? [v name]
   (and v
        (not (resource/exists? v))
        (if-some [symlink-target-path (some-> (path/symlink-target v) path/absolute)]
-         (format "%s symlink '%s' refers to missing path '%s'" name (resource/resource->proj-path v) symlink-target-path)
-         (format "%s '%s' could not be found" name (resource/resource->proj-path v)))))
+         (localization/message "error.property-resource-is-a-broken-symlink"
+                               {"property" name
+                                "resource" (resource/resource->proj-path v)
+                                "path" symlink-target-path})
+         (localization/message "error.property-resource-not-found"
+                               {"property" name
+                                "resource" (resource/resource->proj-path v)}))))
 
 (defn prop-resource-missing? [v name]
   (or (prop-nil? v name)

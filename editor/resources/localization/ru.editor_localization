@@ -2169,3 +2169,8 @@ quick-help.reopen-closed-file = Открыть закрытый файл
 quick-help.search-in-files = Поиск в файлах
 quick-help.build-and-run-project = Собрать и запустить проект
 quick-help.start-or-attach-debugger = Запустить отладчик
+
+# Error Messages
+error.unspecified-property = Свойство «{property}» должно быть указано
+error.property-resource-not-found = Ресурс «{resource}» свойства {property} не найден
+error.property-resource-is-a-broken-symlink = Символическая ссылка «{resource}» свойства {property} указывает на несуществующий путь «{path}»

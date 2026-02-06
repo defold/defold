@@ -268,16 +268,20 @@
             (< 1 (count (:frames first-animation)))
             (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
+(def ^:private material-message (localization/message "property.material"))
+(def ^:private default-animation-message (localization/message "property.sprite.default-animation"))
+(def ^:private image-message (localization/message "property.image"))
+
 (defn- validate-material [_node-id material]
-  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))
+  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
+      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)))
 
 (g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
     (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
                                  (shader/is-using-array-samplers? material-shader))
-          unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")]
+          unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]
       (concat
         ;; Validate material assignment.
         [(validate-material _node-id material)]
@@ -288,15 +292,15 @@
         (mapcat
           (fn [sampler]
             (let [sampler-name (:name sampler)
-                  label (if (= 1 (count material-samplers)) "Image" sampler-name)
+                  message (if (= 1 (count material-samplers)) image-message sampler-name)
                   {:keys [anim-data texture texture-page-count]} (sampler-name->texture-binding-info sampler-name)
-                  unassigned-texture-error (or (validation/prop-error :fatal _node-id :textures validation/prop-nil? texture label)
-                                               (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label))]
+                  unassigned-texture-error (or (validation/prop-error :fatal _node-id :textures validation/prop-nil? texture message)
+                                               (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture message))]
               (if unassigned-texture-error
                 [unassigned-texture-error]
-                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
+                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count message)
                  (when (and anim-data (nil? unassigned-default-animation-error))
-                   (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label))])))
+                   (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data message))])))
           material-samplers)
 
         ;; Validate default-animation assignment.
@@ -400,8 +404,7 @@
                (fn [[sampler-name order :as name+order]]
                  (let [has-single-sampler (= 1 (count combined-name+indices))
                        property-key (keyword (str "__sampler__" sampler-name "__" order))
-                       property-name (if has-single-sampler "Image" sampler-name)
-                       label (if has-single-sampler (localization/message "property.image") sampler-name)]
+                       label (if has-single-sampler image-message sampler-name)]
                    (if-let [i (texture-binding-index name+order)]
                      ;; texture binding exists
                      (let [{:keys [anim-data sampler texture texture-page-count]
@@ -419,13 +422,13 @@
                                       (g/->error _node-id :textures :warning texture
                                                  (format "'%s' is not defined in the material. Use the \"Clear Override\" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the material"
                                                          sampler)))
-                                    (validation/prop-error :info _node-id :textures validation/prop-nil? texture property-name)
-                                    (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture property-name)
+                                    (validation/prop-error :info _node-id :textures validation/prop-nil? texture label)
+                                    (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label)
                                     (when (nil? texture-page-count)  ; nil from :try producing error-value
                                       (g/->error _node-id :textures :fatal texture "the assigned Image has internal errors"))
-                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count property-name)
+                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
                                     (when-not (coll/empty? default-animation)
-                                      (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data property-name)))
+                                      (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label)))
 
                            :edit-type {:type resource/Resource
                                        :ext extension
@@ -438,7 +441,7 @@
                        :label label
                        :value nil
                        :type resource/Resource
-                       :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil property-name)
+                       :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil label)
                        :edit-type {:type resource/Resource
                                    :ext extension
                                    :set-fn (fn/partial set-texture-binding-id sampler-name)}}])))))
@@ -505,9 +508,9 @@
             (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
-                               (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                               (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation default-animation-message)
                                    (let [{:keys [anim-data sampler]} primary-texture-binding-info
-                                         image-property-label (if (= 1 (count textures)) "Image" sampler)]
+                                         image-property-label (if (= 1 (count textures)) image-message sampler)]
                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data image-property-label))))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 

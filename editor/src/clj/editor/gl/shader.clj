@@ -754,7 +754,7 @@ These forms should be quoted, as if they came from a macro."
 (def vertex-shader-source (partial first-shader-source-of-type :shader-type-vertex))
 (def fragment-shader-source (partial first-shader-source-of-type :shader-type-fragment))
 
-(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count image-property-name]
+(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count image-property-message]
   (when (and (some? texture-page-count)
              (some? material-max-page-count))
     (let [texture-page-count (int texture-page-count)
@@ -762,14 +762,14 @@ These forms should be quoted, as if they came from a macro."
       (cond
         (and is-paged-material
              (zero? texture-page-count))
-        (str "The Material expects a paged Atlas, but the selected " image-property-name " is not paged")
+        (str "The Material expects a paged Atlas, but the selected " image-property-message " is not paged")
 
         (and (not is-paged-material)
              (pos? texture-page-count))
-        (str "The Material does not support paged Atlases, but the selected " image-property-name " is paged")
+        (str "The Material does not support paged Atlases, but the selected " image-property-message " is paged")
 
         (< material-max-page-count texture-page-count)
-        (str "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected " image-property-name)))))
+        (str "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected " image-property-message)))))
 
 (def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))
 

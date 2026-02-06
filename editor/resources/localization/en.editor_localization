@@ -2195,3 +2195,8 @@ quick-help.reopen-closed-file = Reopen Closed File
 quick-help.search-in-files = Search in Files
 quick-help.build-and-run-project = Build and Run Project
 quick-help.start-or-attach-debugger = Start or Attach Debugger
+
+# Error Messages
+error.unspecified-property = "{property}" must be specified
+error.property-resource-not-found = {property} "{resource}" could not be found
+error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" refers to missing path "{path}"
