@@ -53,7 +53,7 @@
 
 (defn prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
-    (format "'%s' is in use by another instance" id)))
+    (localization/message "error.duplicate-instance-id" {"id" id})))
 
 (defn prop-contains-prohibited-characters? [id name]
   (cond
@@ -68,7 +68,7 @@
 
 (defn prop-negative? [v name]
   (when (< v 0)
-    (format "'%s' cannot be negative" name)))
+    (localization/message "error.property-cannot-be-negative" {"property" name})))
 
 (defn prop-zero-or-below? [v name]
   (when (<= v 0)

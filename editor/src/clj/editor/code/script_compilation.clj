@@ -187,7 +187,7 @@
                 exception))]
         (if-some [exception-message (ex-message preprocessed-lines)]
           (let [exception preprocessed-lines
-                build-error-message (str "Lua preprocessing failed.\n" exception-message)
+                build-error-message (localization/message "error.lua-preprocessing-failed" {"error" exception-message})
                 log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
             (log/error :message log-error-message :exception exception)
             (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
