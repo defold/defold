@@ -703,7 +703,7 @@
                    (track viewport last-x last-y x y)
                    (= :tumble movement)
                    (tumble (- last-x x) (- last-y y))
-                   (= :look movement)
+                   #_#_(= :look movement)
                    (look viewport last-x last-y x y))
 
                  filter-fn
@@ -754,6 +754,9 @@
   (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble :look}))
   (property cursor-type g/Keyword)
+  (property free-camera g/Any (default {:velocity (Vector3d. 0.0 0.0 0.0)
+                                        :angular-velocity (Quat4d. 0.0 0.0 0.0 1.0)
+                                        :smoothed-look-delta [0.0 0.0]}))
 
   (input scene-aabb AABB)
   (input viewport Region)
@@ -763,6 +766,47 @@
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
+
+(defn look
+  [current-camera free-camera cursor-pos cursor-lock-pos flip-y?]
+  (let [raw-dx (if cursor-lock-pos
+                 (- (first cursor-lock-pos) (first cursor-pos))
+                 (first cursor-pos))
+        raw-dy (if cursor-lock-pos
+                 (- (second cursor-lock-pos) (second cursor-pos))
+                 (second cursor-pos))
+        smoothed-look-delta (:smoothed-look-delta free-camera)
+        [prev-dx prev-dy] smoothed-look-delta
+        smooth-dx (+ prev-dx (* look-smoothing (- raw-dx prev-dx)))
+        smooth-dy (+ prev-dy (* look-smoothing (- raw-dy prev-dy)))]
+
+    (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
+      (let [smooth-dy (* smooth-dy (if flip-y? -1 1))
+            [rx ry rz] (math/quat->euler (:rotation current-camera))
+            yaw (+ ry (* smooth-dx look-sensitivity))
+            pitch (max -86.0 (min 86.0 (+ rx (* smooth-dy look-sensitivity))))
+            new-rotation (math/euler->quat [pitch yaw rz])]
+        [(assoc current-camera :rotation new-rotation)
+         (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
+      [current-camera free-camera])))
+
+(defn wasd-move
+  [camera free-camera target-dir speed dt]
+  (when (not= (.length target-dir) 0.0)
+    (.normalize target-dir))
+  (.scale target-dir speed)
+
+  (let [vel (:velocity free-camera) 
+        diff (doto (Vector3d. target-dir) (.sub vel))]
+    (.scale diff (* acceleration dt))
+    (.add vel diff)
+    (when (= (.length target-dir) 0.0)
+      (.scale vel (Math/exp (* (- damping) dt))))
+
+    (if (> (.length vel) 0.001)
+      (let [offset (doto (Vector3d. vel) (.scale dt))]
+        (camera-move camera (.x offset) (.y offset) (.z offset)))
+      camera)))
 
 (defn- lerp [a b t]
   (let [d (- b a)]

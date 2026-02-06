@@ -1084,80 +1084,48 @@
 (def ^:private smoothed-look-delta (atom [0.0 0.0]))
 (def ^:private look-smoothing 0.35)
 
-(defn- clamp [value min-val max-val]
-  (max min-val (min max-val value)))
-
-(defn- update-camera-view! [_image-view current-input node-id dt]
+(defn- update-free-camera! [_image-view current-input node-id dt]
   (let [camera-node (view->camera node-id)
         current-camera (g/node-value camera-node :local-camera)
         prefs (g/node-value camera-node :prefs)
         forward (c/camera-forward-vector current-camera)
-        {:keys [robot mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} @current-input
+        right (c/camera-right-vector current-camera)
+        up (c/camera-up-vector current-camera)
+        {:keys [mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} @current-input
         is-secondary-button (contains? mouse-buttons :secondary)
         shift (contains? modifiers :shift)
         alt (contains? modifiers :alt)
-        speed (* camera-speed (cond shift camera-speed-boost alt camera-speed-precision :else 1.0))
-        speed (* speed (prefs/get prefs [:scene :perspective-camera :speed]))
-        right (c/camera-right-vector current-camera)
-        up (c/camera-up-vector current-camera)
+        speed (* camera-speed
+                 (cond shift camera-speed-boost alt camera-speed-precision :else 1.0)
+                 (prefs/get prefs [:scene :perspective-camera :speed]))
+
+        camera-after-look (if is-secondary-button
+                            (c/look current-camera
+                                    (g/node-value camera-node :free-camera)
+                                    cursor-pos
+                                    cursor-lock-pos
+                                    (prefs/get prefs [:scene :perspective-camera :flip-y]))
+                            (do
+                              (reset! smoothed-look-delta [0.0 0.0])
+                              current-camera))
+
         target-dir (Vector3d. 0.0 0.0 0.0)
-        {:keys [last-cursor cursor-pos]} @current-input
-        raw-dx (if cursor-lock-pos
-                 (- (first cursor-lock-pos) (first cursor-pos))
-                 (first cursor-pos))
-        raw-dy (if cursor-lock-pos
-                 (- (second cursor-lock-pos) (second cursor-pos))
-                 (second cursor-pos))
+        _ (doseq [key pressed-keys]
+            (cond
+              (= key KeyCode/W) (.add target-dir forward)
+              (= key KeyCode/S) (.sub target-dir forward)
+              (= key KeyCode/A) (.sub target-dir right)
+              (= key KeyCode/D) (.add target-dir right)
+              (= key KeyCode/Q) (.sub target-dir up)
+              (= key KeyCode/E) (.add target-dir up)))
+        final-camera (c/wasd-move camera-after-look target-dir speed dt)]
 
-        [smooth-dx smooth-dy] (if is-secondary-button
-                                (let [[prev-dx prev-dy] @smoothed-look-delta
-                                      new-dx (+ prev-dx (* look-smoothing (- raw-dx prev-dx)))
-                                      new-dy (+ prev-dy (* look-smoothing (- raw-dy prev-dy)))]
-                                  (reset! smoothed-look-delta [new-dx new-dy])
-                                  [new-dx new-dy])
-                                (do
-                                  (reset! smoothed-look-delta [0.0 0.0])
-                                  [0.0 0.0]))
-
-        new-camera (if (and is-secondary-button (or (not= smooth-dx 0.0) (not= smooth-dy 0.0)))
-                     (let [smooth-dy (* smooth-dy (if (prefs/get prefs [:scene :perspective-camera :flip-y]) -1 1))
-                           [rx ry rz] (math/quat->euler (:rotation current-camera))
-                           yaw (+ ry (* smooth-dx look-sensitivity))
-                           pitch (max -86.0 (min 86.0 (+ rx (* smooth-dy look-sensitivity))))
-                           new-rotation (math/euler->quat [pitch yaw rz])]
-                       (assoc current-camera :rotation new-rotation))
-                     current-camera)]
-
-    (doseq [key pressed-keys]
-      (cond
-        (= key KeyCode/W) (.add target-dir forward)
-        (= key KeyCode/S) (.sub target-dir forward)
-        (= key KeyCode/A) (.sub target-dir right)
-        (= key KeyCode/D) (.add target-dir right)
-        (= key KeyCode/Q) (.sub target-dir up)
-        (= key KeyCode/E) (.add target-dir up)))
-
-    (when (not= (.length target-dir) 0.0)
-      (.normalize target-dir))
-    (.scale target-dir speed)
-
-    (let [vel @camera-velocity
-          diff (doto (Vector3d. target-dir) (.sub vel))]
-      (.scale diff (* acceleration dt))
-      (.add vel diff)
-      (when (= (.length target-dir) 0.0)
-        (.scale vel (Math/exp (* (- damping) dt))))
-
-      (let [final-camera (if (> (.length vel) 0.001)
-                           (let [offset (doto (Vector3d. vel) (.scale dt))]
-                             (c/camera-move new-camera (.x offset) (.y offset) (.z offset)))
-                           new-camera)]
-        (when (not= final-camera current-camera)
-          (set-camera! camera-node current-camera final-camera false)))
-      (when (and is-secondary-button cursor-lock-pos)
-        (let [robot (:robot @current-input)
-              [x y] cursor-lock-pos]
-          (.mouseMove robot x y))))))
+    (when (not= final-camera current-camera)
+      (set-camera! camera-node current-camera final-camera false))
+    (when (and is-secondary-button cursor-lock-pos)
+      (let [robot (:robot @current-input)
+            [x y] cursor-lock-pos]
+        (.mouseMove robot x y)))))
 
 (defn augment-action [view action]
   (let [x          (:x action)
@@ -1189,7 +1157,7 @@
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))
           (when (contains? (:mouse-buttons @@current-input-state) :secondary)
-           (update-camera-view! image-view @current-input-state node-id dt))
+           (update-free-camera! image-view @current-input-state node-id dt))
           #_(when-let [keys (g/maybe-node-value node-id :pressed-keys)]
             (when (and (not (coll/empty? keys))
                        (not (g/node-value (view->camera node-id) :animating))
