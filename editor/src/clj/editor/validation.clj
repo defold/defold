@@ -33,9 +33,15 @@
                  (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
 
 (defn format-ext
+  ;; todo replace all usages with `format-ext-message`, then rename it to `format-ext`
   ^String [ext]
   (if (coll? ext)
     (util/join-words ", " " or " (into (sorted-set) (map (partial str \.)) ext))
+    (str \. ext)))
+
+(defn format-ext-message [ext]
+  (if (coll? ext)
+    (localization/or-list (vec (sort (mapv (partial str \.) ext))))
     (str \. ext)))
 
 (defn format-name
