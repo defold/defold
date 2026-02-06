@@ -2197,6 +2197,7 @@ quick-help.build-and-run-project = Build and Run Project
 quick-help.start-or-attach-debugger = Start or Attach Debugger
 
 # Error Messages
+error.unknown-source = Unknown source
 error.unspecified-property = "{property}" must be specified
 error.property-resource-not-found = {property} "{resource}" could not be found
 error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" refers to missing path "{path}"
@@ -2204,3 +2205,4 @@ error.material-expects-paged-atlas = The Material expects a paged Atlas, but the
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}
 error.animation-not-found = "{animation}" could not be found in "{property}"
+error.at-line = Line {line}: {error}

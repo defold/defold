@@ -183,6 +183,7 @@
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
+                                                                         localization
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
                                                                              (app-view/select! app-view selected-node-ids))))
