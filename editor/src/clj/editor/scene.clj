@@ -1073,16 +1073,10 @@
        (g/set-property camera-node :local-camera end-camera)))
    nil))
 
+
 (def ^:private camera-speed 633.0)
 (def ^:private camera-speed-boost 3.0)
 (def ^:private camera-speed-precision 0.35)
-(def ^:private camera-velocity (atom (Vector3d. 0.0 0.0 0.0)))
-(def ^:private acceleration 12.0)
-(def ^:private damping 8.0)
-(def ^:private camera-angular-velocity (atom (Quat4d. 0.0 0.0 0.0 1.0)))
-(def ^:private look-sensitivity 0.2)
-(def ^:private smoothed-look-delta (atom [0.0 0.0]))
-(def ^:private look-smoothing 0.35)
 
 (defn- update-free-camera! [_image-view current-input node-id dt]
   (let [camera-node (view->camera node-id)
@@ -1098,16 +1092,14 @@
         speed (* camera-speed
                  (cond shift camera-speed-boost alt camera-speed-precision :else 1.0)
                  (prefs/get prefs [:scene :perspective-camera :speed]))
-
-        camera-after-look (if is-secondary-button
+        free-camera (g/node-value camera-node :free-camera)
+        [camera-after-look free-camera] (if is-secondary-button
                             (c/look current-camera
-                                    (g/node-value camera-node :free-camera)
+                                    free-camera
                                     cursor-pos
                                     cursor-lock-pos
                                     (prefs/get prefs [:scene :perspective-camera :flip-y]))
-                            (do
-                              (reset! smoothed-look-delta [0.0 0.0])
-                              current-camera))
+                            [current-camera free-camera])
 
         target-dir (Vector3d. 0.0 0.0 0.0)
         _ (doseq [key pressed-keys]
@@ -1118,8 +1110,8 @@
               (= key KeyCode/D) (.add target-dir right)
               (= key KeyCode/Q) (.sub target-dir up)
               (= key KeyCode/E) (.add target-dir up)))
-        final-camera (c/wasd-move camera-after-look target-dir speed dt)]
-
+        final-camera (c/wasd-move camera-after-look free-camera target-dir speed dt)]
+    (g/set-property camera-node :free-camera free-camera)
     (when (not= final-camera current-camera)
       (set-camera! camera-node current-camera final-camera false))
     (when (and is-secondary-button cursor-lock-pos)
@@ -1157,12 +1149,7 @@
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))
           (when (contains? (:mouse-buttons @@current-input-state) :secondary)
-           (update-free-camera! image-view @current-input-state node-id dt))
-          #_(when-let [keys (g/maybe-node-value node-id :pressed-keys)]
-            (when (and (not (coll/empty? keys))
-                       (not (g/node-value (view->camera node-id) :animating))
-                       (g/maybe-node-value node-id :camera))
-              ))))
+           (update-free-camera! image-view @current-input-state node-id dt))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
           (advance-user-data-component!

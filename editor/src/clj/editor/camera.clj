@@ -767,6 +767,10 @@
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
+(def ^:private acceleration 12.0)
+(def ^:private look-smoothing 0.35)
+(def ^:private look-sensitivity 0.2)
+
 (defn look
   [current-camera free-camera cursor-pos cursor-lock-pos flip-y?]
   (let [raw-dx (if cursor-lock-pos
@@ -789,6 +793,8 @@
         [(assoc current-camera :rotation new-rotation)
          (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
+
+(def ^:private damping 8.0)
 
 (defn wasd-move
   [camera free-camera target-dir speed dt]
