@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -456,5 +457,33 @@ public class BundleHelperTest {
             FileUtils.deleteDirectory(sourceDir);
             FileUtils.deleteDirectory(targetDir);
         }
+    }
+
+    @Test
+    public void testFilterBundleResourcesBySharedLibPattern() {
+        Platform platform = Platform.X86_64Win32;
+        String libPrefix = platform.getLibPrefix();  // ""
+        String libSuffix = platform.getLibSuffix();  // ".dll"
+
+        Map<String, String> resources = new HashMap<>();
+        resources.put("example.dll", "dll");
+        resources.put("example_studio.dll", "dll");
+        resources.put("icon.ico", "ico");
+        resources.put("data.txt", "txt");
+        resources.put("example_vc.lib", "lib");
+
+        Map<String, String> filtered = new HashMap<>();
+        for (Map.Entry<String, String> entry : resources.entrySet()) {
+            String name = org.apache.commons.io.FilenameUtils.getName(entry.getKey());
+            if (name.startsWith(libPrefix) && name.endsWith(libSuffix)) {
+                filtered.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        assertEquals(2, filtered.size());
+        assertTrue(filtered.containsKey("example.dll"));
+        assertTrue(filtered.containsKey("example_studio.dll"));
+        assertFalse(filtered.containsKey("icon.ico"));
+        assertFalse(filtered.containsKey("example_vc.lib"));
     }
 }

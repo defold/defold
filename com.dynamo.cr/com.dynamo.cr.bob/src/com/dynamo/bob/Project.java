@@ -1845,6 +1845,33 @@ public class Project {
                             // original exception is included in the ExecutionException
                             try {
                                 remoteBuildFuture.get();
+
+                                // Widows: copy shared libraries from extension bundle resources to the build output.
+                                for (String platformStr : platforms) {
+                                    Platform archPlatform = Platform.get(platformStr);
+                                    if (archPlatform == null || !archPlatform.isWindows()) {
+                                        continue;
+                                    }
+
+                                    List<Platform> archPlatforms = new ArrayList<>();
+                                    archPlatforms.add(archPlatform);
+                                    Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(
+                                        Project.this, archPlatforms);
+
+                                    String libSuffix = archPlatform.getLibSuffix();
+                                    String libPrefix = archPlatform.getLibPrefix();
+                                    File binaryDir = new File(FilenameUtils.concat(
+                                        getBinaryOutputDirectory(), archPlatform.getExtenderPair()));
+
+                                    Map<String, IResource> sharedLibResources = new HashMap<>();
+                                    for (Map.Entry<String, IResource> entry : bundleResources.entrySet()) {
+                                        String name = FilenameUtils.getName(entry.getKey());
+                                        if (name.startsWith(libPrefix) && name.endsWith(libSuffix)) {
+                                            sharedLibResources.put(entry.getKey(), entry.getValue());
+                                        }
+                                    }
+                                    ExtenderUtil.writeResourcesToDirectory(sharedLibResources, binaryDir);
+                                }
                             }
                             catch (ExecutionException|InterruptedException e) {
                                 Throwable cause = e.getCause();
