@@ -582,6 +582,9 @@ pane.build-errors = Erros de Compilação
 pane.search-results = Resultados da Busca
 pane.breakpoints = Pontos de Interrupção
 
+# Assets
+
+
 # Console
 
 console.button.clear = Limpar
@@ -761,6 +764,7 @@ menu.view = Visualizar
 menu.help = Ajuda
 
 # Commands
+
 
 command.file.new = Novo…
 command.file.new.option.any-file = Arquivo
@@ -1448,6 +1452,7 @@ resource.type.vp = Programa de Vértices
 resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Notação de Objeto Zig
+
 
 # Forms
 
