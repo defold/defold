@@ -27,6 +27,8 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
 #include <extension/extension.hpp>
+#include <dmsdk/gamesys/script.h>
+#include <dmsdk/rig/rig.h>
 
 extern "C"
 {
@@ -194,14 +196,24 @@ namespace dmGameSystem
             }
         }
 
-        dmModelDDF::ModelPlayAnimation msg;
-        msg.m_AnimationId = anim_id;
-        msg.m_Playback = playback;
-        msg.m_BlendDuration = blend_duration;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
+        ModelWorld* world;
+        ModelComponent* component;
+        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, sender, functionref);
+        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
+        {
+            dmLogError("'%s:%s#%s' has no animation named '%s'",
+                    dmMessage::GetSocketName(receiver.m_Socket),
+                    dmHashReverseSafe64(receiver.m_Path),
+                    dmHashReverseSafe64(receiver.m_Fragment),
+                    dmHashReverseSafe64(anim_id));
+        }
+
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -335,14 +347,25 @@ namespace dmGameSystem
             }
         }
 
-        dmModelDDF::ModelPlayAnimation msg;
-        msg.m_AnimationId = anim_id;
-        msg.m_Playback = playback;
-        msg.m_BlendDuration = blend_duration;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
+        ModelWorld* world;
+        ModelComponent* component;
+        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, sender, functionref);
+        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
+        {
+            dmLogError("'%s:%s#%s' has no animation named '%s'",
+                    dmMessage::GetSocketName(receiver.m_Socket),
+                    dmHashReverseSafe64(receiver.m_Path),
+                    dmHashReverseSafe64(receiver.m_Fragment),
+                    dmHashReverseSafe64(anim_id));
+        }
+
         return 0;
     }
 
