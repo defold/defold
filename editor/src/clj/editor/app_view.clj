@@ -434,25 +434,15 @@
       (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
         (apply-tab-pane-active-style! tab-pane (= active-tab-pane tab-pane))))))
 
-(defn camera-controls-active? [app-view evaluation-context]
-  (let [scene-view (g/node-value app-view :active-view evaluation-context)]
-    (when-let [image-view ^ImageView (g/node-value scene-view :image-view evaluation-context)]
-      (let [last-action (ui/user-data (.getParent image-view) :editor.scene/last-mouse-action)]
-        (not (and (= :secondary (:button last-action))
-                  (not= :mouse-clicked (:type last-action))))))))
-
 (handler/defhandler :scene.select-move-tool :workbench
-  #_(enabled? [app-view evaluation-context] (camera-controls-active? app-view evaluation-context))
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
 
 (handler/defhandler :scene.select-scale-tool :workbench
-  #_(enabled? [app-view evaluation-context] (camera-controls-active? app-view evaluation-context))
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
-  #_(enabled? [app-view evaluation-context] (camera-controls-active? app-view evaluation-context))
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 

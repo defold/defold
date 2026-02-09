@@ -897,7 +897,7 @@
   (let [prefs-path (conj camera-perspective-prefs-path option)
         value (prefs/get prefs prefs-path)
         slider (Slider. 0.2 1.5 value)
-        label (Label. "Look Spd")]
+        label (Label. "Mouse")]
     (doto slider
       (ensure-focus-traversable!)
       (.setBlockIncrement 0.1)

@@ -1637,21 +1637,15 @@
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 10.0 0.0 0.0)))
 
-(defn- handle-key-pressed! [^KeyEvent event]
-  ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
-  ;; would be consumed by the TabPane and will trigger next/prev tab selection.
-  ;; Because of that, such key presses will not reach the workbench view and
-  ;; will not trigger the commands as might be expected
-  (when (not= ::unhandled
-              (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
-                ::unhandled
-                (condp = (.getCode event)
-                  KeyCode/UP (ui/run-command (.getSource event) :scene.move-up)
-                  KeyCode/DOWN (ui/run-command (.getSource event) :scene.move-down)
-                  KeyCode/LEFT (ui/run-command (.getSource event) :scene.move-left)
-                  KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
-                  ::unhandled)))
-    (.consume event)))
+(defn- attempt-run-arrow-key-commands! [^KeyEvent event]
+  (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
+    ::unhandled
+    (condp = (.getCode event)
+      KeyCode/UP (ui/run-command (.getSource event) :scene.move-up)
+      KeyCode/DOWN (ui/run-command (.getSource event) :scene.move-down)
+      KeyCode/LEFT (ui/run-command (.getSource event) :scene.move-left)
+      KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
+      ::unhandled)))
 
 (defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
@@ -1695,16 +1689,7 @@
                                     (g/update-property view-id :input-action-queue conj action)))))
                             (catch Throwable error
                               (reset! process-events? false)
-                              (error-reporting/report-exception! error)))))
-        simulate-mouse-on-modifier-keys! (fn [^KeyEvent e]
-                                           (when (and @process-events? (.isEmpty (.getText e)))
-                                             (when-let [last-action (ui/user-data parent ::last-mouse-action)]
-                                               (let [updated-action (assoc last-action
-                                                                      :alt (.isAltDown e)
-                                                                      :shift (.isShiftDown e)
-                                                                      :meta (.isMetaDown e)
-                                                                      :control (.isControlDown e))]
-                                                 (g/update-property! view-id :input-action-queue conj updated-action)))))]
+                              (error-reporting/report-exception! error)))))]
     (ui/on-mouse! parent (fn [type e] (cond
                                         (= type :exit)
                                         (g/set-property! view-id :cursor-pos nil))))
@@ -1739,7 +1724,12 @@
             (when (or (.isLetterKey code)
                       (.isDigitKey code))
               (swap! current-input update :pressed-keys conj code))))
-        (when (contains? (:mouse-buttons @current-input) :secondary)
+        ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
+        ;; would be consumed by the TabPane and will trigger next/prev tab selection.
+        ;; Because of that, such key presses will not reach the workbench view and
+        ;; will not trigger the commands as might be expected
+        (when (or (not= ::unhandled (attempt-run-arrow-key-commands! e))
+                  (contains? (:mouse-buttons @current-input) :secondary))
           (.consume e))))))
 
 (defn make-gl-pane! [view-id opts]
