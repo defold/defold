@@ -1157,6 +1157,10 @@ property.collision-object.shape.diameter = Diameter
 property.collision-object.shape.dimensions = Dimensions
 property.collision-object.shape.height = Height
 
+# Properties: compute
+
+property.compute.compute-program = Compute Program
+
 # Properties: cubemap
 
 property.cubemap.back = Back

@@ -31,6 +31,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private compute-program-message (localization/message "property.compute.compute-program"))
+
 (def ^:private form-data
   {:navigation false
    :sections
@@ -76,7 +78,7 @@
 
 (g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program]
   (or (g/flatten-errors
-        (prop-resource-error _node-id :compute-program compute-program "Compute Program" "cp"))
+        (prop-resource-error _node-id :compute-program compute-program compute-program-message "cp"))
       (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0 true)
             dep-build-targets [compute-shader-build-target]
             compute-desc-with-build-resources (assoc save-value

@@ -32,13 +32,6 @@
          (format "\"%s\" has been replaced by \"%s\"",
                  (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
 
-(defn format-ext
-  ;; todo replace all usages with `format-ext-message`, then rename it to `format-ext`
-  ^String [ext]
-  (if (coll? ext)
-    (util/join-words ", " " or " (into (sorted-set) (map (partial str \.)) ext))
-    (str \. ext)))
-
 (defn format-ext-message [ext]
   (if (coll? ext)
     (localization/or-list (vec (sort (mapv (partial str \.) ext))))
@@ -101,7 +94,10 @@
 (defn prop-resource-ext? [v ext name]
   (or (prop-resource-missing? v name)
       (when-not (= (resource/type-ext v) ext)
-        (format "%s '%s' is not of type %s" name (resource/resource->proj-path v) (format-ext ext)))))
+        (localization/message "error.resource-assignment-not-of-type"
+                              {"property" name
+                               "resource" (resource/resource->proj-path v)
+                               "type" (format-ext-message ext)}))))
 
 (defn prop-resource-not-component? [v name]
   (let [resource-type (some-> v resource/resource-type)
