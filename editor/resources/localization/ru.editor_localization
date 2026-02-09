@@ -2195,6 +2195,7 @@ error.lua-preprocessing-failed = Ошибка препроцессинга Lua.\
 error.transpiler-compilation-failed = Ошибка компиляции: {error}
 error.animation-set-build-failed = Не удалось собрать {resource}: {error}
 error.duplicate-instance-id = Идентификатор «{id}» уже используется в другом месте
+error.non-unique-ids = Следующие идентификаторы не уникальны: {ids}
 error.only-components-allowed = Для свойства «{property}» допустимы только компоненты. «{ext}» не является компонентом.
 error.property-resource-not-found = Ресурс «{resource}» свойства {property} не найден
 error.property-resource-is-a-broken-symlink = Символическая ссылка «{resource}» свойства {property} указывает на несуществующий путь «{path}»
