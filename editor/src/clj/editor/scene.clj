@@ -984,7 +984,12 @@
   (property tool-picking-rect Rect)
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
-  (property pressed-keys g/Any (default #{}))
+  (property input-state g/Any (default {:pressed-keys #{}
+                                        :mouse-buttons #{}
+                                        :modifiers #{}
+                                        :cursor-pos [0.0 0.0]
+                                        :cursor-lock-pos nil
+                                        :robot (Robot.)}))
 
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
@@ -1082,7 +1087,7 @@
   (let [camera-node (view->camera node-id)
         current-camera (g/node-value camera-node :local-camera)
         prefs (g/node-value camera-node :prefs)
-        {:keys [mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} @current-input
+        {:keys [mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} current-input
         is-secondary-button (contains? mouse-buttons :secondary)
         shift (contains? modifiers :shift)
         alt (contains? modifiers :alt)
@@ -1129,7 +1134,7 @@
     (when (not= final-camera current-camera)
       (set-camera! camera-node current-camera final-camera false))
     (when (and is-secondary-button cursor-lock-pos)
-      (let [robot (:robot @current-input)
+      (let [robot (:robot current-input)
             [x y] cursor-lock-pos]
         (.mouseMove robot x y)))))
 
@@ -1162,8 +1167,9 @@
           (update-image-view! image-view drawable async-copy-state-atom dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))
-          (when (contains? (:mouse-buttons @@current-input-state) :secondary)
-           (update-free-camera! image-view @current-input-state node-id dt))))
+          (when-let [input-state (g/node-value node-id :input-state)]
+            (when (contains? (:mouse-buttons input-state) :secondary)
+              (update-free-camera! image-view input-state node-id dt)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
           (advance-user-data-component!
@@ -1649,10 +1655,6 @@
 
 (defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
-        current-input (atom {:pressed-keys #{} :mouse-buttons #{} :modifiers #{} :cursor-pos [0.0 0.0]
-                             :cursor-lock-pos nil
-                             :robot (Robot.)})
-        _ (reset! current-input-state current-input)
         event-handler (ui/event-handler e
                         (when @process-events?
                           (try
@@ -1660,12 +1662,12 @@
                               (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                                     pos [x y 0.0]
                                     picking-rect (selection/calc-picking-rect pos pos)]
-                                (swap! current-input assoc :cursor-pos [screen-x screen-y])
+                                (g/update-property! view-id :input-state assoc :cursor-pos [screen-x screen-y])
                                 (when (= :mouse-pressed (:type action))
                                   (when (= :secondary (:button action))
-                                    (swap! current-input assoc :cursor-lock-pos [screen-x screen-y]))
-                                  (swap! current-input update :mouse-buttons conj (:button action))
-                                  (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                    (g/update-property! view-id :input-state assoc :cursor-lock-pos [screen-x screen-y]))
+                                  (g/update-property! view-id :input-state update :mouse-buttons conj (:button action))
+                                  (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
                                                                              (filter action)
                                                                              set))
                                   ;; Request focus and consume event to prevent someone else from stealing focus
@@ -1677,9 +1679,9 @@
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
                                   (when (= :secondary (:button action))
-                                    (swap! current-input assoc :cursor-lock-pos nil))
-                                  (swap! current-input update :mouse-buttons disj (:button action))
-                                  (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                    (g/update-property! view-id :input-state assoc :cursor-lock-pos nil))
+                                  (g/update-property! view-id :input-state update :mouse-buttons disj (:button action))
+                                  (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
                                                                              (filter action)
                                                                              set)))
                                 (g/transact
@@ -1705,32 +1707,34 @@
       (ui/event-handler e
         (let [code (.getCode e)
               action (i/action-from-jfx e)]
-          (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
-                                                     (filter action)
-                                                     set))
+          (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
+                                                                         (filter action)
+                                                                         set))
           (when (or (.isLetterKey code)
                     (.isDigitKey code))
-            (swap! current-input update :pressed-keys disj code)))
-        (when (contains? (:mouse-buttons @current-input) :secondary)
-          (.consume e))))
+            (g/update-property! view-id :input-state update :pressed-keys disj code))
+          (let [current-input (g/node-value view-id :input-state)]
+            (when (contains? (:mouse-buttons current-input) :secondary)
+              (.consume e))))))
     (.addEventFilter parent KeyEvent/KEY_PRESSED
       (ui/event-handler e
         (when @process-events?
           (let [code (.getCode e)
                 action (i/action-from-jfx e)]
-            (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+            (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
                                                        (filter action)
                                                        set))
             (when (or (.isLetterKey code)
                       (.isDigitKey code))
-              (swap! current-input update :pressed-keys conj code))))
+              (g/update-property! view-id :input-state update :pressed-keys conj code))))
         ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
         ;; would be consumed by the TabPane and will trigger next/prev tab selection.
         ;; Because of that, such key presses will not reach the workbench view and
         ;; will not trigger the commands as might be expected
-        (when (or (not= ::unhandled (attempt-run-arrow-key-commands! e))
-                  (contains? (:mouse-buttons @current-input) :secondary))
-          (.consume e))))))
+        (let [current-input (g/node-value view-id :input-state)]
+          (when (or (not= ::unhandled (attempt-run-arrow-key-commands! e))
+                    (contains? (:mouse-buttons current-input) :secondary))
+            (.consume e)))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
