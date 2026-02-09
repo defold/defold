@@ -2230,6 +2230,7 @@ error.material-does-not-support-paged-atlases = The Material does not support pa
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}
 error.animation-not-found = "{animation}" could not be found in "{property}"
 error.buffer-syntax-error = Syntax error in buffer file.
+error.editor-extension-compilation-failed = Could not compile editor extension.
 error.at-line = Line {line}: {error}
 error.render.title = RENDER ERROR:
 error.render.item = - {resource}: {error}
