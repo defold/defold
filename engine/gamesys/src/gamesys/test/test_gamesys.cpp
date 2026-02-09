@@ -5727,8 +5727,57 @@ TEST_F(MaterialTest, TestLightBuffer)
     ASSERT_EQ(dmResource::RESULT_OK, res);
     ASSERT_NE((void*)0, material_res);
 
-    ASSERT_TRUE(material_res->m_Material->m_HasLightBuffer);
-    ASSERT_EQ(32, material_res->m_Material->m_LightBufferLightsCount);
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    ASSERT_TRUE(material->m_HasLightBuffer);
+    ASSERT_EQ(32, material->m_LightBufferLightsCount);
+    // Set and binding are assigned from the shader's uniform block; ensure they are initialized
+    ASSERT_LT(material->m_LightBufferSet, 8u);
+    ASSERT_LT(material->m_LightBufferBinding, 32u);
+
+    // Verify the material's program declares a LightBuffer with the expected layout
+    dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+    ASSERT_NE((dmGraphics::HProgram)0, program);
+    const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
+    ASSERT_NE((void*)0, program_meta);
+
+    const dmhash_t light_buffer_type = dmHashString64("LightBuffer");
+    const dmhash_t lights_member = dmHashString64("lights");
+    bool found_light_buffer = false;
+    for (uint32_t i = 0; i < program_meta->m_TypeInfos.Size(); ++i)
+    {
+        const dmGraphics::ShaderResourceTypeInfo& type_info = program_meta->m_TypeInfos[i];
+        if (type_info.m_NameHash == light_buffer_type)
+        {
+            found_light_buffer = true;
+            for (uint32_t m = 0; m < type_info.m_MemberCount; ++m)
+            {
+                if (type_info.m_Members[m].m_NameHash == lights_member)
+                {
+                    ASSERT_EQ(32, type_info.m_Members[m].m_ElementCount);
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    ASSERT_TRUE(found_light_buffer);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(MaterialTest, TestLightBufferAbsent)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/valid.materialc", (void**)&material_res);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    ASSERT_FALSE(material->m_HasLightBuffer);
 
     dmResource::Release(m_Factory, material_res);
 }

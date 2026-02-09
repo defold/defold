@@ -1806,6 +1806,7 @@ TEST_F(dmRenderTest, FontMapSetup)
 
 TEST_F(dmRenderTest, LightBufferTestSimple)
 {
+    // Default params (point light, white, intensity 1, range 10, etc.)
     dmRender::LightPrototypeParams light_params;
     dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(m_Context, light_params);
     ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
@@ -1821,6 +1822,120 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
     }
 
     dmRender::DeleteLightPrototype(m_Context, light_prototype);
+}
+
+TEST_F(dmRenderTest, LightBufferTestAllTypes)
+{
+    dmRender::LightPrototypeParams params;
+
+    params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
+    params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+    params.m_Direction = dmVMath::Vector3(0.0f, -1.0f, 0.0f);
+    params.m_Intensity = 2.0f;
+    dmRender::HLightPrototype proto_dir = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_dir);
+    dmRender::HLightInstance inst_dir = dmRender::NewLightInstance(m_Context, proto_dir);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_dir);
+    dmRender::SetLightInstance(m_Context, inst_dir, dmVMath::Point3(0, 10, 0), dmVMath::Quat::identity());
+    dmRender::DeleteLightInstance(m_Context, inst_dir);
+    dmRender::DeleteLightPrototype(m_Context, proto_dir);
+
+    params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    params.m_Color = dmVMath::Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+    params.m_Range = 25.0f;
+    params.m_Intensity = 0.5f;
+    dmRender::HLightPrototype proto_point = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_point);
+    dmRender::HLightInstance inst_point = dmRender::NewLightInstance(m_Context, proto_point);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_point);
+    dmRender::SetLightInstance(m_Context, inst_point, dmVMath::Point3(5.0f, 0.0f, -3.0f), dmVMath::Quat::identity());
+    dmRender::DeleteLightInstance(m_Context, inst_point);
+    dmRender::DeleteLightPrototype(m_Context, proto_point);
+
+    params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    params.m_Color = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+    params.m_InnerConeAngle = 0.2f;
+    params.m_OuterConeAngle = 0.8f;
+    params.m_Range = 15.0f;
+    dmRender::HLightPrototype proto_spot = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_spot);
+    dmRender::HLightInstance inst_spot = dmRender::NewLightInstance(m_Context, proto_spot);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_spot);
+    dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity());
+    dmRender::DeleteLightInstance(m_Context, inst_spot);
+    dmRender::DeleteLightPrototype(m_Context, proto_spot);
+}
+
+TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    params.m_Intensity = 1.0f;
+    params.m_Range = 10.0f;
+
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, prototype);
+
+    dmRender::HLightInstance lights[4];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        lights[i] = dmRender::NewLightInstance(m_Context, prototype);
+        ASSERT_NE((dmRender::HLightInstance)0, lights[i]);
+        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, (float)i * 2.0f, (float)i * -1.0f), dmVMath::Quat::identity());
+    }
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmRender::DeleteLightInstance(m_Context, lights[i]);
+    }
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
+TEST_F(dmRenderTest, LightBufferTestIndexReuse)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, prototype);
+
+    dmRender::HLightInstance a = dmRender::NewLightInstance(m_Context, prototype);
+    dmRender::HLightInstance b = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, a);
+    ASSERT_NE((dmRender::HLightInstance)0, b);
+
+    dmRender::DeleteLightInstance(m_Context, a);
+    dmRender::HLightInstance c = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, c);
+
+    dmRender::SetLightInstance(m_Context, b, dmVMath::Point3(1, 0, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, c, dmVMath::Point3(2, 0, 0), dmVMath::Quat::identity());
+
+    dmRender::DeleteLightInstance(m_Context, b);
+    dmRender::DeleteLightInstance(m_Context, c);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
+TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, prototype);
+
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity());
+    // Z rotation by 45 degrees: quat (0, 0, sin(θ/2), cos(θ/2))
+    const float half = 3.14159265f / 8.0f;
+    dmVMath::Quat rot_z(0.0f, 0.0f, sinf(half), cosf(half));
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_z);
+
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
 TEST(Constants, Constant)
