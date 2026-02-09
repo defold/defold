@@ -797,9 +797,10 @@
 (def ^:private damping 8.0)
 
 (defn wasd-move
-  [camera free-camera target-dir speed dt]
+  [camera free-camera fps-plane target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
+
   (.scale target-dir speed)
 
   (let [vel (:velocity free-camera) 
@@ -920,6 +921,24 @@
     (ui/add-style! label "slide-switch-label")
     [label check-box]))
 
+(defmethod settings-row :fps-mode
+  [app-view prefs _popup option]
+  (let [prefs-path (conj camera-perspective-prefs-path option)
+        value (prefs/get prefs prefs-path)
+        check-box (CheckBox.)
+        label (Label. "FPS Mode")]
+    (doto check-box
+      (ui/value! value)
+      (ui/remove-style! "check-box")
+      (ui/add-style! "slide-switch")
+      (ensure-focus-traversable!)
+      (ui/on-action! (fn [_]
+                       (prefs/set! prefs prefs-path (ui/value check-box))
+                       (invalidate-grids! app-view))))
+    (HBox/setHgrow label Priority/ALWAYS)
+    (ui/add-style! label "slide-switch-label")
+    [label check-box]))
+
 (declare settings)
 
 (defn- reset-button
@@ -929,7 +948,7 @@
         reset-fn (fn [^ActionEvent event]
                    (let [target ^Node (.getTarget event)
                          parent (.getParent target)]
-                     (doseq [path [[:speed] [:flip-y]]]
+                     (doseq [path [[:speed] [:flip-y] [:fps-mode]]]
                        (let [path (into camera-perspective-prefs-path path)]
                          (prefs/set! prefs path (:default (prefs/schema prefs path)))))
                      (invalidate-grids! app-view)
@@ -947,7 +966,7 @@
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)
         reset-btn (reset-button app-view prefs popup)]
-    (->> [:speed :flip-y]
+    (->> [:speed :flip-y :fps-mode]
          (e/remove (partial contains? options))
          (reduce (fn [rows option]
                    (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs popup option)))
