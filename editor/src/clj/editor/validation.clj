@@ -104,7 +104,9 @@
         tags (:tags resource-type)]
     (when-not (or (contains? tags :component)
                   (contains? tags :embeddable))
-      (format "Only components allowed for '%s'. '%s' is not a component." name (:ext resource-type)))))
+      (localization/message "error.only-components-allowed"
+                            {"property" name
+                             "ext" (:ext resource-type)}))))
 
 (defn prop-member-of? [v val-set message]
   (when (and val-set (not (val-set v)))
