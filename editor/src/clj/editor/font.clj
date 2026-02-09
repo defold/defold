@@ -62,6 +62,16 @@
 (def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private font-label (localization/message "resource.type.font"))
+(def ^:private alpha-message (localization/message "property.font.alpha"))
+(def ^:private cache-height-message (localization/message "property.font.cache-height"))
+(def ^:private cache-width-message (localization/message "property.font.cache-width"))
+(def ^:private font-message (localization/message "property.font.font"))
+(def ^:private material-message (localization/message "property.material"))
+(def ^:private outline-alpha-message (localization/message "property.font.outline-alpha"))
+(def ^:private outline-width-message (localization/message "property.font.outline-width"))
+(def ^:private shadow-alpha-message (localization/message "property.font.shadow-alpha"))
+(def ^:private shadow-blur-message (localization/message "property.font.shadow-blur"))
+(def ^:private size-message (localization/message "property.font.size"))
 
 (def ^:private alpha-slider-edit-type {:type :slider
                                        :min 0.0
@@ -468,8 +478,8 @@
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text]
-  (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-                              (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
+  (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
+                              (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
@@ -513,27 +523,27 @@
     :render-mode render-mode))
 
 (defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
-  (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font "Font")
-                                      (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font "Font")
-                                      (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) "Cache Width")
-                                      (validation/prop-error :fatal _node-id :cache-height validation/prop-negative? (:cache-height pb-msg) "Cache Height")]
+  (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
+                                      (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)
+                                      (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) cache-width-message)
+                                      (validation/prop-error :fatal _node-id :cache-height validation/prop-negative? (:cache-height pb-msg) cache-height-message)]
 
                                      (when (or (= type :defold) (= type :distance-field))
-                                       [(validation/prop-error :fatal _node-id :size validation/prop-zero-or-below? (:size pb-msg) "Size")
-                                        (validation/prop-error :fatal _node-id :outline-width validation/prop-negative? (:outline-width pb-msg) "Outline Width")
-                                        (validation/prop-error :fatal _node-id :alpha validation/prop-negative? (:alpha pb-msg) "Alpha")
-                                        (validation/prop-error :fatal _node-id :outline-alpha validation/prop-negative? (:outline-alpha pb-msg) "Outline Alpha")])
+                                       [(validation/prop-error :fatal _node-id :size validation/prop-zero-or-below? (:size pb-msg) size-message)
+                                        (validation/prop-error :fatal _node-id :outline-width validation/prop-negative? (:outline-width pb-msg) outline-width-message)
+                                        (validation/prop-error :fatal _node-id :alpha validation/prop-negative? (:alpha pb-msg) alpha-message)
+                                        (validation/prop-error :fatal _node-id :outline-alpha validation/prop-negative? (:outline-alpha pb-msg) outline-alpha-message)])
 
                                      (when (= type :defold)
-                                       [(validation/prop-error :fatal _node-id :shadow-alpha validation/prop-negative? (:shadow-alpha pb-msg) "Shadow Alpha")
-                                        (validation/prop-error :fatal _node-id :shadow-blur validation/prop-negative? (:shadow-blur pb-msg) "Shadow Blur")]))
+                                       [(validation/prop-error :fatal _node-id :shadow-alpha validation/prop-negative? (:shadow-alpha pb-msg) shadow-alpha-message)
+                                        (validation/prop-error :fatal _node-id :shadow-blur validation/prop-negative? (:shadow-blur pb-msg) shadow-blur-message)]))
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
       (try
         (font-gen/generate pb-msg font font-resource-resolver)
         (catch Exception error
-          (let [message (str "Failed to generate bitmap from Font. " (.getMessage error))]
+          (let [message (localization/message "error.font-bitmap-generation-failed" {"error" (.getMessage error)})]
             (log/error :msg message :exception error)
             (g/->error _node-id :font :fatal font message))))))
 
@@ -564,8 +574,8 @@
      :user-data user-data}))
 
 (g/defnk produce-build-targets [_node-id resource cache-width cache-height font-map material dep-build-targets runtime-generation-build-target]
-  (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-                              (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
+  (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
+                              (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
@@ -708,8 +718,8 @@
                                             [:font-resource-map :font-resource-map]
                                             [:runtime-generation-build-target :runtime-generation-build-target])))
             (dynamic error (g/fnk [_node-id font-resource]
-                             (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource "Font")
-                                 (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font"))))
+                             (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource font-message)
+                                 (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource font-message))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext font-file-extensions}))
@@ -725,8 +735,8 @@
                                     [:samplers :material-samplers]
                                     [:shader :material-shader])))
     (dynamic error (g/fnk [_node-id material-resource]
-                          (or (validation/prop-error :fatal _node-id :font validation/prop-nil? material-resource "Material")
-                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource "Material"))))
+                          (or (validation/prop-error :fatal _node-id :font validation/prop-nil? material-resource material-message)
+                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource material-message))))
     (dynamic edit-type (g/constantly
                          {:type resource/Resource
                           :ext ["material"]})))
@@ -741,7 +751,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :font :render-mode)))
   (property size g/Int (default (protobuf/required-default Font$FontDesc :size))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size))
+            (dynamic error (g/fnk [_node-id size]
+                             (validation/prop-error :fatal _node-id :size validation/prop-zero-or-below? size size-message)))
             (dynamic label (properties/label-dynamic :font :size))
             (dynamic tooltip (properties/tooltip-dynamic :font :size)))
   (property antialias g/Bool (default (protobuf/int->boolean (protobuf/default Font$FontDesc :antialias)))
@@ -750,31 +761,36 @@
             (dynamic tooltip (properties/tooltip-dynamic :font :antialias)))
   (property alpha g/Num (default (protobuf/default Font$FontDesc :alpha))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha))
+            (dynamic error (g/fnk [_node-id alpha]
+                             (validation/prop-error :fatal _node-id :alpha validation/prop-negative? alpha alpha-message)))
             (dynamic edit-type (g/constantly alpha-slider-edit-type))
             (dynamic label (properties/label-dynamic :font :alpha))
             (dynamic tooltip (properties/tooltip-dynamic :font :alpha)))
   (property outline-alpha g/Num (default (protobuf/default Font$FontDesc :outline-alpha))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha))
+            (dynamic error (g/fnk [_node-id outline-alpha]
+                             (validation/prop-error :fatal _node-id :outline-alpha validation/prop-negative? outline-alpha outline-alpha-message)))
             (dynamic edit-type (g/constantly alpha-slider-edit-type))
             (dynamic label (properties/label-dynamic :font :outline-alpha))
             (dynamic tooltip (properties/tooltip-dynamic :font :outline-alpha)))
   (property outline-width g/Num (default (protobuf/default Font$FontDesc :outline-width))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width))
+            (dynamic error (g/fnk [_node-id outline-width]
+                             (validation/prop-error :fatal _node-id :outline-width validation/prop-negative? outline-width outline-width-message)))
             (dynamic edit-type (g/constantly shadows-outline-slider-edit-type))
             (dynamic label (properties/label-dynamic :font :outline-width))
             (dynamic tooltip (properties/tooltip-dynamic :font :outline-width)))
   (property shadow-alpha g/Num (default (protobuf/default Font$FontDesc :shadow-alpha))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha))
+            (dynamic error (g/fnk [_node-id shadow-alpha]
+                             (validation/prop-error :fatal _node-id :shadow-alpha validation/prop-negative? shadow-alpha shadow-alpha-message)))
             (dynamic edit-type (g/constantly alpha-slider-edit-type))
             (dynamic label (properties/label-dynamic :font :shadow-alpha))
             (dynamic tooltip (properties/tooltip-dynamic :font :shadow-alpha)))
   (property shadow-blur g/Num (default (protobuf/default Font$FontDesc :shadow-blur))
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur))
+            (dynamic error (g/fnk [_node-id shadow-blur]
+                             (validation/prop-error :fatal _node-id :shadow-blur validation/prop-negative? shadow-blur shadow-blur-message)))
             (dynamic edit-type (g/constantly shadows-outline-slider-edit-type))
             (dynamic label (properties/label-dynamic :font :shadow-blur))
             (dynamic tooltip (properties/tooltip-dynamic :font :shadow-blur)))
@@ -787,11 +803,13 @@
             (dynamic label (properties/label-dynamic :font :shadow-y))
             (dynamic tooltip (properties/tooltip-dynamic :font :shadow-y)))
   (property cache-width g/Int (default (protobuf/default Font$FontDesc :cache-width))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width))
+            (dynamic error (g/fnk [_node-id cache-width]
+                             (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? cache-width cache-width-message)))
             (dynamic label (properties/label-dynamic :font :cache-width))
             (dynamic tooltip (properties/tooltip-dynamic :font :cache-width)))
   (property cache-height g/Int (default (protobuf/default Font$FontDesc :cache-height))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height))
+            (dynamic error (g/fnk [_node-id cache-height]
+                             (validation/prop-error :fatal _node-id :cache-height validation/prop-negative? cache-height cache-height-message)))
             (dynamic label (properties/label-dynamic :font :cache-height))
             (dynamic tooltip (properties/tooltip-dynamic :font :cache-height)))
   (property characters g/Str (default (protobuf/default Font$FontDesc :characters))

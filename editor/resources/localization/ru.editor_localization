@@ -2205,6 +2205,7 @@ error.material-max-page-count-insufficient = Значение «Макс. стр
 error.animation-not-found = В значении свойства «{property}» не найдена анимация «{animation}»
 error.buffer-syntax-error = Синтаксическая ошибка в файле буфера.
 error.editor-extension-compilation-failed = Не удалось скомпилировать расширение редактора.
+error.font-bitmap-generation-failed = Не удалось сгенерировать растровое изображение из шрифта. {error}
 error.at-line = Строка {line}: {error}
 error.render.title = ОШИБКА ОТРИСОВКИ:
 error.render.item = - {resource}: {error}

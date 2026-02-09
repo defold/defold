@@ -2231,6 +2231,7 @@ error.material-max-page-count-insufficient = The Material's "Max Page Count" is 
 error.animation-not-found = "{animation}" could not be found in "{property}"
 error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
+error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
 error.at-line = Line {line}: {error}
 error.render.title = RENDER ERROR:
 error.render.item = - {resource}: {error}
