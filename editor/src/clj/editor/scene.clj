@@ -1607,35 +1607,35 @@
 
 (handler/defhandler :scene.move-up :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 0.0 1.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
 
 (handler/defhandler :scene.move-down :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 0.0 -1.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
 
 (handler/defhandler :scene.move-left :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) -1.0 0.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 1.0 0.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-up-major :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 0.0 10.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
 
 (handler/defhandler :scene.move-down-major :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 0.0 -10.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
 
 (handler/defhandler :scene.move-left-major :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) -10.0 0.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right-major :workbench
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
-  (run [selection evaluation-context] (nudge! (selection->movable selection evaluation-context) 10.0 0.0 0.0)))
+  (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
 (defn- attempt-run-arrow-key-commands! [^KeyEvent event]
   (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
