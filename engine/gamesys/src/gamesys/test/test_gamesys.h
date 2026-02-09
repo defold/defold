@@ -659,6 +659,10 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
 
+    m_LightContext.m_RenderContext = m_RenderContext;
+    m_LightContext.m_Factory = m_Factory;
+    m_LightContext.m_MaxLightCount = 32;
+
     dmBuffer::NewContext(); // ???
 
     m_Contexts.OffsetCapacity(16);

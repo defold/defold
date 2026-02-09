@@ -5627,23 +5627,23 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    dmGraphics::ShaderResourceMember light_color_members[2];
+    dmGraphics::ShaderResourceMember color_intensity_members[2];
 
     // color : vec3
-    light_color_members[0].m_Name                 = (char*)"color";
-    light_color_members[0].m_NameHash             = dmHashString64("color");
-    light_color_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
-    light_color_members[0].m_Type.m_UseTypeIndex  = 0;
-    light_color_members[0].m_ElementCount         = 1;
-    light_color_members[0].m_Offset               = 0;
+    color_intensity_members[0].m_Name                 = (char*)"color";
+    color_intensity_members[0].m_NameHash             = dmHashString64("color");
+    color_intensity_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+    color_intensity_members[0].m_Type.m_UseTypeIndex  = 0;
+    color_intensity_members[0].m_ElementCount         = 1;
+    color_intensity_members[0].m_Offset               = 0;
 
     // intensity : float
-    light_color_members[1].m_Name                 = (char*)"intensity";
-    light_color_members[1].m_NameHash             = dmHashString64("intensity");
-    light_color_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-    light_color_members[1].m_Type.m_UseTypeIndex  = 0;
-    light_color_members[1].m_ElementCount         = 1;
-    light_color_members[1].m_Offset               = 0;
+    color_intensity_members[1].m_Name                 = (char*)"intensity";
+    color_intensity_members[1].m_NameHash             = dmHashString64("intensity");
+    color_intensity_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+    color_intensity_members[1].m_Type.m_UseTypeIndex  = 0;
+    color_intensity_members[1].m_ElementCount         = 1;
+    color_intensity_members[1].m_Offset               = 0;
 
     dmGraphics::ShaderResourceMember light_members[2];
 
@@ -5655,7 +5655,7 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     light_members[0].m_ElementCount         = 1;
     light_members[0].m_Offset               = 0;
 
-    // color_intensity : LightColor
+    // color_intensity : ColorIntensity (matches uniform_buffers.fp struct name)
     light_members[1].m_Name                 = (char*)"color_intensity";
     light_members[1].m_NameHash             = dmHashString64("color_intensity");
     light_members[1].m_Type.m_TypeIndex     = 2;   // index into ShaderResourceTypeInfo[]
@@ -5697,10 +5697,10 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     types[1].m_Members     = light_members;
     types[1].m_MemberCount = 2;
 
-    // LightColor (index 2)
-    types[2].m_Name        = (char*)"LightColor";
-    types[2].m_NameHash    = dmHashString64("LightColor");
-    types[2].m_Members     = light_color_members;
+    // ColorIntensity (index 2) - must match struct name in uniform_buffers.fp
+    types[2].m_Name        = (char*)"ColorIntensity";
+    types[2].m_NameHash    = dmHashString64("ColorIntensity");
+    types[2].m_Members     = color_intensity_members;
     types[2].m_MemberCount = 2;
 
     dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
