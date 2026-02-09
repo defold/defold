@@ -1662,7 +1662,6 @@
                                 (swap! current-input assoc :cursor-pos [screen-x screen-y])
                                 (when (= :mouse-pressed (:type action))
                                   (when (= :secondary (:button action))
-                                    (reset! ui/*disable-handlers* true)
                                     (swap! current-input assoc :cursor-lock-pos [screen-x screen-y]))
                                   (swap! current-input update :mouse-buttons conj (:button action))
                                   (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
@@ -1677,7 +1676,6 @@
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
                                   (when (= :secondary (:button action))
-                                    (reset! ui/*disable-handlers* false)
                                     (swap! current-input assoc :cursor-lock-pos nil))
                                   (swap! current-input update :mouse-buttons disj (:button action))
                                   (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
@@ -1711,18 +1709,19 @@
     (.setOnDragOver parent event-handler)
     (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)
-    (.setOnKeyReleased parent
+    (.addEventFilter parent KeyEvent/KEY_RELEASED
       (ui/event-handler e
-        (when @process-events?
-          (let [code (.getCode e)
-                action (i/action-from-jfx e)]
-            (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
-                                                         (filter action)
-                                                         set))
-            (when (or (.isLetterKey code)
-                      (.isDigitKey code))
-              (swap! current-input update :pressed-keys disj code))))))
-    (.setOnKeyPressed parent
+        (let [code (.getCode e)
+              action (i/action-from-jfx e)]
+          (swap! current-input assoc :modifiers (->> [:alt :shift :meta :control]
+                                                     (filter action)
+                                                     set))
+          (when (or (.isLetterKey code)
+                    (.isDigitKey code))
+            (swap! current-input update :pressed-keys disj code)))
+        (when (contains? (:mouse-buttons @current-input) :secondary)
+          (.consume e))))
+    (.addEventFilter parent KeyEvent/KEY_PRESSED
       (ui/event-handler e
         (when @process-events?
           (let [code (.getCode e)
@@ -1732,7 +1731,9 @@
                                                        set))
             (when (or (.isLetterKey code)
                       (.isDigitKey code))
-              (swap! current-input update :pressed-keys conj code))))))))
+              (swap! current-input update :pressed-keys conj code))))
+        (when (contains? (:mouse-buttons @current-input) :secondary)
+          (.consume e))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
