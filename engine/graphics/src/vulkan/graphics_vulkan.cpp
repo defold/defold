@@ -1653,16 +1653,14 @@ bail:
 
     }
 
-    static void DeviceBufferUploadHelper(VulkanContext* context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut, uint32_t allocation_size = 0)
+    static void DeviceBufferUploadHelper(VulkanContext* context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut)
     {
         VkResult res;
-
-        uint32_t create_size = allocation_size > 0 ? allocation_size : size;
 
         if (bufferOut->m_Destroyed || bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE)
         {
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                create_size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
+                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
             CHECK_VK_ERROR(res);
         }
 
@@ -1776,37 +1774,40 @@ bail:
         return cached_pipeline;
     }
 
-    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data, uint32_t copy_size = 0)
+    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data)
     {
         if (size == 0)
         {
             return;
         }
 
-        if (copy_size == 0)
+        if (offset == 0)
         {
-            copy_size = size;
+            // Coherent memory writes does not seem to be properly synced on MoltenVK,
+            // so for now we always mark the old buffer for destruction when updating the data.
+        #ifndef __MACH__
+            if (size != buffer->m_MemorySize)
+        #endif
+            {
+                DestroyResourceDeferred(context, buffer);
+            }
         }
 
-        if (offset == 0 && size > buffer->m_MemorySize)
-        {
-            // Requested size is larger than current buffer: mark for destruction so it gets recreated.
-            // Use size > m_MemorySize (not !=) because Vulkan may allocate more than requested due to
-            // alignment (e.g. uniform buffer 2064 -> 2112); we must not destroy when the existing
-            // buffer is already big enough.
-            DestroyResourceDeferred(context, buffer);
-        }
-
-        DeviceBufferUploadHelper(context, data, copy_size, offset, buffer, copy_size != size ? size : 0);
+        DeviceBufferUploadHelper(context, data, size, offset, buffer);
     }
 
     static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
+        VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+        CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
     }
@@ -1816,13 +1817,8 @@ bail:
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
         assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
-        // When offset is 0 we may recreate the buffer; use full layout size so subsequent
-        // writes at non-zero offsets (e.g. light count) remain within the buffer.
-        uint32_t buffer_size = (offset == 0 && ubo->m_BaseUniformBuffer.m_Layout.m_Size > size)
-            ? ubo->m_BaseUniformBuffer.m_Layout.m_Size
-            : size;
-        // Copy only 'size' bytes; buffer_size is for allocation only (avoids overread and NaN at later offsets).
-        SetDeviceBuffer(context, &ubo->m_DeviceBuffer, buffer_size, offset, data, size);
+
+        DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
     static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)

@@ -15,9 +15,6 @@
 #include "render.h"
 #include "render_private.h"
 
-// Access internal graphics program/binding information
-#include "../../../graphics/src/graphics_private.h"
-
 namespace dmRender
 {
     static struct

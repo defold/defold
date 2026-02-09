@@ -1558,8 +1558,6 @@ namespace dmGraphics
 
         visited[type_index] = true;
 
-        dmLogInfo("Hashing type %s", types[type_index].m_Name);
-
         const ShaderResourceTypeInfo& type = types[type_index];
 
         for (uint32_t j = 0; j < type.m_MemberCount; ++j)
@@ -1589,8 +1587,6 @@ namespace dmGraphics
                 ShaderDesc::ShaderDataType shader_type = member.m_Type.m_ShaderType;
                 dmHashUpdateBuffer32(hash_state, &shader_type, sizeof(shader_type));
             }
-
-            dmLogInfo("  %s: hash=%d, offset=%d, element_count=%d, type=%d", type.m_Name, hash_state->m_Hash, member.m_Offset, member.m_ElementCount, member.m_Type.m_ShaderType);
         }
     }
 

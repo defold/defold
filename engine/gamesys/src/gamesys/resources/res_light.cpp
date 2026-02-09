@@ -42,25 +42,6 @@ namespace dmGameSystem
         }
     }
 
-    static void GetVector3(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector3* out)
-    {
-        const dmStructDDF::Struct::FieldsEntry* f = FindField(s, key);
-        if (!f)
-        {
-            return;
-        }
-
-        dmStructDDF::ListValue* list = f->m_Value->m_Kind.m_ListValue;
-        if (!list || list->m_Values.m_Count < 3)
-        {
-            return;
-        }
-
-        out->setX((float) list->m_Values[0].m_Kind.m_NumberValue);
-        out->setY((float) list->m_Values[1].m_Kind.m_NumberValue);
-        out->setZ((float) list->m_Values[2].m_Kind.m_NumberValue);
-    }
-
     static void GetVector4(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector4* out)
     {
         const dmStructDDF::Struct::FieldsEntry* f = FindField(s, key);
@@ -83,6 +64,13 @@ namespace dmGameSystem
                     : 1.0f;
 
         *out = dmVMath::Vector4(r, g, b, a);
+    }
+
+    static void GetVector3(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector3* out)
+    {
+        dmVMath::Vector4 v4;
+        GetVector4(s, key, &v4);
+        *out = dmVMath::Vector3(v4.getX(), v4.getY(), v4.getZ());
     }
 
     static void DDFToLightParams(const dmGameSystemDDF::LightDesc* light_desc, dmRender::LightParams& params)
