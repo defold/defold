@@ -2216,6 +2216,7 @@ error.collision-object-has-no-shapes = Collision Object has no shapes
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics
 error.property-cannot-exceed = "{property}" cannot exceed {value}
 error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas
+error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right_size}\n{left} = {left_size}\n{top} = {top_size}\n{bottom} = {bottom_size}\n{front} = {front_size}\n{back} = {back_size}
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
