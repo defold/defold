@@ -582,6 +582,9 @@ pane.build-errors = Ошибки Сборки
 pane.search-results = Результаты Поиска
 pane.breakpoints = Точки останова
 
+# Assets
+
+
 # Console
 
 console.button.clear = Очистить
@@ -761,6 +764,7 @@ menu.view = Вид
 menu.help = Справка
 
 # Commands
+
 
 command.file.new = Создать…
 command.file.new.option.any-file = Файл
@@ -1449,6 +1453,7 @@ resource.type.vp = Вершинный шейдер
 resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Нотация объектов Zig
+
 
 # Forms
 
