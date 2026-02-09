@@ -1090,14 +1090,13 @@
                  (cond shift camera-speed-boost alt camera-speed-precision :else 1.0)
                  (prefs/get prefs [:scene :perspective-camera :speed]))
         free-camera (g/node-value camera-node :free-camera)
-        fps-plane (when (prefs/get prefs [:scene :perspective-camera :fps-mode])
-                    :y)
+        walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
         forward (let [f (c/camera-forward-vector current-camera)]
-                  (if fps-plane
+                  (if walking-mode
                     (Vector3d. (.x f) 0.0 (.z f))
                     f))
         right (c/camera-right-vector current-camera)
-        up (if fps-plane
+        up (if walking-mode
              (Vector3d. 0.0 1.0 0.0)
              (c/camera-up-vector current-camera))
         [camera-after-look free-camera] (if is-secondary-button
@@ -1105,19 +1104,27 @@
                                                   free-camera
                                                   cursor-pos
                                                   cursor-lock-pos
-                                                  (prefs/get prefs [:scene :perspective-camera :flip-y]))
+                                                  (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
+                                                  (prefs/get prefs [:scene :perspective-camera :invert-y]))
                                           [current-camera free-camera])
-
+        key-for-command (fn [cmd] (some-> (first (keymap/shortcuts (keymap/default) cmd))
+                                          (.getCode)))
+        w-key (key-for-command :scene.camera-move-forward)
+        a-key (key-for-command :scene.camera-move-left)
+        s-key (key-for-command :scene.camera-move-backward)
+        d-key (key-for-command :scene.camera-move-right)
+        q-key (key-for-command :scene.camera-move-down)
+        e-key (key-for-command :scene.camera-move-up)
         target-dir (Vector3d. 0.0 0.0 0.0)
         _ (doseq [key pressed-keys]
             (cond
-              (= key KeyCode/W) (.add target-dir forward)
-              (= key KeyCode/S) (.sub target-dir forward)
-              (= key KeyCode/A) (.sub target-dir right)
-              (= key KeyCode/D) (.add target-dir right)
-              (= key KeyCode/Q) (.sub target-dir up)
-              (= key KeyCode/E) (.add target-dir up)))
-        final-camera (c/wasd-move camera-after-look free-camera fps-plane target-dir speed dt)]
+              (= key w-key) (.add target-dir forward)
+              (= key s-key) (.sub target-dir forward)
+              (= key d-key) (.add target-dir right)
+              (= key a-key) (.sub target-dir right)
+              (= key q-key) (.sub target-dir up)
+              (= key e-key) (.add target-dir up)))
+        final-camera (c/wasd-move camera-after-look free-camera target-dir speed dt)]
     (g/set-property camera-node :free-camera free-camera)
     (when (not= final-camera current-camera)
       (set-camera! camera-node current-camera final-camera false))

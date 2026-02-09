@@ -409,16 +409,6 @@
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
 
-(defn look [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
-  (let [dx (- last-x evt-x)
-        dy (- last-y evt-y)
-        rate 0.001
-        current-rotation (Quat4d. (:rotation camera))
-        q1 (doto (Quat4d.) (.set (AxisAngle4d. 1.0 0.0 0.0 (* dy rate))))
-        q2 (doto (Quat4d.) (.set (AxisAngle4d. 0.0 1.0 0.0 (* dx rate))))
-        new-rotation (doto (Quat4d. q2) (.mul current-rotation) (.mul q1))]
-    (assoc camera :rotation new-rotation)))
-
 (defn pan-at-pointer-position
   "Pans the camera so that the focus point is at the same position as it was before `dolly`."
   [^Camera camera ^Camera prev-camera ^Region viewport [^double x ^double y]]
@@ -769,10 +759,9 @@
 
 (def ^:private acceleration 12.0)
 (def ^:private look-smoothing 0.35)
-(def ^:private look-sensitivity 0.2)
 
 (defn look
-  [current-camera free-camera cursor-pos cursor-lock-pos flip-y?]
+  [current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
   (let [raw-dx (if cursor-lock-pos
                  (- (first cursor-lock-pos) (first cursor-pos))
                  (first cursor-pos))
@@ -785,7 +774,7 @@
         smooth-dy (+ prev-dy (* look-smoothing (- raw-dy prev-dy)))]
 
     (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
-      (let [smooth-dy (* smooth-dy (if flip-y? -1 1))
+      (let [smooth-dy (* smooth-dy (if invert-y? -1 1))
             [rx ry rz] (math/quat->euler (:rotation current-camera))
             yaw (+ ry (* smooth-dx look-sensitivity))
             pitch (max -86.0 (min 86.0 (+ rx (* smooth-dy look-sensitivity))))
@@ -797,7 +786,7 @@
 (def ^:private damping 8.0)
 
 (defn wasd-move
-  [camera free-camera fps-plane target-dir speed dt]
+  [camera free-camera target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
@@ -903,12 +892,34 @@
           (invalidate-grids! app-view))))
     [label slider]))
 
-(defmethod settings-row :flip-y
+(defmethod settings-row :look-sensitivity
+  [app-view prefs ^PopupControl popup option]
+  (let [prefs-path (conj camera-perspective-prefs-path option)
+        value (prefs/get prefs prefs-path)
+        slider (Slider. 0.2 1.5 value)
+        label (Label. "Look Spd")]
+    (doto slider
+      (ensure-focus-traversable!)
+      (.setBlockIncrement 0.1)
+      ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
+      ;; when autoHide is set to true.
+      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
+      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+
+    (ui/observe
+      (.valueProperty slider)
+      (fn [_observable _old-val new-val]
+        (let [val (math/round-with-precision new-val 0.01)]
+          (prefs/set! prefs prefs-path val)
+          (invalidate-grids! app-view))))
+    [label slider]))
+
+(defmethod settings-row :invert-y
   [app-view prefs _popup option]
   (let [prefs-path (conj camera-perspective-prefs-path option)
         value (prefs/get prefs prefs-path)
         check-box (CheckBox.)
-        label (Label. "Flip Y")]
+        label (Label. "Invert Y")]
     (doto check-box
       (ui/value! value)
       (ui/remove-style! "check-box")
@@ -921,12 +932,12 @@
     (ui/add-style! label "slide-switch-label")
     [label check-box]))
 
-(defmethod settings-row :fps-mode
+(defmethod settings-row :walking-mode
   [app-view prefs _popup option]
   (let [prefs-path (conj camera-perspective-prefs-path option)
         value (prefs/get prefs prefs-path)
         check-box (CheckBox.)
-        label (Label. "FPS Mode")]
+        label (Label. "Walking Mode")]
     (doto check-box
       (ui/value! value)
       (ui/remove-style! "check-box")
@@ -948,7 +959,7 @@
         reset-fn (fn [^ActionEvent event]
                    (let [target ^Node (.getTarget event)
                          parent (.getParent target)]
-                     (doseq [path [[:speed] [:flip-y] [:fps-mode]]]
+                     (doseq [path [[:speed] [:look-sensitivity] [:invert-y] [:walking-mode]]]
                        (let [path (into camera-perspective-prefs-path path)]
                          (prefs/set! prefs path (:default (prefs/schema prefs path)))))
                      (invalidate-grids! app-view)
@@ -966,7 +977,7 @@
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)
         reset-btn (reset-button app-view prefs popup)]
-    (->> [:speed :flip-y :fps-mode]
+    (->> [:speed :look-sensitivity :invert-y :walking-mode]
          (e/remove (partial contains? options))
          (reduce (fn [rows option]
                    (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs popup option)))

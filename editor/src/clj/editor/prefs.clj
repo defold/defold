@@ -250,8 +250,9 @@
              :perspective-camera {:type :object
                                   :scope :project
                                   :properties {:speed {:type :number :default 1.0}
-                                               :flip-y {:type :boolean :default false}
-                                               :fps-mode {:type :boolean :default false}}}}}
+                                               :invert-y {:type :boolean :default false}
+                                               :look-sensitivity {:type :number :default 1.0}
+                                               :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :one-of
