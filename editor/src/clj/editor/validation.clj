@@ -72,7 +72,7 @@
 
 (defn prop-zero-or-below? [v name]
   (when (<= v 0)
-    (format "'%s' must be greater than zero" name)))
+    (localization/message "error.property-must-be-greater-than-zero" {"property" name})))
 
 (defn prop-nil? [v name]
   (when (nil? v)
