@@ -343,6 +343,14 @@ notification.fetch-libraries.dependencies-missing.warning = 以下依赖项缺�
 notification.fetch-libraries.dependencies-error.error = 无法安装以下依赖：\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = 打开 game.project
 
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = 打开 game.project
+notification.liveupdate-settings.unavailable.error = 无法打开热更新设置\: {reason}
+notification.shared-editor-settings.unavailable.error = 无法打开共享编辑器设置\: {reason}
+notification.ensure-exists.reason.missing = 未配置设置文件。
+notification.ensure-exists.reason.folder = 配置路径指向文件夹。
+
 # Language server notification
 
 notification.lsp.language-server-missing.prompt = 无法执行此操作，因为没有为 {language} 语言运行的语言服务器。
@@ -572,6 +580,7 @@ pane.console = 控制台
 pane.curve-editor = 曲线编辑
 pane.build-errors = 构建错误
 pane.search-results = 查找结果
+pane.breakpoints = 断点
 
 # Console
 
@@ -583,6 +592,19 @@ console.search = 搜索
 
 # Breakpoints Tab
 
+breakpoints.button.enable-all = 全部启用
+breakpoints.button.disable-all = 全部禁用
+breakpoints.button.toggle-all = 切换全部
+breakpoints.button.remove-all = 全部移除
+breakpoints.column.enabled = 启用
+breakpoints.column.line = 行
+breakpoints.column.name = 名称
+breakpoints.column.condition = 条件
+breakpoints.column.path = 路径
+breakpoints.context-menu.edit-selected = 编辑条件
+breakpoints.context-menu.remove-selected = 删除选定的断点
+breakpoints.context-menu.toggle-selected-enabled = 切换选定的断点
+breakpoints.context-menu.go-to-line = 转到行
 
 # Changes view
 
@@ -674,6 +696,7 @@ progress.initializing-editor = 正在初始化编辑器{lib}
 progress.loading-editor = 正在加载编辑器
 progress.loading = 正在加载
 progress.loading-resource = 正在加载 {resource}
+progress.processing-resource = 正在处理 {resource}
 progress.resolving-resource = 正在解析 {resource}
 progress.reading-resource = 正在读取 {resource}
 progress.finalizing = 正在完成…
@@ -896,6 +919,7 @@ command.debugger.step-out = 单步跳出
 command.debugger.detach = 分离调试器
 command.debugger.stop = 停止调试器
 command.debugger.toggle-breakpoint = 切换断点
+command.debugger.toggle-breakpoint-enabled = 切换断点启用
 command.debugger.edit-breakpoint = 编辑断点
 command.scene.set-manipulator-space = 设置操纵器间距
 command.scene.set-manipulator-space.option.world = 世界空间
@@ -974,6 +998,12 @@ override.aspect.generic.kind = {count, plural, one {\# 个方面} other {\# 个�
 # GUI
 
 gui.layout.default = 默认
+
+# UI
+
+ui.combo-box.filter-prompt = 输入内容进行筛选
+ui.combo-box.no-items = 无可用项目
+ui.combo-box.not-found = 未找到项目
 
 # Editing operations
 
@@ -1362,23 +1392,30 @@ resource.type.cubemap = 立方体贴图
 resource.type.defignore = 应忽略
 resource.type.defunload = 可卸载
 resource.type.display-profiles = 显示配置
+resource.type.dylib = 动态链接库
 resource.type.editor-localization = 编辑器本地化
 resource.type.editor-script = 编辑器脚本
 resource.type.factory = 工厂
 resource.type.font = 字体
 resource.type.fp = 片段程序
 resource.type.gamepads = 游戏手柄
+resource.type.gitignore = .gitignore
 resource.type.glsl = 着色器包含
 resource.type.go = 游戏对象
 resource.type.go.non-editable = 不可编辑游戏对象
+resource.type.gradle = Gradle 脚本
 resource.type.gui = 图形界面
 resource.type.gui-script = 图形界面脚本
 resource.type.h = C/C++ 头文件
 resource.type.html = HTML
 resource.type.image = 图像
+resource.type.ini = INI
 resource.type.input-binding = 输入绑定
+resource.type.jar = JAR
+resource.type.java = Java
 resource.type.json = JSON
 resource.type.label = 标签
+resource.type.lib = 库
 resource.type.light = 灯光
 resource.type.lua = Lua 模块
 resource.type.manifest = 配置清单
@@ -1389,8 +1426,11 @@ resource.type.model = 模型
 resource.type.model-scene = 模型场景
 resource.type.objective-c = Objective-C
 resource.type.particlefx = 粒子特效
+resource.type.plist = 属性列表
 resource.type.project = 项目
 resource.type.properties = 属性
+resource.type.proto = Protocol Buffer
+resource.type.py = Python
 resource.type.render = 渲染
 resource.type.render-script = 渲染脚本
 resource.type.render-target = 渲染目标
@@ -1398,6 +1438,7 @@ resource.type.script = 脚本
 resource.type.script-api = 脚本API
 resource.type.settings = 热更新设置
 resource.type.shared-editor-settings = 共享编辑器设置
+resource.type.sh = Shell 脚本
 resource.type.sound = 音效
 resource.type.sprite = 精灵
 resource.type.texture-profiles = 纹理配置
@@ -1405,6 +1446,7 @@ resource.type.tilemap = 瓦片地图
 resource.type.tilesource = 瓦片源
 resource.type.unknown = 未知
 resource.type.vp = 顶点程序
+resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Zig 对象标记
 

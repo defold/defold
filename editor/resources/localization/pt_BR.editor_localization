@@ -343,6 +343,14 @@ notification.fetch-libraries.dependencies-missing.warning = Estão faltando as s
 notification.fetch-libraries.dependencies-error.error = Não foi possível instalar as seguintes dependências\:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Abrir game.project
 
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Abrir game.project
+notification.liveupdate-settings.unavailable.error = Não foi possível abrir as configurações da Atualização Ao Vivo\: {reason}
+notification.shared-editor-settings.unavailable.error = Não foi possível abrir Configurações de Editor Compartilhadas\: {reason}
+notification.ensure-exists.reason.missing = nenhum arquivo de configurações está configurado.
+notification.ensure-exists.reason.folder = o caminho configurado aponta para uma pasta.
+
 # Language server notification
 
 notification.lsp.language-server-missing.prompt = Não é possível executar esta ação porque não há nenhum Servidor de Linguagem em execução para {language}.
@@ -572,6 +580,7 @@ pane.console = Console
 pane.curve-editor = Editor de Curvas
 pane.build-errors = Erros de Compilação
 pane.search-results = Resultados da Busca
+pane.breakpoints = Pontos de Interrupção
 
 # Console
 
@@ -583,6 +592,19 @@ console.search = Buscar
 
 # Breakpoints Tab
 
+breakpoints.button.enable-all = Ativar Todos
+breakpoints.button.disable-all = Desativar Todos
+breakpoints.button.toggle-all = Alternar Todos
+breakpoints.button.remove-all = Remover Todos
+breakpoints.column.enabled = Ativado
+breakpoints.column.line = Linha
+breakpoints.column.name = Nome
+breakpoints.column.condition = Condição
+breakpoints.column.path = Caminho
+breakpoints.context-menu.edit-selected = Editar Condição
+breakpoints.context-menu.remove-selected = Remover Ponto Selecionado
+breakpoints.context-menu.toggle-selected-enabled = Alternar Ponto Selecionado
+breakpoints.context-menu.go-to-line = Ir para Linha
 
 # Changes view
 
@@ -674,6 +696,7 @@ progress.initializing-editor = Inicializando editor {lib}
 progress.loading-editor = Carregando editor
 progress.loading = Carregando
 progress.loading-resource = Carregando {resource}
+progress.processing-resource = Processando {resource}
 progress.resolving-resource = Resolvendo {resource}
 progress.reading-resource = Lendo {resource}
 progress.finalizing = Finalizando…
@@ -889,13 +912,14 @@ command.code.zoom.decrease = Diminuir Tamanho da Fonte
 command.code.zoom.reset = Restaurar o Tamanho da Fonte
 command.debugger.start = Iniciar/Conectar
 command.debugger.continue = Continuar
-command.debugger.break = Quebrar
+command.debugger.break = Pausar
 command.debugger.step-over = Step Over
 command.debugger.step-into = Step Into
 command.debugger.step-out = Step Out
 command.debugger.detach = Desconectar Depurador
 command.debugger.stop = Parar Depurador
 command.debugger.toggle-breakpoint = Alternar Breakpoint
+command.debugger.toggle-breakpoint-enabled = Alternar Ponto Ativado
 command.debugger.edit-breakpoint = Editar Breakpoint
 command.scene.set-manipulator-space = Definir Espaço de Manipulação
 command.scene.set-manipulator-space.option.world = Espaço Global
@@ -975,6 +999,12 @@ override.aspect.generic.kind = {count, plural, one {\# Aspecto} other {\# Aspect
 
 gui.layout.default = Padrão
 
+# UI
+
+ui.combo-box.filter-prompt = Digite para filtrar
+ui.combo-box.no-items = Nenhum item disponível
+ui.combo-box.not-found = Nenhum item encontrado
+
 # Editing operations
 
 operation.atlas.add-animation = Adicionar Animação
@@ -1030,6 +1060,8 @@ property.appmanifest.rig+model = Rig + Modelo
 property.appmanifest.rig+model.tooltip = Rig, Modelo ou nenhum
 property.appmanifest.exclude-record = Excluir Registro
 property.appmanifest.exclude-record.tooltip = Remover os recursos de gravação de vídeo (plataformas desktop)
+property.appmanifest.profiler = Perfilador
+property.appmanifest.profiler.tooltip = Escolha quando conectar com o perfilador
 property.appmanifest.exclude-sound = Excluir Som
 property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de som\: WAV
 property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de som\: OGG
@@ -1360,23 +1392,30 @@ resource.type.cubemap = Cubemap
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
 resource.type.display-profiles = Perfis de Exibição
+resource.type.dylib = Biblioteca Dinâmica
 resource.type.editor-localization = Localização do Editor
 resource.type.editor-script = Script do Editor
 resource.type.factory = Fábrica
 resource.type.font = Fonte
 resource.type.fp = Programa de Fragmento
 resource.type.gamepads = Gamepads
+resource.type.gitignore = .gitignore
 resource.type.glsl = Incluir Shader
 resource.type.go = Objeto de Jogo
 resource.type.go.non-editable = Objeto de Jogo Não Editável
+resource.type.gradle = Script Gradle
 resource.type.gui = GUI
 resource.type.gui-script = Script GUI
 resource.type.h = Cabeçalho C/C++
 resource.type.html = HTML
 resource.type.image = Imagem
+resource.type.ini = INI
 resource.type.input-binding = Mapeamento de entrada
+resource.type.jar = JAR
+resource.type.java = Java
 resource.type.json = JSON
 resource.type.label = Rótulo
+resource.type.lib = Biblioteca
 resource.type.light = Luz
 resource.type.lua = Módulo Lua
 resource.type.manifest = Manifesto
@@ -1387,8 +1426,10 @@ resource.type.model = Modelo
 resource.type.model-scene = Cena do Modelo
 resource.type.objective-c = Objective-C
 resource.type.particlefx = Efeito de Partículas
+resource.type.plist = Lista de Propriedades
 resource.type.project = Projeto
 resource.type.properties = Propriedades
+resource.type.py = Python
 resource.type.render = Renderização
 resource.type.render-script = Script de Renderização
 resource.type.render-target = Alvo de Renderização
@@ -1396,6 +1437,7 @@ resource.type.script = Script
 resource.type.script-api = API de Script
 resource.type.settings = Configurações de Atualização Ao Vivo
 resource.type.shared-editor-settings = Configurações Compartilhadas de Editor
+resource.type.sh = Shell Script
 resource.type.sound = Som
 resource.type.sprite = Sprite
 resource.type.texture-profiles = Perfis de Texturas
@@ -1403,6 +1445,7 @@ resource.type.tilemap = Tile Map
 resource.type.tilesource = Tile Source
 resource.type.unknown = Desconhecido
 resource.type.vp = Programa de Vértices
+resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Notação de Objeto Zig
 
@@ -1712,6 +1755,12 @@ form.help.project.sound.max_component_count = Máximo de componentes de som numa
 form.label.project.sound.stream_enabled = Stream Ativado
 form.help.project.sound.stream_enabled = Ativa streaming de som
 
+form.label.project.sprite = Sprite
+form.help.project.sprite = Configurações de Sprite
+form.label.project.sprite.max_count = Contagem Máxima
+form.help.project.sprite.max_count = Máximo de sprites, 128 por padrão
+form.label.project.sprite.subpixels = Subpixels
+form.help.project.sprite.subpixels = Permitir que os sprites apareçam desalinhados em relação aos pixels
 
 
 form.label.project.box2d = Box2D
@@ -1778,6 +1827,8 @@ form.label.project.network = Rede
 form.help.project.network = Configurações de Rede
 form.label.project.network.http_timeout = Tempo limite HTTP
 form.help.project.network.http_timeout = Tempo limite HTTP em segundos. Zero desabilita o tempo limite
+form.label.project.network.ssl_certificates = Certificados SSL
+form.help.project.network.ssl_certificates = Referência do arquivo PEM dos certificados SSL
 form.label.project.network.http_thread_count = Contar Threads HTTP
 form.help.project.network.http_thread_count = Número de threads de trabalho para o serviço HTTP
 form.label.project.network.http_cache_enabled = Cache HTTP ativado
@@ -1805,6 +1856,8 @@ form.label.project.physics.velocity_threshold = Limite de Velocidade
 form.help.project.physics.velocity_threshold = Velocidade vetorial mínima que resultará em colisões elásticas
 
 form.label.project.profiler = Perfilador
+form.label.project.profiler.track_cpu = Monitorar CPU
+form.help.project.profiler.track_cpu = Ativar amostras de uso de CPU nas compilações de lançamento
 form.label.project.profiler.enabled = Ativado
 form.help.project.profiler.enabled = Ativa o perfil no jogo; chamar profiler.enable() em tempo de execução para habilitar programaticamente
 form.label.project.profiler.performance_timeline_enabled = Timeline de Desempenho
@@ -1836,6 +1889,7 @@ form.help.project.liveupdate.mount_on_start = Habilita auto-montagem de recursos
 
 
 form.label.camera = Câmera
+form.label.camera.fov = Campo de visão (FOV)
 form.label.camera.orthographic-projection = Projeção Ortográfica
 form.label.camera.orthographic-mode = Modo de Zoom Ortográfico
 form.label.camera.orthographic-zoom = Zoom Ortográfico

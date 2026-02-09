@@ -429,6 +429,15 @@ namespace dmGameObject
         hcollection->m_Collection = collection;
         collection->m_Factory = factory;
 
+        // if there exists a collection with the same name and that collection
+        // is to be deleted we immediately delete it so that we can attach the
+        // the new one
+        HCollection existing = GetCollectionByHash(regist, dmHashString64(name));
+        if (existing && existing->m_Collection->m_ToBeDeleted)
+        {
+            DeleteCollection(existing->m_Collection);
+        }
+
         char name_frame[128];
         dmStrlCpy(name_frame, name, sizeof(name_frame));
         dmStrlCat(name_frame, "_frame", sizeof(name_frame));

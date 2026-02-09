@@ -457,7 +457,7 @@ def default_flags(self):
             flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
-        flags += [self.env.DEFINES_ST % 'NDEBUG']
+        self.env.append_value('DEFINES', 'NDEBUG')
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
         if use_cl_exe and f == 'LINKFLAGS':
@@ -477,15 +477,13 @@ def default_flags(self):
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
-       for f in ['CFLAGS', 'CXXFLAGS']:
-           self.env.append_value(f, self.env.DEFINES_ST % "GITHUB_CI")
-           self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
+        self.env.append_value('DEFINES', 'GITHUB_CI')
+        self.env.append_value('DEFINES', 'JC_TEST_USE_COLORS=1')
 
-    for f in ['CFLAGS', 'CXXFLAGS']:
-        if '64' in target_arch:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_64BIT')
-        else:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_32BIT')
+    if '64' in target_arch:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_64BIT')
+    else:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
