@@ -153,14 +153,18 @@
   (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
 
 (defn- update-selection! [app-view swap-state active-resource-node tree-items]
+  ;; `tree-items` is a new selection. This means that, due to a JavaFX bug, some
+  ;; tree items may be nil!
   (set-paste-parent! nil)
   ;; TODO - handle selection order
   (swap-state update :active-node-id->selected-node-id->node-id-paths
               assoc active-resource-node
               (->> tree-items
+                   (e/filter some?)
                    (e/keep #(-> ^TreeItem % .getValue))
                    (util/group-into {} #{} :node-id :node-id-path)))
   (app-view/select! app-view (coll/into-> tree-items []
+                               (filter some?)
                                (keep #(-> ^TreeItem % .getValue :node-id))
                                (distinct))))
 
